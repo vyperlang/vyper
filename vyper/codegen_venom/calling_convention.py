@@ -13,7 +13,9 @@ from vyper.codegen.core import is_tuple_like
 from vyper.exceptions import CodegenPanic
 from vyper.semantics.types import VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.infinity import INF, type_contains_unbounded_sequence
+from vyper.semantics.types.infinity import INF, is_supported_unbounded_tuple_type
+from vyper.semantics.types.infinity import is_unbounded_sequence_type as _is_unbounded_sequence_type
+from vyper.semantics.types.infinity import type_contains_unbounded_sequence
 from vyper.semantics.types.subscriptable import DArrayT, TupleT
 
 # Maximum number of word-type arguments passed via the stack.
@@ -32,7 +34,7 @@ def is_unbounded_dynarray_type(typ: VyperType | None) -> bool:
 
 
 def is_unbounded_sequence_type(typ: VyperType | None) -> bool:
-    return is_unbounded_bytestring_type(typ) or is_unbounded_dynarray_type(typ)
+    return _is_unbounded_sequence_type(typ)
 
 
 def is_dynamic_tuple_return_type(typ: VyperType | None) -> bool:
@@ -48,11 +50,8 @@ def validate_dynamic_tuple_return_type(typ: VyperType | None) -> None:
         return
 
     assert isinstance(typ, TupleT)
-    for member_t in typ.member_types:
-        if type_contains_unbounded_sequence(member_t) and not is_dynamic_tuple_dynamic_member_type(
-            member_t
-        ):
-            raise CodegenPanic("nested INF tuple returns are not implemented")
+    if not is_supported_unbounded_tuple_type(typ):
+        raise CodegenPanic("nested INF tuple returns are not implemented")
 
 
 def is_word_type(typ: VyperType) -> bool:

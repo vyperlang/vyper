@@ -379,6 +379,48 @@ a: HashMap[uint256, HashMap[Bytes[INF], uint256]]
     """,
         StructureException,
     ),
+    # Nested unbounded sequence types are not supported inside tuples.
+    (
+        """
+@external
+def foo(x: (Bytes[INF], uint256)) -> uint256:
+    return x[1]
+    """,
+        StructureException,
+    ),
+    (
+        """
+@external
+def foo(x: Bytes[INF]) -> Bytes[INF]:
+    y: (Bytes[INF], uint256) = (x, 1)
+    return y[0]
+    """,
+        StructureException,
+    ),
+    (
+        """
+@external
+def foo(x: Bytes[INF]) -> ((Bytes[INF],), uint256):
+    return (x,), 1
+    """,
+        StructureException,
+    ),
+    (
+        """
+@external
+def foo(x: Bytes[INF]) -> Bytes[INF]:
+    return abi_encode((x,))
+    """,
+        StructureException,
+    ),
+    (
+        """
+@external
+def foo(x: Bytes[INF]) -> Bytes[INF]:
+    return abi_decode(x, (Bytes[INF],), unwrap_tuple=False)[0]
+    """,
+        StructureException,
+    ),
 ]
 
 

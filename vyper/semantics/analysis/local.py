@@ -70,6 +70,10 @@ from vyper.semantics.types.function import (
     StateMutability,
     is_ellipsis_body,
 )
+from vyper.semantics.types.infinity import (
+    is_unbounded_sequence_type,
+    type_contains_unbounded_sequence,
+)
 from vyper.semantics.types.utils import type_from_annotation
 
 
@@ -473,6 +477,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             )
 
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
+        if type_contains_unbounded_sequence(typ) and not is_unbounded_sequence_type(typ):
+            raise StructureException(
+                "Memory variables cannot contain nested unbounded sequence types", node.annotation
+            )
 
         # validate the value before adding it to the namespace
         self.expr_visitor.visit(node.value, typ)

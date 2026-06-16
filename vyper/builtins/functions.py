@@ -82,7 +82,10 @@ from vyper.semantics.types import (
     is_bounded_length,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.infinity import type_contains_unbounded_sequence
+from vyper.semantics.types.infinity import (
+    is_unbounded_sequence_type,
+    type_contains_unbounded_sequence,
+)
 from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT8_T, UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import (
@@ -2308,6 +2311,13 @@ class ABIEncode(BuiltinFunctionT):
             arg_abi_t = ABI_Tuple(arg_abi_types)
 
         if any(type_contains_unbounded_sequence(t) for t in arg_types):
+            for arg, arg_t in zip(node.args, arg_types):
+                if type_contains_unbounded_sequence(arg_t) and not is_unbounded_sequence_type(
+                    arg_t
+                ):
+                    raise StructureException(
+                        "abi_encode arguments cannot contain nested unbounded sequence types", arg
+                    )
             _reject_legacy_unbounded_sequence_builtin(node)
             return BytesT(INF)
 
@@ -2398,6 +2408,13 @@ class ABIDecode(BuiltinFunctionT):
 
         data_type = get_exact_type_from_node(node.args[0])
         output_type = type_from_annotation(node.args[1])
+        if type_contains_unbounded_sequence(output_type) and not is_unbounded_sequence_type(
+            output_type
+        ):
+            raise StructureException(
+                "abi_decode output type cannot contain nested unbounded sequence types",
+                node.args[1],
+            )
 
         return [data_type, TYPE_T(output_type)]
 

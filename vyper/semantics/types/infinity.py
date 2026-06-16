@@ -39,6 +39,28 @@ def is_bounded_length(_lengthval: LengthUpperBound) -> TypeGuard[int]:
     return _lengthval is not INF and _lengthval is not WILDCARD
 
 
+def is_unbounded_sequence_type(typ) -> bool:
+    """Return True if `typ` is a direct Bytes/String/DynArray with INF length."""
+    if getattr(typ, "_is_bytestring", False):
+        return getattr(typ, "length", None) is INF
+
+    return (
+        getattr(typ, "typeclass", None) == "dynamic_array" and getattr(typ, "length", None) is INF
+    )
+
+
+def is_supported_unbounded_tuple_type(typ) -> bool:
+    """Return True for tuples whose INF members are direct top-level sequences."""
+    if getattr(typ, "typeclass", None) != "tuple":
+        return False
+
+    for member_t in typ.member_types:
+        if type_contains_unbounded_sequence(member_t) and not is_unbounded_sequence_type(member_t):
+            return False
+
+    return True
+
+
 def length_to_json(length: LengthUpperBound) -> int | str:
     """Return a JSON-serializable representation of a length value."""
     if length is INF or length is WILDCARD:
