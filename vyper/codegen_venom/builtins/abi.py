@@ -12,7 +12,11 @@ from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen.core import calculate_type_for_external_return
-from vyper.codegen_venom.abi import abi_decode_to_buf, abi_encode_to_buf
+from vyper.codegen_venom.abi import (
+    abi_decode_to_buf,
+    abi_encode_to_buf,
+    decode_unbounded_dynarray_to_scratch,
+)
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic
@@ -185,28 +189,6 @@ def _decode_unbounded_bytestring_from_abi(
     )
 
 
-def _decode_unbounded_dynarray_from_abi(
-    ctx: VenomCodegenContext, src: IRVariable, hi: IROperand, typ: DArrayT
-) -> VyperValue:
-    if typ.value_type.abi_type.is_dynamic():
-        raise CompilerPanic("DynArray[*, INF] ABI decode needs ABI-static element types")
-
-    b = ctx.builder
-    length = b.mload(src)
-
-    elem_static_size = typ.value_type.abi_type.embedded_static_size()
-    ctx.assert_abi_dynarray_payload_in_bounds(src, length, elem_static_size, hi)
-
-    size = ctx.dynarray_runtime_size_from_length(length, typ)
-    dst = ctx.allocate_scratch(size)
-
-    buf = Buffer(_ptr=src, size=None, annotation="abi_decode_src")
-    ptr = Ptr(operand=src, location=DataLocation.MEMORY, buf=buf)
-    src_vv = VyperValue.from_ptr(ptr, typ)
-    abi_decode_to_buf(ctx, dst, src_vv, hi=hi)
-    return ctx.dynamic_memory_value(dst, typ, annotation="abi_decode")
-
-
 def _decode_unbounded_sequence_from_abi(
     ctx: VenomCodegenContext, src: IRVariable, hi: IROperand, typ: VyperType
 ) -> VyperValue:
@@ -214,7 +196,15 @@ def _decode_unbounded_sequence_from_abi(
         return _decode_unbounded_bytestring_from_abi(ctx, src, hi, typ)
 
     if isinstance(typ, DArrayT) and ctx.is_unbounded_dynarray_type(typ):
-        return _decode_unbounded_dynarray_from_abi(ctx, src, hi, typ)
+        src_vv = VyperValue.from_ptr(
+            Ptr(
+                operand=src,
+                location=DataLocation.MEMORY,
+                buf=Buffer(_ptr=src, size=None, annotation="abi_decode_src"),
+            ),
+            typ,
+        )
+        return decode_unbounded_dynarray_to_scratch(ctx, src_vv, typ, hi, "abi_decode")
 
     raise CompilerPanic(f"expected unbounded sequence type, got {typ}")  # pragma: nocover
 

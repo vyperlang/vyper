@@ -19,13 +19,16 @@ from typing import Optional
 import vyper.ast as vy_ast
 from vyper.codegen import jumptable_utils
 from vyper.codegen.function_definitions.common import EntryPointInfo, _FuncIRInfo
-from vyper.codegen_venom.abi.abi_decoder import abi_decode_to_buf
+from vyper.codegen_venom.abi.abi_decoder import (
+    abi_decode_to_buf,
+    decode_unbounded_dynarray_to_scratch,
+)
 from vyper.codegen_venom.buffer import Ptr
 from vyper.codegen_venom.constants import SELECTOR_BYTES, SELECTOR_SHIFT_BITS
 from vyper.codegen_venom.value import VyperValue
 from vyper.compiler.settings import Settings, _opt_codesize, _opt_none
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import CodegenPanic, CompilerPanic
+from vyper.exceptions import CompilerPanic
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import TupleT, VyperType
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
@@ -1096,19 +1099,8 @@ def _materialize_unbounded_dynarray_abi_arg(
     assert ctx.is_unbounded_dynarray_type(typ)
     assert src.location is not None, "src must have a location for ABI decoding"
 
-    if typ.value_type.abi_type.is_dynamic():
-        raise CodegenPanic("DynArray[*, INF] ABI args need ABI-static element types")
-
-    length = ctx.builder.load(src.operand, src.location)
     hi = _abi_arg_hi(ctx, src.location)
-    if hi is not None:
-        elem_static_size = typ.value_type.abi_type.embedded_static_size()
-        ctx.assert_abi_dynarray_payload_in_bounds(src.operand, length, elem_static_size, hi)
-
-    size = ctx.dynarray_runtime_size_from_length(length, typ)
-    ptr = ctx.allocate_scratch(size)
-    abi_decode_to_buf(ctx, ptr, src, hi=hi)
-    return ctx.dynamic_memory_value(ptr, typ, annotation=name)
+    return decode_unbounded_dynarray_to_scratch(ctx, src, typ, hi, name)
 
 
 def _materialize_unbounded_sequence_abi_arg(

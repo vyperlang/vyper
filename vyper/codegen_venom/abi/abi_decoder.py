@@ -282,6 +282,25 @@ def _decode_bytestring(
     ctx.builder.copy_to_memory(dst, src.operand, copy_size, src.location)
 
 
+def decode_unbounded_dynarray_to_scratch(
+    ctx: VenomCodegenContext, src: VyperValue, typ: DArrayT, hi: IROperand | None, annotation: str
+) -> VyperValue:
+    assert src.location is not None, "src must have a location for ABI decoding"
+    assert ctx.is_unbounded_dynarray_type(typ)
+
+    if typ.value_type.abi_type.is_dynamic():
+        raise CompilerPanic("DynArray[*, INF] ABI decode needs ABI-static element types")
+
+    length = ctx.builder.load(src.operand, src.location)
+    if hi is not None:
+        elem_static_size = typ.value_type.abi_type.embedded_static_size()
+        ctx.assert_abi_dynarray_payload_in_bounds(src.operand, length, elem_static_size, hi)
+
+    dst = ctx.allocate_scratch(ctx.dynarray_runtime_size_from_length(length, typ))
+    abi_decode_to_buf(ctx, dst, src, hi=hi)
+    return ctx.dynamic_memory_value(dst, typ, annotation=annotation)
+
+
 def _decode_dyn_array(
     ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, typ: DArrayT, hi: IROperand = None
 ) -> None:

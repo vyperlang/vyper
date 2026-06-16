@@ -51,7 +51,7 @@ from vyper.semantics.types.user import FlagT, StructT
 from vyper.utils import DECIMAL_DIVISOR, keccak256
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 
-from .abi import abi_decode_to_buf, abi_encode_to_buf
+from .abi import abi_decode_to_buf, abi_encode_to_buf, decode_unbounded_dynarray_to_scratch
 from .buffer import Buffer, Ptr
 from .builtins.abi import _abi_encode_values_to_buf, _runtime_abi_size_for_encode
 from .calling_convention import pass_via_stack, returns_dynamic_count, returns_stack_count
@@ -2134,27 +2134,19 @@ class Expr:
         length_word_in_bounds = b.iszero(b.gt(length_word_end, hi))
         b.assert_(length_word_in_bounds)
 
-        length = b.mload(src)
         if self.ctx.is_unbounded_bytestring_type(return_t):
+            length = b.mload(src)
             self.ctx.assert_abi_bytes_payload_in_bounds(src, length, hi)
             data_start = b.add(src, IRLiteral(32))
             return self.ctx.materialize_bytes_from_location(
                 data_start, length, return_t, DataLocation.MEMORY, annotation="external call return"
             )
-        else:
-            assert isinstance(return_t, DArrayT)
-            if return_t.value_type.abi_type.is_dynamic():
-                raise CodegenPanic(
-                    "DynArray[*, INF] external returns need ABI-static element types"
-                )
-            elem_static_size = return_t.value_type.abi_type.embedded_static_size()
-            self.ctx.assert_abi_dynarray_payload_in_bounds(src, length, elem_static_size, hi)
-            size = self.ctx.dynarray_runtime_size_from_length(length, return_t)
 
-        dst = self.ctx.allocate_scratch(size)
+        assert isinstance(return_t, DArrayT)
         src_vv = self._make_ptr_value(src, DataLocation.MEMORY, return_t)
-        abi_decode_to_buf(self.ctx, dst, src_vv, hi=hi)
-        return self.ctx.dynamic_memory_value(dst, return_t, annotation="external call return")
+        return decode_unbounded_dynarray_to_scratch(
+            self.ctx, src_vv, return_t, hi, "external call return"
+        )
 
     def _copy_and_decode_unbounded_external_call_return(
         self, return_t: VyperType, returndata_size: IROperand
