@@ -611,6 +611,23 @@ def test_cse_different_params():
     _check_no_change(pre)
 
 
+def test_cse_multi_output_invoke_effects():
+    """
+    A multi-output (tuple-returning) invoke has write effects like any
+    other invoke; an sload before the invoke must not be forwarded to
+    an sload after it, since the callee may write the same slot.
+    """
+    pre = """
+    main:
+        %1 = sload 0
+        %a, %b = invoke @f
+        %2 = sload 0
+        sink %1, %2, %a, %b
+    """
+
+    _check_no_change(pre, hevm=False)
+
+
 def test_cse_dalloca_not_merged():
     # two identical `dalloca`s are distinct dynamic allocations and
     # must not be merged by CSE
