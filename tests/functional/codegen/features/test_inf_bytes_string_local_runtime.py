@@ -524,6 +524,37 @@ def get(addr: address, x: Bytes[INF]) -> (uint256, Bytes[INF]):
     assert abi_decode("(uint256,bytes)", ret) == (43, payload)
 
 
+def test_inf_bytes_string_staticcall_tuple_multi_dynamic_return(env):
+    payload = bytes((i * 49) % 256 for i in range(2001))
+    text = "external tuple " * 170 + "tail"
+    target_code = """
+@external
+@view
+def mix(x: Bytes[INF], y: String[INF]) -> (Bytes[INF], uint256, String[INF]):
+    return x, 53, y
+    """
+
+    caller_code = """
+interface Source:
+    def mix(x: Bytes[INF], y: String[INF]) -> (Bytes[INF], uint256, String[INF]): view
+
+@external
+def get(addr: address, x: Bytes[INF], y: String[INF]) -> (Bytes[INF], uint256, String[INF]):
+    return staticcall Source(addr).mix(x, y)
+    """
+
+    target = _deploy_venom(env, target_code)
+    caller = _deploy_venom(env, caller_code)
+    ret = _call(
+        env,
+        caller,
+        "get(address,bytes,string)",
+        "(address,bytes,string)",
+        (target.address, payload, text),
+    )
+    assert abi_decode("(bytes,uint256,string)", ret) == (payload, 53, text)
+
+
 def test_inf_bytes_staticcall_inf_arg_with_static_args(env):
     code = """
 @external
