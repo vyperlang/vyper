@@ -179,14 +179,10 @@ def _decode_unbounded_bytestring_from_abi(
     length = b.mload(src)
     ctx.assert_abi_bytes_payload_in_bounds(src, length, hi)
 
-    size = ctx.bytestring_runtime_size_from_length(length)
-    dst = ctx.allocate_scratch(size)
-    b.mstore(dst, length)
-    ctx.zero_bytestring_padding(dst, length)
     data_start = b.add(src, IRLiteral(32))
-    data_dst = b.add(dst, IRLiteral(32))
-    ctx.copy_memory_dynamic(data_dst, data_start, length)
-    return ctx.dynamic_memory_value(dst, typ, annotation="abi_decode")
+    return ctx.materialize_bytes_from_location(
+        data_start, length, typ, DataLocation.MEMORY, annotation="abi_decode"
+    )
 
 
 def _decode_unbounded_dynarray_from_abi(

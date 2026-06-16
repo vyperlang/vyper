@@ -2137,7 +2137,10 @@ class Expr:
         length = b.mload(src)
         if self.ctx.is_unbounded_bytestring_type(return_t):
             self.ctx.assert_abi_bytes_payload_in_bounds(src, length, hi)
-            size = self.ctx.bytestring_runtime_size_from_length(length)
+            data_start = b.add(src, IRLiteral(32))
+            return self.ctx.materialize_bytes_from_location(
+                data_start, length, return_t, DataLocation.MEMORY, annotation="external call return"
+            )
         else:
             assert isinstance(return_t, DArrayT)
             if return_t.value_type.abi_type.is_dynamic():
@@ -2149,15 +2152,8 @@ class Expr:
             size = self.ctx.dynarray_runtime_size_from_length(length, return_t)
 
         dst = self.ctx.allocate_scratch(size)
-        if self.ctx.is_unbounded_bytestring_type(return_t):
-            b.mstore(dst, length)
-            self.ctx.zero_bytestring_padding(dst, length)
-            src_data = b.add(src, IRLiteral(32))
-            dst_data = b.add(dst, IRLiteral(32))
-            self.ctx.copy_memory_dynamic(dst_data, src_data, length)
-        else:
-            src_vv = self._make_ptr_value(src, DataLocation.MEMORY, return_t)
-            abi_decode_to_buf(self.ctx, dst, src_vv, hi=hi)
+        src_vv = self._make_ptr_value(src, DataLocation.MEMORY, return_t)
+        abi_decode_to_buf(self.ctx, dst, src_vv, hi=hi)
         return self.ctx.dynamic_memory_value(dst, return_t, annotation="external call return")
 
     def _copy_and_decode_unbounded_external_call_return(
