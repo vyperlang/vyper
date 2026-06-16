@@ -624,7 +624,7 @@ def test_cse_multi_output_invoke_effects():
         %2 = sload 0
         sink %1, %2, %a, %b
     """
-    
+
     _check_no_change(pre, hevm=False)
 
 
