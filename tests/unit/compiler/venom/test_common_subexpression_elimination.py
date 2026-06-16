@@ -599,25 +599,11 @@ def test_cse_multi_output_invoke_effects():
     an sload after it, since the callee may write the same slot.
     """
     pre = """
-    function main {
     main:
         %1 = sload 0
         %a, %b = invoke @f
         %2 = sload 0
         sink %1, %2, %a, %b
-    }
-
-    function f {
-    f:
-        %retpc = param
-        sstore 0, 1
-        ret 1, 2, %retpc
-    }
     """
 
-    ctx = parse_venom(pre)
-    for fn in ctx.functions.values():
-        ac = IRAnalysesCache(fn)
-        CSE(ac, fn).run_pass()
-
-    assert_ctx_eq(ctx, parse_venom(pre))
+    _check_no_change(pre, hevm=False)
