@@ -1038,3 +1038,22 @@ def foo() -> uint256:
     c = get_contract(code)
 
     assert c.foo() == 42
+
+
+def test_nonreentrant_internal_explicit_return(get_contract):
+    # the lock must be released on explicit-return exits,
+    # not just on fall-through
+    code = """
+@internal
+@nonreentrant
+def _double(u: uint256) -> uint256:
+    return u * 2
+
+@external
+def foo(u: uint256) -> uint256:
+    a: uint256 = self._double(u)
+    b: uint256 = self._double(a)
+    return b
+    """
+    c = get_contract(code)
+    assert c.foo(3) == 12

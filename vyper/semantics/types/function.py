@@ -39,7 +39,7 @@ from vyper.semantics.types.bytestrings import BytesT
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
-from vyper.semantics.types.user import EventT
+from vyper.semantics.types.user import ErrorT, EventT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import OrderedSet, keccak256
 from vyper.warnings import Deprecation, vyper_warn
@@ -159,6 +159,9 @@ class ContractFunctionT(VyperType):
         # events emitted by this function (populated during analysis)
         self._emitted_events: OrderedSet[EventT] = OrderedSet()
 
+        # errors raised by this function (populated during analysis)
+        self._raised_errors: OrderedSet[ErrorT] = OrderedSet()
+
         # to be populated during codegen
         self._ir_info: Any = None
         self._function_id: Optional[int] = None
@@ -230,6 +233,12 @@ class ContractFunctionT(VyperType):
 
     def mark_emitted_event(self, event: EventT):
         self._emitted_events.add(event)
+
+    def get_raised_errors(self):
+        return self._raised_errors
+
+    def mark_raised_error(self, error: ErrorT):
+        self._raised_errors.add(error)
 
     def mark_variable_writes(self, var_infos):
         self._variable_writes.update(var_infos)
