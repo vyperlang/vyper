@@ -1519,6 +1519,22 @@ def foo() -> (uint256, uint256):
     assert abi_decode("(uint256,uint256)", _call(env, c, "foo()")) == (0, 0)
 
 
+def test_empty_inf_bytes_and_string_builtin(env):
+    code = """
+@external
+def foo() -> Bytes[INF]:
+    return empty(Bytes[INF])
+
+@external
+def bar() -> String[INF]:
+    return empty(String[INF])
+    """
+
+    c = _deploy_venom(env, code)
+    assert abi_decode("(bytes)", _call(env, c, "foo()")) == (b"",)
+    assert abi_decode("(string)", _call(env, c, "bar()")) == ("",)
+
+
 def test_inf_bytes_local_reassignment_larger_and_smaller(env):
     code = """
 @external

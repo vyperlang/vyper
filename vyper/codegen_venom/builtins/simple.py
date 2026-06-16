@@ -56,6 +56,10 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
 
     if typ._is_prim_word:
         return IRLiteral(0)
+    if ctx.is_unbounded_sequence_type(typ):
+        ptr = ctx.allocate_scratch(IRLiteral(32))
+        ctx.builder.mstore(ptr, IRLiteral(0))
+        return ctx.dynamic_memory_value(ptr, typ, annotation="empty")
     else:
         # Allocate memory buffer
         val = ctx.new_temporary_value(typ)

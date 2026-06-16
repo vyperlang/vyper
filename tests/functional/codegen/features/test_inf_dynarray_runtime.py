@@ -68,6 +68,17 @@ def foo() -> DynArray[uint256, INF]:
     assert abi_decode("(uint256[])", _call(env, c, "foo()")) == ([11, 22, 33],)
 
 
+def test_empty_inf_dynarray_builtin(env):
+    code = """
+@external
+def foo() -> DynArray[uint256, INF]:
+    return empty(DynArray[uint256, INF])
+    """
+
+    c = _deploy_venom(env, code)
+    assert abi_decode("(uint256[])", _call(env, c, "foo()")) == ([],)
+
+
 def test_inf_dynarray_external_param_roundtrip(env):
     code = """
 @external
