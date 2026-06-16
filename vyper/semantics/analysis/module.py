@@ -203,8 +203,45 @@ def _extract_init_call(node: vy_ast.Call) -> ModuleInfo | None:
     return node.func.value._expr_info.module_info  # type: ignore
 
 
+def _validate_init_return(
+    modules_to_initialize: list[ModuleInfo],
+    constructor: ContractFunctionT | None,
+    init_calls_by_module: dict[ModuleInfo, list[vy_ast.VyperNode]],
+) -> None:
+    """
+    Checks that the correct modules have their init called when returning from the constructor
+    """
+    # grab the init function AST node for error message
+    # (it could be None, it's ok since it's just for diagnostics)
+    init_func_node = constructor.decl_node if constructor is not None else None
+
+    err_list = ExceptionList()
+    for module_info in modules_to_initialize:
+        init_calls = init_calls_by_module.get(module_info, [])
+        if len(init_calls) == 0:
+            msg = "not initialized!"
+            hint = f"add `{module_info.alias}.__init__()` to "
+            hint += "your `__init__()` function"
+
+            err_list.append(
+                InitializerException(msg, init_func_node, module_info.ownership_decl, hint=hint)
+            )
+    err_list.raise_if_not_empty()
+
+    for module_info in init_calls_by_module:
+        if module_info not in modules_to_initialize:
+            msg = f"tried to initialize `{module_info.alias}`, "
+            msg += "but it is not in initializer list!"
+            hint = f"add `initializes: {module_info.alias}` "
+            hint += "as a top-level statement to your contract"
+            raise InitializerException(msg, *init_calls_by_module[module_info], hint=hint)
+
+
 def _validate_init_calls(
-    block: list[vy_ast.VyperNode], init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]]
+    block: list[vy_ast.VyperNode],
+    modules_to_initialize: list[ModuleInfo],
+    constructor: ContractFunctionT | None,
+    init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]],
 ) -> dict[ModuleInfo, list[vy_ast.VyperNode]] | None:
     """
     Check a block for wether it calls all required __init__() methods, and in the right order.
@@ -213,8 +250,15 @@ def _validate_init_calls(
     we count it as initializing whatever the other branch also initialized.
 
     Args:
-        block: the current block, a list of nodes to analyze
-        init_calls: a dict from:
+        block:
+            the current block, a list of nodes to analyze
+        modules_to_initialize:
+            list of the modules the current module `initializes:` and which have a constructor
+            Should only be used by _validate_init_return
+        constructor:
+            the constructor of the current module, should only be used by _validate_init_return
+        init_calls:
+            a dict from:
             * Modules which need to be initialized, to
             * Nodes in the containing scope which initialize it
                 (There can be more than one because of branching)
@@ -236,9 +280,17 @@ def _validate_init_calls(
             # If we raise, return the wildcard
             return None
 
+        elif isinstance(node, vy_ast.Return):
+            _validate_init_return(modules_to_initialize, constructor, init_calls)
+            return None
+
         elif isinstance(node, vy_ast.If):
-            then_nodes = _validate_init_calls(node.body, init_calls)
-            else_nodes = _validate_init_calls(node.orelse, init_calls)
+            then_nodes = _validate_init_calls(
+                node.body, modules_to_initialize, constructor, init_calls
+            )
+            else_nodes = _validate_init_calls(
+                node.orelse, modules_to_initialize, constructor, init_calls
+            )
 
             if then_nodes is None and else_nodes is None:
                 # Both branches revert, the block as a whole reverts
@@ -277,9 +329,11 @@ def _validate_init_calls(
                     local_init_calls[module_info] += both_branches
 
         elif isinstance(node, vy_ast.For):
-            loop_nodes = _validate_init_calls(node.body, init_calls)
+            loop_nodes = _validate_init_calls(
+                node.body, modules_to_initialize, constructor, init_calls
+            )
             if loop_nodes is None:
-                # Raise in the body of loop is not necessarily reachable
+                # raise/return in the body of loop is not necessarily reachable
                 continue
             for module_info in loop_nodes:
                 if len(loop_nodes[module_info]) != 0:
@@ -357,39 +411,19 @@ def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) 
 
     if constructor is not None:
         assert isinstance(constructor.ast_def, vy_ast.FunctionDef)  # help mypy
-        init_calls_by_module = _validate_init_calls(constructor.ast_def.body, defaultdict(list))
 
-        if init_calls_by_module is None:
-            # __init__ always reverts, maybe we should throw an error ?
-            init_calls_by_module = {}
+        body = constructor.ast_def.body
     else:
-        init_calls_by_module = {}
+        body = []
 
-    err_list = ExceptionList()
-    for module_info in modules_to_initialize:
-        init_calls = init_calls_by_module.get(module_info, [])
-        if len(init_calls) == 0:
-            msg = "not initialized!"
-            hint = f"add `{module_info.alias}.__init__()` to "
-            hint += "your `__init__()` function"
+    init_calls_by_module = _validate_init_calls(
+        body, modules_to_initialize, constructor, defaultdict(list)
+    )
 
-            # grab the init function AST node for error message
-            # (it could be None, it's ok since it's just for diagnostics)
-            init_func_node = None
-            if constructor is not None:
-                init_func_node = constructor.decl_node
-            err_list.append(
-                InitializerException(msg, init_func_node, module_info.ownership_decl, hint=hint)
-            )
-    err_list.raise_if_not_empty()
-
-    for module_info in init_calls_by_module:
-        if module_info not in modules_to_initialize:
-            msg = f"tried to initialize `{module_info.alias}`, "
-            msg += "but it is not in initializer list!"
-            hint = f"add `initializes: {module_info.alias}` "
-            hint += "as a top-level statement to your contract"
-            raise InitializerException(msg, *init_calls_by_module[module_info], hint=hint)
+    # is None when body ends in a revert or return (also considers branches, so if it ends with an
+    # if where both branches return, it will also be none)
+    if init_calls_by_module is not None:
+        _validate_init_return(modules_to_initialize, constructor, init_calls_by_module)
 
 
 def _validate_exports_uses(module_ast: vy_ast.Module, module_t: ModuleT) -> None:

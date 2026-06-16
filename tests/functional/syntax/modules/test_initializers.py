@@ -2342,9 +2342,7 @@ def __init__(cond: bool):
         raise "still nope"
     """
     input_bundle = make_input_bundle({"lib1.vy": _LIB1})
-    with pytest.raises(InitializerException) as e:
-        compile_code(main, input_bundle=input_bundle)
-    assert e.value._message == "not initialized!"
+    assert compile_code(main, input_bundle=input_bundle) is not None
 
 
 def test_init_then_raise_in_one_branch(make_input_bundle):
@@ -2396,9 +2394,7 @@ def __init__():
     raise "nope"
     """
     input_bundle = make_input_bundle({"lib1.vy": _LIB1})
-    with pytest.raises(InitializerException) as e:
-        compile_code(main, input_bundle=input_bundle)
-    assert e.value._message == "not initialized!"
+    assert compile_code(main, input_bundle=input_bundle) is not None
 
 
 def test_init_body_only_raise_no_initializers(make_input_bundle):
@@ -2540,3 +2536,282 @@ def __init__(cond: bool):
         compile_code(main, input_bundle=input_bundle)
     assert "not guaranteed to be reachable" in e.value._message
     assert "present only in a single branch of an if" in e.value._message
+
+
+def test_return_at_end_after_init(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__():
+    lib1.__init__()
+    return
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_bare_return_no_initializers(make_input_bundle):
+    main = """
+@deploy
+def __init__():
+    return
+    """
+    assert compile_code(main) is not None
+
+
+def test_return_before_required_init(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__():
+    return
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "not initialized!"
+
+
+def test_init_after_return_is_dead(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__():
+    return
+    lib1.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    with pytest.raises(StructureException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "Unreachable code!"
+
+
+def test_return_in_then_after_init_else_inits(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__(cond: bool):
+    if cond:
+        lib1.__init__()
+        return
+    else:
+        lib1.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_return_in_then_without_init_else_inits(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__(cond: bool):
+    if cond:
+        return
+    else:
+        lib1.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "not initialized!"
+
+
+def test_both_branches_return_after_init(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__(cond: bool):
+    if cond:
+        lib1.__init__()
+        return
+    else:
+        lib1.__init__()
+        return
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_both_branches_return_without_init(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__(cond: bool):
+    if cond:
+        return
+    else:
+        return
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "not initialized!"
+
+
+def test_return_after_if_validates_total(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__(cond: bool):
+    if cond:
+        lib1.__init__()
+    else:
+        lib1.__init__()
+    return
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_nested_if_return_in_inner_branch_without_init(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__(cond1: bool, cond2: bool):
+    if cond1:
+        if cond2:
+            return
+        else:
+            lib1.__init__()
+    else:
+        lib1.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "not initialized!"
+
+
+def test_return_in_for_body_no_initializers(make_input_bundle):
+    main = """
+@deploy
+def __init__():
+    for i: uint256 in range(10):
+        return
+    """
+    assert compile_code(main) is not None
+
+
+def test_return_in_for_body_required_init_missing(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__():
+    for i: uint256 in range(10):
+        return
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "not initialized!"
+
+
+def test_return_and_init_in_for_body(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__():
+    for i: uint256 in range(10):
+        lib1.__init__()
+        return
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "not initialized!"
+
+
+def test_init_then_for_loop_with_return(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__():
+    lib1.__init__()
+    for i: uint256 in range(10):
+        return
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_return_after_dependent_before_dependency(make_input_bundle):
+    main = """
+import lib1
+import lib2
+
+initializes: lib2[lib1 := lib1]
+initializes: lib1
+
+@deploy
+def __init__():
+    lib2.__init__()
+    return
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1, "lib2.vy": _LIB2_USES_LIB1})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    msg = (
+        "tried to initialize `lib2`, but it depends on the following modules "
+        "which have not been initialized: lib1"
+    )
+    assert e.value._message == msg
+
+
+def test_return_in_branch_with_correct_dep_order(make_input_bundle):
+    main = """
+import lib1
+import lib2
+
+initializes: lib1
+initializes: lib2[lib1 := lib1]
+
+@deploy
+def __init__(cond: bool):
+    if cond:
+        lib1.__init__()
+        lib2.__init__()
+        return
+    else:
+        lib1.__init__()
+        lib2.__init__()
+        return
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1, "lib2.vy": _LIB2_USES_LIB1})
+    assert compile_code(main, input_bundle=input_bundle) is not None
