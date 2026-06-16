@@ -22,13 +22,24 @@ from vyper.venom.effects import Effects
 
 SYS_EFFECTS = effects.LOG | effects.BALANCE | effects.EXTCODE
 
+# Effects whose writers are never idempotent. FMP writes (`setfmp`,
+# `dalloca`, `bump`) mark allocation identity: two such instructions with
+# *identical* operands still denote distinct allocations / FMP states and
+# must not be merged by CSE. `getfmp` only reads the FMP, so it is excluded
+# here (two getfmps with no intervening FMP write may merge -- the FMP
+# effect row blocks merging across FMP writes).
+_NONIDEMPOTENT_EFFECTS = SYS_EFFECTS | effects.FMP
+
 _nonidempotent_insts = []
 for opcode, eff in effects.writes.items():
-    if eff & SYS_EFFECTS != effects.EMPTY:
+    if eff & _NONIDEMPOTENT_EFFECTS != effects.EMPTY:
         _nonidempotent_insts.append(opcode)
 # staticcall doesn't have external effects, but it is not idempotent since
 # it can depend on gas
 _nonidempotent_insts.append("staticcall")
+# gas returns the remaining gas, which decreases as execution proceeds,
+# so two reads in the same call are not equivalent
+_nonidempotent_insts.append("gas")
 
 NONIDEMPOTENT_INSTRUCTIONS = frozenset(_nonidempotent_insts)
 
@@ -321,7 +332,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
             return op
         if inst.opcode == "assign":
             return self._get_operand(inst.operands[0], available_exprs)
-        if inst.opcode == "param":
+        if inst.is_param:
             return op
         # source is a magic opcode for tests
         if inst.opcode == "source":
