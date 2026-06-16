@@ -231,8 +231,6 @@ class Convert(BuiltinFunctionT):
             hint = "remove convert()"
             raise InvalidType(f"Already a '{target_type}' !", node, hint=hint)
 
-        if isinstance(value_type, _BytestringT) and not is_bounded_length(value_type.maxlen):
-            raise CodegenPanic("convert not yet implemented for unbounded sequence type")
         if isinstance(value_type, DArrayT) and not is_bounded_length(value_type.count):
             raise CodegenPanic("convert not yet implemented for unbounded sequence type")
 

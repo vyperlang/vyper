@@ -423,6 +423,16 @@ def foo(x: Bytes[INF]) -> Bytes[INF]:
     ),
     (
         """
+C: constant(((Bytes[INF],), uint256)) = ((b"abc",), 1)
+
+@external
+def foo() -> Bytes[INF]:
+    return C[0][0]
+    """,
+        StructureException,
+    ),
+    (
+        """
 interface I:
     def foo(x: (Bytes[INF], uint256)) -> uint256: view
     """,
@@ -479,6 +489,28 @@ def foo(target: address, x: Bytes[INF]) -> address:
 def test_inf_legacy_builtin_gates(code):
     with pytest.raises(StructureException):
         compiler.compile_code(code, settings=Settings(experimental_codegen=False))
+
+
+def test_inf_constants_compile():
+    settings = Settings(experimental_codegen=True)
+    code = """
+C1: constant(Bytes[INF]) = b"abc"
+C2: constant(DynArray[uint256, INF]) = [1, 2, 3]
+C3: constant((uint256, Bytes[INF])) = (1, b"abc")
+
+@external
+def bytes_value() -> Bytes[INF]:
+    return C1
+
+@external
+def dynarray_value() -> DynArray[uint256, INF]:
+    return C2
+
+@external
+def tuple_value() -> (uint256, Bytes[INF]):
+    return C3
+    """
+    compiler.compile_code(code, settings=settings)
 
 
 def _compile_inf_bytestring_code(code, experimental_codegen):

@@ -79,6 +79,42 @@ def foo() -> DynArray[uint256, INF]:
     assert abi_decode("(uint256[])", _call(env, c, "foo()")) == ([],)
 
 
+def test_inf_dynarray_composite_static_elements(env):
+    code = """
+struct S:
+    a: uint256
+    b: bytes32
+
+@external
+def static_arrays(x: DynArray[uint256[2], INF]) -> (uint256, DynArray[uint256[2], INF]):
+    y: DynArray[uint256[2], INF] = x
+    y.append([5, 6])
+    total: uint256 = 0
+    for item: uint256[2] in y:
+        total += item[0] + item[1]
+    return total, y
+
+@external
+def structs(x: DynArray[S, INF]) -> (uint256, DynArray[S, INF]):
+    y: DynArray[S, INF] = x
+    y.append(S(a=5, b=0x0505050505050505050505050505050505050505050505050505050505050505))
+    total: uint256 = 0
+    for item: S in y:
+        total += item.a
+    return total, y
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "static_arrays(uint256[2][])", "(uint256[2][])", ([(1, 2), (3, 4)],))
+    assert abi_decode("(uint256,uint256[2][])", ret) == (21, [[1, 2], [3, 4], [5, 6]])
+
+    first = (1, bytes.fromhex("01" * 32))
+    second = (3, bytes.fromhex("03" * 32))
+    appended = (5, bytes.fromhex("05" * 32))
+    ret = _call(env, c, "structs((uint256,bytes32)[])", "((uint256,bytes32)[])", ([first, second],))
+    assert abi_decode("(uint256,(uint256,bytes32)[])", ret) == (9, [first, second, appended])
+
+
 def test_inf_dynarray_external_param_roundtrip(env):
     code = """
 @external

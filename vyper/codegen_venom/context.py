@@ -207,7 +207,11 @@ class VenomCodegenContext:
     def dynamic_tuple_frame_value(
         self, ptr: IRVariable, typ: TupleT, annotation: Optional[str] = None
     ) -> VyperValue:
-        """Wrap a Venom-only dynamic tuple return frame as a memory value."""
+        """Wrap a Venom-only dynamic tuple return frame as a memory value.
+
+        This is not ABI/memory tuple layout. Each 32-byte cell stores either a
+        primitive word value or a pointer to a runtime-sized sequence member.
+        """
         assert self.is_dynamic_tuple_frame_type(typ)
         return self.dynamic_memory_value(ptr, typ, annotation=annotation)
 

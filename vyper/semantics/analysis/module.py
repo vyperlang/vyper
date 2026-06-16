@@ -59,7 +59,11 @@ from vyper.semantics.types import (
     is_type_t,
 )
 from vyper.semantics.types.function import ContractFunctionT, KeywordArg, _FunctionArg
-from vyper.semantics.types.infinity import type_contains_unbounded_sequence
+from vyper.semantics.types.infinity import (
+    is_supported_unbounded_tuple_type,
+    is_unbounded_sequence_type,
+    type_contains_unbounded_sequence,
+)
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import OrderedSet
@@ -807,6 +811,16 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         )
 
         type_ = type_from_annotation(node.annotation, location)
+        if (
+            node.is_constant
+            and type_contains_unbounded_sequence(type_)
+            and not is_unbounded_sequence_type(type_)
+            and not is_supported_unbounded_tuple_type(type_)
+        ):
+            raise StructureException(
+                "Constants cannot contain nested unbounded sequence types", node.annotation
+            )
+
         if type_contains_unbounded_sequence(type_) and location in (
             DataLocation.STORAGE,
             DataLocation.TRANSIENT,

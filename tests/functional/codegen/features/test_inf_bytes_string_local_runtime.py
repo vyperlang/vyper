@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 from tests.evm_backends.abi import abi_decode, abi_encode
@@ -997,7 +998,7 @@ def local(x: uint256) -> String[INF]:
     assert abi_decode("(string)", ret) == ("0",)
 
 
-def test_inf_bytes_string_cross_convert(env):
+def test_inf_bytes_string_cross_convert(env, tx_failed):
     code = """
 @external
 def to_bytes(x: String[10]) -> Bytes[INF]:
@@ -1007,6 +1008,22 @@ def to_bytes(x: String[10]) -> Bytes[INF]:
 def to_string(x: Bytes[10]) -> String[INF]:
     y: String[INF] = convert(x, String[INF])
     return y
+
+@external
+def bytes_to_bounded(x: Bytes[INF]) -> Bytes[5]:
+    return convert(x, Bytes[5])
+
+@external
+def string_to_bounded(x: String[INF]) -> String[5]:
+    return convert(x, String[5])
+
+@external
+def bytes_to_string_bounded(x: Bytes[INF]) -> String[5]:
+    return convert(x, String[5])
+
+@external
+def string_to_bytes_bounded(x: String[INF]) -> Bytes[5]:
+    return convert(x, Bytes[5])
     """
 
     c = _deploy_venom(env, code)
@@ -1014,6 +1031,19 @@ def to_string(x: Bytes[10]) -> String[INF]:
     assert abi_decode("(bytes)", ret) == (b"hello",)
     ret = _call(env, c, "to_string(bytes)", "(bytes)", (b"world",))
     assert abi_decode("(string)", ret) == ("world",)
+    ret = _call(env, c, "bytes_to_bounded(bytes)", "(bytes)", (b"abcde",))
+    assert abi_decode("(bytes)", ret) == (b"abcde",)
+    ret = _call(env, c, "string_to_bounded(string)", "(string)", ("abcde",))
+    assert abi_decode("(string)", ret) == ("abcde",)
+    ret = _call(env, c, "bytes_to_string_bounded(bytes)", "(bytes)", (b"abcde",))
+    assert abi_decode("(string)", ret) == ("abcde",)
+    ret = _call(env, c, "string_to_bytes_bounded(string)", "(string)", ("abcde",))
+    assert abi_decode("(bytes)", ret) == (b"abcde",)
+
+    with tx_failed():
+        _call(env, c, "bytes_to_bounded(bytes)", "(bytes)", (b"abcdef",))
+    with tx_failed():
+        _call(env, c, "string_to_bounded(string)", "(string)", ("abcdef",))
 
 
 def test_inf_bytes_string_print(env):
@@ -1031,6 +1061,52 @@ def log_values(x: Bytes[INF], y: String[INF]) -> (uint256, uint256):
     c = _deploy_venom(env, code)
     ret = _call(env, c, "log_values(bytes,string)", "(bytes,string)", (payload, text))
     assert abi_decode("(uint256,uint256)", ret) == (len(payload), len(text))
+
+
+def test_inf_bytes_string_misc_builtins(env, tx_failed):
+    code = """
+@external
+def hash_values(x: Bytes[INF], y: String[INF]) -> (bytes32, bytes32):
+    return sha256(x), sha256(y)
+
+@external
+def word_at(x: Bytes[INF], start: uint256) -> bytes32:
+    return extract32(x, start)
+
+@external
+def compare(x: Bytes[INF], y: Bytes[INF], a: String[INF], b: String[INF]) -> (bool, bool):
+    return x == y, a != b
+
+@external
+def boom(x: Bytes[INF]):
+    raw_revert(x)
+    """
+
+    c = _deploy_venom(env, code)
+    payload = bytes((i * 17) % 256 for i in range(80))
+    text = "sha string " * 20 + "tail"
+
+    ret = _call(env, c, "hash_values(bytes,string)", "(bytes,string)", (payload, text))
+    assert abi_decode("(bytes32,bytes32)", ret) == (
+        hashlib.sha256(payload).digest(),
+        hashlib.sha256(text.encode()).digest(),
+    )
+
+    ret = _call(env, c, "word_at(bytes,uint256)", "(bytes,uint256)", (payload, 7))
+    assert abi_decode("(bytes32)", ret) == (payload[7:39],)
+
+    ret = _call(
+        env,
+        c,
+        "compare(bytes,bytes,string,string)",
+        "(bytes,bytes,string,string)",
+        (payload, payload, "cat", "kitten"),
+    )
+    assert abi_decode("(bool,bool)", ret) == (True, True)
+
+    revert_data = method_id("NoFives()") + b"\x01\x02"
+    with tx_failed(exc_text=revert_data.hex()):
+        _call(env, c, "boom(bytes)", "(bytes)", (revert_data,))
 
 
 def test_inf_bytes_raw_call_direct_return(env):
@@ -1359,6 +1435,19 @@ def deploy(s: Bytes[INF]) -> address:
     initcode = b"\x00" * (EIP_3860_LIMIT + 1)
     ret = _call(env, deployer, "deploy(bytes)", "(bytes)", (initcode,))
     assert abi_decode("(address)", ret) == ("0x0000000000000000000000000000000000000000",)
+
+
+def test_inf_bytes_raw_create_oversized_initcode_reverts(env, tx_failed):
+    deployer_code = """
+@external
+def deploy(s: Bytes[INF]) -> address:
+    return raw_create(s)
+    """
+
+    deployer = _deploy_venom(env, deployer_code)
+    initcode = b"\x00" * (EIP_3860_LIMIT + 1)
+    with tx_failed():
+        _call(env, deployer, "deploy(bytes)", "(bytes)", (initcode,))
 
 
 def test_inf_bytes_raw_create_bytecode_local_with_ctor_arg(env):

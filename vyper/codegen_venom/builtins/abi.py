@@ -196,18 +196,10 @@ def _decode_unbounded_dynarray_from_abi(
         raise CompilerPanic("DynArray[*, INF] ABI decode needs ABI-static element types")
 
     b = ctx.builder
-    data_start = b.add(src, IRLiteral(32))
-    no_start_overflow = b.iszero(b.lt(data_start, src))
-    has_length_word = b.iszero(b.gt(data_start, hi))
-    b.assert_(b.and_(no_start_overflow, has_length_word))
-
     length = b.mload(src)
 
     elem_static_size = typ.value_type.abi_type.embedded_static_size()
-    available_payload = b.sub(hi, data_start)
-    max_count = b.div(available_payload, IRLiteral(elem_static_size))
-    count_in_bounds = b.iszero(b.gt(length, max_count))
-    b.assert_(count_in_bounds)
+    ctx.assert_abi_dynarray_payload_in_bounds(src, length, elem_static_size, hi)
 
     size = ctx.dynarray_runtime_size_from_length(length, typ)
     dst = ctx.allocate_scratch(size)

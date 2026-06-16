@@ -401,10 +401,8 @@ def _to_bytes(
 
     # Both string->bytes and bytes->bytes are pointer casts
     # Just check length bounds
-    if (
-        is_bounded_length(in_t.maxlen)
-        and is_bounded_length(out_t.maxlen)
-        and out_t.maxlen < in_t.maxlen
+    if is_bounded_length(out_t.maxlen) and (
+        not is_bounded_length(in_t.maxlen) or out_t.maxlen < in_t.maxlen
     ):
         # Downcast: check actual length <= max
         assert isinstance(val, IRVariable)
@@ -451,10 +449,8 @@ def _to_string(
     b = ctx.builder
 
     # bytes->string and string->string are pointer casts
-    if (
-        is_bounded_length(in_t.maxlen)
-        and is_bounded_length(out_t.maxlen)
-        and out_t.maxlen < in_t.maxlen
+    if is_bounded_length(out_t.maxlen) and (
+        not is_bounded_length(in_t.maxlen) or out_t.maxlen < in_t.maxlen
     ):
         # Downcast: check actual length <= max
         assert isinstance(val, IRVariable)
