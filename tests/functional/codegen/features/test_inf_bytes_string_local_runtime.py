@@ -399,6 +399,108 @@ def get(addr: address) -> Bytes[INF]:
     assert abi_decode("(bytes)", ret) == (payload,)
 
 
+def test_inf_bytes_staticcall_tuple_return_roundtrip(env):
+    payload = bytes((i * 41) % 256 for i in range(2001))
+    target_code = """
+@external
+@view
+def pair(x: Bytes[INF]) -> (uint256, Bytes[INF]):
+    return 31, x
+    """
+
+    caller_code = """
+interface Source:
+    def pair(x: Bytes[INF]) -> (uint256, Bytes[INF]): view
+
+@external
+def get(addr: address, x: Bytes[INF]) -> (uint256, Bytes[INF]):
+    return staticcall Source(addr).pair(x)
+    """
+
+    target = _deploy_venom(env, target_code)
+    caller = _deploy_venom(env, caller_code)
+    ret = _call(env, caller, "get(address,bytes)", "(address,bytes)", (target.address, payload))
+    assert abi_decode("(uint256,bytes)", ret) == (31, payload)
+
+
+def test_inf_bytes_staticcall_singleton_tuple_return(env):
+    payload = bytes((i * 43) % 256 for i in range(2001))
+
+    def encode_singleton_bytes_tuple(value):
+        padding = b"\x00" * (-len(value) % 32)
+        return (
+            (32).to_bytes(32, "big")
+            + (32).to_bytes(32, "big")
+            + len(value).to_bytes(32, "big")
+            + value
+            + padding
+        )
+
+    target_code = """
+@external
+@view
+def one(x: Bytes[INF]) -> (Bytes[INF],):
+    return (x,)
+    """
+
+    caller_code = """
+interface Source:
+    def one(x: Bytes[INF]) -> (Bytes[INF],): view
+
+@external
+def get(addr: address, x: Bytes[INF]) -> (Bytes[INF],):
+    return staticcall Source(addr).one(x)
+    """
+
+    target = _deploy_venom(env, target_code)
+    caller = _deploy_venom(env, caller_code)
+    ret = _call(env, caller, "get(address,bytes)", "(address,bytes)", (target.address, payload))
+    assert ret == encode_singleton_bytes_tuple(payload)
+
+
+def test_inf_bytes_staticcall_tuple_return_subscript(env):
+    target_code = """
+@external
+@view
+def pair(x: Bytes[INF]) -> (uint256, Bytes[INF]):
+    return 37, x
+    """
+
+    caller_code = """
+interface Source:
+    def pair(x: Bytes[INF]) -> (uint256, Bytes[INF]): view
+
+@external
+def get(addr: address, x: Bytes[INF]) -> Bytes[3]:
+    return slice((staticcall Source(addr).pair(x))[1], 0, 3)
+    """
+
+    target = _deploy_venom(env, target_code)
+    caller = _deploy_venom(env, caller_code)
+    ret = _call(env, caller, "get(address,bytes)", "(address,bytes)", (target.address, b"catdog"))
+    assert abi_decode("(bytes)", ret) == (b"cat",)
+
+
+def test_inf_bytes_staticcall_tuple_default_return_value(env):
+    caller_code = """
+interface Source:
+    def pair() -> (uint256, Bytes[INF]): view
+
+@external
+def get(addr: address) -> (uint256, Bytes[INF]):
+    return staticcall Source(addr).pair(default_return_value=(7, b"fallback"))
+    """
+
+    caller = _deploy_venom(env, caller_code)
+    empty_target = _deploy_raw_returner(env, b"")
+    ret = _call(env, caller, "get(address)", "address", empty_target.address)
+    assert abi_decode("(uint256,bytes)", ret) == (7, b"fallback")
+
+    target = _deploy_raw_returner(env, abi_encode("(uint256,bytes)", (9, b"live")))
+    ret = _call(env, caller, "get(address)", "address", target.address)
+    assert abi_decode("(uint256,bytes)", ret) == (9, b"live")
+
+
 def test_inf_bytes_staticcall_inf_arg_with_static_args(env):
     code = """
 @external

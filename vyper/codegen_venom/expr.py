@@ -1824,6 +1824,8 @@ class Expr:
                     default_return_value = VyperValue.from_stack_op(
                         self.ctx.unwrap(default_vv), default_vv.typ
                     )
+                elif self.ctx.is_dynamic_tuple_frame_type(default_vv.typ):
+                    default_return_value = default_vv
                 elif self.ctx.is_unbounded_sequence_type(default_vv.typ):
                     default_return_value = self.ctx.copy_sequence_to_scratch(
                         default_vv, default_vv.typ, annotation="external call default_return_value"
@@ -1928,6 +1930,9 @@ class Expr:
         # get un-wildcard-ed return type
         return_t = call_node._metadata["call_return_type"]
         has_unbounded_return = self.ctx.is_unbounded_sequence_type(return_t)
+        has_dynamic_tuple_return = return_t is not None and self.ctx.is_dynamic_tuple_frame_type(
+            return_t
+        )
 
         # Evaluate contract address (the interface value)
         contract_address = Expr(call_node.func.value, self.ctx).lower_value()
@@ -1953,7 +1958,7 @@ class Expr:
             args_alloc_size = IRLiteral(args_abi_size)
 
         if return_t is not None:
-            if has_unbounded_return:
+            if has_unbounded_return or has_dynamic_tuple_return:
                 return_abi_size = 0
             else:
                 return_abi_t = calculate_type_for_external_return(return_t).abi_type
@@ -2071,6 +2076,11 @@ class Expr:
             return self._unpack_unbounded_external_call_return(
                 call_kwargs, contract_address, return_t
             )
+        if has_dynamic_tuple_return:
+            assert isinstance(return_t, TupleT)
+            return self._unpack_dynamic_tuple_external_call_return(
+                call_kwargs, contract_address, return_t
+            )
 
         wrapped_return_t = calculate_type_for_external_return(return_t)
         min_return_size = wrapped_return_t.abi_type.static_size()
@@ -2163,29 +2173,11 @@ class Expr:
             return VyperValue.from_ptr(result_val.ptr(), return_t)
         return result_val
 
-    def _copy_and_decode_unbounded_external_call_return(
-        self, return_t: VyperType, returndata_size: IROperand
+    def _decode_unbounded_sequence_external_call_member(
+        self, return_t: VyperType, src: IRVariable, hi: IROperand
     ) -> VyperValue:
         assert self.ctx.is_unbounded_sequence_type(return_t)
         b = self.builder
-
-        ok = b.iszero(b.lt(returndata_size, IRLiteral(32)))
-        b.assert_(ok)
-
-        returndata_ptr = self.ctx.allocate_scratch(returndata_size)
-        b.returndatacopy(returndata_ptr, IRLiteral(0), returndata_size)
-
-        hi = b.add(returndata_ptr, returndata_size)
-        no_hi_wrap = b.iszero(b.lt(hi, returndata_ptr))
-        b.assert_(no_hi_wrap)
-
-        # ABI external returns are always encoded as a tuple. A single dynamic
-        # bytes/string return is therefore `[offset][length][data...]`.
-        offset = b.mload(returndata_ptr)
-
-        src = b.add(returndata_ptr, offset)
-        no_src_wrap = b.iszero(b.lt(src, returndata_ptr))
-        b.assert_(no_src_wrap)
 
         length_word_end = b.add(src, IRLiteral(32))
         no_length_end_wrap = b.iszero(b.lt(length_word_end, src))
@@ -2224,6 +2216,97 @@ class Expr:
             src_vv = self._make_ptr_value(src, DataLocation.MEMORY, return_t)
             abi_decode_to_buf(self.ctx, dst, src_vv, hi=hi)
         return self.ctx.dynamic_memory_value(dst, return_t, annotation="external call return")
+
+    def _copy_and_decode_unbounded_external_call_return(
+        self, return_t: VyperType, returndata_size: IROperand
+    ) -> VyperValue:
+        assert self.ctx.is_unbounded_sequence_type(return_t)
+        b = self.builder
+
+        ok = b.iszero(b.lt(returndata_size, IRLiteral(32)))
+        b.assert_(ok)
+
+        returndata_ptr = self.ctx.allocate_scratch(returndata_size)
+        b.returndatacopy(returndata_ptr, IRLiteral(0), returndata_size)
+
+        hi = b.add(returndata_ptr, returndata_size)
+        no_hi_wrap = b.iszero(b.lt(hi, returndata_ptr))
+        b.assert_(no_hi_wrap)
+
+        # ABI external returns are always encoded as a tuple. A single dynamic
+        # bytes/string return is therefore `[offset][length][data...]`.
+        offset = b.mload(returndata_ptr)
+
+        src = b.add(returndata_ptr, offset)
+        no_src_wrap = b.iszero(b.lt(src, returndata_ptr))
+        b.assert_(no_src_wrap)
+        assert isinstance(src, IRVariable)
+        return self._decode_unbounded_sequence_external_call_member(return_t, src, hi)
+
+    def _copy_and_decode_dynamic_tuple_external_call_return(
+        self, return_t: TupleT, returndata_size: IROperand
+    ) -> VyperValue:
+        assert self.ctx.is_dynamic_tuple_frame_type(return_t)
+        b = self.builder
+
+        static_size = return_t.abi_type.static_size()
+        ok = b.iszero(b.lt(returndata_size, IRLiteral(static_size)))
+        b.assert_(ok)
+
+        returndata_ptr = self.ctx.allocate_scratch(returndata_size)
+        b.returndatacopy(returndata_ptr, IRLiteral(0), returndata_size)
+
+        hi = b.add(returndata_ptr, returndata_size)
+        no_hi_wrap = b.iszero(b.lt(hi, returndata_ptr))
+        b.assert_(no_hi_wrap)
+
+        tuple_src = returndata_ptr
+        if needs_external_call_wrap(return_t):
+            offset = b.mload(returndata_ptr)
+            tuple_src = b.add(returndata_ptr, offset)
+            no_tuple_src_wrap = b.iszero(b.lt(tuple_src, returndata_ptr))
+            b.assert_(no_tuple_src_wrap)
+
+        assert isinstance(tuple_src, IRVariable)
+        static_end = b.add(tuple_src, IRLiteral(static_size))
+        no_static_end_wrap = b.iszero(b.lt(static_end, tuple_src))
+        static_in_bounds = b.iszero(b.gt(static_end, hi))
+        b.assert_(b.and_(no_static_end_wrap, static_in_bounds))
+
+        frame = self.ctx.allocate_scratch(IRLiteral(self.ctx.dynamic_tuple_frame_size(return_t)))
+        abi_offset = 0
+        for i, member_t in enumerate(return_t.member_types):
+            static_loc = b.add(tuple_src, IRLiteral(abi_offset))
+            if member_t.abi_type.is_dynamic():
+                offset = b.mload(static_loc)
+                member_src = b.add(tuple_src, offset)
+                no_member_src_wrap = b.iszero(b.lt(member_src, tuple_src))
+                b.assert_(no_member_src_wrap)
+            else:
+                member_src = static_loc
+
+            assert isinstance(member_src, IRVariable)
+            if self.ctx.is_unbounded_sequence_type(member_t):
+                member_vv = self._decode_unbounded_sequence_external_call_member(
+                    member_t, member_src, hi
+                )
+            else:
+                member_vv = self.ctx.new_temporary_value(member_t)
+                assert isinstance(member_vv.operand, IRVariable)
+                src_vv = self._make_ptr_value(member_src, DataLocation.MEMORY, member_t)
+                abi_decode_to_buf(self.ctx, member_vv.operand, src_vv, hi=hi)
+
+            cell = b.add(frame, IRLiteral(i * 32))
+            if member_t._is_prim_word:
+                value = self.ctx.unwrap(member_vv)
+            else:
+                value = member_vv.operand
+            b.mstore(cell, value)
+            abi_offset += member_t.abi_type.embedded_static_size()
+
+        return self.ctx.dynamic_tuple_frame_value(
+            frame, return_t, annotation="external call return"
+        )
 
     def _unpack_unbounded_external_call_return(
         self, call_kwargs: _CallKwargs, contract_address: IROperand, return_t: VyperType
@@ -2270,3 +2353,49 @@ class Expr:
         ret_ptr = b.mload(ret_cell._ptr)
         assert isinstance(ret_ptr, IRVariable)
         return self.ctx.dynamic_memory_value(ret_ptr, return_t, annotation="external call return")
+
+    def _unpack_dynamic_tuple_external_call_return(
+        self, call_kwargs: _CallKwargs, contract_address: IROperand, return_t: TupleT
+    ) -> VyperValue:
+        b = self.builder
+        rds = b.returndatasize()
+
+        if call_kwargs.default_return_value is None:
+            return self._copy_and_decode_dynamic_tuple_external_call_return(return_t, rds)
+
+        ret_cell = self.ctx.allocate_buffer(32, annotation="external call dynamic tuple return ptr")
+        default_bb = b.create_block("extcall_default")
+        decode_bb = b.create_block("extcall_decode")
+        exit_bb = b.create_block("extcall_exit")
+
+        b.jnz(b.iszero(rds), default_bb.label, decode_bb.label)
+
+        b.append_block(default_bb)
+        b.set_block(default_bb)
+
+        default_vv = call_kwargs.default_return_value
+        assert default_vv is not None
+        default_ptr = self.ctx.unwrap(default_vv)
+        b.mstore(ret_cell._ptr, default_ptr)
+
+        if not call_kwargs.skip_contract_check:
+            codesize = b.extcodesize(contract_address)
+            b.assert_(codesize)
+
+        b.jmp(exit_bb.label)
+
+        b.append_block(decode_bb)
+        b.set_block(decode_bb)
+
+        decoded_value = self._copy_and_decode_dynamic_tuple_external_call_return(return_t, rds)
+        b.mstore(ret_cell._ptr, decoded_value.operand)
+        b.jmp(exit_bb.label)
+
+        b.append_block(exit_bb)
+        b.set_block(exit_bb)
+
+        ret_ptr = b.mload(ret_cell._ptr)
+        assert isinstance(ret_ptr, IRVariable)
+        return self.ctx.dynamic_tuple_frame_value(
+            ret_ptr, return_t, annotation="external call return"
+        )
