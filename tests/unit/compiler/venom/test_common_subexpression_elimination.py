@@ -1,7 +1,7 @@
 import pytest
 
 from tests.hevm import hevm_check_venom
-from tests.venom_utils import assert_ctx_eq, parse_from_basic_block, parse_venom
+from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.available_expression import NONIDEMPOTENT_INSTRUCTIONS
 from vyper.venom.passes.common_subexpression_elimination import CSE
