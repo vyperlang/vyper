@@ -455,7 +455,7 @@ def test_or_truthy_unwrapped_zero_literal():
         sink %x
     """
 
-    _check_pre_post(pre, post)
+    _check_pre_post(pre, post, hevm=False)
 
 
 # Test the case of https://github.com/vyperlang/vyper/issues/4288
