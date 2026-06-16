@@ -96,6 +96,7 @@ from vyper.utils import (
     keccak256,
     method_id,
     method_id_int,
+    wrap256,
 )
 from vyper.warnings import vyper_warn
 
@@ -1336,11 +1337,7 @@ class Shift(BuiltinFunctionT):
         if shift < 0:
             value = value >> -shift
         else:
-            value = (value << shift) % (2**256)
-            if is_signed_shift and value > SizeLimits.MAX_INT256:
-                # Runtime SHL works on the 256-bit word and the signed return
-                # type interprets that word as two's complement.
-                value -= 2**256
+            value = wrap256(value << shift, signed=is_signed_shift)
         return vy_ast.Int.from_node(node, value=value)
 
     def fetch_call_return(self, node):
