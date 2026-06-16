@@ -978,6 +978,25 @@ def hash_string(x: String[INF]) -> bytes32:
     assert abi_decode("(bytes32)", ret) == (keccak(text.encode()),)
 
 
+def test_inf_string_uint2str(env):
+    code = """
+@external
+def direct(x: uint256) -> String[INF]:
+    return uint2str(x)
+
+@external
+def local(x: uint256) -> String[INF]:
+    y: String[INF] = uint2str(x)
+    return y
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "direct(uint256)", "uint256", 2**256 - 1)
+    assert abi_decode("(string)", ret) == (str(2**256 - 1),)
+    ret = _call(env, c, "local(uint256)", "uint256", 0)
+    assert abi_decode("(string)", ret) == ("0",)
+
+
 def test_inf_bytes_raw_call_direct_return(env):
     payload = bytes((i * 47) % 256 for i in range(2001))
     code = """
