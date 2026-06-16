@@ -549,18 +549,6 @@ class Stmt:
 
         return False
 
-    def _type_has_unbounded_sequence(self, typ: VyperType) -> bool:
-        if self.ctx.is_unbounded_sequence_type(typ):
-            return True
-
-        if isinstance(typ, TupleT):
-            member_types = typ.member_types
-            if isinstance(member_types, dict):
-                member_types = tuple(member_types.values())
-            return any(self._type_has_unbounded_sequence(member_t) for member_t in member_types)
-
-        return False
-
     # === Control Flow Statements ===
 
     def lower_If(self) -> None:
@@ -935,6 +923,12 @@ class Stmt:
         ret_val: Optional[IROperand] = None
         ret_src_typ = None
         if node.value is not None:
+            if (
+                self.ctx.return_pc is None
+                and self._try_lower_external_dynamic_tuple_literal_return(node.value, func_t)
+            ):
+                return
+
             # lower() preserves source type so return coercions can use
             # layout-aware copying when source and declared return type differ.
             ret_vv = Expr(node.value, self.ctx).lower()
@@ -946,6 +940,47 @@ class Stmt:
             self._lower_internal_return(ret_val, func_t, ret_src_typ)
         else:
             self._lower_external_return(ret_val, func_t, ret_src_typ)
+
+    def _try_lower_external_dynamic_tuple_literal_return(
+        self, value_node: vy_ast.VyperNode, func_t: ContractFunctionT
+    ) -> bool:
+        ret_typ = func_t.return_type
+        if (
+            func_t.do_raw_return
+            or ret_typ is None
+            or not isinstance(ret_typ, TupleT)
+            or not isinstance(value_node, vy_ast.Tuple)
+            or not type_contains_unbounded_sequence(ret_typ)
+        ):
+            return False
+
+        arg_vvs = [Expr(elem, self.ctx).lower() for elem in value_node.elements]
+        src_typ = TupleT(tuple(arg_vv.typ for arg_vv in arg_vvs))
+        if not self._can_encode_from_source_return_layout(ret_typ, src_typ):
+            raise CompilerPanic(f"Cannot return {src_typ} as {ret_typ}")
+
+        self.ctx.emit_nonreentrant_unlock(func_t)
+        external_return_type = calculate_type_for_external_return(ret_typ)
+
+        if external_return_type is not ret_typ:
+            # External returns are always ABI tuples. A declared singleton
+            # tuple `-> (T,)` is therefore returned as `((T,),)`.
+            encoded_size = self.ctx.checked_add(
+                IRLiteral(32), _runtime_abi_size_for_encode(self.ctx, arg_vvs, src_typ)
+            )
+            buf_ptr = self.ctx.allocate_scratch(encoded_size)
+            self.builder.mstore(buf_ptr, IRLiteral(32))
+            child_dst = self.builder.add(buf_ptr, IRLiteral(32))
+            child_len = _abi_encode_values_to_buf(self.ctx, child_dst, arg_vvs, src_typ)
+            encoded_len = self.ctx.checked_add(IRLiteral(32), child_len)
+            self.builder.return_(buf_ptr, encoded_len)
+            return True
+
+        encoded_size = _runtime_abi_size_for_encode(self.ctx, arg_vvs, src_typ)
+        buf_ptr = self.ctx.allocate_scratch(encoded_size)
+        encoded_len = _abi_encode_values_to_buf(self.ctx, buf_ptr, arg_vvs, src_typ)
+        self.builder.return_(buf_ptr, encoded_len)
+        return True
 
     def _lower_internal_return(
         self, ret_val: Optional[IROperand], func_t: ContractFunctionT, ret_src_typ=None
@@ -1026,7 +1061,7 @@ class Stmt:
 
         can_encode_from_src = (
             ret_src_typ is not None
-            and not self._type_has_unbounded_sequence(ret_src_typ)
+            and not type_contains_unbounded_sequence(ret_src_typ)
             and self._can_encode_from_source_return_layout(ret_typ, ret_src_typ)
         )
 

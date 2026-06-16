@@ -19,7 +19,7 @@ from typing import Optional
 import vyper.ast as vy_ast
 from vyper.codegen import jumptable_utils
 from vyper.codegen.function_definitions.common import EntryPointInfo, _FuncIRInfo
-from vyper.codegen_venom.abi.abi_decoder import _getelemptr_abi, abi_decode_to_buf
+from vyper.codegen_venom.abi.abi_decoder import abi_decode_to_buf
 from vyper.codegen_venom.buffer import Ptr
 from vyper.codegen_venom.constants import SELECTOR_BYTES, SELECTOR_SHIFT_BITS
 from vyper.codegen_venom.value import VyperValue
@@ -1025,7 +1025,7 @@ def _register_positional_args(ctx: VenomCodegenContext, func_t: ContractFunction
         )
 
         # Get the element location in calldata (handles ABI offset indirection for dynamic types)
-        elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
+        elem_src = _get_abi_arg_ptr(ctx, calldata_tuple, arg.typ, static_offset)
 
         _register_abi_arg_from_src(ctx, arg, elem_src)
 
@@ -1041,6 +1041,30 @@ def _abi_arg_hi(ctx: VenomCodegenContext, location: DataLocation):
         return ctx.builder.sub(codesize, code_end)
 
     return None
+
+
+def _get_abi_arg_ptr(
+    ctx: VenomCodegenContext, parent: VyperValue, member_typ: VyperType, static_offset: int
+) -> VyperValue:
+    """Navigate to a top-level external/constructor ABI argument."""
+    loc = parent.location
+    assert loc is not None, "parent must have a location for ABI arg access"
+    assert loc in (DataLocation.CALLDATA, DataLocation.CODE), "ABI args live in calldata or code"
+
+    b = ctx.builder
+    static_loc = b.add(parent.operand, IRLiteral(static_offset))
+
+    if member_typ.abi_type.is_dynamic():
+        offset_val = b.load(static_loc, loc)
+        head_size = parent.typ.abi_type.static_size()
+        # Entry points accept non-strict ABI, but dynamic arg offsets must not
+        # point back into the tuple head.
+        b.assert_(b.iszero(b.lt(offset_val, IRLiteral(head_size))))
+        actual_ptr = b.add(parent.operand, offset_val)
+        b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
+        return VyperValue.from_ptr(Ptr(operand=actual_ptr, location=loc), member_typ)
+
+    return VyperValue.from_ptr(Ptr(operand=static_loc, location=loc), member_typ)
 
 
 def _materialize_unbounded_bytestring_abi_arg(
@@ -1209,7 +1233,7 @@ def _handle_kwargs(
             static_offset = sum(
                 calldata_arg_types[j].abi_type.embedded_static_size() for j in range(tuple_index)
             )
-            elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
+            elem_src = _get_abi_arg_ptr(ctx, calldata_tuple, arg.typ, static_offset)
             _register_abi_arg_from_src(ctx, arg, elem_src)
         else:
             # Use default value
@@ -1291,7 +1315,7 @@ def _init_kwargs_in_entry_point(
             static_offset = sum(
                 calldata_arg_types[j].abi_type.embedded_static_size() for j in range(tuple_index)
             )
-            elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
+            elem_src = _get_abi_arg_ptr(ctx, calldata_tuple, arg.typ, static_offset)
             _store_abi_arg_to_existing_ptr(ctx, alloca_ptr, arg, elem_src)
         else:
             # Use default value
@@ -1552,7 +1576,7 @@ def _register_constructor_args(ctx: VenomCodegenContext, func_t: ContractFunctio
         )
 
         # Get element location in data section (handles ABI offset for dynamic types)
-        elem_src = _getelemptr_abi(ctx, data_tuple, arg.typ, static_offset)
+        elem_src = _get_abi_arg_ptr(ctx, data_tuple, arg.typ, static_offset)
 
         _register_abi_arg_from_src(ctx, arg, elem_src)
 

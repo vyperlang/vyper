@@ -217,8 +217,6 @@ def _getelemptr_abi(
     if member_typ.abi_type.is_dynamic():
         # Double dereference: read offset, add to parent base
         offset_val = b.load(static_loc, loc)
-        head_size = parent.typ.abi_type.static_size()
-        b.assert_(b.iszero(b.lt(offset_val, IRLiteral(head_size))))
         actual_ptr = b.add(parent.operand, offset_val)
         # Security: prevent underflow attacks
         # assert actual_ptr >= parent

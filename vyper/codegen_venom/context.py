@@ -631,18 +631,9 @@ class VenomCodegenContext:
             assert isinstance(ptr, IRVariable)
             self.builder.mstore(ptr, val)
         elif isinstance(typ, _BytestringT):
-            # Bytestring: copy length word + ceil32(actual data), not max size
-            # Length is at val+0, data starts at val+32
-            # Must copy complete 32-byte words to avoid leaving dirty data
+            # Bytestring: copy length word + ceil32(actual data), not max size.
             assert isinstance(val, IRVariable)
-            src_len = self.builder.mload(val)
-            # ceil32(length) = (length + 31) & ~31
-            padded_len = self.builder.and_(
-                self.builder.add(src_len, IRLiteral(31)),
-                IRLiteral((1 << 256) - 32),  # ~31 in 256-bit
-            )
-            # Copy 32 (length word) + ceil32(length) bytes
-            copy_len = self.builder.add(padded_len, IRLiteral(32))
+            copy_len = self.bytestring_runtime_size(val)
             self.copy_memory_dynamic(ptr, val, copy_len)
         elif src_typ != typ:
             # Layout-aware copy for assignments between compatible but not

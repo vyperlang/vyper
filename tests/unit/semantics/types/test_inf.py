@@ -317,6 +317,25 @@ def foo(x: DynArray[uint256, INF][2]):
     """,
         StructureException,
     ),
+    # Unbounded sequence types are not supported in HashMap keys
+    (
+        """
+a: HashMap[Bytes[INF], uint256]
+    """,
+        StructureException,
+    ),
+    (
+        """
+a: HashMap[String[INF], uint256]
+    """,
+        StructureException,
+    ),
+    (
+        """
+a: HashMap[uint256, HashMap[Bytes[INF], uint256]]
+    """,
+        StructureException,
+    ),
     # Indexed event arguments only support value types and bytestrings
     (
         """

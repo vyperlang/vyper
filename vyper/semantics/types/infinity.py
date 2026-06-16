@@ -58,8 +58,13 @@ def type_contains_unbounded_sequence(typ) -> bool:
             typ.value_type
         )
 
-    if typeclass in ("static_array", "hashmap"):
+    if typeclass == "static_array":
         return type_contains_unbounded_sequence(typ.value_type)
+
+    if typeclass == "hashmap":
+        return type_contains_unbounded_sequence(typ.key_type) or type_contains_unbounded_sequence(
+            typ.value_type
+        )
 
     if typeclass == "tuple":
         return any(type_contains_unbounded_sequence(t) for t in typ.member_types)

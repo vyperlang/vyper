@@ -820,6 +820,74 @@ def echo(x: Bytes[INF]) -> (bool, Bytes[INF]):
     assert abi_decode("(bool,bytes)", ret) == (True, payload)
 
 
+def test_inf_bytes_tuple_literal_return(env):
+    payload = bytes((i * 73) % 256 for i in range(2001))
+    code = """
+@external
+def pair(x: Bytes[INF]) -> (uint256, Bytes[INF]):
+    y: Bytes[INF] = x
+    return 7, y
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "pair(bytes)", "(bytes)", (payload,))
+    assert abi_decode("(uint256,bytes)", ret) == (7, payload)
+
+
+def test_inf_string_tuple_literal_return(env):
+    payload = "tuple string " * 170 + "tail"
+    code = """
+@external
+def pair(x: String[INF]) -> (uint256, String[INF]):
+    y: String[INF] = x
+    return 9, y
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "pair(string)", "(string)", (payload,))
+    assert abi_decode("(uint256,string)", ret) == (9, payload)
+
+
+def test_inf_bytes_tuple_empty_literal_return(env):
+    code = """
+@external
+def pair() -> (uint256, Bytes[INF]):
+    return 1, b""
+    """
+
+    c = _deploy_venom(env, code)
+    assert abi_decode("(uint256,bytes)", _call(env, c, "pair()")) == (1, b"")
+
+
+def test_inf_bytes_singleton_tuple_literal_return(env):
+    payload = bytes((i * 83) % 256 for i in range(2001))
+
+    def encode_singleton_bytes_tuple(value):
+        padding = b"\x00" * (-len(value) % 32)
+        return (
+            (32).to_bytes(32, "big")
+            + (32).to_bytes(32, "big")
+            + len(value).to_bytes(32, "big")
+            + value
+            + padding
+        )
+
+    code = """
+@external
+def from_arg(x: Bytes[INF]) -> (Bytes[INF],):
+    return (x,)
+
+@external
+def empty() -> (Bytes[INF],):
+    return (b"",)
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "from_arg(bytes)", "(bytes)", (payload,))
+    assert ret == encode_singleton_bytes_tuple(payload)
+    assert _call(env, c, "empty()") == encode_singleton_bytes_tuple(b"")
+
+
 def test_inf_bytes_raw_create_bytecode_param(env):
     to_deploy_code = """
 foo: public(uint256)
@@ -896,14 +964,35 @@ def deploy(s: Bytes[INF], x: Bytes[INF]) -> address:
     assert abi_decode("(bytes)", ret) == (payload,)
 
 
-def test_inf_bytes_create_from_blueprint_unbounded_ctor_arg_compiles():
+def test_inf_bytes_create_from_blueprint_unbounded_ctor_arg(env):
+    payload = bytes((i * 79) % 256 for i in range(2001))
+    to_deploy_code = """
+stored: Bytes[2001]
+
+@deploy
+def __init__(x: Bytes[INF]):
+    self.stored = slice(x, 0, 2001)
+
+@external
+def get() -> Bytes[2001]:
+    return self.stored
+    """
+    out = _compile_venom(to_deploy_code, ["blueprint_bytecode"])
+    blueprint = env.deploy([], bytes.fromhex(out["blueprint_bytecode"].removeprefix("0x")))
+
     code = """
 @external
 def deploy(target: address, x: Bytes[INF]) -> address:
     return create_from_blueprint(target, x)
     """
 
-    _compile_venom(code, ["bytecode"])
+    deployer = _deploy_venom(env, code)
+    ret = _call(
+        env, deployer, "deploy(address,bytes)", "(address,bytes)", (blueprint.address, payload)
+    )
+    addr = abi_decode("(address)", ret)[0]
+    ret = env.message_call(addr, data=method_id("get()"))
+    assert abi_decode("(bytes)", ret) == (payload,)
 
 
 def test_inf_bytes_raw_log_data(env):
@@ -950,6 +1039,24 @@ def emit_event(x: Bytes[INF]):
     _call(env, c, "emit_event(bytes)", "(bytes)", (payload,))
     topics, data = env.get_logs(c, raw=True)[0]
     assert topics[1] == keccak256(payload)
+    assert data == b""
+
+
+def test_indexed_inf_string_event_topic(env):
+    payload = "indexed string " * 170 + "tail"
+    code = """
+event E:
+    x: indexed(String[INF])
+
+@external
+def emit_event(x: String[INF]):
+    log E(x=x)
+    """
+
+    c = _deploy_venom(env, code)
+    _call(env, c, "emit_event(string)", "(string)", (payload,))
+    topics, data = env.get_logs(c, raw=True)[0]
+    assert topics[1] == keccak256(payload.encode())
     assert data == b""
 
 
