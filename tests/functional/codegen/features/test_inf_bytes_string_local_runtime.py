@@ -378,6 +378,27 @@ def get(addr: address, x: Bytes[INF]) -> Bytes[INF]:
     assert abi_decode("(bytes)", ret) == (payload,)
 
 
+def test_inf_bytes_staticcall_default_return_value(env):
+    payload = b"live returndata"
+    caller_code = """
+interface Source:
+    def data() -> Bytes[INF]: view
+
+@external
+def get(addr: address) -> Bytes[INF]:
+    return staticcall Source(addr).data(default_return_value=b"fallback")
+    """
+
+    caller = _deploy_venom(env, caller_code)
+    empty_target = _deploy_raw_returner(env, b"")
+    ret = _call(env, caller, "get(address)", "address", empty_target.address)
+    assert abi_decode("(bytes)", ret) == (b"fallback",)
+
+    target = _deploy_raw_returner(env, abi_encode("(bytes)", (payload,)))
+    ret = _call(env, caller, "get(address)", "address", target.address)
+    assert abi_decode("(bytes)", ret) == (payload,)
+
+
 def test_inf_bytes_staticcall_inf_arg_with_static_args(env):
     code = """
 @external

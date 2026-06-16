@@ -421,6 +421,20 @@ def foo(x: Bytes[INF]) -> Bytes[INF]:
     """,
         StructureException,
     ),
+    (
+        """
+interface I:
+    def foo(x: (Bytes[INF], uint256)) -> uint256: view
+    """,
+        StructureException,
+    ),
+    (
+        """
+interface I:
+    def foo() -> ((Bytes[INF],), uint256): view
+    """,
+        StructureException,
+    ),
 ]
 
 

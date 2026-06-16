@@ -336,6 +336,27 @@ def get(addr: address) -> DynArray[uint256, INF]:
         _call(env, caller, "get(address)", "address", target.address)
 
 
+def test_inf_dynarray_staticcall_default_return_value(env):
+    payload = [10, 20, 30]
+    caller_code = """
+interface Source:
+    def data() -> DynArray[uint256, INF]: view
+
+@external
+def get(addr: address) -> DynArray[uint256, INF]:
+    return staticcall Source(addr).data(default_return_value=[7, 8, 9])
+    """
+
+    caller = _deploy_venom(env, caller_code)
+    empty_target = _deploy_raw_returner(env, b"")
+    ret = _call(env, caller, "get(address)", "address", empty_target.address)
+    assert abi_decode("(uint256[])", ret) == ([7, 8, 9],)
+
+    target = _deploy_raw_returner(env, abi_encode("(uint256[])", (payload,)))
+    ret = _call(env, caller, "get(address)", "address", target.address)
+    assert abi_decode("(uint256[])", ret) == (payload,)
+
+
 def test_large_inf_dynarray_staticcall_inf_arg_roundtrip(env):
     payload = [i * 29 for i in range(2001)]
     target_code = """
