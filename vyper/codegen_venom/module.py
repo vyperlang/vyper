@@ -53,13 +53,19 @@ def _get_constancy(func_t: ContractFunctionT) -> Constancy:
 class IDGenerator:
     """Assign unique IDs to functions."""
 
-    def __init__(self):
-        self._id = 0
+    def __init__(self, module_t: ModuleT | None = None):
+        ids = []
+        if module_t is not None:
+            ids = [fn_t._function_id for fn_t in module_t.reachable_functions]
+            ids = [fn_id for fn_id in ids if fn_id is not None]
+        self._id = max(ids, default=-1) + 1
 
     def ensure_id(self, fn_t: ContractFunctionT) -> None:
         if fn_t._function_id is None:
             fn_t._function_id = self._id
             self._id += 1
+        else:
+            self._id = max(self._id, fn_t._function_id + 1)
 
 
 def _is_constructor(func_ast) -> bool:
@@ -108,7 +114,7 @@ def generate_runtime_venom(module_t: ModuleT, settings: Settings) -> IRContext:
     IRContext must be compiled to bytecode before generating
     deploy code.
     """
-    id_generator = IDGenerator()
+    id_generator = IDGenerator(module_t)
 
     # Find all reachable functions
     reachable = _runtime_reachable_functions(module_t, id_generator)
@@ -178,7 +184,7 @@ def generate_deploy_venom(
         immutables_len: Size of immutables section in bytes
         cbor_metadata: Optional CBOR-encoded metadata to append to bytecode
     """
-    id_generator = IDGenerator()
+    id_generator = IDGenerator(module_t)
 
     # Create deploy IR context
     deploy_ctx = IRContext()
