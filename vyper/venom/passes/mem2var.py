@@ -40,6 +40,11 @@ class Mem2Var(IRPass):
         """
         Check that `inst` uses `ptr` only as a memory address, and not
         e.g. as the value operand of an mstore.
+
+        This intentionally has slight conceptual overlap with
+        memory_location.py's memory_read_ops/memory_write_ops helpers, but it
+        also needs to reject uses where the alloca output appears in the
+        non-address operand position.
         """
         if inst.opcode == "mload":
             # the only operand is the address
