@@ -185,6 +185,29 @@ def total(x: DynArray[uint256, INF]) -> uint256:
     assert abi_decode("(uint256)", ret) == (47,)
 
 
+def test_inf_dynarray_membership(env):
+    payload = [i * 11 for i in range(2001)]
+    code = """
+@external
+def contains(x: DynArray[uint256, INF], a: uint256) -> bool:
+    return a in x
+
+@external
+def missing(x: DynArray[uint256, INF], a: uint256) -> bool:
+    return a not in x
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "contains(uint256[],uint256)", "(uint256[],uint256)", (payload, 22000))
+    assert abi_decode("(bool)", ret) == (True,)
+    ret = _call(env, c, "contains(uint256[],uint256)", "(uint256[],uint256)", (payload, 22001))
+    assert abi_decode("(bool)", ret) == (False,)
+    ret = _call(env, c, "missing(uint256[],uint256)", "(uint256[],uint256)", (payload, 22001))
+    assert abi_decode("(bool)", ret) == (True,)
+    ret = _call(env, c, "contains(uint256[],uint256)", "(uint256[],uint256)", ([], 0))
+    assert abi_decode("(bool)", ret) == (False,)
+
+
 def test_inf_dynarray_internal_arg_return_roundtrip(env):
     code = """
 @internal

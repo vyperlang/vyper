@@ -1235,7 +1235,7 @@ class Expr:
         self.builder.assign_to(IRLiteral(0), result)  # result = 0 (not found)
 
         # Bound check for dynamic arrays
-        if isinstance(haystack_typ, DArrayT):
+        if isinstance(haystack_typ, DArrayT) and is_bounded_length(bound):
             invalid = self.builder.gt(length, IRLiteral(bound))
             valid = self.builder.iszero(invalid)
             self.builder.assert_(valid)
