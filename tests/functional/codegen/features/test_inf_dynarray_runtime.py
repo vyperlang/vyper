@@ -208,6 +208,21 @@ def missing(x: DynArray[uint256, INF], a: uint256) -> bool:
     assert abi_decode("(bool)", ret) == (False,)
 
 
+def test_inf_dynarray_print(env):
+    payload = [i * 13 for i in range(2001)]
+    code = """
+@external
+def log_values(x: DynArray[uint256, INF]) -> uint256:
+    print(x)
+    print(x, hardhat_compat=True)
+    return len(x)
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "log_values(uint256[])", "(uint256[])", (payload,))
+    assert abi_decode("(uint256)", ret) == (len(payload),)
+
+
 def test_inf_dynarray_internal_arg_return_roundtrip(env):
     code = """
 @internal

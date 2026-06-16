@@ -17,10 +17,13 @@ from typing import TYPE_CHECKING
 from vyper import ast as vy_ast
 from vyper.builtins.functions import AsWeiValue
 from vyper.codegen_venom.abi.abi_encoder import abi_encode_to_buf
+from vyper.codegen_venom.builtins.abi import _abi_encode_values_to_buf, _runtime_abi_size_for_encode
 from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PRECOMPILE
+from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, EvmVersionException
 from vyper.semantics.types import BytesT, DecimalT, IntegerT, StringT, TupleT
+from vyper.semantics.types.infinity import INF, type_contains_unbounded_sequence
 from vyper.utils import DECIMAL_DIVISOR, method_id_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -445,6 +448,64 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 
     # Get arg types and values
     arg_types = [arg._metadata["type"] for arg in node.args]
+
+    if any(type_contains_unbounded_sequence(t) for t in arg_types):
+        arg_vals = [Expr(arg, ctx).lower() for arg in node.args]
+        tuple_t = TupleT(tuple(arg_types))
+        args_abi_t = tuple_t.abi_type
+        sig = "log(" + ",".join([t.abi_type.selector_name() for t in arg_types]) + ")"
+
+        if hardhat_compat:
+            mid = method_id_int(sig)
+            encoded_size = _runtime_abi_size_for_encode(ctx, arg_vals, tuple_t)
+            dyn_buf_ptr = ctx.allocate_scratch(ctx.checked_add(IRLiteral(32), encoded_size))
+            b.mstore(dyn_buf_ptr, IRLiteral(mid))
+            dyn_data_dst = b.add(dyn_buf_ptr, IRLiteral(32))
+            encoded_len = _abi_encode_values_to_buf(ctx, dyn_data_dst, arg_vals, tuple_t)
+            call_start = b.add(dyn_buf_ptr, IRLiteral(28))
+            call_len = b.add(IRLiteral(4), encoded_len)
+        else:
+            mid = method_id_int("log(string,bytes)")
+            schema = args_abi_t.selector_name().encode("utf-8")
+            schema_len = len(schema)
+
+            payload_len = _runtime_abi_size_for_encode(ctx, arg_vals, tuple_t)
+            dyn_payload_ptr = ctx.allocate_scratch(ctx.checked_add(IRLiteral(32), payload_len))
+            payload_data_dst = b.add(dyn_payload_ptr, IRLiteral(32))
+            encoded_payload_len = _abi_encode_values_to_buf(
+                ctx, payload_data_dst, arg_vals, tuple_t
+            )
+            b.mstore(dyn_payload_ptr, encoded_payload_len)
+
+            dyn_schema_buf = ctx.allocate_buffer(32 + schema_len)
+            b.mstore(dyn_schema_buf._ptr, IRLiteral(schema_len))
+            schema_data_ptr = b.add(dyn_schema_buf._ptr, IRLiteral(32))
+            for i in range(0, schema_len, 32):
+                chunk = schema[i : i + 32]
+                chunk_padded = chunk.ljust(32, b"\x00")
+                chunk_int = int.from_bytes(chunk_padded, "big")
+                b.mstore(b.add(schema_data_ptr, IRLiteral(i)), IRLiteral(chunk_int))
+
+            schema_t = StringT(schema_len)
+            payload_t = BytesT(INF)
+            schema_vv = VyperValue.from_ptr(dyn_schema_buf.base_ptr(), schema_t)
+            payload_vv = ctx.dynamic_memory_value(dyn_payload_ptr, payload_t, annotation="print")
+            outer_tuple_t = TupleT((schema_t, payload_t))
+            outer_vals = [schema_vv, payload_vv]
+
+            outer_abi_size = _runtime_abi_size_for_encode(ctx, outer_vals, outer_tuple_t)
+            dyn_buf_ptr = ctx.allocate_scratch(ctx.checked_add(IRLiteral(32), outer_abi_size))
+            b.mstore(dyn_buf_ptr, IRLiteral(mid))
+            dyn_data_dst = b.add(dyn_buf_ptr, IRLiteral(32))
+            encoded_len = _abi_encode_values_to_buf(ctx, dyn_data_dst, outer_vals, outer_tuple_t)
+            call_start = b.add(dyn_buf_ptr, IRLiteral(28))
+            call_len = b.add(IRLiteral(4), encoded_len)
+
+        retptr = ctx.allocate_buffer(0)
+        b.staticcall(
+            b.gas(), IRLiteral(CONSOLE_ADDRESS), call_start, call_len, retptr._ptr, IRLiteral(0)
+        )
+        return IRLiteral(0)
 
     # Evaluate all args - primitives get values, complex types get pointers
     args = []

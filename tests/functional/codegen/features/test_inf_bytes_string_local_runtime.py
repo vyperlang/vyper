@@ -1016,6 +1016,23 @@ def to_string(x: Bytes[10]) -> String[INF]:
     assert abi_decode("(string)", ret) == ("world",)
 
 
+def test_inf_bytes_string_print(env):
+    payload = bytes((i * 63) % 256 for i in range(2001))
+    text = "print string " * 170 + "tail"
+    code = """
+@external
+def log_values(x: Bytes[INF], y: String[INF]) -> (uint256, uint256):
+    print(x, y)
+    print(x, hardhat_compat=True)
+    print(y, hardhat_compat=True)
+    return len(x), len(y)
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "log_values(bytes,string)", "(bytes,string)", (payload, text))
+    assert abi_decode("(uint256,uint256)", ret) == (len(payload), len(text))
+
+
 def test_inf_bytes_raw_call_direct_return(env):
     payload = bytes((i * 47) % 256 for i in range(2001))
     code = """
