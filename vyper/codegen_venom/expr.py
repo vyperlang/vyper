@@ -196,15 +196,20 @@ class Expr:
         node = self.node
         assert isinstance(node, vy_ast.Tuple)
         typ = node._metadata["type"]
-        elem_vvs = [Expr(elem_node, self.ctx).lower() for elem_node in node.elements]
 
         if typ.has_wildcard:
-            typ = TupleT(tuple(elem_vv.typ for elem_vv in elem_vvs))
+            member_types = []
+            for elem_node in node.elements:
+                expr_info = getattr(elem_node, "_expr_info", None)
+                elem_typ = getattr(expr_info, "typ", None) or elem_node._metadata["type"]
+                member_types.append(elem_typ)
+            typ = TupleT(tuple(member_types))
 
         if self.ctx.is_dynamic_tuple_frame_type(typ):
             member_values: list[IROperand] = []
-            for i, elem_vv in enumerate(elem_vvs):
+            for i, elem_node in enumerate(node.elements):
                 elem_typ = typ.member_types[i]
+                elem_vv = Expr(elem_node, self.ctx).lower()
                 if elem_typ._is_prim_word:
                     member_values.append(self.ctx.unwrap(elem_vv))
                 else:
@@ -232,8 +237,9 @@ class Expr:
 
         # Store each element at its correct offset
         offset = 0
-        for i, elem_vv in enumerate(elem_vvs):
+        for i, elem_node in enumerate(node.elements):
             elem_typ = typ.member_types[i]
+            elem_vv = Expr(elem_node, self.ctx).lower()
 
             dst = self.builder.add(val.operand, IRLiteral(offset))
 
