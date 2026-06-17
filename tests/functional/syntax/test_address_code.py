@@ -227,8 +227,10 @@ def code_slice(x: address) -> uint256:
     return y
 """
     if not experimental_codegen:
-        pytest.xfail("unbounded sequence types not yet fully supported in legacy codegen")
-    compiler.compile_code(code)
+        with pytest.raises(StructureException):
+            compiler.compile_code(code)
+    else:
+        compiler.compile_code(code)
 
 
 @pytest.mark.parametrize(

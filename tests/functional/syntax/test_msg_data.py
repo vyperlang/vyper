@@ -2,7 +2,7 @@ import pytest
 from eth_utils import to_bytes
 
 from vyper import compiler
-from vyper.exceptions import TypeMismatch, VyperException
+from vyper.exceptions import StructureException, TypeMismatch, VyperException
 from vyper.utils import method_id
 
 
@@ -243,8 +243,10 @@ def foo() -> Bytes[100]:
     return slice(x, 0, 100)
     """
     if not experimental_codegen:
-        pytest.xfail("unbounded sequence types not yet fully supported in legacy codegen")
-    compiler.compile_code(code)
+        with pytest.raises(StructureException):
+            compiler.compile_code(code)
+    else:
+        compiler.compile_code(code)
 
 
 def test_msg_data_convert(experimental_codegen):
@@ -255,5 +257,7 @@ def foo() -> uint256:
     return bar
     """
     if not experimental_codegen:
-        pytest.xfail("unbounded sequence types not yet fully supported in legacy codegen")
-    compiler.compile_code(code)
+        with pytest.raises(StructureException):
+            compiler.compile_code(code)
+    else:
+        compiler.compile_code(code)
