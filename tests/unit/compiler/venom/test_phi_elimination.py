@@ -324,7 +324,7 @@ def test_phi_elim_two_phi_merges():
     _check_pre_post(pre, post, hevm=True)
 
 
-def test_phi_elim_multi_output_invoke():
+def test_phi_elim_multi_output_invoke_distinct_outputs_kept():
     # a phi over two different outputs of the same invoke instruction
     # must not be collapsed: the origins trace to the same producing
     # instruction, but to different variables (GH 5039)
@@ -359,3 +359,44 @@ def test_phi_elim_multi_output_invoke():
     phis = [inst for inst in insts if inst.opcode == "phi"]
     assert len(phis) == 1, "phi over distinct invoke outputs must be kept"
     assert phis[0].output.name == "%z"
+
+
+def test_phi_elim_multi_output_invoke_same_output_eliminated():
+    # Same producer instruction and same output variable: this phi is trivial
+    # even though the root instruction has multiple outputs.
+    source = """
+    function main {
+    main:
+        %cond = source
+        %r1, %r2 = invoke @f
+        %r2_copy = %r2
+        jnz %cond, @then, @else
+    then:
+        jmp @join
+    else:
+        jmp @join
+    join:
+        %z = phi @then, %r2, @else, %r2_copy
+        sink %z
+    }
+
+    function f {
+    f:
+        %retpc = param
+        ret %retpc
+    }
+    """
+
+    ctx = parse_venom(source)
+    fn = ctx.get_function(IRLabel("main"))
+    ac = IRAnalysesCache(fn)
+    PhiEliminationPass(ac, fn).run_pass()
+
+    insts = [inst for bb in fn.get_basic_blocks() for inst in bb.instructions]
+    phis = [inst for inst in insts if inst.opcode == "phi"]
+    assert len(phis) == 0, "phi over the same invoke output should be eliminated"
+
+    z_assigns = [inst for inst in insts if [out.name for out in inst.get_outputs()] == ["%z"]]
+    assert len(z_assigns) == 1
+    assert z_assigns[0].opcode == "assign"
+    assert z_assigns[0].operands[0].name == "%r2"
