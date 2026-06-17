@@ -45,7 +45,6 @@ from vyper.evm.address_space import MEMORY
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
-    CodegenPanic,
     CompilerPanic,
     EvmVersionException,
     InvalidLiteral,
@@ -232,7 +231,7 @@ class Convert(BuiltinFunctionT):
             raise InvalidType(f"Already a '{target_type}' !", node, hint=hint)
 
         if isinstance(value_type, DArrayT) and not is_bounded_length(value_type.count):
-            raise CodegenPanic("convert not yet implemented for unbounded sequence type")
+            raise TypeMismatch(f"Can't convert {value_type} to {target_type}", node.args[0])
 
         return [value_type, TYPE_T(target_type)]
 
@@ -2191,6 +2190,17 @@ class Print(BuiltinFunctionT):
         if not self._warned:
             vyper_warn("`print` should only be used for debugging!", node)
             self._warned = True
+
+        arg_types = [get_exact_type_from_node(arg) for arg in node.args]
+        if any(type_contains_unbounded_sequence(arg_t) for arg_t in arg_types):
+            for arg, arg_t in zip(node.args, arg_types):
+                if type_contains_unbounded_sequence(arg_t) and not is_unbounded_sequence_type(
+                    arg_t
+                ):
+                    raise StructureException(
+                        "print arguments cannot contain nested unbounded sequence types", arg
+                    )
+            _reject_legacy_unbounded_sequence_builtin(node)
 
         return None
 

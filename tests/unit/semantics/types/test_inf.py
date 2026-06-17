@@ -491,6 +491,26 @@ def test_inf_legacy_builtin_gates(code):
         compiler.compile_code(code, settings=Settings(experimental_codegen=False))
 
 
+def test_inf_print_rejects_nested_arg():
+    code = """
+@external
+def foo(x: Bytes[INF]):
+    print((x,))
+    """
+    with pytest.raises(StructureException):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+
+
+def test_inf_convert_rejects_dynarray_input():
+    code = """
+@external
+def foo(x: DynArray[uint256, INF]) -> Bytes[INF]:
+    return convert(x, Bytes[INF])
+    """
+    with pytest.raises(TypeMismatch):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+
+
 def test_inf_constants_compile():
     settings = Settings(experimental_codegen=True)
     code = """
