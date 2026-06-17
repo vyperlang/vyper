@@ -173,3 +173,16 @@ def get(addr: address) -> Bytes[INF]:
     opcodes = _opcodes(_compile_frontend_ir(code))
     assert "dalloca" in opcodes
     assert "returndatacopy" in opcodes
+
+
+def test_wildcard_tuple_interface_arg_uses_concrete_layout():
+    code = """
+interface I:
+    def foo(x: (Bytes[...], uint256)) -> uint256: view
+
+@external
+def f(a: address, b: Bytes[10]) -> uint256:
+    return staticcall I(a).foo((b, 1))
+    """
+
+    compile_code(code, output_formats=["bytecode"], settings=Settings(experimental_codegen=True))

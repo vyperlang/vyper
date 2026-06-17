@@ -71,6 +71,7 @@ from vyper.semantics.types.function import (
     is_ellipsis_body,
 )
 from vyper.semantics.types.infinity import (
+    INF,
     is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
 )
@@ -1019,6 +1020,16 @@ class ExprVisitor(VyperNodeVisitorBase):
                     else:
                         # Replace wildcards in the type by INF, since there is no expected type
                         return_t = return_t.resolve_wildcard()
+                        if (
+                            isinstance(return_t, DArrayT)
+                            and return_t.length is INF
+                            and return_t.value_type.abi_type.is_dynamic()
+                        ):
+                            raise StructureException(
+                                "DynArray[..., INF] is only supported with ABI-static "
+                                "element types",
+                                node,
+                            )
                     # Sanity check
                     assert func_type.return_type is not None
                     assert return_t.is_subtype_of(func_type.return_type)

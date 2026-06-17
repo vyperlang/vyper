@@ -79,6 +79,17 @@ def foo() -> DynArray[uint256, INF]:
     assert abi_decode("(uint256[])", _call(env, c, "foo()")) == ([],)
 
 
+def test_empty_inf_dynarray_dynamic_tuple_builtin(env):
+    code = """
+@external
+def value() -> (uint256, DynArray[uint256, INF]):
+    return empty((uint256, DynArray[uint256, INF]))
+    """
+
+    c = _deploy_venom(env, code)
+    assert abi_decode("(uint256,uint256[])", _call(env, c, "value()")) == (0, [])
+
+
 def test_inf_dynarray_composite_static_elements(env):
     code = """
 struct S:

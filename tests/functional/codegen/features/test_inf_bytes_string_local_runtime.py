@@ -1835,6 +1835,17 @@ def bar() -> String[INF]:
     assert abi_decode("(string)", _call(env, c, "bar()")) == ("",)
 
 
+def test_empty_inf_bytes_dynamic_tuple_builtin(env):
+    code = """
+@external
+def value() -> (uint256, Bytes[INF]):
+    return empty((uint256, Bytes[INF]))
+    """
+
+    c = _deploy_venom(env, code)
+    assert abi_decode("(uint256,bytes)", _call(env, c, "value()")) == (0, b"")
+
+
 def test_inf_bytes_local_reassignment_larger_and_smaller(env):
     code = """
 @external

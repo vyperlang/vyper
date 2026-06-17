@@ -597,6 +597,29 @@ def foo(x: Bytes[INF]) -> Bytes[INF]:
     _compile_inf_bytestring_code(code, experimental_codegen)
 
 
+def test_wildcard_return_dynamic_element_requires_expected_bound():
+    rejected = """
+interface I:
+    def foo() -> DynArray[Bytes[10], ...]: view
+
+@external
+def f(a: address) -> uint256:
+    return len(staticcall I(a).foo())
+    """
+    with pytest.raises(StructureException):
+        compiler.compile_code(rejected, settings=Settings(experimental_codegen=True))
+
+    accepted = """
+interface I:
+    def foo() -> DynArray[Bytes[10], ...]: view
+
+@external
+def f(a: address) -> DynArray[Bytes[10], 5]:
+    return staticcall I(a).foo()
+    """
+    compiler.compile_code(accepted, settings=Settings(experimental_codegen=True))
+
+
 def _compile_inf_dynarray_code(code, experimental_codegen):
     if experimental_codegen:
         compiler.compile_code(code)
