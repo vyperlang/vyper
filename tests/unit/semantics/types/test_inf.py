@@ -566,6 +566,19 @@ def test_unused_inf_internal_legacy_requires_experimental_codegen(code):
         compiler.compile_code(code, settings=Settings(experimental_codegen=False))
 
 
+def test_legacy_codegen_allows_bounded_local_user_type():
+    code = """
+struct Quote:
+    value: uint256
+
+@external
+def foo() -> uint256:
+    quotes: DynArray[Quote, 1] = []
+    return len(quotes)
+    """
+    compiler.compile_code(code, settings=Settings(experimental_codegen=False))
+
+
 def test_inf_constants_compile():
     settings = Settings(experimental_codegen=True)
     code = """

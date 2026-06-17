@@ -3,11 +3,9 @@ from collections import defaultdict
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic, ExceptionList, InitializerException, StructureException
 from vyper.semantics.analysis.base import InitializesInfo, UsesInfo
-from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.infinity import type_contains_unbounded_sequence
 from vyper.semantics.types.module import ModuleT
-from vyper.semantics.types.utils import type_from_annotation
 
 
 def validate_compilation_target(module_t: ModuleT, experimental_codegen: bool = False) -> None:
@@ -42,7 +40,9 @@ def _validate_legacy_codegen_no_unbounded_sequences(module_t: ModuleT) -> None:
         if func_t.ast_def is None:  # pragma: nocover
             raise CompilerPanic("function missing declaration node")
         for node in func_t.ast_def.get_descendants(vy_ast.AnnAssign):
-            typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
+            typ = node.target._metadata.get("type")
+            if typ is None:  # pragma: nocover
+                raise CompilerPanic("local variable missing analysis metadata")
             _reject_legacy_unbounded_sequence(typ, node.annotation)
 
 

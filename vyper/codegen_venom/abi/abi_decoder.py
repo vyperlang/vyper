@@ -201,7 +201,13 @@ def clamp_dyn_array(
 
     if hi is not None:
         elem_static_size = typ.value_type.abi_type.embedded_static_size()
-        ctx.assert_abi_dynarray_payload_in_bounds(src.operand, count, elem_static_size, hi)
+        if ctx.is_unbounded_dynarray_type(typ):
+            ctx.assert_abi_dynarray_payload_in_bounds(src.operand, count, elem_static_size, hi)
+        else:
+            payload_size = b.mul(count, IRLiteral(elem_static_size))
+            payload_size = b.add(payload_size, IRLiteral(32))
+            item_end = b.add(src.operand, payload_size)
+            b.assert_(b.iszero(b.gt(item_end, hi)))
 
 
 def _getelemptr_abi(
@@ -403,11 +409,6 @@ def _decode_dyn_array(
         if _guard_dynamic_offset(loc, hi):
             # Dynamic element offsets must not wrap below the DynArray payload.
             b.assert_(b.iszero(b.lt(elem_src_ptr, src_data)))
-        if hi is not None:
-            elem_end = b.add(elem_src_ptr, IRLiteral(elem_static_size))
-            no_elem_end_wrap = b.iszero(b.lt(elem_end, elem_src_ptr))
-            elem_in_bounds = b.iszero(b.gt(elem_end, hi))
-            b.assert_(b.and_(no_elem_end_wrap, elem_in_bounds))
     else:
         elem_src_ptr = b.add(src_data, b.mul(i, IRLiteral(elem_static_size)))
 

@@ -611,11 +611,15 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     # Get blueprint code size (minus preamble)
     full_codesize = b.extcodesize(target)
 
-    # Assert blueprint has code after the preamble before subtracting.
-    # Checking the wrapped subtraction with sgt would accept offsets near 2**256.
-    has_code = b.gt(full_codesize, code_offset)
+    if code_offset_is_literal:
+        codesize = b.sub(full_codesize, code_offset)
+        has_code = b.sgt(codesize, IRLiteral(0))
+    else:
+        # Runtime offsets can be attacker-controlled. Checking the wrapped
+        # subtraction with sgt would accept offsets near 2**256.
+        has_code = b.gt(full_codesize, code_offset)
+        codesize = b.sub(full_codesize, code_offset)
     b.assert_(has_code)
-    codesize = b.sub(full_codesize, code_offset)
 
     # Handle constructor arguments
     args_len: IROperand
