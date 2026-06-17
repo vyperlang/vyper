@@ -1978,7 +1978,10 @@ class Expr:
 
         # Call starts at buf+28, length = 4-byte selector + ABI args payload.
         args_ofst = b.add(buf_ptr, IRLiteral(28))
-        args_len = self.ctx.checked_add(args_abi_len, IRLiteral(4))
+        if dynamic_args:
+            args_len = self.ctx.checked_add(args_abi_len, IRLiteral(4))
+        else:
+            args_len = b.add(args_abi_len, IRLiteral(4))
 
         # === Contract Existence Check ===
         # If function returns nothing and skip_contract_check is False,
