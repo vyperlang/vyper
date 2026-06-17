@@ -2148,6 +2148,19 @@ class Expr:
             self.ctx, src_vv, return_t, hi, "external call return"
         )
 
+    def _copy_returndata_to_scratch(
+        self, returndata_size: IROperand
+    ) -> tuple[IRVariable, IROperand]:
+        b = self.builder
+
+        returndata_ptr = self.ctx.allocate_scratch(returndata_size)
+        b.returndatacopy(returndata_ptr, IRLiteral(0), returndata_size)
+
+        hi = b.add(returndata_ptr, returndata_size)
+        no_hi_wrap = b.iszero(b.lt(hi, returndata_ptr))
+        b.assert_(no_hi_wrap)
+        return returndata_ptr, hi
+
     def _copy_and_decode_unbounded_external_call_return(
         self, return_t: VyperType, returndata_size: IROperand
     ) -> VyperValue:
@@ -2157,12 +2170,7 @@ class Expr:
         ok = b.iszero(b.lt(returndata_size, IRLiteral(32)))
         b.assert_(ok)
 
-        returndata_ptr = self.ctx.allocate_scratch(returndata_size)
-        b.returndatacopy(returndata_ptr, IRLiteral(0), returndata_size)
-
-        hi = b.add(returndata_ptr, returndata_size)
-        no_hi_wrap = b.iszero(b.lt(hi, returndata_ptr))
-        b.assert_(no_hi_wrap)
+        returndata_ptr, hi = self._copy_returndata_to_scratch(returndata_size)
 
         # ABI external returns are always encoded as a tuple. A single dynamic
         # bytes/string return is therefore `[offset][length][data...]`.
@@ -2184,12 +2192,7 @@ class Expr:
         ok = b.iszero(b.lt(returndata_size, IRLiteral(static_size)))
         b.assert_(ok)
 
-        returndata_ptr = self.ctx.allocate_scratch(returndata_size)
-        b.returndatacopy(returndata_ptr, IRLiteral(0), returndata_size)
-
-        hi = b.add(returndata_ptr, returndata_size)
-        no_hi_wrap = b.iszero(b.lt(hi, returndata_ptr))
-        b.assert_(no_hi_wrap)
+        returndata_ptr, hi = self._copy_returndata_to_scratch(returndata_size)
 
         tuple_src = returndata_ptr
         if needs_external_call_wrap(return_t):
