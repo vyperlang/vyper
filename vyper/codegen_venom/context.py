@@ -397,10 +397,23 @@ class VenomCodegenContext:
         data_size = self.checked_mul(length, IRLiteral(elem_size))
         return self.checked_add(IRLiteral(32), data_size)
 
+    def unchecked_dynarray_runtime_size_from_length(
+        self, length: IROperand, typ: DArrayT
+    ) -> IROperand:
+        """Return 32 + len * elem_size when type caps already prove no overflow."""
+        elem_size = typ.value_type.memory_bytes_required
+        data_size = self.builder.mul(length, IRLiteral(elem_size))
+        return self.builder.add(IRLiteral(32), data_size)
+
     def dynarray_runtime_size(self, ptr: IRVariable, typ: DArrayT) -> IROperand:
         """Return runtime memory size for a DynArray: 32 + len * elem_size."""
         length = self.builder.mload(ptr)
         return self.dynarray_runtime_size_from_length(length, typ)
+
+    def unchecked_dynarray_runtime_size(self, ptr: IRVariable, typ: DArrayT) -> IROperand:
+        """Return runtime memory size for a bounded-source DynArray."""
+        length = self.builder.mload(ptr)
+        return self.unchecked_dynarray_runtime_size_from_length(length, typ)
 
     def dynarray_runtime_abi_size(self, ptr: IRVariable, typ: DArrayT) -> IROperand:
         """Return runtime ABI size for an unbounded DynArray with static ABI elements."""
@@ -446,7 +459,7 @@ class VenomCodegenContext:
         annotation: Optional[str] = None,
     ) -> VyperValue:
         """Copy code bytes into a runtime-sized bytestring memory value."""
-        size = self.bytestring_runtime_size_from_length(length)
+        size = self.unchecked_bytestring_runtime_size_from_length(length)
         ptr = self.allocate_scratch(size)
         self.builder.mstore(ptr, length)
         self.zero_bytestring_padding(ptr, length)
@@ -480,7 +493,10 @@ class VenomCodegenContext:
         """Copy a bytestring value into exact-sized runtime scratch memory."""
         src = self.unwrap(vv)
         assert isinstance(src, IRVariable)
-        size = self.bytestring_runtime_size(src)
+        if self.is_unbounded_bytestring_type(vv.typ):
+            size = self.bytestring_runtime_size(src)
+        else:
+            size = self.unchecked_bytestring_runtime_size(src)
         dst = self.allocate_scratch(size)
         self.copy_memory_dynamic(dst, src, size)
         return self.dynamic_memory_value(dst, typ, annotation=annotation)
@@ -491,7 +507,10 @@ class VenomCodegenContext:
         """Copy a DynArray value into exact-sized runtime scratch memory."""
         src = self.unwrap(vv)
         assert isinstance(src, IRVariable)
-        size = self.dynarray_runtime_size(src, typ)
+        if isinstance(vv.typ, DArrayT) and is_bounded_length(vv.typ.length):
+            size = self.unchecked_dynarray_runtime_size(src, typ)
+        else:
+            size = self.dynarray_runtime_size(src, typ)
         dst = self.allocate_scratch(size)
         self.copy_memory_dynamic(dst, src, size)
         return self.dynamic_memory_value(dst, typ, annotation=annotation)

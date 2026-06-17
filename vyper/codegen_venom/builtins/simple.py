@@ -71,6 +71,7 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
 
 def _empty_memory_value(ctx: VenomCodegenContext, typ) -> VyperValue:
     if ctx.is_unbounded_sequence_type(typ):
+        # Empty INF values have a known exact size: just the zero length word.
         buf = ctx.allocate_buffer(32, annotation="empty")
         ptr = buf._ptr
         ctx.builder.mstore(ptr, IRLiteral(0))

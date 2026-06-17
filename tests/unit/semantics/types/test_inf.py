@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from vyper import compiler
@@ -618,6 +620,69 @@ def f(a: address) -> DynArray[Bytes[10], 5]:
     return staticcall I(a).foo()
     """
     compiler.compile_code(accepted, settings=Settings(experimental_codegen=True))
+
+
+def test_wildcard_tuple_interface_arg_rejects_inf_source():
+    code = """
+interface I:
+    def foo(x: (Bytes[...], uint256)) -> uint256: view
+
+@external
+def f(a: address, x: Bytes[INF]) -> uint256:
+    return staticcall I(a).foo((x, 1))
+    """
+    with pytest.raises(StructureException):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+
+
+def test_wildcard_tuple_return_member_access_compile():
+    code = """
+interface I:
+    def foo() -> (Bytes[...], uint256): view
+
+@external
+def f(a: address) -> uint256:
+    return len((staticcall I(a).foo())[0])
+    """
+    compiler.compile_code(
+        code, output_formats=["bytecode"], settings=Settings(experimental_codegen=True)
+    )
+
+
+def test_wildcard_tuple_return_dynamic_element_requires_expected_bound():
+    code = """
+interface I:
+    def foo() -> (uint256, DynArray[Bytes[10], ...]): view
+
+@external
+def f(a: address) -> uint256:
+    return len((staticcall I(a).foo())[1])
+    """
+    with pytest.raises(StructureException):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+
+
+def test_imported_wildcard_event_rejects_inf_arg(make_input_bundle):
+    abi = [
+        {
+            "anonymous": False,
+            "inputs": [{"indexed": False, "name": "x", "type": "bytes"}],
+            "name": "Foo",
+            "type": "event",
+        }
+    ]
+    code = """
+import JSONInterface
+
+@external
+def emit(x: Bytes[INF]):
+    log JSONInterface.Foo(x=x)
+    """
+    input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
+    with pytest.raises(StructureException):
+        compiler.compile_code(
+            code, input_bundle=input_bundle, settings=Settings(experimental_codegen=True)
+        )
 
 
 def _compile_inf_dynarray_code(code, experimental_codegen):

@@ -72,10 +72,46 @@ from vyper.semantics.types.function import (
 )
 from vyper.semantics.types.infinity import (
     INF,
+    is_supported_unbounded_tuple_type,
     is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.utils import type_from_annotation
+
+
+def _contains_unbounded_dynarray_with_dynamic_elements(typ: VyperType) -> bool:
+    if isinstance(typ, DArrayT):
+        if typ.length is INF and typ.value_type.abi_type.is_dynamic():
+            return True
+        return _contains_unbounded_dynarray_with_dynamic_elements(typ.value_type)
+
+    if isinstance(typ, SArrayT):
+        return _contains_unbounded_dynarray_with_dynamic_elements(typ.value_type)
+
+    if isinstance(typ, HashMapT):
+        return _contains_unbounded_dynarray_with_dynamic_elements(
+            typ.key_type
+        ) or _contains_unbounded_dynarray_with_dynamic_elements(typ.value_type)
+
+    if isinstance(typ, TupleT):
+        return any(_contains_unbounded_dynarray_with_dynamic_elements(t) for t in typ.member_types)
+
+    if isinstance(typ, StructT):
+        return any(
+            _contains_unbounded_dynarray_with_dynamic_elements(t) for t in typ.member_types.values()
+        )
+
+    return False
+
+
+def _expr_contains_unbounded_sequence(node: vy_ast.VyperNode) -> bool:
+    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
+        return any(_expr_contains_unbounded_sequence(item) for item in node.elements)
+
+    try:
+        return type_contains_unbounded_sequence(get_exact_type_from_node(node))
+    except VyperException:
+        return False
 
 
 def analyze_functions(vy_module: vy_ast.Module) -> None:
@@ -1005,6 +1041,22 @@ class ExprVisitor(VyperNodeVisitorBase):
                     )
 
             for arg, arg_typ in zip(node.args, func_type.argument_types):
+                if isinstance(arg, (vy_ast.Tuple, vy_ast.List)):
+                    has_nested_unbounded = _expr_contains_unbounded_sequence(arg)
+                else:
+                    try:
+                        actual_arg_typ = get_exact_type_from_node(arg)
+                    except VyperException:
+                        has_nested_unbounded = False
+                    else:
+                        has_nested_unbounded = _expr_contains_unbounded_sequence(
+                            arg
+                        ) and not is_unbounded_sequence_type(actual_arg_typ)
+
+                if has_nested_unbounded:
+                    raise StructureException(
+                        "Function arguments cannot contain nested unbounded sequence types", arg
+                    )
                 self.visit(arg, arg_typ)
             for kwarg in node.keywords:
                 # We should only see special kwargs
@@ -1020,11 +1072,15 @@ class ExprVisitor(VyperNodeVisitorBase):
                     else:
                         # Replace wildcards in the type by INF, since there is no expected type
                         return_t = return_t.resolve_wildcard()
-                        if (
-                            isinstance(return_t, DArrayT)
-                            and return_t.length is INF
-                            and return_t.value_type.abi_type.is_dynamic()
+                        if type_contains_unbounded_sequence(return_t) and not (
+                            is_unbounded_sequence_type(return_t)
+                            or is_supported_unbounded_tuple_type(return_t)
                         ):
+                            raise StructureException(
+                                "Function returns cannot contain nested unbounded sequence types",
+                                node,
+                            )
+                        if _contains_unbounded_dynarray_with_dynamic_elements(return_t):
                             raise StructureException(
                                 "DynArray[..., INF] is only supported with ABI-static "
                                 "element types",

@@ -1058,7 +1058,7 @@ class Expr:
         assert isinstance(node, vy_ast.Subscript)
         base_vv = Expr(node.value, self.ctx).lower()
         base = base_vv.operand  # Extract pointer for address math
-        base_typ = node.value._metadata["type"]
+        base_typ = base_vv.typ
 
         # Get the compile-time index
         reduced_slice = node.slice.reduced()
@@ -1066,6 +1066,7 @@ class Expr:
         index = reduced_slice.value
 
         if self.ctx.is_dynamic_tuple_frame_type(base_typ):
+            assert isinstance(base_typ, TupleT)
             assert isinstance(base, IRVariable)
             return self.ctx.dynamic_tuple_frame_values(base, base_typ, annotation="subscript")[
                 index
@@ -1074,6 +1075,7 @@ class Expr:
         # Propagate location from base
         data_loc = base_vv.location
         assert data_loc is not None
+        assert isinstance(base_typ, (TupleT, StructT))
 
         # Compute offset by summing sizes of preceding elements
         attrs = list(base_typ.tuple_keys())
@@ -1397,6 +1399,7 @@ class Expr:
         return_buf: Optional[IROperand] = None
         if func_t.return_type is not None:
             if self.ctx.is_dynamic_tuple_frame_type(func_t.return_type):
+                # Dynamic tuple returns are captured from the `invoke` dynamic outputs.
                 pass
             elif returns_count > 0:
                 # Multi-return: allocate scratch buffer

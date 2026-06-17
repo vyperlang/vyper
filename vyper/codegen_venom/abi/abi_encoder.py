@@ -17,6 +17,7 @@ from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.core import is_tuple_like
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import DArrayT, SArrayT, TupleT, VyperType, _BytestringT
+from vyper.semantics.types.infinity import type_contains_unbounded_sequence
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -63,14 +64,31 @@ def runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IR
     return IRLiteral(typ.abi_type.size_bound())
 
 
+def _abi_size_add(
+    ctx: VenomCodegenContext,
+    left: IROperand,
+    right: IROperand,
+    left_unbounded: bool,
+    right_unbounded: bool,
+) -> tuple[IROperand, bool]:
+    if left_unbounded or right_unbounded:
+        return ctx.checked_add(left, right), True
+
+    return ctx.builder.add(left, right), False
+
+
 def runtime_abi_size_for_encode(
     ctx: VenomCodegenContext, arg_vals: list[VyperValue], encode_type: VyperType
 ) -> IROperand:
     if isinstance(encode_type, TupleT):
         size: IROperand = IRLiteral(encode_type.abi_type.static_size())
+        size_unbounded = False
         for arg_vv in arg_vals:
             if arg_vv.typ.abi_type.is_dynamic():
-                size = ctx.checked_add(size, runtime_abi_size_for_arg(ctx, arg_vv))
+                arg_unbounded = type_contains_unbounded_sequence(arg_vv.typ)
+                size, size_unbounded = _abi_size_add(
+                    ctx, size, runtime_abi_size_for_arg(ctx, arg_vv), size_unbounded, arg_unbounded
+                )
         return size
 
     return runtime_abi_size_for_arg(ctx, arg_vals[0])
@@ -88,6 +106,7 @@ def abi_encode_values_to_buf(
 
     dyn_ofst_val = ctx.new_temporary_value(UINT256_T)
     ctx.ptr_store(dyn_ofst_val.ptr(), IRLiteral(encode_type.abi_type.static_size()))
+    dyn_ofst_unbounded = False
 
     static_ofst = 0
     for arg_vv in arg_vals:
@@ -101,7 +120,11 @@ def abi_encode_values_to_buf(
             assert isinstance(child_src, IRVariable)
             child_len = abi_encode_to_buf(ctx, child_dst, child_src, typ)
             b.mstore(static_loc, dyn_ofst)
-            ctx.ptr_store(dyn_ofst_val.ptr(), ctx.checked_add(dyn_ofst, child_len))
+            arg_unbounded = type_contains_unbounded_sequence(typ)
+            new_dyn_ofst, dyn_ofst_unbounded = _abi_size_add(
+                ctx, dyn_ofst, child_len, dyn_ofst_unbounded, arg_unbounded
+            )
+            ctx.ptr_store(dyn_ofst_val.ptr(), new_dyn_ofst)
         else:
             ctx.store_vyper_value(arg_vv, static_loc, typ)
 
