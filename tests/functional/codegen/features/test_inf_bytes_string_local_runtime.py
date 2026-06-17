@@ -951,6 +951,31 @@ def dec(x: Bytes[INF]) -> Bytes[INF]:
     assert abi_decode("(bytes)", ret) == (payload,)
 
 
+def test_inf_bytes_abi_decode_rejects_malformed_payload(env, tx_failed):
+    code = """
+@external
+def dec(x: Bytes[INF]) -> Bytes[INF]:
+    return abi_decode(x, Bytes[INF])
+
+@external
+def dec_no_tuple(x: Bytes[INF]) -> Bytes[INF]:
+    return abi_decode(x, Bytes[INF], unwrap_tuple=False)
+    """
+
+    c = _deploy_venom(env, code)
+
+    def word(value):
+        return value.to_bytes(32, "big")
+
+    for payload in [word(32), word(32) + word(2) + b"a"]:
+        with tx_failed():
+            _call(env, c, "dec(bytes)", "(bytes)", (payload,))
+
+    for payload in [b"", word(2) + b"a"]:
+        with tx_failed():
+            _call(env, c, "dec_no_tuple(bytes)", "(bytes)", (payload,))
+
+
 def test_inf_string_abi_decode_default_tuple(env):
     payload = "decoded string " * 150 + "tail"
     code = """

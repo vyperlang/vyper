@@ -1430,8 +1430,11 @@ class Expr:
         # allocate staging buffers, avoiding corruption.
         # See legacy codegen: vyper/codegen/self_call.py (contains_self_call handling)
         arg_vals: list[VyperValue] = []
-        for arg_node in all_arg_nodes:
-            arg_vals.append(Expr(arg_node, self.ctx).lower())
+        for arg_node, arg_t in zip(all_arg_nodes, func_t.arguments):
+            arg_vv = Expr(arg_node, self.ctx).lower()
+            arg_vals.append(
+                self._freeze_unbounded_sequence_arg(arg_vv, arg_t.typ, annotation=arg_t.name)
+            )
 
         # Now allocate staging buffers and copy evaluated values
         for i, arg_val in enumerate(arg_vals):
@@ -1867,6 +1870,16 @@ class Expr:
     def _external_call_args_need_runtime_encoding(self, arg_vals: list[VyperValue]) -> bool:
         return any(self.ctx.is_unbounded_sequence_type(arg_vv.typ) for arg_vv in arg_vals)
 
+    def _freeze_unbounded_sequence_arg(
+        self, arg_vv: VyperValue, target_typ: VyperType, annotation: str
+    ) -> VyperValue:
+        """Copy INF sequence args before later arguments can mutate their source."""
+        target_is_unbounded = self.ctx.is_unbounded_sequence_type(target_typ)
+        if target_is_unbounded or self.ctx.is_unbounded_sequence_type(arg_vv.typ):
+            copy_typ = target_typ if target_is_unbounded else arg_vv.typ
+            return self.ctx.copy_sequence_to_scratch(arg_vv, copy_typ, annotation=annotation)
+        return arg_vv
+
     def _lower_external_call(self) -> VyperValue:
         """Lower external call (extcall/staticcall).
 
@@ -1902,8 +1915,11 @@ class Expr:
 
         # Evaluate arguments.
         arg_vals: list[VyperValue] = []
-        for arg in call_node.args:
-            arg_vals.append(Expr(arg, self.ctx).lower())
+        for arg, arg_t in zip(call_node.args, fn_type.arguments):
+            arg_vv = Expr(arg, self.ctx).lower()
+            arg_vals.append(
+                self._freeze_unbounded_sequence_arg(arg_vv, arg_t.typ, annotation=arg_t.name)
+            )
 
         # Parse kwargs
         call_kwargs = self._parse_external_call_kwargs(call_node)

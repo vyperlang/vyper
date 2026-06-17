@@ -1,14 +1,15 @@
 from vyper.codegen_venom.module import generate_runtime_venom
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
-from vyper.compiler.settings import Settings
+from vyper.compiler.settings import Settings, anchor_settings
 from vyper.venom.basicblock import IRLiteral
 
 
 def _compile_frontend_ir(source):
     settings = Settings(experimental_codegen=True)
-    compiler_data = CompilerData(source, settings=settings)
-    return generate_runtime_venom(compiler_data.global_ctx, settings)
+    with anchor_settings(settings):
+        compiler_data = CompilerData(source, settings=settings)
+        return generate_runtime_venom(compiler_data.global_ctx, settings)
 
 
 def _opcodes(ctx):
@@ -112,6 +113,54 @@ def dec(x: Bytes[INF]) -> Bytes[100]:
     assert not any(
         isinstance(length, IRLiteral) and length.value == 160 for length in mcopy_lengths
     )
+
+
+def test_inf_abi_decode_checks_length_word_before_mload():
+    code = """
+@external
+def dec(x: Bytes[INF]) -> Bytes[INF]:
+    return abi_decode(x, Bytes[INF], unwrap_tuple=False)
+    """
+
+    ctx = _compile_frontend_ir(code)
+    insts = [
+        inst
+        for fn in ctx.functions.values()
+        for bb in fn.get_basic_blocks()
+        for inst in bb.instructions
+    ]
+    defs = {inst._outputs[0]: i for i, inst in enumerate(insts) if len(inst._outputs) == 1}
+
+    def _is_literal_32(op):
+        return isinstance(op, IRLiteral) and op.value == 32
+
+    found_checked_length_mload = False
+    for i, inst in enumerate(insts):
+        if inst.opcode != "mload":
+            continue
+
+        ptr = inst.operands[0]
+        ptr_def = insts[defs[ptr]]
+        if ptr_def.opcode != "add":
+            continue
+        if not any(isinstance(op, IRLiteral) and op.value == 32 for op in ptr_def.operands):
+            continue
+
+        precheck_adds = [
+            j
+            for j, candidate in enumerate(insts[:i])
+            if candidate.opcode == "add"
+            and len(candidate.operands) == 2
+            and any(op == ptr for op in candidate.operands)
+            and any(_is_literal_32(op) for op in candidate.operands)
+        ]
+        if precheck_adds and any(
+            candidate.opcode == "assert" for candidate in insts[precheck_adds[-1] : i]
+        ):
+            found_checked_length_mload = True
+            break
+
+    assert found_checked_length_mload, "expected ABI length mload to be guarded by src + 32 check"
 
 
 def test_inf_bytes_internal_return_emits_dret():

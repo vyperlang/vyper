@@ -113,6 +113,21 @@ def _abi_input_name(item: dict, index: int, members: dict[str, VyperType]) -> st
     return name
 
 
+def _reject_unbounded_event_or_error_arg(arg_node: vy_ast.ExprNode, kind: str) -> None:
+    from vyper.semantics.analysis.utils import get_exact_type_from_node
+
+    def _contains_unbounded_arg(node: vy_ast.ExprNode) -> bool:
+        if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
+            return any(_contains_unbounded_arg(item) for item in node.elements)
+        try:
+            return type_contains_unbounded_sequence(get_exact_type_from_node(node))
+        except VyperException:
+            return False
+
+    if _contains_unbounded_arg(arg_node):
+        raise StructureException(f"{kind} cannot contain unbounded sequence types", arg_node)
+
+
 # note: flag behaves a lot like uint256, or uints in general.
 class FlagT(_UserType):
     typeclass = "flag"
@@ -338,20 +353,6 @@ class EventT(_UserType):
         return cls(base_node.name, members, indexed, base_node)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> None:
-        def _reject_unbounded_arg(arg_node: vy_ast.ExprNode) -> None:
-            from vyper.semantics.analysis.utils import get_exact_type_from_node
-
-            def _contains_unbounded_arg(node: vy_ast.ExprNode) -> bool:
-                if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-                    return any(_contains_unbounded_arg(item) for item in node.elements)
-                try:
-                    return type_contains_unbounded_sequence(get_exact_type_from_node(node))
-                except VyperException:
-                    return False
-
-            if _contains_unbounded_arg(arg_node):
-                raise StructureException("Events cannot contain unbounded sequence types", arg_node)
-
         # validate keyword arguments if provided
         if len(node.keywords) > 0:
             if len(node.args) > 0:
@@ -363,7 +364,7 @@ class EventT(_UserType):
 
             validate_kwargs(node, self.arguments, self.typeclass)
             for kwarg in node.keywords:
-                _reject_unbounded_arg(kwarg.value)
+                _reject_unbounded_event_or_error_arg(kwarg.value, "Events")
             return
 
         # warn about positional argument deprecation
@@ -383,7 +384,7 @@ class EventT(_UserType):
         validate_call_args(node, len(self.arguments))
         for arg, expected in zip(node.args, self.arguments.values()):
             validate_expected_type(arg, expected)
-            _reject_unbounded_arg(arg)
+            _reject_unbounded_event_or_error_arg(arg, "Events")
 
     def to_toplevel_abi_dict(self) -> list[dict]:
         return [
@@ -458,10 +459,13 @@ class ErrorT(_UserType):
                 )
 
             validate_kwargs(node, self.arguments, self.typeclass)
+            for kwarg in node.keywords:
+                _reject_unbounded_event_or_error_arg(kwarg.value, "Custom errors")
         else:
             validate_call_args(node, len(self.arguments))
             for arg, expected in zip(node.args, self.arguments.values()):
                 validate_expected_type(arg, expected)
+                _reject_unbounded_event_or_error_arg(arg, "Custom errors")
 
         return self
 

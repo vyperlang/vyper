@@ -1342,12 +1342,12 @@ class Stmt:
         data_vals = []
         data_typs = []
 
-        for (arg_val, arg_typ, src_typ), is_indexed in zip(args, event.indexed):
+        for (arg_val, _arg_typ, src_typ), is_indexed in zip(args, event.indexed):
             if is_indexed:
-                topic_vals.append((arg_val, arg_typ))
+                topic_vals.append((arg_val, src_typ))
             else:
                 data_vals.append((arg_val, src_typ))
-                data_typs.append(arg_typ)
+                data_typs.append(src_typ)
 
         # Build topics list - starts with event signature hash
         topics: list[IROperand] = [IRLiteral(event.event_id)]
@@ -1536,13 +1536,20 @@ class Stmt:
         assert isinstance(msg, vy_ast.Call)
 
         arg_nodes = self._custom_error_arg_nodes(msg, error_t)
-        arg_types = tuple(error_t.arguments.values())
+        old_constancy = self.ctx.constancy
+        try:
+            self.ctx.constancy = Constancy.Constant
+            arg_vvs = [Expr(arg_node, self.ctx).lower() for arg_node in arg_nodes]
+        finally:
+            self.ctx.constancy = old_constancy
+
+        arg_types = tuple(arg_vv.typ for arg_vv in arg_vvs)
         args_tuple_t = TupleT(arg_types)
 
         args_tuple_buf = self.ctx.allocate_buffer(
             args_tuple_t.memory_bytes_required, annotation="custom error args"
         )
-        self._store_custom_error_args(args_tuple_buf._ptr, arg_nodes, arg_types)
+        self._store_custom_error_args(args_tuple_buf._ptr, arg_vvs, arg_types)
 
         bufsz = args_tuple_t.abi_type.size_bound() + 32
         buf = self.ctx.allocate_buffer(bufsz, annotation="custom error revert buffer")
@@ -1563,20 +1570,14 @@ class Stmt:
             self.builder.revert(revert_offset, revert_len)
 
     def _store_custom_error_args(
-        self, dst: IRVariable, arg_nodes: list[vy_ast.VyperNode], arg_types: tuple
+        self, dst: IRVariable, arg_vvs: list[VyperValue], arg_types: tuple
     ) -> None:
-        old_constancy = self.ctx.constancy
-        try:
-            self.ctx.constancy = Constancy.Constant
-            offset = 0
-            for arg_node, arg_type in zip(arg_nodes, arg_types):
-                arg_vv = Expr(arg_node, self.ctx).lower()
-                arg_ptr = dst if offset == 0 else self.builder.add(dst, IRLiteral(offset))
-                assert isinstance(arg_ptr, IRVariable)
-                self.ctx.store_vyper_value(arg_vv, arg_ptr, arg_type)
-                offset += arg_type.memory_bytes_required
-        finally:
-            self.ctx.constancy = old_constancy
+        offset = 0
+        for arg_vv, arg_type in zip(arg_vvs, arg_types):
+            arg_ptr = dst if offset == 0 else self.builder.add(dst, IRLiteral(offset))
+            assert isinstance(arg_ptr, IRVariable)
+            self.ctx.store_vyper_value(arg_vv, arg_ptr, arg_type)
+            offset += arg_type.memory_bytes_required
 
     def _revert_with_reason(self, msg: vy_ast.VyperNode) -> None:
         """Emit revert with Error(string) encoding.

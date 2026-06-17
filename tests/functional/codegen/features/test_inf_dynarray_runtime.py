@@ -217,6 +217,64 @@ def grow(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     assert abi_decode("(uint256[])", ret) == ([1, 2, 3, 99, 123],)
 
 
+def test_inf_dynarray_internal_call_freezes_arg_before_later_mutation(env):
+    code = """
+@internal
+def _len(a: DynArray[uint256, INF], popped: uint256) -> uint256:
+    return len(a) * 10 + popped
+
+@external
+def check() -> (uint256, DynArray[uint256, INF]):
+    x: DynArray[uint256, INF] = [1, 2, 3]
+    r: uint256 = self._len(x, x.pop())
+    return r, x
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "check()")
+    assert abi_decode("(uint256,uint256[])", ret) == (33, [1, 2])
+
+
+def test_inf_dynarray_external_call_freezes_arg_before_later_mutation(env):
+    target_code = """
+@external
+@view
+def length(a: DynArray[uint256, INF], popped: uint256) -> uint256:
+    return len(a) * 10 + popped
+    """
+    caller_code = """
+interface Target:
+    def length(a: DynArray[uint256, INF], popped: uint256) -> uint256: view
+
+@external
+def check(addr: address) -> (uint256, DynArray[uint256, INF]):
+    x: DynArray[uint256, INF] = [1, 2, 3]
+    r: uint256 = staticcall Target(addr).length(x, x.pop())
+    return r, x
+    """
+
+    target = _deploy_venom(env, target_code)
+    caller = _deploy_venom(env, caller_code)
+    ret = _call(env, caller, "check(address)", "(address)", (target.address,))
+    assert abi_decode("(uint256,uint256[])", ret) == (33, [1, 2])
+
+
+def test_inf_dynarray_abi_encode_freezes_arg_before_later_mutation(env):
+    code = """
+@external
+def check() -> (Bytes[INF], DynArray[uint256, INF]):
+    x: DynArray[uint256, INF] = [1, 2, 3]
+    encoded: Bytes[INF] = abi_encode(x, x.pop())
+    return encoded, x
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "check()")
+    encoded, arr = abi_decode("(bytes,uint256[])", ret)
+    assert abi_decode("(uint256[],uint256)", encoded) == ([1, 2, 3], 3)
+    assert arr == [1, 2]
+
+
 def test_inf_dynarray_pop_runtime(env, tx_failed):
     code = """
 struct S:

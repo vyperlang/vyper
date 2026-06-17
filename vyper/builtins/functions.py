@@ -2416,13 +2416,13 @@ class ABIDecode(BuiltinFunctionT):
 
         data_type = get_exact_type_from_node(node.args[0])
         output_type = type_from_annotation(node.args[1])
-        if type_contains_unbounded_sequence(output_type) and not is_unbounded_sequence_type(
-            output_type
-        ):
-            raise StructureException(
-                "abi_decode output type cannot contain nested unbounded sequence types",
-                node.args[1],
-            )
+        if type_contains_unbounded_sequence(output_type):
+            if not is_unbounded_sequence_type(output_type):
+                raise StructureException(
+                    "abi_decode output type cannot contain nested unbounded sequence types",
+                    node.args[1],
+                )
+            _reject_legacy_unbounded_sequence_builtin(node)
 
         return [data_type, TYPE_T(output_type)]
 

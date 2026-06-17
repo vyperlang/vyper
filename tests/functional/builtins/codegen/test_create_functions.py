@@ -289,6 +289,10 @@ def __init__(blueprint_address: address):
 @external
 def test(code_ofst: uint256) -> address:
     return create_from_blueprint(BLUEPRINT, code_offset=code_ofst)
+
+@external
+def test_no_revert(code_ofst: uint256) -> address:
+    return create_from_blueprint(BLUEPRINT, code_offset=code_ofst, revert_on_failure=False)
     """
 
     initcode_len = 100
@@ -328,6 +332,13 @@ def test(code_ofst: uint256) -> address:
     # code_offset=EIP_170_LIMIT definitely not fine!
     with tx_failed():
         d.test(EIP_170_LIMIT)
+
+    # wrapped subtraction must not make huge offsets look like valid code sizes
+    for code_offset in [2**256 - initcode_len, 2**256 - 1]:
+        with tx_failed():
+            d.test(code_offset)
+        with tx_failed():
+            d.test_no_revert(code_offset)
 
 
 # test create_from_blueprint with args

@@ -357,25 +357,28 @@ class VenomCodegenContext:
     ) -> None:
         """Assert ABI bytes payload `[src + 32, src + 32 + length)` is in bounds."""
         b = self.builder
-        data_start = b.add(src, IRLiteral(32))
-        no_start_overflow = b.iszero(b.lt(data_start, src))
-        has_length_word = b.iszero(b.gt(data_start, hi))
-        b.assert_(b.and_(no_start_overflow, has_length_word))
+        data_start = self.assert_abi_length_word_in_bounds(src, hi)
 
         data_end = b.add(data_start, length)
         no_end_overflow = b.iszero(b.lt(data_end, data_start))
         in_bounds = b.iszero(b.gt(data_end, hi))
         b.assert_(b.and_(no_end_overflow, in_bounds))
 
-    def assert_abi_dynarray_payload_in_bounds(
-        self, src: IROperand, count: IROperand, elem_static_size: int, hi: IROperand
-    ) -> None:
-        """Assert ABI DynArray payload fits in `[src, hi]` before runtime allocation."""
+    def assert_abi_length_word_in_bounds(self, src: IROperand, hi: IROperand) -> IROperand:
+        """Assert ABI sequence length word `[src, src + 32)` is in bounds."""
         b = self.builder
         data_start = b.add(src, IRLiteral(32))
         no_start_overflow = b.iszero(b.lt(data_start, src))
         has_length_word = b.iszero(b.gt(data_start, hi))
         b.assert_(b.and_(no_start_overflow, has_length_word))
+        return data_start
+
+    def assert_abi_dynarray_payload_in_bounds(
+        self, src: IROperand, count: IROperand, elem_static_size: int, hi: IROperand
+    ) -> None:
+        """Assert ABI DynArray payload fits in `[src, hi]` before runtime allocation."""
+        b = self.builder
+        data_start = self.assert_abi_length_word_in_bounds(src, hi)
 
         available_payload = b.sub(hi, data_start)
         max_count = b.div(available_payload, IRLiteral(elem_static_size))

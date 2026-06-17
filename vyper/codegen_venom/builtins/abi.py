@@ -98,6 +98,7 @@ def _decode_unbounded_bytestring_from_abi(
     b = ctx.builder
     assert ctx.is_unbounded_bytestring_type(typ)
 
+    ctx.assert_abi_length_word_in_bounds(src, hi)
     length = b.mload(src)
     ctx.assert_abi_bytes_payload_in_bounds(src, length, hi)
 
@@ -114,6 +115,7 @@ def _decode_unbounded_sequence_from_abi(
         return _decode_unbounded_bytestring_from_abi(ctx, src, hi, typ)
 
     if isinstance(typ, DArrayT) and ctx.is_unbounded_dynarray_type(typ):
+        ctx.assert_abi_length_word_in_bounds(src, hi)
         src_vv = VyperValue.from_ptr(
             Ptr(
                 operand=src,
@@ -147,7 +149,12 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     arg_types = [arg._metadata["type"] for arg in node.args]
     if any(type_contains_unbounded_sequence(t) for t in arg_types):
-        arg_vals = [Expr(arg, ctx).lower() for arg in node.args]
+        arg_vals = []
+        for arg in node.args:
+            arg_vv = Expr(arg, ctx).lower()
+            if ctx.is_unbounded_sequence_type(arg_vv.typ):
+                arg_vv = ctx.copy_sequence_to_scratch(arg_vv, arg_vv.typ, annotation="abi_encode")
+            arg_vals.append(arg_vv)
         if len(arg_vals) == 1 and not ensure_tuple:
             encode_type: VyperType = arg_types[0]
         else:

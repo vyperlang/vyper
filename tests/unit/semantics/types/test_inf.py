@@ -486,6 +486,11 @@ def foo(code: Bytes[INF]) -> address:
 def foo(target: address, x: Bytes[INF]) -> address:
     return create_from_blueprint(target, x)
         """,
+        """
+@external
+def foo(x: Bytes[INF]) -> Bytes[INF]:
+    return abi_decode(x, Bytes[INF])
+        """,
     ],
 )
 def test_inf_legacy_builtin_gates(code):
@@ -677,6 +682,65 @@ import JSONInterface
 @external
 def emit(x: Bytes[INF]):
     log JSONInterface.Foo(x=x)
+    """
+    input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
+    with pytest.raises(StructureException):
+        compiler.compile_code(
+            code, input_bundle=input_bundle, settings=Settings(experimental_codegen=True)
+        )
+
+
+def test_imported_wildcard_event_accepts_bounded_arg(make_input_bundle):
+    abi = [
+        {
+            "anonymous": False,
+            "inputs": [{"indexed": False, "name": "x", "type": "bytes"}],
+            "name": "Foo",
+            "type": "event",
+        }
+    ]
+    code = """
+import JSONInterface
+
+@external
+def emit(x: Bytes[10]):
+    log JSONInterface.Foo(x=x)
+    """
+    input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
+    compiler.compile_code(
+        code,
+        output_formats=["bytecode"],
+        input_bundle=input_bundle,
+        settings=Settings(experimental_codegen=True),
+    )
+
+
+def test_imported_wildcard_error_accepts_bounded_arg(make_input_bundle):
+    abi = [{"inputs": [{"name": "x", "type": "bytes"}], "name": "Oops", "type": "error"}]
+    code = """
+import JSONInterface
+
+@external
+def boom(x: Bytes[10]):
+    raise JSONInterface.Oops(x)
+    """
+    input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
+    compiler.compile_code(
+        code,
+        output_formats=["bytecode"],
+        input_bundle=input_bundle,
+        settings=Settings(experimental_codegen=True),
+    )
+
+
+def test_imported_wildcard_error_rejects_inf_arg(make_input_bundle):
+    abi = [{"inputs": [{"name": "x", "type": "bytes"}], "name": "Oops", "type": "error"}]
+    code = """
+import JSONInterface
+
+@external
+def boom(x: Bytes[INF]):
+    raise JSONInterface.Oops(x)
     """
     input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
     with pytest.raises(StructureException):
