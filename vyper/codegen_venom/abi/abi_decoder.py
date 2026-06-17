@@ -223,6 +223,8 @@ def _getelemptr_abi(
         offset_val = b.load(static_loc, loc)
         actual_ptr = b.add(parent.operand, offset_val)
         if hi is not None:
+            # Untrusted offsets can wrap below the ABI parent before later
+            # payload bounds are evaluated.
             b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
         return _make_ptr_value(actual_ptr, loc, member_typ)
     else:
@@ -283,7 +285,12 @@ def _decode_bytestring(
 
 
 def decode_unbounded_dynarray_to_scratch(
-    ctx: VenomCodegenContext, src: VyperValue, typ: DArrayT, hi: IROperand | None, annotation: str
+    ctx: VenomCodegenContext,
+    src: VyperValue,
+    typ: DArrayT,
+    hi: IROperand | None,
+    annotation: str,
+    data_start: IROperand | None = None,
 ) -> VyperValue:
     assert src.location is not None, "src must have a location for ABI decoding"
     assert ctx.is_unbounded_dynarray_type(typ)
@@ -294,7 +301,9 @@ def decode_unbounded_dynarray_to_scratch(
     length = ctx.builder.load(src.operand, src.location)
     if hi is not None:
         elem_static_size = typ.value_type.abi_type.embedded_static_size()
-        ctx.assert_abi_dynarray_payload_in_bounds(src.operand, length, elem_static_size, hi)
+        ctx.assert_abi_dynarray_payload_in_bounds(
+            src.operand, length, elem_static_size, hi, data_start=data_start
+        )
 
     dst = ctx.allocate_scratch(ctx.dynarray_runtime_size_from_length(length, typ))
     abi_decode_to_buf(ctx, dst, src, hi=hi)
@@ -375,6 +384,7 @@ def _decode_dyn_array(
         offset_val = b.load(static_loc, loc)
         elem_src_ptr = b.add(src_data, offset_val)
         if hi is not None:
+            # Guard dynamic element offsets before checking the element payload.
             b.assert_(b.iszero(b.lt(elem_src_ptr, src_data)))
             elem_end = b.add(elem_src_ptr, IRLiteral(elem_static_size))
             b.assert_(b.iszero(b.gt(elem_end, hi)))

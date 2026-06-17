@@ -1736,8 +1736,6 @@ class Expr:
             self.ctx.store_memory(elem_val, elem_ptr, elem_typ, src_typ=elem_src_typ)
 
         new_length = self.builder.add(length, IRLiteral(1))
-        no_length_wrap = self.builder.gt(new_length, length)
-        self.builder.assert_(no_length_wrap)
         self.builder.mstore(new_ptr, new_length)
         self.ctx.ptr_store(var.value.ptr(), new_ptr)
         return VyperValue.from_stack_op(IRLiteral(0), VOID_TYPE)
@@ -2161,18 +2159,13 @@ class Expr:
         assert self.ctx.is_unbounded_sequence_type(return_t)
         b = self.builder
 
-        # Check the length word before reading it; payload helpers repeat this
-        # bound after `length` is available and then check the full payload.
-        length_word_end = b.add(src, IRLiteral(32))
-        no_length_end_wrap = b.iszero(b.lt(length_word_end, src))
-        b.assert_(no_length_end_wrap)
-        length_word_in_bounds = b.iszero(b.gt(length_word_end, hi))
-        b.assert_(length_word_in_bounds)
+        # Check the length word before reading it. Attacker-controlled return
+        # offsets must not be allowed to trigger huge-memory `mload` expansion.
+        data_start = self.ctx.assert_abi_length_word_in_bounds(src, hi)
 
         if self.ctx.is_unbounded_bytestring_type(return_t):
             length = b.mload(src)
-            self.ctx.assert_abi_bytes_payload_in_bounds(src, length, hi)
-            data_start = b.add(src, IRLiteral(32))
+            self.ctx.assert_abi_bytes_payload_in_bounds(src, length, hi, data_start=data_start)
             return self.ctx.materialize_bytes_from_location(
                 data_start, length, return_t, DataLocation.MEMORY, annotation="external call return"
             )
@@ -2180,7 +2173,7 @@ class Expr:
         assert isinstance(return_t, DArrayT)
         src_vv = self._make_ptr_value(src, DataLocation.MEMORY, return_t)
         return decode_unbounded_dynarray_to_scratch(
-            self.ctx, src_vv, return_t, hi, "external call return"
+            self.ctx, src_vv, return_t, hi, "external call return", data_start=data_start
         )
 
     def _copy_returndata_to_scratch(

@@ -333,8 +333,6 @@ class VenomCodegenContext:
     def checked_mul(self, left: IROperand, right: IROperand) -> IROperand:
         """Multiply two uint256 operands and assert the result did not wrap."""
         ret = self.builder.mul(left, right)
-        if isinstance(right, IRLiteral) and right.value == 0:
-            return ret
         no_overflow = self.builder.or_(
             self.builder.iszero(right), self.builder.eq(self.builder.div(ret, right), left)
         )
@@ -353,11 +351,12 @@ class VenomCodegenContext:
         return self.builder.add(self.ceil32(length), IRLiteral(32))
 
     def assert_abi_bytes_payload_in_bounds(
-        self, src: IROperand, length: IROperand, hi: IROperand
+        self, src: IROperand, length: IROperand, hi: IROperand, data_start: IROperand | None = None
     ) -> None:
         """Assert ABI bytes payload `[src + 32, src + 32 + length)` is in bounds."""
         b = self.builder
-        data_start = self.assert_abi_length_word_in_bounds(src, hi)
+        if data_start is None:
+            data_start = self.assert_abi_length_word_in_bounds(src, hi)
 
         data_end = b.add(data_start, length)
         no_end_overflow = b.iszero(b.lt(data_end, data_start))
@@ -374,11 +373,17 @@ class VenomCodegenContext:
         return data_start
 
     def assert_abi_dynarray_payload_in_bounds(
-        self, src: IROperand, count: IROperand, elem_static_size: int, hi: IROperand
+        self,
+        src: IROperand,
+        count: IROperand,
+        elem_static_size: int,
+        hi: IROperand,
+        data_start: IROperand | None = None,
     ) -> None:
         """Assert ABI DynArray payload fits in `[src, hi]` before runtime allocation."""
         b = self.builder
-        data_start = self.assert_abi_length_word_in_bounds(src, hi)
+        if data_start is None:
+            data_start = self.assert_abi_length_word_in_bounds(src, hi)
 
         available_payload = b.sub(hi, data_start)
         max_count = b.div(available_payload, IRLiteral(elem_static_size))
@@ -462,6 +467,9 @@ class VenomCodegenContext:
         annotation: Optional[str] = None,
     ) -> VyperValue:
         """Copy code bytes into a runtime-sized bytestring memory value."""
+        # CODE/extcodecopy lengths are either self-code/blueprint code size or
+        # bounded by contract code size; unlike caller-controlled INF calldata,
+        # these cannot overflow the 32 + ceil32(length) size calculation.
         size = self.unchecked_bytestring_runtime_size_from_length(length)
         ptr = self.allocate_scratch(size)
         self.builder.mstore(ptr, length)

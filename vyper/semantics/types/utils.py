@@ -98,6 +98,8 @@ def type_from_annotation(
     # Gate uses of decimal outside of built-ins behind a flag
     if isinstance(typ, DecimalT) and node.module_node.source_id != BUILTIN:
         # is there a better place to put this check?
+        # Type construction runs during analysis, before a codegen Context
+        # exists, so read the global compiler settings directly here.
         settings = get_global_settings()
         if settings and not settings.get_enable_decimals():
             raise FeatureException("decimals are not allowed unless `--enable-decimals` is set")

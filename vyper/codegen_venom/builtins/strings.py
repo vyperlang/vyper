@@ -6,7 +6,6 @@ String manipulation built-in functions.
 
 from __future__ import annotations
 
-import math
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
@@ -47,7 +46,7 @@ def lower_uint2str(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     out_t = node._metadata["type"]
     if ctx.is_unbounded_bytestring_type(out_t):
         arg_t = node.args[0]._metadata["type"]
-        n_digits = math.ceil(arg_t.bits * math.log(2) / math.log(10))
+        n_digits = len(str(2**arg_t.bits - 1))
         out_t = StringT(n_digits)
     else:
         n_digits = out_t.maxlen

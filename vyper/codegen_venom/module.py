@@ -1040,6 +1040,8 @@ def _register_positional_args(ctx: VenomCodegenContext, func_t: ContractFunction
 
 
 def _abi_arg_hi(ctx: VenomCodegenContext, location: DataLocation):
+    # External calldata is caller-controlled and INF has no type cap, so INF
+    # args need a payload bound. Constructor CODE args keep legacy leniency.
     if location == DataLocation.CALLDATA:
         return ctx.builder.calldatasize()
 

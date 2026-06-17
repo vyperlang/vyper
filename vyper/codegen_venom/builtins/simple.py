@@ -57,7 +57,8 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
     if typ._is_prim_word:
         return IRLiteral(0)
     if ctx.is_dynamic_tuple_frame_type(typ):
-        frame = ctx.allocate_scratch(IRLiteral(ctx.dynamic_tuple_frame_size(typ)))
+        frame_buf = ctx.allocate_buffer(ctx.dynamic_tuple_frame_size(typ), annotation="empty")
+        frame = frame_buf._ptr
         for i, member_t in enumerate(typ.member_types):
             cell = ctx.builder.add(frame, IRLiteral(i * 32))
             if member_t._is_prim_word:

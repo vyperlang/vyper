@@ -1140,9 +1140,10 @@ class Stmt:
                     member_ptr = self.builder.mload(cell)
                     assert isinstance(member_ptr, IRVariable)
             else:
-                assert not type_contains_unbounded_sequence(
-                    src_member_t
-                ), "non-frame dynamic tuple returns cannot contain INF members"
+                if type_contains_unbounded_sequence(src_member_t):
+                    raise CompilerPanic(
+                        "non-frame dynamic tuple returns cannot contain INF members"
+                    )
                 member_ptr = self.builder.add(ret_val, IRLiteral(src_offset))
                 assert isinstance(member_ptr, IRVariable)
                 if src_member_t._is_prim_word:

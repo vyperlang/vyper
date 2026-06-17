@@ -98,11 +98,10 @@ def _decode_unbounded_bytestring_from_abi(
     b = ctx.builder
     assert ctx.is_unbounded_bytestring_type(typ)
 
-    ctx.assert_abi_length_word_in_bounds(src, hi)
+    data_start = ctx.assert_abi_length_word_in_bounds(src, hi)
     length = b.mload(src)
-    ctx.assert_abi_bytes_payload_in_bounds(src, length, hi)
+    ctx.assert_abi_bytes_payload_in_bounds(src, length, hi, data_start=data_start)
 
-    data_start = b.add(src, IRLiteral(32))
     return ctx.materialize_bytes_from_location(
         data_start, length, typ, DataLocation.MEMORY, annotation="abi_decode"
     )
@@ -115,7 +114,7 @@ def _decode_unbounded_sequence_from_abi(
         return _decode_unbounded_bytestring_from_abi(ctx, src, hi, typ)
 
     if isinstance(typ, DArrayT) and ctx.is_unbounded_dynarray_type(typ):
-        ctx.assert_abi_length_word_in_bounds(src, hi)
+        data_start = ctx.assert_abi_length_word_in_bounds(src, hi)
         src_vv = VyperValue.from_ptr(
             Ptr(
                 operand=src,
@@ -124,7 +123,9 @@ def _decode_unbounded_sequence_from_abi(
             ),
             typ,
         )
-        return decode_unbounded_dynarray_to_scratch(ctx, src_vv, typ, hi, "abi_decode")
+        return decode_unbounded_dynarray_to_scratch(
+            ctx, src_vv, typ, hi, "abi_decode", data_start=data_start
+        )
 
     raise CompilerPanic(f"expected unbounded sequence type, got {typ}")  # pragma: nocover
 
