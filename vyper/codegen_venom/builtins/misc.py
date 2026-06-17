@@ -449,6 +449,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
             mid = method_id_int("log(string,bytes)")
             schema = args_abi_t.selector_name().encode("utf-8")
             schema_len = len(schema)
+            padded_schema_len = ((schema_len + 31) // 32) * 32
 
             payload_len = runtime_abi_size_for_encode(ctx, arg_vals, tuple_t)
             dyn_payload_ptr = ctx.allocate_scratch(ctx.checked_add(IRLiteral(32), payload_len))
@@ -456,7 +457,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
             encoded_payload_len = abi_encode_values_to_buf(ctx, payload_data_dst, arg_vals, tuple_t)
             b.mstore(dyn_payload_ptr, encoded_payload_len)
 
-            dyn_schema_buf = ctx.allocate_buffer(32 + schema_len)
+            dyn_schema_buf = ctx.allocate_buffer(32 + padded_schema_len)
             b.mstore(dyn_schema_buf._ptr, IRLiteral(schema_len))
             schema_data_ptr = b.add(dyn_schema_buf._ptr, IRLiteral(32))
             for i in range(0, schema_len, 32):
@@ -535,6 +536,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         # Schema is the ABI type selector, e.g. "(uint256,address)"
         schema = args_abi_t.selector_name().encode("utf-8")
         schema_len = len(schema)
+        padded_schema_len = ((schema_len + 31) // 32) * 32
 
         # Encode the args to a bytes payload first
         payload_buflen = args_abi_t.size_bound()
@@ -553,7 +555,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         b.mstore(payload_buf._ptr, payload_len)
 
         # Allocate schema buffer: [32 bytes length] | [data]
-        schema_buf = ctx.allocate_buffer(32 + schema_len)
+        schema_buf = ctx.allocate_buffer(32 + padded_schema_len)
         b.mstore(schema_buf._ptr, IRLiteral(schema_len))
 
         # Write schema string bytes (word by word)
