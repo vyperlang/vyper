@@ -1981,7 +1981,7 @@ class Expr:
         if dynamic_args:
             args_len = self.ctx.checked_add(args_abi_len, IRLiteral(4))
         else:
-            args_len = b.add(args_abi_len, IRLiteral(4))
+            args_len = IRLiteral(4 + args_abi_size)
 
         # === Contract Existence Check ===
         # If function returns nothing and skip_contract_check is False,

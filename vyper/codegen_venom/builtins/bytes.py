@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from vyper import ast as vy_ast
 from vyper.codegen_venom.arithmetic import clamp_basetype
 from vyper.codegen_venom.value import VyperValue
-from vyper.semantics.types import AddressT, BytesM_T, BytesT
+from vyper.semantics.types import AddressT, BytesM_T, BytesT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -43,6 +43,69 @@ def _new_slice_output(ctx: VenomCodegenContext, out_t, length: IROperand) -> Vyp
     return ctx.new_temporary_value(out_t)
 
 
+def _lower_concat_bounded(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+    from vyper.codegen_venom.expr import Expr
+
+    b = ctx.builder
+    args = node.args
+
+    # Calculate max output length (for buffer allocation)
+    max_len = 0
+    for arg in args:
+        arg_t = arg._metadata["type"]
+        if isinstance(arg_t, _BytestringT):
+            max_len += arg_t.maxlen
+        else:  # BytesM_T
+            max_len += arg_t.m
+
+    # Determine output type (string or bytes)
+    first_t = args[0]._metadata["type"]
+    out_typ: _BytestringT
+    if isinstance(first_t, StringT):
+        out_typ = StringT(max_len)
+    else:
+        out_typ = BytesT(max_len)
+
+    # Allocate output buffer (length word + data)
+    out_val = ctx.new_temporary_value(out_typ)
+    data_ptr = ctx.add_offset(out_val.ptr(), IRLiteral(32))
+
+    # Track current offset as a variable
+    offset_local = ctx.new_temporary_value(BytesT(32))  # just need 32 bytes
+    ctx.ptr_store(offset_local.ptr(), IRLiteral(0))
+
+    for arg_node in args:
+        arg_t = arg_node._metadata["type"]
+
+        if isinstance(arg_t, _BytestringT):
+            # Variable-length bytes/string: copy data, advance by actual length
+            # lower_value() handles storage -> memory copy if needed
+            arg_ptr = Expr(arg_node, ctx).lower_value()
+            assert isinstance(arg_ptr, IRVariable)
+            arg_len = b.mload(arg_ptr)
+            arg_data = b.add(arg_ptr, IRLiteral(32))
+            offset = ctx.ptr_load(offset_local.ptr())
+            dst = b.add(data_ptr.operand, offset)
+            ctx.copy_memory_dynamic(dst, arg_data, arg_len)
+            new_offset = b.add(offset, arg_len)
+            ctx.ptr_store(offset_local.ptr(), new_offset)
+        else:
+            # Fixed bytesM: the value is already left-aligned in 32 bytes
+            # Store full 32 bytes and advance by M
+            arg_val = Expr(arg_node, ctx).lower_value()
+            m = arg_t.m
+            offset = ctx.ptr_load(offset_local.ptr())
+            dst = b.add(data_ptr.operand, offset)
+            b.mstore(dst, arg_val)
+            new_offset = b.add(offset, IRLiteral(m))
+            ctx.ptr_store(offset_local.ptr(), new_offset)
+
+    # Store final length at output buffer
+    final_len = ctx.ptr_load(offset_local.ptr())
+    ctx.ptr_store(out_val.ptr(), final_len)
+    return out_val
+
+
 def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     """
     concat(a, b, ...) -> bytes | string
@@ -58,6 +121,8 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     out_typ = node._metadata["type"]
     assert isinstance(out_typ, _BytestringT)
+    if not ctx.is_unbounded_bytestring_type(out_typ):
+        return _lower_concat_bounded(node, ctx)
 
     lowered_args: list[tuple[_BytestringT | BytesM_T, IROperand, IROperand]] = []
     total_len: IROperand = IRLiteral(0)

@@ -36,7 +36,7 @@ from vyper.semantics.types import (
     VyperType,
     _BytestringT,
 )
-from vyper.semantics.types.infinity import is_bounded_length
+from vyper.semantics.types.infinity import is_bounded_length, type_contains_unbounded_sequence
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -171,7 +171,12 @@ def clamp_bytestring(
     b.assert_(b.iszero(b.gt(length, IRLiteral(typ.maxlen))))
 
     if hi is not None:
-        ctx.assert_abi_bytes_payload_in_bounds(src.operand, length, hi)
+        if ctx.is_unbounded_bytestring_type(typ):
+            ctx.assert_abi_bytes_payload_in_bounds(src.operand, length, hi)
+        else:
+            item_end = b.add(src.operand, IRLiteral(32))
+            item_end = b.add(item_end, length)
+            b.assert_(b.iszero(b.gt(item_end, hi)))
 
 
 def clamp_dyn_array(
@@ -276,15 +281,21 @@ def _decode_bytestring(
     ABI and Vyper layouts are the same: [length word][data...]
     So we just validate and copy.
     """
-    assert src.location is not None, "src must have a location for bytestring decoding"
-    length = ctx.builder.load(src.operand, src.location)
-
     # Validate length and bounds
     clamp_bytestring(ctx, src, typ, hi)
+
+    assert src.location is not None, "src must have a location for bytestring decoding"
+    if not ctx.is_unbounded_bytestring_type(typ):
+        # Match the legacy bounded path: the clamp above checks length<=maxlen
+        # and, when `hi` is provided, that the runtime payload is in bounds.
+        size = typ.memory_bytes_required
+        ctx.builder.copy_to_memory(dst, src.operand, IRLiteral(size), src.location)
+        return
 
     # Copy only the present ABI payload. The destination may have a larger
     # bounded capacity, but `hi` proves only the runtime payload is readable.
     assert isinstance(dst, IRVariable)
+    length = ctx.builder.load(src.operand, src.location)
     ctx.zero_bytestring_padding(dst, length)
     copy_size = ctx.builder.add(IRLiteral(32), length)
     ctx.builder.copy_to_memory(dst, src.operand, copy_size, src.location)
@@ -433,9 +444,11 @@ def _decode_complex(
     if hi is not None:
         static_size = typ.abi_type.static_size()
         item_end = b.add(src.operand, IRLiteral(static_size))
-        no_item_end_wrap = b.iszero(b.lt(item_end, src.operand))
         item_in_bounds = b.iszero(b.gt(item_end, hi))
-        b.assert_(b.and_(no_item_end_wrap, item_in_bounds))
+        if type_contains_unbounded_sequence(typ):
+            no_item_end_wrap = b.iszero(b.lt(item_end, src.operand))
+            item_in_bounds = b.and_(no_item_end_wrap, item_in_bounds)
+        b.assert_(item_in_bounds)
 
     if is_tuple_like(typ):
         items = list(typ.tuple_items())  # type: ignore[attr-defined]
