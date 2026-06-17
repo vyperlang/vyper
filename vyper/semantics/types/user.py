@@ -12,11 +12,11 @@ from vyper.exceptions import (
     StructureException,
     UnfoldableNode,
     VariableDeclarationException,
-    VyperException,
 )
 from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import (
     check_modifiability,
+    expr_contains_unbounded_sequence,
     validate_expected_type,
     validate_kwargs,
 )
@@ -114,17 +114,7 @@ def _abi_input_name(item: dict, index: int, members: dict[str, VyperType]) -> st
 
 
 def _reject_unbounded_event_or_error_arg(arg_node: vy_ast.ExprNode, kind: str) -> None:
-    from vyper.semantics.analysis.utils import get_exact_type_from_node
-
-    def _contains_unbounded_arg(node: vy_ast.ExprNode) -> bool:
-        if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-            return any(_contains_unbounded_arg(item) for item in node.elements)
-        try:
-            return type_contains_unbounded_sequence(get_exact_type_from_node(node))
-        except VyperException:
-            return False
-
-    if _contains_unbounded_arg(arg_node):
+    if expr_contains_unbounded_sequence(arg_node):
         raise StructureException(f"{kind} cannot contain unbounded sequence types", arg_node)
 
 

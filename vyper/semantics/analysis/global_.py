@@ -1,12 +1,49 @@
 from collections import defaultdict
 
-from vyper.exceptions import ExceptionList, InitializerException
+from vyper import ast as vy_ast
+from vyper.exceptions import CompilerPanic, ExceptionList, InitializerException, StructureException
 from vyper.semantics.analysis.base import InitializesInfo, UsesInfo
+from vyper.semantics.data_locations import DataLocation
+from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.infinity import type_contains_unbounded_sequence
 from vyper.semantics.types.module import ModuleT
+from vyper.semantics.types.utils import type_from_annotation
 
 
-def validate_compilation_target(module_t: ModuleT):
+def validate_compilation_target(module_t: ModuleT, experimental_codegen: bool = False) -> None:
     _validate_global_initializes_constraint(module_t)
+    if not experimental_codegen:
+        _validate_legacy_codegen_no_unbounded_sequences(module_t)
+
+
+def _reject_legacy_unbounded_sequence(typ: VyperType, node: vy_ast.VyperNode) -> None:
+    if type_contains_unbounded_sequence(typ):
+        raise StructureException("unbounded sequence types require --experimental-codegen", node)
+
+
+def _validate_legacy_codegen_no_unbounded_sequences(module_t: ModuleT) -> None:
+    for var_info in module_t.variables.values():
+        if var_info.is_constant:
+            if var_info.decl_node is None:  # pragma: nocover
+                raise CompilerPanic("constant missing declaration node")
+            _reject_legacy_unbounded_sequence(var_info.typ, var_info.decl_node.annotation)
+
+    for func_t in module_t.functions.values():
+        for arg in func_t.arguments:
+            if arg.ast_source is None:  # pragma: nocover
+                raise CompilerPanic("function argument missing declaration node")
+            _reject_legacy_unbounded_sequence(arg.typ, arg.ast_source.annotation)
+
+        if func_t.return_type is not None:
+            if func_t.ast_def is None:  # pragma: nocover
+                raise CompilerPanic("function return type missing declaration node")
+            _reject_legacy_unbounded_sequence(func_t.return_type, func_t.ast_def.returns)
+
+        if func_t.ast_def is None:  # pragma: nocover
+            raise CompilerPanic("function missing declaration node")
+        for node in func_t.ast_def.get_descendants(vy_ast.AnnAssign):
+            typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
+            _reject_legacy_unbounded_sequence(typ, node.annotation)
 
 
 def _collect_used_modules_r(module_t):

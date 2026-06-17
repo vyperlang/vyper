@@ -2,7 +2,6 @@ import pytest
 
 from vyper import compile_code
 from vyper.exceptions import (
-    CodegenPanic,
     ImmutableViolation,
     StructureException,
     TypeMismatch,
@@ -158,7 +157,7 @@ def _compile_inf_dynarray_code(code, experimental_codegen):
     if experimental_codegen:
         compile_code(code)
     else:
-        with pytest.raises(CodegenPanic):
+        with pytest.raises(StructureException):
             compile_code(code)
 
 

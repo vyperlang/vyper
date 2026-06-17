@@ -39,6 +39,7 @@ from vyper.semantics.types.bytestrings import BytesT
 from vyper.semantics.types.infinity import (
     is_supported_unbounded_tuple_type,
     is_unbounded_sequence_type,
+    type_contains_nested_unbounded_sequence,
     type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.primitives import BoolT
@@ -1103,7 +1104,7 @@ def _parse_args(
             raise ArgumentException(f"Function argument '{argname}' is missing a type", arg)
 
         type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
-        if type_contains_unbounded_sequence(type_) and not is_unbounded_sequence_type(type_):
+        if type_contains_nested_unbounded_sequence(type_):
             raise StructureException(
                 "Function arguments cannot contain nested unbounded sequence types", arg.annotation
             )

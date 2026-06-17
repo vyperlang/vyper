@@ -83,6 +83,7 @@ from vyper.semantics.types import (
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.infinity import (
     is_unbounded_sequence_type,
+    type_contains_nested_unbounded_sequence,
     type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT8_T, UINT256_T
@@ -232,6 +233,11 @@ class Convert(BuiltinFunctionT):
 
         if isinstance(value_type, DArrayT) and not is_bounded_length(value_type.count):
             raise TypeMismatch(f"Can't convert {value_type} to {target_type}", node.args[0])
+
+        if type_contains_unbounded_sequence(value_type) or type_contains_unbounded_sequence(
+            target_type
+        ):
+            _reject_legacy_unbounded_sequence_builtin(node)
 
         return [value_type, TYPE_T(target_type)]
 
@@ -2194,9 +2200,7 @@ class Print(BuiltinFunctionT):
         arg_types = [get_exact_type_from_node(arg) for arg in node.args]
         if any(type_contains_unbounded_sequence(arg_t) for arg_t in arg_types):
             for arg, arg_t in zip(node.args, arg_types):
-                if type_contains_unbounded_sequence(arg_t) and not is_unbounded_sequence_type(
-                    arg_t
-                ):
+                if type_contains_nested_unbounded_sequence(arg_t):
                     raise StructureException(
                         "print arguments cannot contain nested unbounded sequence types", arg
                     )
@@ -2320,9 +2324,7 @@ class ABIEncode(BuiltinFunctionT):
 
         if any(type_contains_unbounded_sequence(t) for t in arg_types):
             for arg, arg_t in zip(node.args, arg_types):
-                if type_contains_unbounded_sequence(arg_t) and not is_unbounded_sequence_type(
-                    arg_t
-                ):
+                if type_contains_nested_unbounded_sequence(arg_t):
                     raise StructureException(
                         "abi_encode arguments cannot contain nested unbounded sequence types", arg
                     )

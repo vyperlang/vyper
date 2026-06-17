@@ -239,9 +239,12 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
     length = Expr(length_node, ctx).lower_value()
 
     out_t = node._metadata["type"]
-    out_val = _new_slice_output(ctx, out_t, length)
-    out_data = ctx.add_offset(out_val.ptr(), IRLiteral(32))
-    assert isinstance(out_data.operand, IRVariable)
+
+    def _alloc_output() -> tuple[VyperValue, IRVariable]:
+        out_val = _new_slice_output(ctx, out_t, length)
+        out_data = ctx.add_offset(out_val.ptr(), IRLiteral(32))
+        assert isinstance(out_data.operand, IRVariable)
+        return out_val, out_data.operand
 
     # Determine which opcode to use
     if isinstance(src_node.value, vy_ast.Name):
@@ -249,8 +252,9 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
             # msg.data: use calldatacopy, bounds check against calldatasize
             src_len = b.calldatasize()
             _assert_slice_bounds(ctx, start, length, src_len)
+            out_val, out_data = _alloc_output()
             # calldatacopy(destOffset, offset, size)
-            b.calldatacopy(out_data.operand, start, length)
+            b.calldatacopy(out_data, start, length)
             ctx.ptr_store(out_val.ptr(), length)
             return out_val
 
@@ -258,8 +262,9 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
             # self.code: use codecopy, bounds check against codesize
             src_len = b.codesize()
             _assert_slice_bounds(ctx, start, length, src_len)
+            out_val, out_data = _alloc_output()
             # codecopy(destOffset, offset, size)
-            b.codecopy(out_data.operand, start, length)
+            b.codecopy(out_data, start, length)
             ctx.ptr_store(out_val.ptr(), length)
             return out_val
 
@@ -267,8 +272,9 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
     addr = Expr(src_node.value, ctx).lower_value()
     src_len = b.extcodesize(addr)
     _assert_slice_bounds(ctx, start, length, src_len)
+    out_val, out_data = _alloc_output()
     # extcodecopy(address, destOffset, offset, size)
-    b.extcodecopy(addr, out_data.operand, start, length)
+    b.extcodecopy(addr, out_data, start, length)
     ctx.ptr_store(out_val.ptr(), length)
     return out_val
 

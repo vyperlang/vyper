@@ -65,6 +65,12 @@ def needs_clamp(typ: VyperType) -> bool:
     raise CompilerPanic(f"needs_clamp: unhandled type {typ}")  # pragma: nocover
 
 
+def _guard_dynamic_offset(loc: DataLocation, hi: IROperand | None) -> bool:
+    # Calldata and explicit hi-bounded buffers are untrusted. Constructor CODE
+    # args intentionally keep legacy's lenient decode behavior.
+    return loc == DataLocation.CALLDATA or hi is not None
+
+
 def int_clamp(ctx: VenomCodegenContext, val: IROperand, bits: int, signed: bool) -> IROperand:
     """
     Validate integer is in range.
@@ -222,8 +228,8 @@ def _getelemptr_abi(
         # Double dereference: read offset, add to parent base
         offset_val = b.load(static_loc, loc)
         actual_ptr = b.add(parent.operand, offset_val)
-        if hi is not None:
-            # Untrusted offsets can wrap below the ABI parent before later
+        if _guard_dynamic_offset(loc, hi):
+            # Dynamic offsets must not wrap below their ABI parent before later
             # payload bounds are evaluated.
             b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
         return _make_ptr_value(actual_ptr, loc, member_typ)
@@ -383,11 +389,14 @@ def _decode_dyn_array(
         static_loc = b.add(src_data, b.mul(i, IRLiteral(elem_static_size)))
         offset_val = b.load(static_loc, loc)
         elem_src_ptr = b.add(src_data, offset_val)
-        if hi is not None:
-            # Guard dynamic element offsets before checking the element payload.
+        if _guard_dynamic_offset(loc, hi):
+            # Dynamic element offsets must not wrap below the DynArray payload.
             b.assert_(b.iszero(b.lt(elem_src_ptr, src_data)))
+        if hi is not None:
             elem_end = b.add(elem_src_ptr, IRLiteral(elem_static_size))
-            b.assert_(b.iszero(b.gt(elem_end, hi)))
+            no_elem_end_wrap = b.iszero(b.lt(elem_end, elem_src_ptr))
+            elem_in_bounds = b.iszero(b.gt(elem_end, hi))
+            b.assert_(b.and_(no_elem_end_wrap, elem_in_bounds))
     else:
         elem_src_ptr = b.add(src_data, b.mul(i, IRLiteral(elem_static_size)))
 
@@ -424,7 +433,9 @@ def _decode_complex(
     if hi is not None:
         static_size = typ.abi_type.static_size()
         item_end = b.add(src.operand, IRLiteral(static_size))
-        b.assert_(b.iszero(b.gt(item_end, hi)))
+        no_item_end_wrap = b.iszero(b.lt(item_end, src.operand))
+        item_in_bounds = b.iszero(b.gt(item_end, hi))
+        b.assert_(b.and_(no_item_end_wrap, item_in_bounds))
 
     if is_tuple_like(typ):
         items = list(typ.tuple_items())  # type: ignore[attr-defined]

@@ -55,10 +55,15 @@ def is_supported_unbounded_tuple_type(typ) -> bool:
         return False
 
     for member_t in typ.member_types:
-        if type_contains_unbounded_sequence(member_t) and not is_unbounded_sequence_type(member_t):
+        if type_contains_nested_unbounded_sequence(member_t):
             return False
 
     return True
+
+
+def type_contains_nested_unbounded_sequence(typ) -> bool:
+    """Return True if `typ` contains INF below a direct top-level sequence."""
+    return type_contains_unbounded_sequence(typ) and not is_unbounded_sequence_type(typ)
 
 
 def length_to_json(length: LengthUpperBound) -> int | str:

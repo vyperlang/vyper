@@ -406,6 +406,25 @@ def _get_bool_kwarg(node: vy_ast.Call, kwarg_name: str, default: bool) -> bool:
     raise CompilerPanic(f"unfoldable boolean kwarg: {kwarg_name}", kw_node)
 
 
+def _schema_string_value(ctx: "VenomCodegenContext", schema: bytes) -> tuple[VyperValue, StringT]:
+    b = ctx.builder
+    schema_len = len(schema)
+    padded_schema_len = ((schema_len + 31) // 32) * 32
+    schema_t = StringT(schema_len)
+
+    schema_buf = ctx.allocate_buffer(32 + padded_schema_len)
+    b.mstore(schema_buf._ptr, IRLiteral(schema_len))
+
+    schema_data_ptr = b.add(schema_buf._ptr, IRLiteral(32))
+    for i in range(0, schema_len, 32):
+        chunk = schema[i : i + 32]
+        chunk_padded = chunk.ljust(32, b"\x00")
+        chunk_int = int.from_bytes(chunk_padded, "big")
+        b.mstore(b.add(schema_data_ptr, IRLiteral(i)), IRLiteral(chunk_int))
+
+    return VyperValue.from_ptr(schema_buf.base_ptr(), schema_t), schema_t
+
+
 def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     """
     print(*args, hardhat_compat=False) -> None
@@ -448,8 +467,6 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         else:
             mid = method_id_int("log(string,bytes)")
             schema = args_abi_t.selector_name().encode("utf-8")
-            schema_len = len(schema)
-            padded_schema_len = ((schema_len + 31) // 32) * 32
 
             payload_len = runtime_abi_size_for_encode(ctx, arg_vals, tuple_t)
             dyn_payload_ptr = ctx.allocate_scratch(ctx.checked_add(IRLiteral(32), payload_len))
@@ -457,18 +474,8 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
             encoded_payload_len = abi_encode_values_to_buf(ctx, payload_data_dst, arg_vals, tuple_t)
             b.mstore(dyn_payload_ptr, encoded_payload_len)
 
-            dyn_schema_buf = ctx.allocate_buffer(32 + padded_schema_len)
-            b.mstore(dyn_schema_buf._ptr, IRLiteral(schema_len))
-            schema_data_ptr = b.add(dyn_schema_buf._ptr, IRLiteral(32))
-            for i in range(0, schema_len, 32):
-                chunk = schema[i : i + 32]
-                chunk_padded = chunk.ljust(32, b"\x00")
-                chunk_int = int.from_bytes(chunk_padded, "big")
-                b.mstore(b.add(schema_data_ptr, IRLiteral(i)), IRLiteral(chunk_int))
-
-            schema_t = StringT(schema_len)
+            schema_vv, schema_t = _schema_string_value(ctx, schema)
             payload_t = BytesT(INF)
-            schema_vv = VyperValue.from_ptr(dyn_schema_buf.base_ptr(), schema_t)
             payload_vv = ctx.dynamic_memory_value(dyn_payload_ptr, payload_t, annotation="print")
             outer_tuple_t = TupleT((schema_t, payload_t))
             outer_vals = [schema_vv, payload_vv]
@@ -535,8 +542,6 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 
         # Schema is the ABI type selector, e.g. "(uint256,address)"
         schema = args_abi_t.selector_name().encode("utf-8")
-        schema_len = len(schema)
-        padded_schema_len = ((schema_len + 31) // 32) * 32
 
         # Encode the args to a bytes payload first
         payload_buflen = args_abi_t.size_bound()
@@ -554,28 +559,16 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         # Store payload length
         b.mstore(payload_buf._ptr, payload_len)
 
-        # Allocate schema buffer: [32 bytes length] | [data]
-        schema_buf = ctx.allocate_buffer(32 + padded_schema_len)
-        b.mstore(schema_buf._ptr, IRLiteral(schema_len))
-
-        # Write schema string bytes (word by word)
-        schema_data_ptr = b.add(schema_buf._ptr, IRLiteral(32))
-        for i in range(0, schema_len, 32):
-            chunk = schema[i : i + 32]
-            # Pad chunk to 32 bytes (left-aligned in word)
-            chunk_padded = chunk.ljust(32, b"\x00")
-            chunk_int = int.from_bytes(chunk_padded, "big")
-            b.mstore(b.add(schema_data_ptr, IRLiteral(i)), IRLiteral(chunk_int))
-
         # Now encode (schema_string, payload_bytes) as a tuple
-        schema_t = StringT(schema_len)
+        schema_vv, schema_t = _schema_string_value(ctx, schema)
         payload_t = BytesT(payload_buflen)
         outer_tuple_t = TupleT((schema_t, payload_t))
 
         # Create tuple in memory with pointers to schema and payload buffers
         outer_val = ctx.new_temporary_value(outer_tuple_t)
         assert isinstance(outer_val.operand, IRVariable)
-        ctx.copy_memory(outer_val.operand, schema_buf._ptr, schema_t.memory_bytes_required)
+        assert isinstance(schema_vv.operand, IRVariable)
+        ctx.copy_memory(outer_val.operand, schema_vv.operand, schema_t.memory_bytes_required)
         dst_payload = b.add(outer_val.operand, IRLiteral(schema_t.memory_bytes_required))
         ctx.copy_memory(dst_payload, payload_buf._ptr, payload_t.memory_bytes_required)
 

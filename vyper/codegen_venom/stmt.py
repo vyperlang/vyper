@@ -133,8 +133,10 @@ class Stmt:
         self._assign_value(dst_ptr, src, target_typ, src_node=node.value)
 
     def _assign_unbounded_sequence_local(self, var: LocalVariable, src: VyperValue, typ: VyperType):
-        assert var.is_pointer_cell
-        assert self.ctx.is_unbounded_sequence_type(typ)
+        if not var.is_pointer_cell:  # pragma: nocover
+            raise CompilerPanic("unbounded sequence local requires pointer-cell storage")
+        if not self.ctx.is_unbounded_sequence_type(typ):  # pragma: nocover
+            raise CompilerPanic(f"expected unbounded sequence type, got {typ}")
         value = self.ctx.copy_sequence_to_scratch(src, typ, annotation=var.name)
         self.ctx.ptr_store(var.value.ptr(), value.operand)
 

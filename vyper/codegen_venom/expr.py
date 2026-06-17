@@ -1397,11 +1397,10 @@ class Expr:
 
         # Allocate return buffer
         return_buf: Optional[IROperand] = None
-        if func_t.return_type is not None:
-            if self.ctx.is_dynamic_tuple_frame_type(func_t.return_type):
-                # Dynamic tuple returns are captured from the `invoke` dynamic outputs.
-                pass
-            elif returns_count > 0:
+        if func_t.return_type is not None and not self.ctx.is_dynamic_tuple_frame_type(
+            func_t.return_type
+        ):
+            if returns_count > 0:
                 # Multi-return: allocate scratch buffer
                 return_buf = self.builder.alloca(32 * returns_count)
             elif dynamic_returns_count == 0:

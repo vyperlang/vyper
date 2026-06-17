@@ -4,13 +4,7 @@ import pytest
 
 from vyper import compiler
 from vyper.compiler.settings import Settings
-from vyper.exceptions import (
-    CodegenPanic,
-    InvalidType,
-    StructureException,
-    TypeMismatch,
-    UndeclaredDefinition,
-)
+from vyper.exceptions import InvalidType, StructureException, TypeMismatch, UndeclaredDefinition
 from vyper.semantics.types import INF, BytesT, DArrayT, StringT
 from vyper.semantics.types.infinity import WILDCARD, Inf, Wildcard
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -518,6 +512,60 @@ def foo(x: DynArray[uint256, INF]) -> Bytes[INF]:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
 
 
+@pytest.mark.parametrize(
+    "code",
+    [
+        """
+@external
+def foo(x: Bytes[INF]) -> uint256:
+    return convert(x, uint256)
+        """,
+        """
+@external
+def foo(x: String[INF]) -> Bytes[INF]:
+    return convert(x, Bytes[INF])
+        """,
+        """
+@external
+def foo() -> uint256:
+    return convert(msg.data, uint256)
+        """,
+    ],
+)
+def test_inf_convert_legacy_requires_experimental_codegen(code):
+    with pytest.raises(StructureException):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=False))
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        """
+@internal
+def _unused(x: Bytes[INF]) -> Bytes[INF]:
+    return x
+
+@external
+def foo() -> uint256:
+    return 1
+        """,
+        """
+@internal
+def _unused() -> uint256:
+    x: Bytes[INF] = b"abc"
+    return 1
+
+@external
+def foo() -> uint256:
+    return 1
+        """,
+    ],
+)
+def test_unused_inf_internal_legacy_requires_experimental_codegen(code):
+    with pytest.raises(StructureException):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=False))
+
+
 def test_inf_constants_compile():
     settings = Settings(experimental_codegen=True)
     code = """
@@ -544,7 +592,7 @@ def _compile_inf_bytestring_code(code, experimental_codegen):
     if experimental_codegen:
         compiler.compile_code(code)
     else:
-        with pytest.raises(CodegenPanic):
+        with pytest.raises(StructureException):
             compiler.compile_code(code)
 
 
@@ -753,7 +801,7 @@ def _compile_inf_dynarray_code(code, experimental_codegen):
     if experimental_codegen:
         compiler.compile_code(code)
     else:
-        with pytest.raises(CodegenPanic):
+        with pytest.raises(StructureException):
             compiler.compile_code(code)
 
 

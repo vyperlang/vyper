@@ -208,7 +208,7 @@ class CompilerData:
         """
         module_t = self.annotated_vyper_module._metadata["type"]
 
-        validate_compilation_target(module_t)
+        validate_compilation_target(module_t, self.settings.experimental_codegen is True)
         return self.annotated_vyper_module
 
     @cached_property

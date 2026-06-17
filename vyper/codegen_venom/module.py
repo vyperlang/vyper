@@ -1063,9 +1063,8 @@ def _get_abi_arg_ptr(
         offset_val = b.load(static_loc, loc)
         actual_ptr = b.add(parent.operand, offset_val)
         # Calldata is caller-controlled. Constructor CODE args intentionally
-        # keep legacy's lenient decode behavior. Bounded calldata args are
-        # capped by their type clamps; INF args need an explicit no-wrap guard.
-        if loc == DataLocation.CALLDATA and ctx.is_unbounded_sequence_type(member_typ):
+        # keep legacy's lenient decode behavior.
+        if loc == DataLocation.CALLDATA:
             b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
         return VyperValue.from_ptr(Ptr(operand=actual_ptr, location=loc), member_typ)
 
