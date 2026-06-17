@@ -1001,25 +1001,32 @@ class Stmt:
         self.ctx.emit_nonreentrant_unlock(func_t)
         external_return_type = calculate_type_for_external_return(ret_typ)
 
-        if external_return_type is not ret_typ:
+        self._emit_external_dynamic_tuple_return(
+            arg_vvs, src_typ, wrap_outer=external_return_type is not ret_typ
+        )
+        return True
+
+    def _emit_external_dynamic_tuple_return(
+        self, arg_vvs: list[VyperValue], encode_typ: TupleT, wrap_outer: bool
+    ) -> None:
+        if wrap_outer:
             # External returns are always ABI tuples. A declared singleton
             # tuple `-> (T,)` is therefore returned as `((T,),)`.
             encoded_size = self.ctx.checked_add(
-                IRLiteral(32), _runtime_abi_size_for_encode(self.ctx, arg_vvs, src_typ)
+                IRLiteral(32), _runtime_abi_size_for_encode(self.ctx, arg_vvs, encode_typ)
             )
             buf_ptr = self.ctx.allocate_scratch(encoded_size)
             self.builder.mstore(buf_ptr, IRLiteral(32))
             child_dst = self.builder.add(buf_ptr, IRLiteral(32))
-            child_len = _abi_encode_values_to_buf(self.ctx, child_dst, arg_vvs, src_typ)
+            child_len = _abi_encode_values_to_buf(self.ctx, child_dst, arg_vvs, encode_typ)
             encoded_len = self.ctx.checked_add(IRLiteral(32), child_len)
             self.builder.return_(buf_ptr, encoded_len)
-            return True
+            return
 
-        encoded_size = _runtime_abi_size_for_encode(self.ctx, arg_vvs, src_typ)
+        encoded_size = _runtime_abi_size_for_encode(self.ctx, arg_vvs, encode_typ)
         buf_ptr = self.ctx.allocate_scratch(encoded_size)
-        encoded_len = _abi_encode_values_to_buf(self.ctx, buf_ptr, arg_vvs, src_typ)
+        encoded_len = _abi_encode_values_to_buf(self.ctx, buf_ptr, arg_vvs, encode_typ)
         self.builder.return_(buf_ptr, encoded_len)
-        return True
 
     def _lower_internal_return(
         self, ret_val: Optional[IROperand], func_t: ContractFunctionT, ret_src_typ=None
@@ -1279,22 +1286,9 @@ class Stmt:
             assert isinstance(ret_val, IRVariable)
             arg_vvs = self.ctx.dynamic_tuple_frame_values(ret_val, ret_typ, annotation="return")
 
-            if external_return_type is not ret_typ:
-                encoded_size = self.ctx.checked_add(
-                    IRLiteral(32), _runtime_abi_size_for_encode(self.ctx, arg_vvs, ret_typ)
-                )
-                buf_ptr = self.ctx.allocate_scratch(encoded_size)
-                self.builder.mstore(buf_ptr, IRLiteral(32))
-                child_dst = self.builder.add(buf_ptr, IRLiteral(32))
-                child_len = _abi_encode_values_to_buf(self.ctx, child_dst, arg_vvs, ret_typ)
-                encoded_len = self.ctx.checked_add(IRLiteral(32), child_len)
-                self.builder.return_(buf_ptr, encoded_len)
-                return
-
-            encoded_size = _runtime_abi_size_for_encode(self.ctx, arg_vvs, ret_typ)
-            buf_ptr = self.ctx.allocate_scratch(encoded_size)
-            encoded_len = _abi_encode_values_to_buf(self.ctx, buf_ptr, arg_vvs, ret_typ)
-            self.builder.return_(buf_ptr, encoded_len)
+            self._emit_external_dynamic_tuple_return(
+                arg_vvs, ret_typ, wrap_outer=external_return_type is not ret_typ
+            )
             return
 
         maxlen = encode_typ.abi_type.size_bound()
