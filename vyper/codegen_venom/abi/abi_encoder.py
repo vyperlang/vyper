@@ -53,7 +53,9 @@ def runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IR
     if isinstance(typ, _BytestringT):
         ptr = ctx.unwrap(arg_vv)
         assert isinstance(ptr, IRVariable)
-        return ctx.bytestring_runtime_size(ptr)
+        if ctx.is_unbounded_bytestring_type(typ):
+            return ctx.bytestring_runtime_size(ptr)
+        return ctx.unchecked_bytestring_runtime_size(ptr)
     if isinstance(typ, DArrayT) and ctx.is_unbounded_dynarray_type(typ):
         ptr = ctx.unwrap(arg_vv)
         assert isinstance(ptr, IRVariable)
@@ -413,7 +415,9 @@ def _abi_encode_to_buf(
         ctx.copy_memory_dynamic(dst, src, copy_len)
 
         # Return total encoded size = ceil32(32 + length) = 32 + ceil32(length)
-        return ctx.bytestring_runtime_size_from_length(length)
+        if ctx.is_unbounded_bytestring_type(src_typ):
+            return ctx.bytestring_runtime_size_from_length(length)
+        return ctx.unchecked_bytestring_runtime_size_from_length(length)
 
     elif isinstance(src_typ, DArrayT):
         # Dynamic array: use helper

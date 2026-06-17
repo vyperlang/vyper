@@ -348,6 +348,10 @@ class VenomCodegenContext:
         self.builder.assert_(no_padding_overflow)
         return self.checked_add(padded_length, IRLiteral(32))
 
+    def unchecked_bytestring_runtime_size_from_length(self, length: IROperand) -> IROperand:
+        """Return 32 + ceil32(length) when type caps already prove no overflow."""
+        return self.builder.add(self.ceil32(length), IRLiteral(32))
+
     def assert_abi_bytes_payload_in_bounds(
         self, src: IROperand, length: IROperand, hi: IROperand
     ) -> None:
@@ -381,6 +385,11 @@ class VenomCodegenContext:
         """Return runtime memory size for a bytestring: 32 + ceil32(length)."""
         length = self.builder.mload(ptr)
         return self.bytestring_runtime_size_from_length(length)
+
+    def unchecked_bytestring_runtime_size(self, ptr: IRVariable) -> IROperand:
+        """Return runtime memory size for a bounded bytestring."""
+        length = self.builder.mload(ptr)
+        return self.unchecked_bytestring_runtime_size_from_length(length)
 
     def dynarray_runtime_size_from_length(self, length: IROperand, typ: DArrayT) -> IROperand:
         """Return runtime memory size for a DynArray with `length` elements."""
@@ -718,7 +727,10 @@ class VenomCodegenContext:
         elif isinstance(typ, _BytestringT):
             # Bytestring: copy length word + ceil32(actual data), not max size.
             assert isinstance(val, IRVariable)
-            copy_len = self.bytestring_runtime_size(val)
+            if self.is_unbounded_bytestring_type(typ) or self.is_unbounded_bytestring_type(src_typ):
+                copy_len = self.bytestring_runtime_size(val)
+            else:
+                copy_len = self.unchecked_bytestring_runtime_size(val)
             self.copy_memory_dynamic(ptr, val, copy_len)
         elif src_typ != typ:
             # Layout-aware copy for assignments between compatible but not

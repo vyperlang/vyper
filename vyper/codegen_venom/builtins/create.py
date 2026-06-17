@@ -597,6 +597,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     # Handle constructor arguments
     args_len: IROperand
     args_ptr: IROperand
+    runtime_args = False
 
     if raw_args:
         # raw_args=True: single bytes argument contains raw constructor args
@@ -604,6 +605,8 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
             # This should be caught by type checker, but be defensive
             raise CompilerPanic("raw_args requires exactly 1 bytes argument")
 
+        raw_arg_typ = ctor_arg_nodes[0]._metadata["type"]
+        runtime_args = type_contains_unbounded_sequence(raw_arg_typ)
         raw_arg_vv = Expr(ctor_arg_nodes[0], ctx).lower()
         raw_arg = ctx.unwrap(raw_arg_vv)  # Copies storage/transient to memory
         assert isinstance(raw_arg, IRVariable)
@@ -614,6 +617,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
         ctor_arg_vvs = [Expr(arg, ctx).lower() for arg in ctor_arg_nodes]
         runtime_ctor_args = _ctor_args_need_runtime_encoding(ctor_arg_types)
+        runtime_args = runtime_ctor_args
 
         if runtime_ctor_args:
             ctor_abi_size = runtime_abi_size_for_encode(ctx, ctor_arg_vvs, ctor_tuple_typ)
@@ -644,7 +648,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
 
     # Total length = codesize + args_len. When args_len is literal 0,
     # algebraic optimization folds `add(codesize, 0) -> codesize`.
-    total_len = ctx.checked_add(codesize, args_len)
+    total_len = ctx.checked_add(codesize, args_len) if runtime_args else b.add(codesize, args_len)
     mem_ofst = ctx.allocate_scratch(total_len)
 
     # Copy blueprint code (skipping preamble) to memory
