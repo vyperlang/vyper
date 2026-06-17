@@ -240,7 +240,7 @@ def _validate_init_return(
 def _validate_init_calls(
     block: list[vy_ast.VyperNode],
     modules_to_initialize: list[ModuleInfo],
-    constructor: ContractFunctionT | None,
+    constructor: ContractFunctionT,
     init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]],
 ) -> dict[ModuleInfo, list[vy_ast.VyperNode]] | None:
     """
@@ -409,21 +409,20 @@ def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) 
 
     constructor = module_t.init_function
 
-    if constructor is not None:
+    if constructor is None:
+        # Checks that no modules need initialization (equivalent to init with empty body)
+        _validate_init_return(modules_to_initialize, constructor=None, init_calls_by_module={})
+    else:
         assert isinstance(constructor.ast_def, vy_ast.FunctionDef)  # help mypy
 
         body = constructor.ast_def.body
-    else:
-        body = []
+        init_calls_by_module = _validate_init_calls(
+            body, modules_to_initialize, constructor, defaultdict(list)
+        )
 
-    init_calls_by_module = _validate_init_calls(
-        body, modules_to_initialize, constructor, defaultdict(list)
-    )
-
-    # is None when body ends in a revert or return (also considers branches, so if it ends with an
-    # if where both branches return, it will also be none)
-    if init_calls_by_module is not None:
-        _validate_init_return(modules_to_initialize, constructor, init_calls_by_module)
+        # return will have already checked, and revert shouldn't check, so in both cases: skip it
+        if init_calls_by_module is not None:
+            _validate_init_return(modules_to_initialize, constructor, init_calls_by_module)
 
 
 def _validate_exports_uses(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
