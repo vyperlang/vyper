@@ -16,13 +16,96 @@ from typing import TYPE_CHECKING
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.core import is_tuple_like
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types import DArrayT, SArrayT, VyperType, _BytestringT
+from vyper.semantics.types import DArrayT, SArrayT, TupleT, VyperType, _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
-    from vyper.codegen_venom.types import VyperValue
+    from vyper.codegen_venom.value import VyperValue
+
+
+def create_tuple_in_memory(
+    ctx: VenomCodegenContext, args: list[IROperand], types: list[VyperType]
+) -> tuple[IROperand, TupleT]:
+    """Create a tuple in memory from individual lowered arguments."""
+    b = ctx.builder
+    tuple_t = TupleT(tuple(types))
+    val = ctx.new_temporary_value(tuple_t)
+    assert isinstance(val.operand, IRVariable)
+
+    offset = 0
+    for arg, typ in zip(args, types):
+        dst = b.add(val.operand, IRLiteral(offset))
+
+        if typ._is_prim_word:
+            b.mstore(dst, arg)
+        else:
+            ctx.copy_memory(dst, arg, typ.memory_bytes_required)
+
+        offset += typ.memory_bytes_required
+
+    return val.operand, tuple_t
+
+
+def runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IROperand:
+    typ = arg_vv.typ
+    if isinstance(typ, _BytestringT):
+        ptr = ctx.unwrap(arg_vv)
+        assert isinstance(ptr, IRVariable)
+        return ctx.bytestring_runtime_size(ptr)
+    if isinstance(typ, DArrayT) and ctx.is_unbounded_dynarray_type(typ):
+        ptr = ctx.unwrap(arg_vv)
+        assert isinstance(ptr, IRVariable)
+        return ctx.dynarray_runtime_abi_size(ptr, typ)
+    return IRLiteral(typ.abi_type.size_bound())
+
+
+def runtime_abi_size_for_encode(
+    ctx: VenomCodegenContext, arg_vals: list[VyperValue], encode_type: VyperType
+) -> IROperand:
+    if isinstance(encode_type, TupleT):
+        size: IROperand = IRLiteral(encode_type.abi_type.static_size())
+        for arg_vv in arg_vals:
+            if arg_vv.typ.abi_type.is_dynamic():
+                size = ctx.checked_add(size, runtime_abi_size_for_arg(ctx, arg_vv))
+        return size
+
+    return runtime_abi_size_for_arg(ctx, arg_vals[0])
+
+
+def abi_encode_values_to_buf(
+    ctx: VenomCodegenContext, dst: IRVariable, arg_vals: list[VyperValue], encode_type: VyperType
+) -> IROperand:
+    b = ctx.builder
+
+    if not isinstance(encode_type, TupleT):
+        src = ctx.unwrap(arg_vals[0])
+        assert isinstance(src, IRVariable)
+        return abi_encode_to_buf(ctx, dst, src, encode_type)
+
+    dyn_ofst_val = ctx.new_temporary_value(UINT256_T)
+    ctx.ptr_store(dyn_ofst_val.ptr(), IRLiteral(encode_type.abi_type.static_size()))
+
+    static_ofst = 0
+    for arg_vv in arg_vals:
+        typ = arg_vv.typ
+        static_loc = b.add(dst, IRLiteral(static_ofst))
+
+        if typ.abi_type.is_dynamic():
+            dyn_ofst = ctx.ptr_load(dyn_ofst_val.ptr())
+            child_dst = b.add(dst, dyn_ofst)
+            child_src = ctx.unwrap(arg_vv)
+            assert isinstance(child_src, IRVariable)
+            child_len = abi_encode_to_buf(ctx, child_dst, child_src, typ)
+            b.mstore(static_loc, dyn_ofst)
+            ctx.ptr_store(dyn_ofst_val.ptr(), ctx.checked_add(dyn_ofst, child_len))
+        else:
+            ctx.store_vyper_value(arg_vv, static_loc, typ)
+
+        static_ofst += typ.abi_type.embedded_static_size()
+
+    return ctx.ptr_load(dyn_ofst_val.ptr())
 
 
 def _is_complex_type(typ: VyperType) -> bool:

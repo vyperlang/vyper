@@ -13,8 +13,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
-from vyper.codegen_venom.abi import abi_encode_to_buf
-from vyper.codegen_venom.builtins.abi import _abi_encode_values_to_buf, _runtime_abi_size_for_encode
+from vyper.codegen_venom.abi import (
+    abi_encode_to_buf,
+    abi_encode_values_to_buf,
+    runtime_abi_size_for_encode,
+)
 from vyper.exceptions import CompilerPanic, UnfoldableNode
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.semantics.data_locations import DataLocation
@@ -333,7 +336,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     runtime_ctor_args = _ctor_args_need_runtime_encoding(ctor_arg_types)
 
     if runtime_ctor_args:
-        ctor_abi_size = _runtime_abi_size_for_encode(ctx, ctor_arg_vvs, ctor_tuple_typ)
+        ctor_abi_size = runtime_abi_size_for_encode(ctx, ctor_arg_vvs, ctor_tuple_typ)
     else:
         ctor_abi_size = IRLiteral(ctor_tuple_typ.abi_type.size_bound())
 
@@ -353,7 +356,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     # Encode ctor args after bytecode
     args_start = b.add(buf_ptr, bytecode_len)
     if runtime_ctor_args:
-        args_len = _abi_encode_values_to_buf(ctx, args_start, ctor_arg_vvs, ctor_tuple_typ)
+        args_len = abi_encode_values_to_buf(ctx, args_start, ctor_arg_vvs, ctor_tuple_typ)
     else:
         # First, store ctor args to a temp buffer
         ctor_args_val = ctx.new_temporary_value(ctor_tuple_typ)
@@ -613,9 +616,9 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         runtime_ctor_args = _ctor_args_need_runtime_encoding(ctor_arg_types)
 
         if runtime_ctor_args:
-            ctor_abi_size = _runtime_abi_size_for_encode(ctx, ctor_arg_vvs, ctor_tuple_typ)
+            ctor_abi_size = runtime_abi_size_for_encode(ctx, ctor_arg_vvs, ctor_tuple_typ)
             args_ptr = ctx.allocate_scratch(ctor_abi_size)
-            args_len = _abi_encode_values_to_buf(ctx, args_ptr, ctor_arg_vvs, ctor_tuple_typ)
+            args_len = abi_encode_values_to_buf(ctx, args_ptr, ctor_arg_vvs, ctor_tuple_typ)
         else:
             ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
 

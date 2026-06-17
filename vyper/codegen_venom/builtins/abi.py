@@ -15,16 +15,17 @@ from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import (
     abi_decode_to_buf,
     abi_encode_to_buf,
+    abi_encode_values_to_buf,
+    create_tuple_in_memory,
     decode_unbounded_dynarray_to_scratch,
+    runtime_abi_size_for_encode,
 )
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import BytesT, TupleT, VyperType
-from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.infinity import type_contains_unbounded_sequence
-from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import DArrayT
 from vyper.utils import fourbytes_to_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
@@ -91,89 +92,6 @@ def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
     return None
 
 
-def _create_tuple_in_memory(
-    ctx: VenomCodegenContext, args: list[IROperand], types: list
-) -> tuple[IROperand, TupleT]:
-    """Create a tuple in memory from individual args."""
-    b = ctx.builder
-    tuple_t = TupleT(tuple(types))
-    val = ctx.new_temporary_value(tuple_t)
-    assert isinstance(val.operand, IRVariable)
-
-    offset = 0
-    for arg, typ in zip(args, types):
-        dst = b.add(val.operand, IRLiteral(offset))
-
-        if typ._is_prim_word:
-            b.mstore(dst, arg)
-        else:
-            ctx.copy_memory(dst, arg, typ.memory_bytes_required)
-
-        offset += typ.memory_bytes_required
-
-    return val.operand, tuple_t
-
-
-def _runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IROperand:
-    typ = arg_vv.typ
-    if isinstance(typ, _BytestringT):
-        ptr = ctx.unwrap(arg_vv)
-        assert isinstance(ptr, IRVariable)
-        return ctx.bytestring_runtime_size(ptr)
-    if isinstance(typ, DArrayT) and ctx.is_unbounded_dynarray_type(typ):
-        ptr = ctx.unwrap(arg_vv)
-        assert isinstance(ptr, IRVariable)
-        return ctx.dynarray_runtime_abi_size(ptr, typ)
-    return IRLiteral(typ.abi_type.size_bound())
-
-
-def _runtime_abi_size_for_encode(
-    ctx: VenomCodegenContext, arg_vals: list[VyperValue], encode_type: VyperType
-) -> IROperand:
-    if isinstance(encode_type, TupleT):
-        size: IROperand = IRLiteral(encode_type.abi_type.static_size())
-        for arg_vv in arg_vals:
-            if arg_vv.typ.abi_type.is_dynamic():
-                size = ctx.checked_add(size, _runtime_abi_size_for_arg(ctx, arg_vv))
-        return size
-
-    return _runtime_abi_size_for_arg(ctx, arg_vals[0])
-
-
-def _abi_encode_values_to_buf(
-    ctx: VenomCodegenContext, dst: IRVariable, arg_vals: list[VyperValue], encode_type: VyperType
-) -> IROperand:
-    b = ctx.builder
-
-    if not isinstance(encode_type, TupleT):
-        src = ctx.unwrap(arg_vals[0])
-        assert isinstance(src, IRVariable)
-        return abi_encode_to_buf(ctx, dst, src, encode_type)
-
-    dyn_ofst_val = ctx.new_temporary_value(UINT256_T)
-    ctx.ptr_store(dyn_ofst_val.ptr(), IRLiteral(encode_type.abi_type.static_size()))
-
-    static_ofst = 0
-    for arg_vv in arg_vals:
-        typ = arg_vv.typ
-        static_loc = b.add(dst, IRLiteral(static_ofst))
-
-        if typ.abi_type.is_dynamic():
-            dyn_ofst = ctx.ptr_load(dyn_ofst_val.ptr())
-            child_dst = b.add(dst, dyn_ofst)
-            child_src = ctx.unwrap(arg_vv)
-            assert isinstance(child_src, IRVariable)
-            child_len = abi_encode_to_buf(ctx, child_dst, child_src, typ)
-            b.mstore(static_loc, dyn_ofst)
-            ctx.ptr_store(dyn_ofst_val.ptr(), ctx.checked_add(dyn_ofst, child_len))
-        else:
-            ctx.store_vyper_value(arg_vv, static_loc, typ)
-
-        static_ofst += typ.abi_type.embedded_static_size()
-
-    return ctx.ptr_load(dyn_ofst_val.ptr())
-
-
 def _decode_unbounded_bytestring_from_abi(
     ctx: VenomCodegenContext, src: IRVariable, hi: IROperand, typ: VyperType
 ) -> VyperValue:
@@ -235,7 +153,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         else:
             encode_type = TupleT(tuple(arg_types))
 
-        encoded_size = _runtime_abi_size_for_encode(ctx, arg_vals, encode_type)
+        encoded_size = runtime_abi_size_for_encode(ctx, arg_vals, encode_type)
         alloc_size = encoded_size
         if method_id is not None:
             alloc_size = ctx.checked_add(alloc_size, IRLiteral(4))
@@ -249,12 +167,12 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             method_id_word = method_id << 224
             b.mstore(b.add(buf_ptr, IRLiteral(32)), IRLiteral(method_id_word))
             data_dst = b.add(buf_ptr, IRLiteral(36))
-            encoded_len = _abi_encode_values_to_buf(ctx, data_dst, arg_vals, encode_type)
+            encoded_len = abi_encode_values_to_buf(ctx, data_dst, arg_vals, encode_type)
             total_len = ctx.checked_add(encoded_len, IRLiteral(4))
             b.mstore(buf_ptr, total_len)
         else:
             data_dst = b.add(buf_ptr, IRLiteral(32))
-            encoded_len = _abi_encode_values_to_buf(ctx, data_dst, arg_vals, encode_type)
+            encoded_len = abi_encode_values_to_buf(ctx, data_dst, arg_vals, encode_type)
             b.mstore(buf_ptr, encoded_len)
 
         return ctx.dynamic_memory_value(buf_ptr, node._metadata["type"], annotation="abi_encode")
@@ -284,7 +202,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         encode_type = arg_types[0]
     else:
         # Create tuple from args
-        encode_input, encode_type = _create_tuple_in_memory(ctx, args, arg_types)
+        encode_input, encode_type = create_tuple_in_memory(ctx, args, arg_types)
 
     # Calculate buffer size
     maxlen = encode_type.abi_type.size_bound()

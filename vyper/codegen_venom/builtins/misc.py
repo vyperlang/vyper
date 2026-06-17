@@ -16,8 +16,12 @@ from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
 from vyper.builtins.functions import AsWeiValue
-from vyper.codegen_venom.abi.abi_encoder import abi_encode_to_buf
-from vyper.codegen_venom.builtins.abi import _abi_encode_values_to_buf, _runtime_abi_size_for_encode
+from vyper.codegen_venom.abi import (
+    abi_encode_to_buf,
+    abi_encode_values_to_buf,
+    create_tuple_in_memory,
+    runtime_abi_size_for_encode,
+)
 from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PRECOMPILE
 from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
@@ -402,29 +406,6 @@ def _get_bool_kwarg(node: vy_ast.Call, kwarg_name: str, default: bool) -> bool:
     raise CompilerPanic(f"unfoldable boolean kwarg: {kwarg_name}", kw_node)
 
 
-def _create_tuple_in_memory(
-    ctx: "VenomCodegenContext", args: list[IROperand], types: list
-) -> tuple[IROperand, TupleT]:
-    """Create a tuple in memory from individual args."""
-    b = ctx.builder
-    tuple_t = TupleT(tuple(types))
-    val = ctx.new_temporary_value(tuple_t)
-    assert isinstance(val.operand, IRVariable)
-
-    offset = 0
-    for arg, typ in zip(args, types):
-        dst = b.add(val.operand, IRLiteral(offset))
-
-        if typ._is_prim_word:
-            b.mstore(dst, arg)
-        else:
-            ctx.copy_memory(dst, arg, typ.memory_bytes_required)
-
-        offset += typ.memory_bytes_required
-
-    return val.operand, tuple_t
-
-
 def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     """
     print(*args, hardhat_compat=False) -> None
@@ -457,11 +438,11 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 
         if hardhat_compat:
             mid = method_id_int(sig)
-            encoded_size = _runtime_abi_size_for_encode(ctx, arg_vals, tuple_t)
+            encoded_size = runtime_abi_size_for_encode(ctx, arg_vals, tuple_t)
             dyn_buf_ptr = ctx.allocate_scratch(ctx.checked_add(IRLiteral(32), encoded_size))
             b.mstore(dyn_buf_ptr, IRLiteral(mid))
             dyn_data_dst = b.add(dyn_buf_ptr, IRLiteral(32))
-            encoded_len = _abi_encode_values_to_buf(ctx, dyn_data_dst, arg_vals, tuple_t)
+            encoded_len = abi_encode_values_to_buf(ctx, dyn_data_dst, arg_vals, tuple_t)
             call_start = b.add(dyn_buf_ptr, IRLiteral(28))
             call_len = b.add(IRLiteral(4), encoded_len)
         else:
@@ -469,12 +450,10 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
             schema = args_abi_t.selector_name().encode("utf-8")
             schema_len = len(schema)
 
-            payload_len = _runtime_abi_size_for_encode(ctx, arg_vals, tuple_t)
+            payload_len = runtime_abi_size_for_encode(ctx, arg_vals, tuple_t)
             dyn_payload_ptr = ctx.allocate_scratch(ctx.checked_add(IRLiteral(32), payload_len))
             payload_data_dst = b.add(dyn_payload_ptr, IRLiteral(32))
-            encoded_payload_len = _abi_encode_values_to_buf(
-                ctx, payload_data_dst, arg_vals, tuple_t
-            )
+            encoded_payload_len = abi_encode_values_to_buf(ctx, payload_data_dst, arg_vals, tuple_t)
             b.mstore(dyn_payload_ptr, encoded_payload_len)
 
             dyn_schema_buf = ctx.allocate_buffer(32 + schema_len)
@@ -493,11 +472,11 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
             outer_tuple_t = TupleT((schema_t, payload_t))
             outer_vals = [schema_vv, payload_vv]
 
-            outer_abi_size = _runtime_abi_size_for_encode(ctx, outer_vals, outer_tuple_t)
+            outer_abi_size = runtime_abi_size_for_encode(ctx, outer_vals, outer_tuple_t)
             dyn_buf_ptr = ctx.allocate_scratch(ctx.checked_add(IRLiteral(32), outer_abi_size))
             b.mstore(dyn_buf_ptr, IRLiteral(mid))
             dyn_data_dst = b.add(dyn_buf_ptr, IRLiteral(32))
-            encoded_len = _abi_encode_values_to_buf(ctx, dyn_data_dst, outer_vals, outer_tuple_t)
+            encoded_len = abi_encode_values_to_buf(ctx, dyn_data_dst, outer_vals, outer_tuple_t)
             call_start = b.add(dyn_buf_ptr, IRLiteral(28))
             call_len = b.add(IRLiteral(4), encoded_len)
 
@@ -537,7 +516,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 
         # Create tuple in memory and encode starting at buf + 32
         if len(args) > 0:
-            encode_input, encode_type = _create_tuple_in_memory(ctx, args, arg_types)
+            encode_input, encode_type = create_tuple_in_memory(ctx, args, arg_types)
             data_dst = b.add(buf._ptr, IRLiteral(32))
             encoded_len = abi_encode_to_buf(ctx, data_dst, encode_input, encode_type)
         else:
@@ -564,7 +543,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         payload_buf = ctx.allocate_buffer(32 + payload_buflen)
 
         if len(args) > 0:
-            encode_input, encode_type = _create_tuple_in_memory(ctx, args, arg_types)
+            encode_input, encode_type = create_tuple_in_memory(ctx, args, arg_types)
             payload_data_dst = b.add(payload_buf._ptr, IRLiteral(32))
             payload_len = abi_encode_to_buf(ctx, payload_data_dst, encode_input, encode_type)
         else:

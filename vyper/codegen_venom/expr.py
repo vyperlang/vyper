@@ -51,9 +51,14 @@ from vyper.semantics.types.user import FlagT, StructT
 from vyper.utils import DECIMAL_DIVISOR, keccak256
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 
-from .abi import abi_decode_to_buf, abi_encode_to_buf, decode_unbounded_dynarray_to_scratch
+from .abi import (
+    abi_decode_to_buf,
+    abi_encode_to_buf,
+    abi_encode_values_to_buf,
+    decode_unbounded_dynarray_to_scratch,
+    runtime_abi_size_for_encode,
+)
 from .buffer import Buffer, Ptr
-from .builtins.abi import _abi_encode_values_to_buf, _runtime_abi_size_for_encode
 from .calling_convention import pass_via_stack, returns_dynamic_count, returns_stack_count
 from .context import VenomCodegenContext
 from .value import VyperValue
@@ -1898,7 +1903,7 @@ class Expr:
         args_tuple_t = TupleT(tuple(v.typ for v in arg_vals))
         dynamic_args = self._external_call_args_need_runtime_encoding(arg_vals)
         if dynamic_args:
-            args_alloc_size = _runtime_abi_size_for_encode(self.ctx, arg_vals, args_tuple_t)
+            args_alloc_size = runtime_abi_size_for_encode(self.ctx, arg_vals, args_tuple_t)
         else:
             args_abi_t = args_tuple_t.abi_type
             args_abi_size = args_abi_t.size_bound()
@@ -1941,7 +1946,7 @@ class Expr:
         if len(arg_vals) > 0:
             encode_dst = b.add(buf_ptr, IRLiteral(32))
             if dynamic_args:
-                args_abi_len = _abi_encode_values_to_buf(
+                args_abi_len = abi_encode_values_to_buf(
                     self.ctx, encode_dst, arg_vals, args_tuple_t
                 )
             else:

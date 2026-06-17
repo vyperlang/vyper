@@ -12,9 +12,12 @@ from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen.core import calculate_type_for_external_return
-from vyper.codegen_venom.abi import abi_encode_to_buf
+from vyper.codegen_venom.abi import (
+    abi_encode_to_buf,
+    abi_encode_values_to_buf,
+    runtime_abi_size_for_encode,
+)
 from vyper.codegen_venom.arithmetic import apply_binop
-from vyper.codegen_venom.builtins.abi import _abi_encode_values_to_buf, _runtime_abi_size_for_encode
 from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import VyperType
@@ -1013,19 +1016,19 @@ class Stmt:
             # External returns are always ABI tuples. A declared singleton
             # tuple `-> (T,)` is therefore returned as `((T,),)`.
             encoded_size = self.ctx.checked_add(
-                IRLiteral(32), _runtime_abi_size_for_encode(self.ctx, arg_vvs, encode_typ)
+                IRLiteral(32), runtime_abi_size_for_encode(self.ctx, arg_vvs, encode_typ)
             )
             buf_ptr = self.ctx.allocate_scratch(encoded_size)
             self.builder.mstore(buf_ptr, IRLiteral(32))
             child_dst = self.builder.add(buf_ptr, IRLiteral(32))
-            child_len = _abi_encode_values_to_buf(self.ctx, child_dst, arg_vvs, encode_typ)
+            child_len = abi_encode_values_to_buf(self.ctx, child_dst, arg_vvs, encode_typ)
             encoded_len = self.ctx.checked_add(IRLiteral(32), child_len)
             self.builder.return_(buf_ptr, encoded_len)
             return
 
-        encoded_size = _runtime_abi_size_for_encode(self.ctx, arg_vvs, encode_typ)
+        encoded_size = runtime_abi_size_for_encode(self.ctx, arg_vvs, encode_typ)
         buf_ptr = self.ctx.allocate_scratch(encoded_size)
-        encoded_len = _abi_encode_values_to_buf(self.ctx, buf_ptr, arg_vvs, encode_typ)
+        encoded_len = abi_encode_values_to_buf(self.ctx, buf_ptr, arg_vvs, encode_typ)
         self.builder.return_(buf_ptr, encoded_len)
 
     def _lower_internal_return(
@@ -1185,7 +1188,7 @@ class Stmt:
         assert self.ctx.is_unbounded_sequence_type(ret_typ)
 
         ret_vv = self.ctx.dynamic_memory_value(ret_val, ret_typ, annotation="return")
-        tail_len = _runtime_abi_size_for_encode(self.ctx, [ret_vv], ret_typ)
+        tail_len = runtime_abi_size_for_encode(self.ctx, [ret_vv], ret_typ)
         encoded_size = self.ctx.checked_add(IRLiteral(32), tail_len)
         buf_ptr = self.ctx.allocate_scratch(encoded_size)
         encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, external_return_type)
