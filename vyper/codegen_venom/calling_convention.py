@@ -81,7 +81,12 @@ def returns_dynamic_count(func_t) -> int:
 
 
 def returns_stack_count(func_t) -> int:
-    """How many values returned via stack (0, 1, or 2 for tuples)."""
+    """How many ordinary values are returned via stack.
+
+    Plain bounded tuple returns still use the historical 0/1/2 stack-return
+    cutoff. Dynamic tuple returns may pair more ordinary stack outputs with
+    one or more `dret` dynamic outputs.
+    """
     ret_t = func_t.return_type
     if ret_t is None:
         return 0

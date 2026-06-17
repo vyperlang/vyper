@@ -2177,8 +2177,10 @@ class Expr:
 
         returndata_ptr, hi = self._copy_returndata_to_scratch(returndata_size)
 
-        # ABI external returns are always encoded as a tuple. A single dynamic
-        # bytes/string return is therefore `[offset][length][data...]`.
+        # ABI external returns are encoded as a tuple. For a single dynamic
+        # return this is normally `[offset][length][data...]`. As with the
+        # bounded legacy path, non-canonical but in-bounds offsets are accepted;
+        # the no-wrap and payload bounds below are the safety checks.
         offset = b.mload(returndata_ptr)
 
         src = b.add(returndata_ptr, offset)
@@ -2202,6 +2204,8 @@ class Expr:
         tuple_src = returndata_ptr
         if needs_external_call_wrap(return_t):
             offset = b.mload(returndata_ptr)
+            # Keep bounded legacy behavior for non-canonical but in-bounds
+            # offsets; validate memory safety with no-wrap and bounds checks.
             tuple_src = b.add(returndata_ptr, offset)
             no_tuple_src_wrap = b.iszero(b.lt(tuple_src, returndata_ptr))
             b.assert_(no_tuple_src_wrap)

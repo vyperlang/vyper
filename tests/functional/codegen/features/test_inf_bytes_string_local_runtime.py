@@ -721,6 +721,8 @@ def get(addr: address) -> Bytes[INF]:
     def word(value):
         return value.to_bytes(32, "big")
 
+    # Legacy accepts this non-canonical but in-bounds offset as an empty bytes
+    # return; the INF path matches that leniency.
     target = _deploy_raw_returner(env, word(0))
     ret = _call(env, caller, "get(address)", "address", target.address)
     assert abi_decode("(bytes)", ret) == (b"",)
