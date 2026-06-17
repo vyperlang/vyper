@@ -1172,6 +1172,18 @@ class Stmt:
             IRLiteral(dyn_count), *ordinary_returns, *dynamic_return_operands, return_pc
         )
 
+    def _emit_external_unbounded_sequence_return(
+        self, ret_val: IRVariable, ret_typ: VyperType, external_return_type: VyperType
+    ) -> None:
+        assert self.ctx.is_unbounded_sequence_type(ret_typ)
+
+        ret_vv = self.ctx.dynamic_memory_value(ret_val, ret_typ, annotation="return")
+        tail_len = _runtime_abi_size_for_encode(self.ctx, [ret_vv], ret_typ)
+        encoded_size = self.ctx.checked_add(IRLiteral(32), tail_len)
+        buf_ptr = self.ctx.allocate_scratch(encoded_size)
+        encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, external_return_type)
+        self.builder.return_(buf_ptr, encoded_len)
+
     def _lower_external_return(
         self, ret_val: Optional[IROperand], func_t: ContractFunctionT, ret_src_typ=None
     ) -> None:
@@ -1253,24 +1265,9 @@ class Stmt:
             assert ret_src_typ is not None
             encode_typ = calculate_type_for_external_return(ret_src_typ)
 
-        if self.ctx.is_unbounded_bytestring_type(ret_typ):
+        if self.ctx.is_unbounded_sequence_type(ret_typ):
             assert isinstance(ret_val, IRVariable)
-            length = self.builder.mload(ret_val)
-            tail_len = self.ctx.bytestring_runtime_size_from_length(length)
-            encoded_size = self.ctx.checked_add(IRLiteral(32), tail_len)
-            buf_ptr = self.ctx.allocate_scratch(encoded_size)
-            encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, external_return_type)
-            self.builder.return_(buf_ptr, encoded_len)
-            return
-
-        if self.ctx.is_unbounded_dynarray_type(ret_typ):
-            assert isinstance(ret_typ, DArrayT)
-            assert isinstance(ret_val, IRVariable)
-            tail_len = self.ctx.dynarray_runtime_abi_size(ret_val, ret_typ)
-            encoded_size = self.ctx.checked_add(IRLiteral(32), tail_len)
-            buf_ptr = self.ctx.allocate_scratch(encoded_size)
-            encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, external_return_type)
-            self.builder.return_(buf_ptr, encoded_len)
+            self._emit_external_unbounded_sequence_return(ret_val, ret_typ, external_return_type)
             return
 
         if (
