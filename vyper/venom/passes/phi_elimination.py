@@ -4,11 +4,9 @@ from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
 class PhiEliminationPass(IRPass):
-    # phi -> set of (root instruction, variable produced by it). origins
-    # are keyed by the produced variable and not just the instruction,
-    # since different outputs of one multi-output instruction (e.g.
-    # invoke) are distinct origins.
-    phi_to_origins: dict[IRInstruction, set[tuple[IRInstruction, IROperand]]]
+    # phi -> set of root operands. The operand identifies both the
+    # producing instruction and the produced output slot.
+    phi_to_origins: dict[IRInstruction, set[IROperand]]
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -31,8 +29,8 @@ class PhiEliminationPass(IRPass):
 
         # len > 1: multiple origins, phi is doing real work, keep it.
         if len(srcs) == 1:
-            ((src, var),) = srcs
-            if src == inst:
+            (var,) = srcs
+            if var == inst.output:
                 return
             self.updater.mk_assign(inst, var)
 
@@ -55,7 +53,7 @@ class PhiEliminationPass(IRPass):
     # reached; it identifies which output of `inst` is the origin.
     def _get_phi_origins_r(
         self, inst: IRInstruction, var: IROperand, visited: set[IRInstruction]
-    ) -> set[tuple[IRInstruction, IROperand]]:
+    ) -> set[IROperand]:
         if inst.opcode == "phi":
             if inst in self.phi_to_origins:
                 return self.phi_to_origins[inst]
@@ -69,7 +67,7 @@ class PhiEliminationPass(IRPass):
 
             visited.add(inst)
 
-            res: set[tuple[IRInstruction, IROperand]] = set()
+            res: set[IROperand] = set()
 
             for _, op_var in inst.phi_operands:
                 next_inst = self.dfg.get_producing_instruction(op_var)
@@ -89,7 +87,7 @@ class PhiEliminationPass(IRPass):
                 #   %c = phi %a, %b  ; barrier (two origins)
                 #   %d = %c
                 #   %f = phi %d, %c  ; both paths lead to %c, so %f = %c
-                return set([(inst, inst.output)])
+                return set([inst.output])
             return res
 
         if inst.opcode == "assign" and isinstance(inst.operands[0], IRVariable):
@@ -101,5 +99,5 @@ class PhiEliminationPass(IRPass):
 
         # root of the phi/assignment chain. note that for multi-output
         # instructions (e.g. invoke), different outputs are distinct
-        # origins, so the origin is identified by (inst, var).
-        return set([(inst, var)])
+        # origins because their output operands are distinct.
+        return set([var])
