@@ -237,7 +237,19 @@ def test_returndatacopy_not_forwarded_across_create():
         %1 = mload %dst
         sink %1
     """
-    _check_no_change(pre)
+
+    post = """
+    _global:
+        %src = alloca 32
+        %dst = alloca 32
+        %code = alloca 1
+        returndatacopy %src, 0, 32
+        %addr = create 0, %code, 1
+        nop
+        %1 = mload %src
+        sink %1
+    """
+    _check_pre_post(pre, post)
 
 
 def test_no_elision_with_intermediate_write():
