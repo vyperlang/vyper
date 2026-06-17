@@ -22,7 +22,7 @@ from vyper.codegen_venom.abi import (
 )
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.value import VyperValue
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import BytesT, TupleT, VyperType
 from vyper.semantics.types.infinity import type_contains_unbounded_sequence
@@ -140,6 +140,9 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     - method_id: Optional 4-byte prefix (function selector)
     """
     from vyper.codegen_venom.expr import Expr
+
+    if len(node.args) < 1:
+        raise StructureException("abi_encode expects at least one argument", node)
 
     b = ctx.builder
 
