@@ -271,8 +271,8 @@ def _validate_init_calls(
     # Make a copy so that branches do not interfere
     init_calls = defaultdict(list, {k: v.copy() for k, v in init_calls.items()})
 
+    # Subset of init_calls that happen in this block
     local_init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]] = defaultdict(list)
-    """Subset of init_calls that happen in this block"""
 
     for node in block:
 
