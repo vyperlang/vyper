@@ -1399,6 +1399,23 @@ def mix(x: Bytes[INF], y: String[INF]) -> (Bytes[INF], uint256, String[INF]):
     assert abi_decode("(bytes,uint256,string)", ret) == (payload, 23, text)
 
 
+def test_inf_bytes_internal_tuple_return_many_ordinary_members(env):
+    payload = bytes((i * 95) % 256 for i in range(2001))
+    code = """
+@internal
+def _many(x: Bytes[INF]) -> (uint256, uint256, uint256, Bytes[INF]):
+    return 1, 2, 3, x
+
+@external
+def many(x: Bytes[INF]) -> (uint256, uint256, uint256, Bytes[INF]):
+    return self._many(x)
+    """
+
+    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    ret = _call(env, c, "many(bytes)", "(bytes)", (payload,))
+    assert abi_decode("(uint256,uint256,uint256,bytes)", ret) == (1, 2, 3, payload)
+
+
 def test_inf_bytes_internal_singleton_tuple_return(env):
     payload = bytes((i * 92) % 256 for i in range(2001))
 
