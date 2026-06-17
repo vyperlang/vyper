@@ -207,7 +207,9 @@ def _to_int(
         else:
             val = b.shr(num_zero_bits, data)
         # Clamp if bytes could exceed output range
-        if not is_bounded_length(in_t.maxlen) or in_t.maxlen * 8 > out_t.bits:
+        if out_t.bits < 256 and (
+            not is_bounded_length(in_t.maxlen) or in_t.maxlen * 8 > out_t.bits
+        ):
             val = _int_clamp(val, out_t, ctx)
         return val
 

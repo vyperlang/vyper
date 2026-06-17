@@ -72,38 +72,12 @@ from vyper.semantics.types.function import (
     is_ellipsis_body,
 )
 from vyper.semantics.types.infinity import (
-    INF,
-    is_supported_unbounded_tuple_type,
     is_unbounded_sequence_type,
     type_contains_nested_unbounded_sequence,
-    type_contains_unbounded_sequence,
+    type_contains_unbounded_dynarray_with_dynamic_elements,
+    type_contains_unsupported_unbounded_sequence,
 )
 from vyper.semantics.types.utils import type_from_annotation
-
-
-def _contains_unbounded_dynarray_with_dynamic_elements(typ: VyperType) -> bool:
-    if isinstance(typ, DArrayT):
-        if typ.length is INF and typ.value_type.abi_type.is_dynamic():
-            return True
-        return _contains_unbounded_dynarray_with_dynamic_elements(typ.value_type)
-
-    if isinstance(typ, SArrayT):
-        return _contains_unbounded_dynarray_with_dynamic_elements(typ.value_type)
-
-    if isinstance(typ, HashMapT):
-        return _contains_unbounded_dynarray_with_dynamic_elements(
-            typ.key_type
-        ) or _contains_unbounded_dynarray_with_dynamic_elements(typ.value_type)
-
-    if isinstance(typ, TupleT):
-        return any(_contains_unbounded_dynarray_with_dynamic_elements(t) for t in typ.member_types)
-
-    if isinstance(typ, StructT):
-        return any(
-            _contains_unbounded_dynarray_with_dynamic_elements(t) for t in typ.member_types.values()
-        )
-
-    return False
 
 
 def analyze_functions(vy_module: vy_ast.Module) -> None:
@@ -1064,15 +1038,14 @@ class ExprVisitor(VyperNodeVisitorBase):
                     else:
                         # Replace wildcards in the type by INF, since there is no expected type
                         return_t = return_t.resolve_wildcard()
-                        if type_contains_unbounded_sequence(return_t) and not (
-                            is_unbounded_sequence_type(return_t)
-                            or is_supported_unbounded_tuple_type(return_t)
-                        ):
+                        if type_contains_unsupported_unbounded_sequence(return_t):
                             raise StructureException(
                                 "Function returns cannot contain nested unbounded sequence types",
                                 node,
                             )
-                        if _contains_unbounded_dynarray_with_dynamic_elements(return_t):
+                        # Wildcard resolution constructs the concrete DArrayT directly,
+                        # bypassing DArrayT.from_annotation's ABI-static element guard.
+                        if type_contains_unbounded_dynarray_with_dynamic_elements(return_t):
                             raise StructureException(
                                 "DynArray[..., INF] is only supported with ABI-static "
                                 "element types",

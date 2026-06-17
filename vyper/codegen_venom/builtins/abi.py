@@ -8,7 +8,7 @@ ABI encoding/decoding built-in functions.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen.core import calculate_type_for_external_return
@@ -90,6 +90,29 @@ def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
                 return fourbytes_to_int(bytes.fromhex(hex_str))
 
     return None
+
+
+def _finish_abi_encoded_bytes(
+    ctx: VenomCodegenContext,
+    buf_ptr: IRVariable,
+    method_id: Optional[int],
+    encode_fn: Callable[[IRVariable], IROperand],
+    add_fn: Callable[[IROperand, IROperand], IROperand],
+) -> None:
+    b = ctx.builder
+    if method_id is not None:
+        # Bytes layout is [length][payload]. method_id occupies payload[0:4],
+        # so the ABI payload begins at byte 36.
+        method_id_word = method_id << 224
+        b.mstore(b.add(buf_ptr, IRLiteral(32)), IRLiteral(method_id_word))
+        data_dst = b.add(buf_ptr, IRLiteral(36))
+        encoded_len = encode_fn(data_dst)
+        total_len = add_fn(encoded_len, IRLiteral(4))
+        b.mstore(buf_ptr, total_len)
+    else:
+        data_dst = b.add(buf_ptr, IRLiteral(32))
+        encoded_len = encode_fn(data_dst)
+        b.mstore(buf_ptr, encoded_len)
 
 
 def _decode_unbounded_bytestring_from_abi(
@@ -174,17 +197,10 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         # padding zero write lands at `buf_ptr + ceil32(alloc_size)`.
         ctx.zero_bytestring_padding(buf_ptr, alloc_size)
 
-        if method_id is not None:
-            method_id_word = method_id << 224
-            b.mstore(b.add(buf_ptr, IRLiteral(32)), IRLiteral(method_id_word))
-            data_dst = b.add(buf_ptr, IRLiteral(36))
-            encoded_len = abi_encode_values_to_buf(ctx, data_dst, arg_vals, encode_type)
-            total_len = ctx.checked_add(encoded_len, IRLiteral(4))
-            b.mstore(buf_ptr, total_len)
-        else:
-            data_dst = b.add(buf_ptr, IRLiteral(32))
-            encoded_len = abi_encode_values_to_buf(ctx, data_dst, arg_vals, encode_type)
-            b.mstore(buf_ptr, encoded_len)
+        def encode_unbounded(dst: IRVariable) -> IROperand:
+            return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type)
+
+        _finish_abi_encoded_bytes(ctx, buf_ptr, method_id, encode_unbounded, ctx.checked_add)
 
         return ctx.dynamic_memory_value(buf_ptr, node._metadata["type"], annotation="abi_encode")
 
@@ -225,26 +241,10 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     buf_val = ctx.new_temporary_value(buf_t)
     assert isinstance(buf_val.operand, IRVariable)
 
-    if method_id is not None:
-        # Write method_id at offset 32 (start of data area, after 32-byte length field)
-        # method_id is 4 bytes, so shift left by 28 bytes = 224 bits
-        method_id_word = method_id << 224
-        b.mstore(b.add(buf_val.operand, IRLiteral(32)), IRLiteral(method_id_word))
+    def encode_bounded(dst: IRVariable) -> IROperand:
+        return abi_encode_to_buf(ctx, dst, encode_input, encode_type)
 
-        # Encode data starting at offset 36
-        data_dst = b.add(buf_val.operand, IRLiteral(36))
-        encoded_len = abi_encode_to_buf(ctx, data_dst, encode_input, encode_type)
-
-        # Write total length (encoded_len + 4) at offset 0
-        total_len = b.add(encoded_len, IRLiteral(4))
-        b.mstore(buf_val.operand, total_len)
-    else:
-        # Encode data starting at offset 32
-        data_dst = b.add(buf_val.operand, IRLiteral(32))
-        encoded_len = abi_encode_to_buf(ctx, data_dst, encode_input, encode_type)
-
-        # Write length at offset 0
-        b.mstore(buf_val.operand, encoded_len)
+    _finish_abi_encoded_bytes(ctx, buf_val.operand, method_id, encode_bounded, b.add)
 
     return buf_val
 

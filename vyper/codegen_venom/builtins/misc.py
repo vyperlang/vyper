@@ -407,22 +407,9 @@ def _get_bool_kwarg(node: vy_ast.Call, kwarg_name: str, default: bool) -> bool:
 
 
 def _schema_string_value(ctx: "VenomCodegenContext", schema: bytes) -> tuple[VyperValue, StringT]:
-    b = ctx.builder
-    schema_len = len(schema)
-    padded_schema_len = ((schema_len + 31) // 32) * 32
-    schema_t = StringT(schema_len)
-
-    schema_buf = ctx.allocate_buffer(32 + padded_schema_len)
-    b.mstore(schema_buf._ptr, IRLiteral(schema_len))
-
-    schema_data_ptr = b.add(schema_buf._ptr, IRLiteral(32))
-    for i in range(0, schema_len, 32):
-        chunk = schema[i : i + 32]
-        chunk_padded = chunk.ljust(32, b"\x00")
-        chunk_int = int.from_bytes(chunk_padded, "big")
-        b.mstore(b.add(schema_data_ptr, IRLiteral(i)), IRLiteral(chunk_int))
-
-    return VyperValue.from_ptr(schema_buf.base_ptr(), schema_t), schema_t
+    schema_vv = ctx.const_bytestring_value(schema, StringT, annotation="print schema")
+    assert isinstance(schema_vv.typ, StringT)
+    return schema_vv, schema_vv.typ
 
 
 def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:

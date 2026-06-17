@@ -37,10 +37,8 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.bytestrings import BytesT
 from vyper.semantics.types.infinity import (
-    is_supported_unbounded_tuple_type,
-    is_unbounded_sequence_type,
     type_contains_nested_unbounded_sequence,
-    type_contains_unbounded_sequence,
+    type_contains_unsupported_unbounded_sequence,
 )
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -876,11 +874,7 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
         return None
     # note: consider, for cleanliness, adding DataLocation.RETURN_VALUE
     ret = type_from_annotation(funcdef.returns, DataLocation.MEMORY)
-    if (
-        type_contains_unbounded_sequence(ret)
-        and not is_unbounded_sequence_type(ret)
-        and not is_supported_unbounded_tuple_type(ret)
-    ):
+    if type_contains_unsupported_unbounded_sequence(ret):
         raise StructureException(
             "Function returns cannot contain nested unbounded sequence types", funcdef.returns
         )

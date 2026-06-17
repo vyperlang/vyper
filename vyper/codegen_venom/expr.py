@@ -304,23 +304,7 @@ class Expr:
 
         Returns VyperValue with allocated memory.
         """
-        bytez_length = len(bytez)
-        btype = typeclass(bytez_length)
-
-        # Allocate memory for length word + data
-        val = self.ctx.new_temporary_value(btype)
-
-        # Store length at ptr
-        self.ctx.ptr_store(val.ptr(), IRLiteral(bytez_length))
-
-        # Store data in 32-byte chunks, right-padded with zeros
-        for i in range(0, bytez_length, 32):
-            chunk = (bytez + b"\x00" * 31)[i : i + 32]
-            word = int.from_bytes(chunk, "big")
-            offset = self.builder.add(val.operand, IRLiteral(32 + i))
-            self.builder.mstore(offset, IRLiteral(word))
-
-        return val
+        return self.ctx.const_bytestring_value(bytez, typeclass)
 
     # === Binary Operations ===
 

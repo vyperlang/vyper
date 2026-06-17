@@ -205,6 +205,23 @@ class VenomCodegenContext:
         buf = self.allocate_buffer(typ.memory_bytes_required, annotation)
         return VyperValue.from_ptr(buf.base_ptr(), typ)
 
+    def const_bytestring_value(
+        self, data: bytes, typeclass: type[_BytestringT], annotation: Optional[str] = None
+    ) -> VyperValue:
+        """Allocate memory and write a constant Bytes/String value."""
+        typ = typeclass(len(data))
+        val = self.new_temporary_value(typ, annotation=annotation)
+        assert isinstance(val.operand, IRVariable)
+
+        self.ptr_store(val.ptr(), IRLiteral(len(data)))
+        for i in range(0, len(data), 32):
+            chunk = (data + b"\x00" * 31)[i : i + 32]
+            word = int.from_bytes(chunk, "big")
+            offset = self.builder.add(val.operand, IRLiteral(32 + i))
+            self.builder.mstore(offset, IRLiteral(word))
+
+        return val
+
     def dynamic_memory_value(
         self, ptr: IRVariable, typ: VyperType, annotation: Optional[str] = None
     ) -> VyperValue:
