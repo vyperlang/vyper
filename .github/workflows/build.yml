@@ -5,12 +5,19 @@ on:
     inputs:
       tag:
         default: ''
+        type: string
   push:
     branches:
       - master
   pull_request:
   release:
     types: [published]  # releases and pre-releases (release candidates)
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
 
 defaults:
   run:
@@ -19,6 +26,7 @@ defaults:
 jobs:
   unix-build:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
       matrix:
         os:
@@ -29,22 +37,22 @@ jobs:
           - macos-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
             # grab the commit passed in via `tag`, if any
             ref: ${{ github.event.inputs.tag }}
             # need to fetch unshallow so that setuptools_scm can infer the version
             fetch-depth: 0
+            persist-credentials: false
 
       # debug
       - name: Git shorthash
         run: git rev-parse --short HEAD
 
       - name: Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
-          python-version: "3.11"
-          cache: "pip"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Generate Binary
         run: |
@@ -58,31 +66,32 @@ jobs:
 
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: vyper-${{ runner.os }}
           path: dist/vyper.*
 
   windows-build:
     runs-on: windows-latest
+    timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
             # grab the commit passed in via `tag`, if any
             ref: ${{ github.event.inputs.tag }}
             # need to fetch unshallow so that setuptools_scm can infer the version
             fetch-depth: 0
+            persist-credentials: false
 
       # debug
       - name: Git shorthash
         run: git rev-parse --short HEAD
 
       - name: Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
-          python-version: "3.11"
-          cache: "pip"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Generate Binary
         run: >-
@@ -91,7 +100,7 @@ jobs:
           ./make.cmd freeze
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: vyper-${{ runner.os }}
           path: dist/vyper.*
@@ -100,26 +109,36 @@ jobs:
     needs: [windows-build, unix-build]
     if: ${{ github.event_name == 'release' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      # Upload generated binaries to the GitHub release.
+      contents: write
 
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: artifacts/
           merge-multiple: true
 
       - name: Upload assets
         working-directory: artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_ID: ${{ github.event.release.id }}
         run: |
-          set -Eeuxo pipefail
+          set -Eeuo pipefail
           for BIN_NAME in $(ls)
           do
             curl -L \
               --no-progress-meter \
               -X POST \
-              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
+              -H "Authorization: Bearer ${GH_TOKEN}"\
               -H "Content-Type: application/octet-stream" \
-              "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.release.id }}/assets?name=${BIN_NAME/+/%2B}" \
+              "https://uploads.github.com/repos/${REPOSITORY}/releases/${RELEASE_ID}/assets?name=${BIN_NAME/+/%2B}" \
               --data-binary "@${BIN_NAME}"
           done
 
@@ -127,7 +146,9 @@ jobs:
   build-success:
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     needs: [windows-build, unix-build]
+    permissions: {}
     steps:
       - name: check that all builds succeeded
         if: ${{ contains(needs.*.result, 'failure') }}
