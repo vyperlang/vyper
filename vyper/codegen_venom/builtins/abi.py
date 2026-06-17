@@ -270,10 +270,11 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     data_len = b.mload(data)  # Length word at start of Bytes
     data_ptr = b.add(data, IRLiteral(32))  # Data starts after length word
     hi = b.add(data_ptr, data_len)
-    no_hi_wrap = b.iszero(b.lt(hi, data_ptr))
-    b.assert_(no_hi_wrap)
 
     if ctx.is_unbounded_sequence_type(output_typ):
+        no_hi_wrap = b.iszero(b.lt(hi, data_ptr))
+        b.assert_(no_hi_wrap)
+
         if unwrap_tuple:
             abi_min_size = wrapped_typ.abi_type.static_size()
             ge_min = b.iszero(b.lt(data_len, IRLiteral(abi_min_size)))
