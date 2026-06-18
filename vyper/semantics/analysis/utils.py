@@ -26,7 +26,7 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
-from vyper.semantics.types.infinity import is_bounded_length, type_contains_unbounded_sequence
+from vyper.semantics.types.infinity import is_bounded_length
 
 if TYPE_CHECKING:
     from vyper.semantics.types.module import ModuleT
@@ -495,16 +495,6 @@ def get_exact_type_from_node(node):
         Type object.
     """
     return _ExprAnalyser().get_exact_type_from_node(node, include_type_exprs=True)
-
-
-def expr_contains_unbounded_sequence(node: vy_ast.VyperNode) -> bool:
-    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return any(expr_contains_unbounded_sequence(item) for item in node.elements)
-
-    try:
-        return type_contains_unbounded_sequence(get_exact_type_from_node(node))
-    except VyperException:
-        return False
 
 
 def get_expr_info(node: vy_ast.ExprNode, is_callable: bool = False) -> ExprInfo:

@@ -14,9 +14,9 @@ from vyper.exceptions import (
     VariableDeclarationException,
 )
 from vyper.semantics.analysis.base import Modifiability
+from vyper.semantics.analysis.unbounded import expr_contains_unbounded_sequence
 from vyper.semantics.analysis.utils import (
     check_modifiability,
-    expr_contains_unbounded_sequence,
     validate_expected_type,
     validate_kwargs,
 )

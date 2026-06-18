@@ -32,8 +32,8 @@ from vyper.semantics.analysis.base import (
     VarInfo,
 )
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
+from vyper.semantics.analysis.unbounded import expr_contains_unbounded_sequence
 from vyper.semantics.analysis.utils import (
-    expr_contains_unbounded_sequence,
     get_common_types,
     get_exact_type_from_node,
     get_expr_info,

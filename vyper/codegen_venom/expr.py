@@ -1956,6 +1956,7 @@ class Expr:
                 args_abi_len = abi_encode_values_to_buf(
                     self.ctx, encode_dst, arg_vals, args_tuple_t
                 )
+                args_len = self.ctx.checked_add(args_abi_len, IRLiteral(4))
             else:
                 # Create temp buffer for args in memory
                 args_val = self.ctx.new_temporary_value(args_tuple_t)
@@ -1971,16 +1972,12 @@ class Expr:
 
                 # ABI-encode from args_buf to buf+32
                 abi_encode_to_buf(self.ctx, encode_dst, args_val.operand, args_tuple_t)
-                args_abi_len = IRLiteral(args_abi_size)
+                args_len = IRLiteral(4 + args_abi_size)
         else:
-            args_abi_len = IRLiteral(0)
+            args_len = IRLiteral(4)
 
         # Call starts at buf+28, length = 4-byte selector + ABI args payload.
         args_ofst = b.add(buf_ptr, IRLiteral(28))
-        if dynamic_args:
-            args_len = self.ctx.checked_add(args_abi_len, IRLiteral(4))
-        else:
-            args_len = IRLiteral(4 + args_abi_size)
 
         # === Contract Existence Check ===
         # If function returns nothing and skip_contract_check is False,
