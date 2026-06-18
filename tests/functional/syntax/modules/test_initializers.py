@@ -2833,3 +2833,28 @@ def __init__(cond: bool):
     """
     input_bundle = make_input_bundle({"lib1.vy": _LIB1, "lib2.vy": _LIB2_USES_LIB1})
     assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_for_loop_with_guarded_init_and_return_then_raise(make_input_bundle):
+    lib = """
+counter: uint256
+
+@deploy
+def __init__(x: uint256):
+    self.counter = x
+    """
+    main = """
+import lib
+
+initializes: lib
+
+@deploy
+def __init__(xs: DynArray[uint256, 10]):
+    for x: uint256 in xs:
+        if x > 0:
+            lib.__init__(x)
+            return
+    raise "no valid x in xs"
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib})
+    assert compile_code(main, input_bundle=input_bundle) is not None
