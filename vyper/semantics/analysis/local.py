@@ -32,7 +32,6 @@ from vyper.semantics.analysis.base import (
     VarInfo,
 )
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
-from vyper.semantics.analysis.unbounded import expr_contains_unbounded_sequence
 from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
@@ -75,9 +74,20 @@ from vyper.semantics.types.infinity import (
     is_unbounded_sequence_type,
     type_contains_nested_unbounded_sequence,
     type_contains_unbounded_dynarray_with_dynamic_elements,
+    type_contains_unbounded_sequence,
     type_contains_unsupported_unbounded_sequence,
 )
 from vyper.semantics.types.utils import type_from_annotation
+
+
+def _expr_contains_unbounded_sequence(node: vy_ast.VyperNode) -> bool:
+    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
+        return any(_expr_contains_unbounded_sequence(item) for item in node.elements)
+
+    try:
+        return type_contains_unbounded_sequence(get_exact_type_from_node(node))
+    except VyperException:
+        return False
 
 
 def analyze_functions(vy_module: vy_ast.Module) -> None:
@@ -1008,14 +1018,14 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             for arg, arg_typ in zip(node.args, func_type.argument_types):
                 if isinstance(arg, (vy_ast.Tuple, vy_ast.List)):
-                    has_nested_unbounded = expr_contains_unbounded_sequence(arg)
+                    has_nested_unbounded = _expr_contains_unbounded_sequence(arg)
                 else:
                     try:
                         actual_arg_typ = get_exact_type_from_node(arg)
                     except VyperException:
                         has_nested_unbounded = False
                     else:
-                        has_nested_unbounded = expr_contains_unbounded_sequence(
+                        has_nested_unbounded = _expr_contains_unbounded_sequence(
                             arg
                         ) and not is_unbounded_sequence_type(actual_arg_typ)
 

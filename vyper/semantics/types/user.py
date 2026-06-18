@@ -14,7 +14,6 @@ from vyper.exceptions import (
     VariableDeclarationException,
 )
 from vyper.semantics.analysis.base import Modifiability
-from vyper.semantics.analysis.unbounded import expr_contains_unbounded_sequence
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     validate_expected_type,
@@ -113,8 +112,27 @@ def _abi_input_name(item: dict, index: int, members: dict[str, VyperType]) -> st
     return name
 
 
+def _metadata_types(node: vy_ast.VyperNode) -> Iterator[VyperType]:
+    typ = node._metadata.get("type")
+    if typ is not None:
+        yield typ
+
+    for key in ("possible_types_from_node_False", "possible_types_from_node_True"):
+        yield from node._metadata.get(key, ())
+
+
+def _validated_expr_contains_unbounded_sequence(node: vy_ast.ExprNode) -> bool:
+    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
+        return any(_validated_expr_contains_unbounded_sequence(item) for item in node.elements)
+
+    # Event/error call validation invokes validate_expected_type/validate_kwargs first.
+    # Use that cached type metadata here instead of importing analysis resolvers into
+    # the user type module, which is itself imported during analysis initialization.
+    return any(type_contains_unbounded_sequence(typ) for typ in _metadata_types(node))
+
+
 def _reject_unbounded_event_or_error_arg(arg_node: vy_ast.ExprNode, kind: str) -> None:
-    if expr_contains_unbounded_sequence(arg_node):
+    if _validated_expr_contains_unbounded_sequence(arg_node):
         raise StructureException(f"{kind} cannot contain unbounded sequence types", arg_node)
 
 
