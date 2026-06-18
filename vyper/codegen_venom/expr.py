@@ -1914,7 +1914,6 @@ class Expr:
         else:
             args_abi_t = args_tuple_t.abi_type
             args_abi_size = args_abi_t.size_bound()
-            args_alloc_size = IRLiteral(args_abi_size)
 
         if return_t is not None:
             if has_unbounded_return or has_dynamic_tuple_return:
