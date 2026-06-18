@@ -106,6 +106,26 @@ def _literal_or_assigned_literal(operand, definitions):
     return None
 
 
+def _memory_copy_sizes(insts, definitions):
+    sizes = []
+    for inst in insts:
+        if inst.opcode == "mcopy":
+            sizes.append(_literal_or_assigned_literal(inst.operands[0], definitions))
+            continue
+
+        # Pre-Cancun memory-to-memory copies use the identity precompile:
+        # staticcall(gas, 4, src, size, dst, size). EVM-ordered operands are
+        # reversed in Venom IR, so [0] and [2] are the output/input sizes.
+        if inst.opcode == "staticcall":
+            ret_size = _literal_or_assigned_literal(inst.operands[0], definitions)
+            arg_size = _literal_or_assigned_literal(inst.operands[2], definitions)
+            target = _literal_or_assigned_literal(inst.operands[4], definitions)
+            if target == 4 and ret_size == arg_size:
+                sizes.append(ret_size)
+
+    return sizes
+
+
 def test_bounded_bytes_abi_decode_uses_static_maxbound_copy():
     code = """
 @external
@@ -123,13 +143,9 @@ def dec(x: Bytes[INF]) -> Bytes[100]:
         for inst in bb.instructions
     ]
     definitions = {inst._outputs[0]: inst for inst in insts if len(inst._outputs) == 1}
-    mcopy_lengths = [
-        _literal_or_assigned_literal(inst.operands[0], definitions)
-        for inst in insts
-        if inst.opcode == "mcopy"
-    ]
+    copy_lengths = _memory_copy_sizes(insts, definitions)
 
-    assert 160 in mcopy_lengths
+    assert 160 in copy_lengths
 
 
 def test_inf_abi_decode_checks_length_word_before_mload():
