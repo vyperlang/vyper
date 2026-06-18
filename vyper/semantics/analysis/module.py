@@ -182,27 +182,6 @@ def _validate_used_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None
         err_list.raise_if_not_empty()
 
 
-def _extract_init_call(node: vy_ast.Call) -> ModuleInfo | None:
-
-    expr_info = node.func._expr_info
-
-    if expr_info is None:
-        # this can happen for range() calls; CMC 2024-02-05 try to
-        # refactor so that range() is properly tagged.
-        return None
-
-    call_t = expr_info.typ
-
-    if not isinstance(call_t, ContractFunctionT):
-        return None
-
-    if not call_t.is_constructor:
-        return None
-
-    # XXX: check this works as expected for nested attributes
-    return node.func.value._expr_info.module_info  # type: ignore
-
-
 class ConstructorValidator(VyperNodeVisitorBase):
     """
     Check all `initializes:`-ed modules each have `__init__()` executed exactly once.
@@ -357,15 +336,27 @@ class ConstructorValidator(VyperNodeVisitorBase):
     def _validate_call(
         self, call: vy_ast.Call, init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]]
     ) -> ModuleInfo | None:
-        # Not reached through normal traversal (`visit` dispatch),
-        # always called from visit_VyperNode
 
-        other_module_info = _extract_init_call(call)
+        expr_info = call.func._expr_info
 
-        if other_module_info is None:
-            # Not an init call, nothing to do
+        if expr_info is None:
+            # this can happen for range() calls; CMC 2024-02-05 try to
+            # refactor so that range() is properly tagged.
             return None
 
+        call_t = expr_info.typ
+
+        if not isinstance(call_t, ContractFunctionT):
+            return None
+
+        if not call_t.is_constructor:
+            return None
+
+        # XXX: check this works as expected for nested attributes
+        other_module_info = call.func.value._expr_info.module_info  # type: ignore
+
+        # If A.__init__ is called, make sure it was not called before
+    
         init_calls_m = init_calls[other_module_info]
 
         if len(init_calls_m) != 0:
