@@ -356,7 +356,7 @@ class ConstructorValidator(VyperNodeVisitorBase):
         other_module_info = call.func.value._expr_info.module_info  # type: ignore
 
         # If A.__init__ is called, make sure it was not called before
-    
+
         init_calls_m = init_calls[other_module_info]
 
         if len(init_calls_m) != 0:
