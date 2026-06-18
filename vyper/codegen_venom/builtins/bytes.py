@@ -149,15 +149,10 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     # Allocate output buffer (length word + data)
     out_ptr: IROperand
-    if ctx.is_unbounded_bytestring_type(out_typ):
-        scratch_ptr = ctx.allocate_scratch(ctx.bytestring_runtime_size_from_length(total_len))
-        ctx.zero_bytestring_padding(scratch_ptr, total_len)
-        out_val = ctx.dynamic_memory_value(scratch_ptr, out_typ, annotation="concat")
-        out_ptr = scratch_ptr
-    else:
-        out_val = ctx.new_temporary_value(out_typ)
-        out_ptr = out_val.operand
-        assert isinstance(out_ptr, IRVariable)
+    scratch_ptr = ctx.allocate_scratch(ctx.bytestring_runtime_size_from_length(total_len))
+    ctx.zero_bytestring_padding(scratch_ptr, total_len)
+    out_val = ctx.dynamic_memory_value(scratch_ptr, out_typ, annotation="concat")
+    out_ptr = scratch_ptr
 
     data_ptr = b.add(out_ptr, IRLiteral(32))
 

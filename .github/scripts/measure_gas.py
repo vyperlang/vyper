@@ -84,7 +84,7 @@ def main():
             total += 1
             base_name = test_name.split("(", 1)[0]
             if not args.include_fuzz and (
-                base_name.startswith("testFuzz_") or base_name.startswith("invariant_")
+                base_name.startswith("testFuzz") or base_name.startswith("invariant")
             ):
                 skipped_fuzz += 1
                 continue

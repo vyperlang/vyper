@@ -2,7 +2,7 @@ from vyper.codegen_venom.module import generate_runtime_venom
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings, anchor_settings
-from vyper.venom.basicblock import IRLiteral
+from vyper.venom.basicblock import IRLiteral, IRVariable
 
 
 def _compile_frontend_ir(source):
@@ -92,7 +92,21 @@ def foo() -> Bytes[INF]:
     assert "calldatacopy" in opcodes
 
 
-def test_bounded_bytes_abi_decode_copies_runtime_payload_only():
+def _literal_or_assigned_literal(operand, definitions):
+    if isinstance(operand, IRLiteral):
+        return operand.value
+
+    if isinstance(operand, IRVariable):
+        definition = definitions.get(operand)
+        if definition is not None and len(definition.operands) == 1:
+            value = definition.operands[0]
+            if isinstance(value, IRLiteral):
+                return value.value
+
+    return None
+
+
+def test_bounded_bytes_abi_decode_uses_static_maxbound_copy():
     code = """
 @external
 def dec(x: Bytes[INF]) -> Bytes[100]:
@@ -102,17 +116,20 @@ def dec(x: Bytes[INF]) -> Bytes[100]:
     ctx = compile_code(
         code, output_formats=["ir_runtime"], settings=Settings(experimental_codegen=True)
     )["ir_runtime"]
-    mcopy_lengths = [
-        inst.operands[0]
+    insts = [
+        inst
         for fn in ctx.functions.values()
         for bb in fn.get_basic_blocks()
         for inst in bb.instructions
+    ]
+    definitions = {inst._outputs[0]: inst for inst in insts if len(inst._outputs) == 1}
+    mcopy_lengths = [
+        _literal_or_assigned_literal(inst.operands[0], definitions)
+        for inst in insts
         if inst.opcode == "mcopy"
     ]
 
-    assert not any(
-        isinstance(length, IRLiteral) and length.value == 160 for length in mcopy_lengths
-    )
+    assert 160 in mcopy_lengths
 
 
 def test_inf_abi_decode_checks_length_word_before_mload():

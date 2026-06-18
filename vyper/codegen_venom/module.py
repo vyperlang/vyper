@@ -54,7 +54,12 @@ def _get_constancy(func_t: ContractFunctionT) -> Constancy:
 
 
 class IDGenerator:
-    """Assign unique IDs to functions."""
+    """
+    Assign unique IDs to functions.
+
+    Semantic analysis can assign IDs before deploy/runtime lowering. Preserve
+    existing IDs so metadata and cross-pass function references remain stable.
+    """
 
     def __init__(self, module_t: ModuleT | None = None):
         ids = []
@@ -1051,7 +1056,13 @@ def _abi_arg_hi(ctx: VenomCodegenContext, location: DataLocation):
 def _get_abi_arg_ptr(
     ctx: VenomCodegenContext, parent: VyperValue, member_typ: VyperType, static_offset: int
 ) -> VyperValue:
-    """Navigate to a top-level external/constructor ABI argument."""
+    """
+    Navigate to a top-level external/constructor ABI argument.
+
+    This intentionally stays separate from recursive ABI element addressing:
+    arguments live in a flat frame, and only calldata needs the top-level
+    underflow guard. Constructor CODE args keep legacy's lenient behavior.
+    """
     loc = parent.location
     assert loc is not None, "parent must have a location for ABI arg access"
     assert loc in (DataLocation.CALLDATA, DataLocation.CODE), "ABI args live in calldata or code"

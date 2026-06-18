@@ -292,14 +292,16 @@ def _decode_bytestring(
 
     assert src.location is not None, "src must have a location for bytestring decoding"
     if not ctx.is_unbounded_bytestring_type(typ):
-        # Match the legacy bounded path: the clamp above checks length<=maxlen
-        # and, when `hi` is provided, that the runtime payload is in bounds.
+        # Match the legacy bounded path: copy the destination maxbound after
+        # length<=maxlen and optional `hi` bounds checks. If the source is an
+        # exact-sized INF buffer, this can copy bytes past the runtime payload,
+        # but those bytes are padding, not value; consumers use the length word.
         size = typ.memory_bytes_required
         ctx.builder.copy_to_memory(dst, src.operand, IRLiteral(size), src.location)
         return
 
-    # Copy only the present ABI payload. The destination may have a larger
-    # bounded capacity, but `hi` proves only the runtime payload is readable.
+    # INF destinations are exact-sized, so copy only the present ABI payload.
+    # When `hi` is provided, it proves the runtime payload is readable.
     assert isinstance(dst, IRVariable)
     length = ctx.builder.load(src.operand, src.location)
     ctx.zero_bytestring_padding(dst, length)

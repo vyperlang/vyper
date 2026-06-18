@@ -1688,7 +1688,6 @@ class Expr:
 
         arg_vv = Expr(node.args[0], self.ctx).lower()
         arg_val = self.ctx.unwrap(arg_vv)
-        elem_src_typ = arg_vv.typ
 
         if not elem_typ._is_prim_word:
             temp_buf = self.ctx.new_temporary_value(elem_typ)

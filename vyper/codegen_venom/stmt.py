@@ -569,30 +569,7 @@ class Stmt:
         including tuple members such as raw_call's `(bool, Bytes[N])` checkable
         result returned as `(bool, Bytes[INF])`.
         """
-        if dst_typ == src_typ:
-            return True
-
-        if isinstance(dst_typ, _BytestringT) and isinstance(src_typ, _BytestringT):
-            return dst_typ.compare_type(src_typ)
-
-        if isinstance(dst_typ, DArrayT) and isinstance(src_typ, DArrayT):
-            return dst_typ.compare_type(src_typ)
-
-        if isinstance(dst_typ, TupleT) and isinstance(src_typ, TupleT):
-            dst_member_types = dst_typ.member_types
-            src_member_types = src_typ.member_types
-            if isinstance(dst_member_types, dict):
-                dst_member_types = tuple(dst_member_types.values())
-            if isinstance(src_member_types, dict):
-                src_member_types = tuple(src_member_types.values())
-            if len(dst_member_types) != len(src_member_types):
-                return False
-            return all(
-                self._can_encode_from_source_return_layout(dst_member_t, src_member_t)
-                for dst_member_t, src_member_t in zip(dst_member_types, src_member_types)
-            )
-
-        return False
+        return dst_typ.compare_type(src_typ)
 
     # === Control Flow Statements ===
 
@@ -1336,17 +1313,16 @@ class Stmt:
         # Lower all argument expressions
         args = []
         for arg in arg_nodes:
-            arg_typ = arg._metadata["type"]
             arg_vv = Expr(arg, self.ctx).lower()
             arg_val = self.ctx.unwrap(arg_vv)
-            args.append((arg_val, arg_typ, arg_vv.typ))
+            args.append((arg_val, arg_vv.typ))
 
         # Split into indexed (topics) and non-indexed (data)
         topic_vals = []
         data_vals = []
         data_typs = []
 
-        for (arg_val, _arg_typ, src_typ), is_indexed in zip(args, event.indexed):
+        for (arg_val, src_typ), is_indexed in zip(args, event.indexed):
             if is_indexed:
                 topic_vals.append((arg_val, src_typ))
             else:
