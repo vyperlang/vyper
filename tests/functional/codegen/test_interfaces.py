@@ -5,7 +5,13 @@ from eth_utils import to_wei
 
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code, compile_from_file_input
-from vyper.exceptions import CodegenPanic, DuplicateImport, InterfaceViolation, NamespaceCollision
+from vyper.exceptions import (
+    CodegenPanic,
+    DuplicateImport,
+    InterfaceViolation,
+    NamespaceCollision,
+    StructureException,
+)
 
 
 # TODO CMC 2024-10-13: this should probably be in tests/unit/compiler/
@@ -266,6 +272,29 @@ def bar() -> uint256:
     file_input = input_bundle.load_file("pkg/main.vy")
     with pytest.raises(DuplicateImport):
         compile_from_file_input(file_input, input_bundle=input_bundle)
+
+
+def test_json_interface_invalid_state_mutability(make_input_bundle):
+    bad_abi = [
+        {
+            "type": "function",
+            "name": "foo",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "banana",
+        }
+    ]
+    code = """
+import bad_mut as ifc
+
+@external
+def f(addr: address):
+    extcall ifc(addr).foo()
+    """
+
+    input_bundle = make_input_bundle({"bad_mut.json": json.dumps(bad_abi)})
+    with pytest.raises(StructureException, match="Invalid stateMutability 'banana'"):
+        compile_code(code, input_bundle=input_bundle)
 
 
 def test_external_call_to_interface(env, get_contract, make_input_bundle):

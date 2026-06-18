@@ -34,7 +34,13 @@ class StateMutability(StringEnum):
         Extract stateMutability from an entry in a contract's ABI
         """
         if "stateMutability" in abi_dict:
-            return cls(abi_dict["stateMutability"])
+            state_mutability = abi_dict["stateMutability"]
+            expected = cls.values()
+            if state_mutability not in expected:
+                raise StructureException(
+                    f"Invalid stateMutability {state_mutability!r}: expected one of {expected}"
+                )
+            return cls(state_mutability)
         elif abi_dict.get("payable"):
             return StateMutability.PAYABLE
         elif "constant" in abi_dict and abi_dict["constant"]:
