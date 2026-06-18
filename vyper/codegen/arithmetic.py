@@ -369,10 +369,10 @@ def safe_pow(x, y):
             else:
                 ok = ["le", x, upper_bound]
     else:
-        # `a ** b` where neither `a` or `b` are known
-        # TODO this is currently unreachable, once we implement a way to do it safely
-        # remove the check in `vyper/context/types/value/numeric.py`
-        return
+        # `a ** b` where neither `a` or `b` are known.
+        # this branch is currently unreachable; raise instead of silently
+        # returning None so a clear compiler error surfaces if it is ever hit.
+        raise TypeCheckFailure("pow requires at least one literal operand")  # pragma: nocover
 
     assertion = IRnode.from_list(["assert", ok], error_msg="safepow")
     return IRnode.from_list(["seq", assertion, ["exp", x, y]])
