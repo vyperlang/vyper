@@ -10,7 +10,7 @@ from vyper.codegen.core import (
     is_numeric_type,
 )
 from vyper.codegen.ir_node import IRnode
-from vyper.exceptions import CompilerPanic, TypeCheckFailure, UnimplementedException
+from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, UnimplementedException
 
 
 def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
@@ -370,9 +370,10 @@ def safe_pow(x, y):
                 ok = ["le", x, upper_bound]
     else:
         # `a ** b` where neither `a` or `b` are known.
-        # this branch is currently unreachable; raise instead of silently
-        # returning None so a clear compiler error surfaces if it is ever hit.
-        raise TypeCheckFailure("pow requires at least one literal operand")  # pragma: nocover
+        # this is already caught by the type checker, so this branch is
+        # unreachable; panic instead of silently returning None so we fail
+        # loudly if it is ever hit.
+        raise CodegenPanic("pow requires at least one literal operand")  # pragma: nocover
 
     assertion = IRnode.from_list(["assert", ok], error_msg="safepow")
     return IRnode.from_list(["seq", assertion, ["exp", x, y]])
