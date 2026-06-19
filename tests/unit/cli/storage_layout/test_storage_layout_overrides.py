@@ -1,4 +1,3 @@
-import json
 import re
 
 import pytest
@@ -479,11 +478,11 @@ a: uint256
             output_formats=["layout"],
             storage_layout_override=json_input(storage_layout_override),
         )
-    expected_layout = {"a": {"type": "uint256", "n_slots": 1, "slot": 0}}
     assert exc_info.value.message == (
         "Computed storage layout does not match override file!\n"
-        f"expected: {json.dumps(storage_layout_override)}\n\n"
-        f"got:\n{json.dumps(expected_layout)}"
+        'expected: {"a": {"type": "uint256", "slot": 0, "n_slots": 1}, '
+        '"ghost": {"type": "uint256", "slot": 9, "n_slots": 1}}\n\n'
+        'got:\n{"a": {"type": "uint256", "n_slots": 1, "slot": 0}}'
     )
     assert exc_info.value.hint == (
         "did you provide a complete storage layout file, "
@@ -503,11 +502,10 @@ a: uint256[2]
             output_formats=["layout"],
             storage_layout_override=json_input(storage_layout_override),
         )
-    expected_layout = {"a": {"type": "uint256[2]", "n_slots": 2, "slot": 0}}
     assert exc_info.value.message == (
         "Computed storage layout does not match override file!\n"
-        f"expected: {json.dumps(storage_layout_override)}\n\n"
-        f"got:\n{json.dumps(expected_layout)}"
+        'expected: {"a": {"type": "uint256[2]", "slot": 0, "n_slots": 1}}\n\n'
+        'got:\n{"a": {"type": "uint256[2]", "n_slots": 2, "slot": 0}}'
     )
     assert exc_info.value.hint == (
         "did you provide a complete storage layout file, "
@@ -515,8 +513,17 @@ a: uint256[2]
     )
 
 
-@pytest.mark.parametrize("bad_slot", ["0", 1.5, None, True, [0]])
-def test_override_invalid_slot_type(bad_slot):
+@pytest.mark.parametrize(
+    ("bad_slot", "expected_message"),
+    [
+        ("0", 'invalid storage slot for a, expected int: "0"'),
+        (1.5, "invalid storage slot for a, expected int: 1.5"),
+        (None, "invalid storage slot for a, expected int: null"),
+        (True, "invalid storage slot for a, expected int: true"),
+        ([0], "invalid storage slot for a, expected int: [0]"),
+    ],
+)
+def test_override_invalid_slot_type(bad_slot, expected_message):
     code = """
 a: uint256
     """
@@ -528,10 +535,7 @@ a: uint256
             output_formats=["layout"],
             storage_layout_override=json_input(storage_layout_override),
         )
-    assert (
-        exc_info.value.message
-        == f"invalid storage slot for a, expected int: {json.dumps(bad_slot)}"
-    )
+    assert exc_info.value.message == expected_message
 
 
 def test_override_entry_not_dict():
