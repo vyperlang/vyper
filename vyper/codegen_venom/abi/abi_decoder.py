@@ -321,7 +321,10 @@ def decode_unbounded_dynarray_to_scratch(
     assert ctx.is_unbounded_dynarray_type(typ)
 
     if typ.value_type.abi_type.is_dynamic():
-        raise CompilerPanic("DynArray[*, INF] ABI decode needs ABI-static element types")
+        raise CompilerPanic(
+            "semantic analysis should reject ABI decoding DynArray[..., INF] "
+            "with ABI-dynamic elements"
+        )  # pragma: nocover
 
     length = ctx.builder.load(src.operand, src.location)
     if hi is not None:

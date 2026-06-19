@@ -973,7 +973,9 @@ class Stmt:
         arg_vvs = [Expr(elem, self.ctx).lower() for elem in value_node.elements]
         src_typ = TupleT(tuple(arg_vv.typ for arg_vv in arg_vvs))
         if not self._can_encode_from_source_return_layout(ret_typ, src_typ):
-            raise CompilerPanic(f"Cannot return {src_typ} as {ret_typ}")
+            raise CompilerPanic(
+                f"semantic analysis should reject returning {src_typ} as {ret_typ}"
+            )  # pragma: nocover
 
         self.ctx.emit_nonreentrant_unlock(func_t)
         external_return_type = calculate_type_for_external_return(ret_typ)
@@ -1114,8 +1116,8 @@ class Stmt:
             else:
                 if type_contains_unbounded_sequence(src_member_t):
                     raise CompilerPanic(
-                        "non-frame dynamic tuple returns cannot contain INF members"
-                    )
+                        "dynamic tuple returns with INF members should use a frame"
+                    )  # pragma: nocover
                 member_ptr = self.builder.add(ret_val, IRLiteral(src_offset))
                 assert isinstance(member_ptr, IRVariable)
                 if src_member_t._is_prim_word:

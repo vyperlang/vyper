@@ -1102,7 +1102,9 @@ def _materialize_unbounded_bytestring_abi_arg(
             data_offset, length, typ, src.location, annotation=name
         )
 
-    raise CompilerPanic(f"Cannot materialize unbounded ABI arg from {src.location}")
+    raise CompilerPanic(
+        f"ABI argument source should be CALLDATA or CODE, got {src.location}"
+    )  # pragma: nocover
 
 
 def _materialize_unbounded_dynarray_abi_arg(

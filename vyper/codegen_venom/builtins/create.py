@@ -18,7 +18,7 @@ from vyper.codegen_venom.abi import (
     abi_encode_values_to_buf,
     runtime_abi_size_for_encode,
 )
-from vyper.exceptions import CompilerPanic, UnfoldableNode
+from vyper.exceptions import UnfoldableNode
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import TupleT
@@ -628,9 +628,8 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
 
     if raw_args:
         # raw_args=True: single bytes argument contains raw constructor args
-        if len(ctor_arg_nodes) != 1:  # pragma: nocover
-            # This should be caught by type checker, but be defensive
-            raise CompilerPanic("raw_args requires exactly 1 bytes argument")
+        # Semantic analysis validates raw_args=True has exactly one bytes argument.
+        assert len(ctor_arg_nodes) == 1
 
         raw_arg_typ = ctor_arg_nodes[0]._metadata["type"]
         runtime_args = type_contains_unbounded_sequence(raw_arg_typ)

@@ -1690,11 +1690,15 @@ class Expr:
         elem_typ = darray_typ.value_type
 
         if not isinstance(darray_node, vy_ast.Name):
-            raise CompilerPanic("append on unbounded DynArray requires a local variable")
+            raise CompilerPanic(
+                "semantic analysis should reject append() on non-local DynArray[..., INF]"
+            )  # pragma: nocover
 
         var = self.ctx.lookup(darray_node.id)
         if not var.is_pointer_cell:
-            raise CompilerPanic("append on unbounded DynArray requires pointer-cell storage")
+            raise CompilerPanic(
+                "unbounded DynArray append expects pointer-cell storage"
+            )  # pragma: nocover
 
         arg_vv = Expr(node.args[0], self.ctx).lower()
         arg_val = self.ctx.unwrap(arg_vv)
