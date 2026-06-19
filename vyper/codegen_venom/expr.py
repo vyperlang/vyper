@@ -1433,16 +1433,19 @@ class Expr:
                     arg_op = self.builder.mload(arg_op)
                 invoke_args.append(arg_op)
             else:
-                # Memory-passed arg: allocate buffer, copy value, pass pointer.
-                # Backend passes can forward safe readonly arguments.
+                # Memory-passed arg: pass a pointer to a stable memory snapshot.
+                # Backend passes can forward safe readonly bounded arguments.
                 if self.ctx.is_unbounded_sequence_type(arg_t.typ):
-                    buf_val = self.ctx.copy_sequence_to_scratch(
-                        arg_val, arg_t.typ, annotation=arg_t.name
-                    )
-                else:
-                    buf_val = self.ctx.new_temporary_value(arg_t.typ)
-                    assert isinstance(buf_val.operand, IRVariable)
-                    self.ctx.store_vyper_value(arg_val, buf_val.operand, arg_t.typ)
+                    # _freeze_unbounded_sequence_arg already copied this value
+                    # after argument evaluation. Pass that stable snapshot
+                    # directly instead of staging the same buffer twice.
+                    assert isinstance(arg_op, IRVariable)
+                    invoke_args.append(arg_op)
+                    continue
+
+                buf_val = self.ctx.new_temporary_value(arg_t.typ)
+                assert isinstance(buf_val.operand, IRVariable)
+                self.ctx.store_vyper_value(arg_val, buf_val.operand, arg_t.typ)
                 invoke_args.append(buf_val.operand)
 
         # Emit invoke instruction
@@ -1668,7 +1671,12 @@ class Expr:
         return VyperValue.from_stack_op(IRLiteral(0), VOID_TYPE)
 
     def _lower_unbounded_dynarray_append(self) -> VyperValue:
-        """Lower append on exact-sized DynArray[..., INF] pointer-cell locals."""
+        """Lower append on exact-sized DynArray[..., INF] pointer-cell locals.
+
+        The current representation keeps no spare capacity: each append
+        allocates the exact new size and copies the old payload before writing
+        the new element. Repeated appends are therefore linear per append.
+        """
         node = self.node
         assert isinstance(node, vy_ast.Call)
         assert isinstance(node.func, vy_ast.Attribute)
@@ -1694,7 +1702,6 @@ class Expr:
             assert isinstance(temp_buf.operand, IRVariable)
             self.ctx.store_vyper_value(arg_vv, temp_buf.operand, elem_typ)
             elem_val: IROperand = temp_buf.operand
-            elem_src_typ = elem_typ
         else:
             elem_val = arg_val
 
@@ -1715,7 +1722,7 @@ class Expr:
         if elem_typ._is_prim_word:
             self.builder.mstore(elem_ptr, elem_val)
         else:
-            self.ctx.store_memory(elem_val, elem_ptr, elem_typ, src_typ=elem_src_typ)
+            self.ctx.store_memory(elem_val, elem_ptr, elem_typ, src_typ=elem_typ)
 
         new_length = self.builder.add(length, IRLiteral(1))
         self.builder.mstore(new_ptr, new_length)

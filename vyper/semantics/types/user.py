@@ -126,8 +126,7 @@ def _validated_expr_contains_unbounded_sequence(node: vy_ast.ExprNode) -> bool:
         return any(_validated_expr_contains_unbounded_sequence(item) for item in node.elements)
 
     # Event/error call validation invokes validate_expected_type/validate_kwargs first.
-    # Use that cached type metadata here instead of importing analysis resolvers into
-    # the user type module, which is itself imported during analysis initialization.
+    # Use that cached type metadata here instead of running expression resolution again.
     return any(type_contains_unbounded_sequence(typ) for typ in _metadata_types(node))
 
 

@@ -1320,14 +1320,12 @@ class Stmt:
         # Split into indexed (topics) and non-indexed (data)
         topic_vals = []
         data_vals = []
-        data_typs = []
 
         for (arg_val, src_typ), is_indexed in zip(args, event.indexed):
             if is_indexed:
                 topic_vals.append((arg_val, src_typ))
             else:
                 data_vals.append((arg_val, src_typ))
-                data_typs.append(src_typ)
 
         # Build topics list - starts with event signature hash
         topics: list[IROperand] = [IRLiteral(event.event_id)]
@@ -1341,7 +1339,8 @@ class Stmt:
         encoded_len: IROperand
         if data_vals:
             # Event declarations reject INF members, so log data is statically bounded here.
-            tuple_typ = TupleT(tuple(data_typs))
+            data_typs = tuple(src_typ for _, src_typ in data_vals)
+            tuple_typ = TupleT(data_typs)
             bufsz = tuple_typ.abi_type.size_bound()
 
             # Allocate buffer for tuple data in memory

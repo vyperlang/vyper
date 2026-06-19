@@ -951,6 +951,23 @@ def dec(x: Bytes[INF]) -> Bytes[INF]:
     assert abi_decode("(bytes)", ret) == (payload,)
 
 
+def test_bounded_bytes_abi_decode_short_payload_zeroes_return_padding(env):
+    code = """
+@external
+def dec(x: Bytes[INF]) -> Bytes[100]:
+    return abi_decode(x, Bytes[100], unwrap_tuple=False)
+    """
+
+    c = _deploy_venom(env, code)
+
+    def word(value):
+        return value.to_bytes(32, "big")
+
+    encoded = word(3) + b"abc" + b"\xff" * 29
+    ret = _call(env, c, "dec(bytes)", "(bytes)", (encoded,))
+    assert ret == word(32) + word(3) + b"abc" + b"\x00" * 29
+
+
 def test_inf_bytes_abi_decode_rejects_malformed_payload(env, tx_failed):
     code = """
 @external
@@ -1158,16 +1175,21 @@ def test_inf_bytes_string_print(env):
     text = "print string " * 170 + "tail"
     code = """
 @external
-def log_values(x: Bytes[INF], y: String[INF]) -> (uint256, uint256):
+def log_values(x: Bytes[INF], y: String[INF]) -> (uint256, uint256, bytes32, bytes32):
     print(x, y)
     print(x, hardhat_compat=True)
     print(y, hardhat_compat=True)
-    return len(x), len(y)
+    return len(x), len(y), sha256(x), sha256(y)
     """
 
     c = _deploy_venom(env, code)
     ret = _call(env, c, "log_values(bytes,string)", "(bytes,string)", (payload, text))
-    assert abi_decode("(uint256,uint256)", ret) == (len(payload), len(text))
+    assert abi_decode("(uint256,uint256,bytes32,bytes32)", ret) == (
+        len(payload),
+        len(text),
+        hashlib.sha256(payload).digest(),
+        hashlib.sha256(text.encode()).digest(),
+    )
 
 
 def test_inf_bytes_string_misc_builtins(env, tx_failed):
