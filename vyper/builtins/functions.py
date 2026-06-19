@@ -2202,7 +2202,9 @@ class Print(BuiltinFunctionT):
             for arg, arg_t in zip(node.args, arg_types):
                 if type_contains_nested_unbounded_sequence(arg_t):
                     raise StructureException(
-                        "print arguments cannot contain nested unbounded sequence types", arg
+                        "print arguments cannot contain unbounded sequence types "
+                        "inside aggregate types",
+                        arg,
                     )
             _reject_legacy_unbounded_sequence_builtin(node)
 
@@ -2326,7 +2328,9 @@ class ABIEncode(BuiltinFunctionT):
             for arg, arg_t in zip(node.args, arg_types):
                 if type_contains_nested_unbounded_sequence(arg_t):
                     raise StructureException(
-                        "abi_encode arguments cannot contain nested unbounded sequence types", arg
+                        "abi_encode arguments cannot contain unbounded sequence types "
+                        "inside aggregate types",
+                        arg,
                     )
             _reject_legacy_unbounded_sequence_builtin(node)
             return BytesT(INF)
@@ -2421,7 +2425,8 @@ class ABIDecode(BuiltinFunctionT):
         if type_contains_unbounded_sequence(output_type):
             if not is_unbounded_sequence_type(output_type):
                 raise StructureException(
-                    "abi_decode output type cannot contain nested unbounded sequence types",
+                    "abi_decode output type cannot contain unbounded sequence types "
+                    "inside aggregate types",
                     node.args[1],
                 )
             _reject_legacy_unbounded_sequence_builtin(node)

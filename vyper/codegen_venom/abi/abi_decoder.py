@@ -167,8 +167,10 @@ def clamp_bytestring(
     assert src.location is not None, "src must have a location for bytestring clamping"
     length = b.load(src.operand, src.location)  # Length word at start
 
-    # Check length <= maxlen
-    b.assert_(b.iszero(b.gt(length, IRLiteral(typ.maxlen))))
+    # Check length <= maxlen. INF bytestrings have no type cap; callers pass
+    # `hi` for untrusted/uncapped sources that need runtime payload bounds.
+    if is_bounded_length(typ.maxlen):
+        b.assert_(b.iszero(b.gt(length, IRLiteral(typ.maxlen))))
 
     if hi is not None:
         if ctx.is_unbounded_bytestring_type(typ):

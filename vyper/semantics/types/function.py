@@ -876,7 +876,8 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
     ret = type_from_annotation(funcdef.returns, DataLocation.MEMORY)
     if type_contains_unsupported_unbounded_sequence(ret):
         raise StructureException(
-            "Function returns cannot contain nested unbounded sequence types", funcdef.returns
+            "Function returns cannot contain unbounded sequence types inside aggregate types",
+            funcdef.returns,
         )
     return ret
 
@@ -1100,7 +1101,8 @@ def _parse_args(
         type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
         if type_contains_nested_unbounded_sequence(type_):
             raise StructureException(
-                "Function arguments cannot contain nested unbounded sequence types", arg.annotation
+                "Function arguments cannot contain unbounded sequence types inside aggregate types",
+                arg.annotation,
             )
 
         if i < n_positional_args:

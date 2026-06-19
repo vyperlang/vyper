@@ -492,7 +492,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
         if type_contains_nested_unbounded_sequence(typ):
             raise StructureException(
-                "Memory variables cannot contain nested unbounded sequence types", node.annotation
+                "Memory variables cannot contain unbounded sequence types inside aggregate types",
+                node.annotation,
             )
 
         # validate the value before adding it to the namespace
@@ -1031,7 +1032,9 @@ class ExprVisitor(VyperNodeVisitorBase):
 
                 if has_nested_unbounded:
                     raise StructureException(
-                        "Function arguments cannot contain nested unbounded sequence types", arg
+                        "Function arguments cannot contain unbounded sequence types "
+                        "inside aggregate types",
+                        arg,
                     )
                 self.visit(arg, arg_typ)
             for kwarg in node.keywords:
@@ -1050,7 +1053,8 @@ class ExprVisitor(VyperNodeVisitorBase):
                         return_t = return_t.resolve_wildcard()
                         if type_contains_unsupported_unbounded_sequence(return_t):
                             raise StructureException(
-                                "Function returns cannot contain nested unbounded sequence types",
+                                "Function returns cannot contain unbounded sequence types "
+                                "inside aggregate types",
                                 node,
                             )
                         # Wildcard resolution constructs the concrete DArrayT directly,

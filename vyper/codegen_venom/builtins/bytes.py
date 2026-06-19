@@ -126,6 +126,8 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     lowered_args: list[tuple[_BytestringT | BytesM_T, IROperand, IROperand]] = []
     total_len: IROperand = IRLiteral(0)
+    # Once an INF argument contributes to the length, subsequent additions use
+    # checked arithmetic. Purely bounded prefixes keep the legacy plain-add path.
     total_len_unbounded = False
     for arg_node in args:
         arg_t = arg_node._metadata["type"]
@@ -160,6 +162,8 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     offset_local = ctx.new_temporary_value(BytesT(32))  # just need 32 bytes
     ctx.ptr_store(offset_local.ptr(), IRLiteral(0))
 
+    # Same sticky policy as total_len: only offsets that depend on an INF input
+    # need overflow checks.
     offset_unbounded = False
     for arg_t, arg_val, arg_len in lowered_args:
         if isinstance(arg_t, _BytestringT):

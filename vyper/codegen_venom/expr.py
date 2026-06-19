@@ -1677,7 +1677,8 @@ class Expr:
 
         The current representation keeps no spare capacity: each append
         allocates the exact new size and copies the old payload before writing
-        the new element. Repeated appends are therefore linear per append.
+        the new element. Repeated appends are therefore linear per append and
+        quadratic in aggregate.
         """
         node = self.node
         assert isinstance(node, vy_ast.Call)

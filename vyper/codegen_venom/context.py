@@ -519,6 +519,8 @@ class VenomCodegenContext:
         src = self.unwrap(vv)
         assert isinstance(src, IRVariable)
         if self.is_unbounded_bytestring_type(vv.typ):
+            # INF source length is runtime-controlled, so keep overflow-checked
+            # size arithmetic. Bounded source length is already capped by type.
             size = self.bytestring_runtime_size(src)
         else:
             size = self.unchecked_bytestring_runtime_size(src)
@@ -533,6 +535,8 @@ class VenomCodegenContext:
         src = self.unwrap(vv)
         assert isinstance(src, IRVariable)
         if isinstance(vv.typ, DArrayT) and is_bounded_length(vv.typ.length):
+            # Bounded source count is already capped by type; INF count needs
+            # checked runtime size arithmetic.
             size = self.unchecked_dynarray_runtime_size(src, typ)
         else:
             size = self.dynarray_runtime_size(src, typ)

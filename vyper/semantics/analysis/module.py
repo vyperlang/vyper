@@ -812,7 +812,8 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         type_ = type_from_annotation(node.annotation, location)
         if node.is_constant and type_contains_unsupported_unbounded_sequence(type_):
             raise StructureException(
-                "Constants cannot contain nested unbounded sequence types", node.annotation
+                "Constants cannot contain unbounded sequence types inside aggregate types",
+                node.annotation,
             )
 
         if type_contains_unbounded_sequence(type_) and location in (

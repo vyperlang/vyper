@@ -376,7 +376,9 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Calculate buffer size: max bytecode len + ctor args size for bounded
     # bytecode, or exact runtime bytecode length + ctor args size for INF.
-    if bytecode_is_unbounded or runtime_ctor_args:
+    runtime_initcode = bytecode_is_unbounded or runtime_ctor_args
+
+    if runtime_initcode:
         buf_ptr = ctx.allocate_scratch(ctx.checked_add(bytecode_len, ctor_abi_size))
     else:
         assert isinstance(ctor_abi_size, IRLiteral)
@@ -394,7 +396,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     )
 
     # Total length = bytecode_len + args_len
-    if bytecode_is_unbounded or runtime_ctor_args:
+    if runtime_initcode:
         total_len = ctx.checked_add(bytecode_len, args_len)
     else:
         total_len = b.add(bytecode_len, args_len)
@@ -403,7 +405,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     ctor_salt_op: Optional[IROperand] = None
     if salt_node is not None:
         ctor_salt_op = Expr(salt_node, ctx).lower_value()
-    check_eip_3860_limit = bytecode_is_unbounded or runtime_ctor_args
+    check_eip_3860_limit = runtime_initcode
     return _emit_create(
         ctx, b, value, buf_ptr, total_len, ctor_salt_op, revert_on_failure, check_eip_3860_limit
     )

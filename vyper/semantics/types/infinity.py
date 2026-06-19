@@ -96,7 +96,7 @@ def type_contains_unbounded_dynarray_with_dynamic_elements(typ) -> bool:
         )
 
     if typeclass in ("struct", "error", "event"):
-        members = getattr(typ, "members", getattr(typ, "member_types", {}))
+        members = typ.members
         return any(
             type_contains_unbounded_dynarray_with_dynamic_elements(t) for t in members.values()
         )
