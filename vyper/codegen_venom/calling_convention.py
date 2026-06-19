@@ -10,7 +10,7 @@ This module is the single source of truth for these decisions.
 from __future__ import annotations
 
 from vyper.codegen.core import is_tuple_like
-from vyper.exceptions import CodegenPanic
+from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.infinity import INF, is_supported_unbounded_tuple_type
@@ -51,7 +51,9 @@ def validate_dynamic_tuple_return_type(typ: VyperType | None) -> None:
 
     assert isinstance(typ, TupleT)
     if not is_supported_unbounded_tuple_type(typ):
-        raise CodegenPanic("nested INF tuple returns are not implemented")
+        raise CompilerPanic(
+            "semantic analysis should reject nested INF tuple returns"
+        )  # pragma: nocover
 
 
 def is_word_type(typ: VyperType) -> bool:

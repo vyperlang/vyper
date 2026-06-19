@@ -218,7 +218,9 @@ class Expr:
                             elem_vv, elem_typ, annotation="tuple"
                         )
                     elif type_contains_unbounded_sequence(elem_typ):
-                        raise CodegenPanic("nested INF tuple literals are not implemented")
+                        raise CompilerPanic(
+                            "semantic analysis should reject nested INF tuple literals"
+                        )  # pragma: nocover
                     else:
                         elem_vv = self.ctx.materialize_value(elem_vv, elem_typ, annotation="tuple")
                     member_ptr = self.ctx.unwrap(elem_vv)

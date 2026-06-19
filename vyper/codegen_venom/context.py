@@ -18,12 +18,7 @@ from typing import Optional, Sequence
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import (
-    CodegenPanic,
-    CompilerPanic,
-    MemoryAllocationException,
-    StateAccessViolation,
-)
+from vyper.exceptions import CompilerPanic, MemoryAllocationException, StateAccessViolation
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import TupleT, VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
@@ -443,7 +438,9 @@ class VenomCodegenContext:
     def dynarray_runtime_abi_size(self, ptr: IRVariable, typ: DArrayT) -> IROperand:
         """Return runtime ABI size for an unbounded DynArray with static ABI elements."""
         if typ.value_type.abi_type.is_dynamic():
-            raise CodegenPanic("DynArray[*, INF] ABI encoding needs ABI-static element types")
+            raise CompilerPanic(
+                "semantic analysis should reject DynArray[..., INF] with ABI-dynamic elements"
+            )  # pragma: nocover
         length = self.builder.mload(ptr)
         elem_size = typ.value_type.abi_type.embedded_static_size()
         data_size = self.checked_mul(length, IRLiteral(elem_size))
@@ -901,7 +898,9 @@ class VenomCodegenContext:
     ) -> None:
         """Copy DynArray in memory when source and destination element layouts may differ."""
         if not is_bounded_length(dst_typ.length):
-            raise CodegenPanic("Not yet implemented for Unbounded Sequence Types")
+            raise CompilerPanic(
+                "unbounded DynArray memory copies should use pointer-cell assignment"
+            )  # pragma: nocover
         b = self.builder
         assert isinstance(src, IRVariable)
         length = b.mload(src)

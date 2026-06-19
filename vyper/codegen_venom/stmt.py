@@ -264,10 +264,6 @@ class Stmt:
         src_offset = 0
         src_member_types = src_tuple_typ.member_types
         dst_member_types = dst_tuple_typ.member_types
-        if isinstance(src_member_types, dict):
-            src_member_types = tuple(src_member_types.values())
-        if isinstance(dst_member_types, dict):
-            dst_member_types = tuple(dst_member_types.values())
 
         # If source and destination may alias in memory, snapshot the source tuple once.
         # This preserves tuple-assignment semantics (a, b = b, a) for complex members
@@ -325,8 +321,6 @@ class Stmt:
     ) -> None:
         src_values = self.ctx.dynamic_tuple_frame_values(src, src_tuple_typ, annotation="unpack")
         dst_member_types = dst_tuple_typ.member_types
-        if isinstance(dst_member_types, dict):
-            dst_member_types = tuple(dst_member_types.values())
 
         for src_vv, dst_elem_typ, target_node in zip(src_values, dst_member_types, targets):
             src_elem_typ = src_vv.typ
@@ -1088,7 +1082,9 @@ class Stmt:
             return IRLiteral(src_typ.memory_bytes_required)
 
         if type_contains_unbounded_sequence(dst_typ) or type_contains_unbounded_sequence(src_typ):
-            raise CodegenPanic("nested INF tuple internal returns are not implemented")
+            raise CompilerPanic(
+                "semantic analysis should reject nested INF tuple internal returns"
+            )  # pragma: nocover
 
         return IRLiteral(src_typ.memory_bytes_required)
 
@@ -1097,10 +1093,6 @@ class Stmt:
     ) -> None:
         dst_member_types = ret_typ.member_types
         src_member_types = ret_src_typ.member_types
-        if isinstance(dst_member_types, dict):
-            dst_member_types = tuple(dst_member_types.values())
-        if isinstance(src_member_types, dict):
-            src_member_types = tuple(src_member_types.values())
 
         src_is_frame = self.ctx.is_dynamic_tuple_frame_type(ret_src_typ)
         src_offset = 0
@@ -1146,7 +1138,9 @@ class Stmt:
             if type_contains_unbounded_sequence(dst_member_t) or type_contains_unbounded_sequence(
                 src_member_t
             ):
-                raise CodegenPanic("nested INF tuple internal returns are not implemented")
+                raise CompilerPanic(
+                    "semantic analysis should reject nested INF tuple internal returns"
+                )  # pragma: nocover
 
             if dst_member_t != src_member_t:
                 normalized = self.ctx.new_temporary_value(dst_member_t)
