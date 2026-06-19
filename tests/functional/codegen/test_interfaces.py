@@ -293,8 +293,12 @@ def f(addr: address):
     """
 
     input_bundle = make_input_bundle({"bad_mut.json": json.dumps(bad_abi)})
-    with pytest.raises(StructureException, match="Invalid stateMutability 'banana'"):
+    with pytest.raises(StructureException) as exc_info:
         compile_code(code, input_bundle=input_bundle)
+    assert exc_info.value.message == (
+        "Invalid stateMutability 'banana': "
+        "expected one of ['pure', 'view', 'nonpayable', 'payable']"
+    )
 
 
 def test_external_call_to_interface(env, get_contract, make_input_bundle):
