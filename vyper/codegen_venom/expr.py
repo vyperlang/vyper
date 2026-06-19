@@ -1116,6 +1116,8 @@ class Expr:
         if location == DataLocation.MEMORY:
             # Buffer requires IRVariable; memory pointers from arithmetic ops are always IRVariables
             assert isinstance(operand, IRVariable)
+            if self.ctx.is_dynamic_tuple_frame_type(typ):
+                return self.ctx.dynamic_tuple_frame_value(operand, typ, annotation="computed_ptr")
             size = None if self.ctx.is_unbounded_sequence_type(typ) else typ.memory_bytes_required
             buf = Buffer(_ptr=operand, size=size, annotation="computed_ptr")
             ptr = Ptr(operand=operand, location=location, buf=buf)

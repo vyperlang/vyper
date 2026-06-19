@@ -970,7 +970,14 @@ class Stmt:
         ):
             return False
 
-        arg_vvs = [Expr(elem, self.ctx).lower() for elem in value_node.elements]
+        arg_vvs = []
+        for i, elem in enumerate(value_node.elements):
+            member_t = ret_typ.member_types[i]
+            arg_vv = Expr(elem, self.ctx).lower()
+            arg_vvs.append(
+                self._freeze_external_tuple_return_member(arg_vv, member_t, annotation="return")
+            )
+
         src_typ = TupleT(tuple(arg_vv.typ for arg_vv in arg_vvs))
         if not self._can_encode_from_source_return_layout(ret_typ, src_typ):
             raise CompilerPanic(
@@ -984,6 +991,32 @@ class Stmt:
             arg_vvs, src_typ, wrap_outer=external_return_type is not ret_typ
         )
         return True
+
+    def _freeze_external_tuple_return_member(
+        self, arg_vv: VyperValue, target_typ: VyperType, annotation: str
+    ) -> VyperValue:
+        """Snapshot tuple literal return members before later elements run.
+
+        ABI encoding happens after the full tuple is evaluated. Without this,
+        a later element with side effects, e.g. `return x, x.pop()`, can mutate
+        the memory/storage pointed to by an earlier member before it is encoded.
+        """
+        if arg_vv.typ._is_prim_word:
+            return VyperValue.from_stack_op(self.ctx.unwrap(arg_vv), arg_vv.typ)
+
+        target_is_unbounded = self.ctx.is_unbounded_sequence_type(target_typ)
+        if target_is_unbounded or self.ctx.is_unbounded_sequence_type(arg_vv.typ):
+            copy_typ = target_typ if target_is_unbounded else arg_vv.typ
+            return self.ctx.copy_sequence_to_scratch(arg_vv, copy_typ, annotation=annotation)
+
+        if type_contains_unbounded_sequence(target_typ) or type_contains_unbounded_sequence(
+            arg_vv.typ
+        ):
+            raise CompilerPanic(
+                "semantic analysis should reject nested INF tuple returns"
+            )  # pragma: nocover
+
+        return self.ctx.materialize_value(arg_vv, arg_vv.typ, annotation=annotation)
 
     def _emit_external_dynamic_tuple_return(
         self, arg_vvs: list[VyperValue], encode_typ: TupleT, wrap_outer: bool

@@ -274,6 +274,19 @@ def check(addr: address) -> (uint256, DynArray[uint256, INF]):
     assert abi_decode("(uint256,uint256[])", ret) == (33, [1, 2])
 
 
+def test_inf_dynarray_tuple_literal_return_freezes_member_before_later_mutation(env):
+    code = """
+@external
+def check() -> (DynArray[uint256, INF], uint256, DynArray[uint256, INF]):
+    x: DynArray[uint256, INF] = [1, 2, 3]
+    return x, x.pop(), x
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "check()")
+    assert abi_decode("(uint256[],uint256,uint256[])", ret) == ([1, 2, 3], 3, [1, 2])
+
+
 def test_inf_dynarray_abi_encode_freezes_arg_before_later_mutation(env):
     code = """
 @external

@@ -1351,6 +1351,28 @@ def pair() -> (uint256, Bytes[INF]):
     assert abi_decode("(uint256,bytes)", _call(env, c, "pair()")) == (1, b"")
 
 
+def test_inf_bytes_tuple_ternary_return(env):
+    code = """
+@external
+def choose(flag: bool) -> (uint256, Bytes[INF]):
+    a: uint256 = 1
+    b: uint256 = 2
+    x: Bytes[INF] = b"cat"
+    y: Bytes[INF] = b"kitten"
+    return (a, x) if flag else (b, y)
+    """
+
+    c = _deploy_venom(env, code)
+    assert abi_decode("(uint256,bytes)", _call(env, c, "choose(bool)", "(bool)", (True,))) == (
+        1,
+        b"cat",
+    )
+    assert abi_decode("(uint256,bytes)", _call(env, c, "choose(bool)", "(bool)", (False,))) == (
+        2,
+        b"kitten",
+    )
+
+
 def test_inf_bytes_singleton_tuple_literal_return(env):
     payload = bytes((i * 83) % 256 for i in range(2001))
 
