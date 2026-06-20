@@ -37,6 +37,9 @@ for opcode, eff in effects.writes.items():
 # staticcall doesn't have external effects, but it is not idempotent since
 # it can depend on gas
 _nonidempotent_insts.append("staticcall")
+# gas returns the remaining gas, which decreases as execution proceeds,
+# so two reads in the same call are not equivalent
+_nonidempotent_insts.append("gas")
 
 NONIDEMPOTENT_INSTRUCTIONS = frozenset(_nonidempotent_insts)
 
@@ -276,6 +279,10 @@ class AvailableExpressionAnalysis(IRAnalysis):
             if inst.opcode == "assign" or inst.is_pseudo or inst.is_bb_terminator:
                 continue
             if inst.num_outputs > 1:
+                # multi-output instructions cannot be mapped to an
+                # expression, but their write effects must still
+                # invalidate available expressions
+                available_exprs.remove_effect(_get_write_effects(inst.opcode))
                 continue
 
             if (
