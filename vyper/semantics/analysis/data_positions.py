@@ -157,7 +157,9 @@ def _fetch_path(path: list[str], layout: StorageLayout, node: vy_ast.VyperNode):
     qualified_path = ".".join(path)
 
     for segment in path:
-        if not (isinstance(tmp, dict) and segment in tmp):
+        if not isinstance(tmp, dict):
+            raise StorageLayoutException(f"no storage slot for {qualified_path}", node)
+        if segment not in tmp:
             raise StorageLayoutException(
                 f"Could not find storage slot for {qualified_path}. "
                 "Have you used the correct storage layout file?",

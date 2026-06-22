@@ -155,6 +155,32 @@ def bar() -> uint256:
     assert compile_code(main, input_bundle=input_bundle) is not None
 
 
+def test_log_json_interface_event_without_indexed(make_input_bundle):
+    event_abi = [
+        {
+            "type": "event",
+            "name": "Transfer",
+            "inputs": [
+                {"name": "sender", "type": "address"},
+                {"name": "receiver", "type": "address"},
+                {"name": "value", "type": "uint256"},
+            ],
+        }
+    ]
+
+    input_bundle = make_input_bundle({"token.json": json.dumps(event_abi)})
+
+    main = """
+import token as Token
+
+@external
+def foo(_from: address, _to: address, amount: uint256):
+    log Token.Transfer(sender=_from, receiver=_to, value=amount)
+    """
+
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
 VALID_IMPORT_CODE = [
     # import statement, import path without suffix
     ("import a as Foo", "a.vyi"),
