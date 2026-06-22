@@ -193,8 +193,15 @@ class Ceil(BuiltinFunctionT):
 
 
 class Convert(BuiltinFunctionT):
+    """
+    Typecheck convert(value, target_type).
+
+    The allowed-source lookup is target-keyed: the second argument's
+    destination type determines which first-argument source types it accepts.
+    """
+
     _id = "convert"
-    _allowed_inputs: dict[type, tuple[type, ...]] = {
+    _source_types_by_target_type: dict[type, tuple[type, ...]] = {
         BoolT: (IntegerT, DecimalT, BytesM_T, AddressT, BoolT, BytesT, StringT),
         AddressT: (BytesM_T, IntegerT, BytesT),
         IntegerT: (IntegerT, DecimalT, BytesM_T, AddressT, BoolT, FlagT, BytesT),
@@ -202,7 +209,6 @@ class Convert(BuiltinFunctionT):
         BytesM_T: (IntegerT, DecimalT, BytesM_T, AddressT, BytesT, BoolT),
         BytesT: (StringT, BytesT),
         StringT: (BytesT, StringT),
-        FlagT: (IntegerT,),
     }
 
     @staticmethod
@@ -210,12 +216,33 @@ class Convert(BuiltinFunctionT):
         raise TypeMismatch(f"Can't convert {value_type} to {target_type}", node)
 
     @classmethod
+    def _source_types_for_target(cls, target_type):
+        if isinstance(target_type, FlagT):
+            return (UINT256_T,)
+
+        allowed = cls._source_types_by_target_type.get(type(target_type))
+        if allowed is None:
+            return None
+
+        # flags only convert to uint256
+        if isinstance(target_type, IntegerT) and target_type != UINT256_T:
+            return tuple(i for i in allowed if i is not FlagT)
+
+        return allowed
+
+    @staticmethod
+    def _matches_source_type(value_type, allowed_type):
+        if isinstance(allowed_type, type):
+            return isinstance(value_type, allowed_type)
+        return value_type == allowed_type
+
+    @classmethod
     def _validate_type_pair(cls, value_type, target_type, node):
-        allowed = cls._allowed_inputs.get(type(target_type))
+        allowed = cls._source_types_for_target(target_type)
         if allowed is None:
             raise StructureException(f"Conversion to {target_type} is invalid.", node)
 
-        if not isinstance(value_type, allowed):
+        if not any(cls._matches_source_type(value_type, i) for i in allowed):
             cls._convert_fail(value_type, target_type, node)
 
         if isinstance(value_type, _BytestringT) and not isinstance(target_type, _BytestringT):
@@ -227,14 +254,11 @@ class Convert(BuiltinFunctionT):
         if isinstance(target_type, _BytestringT):
             # widening a bytestring within the same class is not a real
             # conversion -- the assignment is already legal without convert()
-            if isinstance(value_type, type(target_type)) and value_type.maxlen <= target_type.maxlen:
+            if (
+                isinstance(value_type, type(target_type))
+                and value_type.maxlen <= target_type.maxlen
+            ):
                 cls._convert_fail(value_type, target_type, node)
-
-        # flags only convert to and from uint256
-        if isinstance(value_type, FlagT) and target_type != UINT256_T:
-            cls._convert_fail(value_type, target_type, node)
-        if isinstance(target_type, FlagT) and value_type != UINT256_T:
-            cls._convert_fail(value_type, target_type, node)
 
         # addresses are unsigned
         if (
@@ -252,7 +276,10 @@ class Convert(BuiltinFunctionT):
 
         # narrowing conversions to bytesM are blocked (no runtime clamp)
         if isinstance(target_type, BytesM_T):
-            if isinstance(value_type, (IntegerT, DecimalT)) and target_type.m_bits < value_type.bits:
+            if (
+                isinstance(value_type, (IntegerT, DecimalT))
+                and target_type.m_bits < value_type.bits
+            ):
                 cls._convert_fail(value_type, target_type, node)
             if isinstance(value_type, AddressT) and target_type.m_bits < 160:
                 cls._convert_fail(value_type, target_type, node)
@@ -296,6 +323,8 @@ class Convert(BuiltinFunctionT):
         if isinstance(value_type, DArrayT) and not is_bounded_length(value_type.count):
             raise CodegenPanic("convert not yet implemented for unbounded sequence type")
 
+        # Keep conversion legality in argument inference so callers cannot get
+        # a return type for an invalid source/target pair.
         self._validate_type_pair(value_type, target_type, node)
 
         return [value_type, TYPE_T(target_type)]

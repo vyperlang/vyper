@@ -16,10 +16,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
-from vyper.builtins._convert_bounds import (
-    fixed_to_int_clamp_bounds,
-    int_to_fixed_clamp_bounds,
-)
+from vyper.builtins._convert_bounds import fixed_to_int_clamp_bounds, int_to_fixed_clamp_bounds
 from vyper.exceptions import CompilerPanic, InvalidLiteral, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
@@ -146,7 +143,7 @@ def _to_address(
     """
     Convert to address (160-bit unsigned).
 
-    From signed integers: disallowed (rejected by the conversion matrix)
+    From signed integers: disallowed (rejected by the typechecker)
     From bytes: right-shift if needed, clamp to 160 bits
     """
     # Use _to_int to get uint160, which handles clamping
