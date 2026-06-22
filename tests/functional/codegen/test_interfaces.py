@@ -155,14 +155,14 @@ def bar() -> uint256:
     assert compile_code(main, input_bundle=input_bundle) is not None
 
 
-def test_log_json_interface_event_without_indexed(make_input_bundle):
+def test_json_interface_event_without_indexed(make_input_bundle):
     event_abi = [
         {
             "type": "event",
             "name": "Transfer",
             "inputs": [
-                {"name": "sender", "type": "address"},
-                {"name": "receiver", "type": "address"},
+                {"name": "from", "type": "address"},
+                {"name": "to", "type": "address"},
                 {"name": "value", "type": "uint256"},
             ],
         }
@@ -174,8 +174,8 @@ def test_log_json_interface_event_without_indexed(make_input_bundle):
 import token as Token
 
 @external
-def foo(_from: address, _to: address, amount: uint256):
-    log Token.Transfer(sender=_from, receiver=_to, value=amount)
+def foo() -> bool:
+    return True
     """
 
     assert compile_code(main, input_bundle=input_bundle) is not None

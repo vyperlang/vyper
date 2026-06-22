@@ -29,8 +29,15 @@ from vyper.warnings import Deprecation, vyper_warn
 
 # user defined type
 class _UserType(VyperType):
-    def __init__(self, members=None):
-        super().__init__(members=members)
+    def __init__(self, members=None, *, validate_member_names: bool = True):
+        if validate_member_names:
+            super().__init__(members=members)
+        else:
+            super().__init__(members=None)
+            for k, v in (members or {}).items():
+                self._check_add_member(k)
+                self.members[k] = v
+
         if members is not None:
             for mt in members.values():
                 if not mt.is_valid_member_type:
@@ -185,8 +192,9 @@ class EventT(_UserType):
         arguments: dict,
         indexed: list,
         decl_node: Optional[vy_ast.VyperNode] = None,
+        validate_member_names: bool = True,
     ) -> None:
-        super().__init__(members=arguments)
+        super().__init__(members=arguments, validate_member_names=validate_member_names)
         self.name = name
         self.indexed = indexed
         assert len(self.indexed) == len(self.arguments)
@@ -235,7 +243,8 @@ class EventT(_UserType):
         indexed: list = [i.get("indexed", False) for i in abi["inputs"]]
         for item in abi["inputs"]:
             members[item["name"]] = type_from_abi(item)
-        return cls(abi["name"], members, indexed)
+        # JSON ABI argument names can be reserved Vyper identifiers, e.g. ERC20 `from`.
+        return cls(abi["name"], members, indexed, validate_member_names=False)
 
     @classmethod
     def from_EventDef(cls, base_node: vy_ast.EventDef) -> "EventT":
