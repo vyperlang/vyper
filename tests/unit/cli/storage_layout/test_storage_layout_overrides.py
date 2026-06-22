@@ -521,6 +521,7 @@ a: uint256[2]
         (None, "invalid storage slot for a, expected int: null"),
         (True, "invalid storage slot for a, expected int: true"),
         ([0], "invalid storage slot for a, expected int: [0]"),
+        ("zero\none", 'invalid storage slot for a, expected int: "zero\\none"'),
     ],
 )
 def test_override_invalid_slot_type(bad_slot, expected_message):

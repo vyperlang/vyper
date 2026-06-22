@@ -153,7 +153,7 @@ class OverridingStorageAllocator:
 
 
 def _fetch_path(path: list[str], layout: StorageLayout, node: vy_ast.VyperNode):
-    tmp = layout
+    tmp: object = layout
     qualified_path = ".".join(path)
 
     for segment in path:
@@ -165,6 +165,7 @@ def _fetch_path(path: list[str], layout: StorageLayout, node: vy_ast.VyperNode):
             )
         tmp = tmp[segment]
 
+    # A malformed override can make `tmp` a leaf value, e.g. {"a": 5}.
     if not (isinstance(tmp, dict) and "slot" in tmp):
         raise StorageLayoutException(f"no storage slot for {qualified_path}", node)
 
