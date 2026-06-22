@@ -368,12 +368,9 @@ def safe_pow(x, y):
                 ok = ["and", ["sge", x, lower_bound], ["sle", x, upper_bound]]
             else:
                 ok = ["le", x, upper_bound]
-    else:
-        # `a ** b` where neither `a` or `b` are known.
-        # this is already caught by the type checker, so this branch is
-        # unreachable; panic instead of silently returning None so we fail
-        # loudly if it is ever hit.
-        raise CodegenPanic("pow requires at least one literal operand")  # pragma: nocover
+    else:  # pragma: nocover
+        # type checker guarantees pow has at least one literal operand
+        raise CodegenPanic("unreachable")
 
     assertion = IRnode.from_list(["assert", ok], error_msg="safepow")
     return IRnode.from_list(["seq", assertion, ["exp", x, y]])
