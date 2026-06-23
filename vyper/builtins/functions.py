@@ -231,7 +231,7 @@ class Convert(BuiltinFunctionT):
             hint = "remove convert()"
             raise InvalidType(f"Already a '{target_type}' !", node, hint=hint)
 
-        if isinstance(value_type, DArrayT) and not is_bounded_length(value_type.count):
+        if isinstance(value_type, DArrayT) or isinstance(target_type, DArrayT):
             raise TypeMismatch(f"Can't convert {value_type} to {target_type}", node.args[0])
 
         if type_contains_unbounded_sequence(value_type) or type_contains_unbounded_sequence(

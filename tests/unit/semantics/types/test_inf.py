@@ -502,14 +502,35 @@ def foo(x: Bytes[INF]):
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
 
 
-def test_inf_convert_rejects_dynarray_input():
-    code = """
+@pytest.mark.parametrize(
+    "code",
+    [
+        """
 @external
 def foo(x: DynArray[uint256, INF]) -> Bytes[INF]:
     return convert(x, Bytes[INF])
-    """
+        """,
+        """
+@external
+def foo(x: DynArray[uint256, 5]) -> Bytes[INF]:
+    return convert(x, Bytes[INF])
+        """,
+        """
+@external
+def foo(x: uint256) -> DynArray[uint256, INF]:
+    return convert(x, DynArray[uint256, INF])
+        """,
+        """
+@external
+def foo(x: uint256) -> DynArray[uint256, 5]:
+    return convert(x, DynArray[uint256, 5])
+        """,
+    ],
+)
+@pytest.mark.parametrize("exp_codegen", [False, True])
+def test_convert_rejects_dynarray_source_or_target(code, exp_codegen):
     with pytest.raises(TypeMismatch):
-        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+        compiler.compile_code(code, settings=Settings(experimental_codegen=exp_codegen))
 
 
 @pytest.mark.parametrize(
