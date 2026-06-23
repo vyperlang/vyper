@@ -1804,7 +1804,7 @@ class CreateFromBlueprint(_CreateBase):
         if isinstance(raw_args_kwarg, vy_ast.NameConstant):
             raw_args = raw_args_kwarg.value
 
-        if raw_args and (len(ctor_arg_types) != 1 or not isinstance(ctor_arg_types[0], BytesT)):
+        if raw_args and not (len(ctor_arg_types) == 1 and isinstance(ctor_arg_types[0], BytesT)):
             raise StructureException("raw_args must be used with exactly 1 bytes argument", node)
 
         if any(type_contains_unbounded_sequence(t) for t in ctor_arg_types):
