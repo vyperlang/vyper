@@ -1797,10 +1797,11 @@ class CreateFromBlueprint(_CreateBase):
         arg_types = [AddressT()]
         arg_types.extend(get_exact_type_from_node(arg) for arg in node.args[1:])
 
+        kwargs = {kw.arg: kw.value for kw in node.keywords}
         raw_args = False
-        raw_args_kwarg = next(
-            (kw.value.reduced() for kw in node.keywords if kw.arg == "raw_args"), None
-        )
+        raw_args_kwarg = kwargs.get("raw_args")
+        if raw_args_kwarg is not None:
+            raw_args_kwarg = raw_args_kwarg.reduced()
         if isinstance(raw_args_kwarg, vy_ast.NameConstant):
             raw_args = raw_args_kwarg.value
 
