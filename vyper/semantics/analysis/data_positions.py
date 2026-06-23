@@ -152,26 +152,33 @@ class OverridingStorageAllocator:
         self.occupied_slots[slot] = var_name
 
 
+def _ensure_layout_dict(
+    value: object, qualified_path: str, node: vy_ast.VyperNode
+) -> StorageLayout:
+    if not isinstance(value, dict):
+        raise StorageLayoutException(f"no storage slot for {qualified_path}", node)
+    return value
+
+
 def _fetch_path(path: list[str], layout: StorageLayout, node: vy_ast.VyperNode):
     tmp: object = layout
     qualified_path = ".".join(path)
-
     for segment in path:
-        if not isinstance(tmp, dict):
-            raise StorageLayoutException(f"no storage slot for {qualified_path}", node)
-        if segment not in tmp:
+        tmp_dict = _ensure_layout_dict(tmp, qualified_path, node)
+        if segment not in tmp_dict:
             raise StorageLayoutException(
                 f"Could not find storage slot for {qualified_path}. "
                 "Have you used the correct storage layout file?",
                 node,
             )
-        tmp = tmp[segment]
+        tmp = tmp_dict[segment]
 
     # A malformed override can make `tmp` a leaf value, e.g. {"a": 5}.
-    if not (isinstance(tmp, dict) and "slot" in tmp):
+    tmp_dict = _ensure_layout_dict(tmp, qualified_path, node)
+    if "slot" not in tmp_dict:
         raise StorageLayoutException(f"no storage slot for {qualified_path}", node)
 
-    ret = tmp["slot"]
+    ret = tmp_dict["slot"]
     # bool is an instance of int, disallow it explicitly
     if isinstance(ret, bool) or not isinstance(ret, int):
         raise StorageLayoutException(
