@@ -161,24 +161,21 @@ def _ensure_layout_dict(
 
 
 def _fetch_path(path: list[str], layout: StorageLayout, node: vy_ast.VyperNode):
-    tmp: object = layout
+    tmp = layout
     qualified_path = ".".join(path)
     for segment in path:
-        tmp_dict = _ensure_layout_dict(tmp, qualified_path, node)
-        if segment not in tmp_dict:
+        if segment not in tmp:
             raise StorageLayoutException(
                 f"Could not find storage slot for {qualified_path}. "
                 "Have you used the correct storage layout file?",
                 node,
             )
-        tmp = tmp_dict[segment]
+        tmp = _ensure_layout_dict(tmp[segment], qualified_path, node)
 
-    # A malformed override can make `tmp` a leaf value, e.g. {"a": 5}.
-    tmp_dict = _ensure_layout_dict(tmp, qualified_path, node)
-    if "slot" not in tmp_dict:
+    if "slot" not in tmp:
         raise StorageLayoutException(f"no storage slot for {qualified_path}", node)
 
-    ret = tmp_dict["slot"]
+    ret = tmp["slot"]
     # bool is an instance of int, disallow it explicitly
     if isinstance(ret, bool) or not isinstance(ret, int):
         raise StorageLayoutException(
