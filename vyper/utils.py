@@ -219,7 +219,15 @@ class DecimalContextOverride(decimal.Context):
         super().__setattr__(name, value)
 
 
+# set the context for the thread which imports vyper
 decimal.setcontext(DecimalContextOverride(prec=78))
+
+# contexts are thread-local; a thread which has not called setcontext()
+# gets a context copied from the original `DefaultContext` template on
+# first use. Mutate that template in place instead of rebinding
+# `decimal.DefaultContext`, which the C decimal module does not use for
+# seeding new thread contexts.
+decimal.DefaultContext.prec = 78
 
 
 def keccak256(x):
@@ -494,6 +502,12 @@ assert EIP_3860_LIMIT == 49152  # directly from the EIP
 
 SHA3_BASE = 30
 SHA3_PER_WORD = 6
+
+# 0x04: identity precompile. Lives here rather than codegen_venom/constants.py
+# because FmpLoweringPass (vyper.venom) also needs it, and vyper.venom does
+# not import from vyper.codegen_venom. (ECRECOVER/SHA256 stayed behind since
+# only codegen uses them.)
+IDENTITY_PRECOMPILE = 0x04
 
 
 def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1) -> str:
