@@ -1793,9 +1793,8 @@ class CreateFromBlueprint(_CreateBase):
     _has_varargs = True
 
     def infer_arg_types(self, node, expected_return_typ=None):
-        self._validate_arg_types(node)
-        arg_types = [AddressT()]
-        arg_types.extend(get_exact_type_from_node(arg) for arg in node.args[1:])
+        arg_types = super().infer_arg_types(node, expected_return_typ)
+        ctor_arg_types = arg_types[1:]
 
         kwargs = {kw.arg: kw.value for kw in node.keywords}
         raw_args = False
@@ -1805,10 +1804,10 @@ class CreateFromBlueprint(_CreateBase):
         if isinstance(raw_args_kwarg, vy_ast.NameConstant):
             raw_args = raw_args_kwarg.value
 
-        if raw_args and (len(arg_types) != 2 or not isinstance(arg_types[1], BytesT)):
+        if raw_args and (len(ctor_arg_types) != 1 or not isinstance(ctor_arg_types[0], BytesT)):
             raise StructureException("raw_args must be used with exactly 1 bytes argument", node)
 
-        if any(type_contains_unbounded_sequence(t) for t in arg_types[1:]):
+        if any(type_contains_unbounded_sequence(t) for t in ctor_arg_types):
             _reject_legacy_unbounded_sequence_builtin(node)
         return arg_types
 
