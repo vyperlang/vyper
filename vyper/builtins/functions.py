@@ -194,9 +194,9 @@ class Ceil(BuiltinFunctionT):
 
 class Convert(BuiltinFunctionT):
     """
-    Typecheck convert(value, target_type).
+    Built-in type for convert(value, target_type).
 
-    The allowed-source lookup is target-keyed: the second argument's
+    `_source_types_by_target_type` is target-keyed: the second argument's
     destination type determines which first-argument source types it accepts.
     """
 
@@ -224,32 +224,50 @@ class Convert(BuiltinFunctionT):
         if allowed is None:
             return None
 
-        # flags only convert to uint256
-        if isinstance(target_type, IntegerT) and target_type != UINT256_T:
-            return tuple(i for i in allowed if i is not FlagT)
+        if isinstance(target_type, AddressT):
+            # addresses are unsigned, so only unsigned integer inputs are valid
+            return (BytesM_T,) + IntegerT.unsigneds() + (BytesT(32),)
+
+        if isinstance(target_type, IntegerT):
+            allowed = (IntegerT, DecimalT, BytesM_T)
+            if target_type.is_signed:
+                # addresses are unsigned
+                allowed += (BoolT,)
+            else:
+                allowed += (AddressT, BoolT)
+            if target_type == UINT256_T:
+                # flags only convert to uint256
+                allowed += (FlagT,)
+            return allowed + (BytesT(32),)
+
+        if isinstance(target_type, BoolT):
+            return (IntegerT, DecimalT, BytesM_T, AddressT, BoolT, BytesT(32), StringT(32))
+
+        if isinstance(target_type, DecimalT):
+            return (IntegerT, BoolT, BytesM_T, BytesT(32))
+
+        if isinstance(target_type, BytesM_T):
+            allowed = []
+            allowed.extend(i for i in IntegerT.all() if i.bits <= target_type.m_bits)
+            if DecimalT().bits <= target_type.m_bits:
+                allowed.append(DecimalT)
+            allowed.append(BytesM_T)
+            if target_type.m_bits >= 160:
+                allowed.append(AddressT)
+            allowed.extend((BytesT(target_type.m), BoolT))
+            return tuple(allowed)
 
         return allowed
 
     @staticmethod
-    def _matches_source_type(value_type, allowed_type):
+    def _matches_source_type(value_type, target_type, allowed_type):
         if isinstance(allowed_type, type):
-            return isinstance(value_type, allowed_type)
-        return value_type == allowed_type
+            matched = isinstance(value_type, allowed_type)
+        else:
+            matched = value_type.is_subtype_of(allowed_type)
 
-    @classmethod
-    def _validate_type_pair(cls, value_type, target_type, node):
-        allowed = cls._source_types_for_target(target_type)
-        if allowed is None:
-            raise StructureException(f"Conversion to {target_type} is invalid.", node)
-
-        if not any(cls._matches_source_type(value_type, i) for i in allowed):
-            cls._convert_fail(value_type, target_type, node)
-
-        if isinstance(value_type, _BytestringT) and not isinstance(target_type, _BytestringT):
-            # bytestring inputs must fit in the output word
-            max_bytes = target_type.m if isinstance(target_type, BytesM_T) else 32
-            if value_type.maxlen > max_bytes:
-                cls._convert_fail(value_type, target_type, node)
+        if not matched:
+            return False
 
         if isinstance(target_type, _BytestringT):
             # widening a bytestring within the same class is not a real
@@ -258,31 +276,20 @@ class Convert(BuiltinFunctionT):
                 isinstance(value_type, type(target_type))
                 and value_type.maxlen <= target_type.maxlen
             ):
-                cls._convert_fail(value_type, target_type, node)
+                return False
 
-        # addresses are unsigned
-        if (
-            isinstance(value_type, AddressT)
-            and isinstance(target_type, IntegerT)
-            and target_type.is_signed
-        ):
-            cls._convert_fail(value_type, target_type, node)
-        if (
-            isinstance(value_type, IntegerT)
-            and value_type.is_signed
-            and isinstance(target_type, AddressT)
-        ):
-            cls._convert_fail(value_type, target_type, node)
+        return True
 
-        # narrowing conversions to bytesM are blocked (no runtime clamp)
-        if isinstance(target_type, BytesM_T):
-            if (
-                isinstance(value_type, (IntegerT, DecimalT))
-                and target_type.m_bits < value_type.bits
-            ):
-                cls._convert_fail(value_type, target_type, node)
-            if isinstance(value_type, AddressT) and target_type.m_bits < 160:
-                cls._convert_fail(value_type, target_type, node)
+    @classmethod
+    def _validate_type_pair(cls, value_type, target_type, node):
+        allowed = cls._source_types_for_target(target_type)
+        if allowed is None:
+            raise StructureException(f"Conversion to {target_type} is invalid.", node)
+
+        if any(cls._matches_source_type(value_type, target_type, i) for i in allowed):
+            return
+
+        cls._convert_fail(value_type, target_type, node)
 
     def fetch_call_return(self, node):
         _, target_typedef = self.infer_arg_types(node)
