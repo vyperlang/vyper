@@ -41,8 +41,7 @@ def foo(x: Bytes[32]) -> uint256:
 @external
 def foo(x: Bytes[32]) -> uint256:
     return _abi_decode(x, uint256, unwrap_tuple=(0 < 1))
-    """
-    
+    """,
 ]
 
 

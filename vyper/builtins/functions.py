@@ -121,6 +121,7 @@ class TypenameFoldedFunctionT(FoldedFunctionT):
     (1) take a typename as the only argument; and
     (2) should always be folded.
     """
+
     _inputs = [("typename", TYPE_T.any())]
 
     def fetch_call_return(self, node):
@@ -2248,8 +2249,11 @@ class ABIEncode(BuiltinFunctionT):
     def fetch_call_return(self, node):
         self._validate_arg_types(node)
         ensure_tuple = next(
-            (arg.value.get_folded_value().value
-             for arg in node.keywords if arg.arg == "ensure_tuple"),
+            (
+                arg.value.get_folded_value().value
+                for arg in node.keywords
+                if arg.arg == "ensure_tuple"
+            ),
             True,
         )
         assert isinstance(ensure_tuple, bool)
