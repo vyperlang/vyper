@@ -226,12 +226,12 @@ class Convert(BuiltinFunctionT):
 
         if isinstance(target_type, AddressT):
             # addresses are unsigned, so only unsigned integer inputs are valid
-            return (BytesM_T,) + IntegerT.unsigneds() + (BytesT(32),)
+            return BytesM_T.all() + IntegerT.unsigneds() + (BytesT(32),)
 
         if isinstance(target_type, IntegerT):
-            allowed = (IntegerT, DecimalT, BytesM_T)
+            allowed = (IntegerT, DecimalT) + BytesM_T.all()
             if target_type.is_signed:
-                # addresses are unsigned
+                # addresses cannot be converted to signed integers
                 allowed += (BoolT,)
             else:
                 allowed += (AddressT, BoolT)
@@ -241,17 +241,19 @@ class Convert(BuiltinFunctionT):
             return allowed + (BytesT(32),)
 
         if isinstance(target_type, BoolT):
-            return (IntegerT, DecimalT, BytesM_T, AddressT, BoolT, BytesT(32), StringT(32))
+            return (
+                (IntegerT, DecimalT) + BytesM_T.all() + (AddressT, BoolT, BytesT(32), StringT(32))
+            )
 
         if isinstance(target_type, DecimalT):
-            return (IntegerT, BoolT, BytesM_T, BytesT(32))
+            return (IntegerT, BoolT) + BytesM_T.all() + (BytesT(32),)
 
         if isinstance(target_type, BytesM_T):
             allowed = []
             allowed.extend(i for i in IntegerT.all() if i.bits <= target_type.m_bits)
             if DecimalT().bits <= target_type.m_bits:
                 allowed.append(DecimalT)
-            allowed.append(BytesM_T)
+            allowed.extend(BytesM_T.all())
             if target_type.m_bits >= 160:
                 allowed.append(AddressT)
             allowed.extend((BytesT(target_type.m), BoolT))
