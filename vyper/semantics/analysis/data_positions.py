@@ -152,14 +152,6 @@ class OverridingStorageAllocator:
         self.occupied_slots[slot] = var_name
 
 
-def _ensure_layout_dict(
-    value: object, qualified_path: str, node: vy_ast.VyperNode
-) -> StorageLayout:
-    if not isinstance(value, dict):
-        raise StorageLayoutException(f"no storage slot for {qualified_path}", node)
-    return value
-
-
 def _fetch_path(path: list[str], layout: StorageLayout, node: vy_ast.VyperNode):
     tmp = layout
     qualified_path = ".".join(path)
@@ -170,7 +162,9 @@ def _fetch_path(path: list[str], layout: StorageLayout, node: vy_ast.VyperNode):
                 "Have you used the correct storage layout file?",
                 node,
             )
-        tmp = _ensure_layout_dict(tmp[segment], qualified_path, node)
+        tmp = tmp[segment]
+        if not isinstance(tmp, dict):
+            raise StorageLayoutException(f"no storage slot for {qualified_path}", node)
 
     if "slot" not in tmp:
         raise StorageLayoutException(f"no storage slot for {qualified_path}", node)
