@@ -108,15 +108,19 @@ SHA256_PER_WORD_GAS = 12
 
 
 class FoldedFunctionT(BuiltinFunctionT):
-    # Base class for nodes which should always be folded
+    """
+    Base class for nodes which should always be folded
+    """
 
     _modifiability = Modifiability.CONSTANT
 
 
 class TypenameFoldedFunctionT(FoldedFunctionT):
-    # Base class for builtin functions that:
-    # (1) take a typename as the only argument; and
-    # (2) should always be folded.
+    """
+    Base class for builtin functions that:
+    (1) take a typename as the only argument; and
+    (2) should always be folded.
+    """
     _inputs = [("typename", TYPE_T.any())]
 
     def fetch_call_return(self, node):
@@ -2244,7 +2248,9 @@ class ABIEncode(BuiltinFunctionT):
     def fetch_call_return(self, node):
         self._validate_arg_types(node)
         ensure_tuple = next(
-            (arg.value.value for arg in node.keywords if arg.arg == "ensure_tuple"), True
+            (arg.value.get_folded_value().value
+             for arg in node.keywords if arg.arg == "ensure_tuple"),
+            True,
         )
         assert isinstance(ensure_tuple, bool)
         has_method_id = "method_id" in [arg.arg for arg in node.keywords]
