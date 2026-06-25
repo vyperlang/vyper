@@ -84,7 +84,7 @@ SUCCESSFUL_OVERRIDES = [
     # Basic successful override
     ("x: uint256", "uint256", "x", "x: uint256", "uint256", "42", 42),
     # Boolean parameter and return type matching
-    ("flag: bool", "bool", "flag", "flag: bool", "bool", "True", True),
+    ("_flag: bool", "bool", "_flag", "_flag: bool", "bool", "True", True),
     # Bytes32 parameter matching
     (
         "data: bytes32",
@@ -224,10 +224,10 @@ SUCCESSFUL_OVERRIDES = [
     # === ADDITIONAL DEFAULT EXPRESSION TYPES ===
     # Boolean literal default
     (
-        "x: uint256, flag: bool = True",
+        "x: uint256, _flag: bool = True",
         "bool",
-        "flag",
-        "x: uint256, flag: bool = True",
+        "_flag",
+        "x: uint256, _flag: bool = True",
         "bool",
         "1",
         True,
@@ -863,7 +863,7 @@ FLAG_B: constant(bool) = False
 import constants_lib
 
 @abstract
-def check(flag: bool = constants_lib.FLAG_A and not constants_lib.FLAG_B) -> bool: ...
+def check(_flag: bool = constants_lib.FLAG_A and not constants_lib.FLAG_B) -> bool: ...
     """
 
     override_contract = """
@@ -877,8 +877,8 @@ def call_check() -> bool:
     return self.check()
 
 @override(abstract_module)
-def check(flag: bool = constants_lib.FLAG_A and not constants_lib.FLAG_B) -> bool:
-    return flag
+def check(_flag: bool = constants_lib.FLAG_A and not constants_lib.FLAG_B) -> bool:
+    return _flag
     """
 
     input_bundle = make_input_bundle(
