@@ -111,6 +111,15 @@ flag Foo:
 bar: DynArray[Foo, 10]
     """,  # dynamic arrays of flags are allowed, but not static arrays
     """
+flag Foo:
+    FE
+    FI
+
+@external
+def bar():
+    d: DynArray[Foo, 10] = []
+    """,  # empty arrays can be assigned to dynamic arrays of flags
+    """
 bar: DynArray[Bytes[30], 10]
     """,  # dynamic arrays of bytestrings are allowed, but not static arrays
     """
