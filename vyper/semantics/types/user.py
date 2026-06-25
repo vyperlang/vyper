@@ -11,8 +11,8 @@ from vyper.exceptions import (
     NamespaceCollision,
     StructureException,
     UnfoldableNode,
-    VyperException,
     VariableDeclarationException,
+    VyperException,
 )
 from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import (
