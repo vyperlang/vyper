@@ -210,6 +210,7 @@ class Convert(BuiltinFunctionT):
         BytesT: (StringT, BytesT),
         StringT: (BytesT, StringT),
     }
+    _word_dynamic_bytes = tuple(BytesT(i) for i in range(1, 33))
 
     @staticmethod
     def _convert_fail(value_type, target_type, node):
@@ -226,27 +227,29 @@ class Convert(BuiltinFunctionT):
 
         if isinstance(target_type, AddressT):
             # addresses are unsigned, so only unsigned integer inputs are valid
-            return BytesM_T.all() + IntegerT.unsigneds() + (BytesT(32),)
+            return BytesM_T.all() + IntegerT.unsigneds() + cls._word_dynamic_bytes
 
         if isinstance(target_type, IntegerT):
             allowed = (IntegerT, DecimalT) + BytesM_T.all()
-            if target_type.is_signed:
-                # addresses cannot be converted to signed integers
-                allowed += (BoolT,)
-            else:
-                allowed += (AddressT, BoolT)
+            if not target_type.is_signed:
+                allowed += (AddressT,)
+            allowed += (BoolT,)
             if target_type == UINT256_T:
                 # flags only convert to uint256
                 allowed += (FlagT,)
-            return allowed + (BytesT(32),)
+            return allowed + cls._word_dynamic_bytes
 
         if isinstance(target_type, BoolT):
             return (
-                (IntegerT, DecimalT) + BytesM_T.all() + (AddressT, BoolT, BytesT(32), StringT(32))
+                (IntegerT, DecimalT)
+                + BytesM_T.all()
+                + (AddressT, BoolT)
+                + cls._word_dynamic_bytes
+                + (StringT(32),)
             )
 
         if isinstance(target_type, DecimalT):
-            return (IntegerT, BoolT) + BytesM_T.all() + (BytesT(32),)
+            return (IntegerT, BoolT) + BytesM_T.all() + cls._word_dynamic_bytes
 
         if isinstance(target_type, BytesM_T):
             allowed = []

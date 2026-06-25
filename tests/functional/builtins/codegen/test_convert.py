@@ -8,9 +8,10 @@ import eth.codecs.abi.exceptions
 import pytest
 
 from tests.utils import decimal_to_int
+from vyper.builtins.functions import Convert
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings
-from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
+from vyper.exceptions import InvalidLiteral, InvalidType, StructureException, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.shortcuts import BYTES20_T, BYTES32_T, UINT, UINT160_T, UINT256_T
 from vyper.utils import (
@@ -363,6 +364,35 @@ def convertible_pairs():
 # pairs which shouldn't even compile
 def non_convertible_pairs():
     return [(i, o) for (i, o) in all_pairs() if not can_convert(i, o) and i != o]
+
+
+def _validate_type_pair_allows(i_typ, o_typ):
+    if i_typ.is_subtype_of(o_typ):
+        return False
+
+    try:
+        Convert._validate_type_pair(i_typ, o_typ, None)
+    except (StructureException, TypeMismatch):
+        return False
+
+    return True
+
+
+@pytest.mark.parametrize("i_typ,o_typ", all_pairs())
+def test_validate_type_pair_matches_can_convert(i_typ, o_typ):
+    assert _validate_type_pair_allows(i_typ, o_typ) is can_convert(i_typ, o_typ)
+
+
+@pytest.mark.parametrize("i_typ", [BytesT(1), BytesT(20), BytesT(31), BytesT(32)])
+@pytest.mark.parametrize("o_typ", [AddressT(), UINT256_T, DecimalT(), BoolT()])
+def test_dynamic_bytes_sources_allowed_for_word_targets(i_typ, o_typ):
+    Convert._validate_type_pair(i_typ, o_typ, None)
+
+
+@pytest.mark.parametrize("o_typ", [AddressT(), UINT256_T, DecimalT(), BoolT()])
+def test_oversized_dynamic_bytes_sources_rejected_for_word_targets(o_typ):
+    with pytest.raises(TypeMismatch):
+        Convert._validate_type_pair(BytesT(33), o_typ, None)
 
 
 # _CASES_CACHE = {}
