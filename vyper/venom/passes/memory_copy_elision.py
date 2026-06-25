@@ -132,8 +132,13 @@ class MemoryCopyElisionPass(IRPass):
                 self._try_elide_copy(inst)
 
                 write_loc = self.base_ptr.get_write_location(inst, addr_space.MEMORY)
+                read_loc = self.base_ptr.get_read_location(inst, addr_space.MEMORY)
                 self._invalidate(write_loc, Effects.MEMORY)
-                if write_loc.is_fixed:
+                # mcopy has memmove semantics: a self-overlapping copy can
+                # clobber its own source bytes, so it is not idempotent and
+                # cannot be recorded as a reusable copy fact. (unknown
+                # offsets conservatively count as overlapping.)
+                if write_loc.is_fixed and not MemoryLocation.may_overlap(read_loc, write_loc):
                     self.copies[write_loc] = inst
 
             else:

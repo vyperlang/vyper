@@ -2,6 +2,8 @@ import pytest
 from eth.codecs import abi
 
 from tests.utils import decimal_to_int
+from vyper.compiler import compile_code
+from vyper.exceptions import StructureException
 
 
 # @pytest.mark.parametrize("string", ["a", "abc", "abcde", "potato"])
@@ -392,3 +394,13 @@ def foo(ensure_tuple: bool) -> Bytes[96]:
     assert c.foo(False) == expected_output
     expected_output = b"\x00" * 31 + b"\x20" + b"\x00" * 32
     assert c.foo(True) == expected_output
+
+
+def test_abi_encode_no_args():
+    code = """
+@external
+def foo() -> Bytes[32]:
+    return abi_encode()
+    """
+    with pytest.raises(StructureException, match="abi_encode expects at least one argument"):
+        compile_code(code)

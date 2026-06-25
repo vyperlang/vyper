@@ -718,7 +718,7 @@ class MethodID(FoldedFunctionT):
     def _try_fold(self, node):
         validate_call_args(node, 1, ["output_type"])
 
-        value = node.args[0].get_folded_value()
+        value = node.args[0].reduced()
         if not isinstance(value, vy_ast.Str):
             raise InvalidType("method id must be given as a literal string", node.args[0])
         if " " in value.value:
