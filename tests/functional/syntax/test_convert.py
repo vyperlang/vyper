@@ -77,14 +77,6 @@ def foo(x: Foo) -> decimal:
     """,
         TypeMismatch,
     ),
-    (  # oversize bytestring -> uint256
-        """
-@external
-def foo(x: Bytes[33]) -> uint256:
-    return convert(x, uint256)
-    """,
-        TypeMismatch,
-    ),
     (  # bytestring widening within the same class is not a conversion
         # (caught by the same-type check, which runs before the matrix)
         """

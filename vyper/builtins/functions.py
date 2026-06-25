@@ -210,7 +210,6 @@ class Convert(BuiltinFunctionT):
         BytesT: (StringT, BytesT),
         StringT: (BytesT, StringT),
     }
-    _word_dynamic_bytes = tuple(BytesT(i) for i in range(1, 33))
 
     @staticmethod
     def _convert_fail(value_type, target_type, node):
@@ -227,36 +226,36 @@ class Convert(BuiltinFunctionT):
 
         if isinstance(target_type, AddressT):
             # addresses are unsigned, so only unsigned integer inputs are valid
-            return BytesM_T.all() + IntegerT.unsigneds() + cls._word_dynamic_bytes
+            return (BytesM_T.any(),) + IntegerT.unsigneds() + (BytesT.any(),)
 
         if isinstance(target_type, IntegerT):
-            allowed = (IntegerT, DecimalT) + BytesM_T.all()
+            allowed = (IntegerT, DecimalT, BytesM_T.any())
             if not target_type.is_signed:
                 allowed += (AddressT,)
             allowed += (BoolT,)
             if target_type == UINT256_T:
                 # flags only convert to uint256
                 allowed += (FlagT,)
-            return allowed + cls._word_dynamic_bytes
+            return allowed + (BytesT.any(),)
 
         if isinstance(target_type, BoolT):
             return (
                 (IntegerT, DecimalT)
-                + BytesM_T.all()
+                + (BytesM_T.any(),)
                 + (AddressT, BoolT)
-                + cls._word_dynamic_bytes
+                + (BytesT.any(),)
                 + (StringT(32),)
             )
 
         if isinstance(target_type, DecimalT):
-            return (IntegerT, BoolT) + BytesM_T.all() + cls._word_dynamic_bytes
+            return (IntegerT, BoolT, BytesM_T.any(), BytesT.any())
 
         if isinstance(target_type, BytesM_T):
             allowed = []
             allowed.extend(i for i in IntegerT.all() if i.bits <= target_type.m_bits)
             if DecimalT().bits <= target_type.m_bits:
                 allowed.append(DecimalT)
-            allowed.extend(BytesM_T.all())
+            allowed.append(BytesM_T.any())
             if target_type.m_bits >= 160:
                 allowed.append(AddressT)
             allowed.extend((BytesT(target_type.m), BoolT))

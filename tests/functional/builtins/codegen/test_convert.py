@@ -383,14 +383,14 @@ def test_validate_type_pair_matches_can_convert(i_typ, o_typ):
     assert _validate_type_pair_allows(i_typ, o_typ) is can_convert(i_typ, o_typ)
 
 
-@pytest.mark.parametrize("i_typ", [BytesT(1), BytesT(20), BytesT(31), BytesT(32)])
+@pytest.mark.parametrize("i_typ", [BytesT(1), BytesT(20), BytesT(32), BytesT(33), BytesT(64)])
 @pytest.mark.parametrize("o_typ", [AddressT(), UINT256_T, DecimalT(), BoolT()])
-def test_dynamic_bytes_sources_allowed_for_word_targets(i_typ, o_typ):
+def test_dynamic_bytes_sources_allowed_for_scalar_targets(i_typ, o_typ):
     Convert._validate_type_pair(i_typ, o_typ, None)
 
 
-@pytest.mark.parametrize("o_typ", [AddressT(), UINT256_T, DecimalT(), BoolT()])
-def test_oversized_dynamic_bytes_sources_rejected_for_word_targets(o_typ):
+@pytest.mark.parametrize("o_typ", BytesM_T.all())
+def test_oversized_dynamic_bytes_sources_rejected_for_bytes_m_targets(o_typ):
     with pytest.raises(TypeMismatch):
         Convert._validate_type_pair(BytesT(33), o_typ, None)
 
