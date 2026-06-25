@@ -17,7 +17,6 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import (
     check_modifiability,
-    get_exact_type_from_node,
     validate_expected_type,
     validate_kwargs,
 )
@@ -117,6 +116,8 @@ def _abi_input_name(item: dict, index: int, members: dict[str, VyperType]) -> st
 def _validated_expr_contains_unbounded_sequence(node: vy_ast.ExprNode) -> bool:
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         return any(_validated_expr_contains_unbounded_sequence(item) for item in node.elements)
+
+    from vyper.semantics.analysis.utils import get_exact_type_from_node
 
     try:
         return type_contains_unbounded_sequence(get_exact_type_from_node(node))
