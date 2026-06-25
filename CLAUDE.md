@@ -15,12 +15,12 @@ uv run make lint                        # enforces code style (same as CI)
 
 ## Architecture, Code Style, Entry Points
 
-See [skills/SKILL.md](skills/SKILL.md) for compilation pipeline, directory map, code style, and key entry points.
+See [.agents/skills/vyper-compiler/SKILL.md](.agents/skills/vyper-compiler/SKILL.md) for compilation pipeline, directory map, code style, and key entry points.
 
 ## Topic Deep-Dives
 
-- **[Venom IR](skills/venom.md)** — SSA IR design, passes, optimization, working with Venom code
-- **[Semantics & Frontend](skills/semantics.md)** — Type system, analysis phases, namespace, validation
-- **[Code Generation](skills/codegen.md)** — Legacy IR, Venom codegen, the two pipelines
-- **[Testing](skills/testing.md)** — Test structure, fixtures, running tests, writing new tests
+- **[Venom IR](.agents/skills/vyper-compiler/venom.md)** — SSA IR design, passes, optimization, working with Venom code
+- **[Semantics & Frontend](.agents/skills/vyper-compiler/semantics.md)** — Type system, analysis phases, namespace, validation
+- **[Code Generation](.agents/skills/vyper-compiler/codegen.md)** — Legacy IR, Venom codegen, the two pipelines
+- **[Testing](.agents/skills/vyper-compiler/testing.md)** — Test structure, fixtures, running tests, writing new tests
 - **[Contributing](.agents/skills/vyper-review-contributing/SKILL.md)** — Commit message standards, PR workflow, code style summary

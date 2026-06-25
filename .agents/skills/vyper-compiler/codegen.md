@@ -26,6 +26,6 @@ produces final bytecode.
 
 AST → `vyper/codegen/` → s-expression IR (`IRnode`) → `vyper/ir/compile_ir.py` → assembly → bytecode.
 
-This is the current default. See [vyper/ir/README.md](../vyper/ir/README.md) for IR grammar and structure.
+This is the current default. See [vyper/ir/README.md](../../../vyper/ir/README.md) for IR grammar and structure.
 
 Key difference: legacy IR is tree-shaped s-expressions, Venom is SSA basic blocks.

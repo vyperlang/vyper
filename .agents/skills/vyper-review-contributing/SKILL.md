@@ -154,7 +154,7 @@ Note: first paragraph is pure *why* (the bug mechanism). Second paragraph is a c
 
 ## Keeping Docs Current
 
-If anything you have done requires content updates to any files in `skills/` or `CLAUDE.md`, update them as part of the same PR.
+If anything you have done requires content updates to any files in `.agents/skills/` or `CLAUDE.md`, update them as part of the same PR.
 
 ## Git Quick Reference
 
