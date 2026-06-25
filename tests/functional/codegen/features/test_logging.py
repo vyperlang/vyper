@@ -378,8 +378,8 @@ event MyLog:
 
 @external
 def foo():
-    log MyLog(arg1=123, arg2=b'home', arg3=b'bar', arg4=0xc305c901078781C232A2a521C2aF7980f8385ee9, arg5=self, arg6=block.timestamp)  # noqa: E501
-    """
+    log MyLog(arg1=123, arg2=b'home', arg3=b'bar', arg4=0xc305c901078781C232A2a521C2aF7980f8385ee9, arg5=self, arg6=block.timestamp)
+    """  # noqa: E501
 
     c = get_contract(loggy_code)
     c.foo()
