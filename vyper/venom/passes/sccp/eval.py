@@ -24,10 +24,8 @@ def _signed_to_unsigned(value: int) -> int:
 
 
 def _ensure_number(value) -> int:
-    if value is True:
-        return 1
-    elif value is False:
-        return 0
+    if isinstance(value, bool):
+        return int(value)
     return value
 
 
