@@ -657,28 +657,24 @@ class ContractFunctionT(VyperType):
 
         assert self.visibility == other.visibility
 
-        arguments, return_type = self._iface_sig
-        other_arguments, other_return_type = other._iface_sig
+        arguments, return_t = self._iface_sig
+        other_arguments, other_return_t = other._iface_sig
 
         if len(arguments) != len(other_arguments):
             return False
         for atyp, btyp in zip(arguments, other_arguments):
-            # Contravariant
+            # argument checking is contravariant
             if not btyp.is_subtype_of(atyp):
                 return False
 
-        neither_returns = return_type is None and other_return_type is None
-
-        both_return_and_match = (
-            return_type is not None
-            and other_return_type is not None
-            and return_type.is_subtype_of(other_return_type)  # Covariant
-        )
-
-        return_types_match = both_return_and_match or neither_returns
-
-        if not return_types_match:  # type: ignore
+        if (return_t is None) != (other_return_t is None):
             return False
+
+        # return type checking is covariant
+        if return_t is not None:
+            assert other_return_t is not None  # help mypy
+            if not return_t.is_subtype_of(other_return_t):
+                return False
 
         return self.mutability == other.mutability
 
