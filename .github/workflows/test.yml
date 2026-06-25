@@ -2,8 +2,8 @@ name: Run test suite
 
 on:
   push:
-    branches-ignore:
-      - 'gh-readonly-queue/**'
+    branches:
+      - master
   pull_request:
   merge_group:
 
@@ -16,7 +16,7 @@ env:
 concurrency:
   # cancel older, in-progress jobs from the same PR, same workflow.
   # use run_id if the job is triggered by a push to ensure
-  # push-triggered jobs to not get canceled.
+  # push-triggered jobs on master do not get canceled.
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
