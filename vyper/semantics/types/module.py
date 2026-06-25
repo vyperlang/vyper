@@ -56,10 +56,10 @@ class InterfaceT(_UserType):
         # sanity check: by construction, there should be no duplicates.
         assert len(members) == len(functions) + len(events) + len(structs) + len(flags)
 
+        self._id = _id
         super().__init__(functions)
 
         self._helper = VyperType(events | structs | flags)
-        self._id = _id
         self._helper._id = _id
         self.functions = functions
         self.events = events

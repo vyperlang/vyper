@@ -181,6 +181,33 @@ def foo() -> bool:
     assert compile_code(main, input_bundle=input_bundle) is not None
 
 
+def test_json_interface_function_name_conflicts_with_builtin_member(make_input_bundle):
+    abi = [
+        {
+            "type": "function",
+            "name": "address",
+            "inputs": [],
+            "outputs": [{"type": "address"}],
+            "stateMutability": "view",
+        }
+    ]
+
+    input_bundle = make_input_bundle({"token.json": json.dumps(abi)})
+
+    main = """
+import token as Token
+
+@external
+def foo() -> bool:
+    return True
+    """
+
+    with pytest.raises(NamespaceCollision) as exc:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert exc.value.message == "Member 'address' already exists in token.json"
+
+
 VALID_IMPORT_CODE = [
     # import statement, import path without suffix
     ("import a as Foo", "a.vyi"),
