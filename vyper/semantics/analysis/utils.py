@@ -363,7 +363,7 @@ class _ExprAnalyser:
             else:
                 # empty list literal `[]`
                 # subtype can be anything
-                return [DArrayT(VyperType.any(), 1)]
+                subtypes = _primitive_types()
 
             for t in subtypes:
                 # 1 is minimum possible length for dynarray,
