@@ -65,7 +65,7 @@ Orchestrated by `vyper/compiler/phases.py` (`CompilerData`). Each phase is lazy.
 - **[Semantics & Frontend](semantics.md)** — Type system, analysis phases, namespace, validation
 - **[Code Generation](codegen.md)** — Legacy IR, Venom codegen, the two pipelines
 - **[Testing](testing.md)** — Test structure, fixtures, running tests, writing new tests
-- **[Contributing](contributing.md)** — Commit message standards, PR workflow, code style summary
+- **[Contributing](../.agents/skills/vyper-review-contributing/SKILL.md)** — Commit message standards, PR workflow, code style summary
 
 ## Code Style
 

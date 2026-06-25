@@ -23,4 +23,4 @@ See [skills/SKILL.md](skills/SKILL.md) for compilation pipeline, directory map, 
 - **[Semantics & Frontend](skills/semantics.md)** — Type system, analysis phases, namespace, validation
 - **[Code Generation](skills/codegen.md)** — Legacy IR, Venom codegen, the two pipelines
 - **[Testing](skills/testing.md)** — Test structure, fixtures, running tests, writing new tests
-- **[Contributing](skills/contributing.md)** — Commit message standards, PR workflow, code style summary
+- **[Contributing](.agents/skills/vyper-review-contributing/SKILL.md)** — Commit message standards, PR workflow, code style summary

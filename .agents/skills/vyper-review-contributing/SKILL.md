@@ -1,8 +1,13 @@
+---
+name: vyper-review-contributing
+description: Vyper PR review and contribution workflow. Use when reviewing Vyper pull requests, preparing Vyper PRs, writing commit messages, checking contribution standards, or responding to reviewer feedback.
+---
+
 # Contributing
 
-See also: [README.md](../README.md) for installation instructions and command cheat-sheet,
-[docs/contributing.rst](../docs/contributing.rst) for general contribution guidelines,
-[docs/style-guide.rst](../docs/style-guide.rst) for code style, naming, imports, exceptions, tests, and docs conventions.
+See also: [README.md](../../../README.md) for installation instructions and command cheat-sheet,
+[docs/contributing.rst](../../../docs/contributing.rst) for general contribution guidelines,
+[docs/style-guide.rst](../../../docs/style-guide.rst) for code style, naming, imports, exceptions, tests, and docs conventions.
 
 ## Commit Messages
 
@@ -25,7 +30,7 @@ The commit message must explain **why**.
 ```
 
 Types: `feat`, `fix`, `refactor`, `perf`, `chore`, `release`.
-Scope is **required**. Validated by CI — see [pull-request.yaml](../.github/workflows/pull-request.yaml) for the canonical list.
+Scope is **required**. Validated by CI — see [pull-request.yaml](../../../.github/workflows/pull-request.yaml) for the canonical list.
 Current scopes: `venom`, `lang`, `codegen`, `parser`, `stdlib`, `ux`, `ir`, `test`, `docs`, `ci`, `build`, `tool`.
 
 ### Subject Line (PR title)
@@ -175,7 +180,7 @@ git stash pop
 
 ## Code Style Summary
 
-Full details in [docs/style-guide.rst](../docs/style-guide.rst). Highlights:
+Full details in [docs/style-guide.rst](../../../docs/style-guide.rst). Highlights:
 
 - PEP 8, 100 char line length, enforced by `make lint`
 - Type classes end in `T` (`IntegerT`, `ModuleT`)
