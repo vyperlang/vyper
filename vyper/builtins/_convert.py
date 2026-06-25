@@ -3,10 +3,7 @@ import functools
 import math
 
 from vyper import ast as vy_ast
-from vyper.builtins._convert_bounds import (
-    fixed_to_int_clamp_bounds,
-    int_to_fixed_clamp_bounds,
-)
+from vyper.builtins._convert_bounds import fixed_to_int_clamp_bounds, int_to_fixed_clamp_bounds
 from vyper.codegen.core import (
     LOAD,
     IRnode,
@@ -393,6 +390,16 @@ def to_bytes_m(expr, arg, out_typ):
 
         # note: neg numbers not OOB. keep sign bit
         arg = shl(256 - out_typ.m_bits, arg)
+
+    elif is_flag_type(arg.typ):
+        if out_typ.m_bits != 256:
+            _FAIL(arg.typ, out_typ, expr)
+
+        # leave `arg` as-is, equivalent to the way we treat uin256:
+        # arg = shl(256 - out_typ.m_bits, arg)
+        # => arg = shl(256 - 256, arg)
+        # => arg = shl(0, arg)
+        # => arg = arg
 
     else:
         # bool

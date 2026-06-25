@@ -206,7 +206,7 @@ class Convert(BuiltinFunctionT):
         AddressT: (BytesM_T, IntegerT, BytesT),
         IntegerT: (IntegerT, DecimalT, BytesM_T, AddressT, BoolT, FlagT, BytesT),
         DecimalT: (IntegerT, BoolT, BytesM_T, BytesT),
-        BytesM_T: (IntegerT, DecimalT, BytesM_T, AddressT, BytesT, BoolT),
+        BytesM_T: (IntegerT, DecimalT, BytesM_T, AddressT, BytesT, BoolT, FlagT),
         BytesT: (StringT, BytesT),
         StringT: (BytesT, StringT),
     }
@@ -259,6 +259,8 @@ class Convert(BuiltinFunctionT):
             if target_type.m_bits >= 160:
                 allowed.append(AddressT)
             allowed.extend((BytesT(target_type.m), BoolT))
+            if target_type.m_bits == 256:
+                allowed.append(FlagT)
             return tuple(allowed)
 
         return allowed
@@ -825,7 +827,7 @@ class MethodID(FoldedFunctionT):
     def _try_fold(self, node):
         validate_call_args(node, 1, ["output_type"])
 
-        value = node.args[0].get_folded_value()
+        value = node.args[0].reduced()
         if not isinstance(value, vy_ast.Str):
             raise InvalidType("method id must be given as a literal string", node.args[0])
         if " " in value.value:

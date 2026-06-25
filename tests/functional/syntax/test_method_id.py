@@ -24,6 +24,15 @@ FOO: constant(Bytes[4]) = method_id("bar ()")
     """,
         InvalidLiteral,
     ),
+    (
+        """
+@external
+@view
+def f(s: String[20]) -> Bytes[4]:
+    return method_id(s)
+    """,
+        InvalidType,
+    ),
 ]
 
 
