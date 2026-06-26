@@ -1,3 +1,4 @@
+import dataclasses
 import enum
 import itertools
 import math
@@ -691,6 +692,54 @@ def foo() -> {t_bytes}:
     """
     c2 = get_contract(code2)
     assert c2.foo() == test_data
+
+
+def test_conversion_tmp_negative_int_to_decimal_bounds(
+    get_contract, tx_failed, compiler_settings, assert_compile_failed
+):
+    code = """
+@external
+def foo():
+    bar: int136 = -18707220957835557353007165858768422651596
+    foobar: decimal = convert(bar, decimal)
+    """
+
+    compiler_settings = dataclasses.replace(compiler_settings, disable_static_exceptions=True)
+
+    c = get_contract(code, compiler_settings=compiler_settings)
+
+    with tx_failed():
+        c.foo()
+
+    code = """
+@external
+def foo():
+    foobar: decimal = convert(-18707220957835557353007165858768422651596, decimal)
+    """
+
+    assert_compile_failed(lambda: get_contract(code), InvalidLiteral)
+
+
+def test_conversion_hex(get_contract, assert_compile_failed):
+    code = """
+@external
+def foo() -> uint8:
+    return convert(0xffff, uint8)
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidLiteral)
+
+
+def test_conversion_constant_different_leghts(get_contract):
+    code = r"""
+FOO: constant(Bytes[2]) = b'\xff'
+
+@external
+def foo() -> int16:
+    return convert(FOO, int16)
+    """
+
+    c = get_contract(code)
+    assert c.foo() == -1
 
 
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_reverting_cases())
