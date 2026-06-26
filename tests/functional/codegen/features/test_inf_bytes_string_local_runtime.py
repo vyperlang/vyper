@@ -872,6 +872,52 @@ def get(addr: address) -> Bytes[INF]:
     assert abi_decode("(bytes)", ret) == (b"json abi bytes",)
 
 
+def test_inf_bytes_json_abi_external_call_freezes_bounded_arg_in_runtime_encoding(
+    env, make_input_bundle
+):
+    target_code = """
+@external
+@view
+def lengths(a: Bytes[8], b: Bytes[INF], marker: uint256) -> uint256:
+    return len(a) * 100 + len(b) * 10 + marker
+    """
+    caller_code = """
+import source as Source
+
+a: Bytes[8]
+
+@internal
+def _mutate() -> uint256:
+    self.a = b"xy"
+    return 7
+
+@external
+def check(addr: address, b: Bytes[INF]) -> (uint256, Bytes[8]):
+    self.a = b"abcdef"
+    r: uint256 = staticcall Source(addr).lengths(self.a, b, self._mutate())
+    return r, self.a
+    """
+    source_abi = [
+        {
+            "type": "function",
+            "name": "lengths",
+            "stateMutability": "view",
+            "inputs": [
+                {"name": "a", "type": "bytes"},
+                {"name": "b", "type": "bytes"},
+                {"name": "marker", "type": "uint256"},
+            ],
+            "outputs": [{"name": "", "type": "uint256"}],
+        }
+    ]
+
+    target = _deploy_venom(env, target_code)
+    input_bundle = make_input_bundle({"source.json": json.dumps(source_abi)})
+    caller = _deploy_venom(env, caller_code, input_bundle=input_bundle)
+    ret = _call(env, caller, "check(address,bytes)", "(address,bytes)", (target.address, b"cat"))
+    assert abi_decode("(uint256,bytes)", ret) == (637, b"xy")
+
+
 def test_inf_string_json_abi_staticcall_return(env, make_input_bundle):
     target_code = """
 @external

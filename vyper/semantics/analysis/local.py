@@ -846,6 +846,23 @@ class ExprVisitor(VyperNodeVisitorBase):
             return "function"
         return "module"
 
+    def _annotation_type(self, node: vy_ast.VyperNode, typ: VyperType) -> VyperType:
+        if not getattr(typ, "has_wildcard", False):
+            return typ
+
+        try:
+            actual_typ = get_exact_type_from_node(node)
+        except VyperException:
+            return typ.resolve_wildcard()
+
+        if actual_typ.has_wildcard:
+            actual_typ = actual_typ.resolve_wildcard()
+
+        if actual_typ.is_subtype_of(typ):
+            return actual_typ
+
+        return typ.resolve_wildcard()
+
     def visit(self, node, typ):
         if typ is not VOID_TYPE and not isinstance(typ, TYPE_T):
             validate_expected_type(node, typ)
@@ -855,7 +872,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         super().visit(node, typ)
 
         # annotate
-        node._metadata["type"] = typ
+        node._metadata["type"] = self._annotation_type(node, typ)
 
         if not isinstance(typ, TYPE_T):
             info = get_expr_info(node)  # get_expr_info fills in node._expr_info

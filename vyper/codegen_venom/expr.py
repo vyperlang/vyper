@@ -1933,6 +1933,8 @@ class Expr:
         arg_vals: list[VyperValue] = []
         freeze_composites = any(
             type_contains_unbounded_sequence(arg.typ) for arg in fn_type.arguments
+        ) or any(
+            type_contains_unbounded_sequence(arg._metadata["type"]) for arg in call_node.args
         )
         for arg, arg_t in zip(call_node.args, fn_type.arguments):
             arg_vv = Expr(arg, self.ctx).lower()
