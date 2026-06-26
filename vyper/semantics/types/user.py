@@ -29,8 +29,8 @@ from vyper.warnings import Deprecation, vyper_warn
 
 # user defined type
 class _UserType(VyperType):
-    def __init__(self, members=None, *, validate_member_names: bool = True):
-        if validate_member_names:
+    def __init__(self, members=None, *, validate_member_identifiers: bool = True):
+        if validate_member_identifiers:
             super().__init__(members=members)
         else:
             super().__init__(members=None)
@@ -252,9 +252,9 @@ class EventT(_UserType):
         arguments: dict,
         indexed: list,
         decl_node: Optional[vy_ast.VyperNode] = None,
-        validate_member_names: bool = True,
+        validate_member_identifiers: bool = True,
     ) -> None:
-        super().__init__(members=arguments, validate_member_names=validate_member_names)
+        super().__init__(members=arguments, validate_member_identifiers=validate_member_identifiers)
         self.name = name
         self.indexed = indexed
         assert len(self.indexed) == len(self.arguments)
@@ -301,10 +301,12 @@ class EventT(_UserType):
         """
         members: dict = {}
         indexed: list = [i.get("indexed", False) for i in abi["inputs"]]
-        for item in abi["inputs"]:
-            members[item["name"]] = type_from_abi(item)
+        for i, item in enumerate(abi["inputs"]):
+            name = _abi_input_name(item, i, members)
+            members[name] = type_from_abi(item)
         # JSON ABI argument names can be reserved Vyper identifiers, e.g. ERC20 `from`.
-        return cls(abi["name"], members, indexed, validate_member_names=False)
+        # Skip identifier validation only; member additions still use the normal checks.
+        return cls(abi["name"], members, indexed, validate_member_identifiers=False)
 
     @classmethod
     def from_EventDef(cls, base_node: vy_ast.EventDef) -> "EventT":

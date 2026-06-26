@@ -181,6 +181,32 @@ def foo() -> bool:
     assert compile_code(main, input_bundle=input_bundle) is not None
 
 
+def test_json_interface_event_duplicate_input_names(make_input_bundle):
+    event_abi = [
+        {
+            "type": "event",
+            "name": "Transfer",
+            "inputs": [
+                {"name": "from", "type": "address"},
+                {"name": "from", "type": "address"},
+                {"name": "value", "type": "uint256"},
+            ],
+        }
+    ]
+
+    input_bundle = make_input_bundle({"token.json": json.dumps(event_abi)})
+
+    main = """
+import token as Token
+
+@external
+def foo() -> bool:
+    return True
+    """
+
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
 def test_json_interface_function_name_conflicts_with_builtin_member(make_input_bundle):
     abi = [
         {
