@@ -102,6 +102,16 @@ def foo(x: uint256) -> uint256[2]:
         """,
         StructureException,
     ),
+    (  # typed constants are checked by declared type before codegen folding
+        """
+FOO: constant(uint256) = 1
+
+@external
+def foo() -> bytes1:
+    return convert(FOO, bytes1)
+        """,
+        TypeMismatch,
+    ),
     (  # exact same type
         """
 @external

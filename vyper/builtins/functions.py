@@ -229,14 +229,13 @@ class Convert(BuiltinFunctionT):
             return (BytesM_T.any(),) + IntegerT.unsigneds() + (BytesT.any(),)
 
         if isinstance(target_type, IntegerT):
-            allowed = (IntegerT, DecimalT, BytesM_T.any())
+            allowed = (IntegerT, DecimalT, BytesM_T.any(), BoolT, BytesT.any())
             if not target_type.is_signed:
                 allowed += (AddressT,)
-            allowed += (BoolT,)
             if target_type == UINT256_T:
                 # flags only convert to uint256
                 allowed += (FlagT,)
-            return allowed + (BytesT.any(),)
+            return allowed
 
         if isinstance(target_type, BoolT):
             return (
@@ -337,7 +336,8 @@ class Convert(BuiltinFunctionT):
             raise CodegenPanic("convert not yet implemented for unbounded sequence type")
 
         # Keep conversion legality in argument inference so callers cannot get
-        # a return type for an invalid source/target pair.
+        # a return type for an invalid source/target pair. This intentionally
+        # validates the expression's declared type before codegen constant folding.
         self._validate_type_pair(value_type, target_type, node)
 
         return [value_type, TYPE_T(target_type)]
