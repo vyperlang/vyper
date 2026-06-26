@@ -140,9 +140,9 @@ def _subscript_read_write_overlap(
 ) -> bool:
     # port of `read_write_overlap()` (vyper/codegen/core.py) used in legacy
     # `parse_Subscript`: the base pointer is evaluated before the index
-    # expression, so reject the program if evaluating the index can mutate
-    # the base out from under us. (the legacy prim-word fastpath is omitted
-    # since the base here is always array-typed, never a primitive word.)
+    # expression, so evaluating the index can mutate the base out from under
+    # us. (the legacy prim-word fastpath is omitted since the base here is
+    # always array-typed, never a primitive word.)
     #
     # legacy only counts variables which are lowered to pointers (locals,
     # state variables, immutables); filter out constants (which are inlined
@@ -161,6 +161,14 @@ def _subscript_read_write_overlap(
         return True
 
     return _contains_risky_call(index_node)
+
+
+def _subscript_base_pointer_can_stale(base_node: vy_ast.VyperNode) -> bool:
+    if not isinstance(base_node, vy_ast.Subscript):
+        return False
+
+    parent_typ = base_node.value._metadata["type"]
+    return isinstance(parent_typ, DArrayT)
 
 
 class Expr:
@@ -927,17 +935,23 @@ class Expr:
         """
         node = self.node
         assert isinstance(node, vy_ast.Subscript)
-        base_vv = Expr(node.value, self.ctx).lower()
+        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
+        base_typ = node.value._metadata["type"]
+
+        # For rvalue reads, snapshot a base whose pointer can be invalidated
+        # before evaluating a mutating or otherwise risky index expression.
+        # Lvalue lowering must keep the real pointer so assignments still write
+        # through to their target.
+        if (
+            not self.as_ptr
+            and _subscript_base_pointer_can_stale(node.value)
+            and _subscript_read_write_overlap(node.value, node.slice)
+        ):
+            base_vv = self.ctx.materialize_value(base_vv, base_typ)
+
         base = base_vv.operand  # Extract pointer for address math
         index = Expr(node.slice, self.ctx).lower_value()  # Need the value
 
-        # the base pointer was evaluated before the index expression;
-        # reject if evaluating the index can mutate the base (cf. legacy
-        # `parse_Subscript` in vyper/codegen/expr.py)
-        if _subscript_read_write_overlap(node.value, node.slice):
-            raise CompilerPanic("risky overlap")
-
-        base_typ = node.value._metadata["type"]
         elem_typ = base_typ.value_type
         index_typ = node.slice._metadata["type"]
 
