@@ -1,6 +1,7 @@
 from collections import deque
 
 import vyper.evm.address_space as addr_space
+from vyper.venom import effects
 from vyper.venom.analysis import (
     BasePtrAnalysis,
     CFGAnalysis,
@@ -9,7 +10,7 @@ from vyper.venom.analysis import (
     MemoryAliasAnalysis,
 )
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
-from vyper.venom.effects import Effects, to_addr_space
+from vyper.venom.effects import Effects, to_addr_space, MEMORY
 from vyper.venom.memory_location import (
     Allocation,
     MemoryLocation,
@@ -380,6 +381,10 @@ class MemoryCopyElisionPass(IRPass):
         uses = set()
         for var_use in read_var_uses:
             for use in self.dfg.get_uses(var_use):
+                if use is inst:
+                    uses.add(use)
+                if MEMORY not in use.get_write_effects():
+                    continue
                 if not self._use_dominates(use, inst):
                     uses.add(use)
 
