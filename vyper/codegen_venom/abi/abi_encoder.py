@@ -25,30 +25,6 @@ if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
     from vyper.codegen_venom.value import VyperValue
 
-
-def create_tuple_in_memory(
-    ctx: VenomCodegenContext, args: list[IROperand], types: list[VyperType]
-) -> tuple[IROperand, TupleT]:
-    """Create a tuple in memory from individual lowered arguments."""
-    b = ctx.builder
-    tuple_t = TupleT(tuple(types))
-    val = ctx.new_temporary_value(tuple_t)
-    assert isinstance(val.operand, IRVariable)
-
-    offset = 0
-    for arg, typ in zip(args, types):
-        dst = b.add(val.operand, IRLiteral(offset))
-
-        if typ._is_prim_word:
-            b.mstore(dst, arg)
-        else:
-            ctx.copy_memory(dst, arg, typ.memory_bytes_required)
-
-        offset += typ.memory_bytes_required
-
-    return val.operand, tuple_t
-
-
 def runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IROperand:
     typ = arg_vv.typ
     if isinstance(typ, _BytestringT):
@@ -100,6 +76,10 @@ def abi_encode_values_to_buf(
     b = ctx.builder
 
     if not isinstance(encode_type, TupleT):
+        if encode_type._is_prim_word:
+            ctx.store_vyper_value(arg_vals[0], dst, encode_type)
+            return IRLiteral(encode_type.abi_type.static_size())
+
         src = ctx.unwrap(arg_vals[0])
         assert isinstance(src, IRVariable)
         return abi_encode_to_buf(ctx, dst, src, encode_type)

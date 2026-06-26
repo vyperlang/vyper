@@ -53,7 +53,6 @@ from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 
 from .abi import (
     abi_decode_to_buf,
-    abi_encode_to_buf,
     abi_encode_values_to_buf,
     decode_unbounded_dynarray_to_scratch,
     runtime_abi_size_for_encode,
@@ -1410,24 +1409,19 @@ class Expr:
         default_nodes = [kwarg.default_value for kwarg in unprovided_kwargs]
         all_arg_nodes = list(node.args) + default_nodes
 
-        # IMPORTANT: Evaluate ALL arguments first before allocating staging buffers.
-        # If arguments contain nested internal calls, those calls may use the callee's
-        # frame which can overlap with our staging buffers (due to memory reuse).
-        # By evaluating all args first, we ensure nested calls complete before we
-        # allocate staging buffers, avoiding corruption.
-        # See legacy codegen: vyper/codegen/self_call.py (contains_self_call handling)
+        # Evaluate arguments left-to-right and snapshot each value immediately.
+        # Final call staging still happens after every expression has run, but
+        # sources such as storage pointers must not be observed after later
+        # arguments with side effects.
         arg_vals: list[VyperValue] = []
-        freeze_composites = any(
-            type_contains_unbounded_sequence(arg.typ) for arg in func_t.arguments
-        )
         for arg_node, arg_t in zip(all_arg_nodes, func_t.arguments):
             arg_vv = Expr(arg_node, self.ctx).lower()
             arg_vals.append(
-                self._freeze_call_arg(
+                self.ctx.snapshot_value_for_delayed_use(
                     arg_vv,
                     arg_t.typ,
                     annotation=arg_t.name,
-                    freeze_composites=freeze_composites,
+                    copy_composites=True,
                 )
             )
 
@@ -1448,9 +1442,9 @@ class Expr:
                 # Memory-passed arg: pass a pointer to a stable memory snapshot.
                 # Backend passes can forward safe readonly bounded arguments.
                 if self.ctx.is_unbounded_sequence_type(arg_t.typ):
-                    # _freeze_call_arg already copied this value.
-                    # after argument evaluation. Pass that stable snapshot
-                    # directly instead of staging the same buffer twice.
+                    # snapshot_value_for_delayed_use already copied this value.
+                    # Pass that stable snapshot directly instead of staging the
+                    # same buffer twice.
                     assert isinstance(arg_op, IRVariable)
                     invoke_args.append(arg_op)
                     continue
@@ -1879,23 +1873,6 @@ class Expr:
     def _external_call_args_need_runtime_encoding(self, arg_vals: list[VyperValue]) -> bool:
         return any(self.ctx.is_unbounded_sequence_type(arg_vv.typ) for arg_vv in arg_vals)
 
-    def _freeze_call_arg(
-        self,
-        arg_vv: VyperValue,
-        target_typ: VyperType,
-        annotation: str,
-        *,
-        freeze_composites: bool = False,
-    ) -> VyperValue:
-        """Snapshot call args before later arguments can mutate their source."""
-        target_is_unbounded = self.ctx.is_unbounded_sequence_type(target_typ)
-        if target_is_unbounded or self.ctx.is_unbounded_sequence_type(arg_vv.typ):
-            copy_typ = target_typ if target_is_unbounded else arg_vv.typ
-            return self.ctx.copy_sequence_to_scratch(arg_vv, copy_typ, annotation=annotation)
-        if freeze_composites and not arg_vv.typ._is_prim_word:
-            return self.ctx.materialize_value(arg_vv, arg_vv.typ, annotation=annotation)
-        return arg_vv
-
     def _lower_external_call(self) -> VyperValue:
         """Lower external call (extcall/staticcall).
 
@@ -1931,19 +1908,14 @@ class Expr:
 
         # Evaluate arguments.
         arg_vals: list[VyperValue] = []
-        freeze_composites = any(
-            type_contains_unbounded_sequence(arg.typ) for arg in fn_type.arguments
-        ) or any(
-            type_contains_unbounded_sequence(arg._metadata["type"]) for arg in call_node.args
-        )
         for arg, arg_t in zip(call_node.args, fn_type.arguments):
             arg_vv = Expr(arg, self.ctx).lower()
             arg_vals.append(
-                self._freeze_call_arg(
+                self.ctx.snapshot_value_for_delayed_use(
                     arg_vv,
                     arg_t.typ,
                     annotation=arg_t.name,
-                    freeze_composites=freeze_composites,
+                    copy_composites=True,
                 )
             )
 
@@ -1997,27 +1969,11 @@ class Expr:
         # ABI-encode arguments starting at buf+32
         if len(arg_vals) > 0:
             encode_dst = b.add(buf_ptr, IRLiteral(32))
+            args_abi_len = abi_encode_values_to_buf(self.ctx, encode_dst, arg_vals, args_tuple_t)
             if dynamic_args:
-                args_abi_len = abi_encode_values_to_buf(
-                    self.ctx, encode_dst, arg_vals, args_tuple_t
-                )
                 args_len = self.ctx.checked_add(args_abi_len, IRLiteral(4))
             else:
-                # Create temp buffer for args in memory
-                args_val = self.ctx.new_temporary_value(args_tuple_t)
-                assert isinstance(args_val.operand, IRVariable)
-
-                # Store each arg at its position in args_buf
-                offset = 0
-                for arg_vv in arg_vals:
-                    arg_typ = arg_vv.typ
-                    dst = b.add(args_val.operand, IRLiteral(offset))
-                    self.ctx.store_vyper_value(arg_vv, dst, arg_typ)
-                    offset += arg_typ.memory_bytes_required
-
-                # ABI-encode from args_buf to buf+32
-                abi_encode_to_buf(self.ctx, encode_dst, args_val.operand, args_tuple_t)
-                args_len = IRLiteral(4 + args_abi_size)
+                args_len = b.add(args_abi_len, IRLiteral(4))
         else:
             args_len = IRLiteral(4)
 

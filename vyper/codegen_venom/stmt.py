@@ -1001,22 +1001,20 @@ class Stmt:
         a later element with side effects, e.g. `return x, x.pop()`, can mutate
         the memory/storage pointed to by an earlier member before it is encoded.
         """
-        if arg_vv.typ._is_prim_word:
-            return VyperValue.from_stack_op(self.ctx.unwrap(arg_vv), arg_vv.typ)
-
-        target_is_unbounded = self.ctx.is_unbounded_sequence_type(target_typ)
-        if target_is_unbounded or self.ctx.is_unbounded_sequence_type(arg_vv.typ):
-            copy_typ = target_typ if target_is_unbounded else arg_vv.typ
-            return self.ctx.copy_sequence_to_scratch(arg_vv, copy_typ, annotation=annotation)
-
-        if type_contains_unbounded_sequence(target_typ) or type_contains_unbounded_sequence(
+        target_has_nested_inf = type_contains_unbounded_sequence(
+            target_typ
+        ) and not self.ctx.is_unbounded_sequence_type(target_typ)
+        source_has_nested_inf = type_contains_unbounded_sequence(
             arg_vv.typ
-        ):
+        ) and not self.ctx.is_unbounded_sequence_type(arg_vv.typ)
+        if target_has_nested_inf or source_has_nested_inf:
             raise CompilerPanic(
                 "semantic analysis should reject nested INF tuple returns"
             )  # pragma: nocover
 
-        return self.ctx.materialize_value(arg_vv, arg_vv.typ, annotation=annotation)
+        return self.ctx.snapshot_value_for_delayed_use(
+            arg_vv, target_typ, annotation=annotation, copy_composites=True
+        )
 
     def _emit_external_dynamic_tuple_return(
         self, arg_vvs: list[VyperValue], encode_typ: TupleT, wrap_outer: bool
@@ -1337,28 +1335,32 @@ class Stmt:
         else:
             arg_nodes = call_node.args
 
-        # Lower all argument expressions
-        args = []
+        # Lower all argument expressions and snapshot before later arguments
+        # can mutate memory/storage that earlier arguments point at.
+        arg_vals = []
         for arg in arg_nodes:
             arg_vv = Expr(arg, self.ctx).lower()
-            arg_val = self.ctx.unwrap(arg_vv)
-            args.append((arg_val, arg_vv.typ))
+            arg_vals.append(
+                self.ctx.snapshot_value_for_delayed_use(
+                    arg_vv, annotation="log", copy_composites=True
+                )
+            )
 
         # Split into indexed (topics) and non-indexed (data)
         topic_vals = []
         data_vals = []
 
-        for (arg_val, src_typ), is_indexed in zip(args, event.indexed):
+        for arg_vv, is_indexed in zip(arg_vals, event.indexed):
             if is_indexed:
-                topic_vals.append((arg_val, src_typ))
+                topic_vals.append(arg_vv)
             else:
-                data_vals.append((arg_val, src_typ))
+                data_vals.append(arg_vv)
 
         # Build topics list - starts with event signature hash
         topics: list[IROperand] = [IRLiteral(event.event_id)]
 
-        for val, typ in topic_vals:
-            topic = self._encode_log_topic(val, typ)
+        for arg_vv in topic_vals:
+            topic = self._encode_log_topic(self.ctx.unwrap(arg_vv), arg_vv.typ)
             topics.append(topic)
 
         # Encode non-indexed data to buffer
@@ -1366,26 +1368,16 @@ class Stmt:
         encoded_len: IROperand
         if data_vals:
             # Event declarations reject INF members, so log data is statically bounded here.
-            data_typs = tuple(src_typ for _, src_typ in data_vals)
+            data_typs = tuple(arg_vv.typ for arg_vv in data_vals)
             tuple_typ = TupleT(data_typs)
             bufsz = tuple_typ.abi_type.size_bound()
-
-            # Allocate buffer for tuple data in memory
-            data_buf = self.ctx.allocate_buffer(tuple_typ.memory_bytes_required)
-
-            # Store each data value into the tuple buffer
-            offset = 0
-            for (val, src_typ), typ in zip(data_vals, data_typs):
-                dst = self.builder.add(data_buf._ptr, IRLiteral(offset))
-                self.ctx.store_memory(val, dst, typ, src_typ=src_typ)
-                offset += typ.memory_bytes_required
 
             # Allocate ABI encoding output buffer
             abi_buf = self.ctx.allocate_buffer(bufsz)
             abi_buf_ptr = abi_buf._ptr
 
             # ABI encode the tuple
-            encoded_len = abi_encode_to_buf(self.ctx, abi_buf_ptr, data_buf._ptr, tuple_typ)
+            encoded_len = abi_encode_values_to_buf(self.ctx, abi_buf_ptr, data_vals, tuple_typ)
         else:
             # No data - use zero size
             log_buf = self.ctx.allocate_buffer(0, annotation="log empty buffer")
@@ -1545,17 +1537,19 @@ class Stmt:
         old_constancy = self.ctx.constancy
         try:
             self.ctx.constancy = Constancy.Constant
-            arg_vvs = [Expr(arg_node, self.ctx).lower() for arg_node in arg_nodes]
+            arg_vvs = []
+            for arg_node in arg_nodes:
+                arg_vv = Expr(arg_node, self.ctx).lower()
+                arg_vvs.append(
+                    self.ctx.snapshot_value_for_delayed_use(
+                        arg_vv, annotation="custom error", copy_composites=True
+                    )
+                )
         finally:
             self.ctx.constancy = old_constancy
 
         arg_types = tuple(arg_vv.typ for arg_vv in arg_vvs)
         args_tuple_t = TupleT(arg_types)
-
-        args_tuple_buf = self.ctx.allocate_buffer(
-            args_tuple_t.memory_bytes_required, annotation="custom error args"
-        )
-        self._store_custom_error_args(args_tuple_buf._ptr, arg_vvs, arg_types)
 
         bufsz = args_tuple_t.abi_type.size_bound() + 32
         buf = self.ctx.allocate_buffer(bufsz, annotation="custom error revert buffer")
@@ -1568,22 +1562,12 @@ class Stmt:
             return
 
         payload_buf = self.builder.add(buf._ptr, IRLiteral(32))
-        encoded_len = abi_encode_to_buf(self.ctx, payload_buf, args_tuple_buf._ptr, args_tuple_t)
+        encoded_len = abi_encode_values_to_buf(self.ctx, payload_buf, arg_vvs, args_tuple_t)
 
         revert_offset = self.builder.add(buf._ptr, IRLiteral(28))
         revert_len = self.builder.add(IRLiteral(4), encoded_len)
         with self.builder.error_context("user revert with custom error"):
             self.builder.revert(revert_offset, revert_len)
-
-    def _store_custom_error_args(
-        self, dst: IRVariable, arg_vvs: list[VyperValue], arg_types: tuple
-    ) -> None:
-        offset = 0
-        for arg_vv, arg_type in zip(arg_vvs, arg_types):
-            arg_ptr = dst if offset == 0 else self.builder.add(dst, IRLiteral(offset))
-            assert isinstance(arg_ptr, IRVariable)
-            self.ctx.store_vyper_value(arg_vv, arg_ptr, arg_type)
-            offset += arg_type.memory_bytes_required
 
     def _revert_with_reason(self, msg: vy_ast.VyperNode) -> None:
         """Emit revert with Error(string) encoding.

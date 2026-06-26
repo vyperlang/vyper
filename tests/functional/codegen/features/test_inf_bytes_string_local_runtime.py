@@ -601,6 +601,62 @@ def get(addr: address, x: Bytes[INF]) -> Bytes[3]:
     assert abi_decode("(bytes)", ret) == (b"abc",)
 
 
+def test_inf_bytes_staticcall_snapshots_primitive_arg_before_later_mutation(env):
+    target_code = """
+@external
+@view
+def data(a: uint256, x: Bytes[INF], marker: uint256) -> uint256:
+    return a * 100 + len(x) * 10 + marker
+    """
+    caller_code = """
+interface Source:
+    def data(a: uint256, x: Bytes[INF], marker: uint256) -> uint256: view
+
+stored: uint256
+
+@internal
+def _mutate() -> uint256:
+    self.stored = 2
+    return 7
+
+@external
+def get(addr: address, x: Bytes[INF]) -> (uint256, uint256):
+    self.stored = 6
+    result: uint256 = staticcall Source(addr).data(self.stored, x, self._mutate())
+    return result, self.stored
+    """
+
+    target = _deploy_venom(env, target_code)
+    caller = _deploy_venom(env, caller_code)
+    ret = _call(env, caller, "get(address,bytes)", "(address,bytes)", (target.address, b"cat"))
+    assert abi_decode("(uint256,uint256)", ret) == (637, 2)
+
+
+def test_inf_bytes_internal_call_snapshots_primitive_arg_before_later_mutation(env):
+    code = """
+stored: uint256
+
+@internal
+def _mutate() -> uint256:
+    self.stored = 2
+    return 7
+
+@internal
+def _data(a: uint256, x: Bytes[INF], marker: uint256) -> uint256:
+    return a * 100 + len(x) * 10 + marker
+
+@external
+def get(x: Bytes[INF]) -> (uint256, uint256):
+    self.stored = 6
+    result: uint256 = self._data(self.stored, x, self._mutate())
+    return result, self.stored
+    """
+
+    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    ret = _call(env, c, "get(bytes)", "(bytes)", (b"cat",))
+    assert abi_decode("(uint256,uint256)", ret) == (637, 2)
+
+
 def test_inf_bytes_staticcall_inf_arg_with_bounded_dynamic_args(env):
     code = """
 @external
@@ -1809,6 +1865,43 @@ def deploy(s: Bytes[INF], x: Bytes[INF]) -> address:
     addr = abi_decode("(address)", ret)[0]
     ret = env.message_call(addr, data=method_id("get()"))
     assert abi_decode("(bytes)", ret) == (payload,)
+
+
+def test_inf_bytes_raw_create_snapshots_primitive_ctor_arg_before_later_mutation(env):
+    child_code = """
+stored: public(uint256)
+marker: public(uint256)
+
+@deploy
+def __init__(a: uint256, x: Bytes[INF], marker: uint256):
+    self.stored = a * 100 + len(x) * 10
+    self.marker = marker
+    """
+    out = _compile_venom(child_code, ["bytecode"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+
+    deployer_code = """
+stored: uint256
+
+@internal
+def _mutate() -> uint256:
+    self.stored = 2
+    return 7
+
+@external
+def deploy(s: Bytes[INF], x: Bytes[INF]) -> address:
+    self.stored = 6
+    return raw_create(s, self.stored, x, self._mutate())
+    """
+
+    deployer = _deploy_venom(env, deployer_code)
+    ret = _call(env, deployer, "deploy(bytes,bytes)", "(bytes,bytes)", (initcode, b"cat"))
+    addr = abi_decode("(address)", ret)[0]
+
+    ret = env.message_call(addr, data=method_id("stored()"))
+    assert abi_decode("(uint256)", ret) == (630,)
+    ret = env.message_call(addr, data=method_id("marker()"))
+    assert abi_decode("(uint256)", ret) == (7,)
 
 
 def test_inf_bytes_create_from_blueprint_unbounded_ctor_arg(env):

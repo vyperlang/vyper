@@ -607,6 +607,38 @@ class VenomCodegenContext:
         self.store_vyper_value(vv, ret.operand, typ)
         return ret
 
+    def snapshot_value_for_delayed_use(
+        self,
+        vv: VyperValue,
+        target_typ: Optional[VyperType] = None,
+        annotation: Optional[str] = None,
+        *,
+        copy_composites: bool = False,
+    ) -> VyperValue:
+        """Freeze a value whose source must survive later expression evaluation.
+
+        Delayed users such as calls and ABI encoders often lower all arguments
+        before storing/encoding them. If a value is still a storage pointer or a
+        memory pointer into mutable data, later arguments can change what is
+        observed. This helper turns primitives into stack values immediately and
+        copies composites when the delayed user needs owned memory.
+        """
+        if vv.typ._is_prim_word:
+            return VyperValue.from_stack_op(self.unwrap(vv), vv.typ)
+
+        if target_typ is None:
+            target_typ = vv.typ
+
+        target_is_unbounded = self.is_unbounded_sequence_type(target_typ)
+        if target_is_unbounded or self.is_unbounded_sequence_type(vv.typ):
+            copy_typ = target_typ if target_is_unbounded else vv.typ
+            return self.copy_sequence_to_scratch(vv, copy_typ, annotation=annotation)
+
+        if copy_composites:
+            return self.materialize_value(vv, vv.typ, annotation=annotation)
+
+        return vv
+
     def bytes_data_ptr(self, vv: VyperValue) -> IROperand:
         """Get pointer to bytestring data (skipping length word).
 

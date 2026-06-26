@@ -19,7 +19,6 @@ from vyper.builtins.functions import AsWeiValue
 from vyper.codegen_venom.abi import (
     abi_encode_to_buf,
     abi_encode_values_to_buf,
-    create_tuple_in_memory,
     runtime_abi_size_for_encode,
 )
 from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PRECOMPILE
@@ -412,17 +411,6 @@ def _schema_string_value(ctx: "VenomCodegenContext", schema: bytes) -> tuple[Vyp
     return schema_vv, schema_vv.typ
 
 
-def _freeze_print_arg(ctx: "VenomCodegenContext", arg_vv: VyperValue) -> VyperValue:
-    """Snapshot a print argument before later arguments can mutate it."""
-    if arg_vv.typ._is_prim_word:
-        return VyperValue.from_stack_op(ctx.unwrap(arg_vv), arg_vv.typ)
-
-    if ctx.is_unbounded_sequence_type(arg_vv.typ):
-        return ctx.copy_sequence_to_scratch(arg_vv, arg_vv.typ, annotation="print")
-
-    return ctx.materialize_value(arg_vv, arg_vv.typ, annotation="print")
-
-
 def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     """
     print(*args, hardhat_compat=False) -> None
@@ -446,16 +434,17 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 
     # Get arg types and values
     arg_types = [arg._metadata["type"] for arg in node.args]
+    arg_vals = []
+    for arg in node.args:
+        arg_vv = Expr(arg, ctx).lower()
+        arg_vals.append(
+            ctx.snapshot_value_for_delayed_use(arg_vv, annotation="print", copy_composites=True)
+        )
+    tuple_t = TupleT(tuple(arg_types))
+    args_abi_t = tuple_t.abi_type
+    sig = "log(" + ",".join([t.abi_type.selector_name() for t in arg_types]) + ")"
 
     if any(type_contains_unbounded_sequence(t) for t in arg_types):
-        arg_vals = []
-        for arg in node.args:
-            arg_vv = Expr(arg, ctx).lower()
-            arg_vals.append(_freeze_print_arg(ctx, arg_vv))
-        tuple_t = TupleT(tuple(arg_types))
-        args_abi_t = tuple_t.abi_type
-        sig = "log(" + ",".join([t.abi_type.selector_name() for t in arg_types]) + ")"
-
         if hardhat_compat:
             mid = method_id_int(sig)
             encoded_size = runtime_abi_size_for_encode(ctx, arg_vals, tuple_t)
@@ -495,23 +484,6 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         )
         return IRLiteral(0)
 
-    # Evaluate all args - primitives get values, complex types get pointers
-    args = []
-    for arg in node.args:
-        arg_t = arg._metadata["type"]
-        if arg_t._is_prim_word:
-            args.append(Expr(arg, ctx).lower_value())
-        else:
-            arg_vv = Expr(arg, ctx).lower()
-            args.append(ctx.unwrap(arg_vv))  # Copies storage/transient to memory
-
-    # Create tuple type for ABI encoding
-    tuple_t = TupleT(tuple(arg_types))
-    args_abi_t = tuple_t.abi_type
-
-    # Generate signature like "log(uint256,address)"
-    sig = "log(" + ",".join([t.abi_type.selector_name() for t in arg_types]) + ")"
-
     if hardhat_compat:
         # Direct encoding with the actual type signature
         mid = method_id_int(sig)
@@ -523,13 +495,8 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         # Store method_id so buf+28 starts at the 4-byte selector.
         b.mstore(buf._ptr, IRLiteral(mid))
 
-        # Create tuple in memory and encode starting at buf + 32
-        if len(args) > 0:
-            encode_input, encode_type = create_tuple_in_memory(ctx, args, arg_types)
-            data_dst = b.add(buf._ptr, IRLiteral(32))
-            encoded_len = abi_encode_to_buf(ctx, data_dst, encode_input, encode_type)
-        else:
-            encoded_len = IRLiteral(0)
+        data_dst = b.add(buf._ptr, IRLiteral(32))
+        encoded_len = abi_encode_values_to_buf(ctx, data_dst, arg_vals, tuple_t)
 
         # staticcall(gas, CONSOLE_ADDRESS, buf+28, 4+encoded_len, 0, 0)
         # buf+28 positions the 4-byte method_id at the start of calldata
@@ -550,12 +517,8 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         # Allocate payload buffer: [32 bytes length] | [data]
         payload_buf = ctx.allocate_buffer(32 + payload_buflen)
 
-        if len(args) > 0:
-            encode_input, encode_type = create_tuple_in_memory(ctx, args, arg_types)
-            payload_data_dst = b.add(payload_buf._ptr, IRLiteral(32))
-            payload_len = abi_encode_to_buf(ctx, payload_data_dst, encode_input, encode_type)
-        else:
-            payload_len = IRLiteral(0)
+        payload_data_dst = b.add(payload_buf._ptr, IRLiteral(32))
+        payload_len = abi_encode_values_to_buf(ctx, payload_data_dst, arg_vals, tuple_t)
 
         # Store payload length
         b.mstore(payload_buf._ptr, payload_len)

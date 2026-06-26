@@ -14,9 +14,7 @@ from vyper import ast as vy_ast
 from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import (
     abi_decode_to_buf,
-    abi_encode_to_buf,
     abi_encode_values_to_buf,
-    create_tuple_in_memory,
     decode_unbounded_dynarray_to_scratch,
     runtime_abi_size_for_encode,
 )
@@ -153,17 +151,6 @@ def _decode_unbounded_sequence_from_abi(
     raise CompilerPanic(f"expected unbounded sequence type, got {typ}")  # pragma: nocover
 
 
-def _freeze_abi_encode_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> VyperValue:
-    """Snapshot an argument before later arguments can mutate it."""
-    if arg_vv.typ._is_prim_word:
-        return VyperValue.from_stack_op(ctx.unwrap(arg_vv), arg_vv.typ)
-
-    if ctx.is_unbounded_sequence_type(arg_vv.typ):
-        return ctx.copy_sequence_to_scratch(arg_vv, arg_vv.typ, annotation="abi_encode")
-
-    return ctx.materialize_value(arg_vv, arg_vv.typ, annotation="abi_encode")
-
-
 def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     """
     abi_encode(*args, ensure_tuple=True, method_id=None) -> Bytes[N]
@@ -186,16 +173,21 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     method_id = _parse_method_id(method_id_node)
 
     arg_types = [arg._metadata["type"] for arg in node.args]
-    if any(type_contains_unbounded_sequence(t) for t in arg_types):
-        arg_vals = []
-        for arg in node.args:
-            arg_vv = Expr(arg, ctx).lower()
-            arg_vals.append(_freeze_abi_encode_arg(ctx, arg_vv))
-        if len(arg_vals) == 1 and not ensure_tuple:
-            encode_type: VyperType = arg_types[0]
-        else:
-            encode_type = TupleT(tuple(arg_types))
+    arg_vals = []
+    for arg in node.args:
+        arg_vv = Expr(arg, ctx).lower()
+        arg_vals.append(
+            ctx.snapshot_value_for_delayed_use(
+                arg_vv, annotation="abi_encode", copy_composites=True
+            )
+        )
 
+    if len(arg_vals) == 1 and not ensure_tuple:
+        encode_type: VyperType = arg_types[0]
+    else:
+        encode_type = TupleT(tuple(arg_types))
+
+    if any(type_contains_unbounded_sequence(t) for t in arg_types):
         encoded_size = runtime_abi_size_for_encode(ctx, arg_vals, encode_type)
         alloc_size = encoded_size
         if method_id is not None:
@@ -213,33 +205,6 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
         return ctx.dynamic_memory_value(buf_ptr, node._metadata["type"], annotation="abi_encode")
 
-    # Evaluate all args - primitives get values, complex types get pointers
-    args = []
-    for arg in node.args:
-        arg_t = arg._metadata["type"]
-        if arg_t._is_prim_word:
-            args.append(Expr(arg, ctx).lower_value())
-        else:
-            arg_vv = Expr(arg, ctx).lower()
-            args.append(ctx.unwrap(arg_vv))  # Copies storage/transient to memory
-
-    # Build input to encode
-    if len(args) == 1 and not ensure_tuple:
-        # Single arg without tuple wrapping
-        if arg_types[0]._is_prim_word:
-            # abi_encode_to_buf expects a memory pointer, not a value.
-            # Store the value to a temporary memory location.
-            tmp = ctx.new_temporary_value(arg_types[0])
-            assert isinstance(tmp.operand, IRVariable)
-            b.mstore(tmp.operand, args[0])
-            encode_input: IROperand = tmp.operand
-        else:
-            encode_input = args[0]
-        encode_type = arg_types[0]
-    else:
-        # Create tuple from args
-        encode_input, encode_type = create_tuple_in_memory(ctx, args, arg_types)
-
     # Calculate buffer size
     maxlen = encode_type.abi_type.size_bound()
     if method_id is not None:
@@ -251,7 +216,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     assert isinstance(buf_val.operand, IRVariable)
 
     def encode_bounded(dst: IRVariable) -> IROperand:
-        return abi_encode_to_buf(ctx, dst, encode_input, encode_type)
+        return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type)
 
     _finish_abi_encoded_bytes(ctx, buf_val.operand, method_id, encode_bounded, b.add)
 

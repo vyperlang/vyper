@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.abi import (
-    abi_encode_to_buf,
     abi_encode_values_to_buf,
     runtime_abi_size_for_encode,
 )
@@ -169,43 +168,27 @@ def _prepare_ctor_args(ctx: VenomCodegenContext, ctor_arg_nodes: list[vy_ast.Vyp
     ctor_arg_vvs = []
     for arg, arg_t in zip(ctor_arg_nodes, ctor_arg_types):
         arg_vv = Expr(arg, ctx).lower()
-        if ctx.is_unbounded_sequence_type(arg_t) or ctx.is_unbounded_sequence_type(arg_vv.typ):
-            copy_t = arg_t if ctx.is_unbounded_sequence_type(arg_t) else arg_vv.typ
-            arg_vv = ctx.copy_sequence_to_scratch(arg_vv, copy_t, annotation="ctor_arg")
-        elif runtime_ctor_args and not arg_vv.typ._is_prim_word:
-            arg_vv = ctx.materialize_value(arg_vv, arg_vv.typ, annotation="ctor_arg")
-        ctor_arg_vvs.append(arg_vv)
+        ctor_arg_vvs.append(
+            ctx.snapshot_value_for_delayed_use(
+                arg_vv, arg_t, annotation="ctor_arg", copy_composites=True
+            )
+        )
 
     if runtime_ctor_args:
         ctor_abi_size = runtime_abi_size_for_encode(ctx, ctor_arg_vvs, ctor_tuple_typ)
     else:
         ctor_abi_size = IRLiteral(ctor_tuple_typ.abi_type.size_bound())
 
-    return ctor_arg_types, ctor_tuple_typ, ctor_arg_vvs, runtime_ctor_args, ctor_abi_size
+    return ctor_tuple_typ, ctor_arg_vvs, runtime_ctor_args, ctor_abi_size
 
 
 def _encode_ctor_args_to_buf(
     ctx: VenomCodegenContext,
     dst: IRVariable,
-    ctor_arg_types,
     ctor_tuple_typ: TupleT,
     ctor_arg_vvs,
-    runtime_ctor_args: bool,
 ) -> IROperand:
-    if runtime_ctor_args:
-        return abi_encode_values_to_buf(ctx, dst, ctor_arg_vvs, ctor_tuple_typ)
-
-    b = ctx.builder
-    ctor_args_val = ctx.new_temporary_value(ctor_tuple_typ)
-    assert isinstance(ctor_args_val.operand, IRVariable)
-    offset = 0
-    for vv, arg_t in zip(ctor_arg_vvs, ctor_arg_types):
-        elem_dst = b.add(ctor_args_val.operand, IRLiteral(offset))
-        assert isinstance(elem_dst, IRVariable)
-        ctx.store_vyper_value(vv, elem_dst, arg_t)
-        offset += arg_t.memory_bytes_required
-
-    return abi_encode_to_buf(ctx, dst, ctor_args_val.operand, ctor_tuple_typ)
+    return abi_encode_values_to_buf(ctx, dst, ctor_arg_vvs, ctor_tuple_typ)
 
 
 # EIP-1167 bytecode components
@@ -378,8 +361,8 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         )
 
     # With ctor args: need to ABI-encode and append to bytecode
-    ctor_arg_types, ctor_tuple_typ, ctor_arg_vvs, runtime_ctor_args, ctor_abi_size = (
-        _prepare_ctor_args(ctx, ctor_arg_nodes)
+    ctor_tuple_typ, ctor_arg_vvs, runtime_ctor_args, ctor_abi_size = _prepare_ctor_args(
+        ctx, ctor_arg_nodes
     )
 
     # Calculate buffer size: max bytecode len + ctor args size for bounded
@@ -399,9 +382,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Encode ctor args after bytecode
     args_start = b.add(buf_ptr, bytecode_len)
-    args_len = _encode_ctor_args_to_buf(
-        ctx, args_start, ctor_arg_types, ctor_tuple_typ, ctor_arg_vvs, runtime_ctor_args
-    )
+    args_len = _encode_ctor_args_to_buf(ctx, args_start, ctor_tuple_typ, ctor_arg_vvs)
 
     # Total length = bytecode_len + args_len
     if runtime_initcode:
@@ -649,8 +630,8 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         args_len = b.mload(raw_arg)
         args_ptr = b.add(raw_arg, IRLiteral(32))
     elif len(ctor_arg_nodes) > 0:
-        ctor_arg_types, ctor_tuple_typ, ctor_arg_vvs, runtime_ctor_args, ctor_abi_size = (
-            _prepare_ctor_args(ctx, ctor_arg_nodes)
+        ctor_tuple_typ, ctor_arg_vvs, runtime_ctor_args, ctor_abi_size = _prepare_ctor_args(
+            ctx, ctor_arg_nodes
         )
         runtime_args = runtime_ctor_args
 
@@ -661,9 +642,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
             args_buf = ctx.allocate_buffer(ctor_abi_size.value, annotation="ctor_args_buf")
             args_ptr = args_buf._ptr
         assert isinstance(args_ptr, IRVariable)
-        args_len = _encode_ctor_args_to_buf(
-            ctx, args_ptr, ctor_arg_types, ctor_tuple_typ, ctor_arg_vvs, runtime_ctor_args
-        )
+        args_len = _encode_ctor_args_to_buf(ctx, args_ptr, ctor_tuple_typ, ctor_arg_vvs)
     else:
         # No constructor arguments
         args_len = IRLiteral(0)
