@@ -117,5 +117,7 @@ def test_namespace_collision_module_info_message(namespace):
 
     msg = str(excinfo.value)
     assert "already imported as a module" in msg
-    assert "snekmate/utils/math.vy" in msg
-    assert "alias" in msg.lower()
+    # source path now shown via context arrows, not in main message
+    assert "snekmate/utils/math.vy" not in msg
+    # hint uses the later import (attr) with valid alias syntax
+    assert "import math as math_m" in msg
