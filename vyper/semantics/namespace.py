@@ -91,6 +91,17 @@ class Namespace(dict):
         if attr in self:
             prev = super().__getitem__(attr)
             prev_decl = getattr(prev, "decl_node", None)
+            module_t = getattr(prev, "module_t", None)
+            if module_t is not None:
+                # prev is a ModuleInfo: emit a friendlier message that names
+                # the already-imported module and suggests using an alias.
+                module_path = module_t._id
+                msg = (
+                    f"'{attr}' is already imported as a module "
+                    f"(from '{module_path}'). "
+                    f"Use a different alias, e.g. `import {module_path} as {attr}_m`"
+                )
+                raise NamespaceCollision(msg, prev_decl=prev_decl)
             msg = f"'{attr}' has already been declared"
             if prev_decl is None:
                 msg += f" as a {prev}"
