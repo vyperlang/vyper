@@ -245,6 +245,8 @@ def _getelemptr_abi(
             # Dynamic offsets must not wrap below their ABI parent before later
             # payload bounds are evaluated.
             b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
+            if hi is not None:
+                ctx.assert_abi_length_word_in_bounds(actual_ptr, hi)
         return _make_ptr_value(actual_ptr, loc, member_typ)
     else:
         # Static: data is inline
@@ -416,6 +418,8 @@ def _decode_dyn_array(
         if _guard_dynamic_offset(loc, hi):
             # Dynamic element offsets must not wrap below the DynArray payload.
             b.assert_(b.iszero(b.lt(elem_src_ptr, src_data)))
+            if hi is not None:
+                ctx.assert_abi_length_word_in_bounds(elem_src_ptr, hi)
     else:
         elem_src_ptr = b.add(src_data, b.mul(i, IRLiteral(elem_static_size)))
 

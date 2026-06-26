@@ -2247,6 +2247,7 @@ class Expr:
                 member_src = b.add(tuple_src, offset)
                 no_member_src_wrap = b.iszero(b.lt(member_src, tuple_src))
                 b.assert_(no_member_src_wrap)
+                self.ctx.assert_abi_length_word_in_bounds(member_src, hi)
             else:
                 member_src = static_loc
 

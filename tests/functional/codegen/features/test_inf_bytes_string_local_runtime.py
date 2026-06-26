@@ -755,6 +755,27 @@ def get(addr: address) -> Bytes[INF]:
             _call(env, caller, "get(address)", "address", target.address)
 
 
+def test_inf_bytes_staticcall_tuple_return_bounds_bounded_dynamic_member(env, tx_failed):
+    caller_code = """
+interface Source:
+    def pair() -> (Bytes[4], Bytes[INF]): view
+
+@external
+def get(addr: address) -> (Bytes[4], Bytes[INF]):
+    return staticcall Source(addr).pair()
+    """
+
+    def word(value):
+        return value.to_bytes(32, "big")
+
+    caller = _deploy_venom(env, caller_code)
+    payload = word(2**251) + word(64) + word(0)
+    target = _deploy_raw_returner(env, payload)
+
+    with tx_failed():
+        _call(env, caller, "get(address)", "address", target.address)
+
+
 def test_inf_bytes_abi_decode_allows_missing_padding(env, tx_failed):
     code = """
 @external
@@ -986,6 +1007,23 @@ def dec(x: Bytes[INF]) -> Bytes[100]:
     encoded = word(3) + b"abc" + b"\xff" * 29
     ret = _call(env, c, "dec(bytes)", "(bytes)", (encoded,))
     assert ret == word(32) + word(3) + b"abc" + b"\x00" * 29
+
+
+def test_bounded_dynarray_abi_decode_bounds_dynamic_element_head(env, tx_failed):
+    code = """
+@external
+def dec(x: Bytes[INF]) -> DynArray[Bytes[4], 2]:
+    return abi_decode(x, DynArray[Bytes[4], 2], unwrap_tuple=False)
+    """
+
+    c = _deploy_venom(env, code)
+
+    def word(value):
+        return value.to_bytes(32, "big")
+
+    payload = word(1) + word(2**251)
+    with tx_failed():
+        _call(env, c, "dec(bytes)", "(bytes)", (payload,))
 
 
 def test_inf_bytes_abi_decode_rejects_malformed_payload(env, tx_failed):
