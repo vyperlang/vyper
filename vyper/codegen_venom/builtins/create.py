@@ -165,7 +165,13 @@ def _prepare_ctor_args(ctx: VenomCodegenContext, ctor_arg_nodes: list[vy_ast.Vyp
 
     ctor_arg_types = [arg._metadata["type"] for arg in ctor_arg_nodes]
     ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
-    ctor_arg_vvs = [Expr(arg, ctx).lower() for arg in ctor_arg_nodes]
+    ctor_arg_vvs = []
+    for arg, arg_t in zip(ctor_arg_nodes, ctor_arg_types):
+        arg_vv = Expr(arg, ctx).lower()
+        if ctx.is_unbounded_sequence_type(arg_t) or ctx.is_unbounded_sequence_type(arg_vv.typ):
+            copy_t = arg_t if ctx.is_unbounded_sequence_type(arg_t) else arg_vv.typ
+            arg_vv = ctx.copy_sequence_to_scratch(arg_vv, copy_t, annotation="ctor_arg")
+        ctor_arg_vvs.append(arg_vv)
     runtime_ctor_args = _ctor_args_need_runtime_encoding(ctor_arg_types)
 
     if runtime_ctor_args:

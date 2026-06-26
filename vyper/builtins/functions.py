@@ -1630,6 +1630,10 @@ class RawCreate(_CreateBase):
         if is_bounded_length(bytecode_type.length) and bytecode_type.length > EIP_3860_LIMIT:
             raise TypeMismatch(f"initcode length cannot exceed {EIP_3860_LIMIT}", node.args[0])
         ctor_arg_types = [get_exact_type_from_node(arg) for arg in node.args[1:]]
+        if any(type_contains_nested_unbounded_sequence(t) for t in ctor_arg_types):
+            raise StructureException(
+                "constructor arguments cannot contain nested unbounded sequence types", node
+            )
         if type_contains_unbounded_sequence(bytecode_type) or any(
             type_contains_unbounded_sequence(t) for t in ctor_arg_types
         ):
@@ -1806,6 +1810,11 @@ class CreateFromBlueprint(_CreateBase):
 
         if raw_args and not (len(ctor_arg_types) == 1 and isinstance(ctor_arg_types[0], BytesT)):
             raise StructureException("raw_args must be used with exactly 1 bytes argument", node)
+
+        if any(type_contains_nested_unbounded_sequence(t) for t in ctor_arg_types):
+            raise StructureException(
+                "constructor arguments cannot contain nested unbounded sequence types", node
+            )
 
         if any(type_contains_unbounded_sequence(t) for t in ctor_arg_types):
             _reject_legacy_unbounded_sequence_builtin(node)

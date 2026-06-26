@@ -813,6 +813,42 @@ def roundtrip(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     assert abi_decode("(uint256[])", ret) == (payload,)
 
 
+def test_inf_dynarray_raw_create_snapshots_ctor_arg_before_pop(env):
+    child_code = """
+stored_len: public(uint256)
+popped: public(uint256)
+
+@deploy
+def __init__(xs: DynArray[uint256, INF], popped: uint256):
+    self.stored_len = len(xs)
+    self.popped = popped
+    """
+    out = _compile_venom(child_code, ["bytecode"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+
+    deployer_code = """
+@external
+def deploy(s: Bytes[INF], values: DynArray[uint256, INF]) -> address:
+    xs: DynArray[uint256, INF] = values
+    return raw_create(s, xs, xs.pop())
+    """
+
+    deployer = _deploy_venom(env, deployer_code)
+    ret = _call(
+        env,
+        deployer,
+        "deploy(bytes,uint256[])",
+        "(bytes,uint256[])",
+        (initcode, [11, 22, 33]),
+    )
+    addr = abi_decode("(address)", ret)[0]
+
+    ret = env.message_call(addr, data=method_id("stored_len()"))
+    assert abi_decode("(uint256)", ret) == (3,)
+    ret = env.message_call(addr, data=method_id("popped()"))
+    assert abi_decode("(uint256)", ret) == (33,)
+
+
 def test_inf_dynarray_internal_tuple_return_coerces_bounded_complex_member(env):
     payload = bytes((i * 49) % 256 for i in range(2001))
     code = """

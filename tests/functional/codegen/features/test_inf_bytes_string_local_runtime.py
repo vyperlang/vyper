@@ -1,9 +1,12 @@
 import hashlib
 import json
 
+import pytest
+
 from tests.evm_backends.abi import abi_decode, abi_encode
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings, VenomOptimizationFlags
+from vyper.exceptions import StructureException
 from vyper.utils import EIP_3860_LIMIT, method_id
 
 
@@ -500,6 +503,23 @@ def get(addr: address) -> (uint256, Bytes[INF]):
     target = _deploy_raw_returner(env, abi_encode("(uint256,bytes)", (9, b"live")))
     ret = _call(env, caller, "get(address)", "address", target.address)
     assert abi_decode("(uint256,bytes)", ret) == (9, b"live")
+
+
+def test_inf_bytes_staticcall_tuple_default_return_value_from_bounded_local(env):
+    caller_code = """
+interface Source:
+    def pair() -> (uint256, Bytes[INF]): view
+
+@external
+def get(addr: address) -> (uint256, Bytes[INF]):
+    d: (uint256, Bytes[8]) = (7, b"fallback")
+    return staticcall Source(addr).pair(default_return_value=d)
+    """
+
+    caller = _deploy_venom(env, caller_code)
+    empty_target = _deploy_raw_returner(env, b"")
+    ret = _call(env, caller, "get(address)", "address", empty_target.address)
+    assert abi_decode("(uint256,bytes)", ret) == (7, b"fallback")
 
 
 def test_inf_bytes_extcall_tuple_return_roundtrip(env):
@@ -1735,6 +1755,28 @@ def deploy(target: address, args: Bytes[INF]) -> address:
     addr = abi_decode("(address)", ret)[0]
     ret = env.message_call(addr, data=method_id("get()"))
     assert abi_decode("(bytes)", ret) == (payload,)
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        "raw_create(s, (x, y))",
+        "create_from_blueprint(target, (x, y))",
+    ],
+)
+def test_create_rejects_nested_inf_ctor_arg(call):
+    target_arg = "target: address, " if call.startswith("create_from_blueprint") else ""
+    code = f"""
+@external
+def deploy({target_arg}s: Bytes[INF], x: Bytes[INF], y: uint256) -> address:
+    return {call}
+    """
+
+    with pytest.raises(
+        StructureException,
+        match="constructor arguments cannot contain nested unbounded sequence types",
+    ):
+        compile_code(code, settings=_venom_settings())
 
 
 def test_inf_bytes_raw_log_data(env):

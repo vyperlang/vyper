@@ -293,6 +293,50 @@ class VenomCodegenContext:
 
         return self.dynamic_tuple_frame_value(frame, typ, annotation=annotation)
 
+    def dynamic_tuple_frame_from_value(
+        self, vv: VyperValue, typ: TupleT, annotation: Optional[str] = None
+    ) -> VyperValue:
+        """Materialize a tuple value into the Venom dynamic tuple frame layout."""
+        assert self.is_dynamic_tuple_frame_type(typ)
+
+        if self.is_dynamic_tuple_frame_type(vv.typ):
+            return vv
+
+        if not isinstance(vv.typ, TupleT):  # pragma: nocover
+            raise CompilerPanic(f"expected tuple default value, got {vv.typ}")
+
+        src = self.unwrap(vv)
+        assert isinstance(src, IRVariable)
+        frame = self.allocate_scratch(IRLiteral(self.dynamic_tuple_frame_size(typ)))
+
+        src_offset = 0
+        member_pairs = zip(vv.typ.member_types, typ.member_types)
+        for i, (src_member_t, dst_member_t) in enumerate(member_pairs):
+            cell = self.builder.add(frame, IRLiteral(i * 32))
+            src_member = self.builder.add(src, IRLiteral(src_offset))
+            assert isinstance(src_member, IRVariable)
+
+            if dst_member_t._is_prim_word:
+                value = self.load_memory(src_member, src_member_t)
+            else:
+                src_vv = self.dynamic_memory_value(
+                    src_member,
+                    src_member_t,
+                    annotation=f"{annotation}.{i}" if annotation else None,
+                )
+                if self.is_unbounded_sequence_type(dst_member_t):
+                    member_vv = self.copy_sequence_to_scratch(
+                        src_vv, dst_member_t, annotation=annotation
+                    )
+                else:
+                    member_vv = self.materialize_value(src_vv, dst_member_t, annotation=annotation)
+                value = self.unwrap(member_vv)
+
+            self.builder.mstore(cell, value)
+            src_offset += src_member_t.memory_bytes_required
+
+        return self.dynamic_tuple_frame_value(frame, typ, annotation=annotation)
+
     def load_pointer_cell_value(self, var: LocalVariable) -> VyperValue:
         """Load the current dynamic memory pointer from a pointer-cell local."""
         ptr = self.ptr_load(var.value.ptr())

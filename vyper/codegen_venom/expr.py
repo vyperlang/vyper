@@ -1806,7 +1806,7 @@ class Expr:
         """
         return self._lower_external_call()
 
-    def _parse_external_call_kwargs(self, call_node) -> _CallKwargs:
+    def _parse_external_call_kwargs(self, call_node, return_t: VyperType | None) -> _CallKwargs:
         """Parse keyword arguments for external calls.
 
         Handles: value, gas, skip_contract_check, default_return_value
@@ -1839,6 +1839,11 @@ class Expr:
                 if default_vv.typ._is_prim_word:
                     default_return_value = VyperValue.from_stack_op(
                         self.ctx.unwrap(default_vv), default_vv.typ
+                    )
+                elif return_t is not None and self.ctx.is_dynamic_tuple_frame_type(return_t):
+                    assert isinstance(return_t, TupleT)
+                    default_return_value = self.ctx.dynamic_tuple_frame_from_value(
+                        default_vv, return_t, annotation="external call default_return_value"
                     )
                 elif self.ctx.is_dynamic_tuple_frame_type(default_vv.typ):
                     default_return_value = default_vv
@@ -1918,7 +1923,7 @@ class Expr:
             )
 
         # Parse kwargs
-        call_kwargs = self._parse_external_call_kwargs(call_node)
+        call_kwargs = self._parse_external_call_kwargs(call_node, return_t)
 
         # Calculate buffer size needed.
         # Use concrete types from the lowered argument values, not the interface's
