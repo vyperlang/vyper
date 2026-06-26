@@ -30,13 +30,9 @@ from vyper.warnings import Deprecation, vyper_warn
 # user defined type
 class _UserType(VyperType):
     def __init__(self, members=None, *, validate_member_identifiers: bool = True):
-        if validate_member_identifiers:
-            super().__init__(members=members)
-        else:
-            super().__init__(members=None)
-            for k, v in (members or {}).items():
-                self._check_add_member(k)
-                self.members[k] = v
+        super().__init__(
+            members=members, validate_member_identifiers=validate_member_identifiers
+        )
 
         if members is not None:
             for mt in members.values():
