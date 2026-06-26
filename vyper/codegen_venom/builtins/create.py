@@ -13,10 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
-from vyper.codegen_venom.abi import (
-    abi_encode_values_to_buf,
-    runtime_abi_size_for_encode,
-)
+from vyper.codegen_venom.abi import abi_encode_values_to_buf, runtime_abi_size_for_encode
 from vyper.exceptions import UnfoldableNode
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.semantics.data_locations import DataLocation
@@ -183,10 +180,7 @@ def _prepare_ctor_args(ctx: VenomCodegenContext, ctor_arg_nodes: list[vy_ast.Vyp
 
 
 def _encode_ctor_args_to_buf(
-    ctx: VenomCodegenContext,
-    dst: IRVariable,
-    ctor_tuple_typ: TupleT,
-    ctor_arg_vvs,
+    ctx: VenomCodegenContext, dst: IRVariable, ctor_tuple_typ: TupleT, ctor_arg_vvs
 ) -> IROperand:
     return abi_encode_values_to_buf(ctx, dst, ctor_arg_vvs, ctor_tuple_typ)
 

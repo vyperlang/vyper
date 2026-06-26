@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
     from vyper.codegen_venom.value import VyperValue
 
+
 def runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IROperand:
     typ = arg_vv.typ
     if isinstance(typ, _BytestringT):

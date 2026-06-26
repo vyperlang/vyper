@@ -1418,10 +1418,7 @@ class Expr:
             arg_vv = Expr(arg_node, self.ctx).lower()
             arg_vals.append(
                 self.ctx.snapshot_value_for_delayed_use(
-                    arg_vv,
-                    arg_t.typ,
-                    annotation=arg_t.name,
-                    copy_composites=True,
+                    arg_vv, arg_t.typ, annotation=arg_t.name, copy_composites=True
                 )
             )
 
@@ -1912,10 +1909,7 @@ class Expr:
             arg_vv = Expr(arg, self.ctx).lower()
             arg_vals.append(
                 self.ctx.snapshot_value_for_delayed_use(
-                    arg_vv,
-                    arg_t.typ,
-                    annotation=arg_t.name,
-                    copy_composites=True,
+                    arg_vv, arg_t.typ, annotation=arg_t.name, copy_composites=True
                 )
             )
 
