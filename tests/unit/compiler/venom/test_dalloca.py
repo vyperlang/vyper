@@ -696,12 +696,10 @@ def test_dret_desugar_with_multiple_dynamic_buffers():
     assert _word(out, 3) == 22
 
 
-def test_dret_bad_return_order_can_clobber_later_source():
-    # producer contract: dret sources must be ordered so an earlier pack
-    # destination does not clobber a later source (the pack copies run in
-    # operand order). This pins the in-order pack semantics the contract is
-    # defined against -- the clobber observed here is the deterministic
-    # consequence of violating the contract, not supported behavior.
+def test_dret_bad_return_order_can_clobber_earlier_source():
+    # producer contract: dret sources must be ordered so pack destinations do
+    # not form a swap over live sources. The generated codegen order is safe;
+    # this manually invalid order documents the unsupported overlap case.
     out = _run_program("""
         function main {
             main:
@@ -722,9 +720,9 @@ def test_dret_bad_return_order_can_clobber_later_source():
                 mstore %b, 22
                 dret 2, %b, 32, %a, 32, %retpc
         }
-        """)
-    assert _word(out, 0) == 22
-    assert _word(out, 1) == 22
+    """)
+    assert _word(out, 0) == 11
+    assert _word(out, 1) == 11
 
 
 @pytest.mark.parametrize(("calldata", "expected_next"), [(b"", 0), (b"x" * 33, 64)])

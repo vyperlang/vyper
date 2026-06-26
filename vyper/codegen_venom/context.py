@@ -279,16 +279,11 @@ class VenomCodegenContext:
             if _is_dynamic_tuple_dynamic_member_type(member_t):
                 value = outputs[ordinary_count + dynamic_i]
                 dynamic_i += 1
-            elif member_t._is_prim_word:
+            elif not member_t._is_prim_word:  # pragma: nocover
+                raise CompilerPanic("non-primitive tuple return member must use a copied output")
+            else:
                 value = outputs[ordinary_i]
                 ordinary_i += 1
-            else:
-                ptr = outputs[ordinary_i]
-                ordinary_i += 1
-                assert isinstance(ptr, IRVariable)
-                vv = self.dynamic_memory_value(ptr, member_t, annotation=annotation)
-                vv = self.materialize_value(vv, member_t, annotation=annotation)
-                value = self.unwrap(vv)
             self.builder.mstore(cell, value)
 
         return self.dynamic_tuple_frame_value(frame, typ, annotation=annotation)

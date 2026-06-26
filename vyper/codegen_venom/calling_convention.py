@@ -42,7 +42,7 @@ def is_dynamic_tuple_return_type(typ: VyperType | None) -> bool:
 
 
 def is_dynamic_tuple_dynamic_member_type(typ: VyperType) -> bool:
-    return is_unbounded_sequence_type(typ)
+    return is_unbounded_sequence_type(typ) or not typ._is_prim_word
 
 
 def validate_dynamic_tuple_return_type(typ: VyperType | None) -> None:
@@ -70,7 +70,7 @@ def is_word_type(typ: VyperType) -> bool:
 
 
 def returns_dynamic_count(func_t) -> int:
-    """How many runtime-sized memory pointers are returned via `dret`."""
+    """How many memory-copy return pairs are returned via `dret`."""
     ret_t = func_t.return_type
     if is_unbounded_sequence_type(ret_t):
         return 1

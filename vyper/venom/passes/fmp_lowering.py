@@ -879,7 +879,10 @@ class DretDesugarPass(IRPass):
         _copy_metadata(inst, new_fmp_inst)
         lowered.append(new_fmp_inst)
 
-        for dst_op, (src, size) in zip(dsts, pairs, strict=True):
+        # Pack from high to low. The pack region starts at the callee entry
+        # FMP, so an earlier destination can overlap a later source allocated
+        # with dalloca inside the callee.
+        for dst_op, (src, size) in reversed(list(zip(dsts, pairs, strict=True))):
             lowered.extend(_copy_memory(self.function, dst_op, src, size, inst))
 
         setfmp_inst = IRInstruction("setfmp", [new_fmp], [])

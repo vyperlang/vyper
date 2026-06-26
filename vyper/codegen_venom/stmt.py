@@ -1165,25 +1165,23 @@ class Stmt:
                 continue
 
             assert member_ptr is not None
-            if is_dynamic_tuple_dynamic_member_type(dst_member_t):
-                size = self._dynamic_return_member_size(member_ptr, dst_member_t, src_member_t)
-                dynamic_return_operands.extend([member_ptr, size])
-                continue
-
-            if type_contains_unbounded_sequence(dst_member_t) or type_contains_unbounded_sequence(
-                src_member_t
+            if (
+                dst_member_t != src_member_t
+                and not type_contains_unbounded_sequence(dst_member_t)
+                and not type_contains_unbounded_sequence(src_member_t)
             ):
-                raise CompilerPanic(
-                    "semantic analysis should reject nested INF tuple internal returns"
-                )  # pragma: nocover
-
-            if dst_member_t != src_member_t:
                 normalized = self.ctx.new_temporary_value(dst_member_t)
                 assert isinstance(normalized.operand, IRVariable)
                 self.ctx.store_memory(
                     member_ptr, normalized.operand, dst_member_t, src_typ=src_member_t
                 )
                 member_ptr = normalized.operand
+                src_member_t = dst_member_t
+
+            if is_dynamic_tuple_dynamic_member_type(dst_member_t):
+                size = self._dynamic_return_member_size(member_ptr, dst_member_t, src_member_t)
+                dynamic_return_operands.extend([member_ptr, size])
+                continue
 
             ordinary_returns.append(member_ptr)
 

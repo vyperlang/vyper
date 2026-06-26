@@ -21,6 +21,15 @@ def _opcodes(ctx):
     ]
 
 
+def _instructions(ctx):
+    return [
+        inst
+        for fn in ctx.functions.values()
+        for bb in fn.get_basic_blocks()
+        for inst in bb.instructions
+    ]
+
+
 def test_inf_bytes_local_emits_dalloca():
     code = """
 @external
@@ -78,6 +87,26 @@ def foo() -> Bytes[INF]:
 
     opcodes = _opcodes(_compile_frontend_ir(code))
     assert "dalloca" in opcodes
+
+
+def test_internal_dynamic_tuple_return_copies_bounded_member_with_dret():
+    code = """
+@internal
+def _pair(x: Bytes[INF]) -> (Bytes[4], Bytes[INF]):
+    return b"abcd", x
+
+@external
+def pair(x: Bytes[INF]) -> (Bytes[4], Bytes[INF]):
+    return self._pair(x)
+    """
+
+    insts = _instructions(_compile_frontend_ir(code))
+    dret_counts = [
+        inst.operands[0].value
+        for inst in insts
+        if inst.opcode == "dret" and isinstance(inst.operands[0], IRLiteral)
+    ]
+    assert 2 in dret_counts
 
 
 def test_msg_data_rvalue_emits_dalloca_and_calldatacopy():

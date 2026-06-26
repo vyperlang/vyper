@@ -1494,6 +1494,23 @@ def pair(x: Bytes[INF]) -> (Bytes[5], Bytes[INF]):
     assert abi_decode("(bytes,bytes)", ret) == (b"small", payload)
 
 
+def test_inf_bytes_internal_tuple_return_with_bounded_complex_member_after_inf(env):
+    payload = bytes((i * 97) % 256 for i in range(2001))
+    code = """
+@internal
+def _pair(x: Bytes[INF]) -> (Bytes[INF], Bytes[5]):
+    return x, b"small"
+
+@external
+def pair(x: Bytes[INF]) -> (Bytes[INF], Bytes[5]):
+    return self._pair(x)
+    """
+
+    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    ret = _call(env, c, "pair(bytes)", "(bytes)", (payload,))
+    assert abi_decode("(bytes,bytes)", ret) == (payload, b"small")
+
+
 def test_inf_bytes_internal_tuple_return_subscript(env):
     code = """
 @internal
