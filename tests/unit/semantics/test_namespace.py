@@ -94,3 +94,28 @@ def test_undeclared_definition_across_scopes(namespace):
             namespace["foo"] = 42
     with pytest.raises(UndeclaredDefinition):
         namespace["foo"]
+
+
+def test_namespace_collision_module_info_message(namespace):
+    """Module import collision should give a clear, actionable error message."""
+    from unittest.mock import MagicMock
+
+    # Simulate a ModuleInfo-like object: has module_t but no decl_node
+    mock_module_t = MagicMock()
+    mock_module_t._id = "snekmate/utils/math.vy"
+    mock_module_info = MagicMock()
+    mock_module_info.module_t = mock_module_t
+    mock_module_info.decl_node = None
+    del mock_module_info.decl_node  # ensure getattr returns None
+
+    with namespace.enter_scope():
+        # Directly set without triggering validate_assignment
+        super(type(namespace), namespace).__setitem__("math", mock_module_info)
+
+        with pytest.raises(NamespaceCollision) as excinfo:
+            namespace["math"] = 42
+
+    msg = str(excinfo.value)
+    assert "already imported as a module" in msg
+    assert "snekmate/utils/math.vy" in msg
+    assert "alias" in msg.lower()
