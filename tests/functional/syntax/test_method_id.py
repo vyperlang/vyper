@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import InvalidLiteral, InvalidType
+from vyper.exceptions import InvalidLiteral, InvalidType, StructureException
 
 fail_list = [
     (
@@ -31,7 +31,7 @@ FOO: constant(Bytes[4]) = method_id("bar ()")
 def f(s: String[20]) -> Bytes[4]:
     return method_id(s)
     """,
-        InvalidType,
+        StructureException,
     ),
 ]
 

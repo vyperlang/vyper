@@ -58,6 +58,7 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.base import Modifiability, StateMutability
 from vyper.semantics.analysis.utils import (
+    check_modifiability,
     get_common_types,
     get_exact_type_from_node,
     get_possible_types_from_node,
@@ -718,8 +719,9 @@ class MethodID(FoldedFunctionT):
     def _try_fold(self, node):
         validate_call_args(node, 1, ["output_type"])
 
-        value = node.args[0].reduced()
+        value = node.args[0].get_folded_value()
         if not isinstance(value, vy_ast.Str):
+            # Constant Folder runs before the type-checker, so incorrect types can show up
             raise InvalidType("method id must be given as a literal string", node.args[0])
         if " " in value.value:
             raise InvalidLiteral("Invalid function signature - no spaces allowed.", node.args[0])
@@ -739,6 +741,9 @@ class MethodID(FoldedFunctionT):
         return type_
 
     def infer_arg_types(self, node, expected_return_typ=None):
+        is_constant = check_modifiability(node.args[0], Modifiability.CONSTANT)
+        if not is_constant:
+            raise StructureException("Value must be a literal", node.args[0])
         return [self._inputs[0][1]]
 
     def infer_kwarg_types(self, node):
