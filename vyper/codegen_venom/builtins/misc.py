@@ -412,6 +412,17 @@ def _schema_string_value(ctx: "VenomCodegenContext", schema: bytes) -> tuple[Vyp
     return schema_vv, schema_vv.typ
 
 
+def _freeze_print_arg(ctx: "VenomCodegenContext", arg_vv: VyperValue) -> VyperValue:
+    """Snapshot a print argument before later arguments can mutate it."""
+    if arg_vv.typ._is_prim_word:
+        return VyperValue.from_stack_op(ctx.unwrap(arg_vv), arg_vv.typ)
+
+    if ctx.is_unbounded_sequence_type(arg_vv.typ):
+        return ctx.copy_sequence_to_scratch(arg_vv, arg_vv.typ, annotation="print")
+
+    return ctx.materialize_value(arg_vv, arg_vv.typ, annotation="print")
+
+
 def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     """
     print(*args, hardhat_compat=False) -> None
@@ -437,7 +448,10 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     arg_types = [arg._metadata["type"] for arg in node.args]
 
     if any(type_contains_unbounded_sequence(t) for t in arg_types):
-        arg_vals = [Expr(arg, ctx).lower() for arg in node.args]
+        arg_vals = []
+        for arg in node.args:
+            arg_vv = Expr(arg, ctx).lower()
+            arg_vals.append(_freeze_print_arg(ctx, arg_vv))
         tuple_t = TupleT(tuple(arg_types))
         args_abi_t = tuple_t.abi_type
         sig = "log(" + ",".join([t.abi_type.selector_name() for t in arg_types]) + ")"

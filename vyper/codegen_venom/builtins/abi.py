@@ -153,6 +153,17 @@ def _decode_unbounded_sequence_from_abi(
     raise CompilerPanic(f"expected unbounded sequence type, got {typ}")  # pragma: nocover
 
 
+def _freeze_abi_encode_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> VyperValue:
+    """Snapshot an argument before later arguments can mutate it."""
+    if arg_vv.typ._is_prim_word:
+        return VyperValue.from_stack_op(ctx.unwrap(arg_vv), arg_vv.typ)
+
+    if ctx.is_unbounded_sequence_type(arg_vv.typ):
+        return ctx.copy_sequence_to_scratch(arg_vv, arg_vv.typ, annotation="abi_encode")
+
+    return ctx.materialize_value(arg_vv, arg_vv.typ, annotation="abi_encode")
+
+
 def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     """
     abi_encode(*args, ensure_tuple=True, method_id=None) -> Bytes[N]
@@ -179,9 +190,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         arg_vals = []
         for arg in node.args:
             arg_vv = Expr(arg, ctx).lower()
-            if ctx.is_unbounded_sequence_type(arg_vv.typ):
-                arg_vv = ctx.copy_sequence_to_scratch(arg_vv, arg_vv.typ, annotation="abi_encode")
-            arg_vals.append(arg_vv)
+            arg_vals.append(_freeze_abi_encode_arg(ctx, arg_vv))
         if len(arg_vals) == 1 and not ensure_tuple:
             encode_type: VyperType = arg_types[0]
         else:

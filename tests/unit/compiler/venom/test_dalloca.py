@@ -696,10 +696,7 @@ def test_dret_desugar_with_multiple_dynamic_buffers():
     assert _word(out, 3) == 22
 
 
-def test_dret_bad_return_order_can_clobber_earlier_source():
-    # producer contract: dret sources must be ordered so pack destinations do
-    # not form a swap over live sources. The generated codegen order is safe;
-    # this manually invalid order documents the unsupported overlap case.
+def test_dret_desugar_handles_swapped_return_sources():
     out = _run_program("""
         function main {
             main:
@@ -721,7 +718,7 @@ def test_dret_bad_return_order_can_clobber_earlier_source():
                 dret 2, %b, 32, %a, 32, %retpc
         }
     """)
-    assert _word(out, 0) == 11
+    assert _word(out, 0) == 22
     assert _word(out, 1) == 11
 
 
@@ -1693,8 +1690,7 @@ def test_escaped_getfmp_capture_pins_reclaim():
 # reclaim bait at the first dalloca of the inlined body, *after* the cloned
 # `getfmp` captured the pack anchor. An engine without the capture veto
 # restores the FMP under the anchor, re-allocates %s1/%s2 beneath the pack
-# destinations, and the first pack copy clobbers %s2 before the second copy
-# reads it (w2 == 11 instead of 22).
+# and staging destinations, and the returned buffers can be corrupted.
 _PACK_ANCHOR_SRC = """
 function main {
     main:

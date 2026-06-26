@@ -274,6 +274,58 @@ def check(addr: address) -> (uint256, DynArray[uint256, INF]):
     assert abi_decode("(uint256,uint256[])", ret) == (33, [1, 2])
 
 
+def test_inf_dynarray_external_call_freezes_bounded_arg_in_runtime_encoding(env):
+    target_code = """
+@external
+@view
+def lengths(a: DynArray[uint256, 3], b: DynArray[uint256, INF], popped: uint256) -> uint256:
+    return len(a) * 100 + len(b) * 10 + popped
+    """
+    caller_code = """
+interface Target:
+    def lengths(
+        a: DynArray[uint256, 3],
+        b: DynArray[uint256, INF],
+        popped: uint256
+    ) -> uint256: view
+
+@external
+def check(addr: address) -> (uint256, DynArray[uint256, 3], DynArray[uint256, INF]):
+    a: DynArray[uint256, 3] = [4, 5, 6]
+    b: DynArray[uint256, INF] = [1, 2, 3]
+    r: uint256 = staticcall Target(addr).lengths(a, b, a.pop())
+    return r, a, b
+    """
+
+    target = _deploy_venom(env, target_code)
+    caller = _deploy_venom(env, caller_code)
+    ret = _call(env, caller, "check(address)", "(address)", (target.address,))
+    assert abi_decode("(uint256,uint256[],uint256[])", ret) == (336, [4, 5], [1, 2, 3])
+
+
+def test_inf_dynarray_internal_call_freezes_bounded_arg_in_runtime_encoding(env):
+    code = """
+@internal
+def _lengths(
+    a: DynArray[uint256, 3],
+    b: DynArray[uint256, INF],
+    popped: uint256
+) -> uint256:
+    return len(a) * 100 + len(b) * 10 + popped
+
+@external
+def check() -> (uint256, DynArray[uint256, 3], DynArray[uint256, INF]):
+    a: DynArray[uint256, 3] = [4, 5, 6]
+    b: DynArray[uint256, INF] = [1, 2, 3]
+    r: uint256 = self._lengths(a, b, a.pop())
+    return r, a, b
+    """
+
+    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    ret = _call(env, c, "check()")
+    assert abi_decode("(uint256,uint256[],uint256[])", ret) == (336, [4, 5], [1, 2, 3])
+
+
 def test_inf_dynarray_tuple_literal_return_freezes_member_before_later_mutation(env):
     code = """
 @external
@@ -301,6 +353,24 @@ def check() -> (Bytes[INF], DynArray[uint256, INF]):
     encoded, arr = abi_decode("(bytes,uint256[])", ret)
     assert abi_decode("(uint256[],uint256)", encoded) == ([1, 2, 3], 3)
     assert arr == [1, 2]
+
+
+def test_inf_dynarray_abi_encode_freezes_bounded_arg_in_runtime_encoding(env):
+    code = """
+@external
+def check() -> (Bytes[INF], DynArray[uint256, 3], DynArray[uint256, INF]):
+    a: DynArray[uint256, 3] = [4, 5, 6]
+    b: DynArray[uint256, INF] = [1, 2, 3]
+    encoded: Bytes[INF] = abi_encode(a, b, a.pop())
+    return encoded, a, b
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "check()")
+    encoded, bounded, unbounded = abi_decode("(bytes,uint256[],uint256[])", ret)
+    assert abi_decode("(uint256[],uint256[],uint256)", encoded) == ([4, 5, 6], [1, 2, 3], 6)
+    assert bounded == [4, 5]
+    assert unbounded == [1, 2, 3]
 
 
 def test_inf_dynarray_pop_runtime(env, tx_failed):
@@ -843,6 +913,48 @@ def deploy(s: Bytes[INF], values: DynArray[uint256, INF]) -> address:
     assert abi_decode("(uint256)", ret) == (3,)
     ret = env.message_call(addr, data=method_id("popped()"))
     assert abi_decode("(uint256)", ret) == (33,)
+
+
+def test_inf_dynarray_raw_create_freezes_bounded_ctor_arg_in_runtime_encoding(env):
+    child_code = """
+stored_len_a: public(uint256)
+stored_len_b: public(uint256)
+popped: public(uint256)
+
+@deploy
+def __init__(
+    a: DynArray[uint256, 3],
+    b: DynArray[uint256, INF],
+    popped: uint256
+):
+    self.stored_len_a = len(a)
+    self.stored_len_b = len(b)
+    self.popped = popped
+    """
+    out = _compile_venom(child_code, ["bytecode"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+
+    deployer_code = """
+@external
+def deploy(s: Bytes[INF]) -> (address, DynArray[uint256, 3], DynArray[uint256, INF]):
+    a: DynArray[uint256, 3] = [4, 5, 6]
+    b: DynArray[uint256, INF] = [1, 2, 3]
+    addr: address = raw_create(s, a, b, a.pop())
+    return addr, a, b
+    """
+
+    deployer = _deploy_venom(env, deployer_code)
+    ret = _call(env, deployer, "deploy(bytes)", "(bytes)", (initcode,))
+    addr, bounded, unbounded = abi_decode("(address,uint256[],uint256[])", ret)
+    assert bounded == [4, 5]
+    assert unbounded == [1, 2, 3]
+
+    ret = env.message_call(addr, data=method_id("stored_len_a()"))
+    assert abi_decode("(uint256)", ret) == (3,)
+    ret = env.message_call(addr, data=method_id("stored_len_b()"))
+    assert abi_decode("(uint256)", ret) == (3,)
+    ret = env.message_call(addr, data=method_id("popped()"))
+    assert abi_decode("(uint256)", ret) == (6,)
 
 
 def test_inf_dynarray_internal_tuple_return_coerces_bounded_complex_member(env):

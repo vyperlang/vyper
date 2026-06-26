@@ -1545,6 +1545,22 @@ def mix(x: Bytes[INF], y: String[INF]) -> (Bytes[INF], uint256, String[INF]):
     assert abi_decode("(bytes,uint256,string)", ret) == (payload, 23, text)
 
 
+def test_inf_bytes_internal_tuple_return_swapped_dynamic_sources(env):
+    code = """
+@internal
+def _swap(x: Bytes[INF], y: Bytes[INF]) -> (Bytes[INF], Bytes[INF]):
+    return y, x
+
+@external
+def swap(x: Bytes[INF], y: Bytes[INF]) -> (Bytes[INF], Bytes[INF]):
+    return self._swap(x, y)
+    """
+
+    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    ret = _call(env, c, "swap(bytes,bytes)", "(bytes,bytes)", (b"first", b"second value"))
+    assert abi_decode("(bytes,bytes)", ret) == (b"second value", b"first")
+
+
 def test_inf_bytes_internal_tuple_return_many_ordinary_members(env):
     payload = bytes((i * 95) % 256 for i in range(2001))
     code = """

@@ -1417,10 +1417,18 @@ class Expr:
         # allocate staging buffers, avoiding corruption.
         # See legacy codegen: vyper/codegen/self_call.py (contains_self_call handling)
         arg_vals: list[VyperValue] = []
+        freeze_composites = any(
+            type_contains_unbounded_sequence(arg.typ) for arg in func_t.arguments
+        )
         for arg_node, arg_t in zip(all_arg_nodes, func_t.arguments):
             arg_vv = Expr(arg_node, self.ctx).lower()
             arg_vals.append(
-                self._freeze_unbounded_sequence_arg(arg_vv, arg_t.typ, annotation=arg_t.name)
+                self._freeze_call_arg(
+                    arg_vv,
+                    arg_t.typ,
+                    annotation=arg_t.name,
+                    freeze_composites=freeze_composites,
+                )
             )
 
         # Now allocate staging buffers and copy evaluated values
@@ -1440,7 +1448,7 @@ class Expr:
                 # Memory-passed arg: pass a pointer to a stable memory snapshot.
                 # Backend passes can forward safe readonly bounded arguments.
                 if self.ctx.is_unbounded_sequence_type(arg_t.typ):
-                    # _freeze_unbounded_sequence_arg already copied this value
+                    # _freeze_call_arg already copied this value.
                     # after argument evaluation. Pass that stable snapshot
                     # directly instead of staging the same buffer twice.
                     assert isinstance(arg_op, IRVariable)
@@ -1871,14 +1879,21 @@ class Expr:
     def _external_call_args_need_runtime_encoding(self, arg_vals: list[VyperValue]) -> bool:
         return any(self.ctx.is_unbounded_sequence_type(arg_vv.typ) for arg_vv in arg_vals)
 
-    def _freeze_unbounded_sequence_arg(
-        self, arg_vv: VyperValue, target_typ: VyperType, annotation: str
+    def _freeze_call_arg(
+        self,
+        arg_vv: VyperValue,
+        target_typ: VyperType,
+        annotation: str,
+        *,
+        freeze_composites: bool = False,
     ) -> VyperValue:
-        """Copy INF sequence args before later arguments can mutate their source."""
+        """Snapshot call args before later arguments can mutate their source."""
         target_is_unbounded = self.ctx.is_unbounded_sequence_type(target_typ)
         if target_is_unbounded or self.ctx.is_unbounded_sequence_type(arg_vv.typ):
             copy_typ = target_typ if target_is_unbounded else arg_vv.typ
             return self.ctx.copy_sequence_to_scratch(arg_vv, copy_typ, annotation=annotation)
+        if freeze_composites and not arg_vv.typ._is_prim_word:
+            return self.ctx.materialize_value(arg_vv, arg_vv.typ, annotation=annotation)
         return arg_vv
 
     def _lower_external_call(self) -> VyperValue:
@@ -1916,10 +1931,18 @@ class Expr:
 
         # Evaluate arguments.
         arg_vals: list[VyperValue] = []
+        freeze_composites = any(
+            type_contains_unbounded_sequence(arg.typ) for arg in fn_type.arguments
+        )
         for arg, arg_t in zip(call_node.args, fn_type.arguments):
             arg_vv = Expr(arg, self.ctx).lower()
             arg_vals.append(
-                self._freeze_unbounded_sequence_arg(arg_vv, arg_t.typ, annotation=arg_t.name)
+                self._freeze_call_arg(
+                    arg_vv,
+                    arg_t.typ,
+                    annotation=arg_t.name,
+                    freeze_composites=freeze_composites,
+                )
             )
 
         # Parse kwargs
