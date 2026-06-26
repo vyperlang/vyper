@@ -320,9 +320,7 @@ class VenomCodegenContext:
                 value = self.load_memory(src_member, src_member_t)
             else:
                 src_vv = self.dynamic_memory_value(
-                    src_member,
-                    src_member_t,
-                    annotation=f"{annotation}.{i}" if annotation else None,
+                    src_member, src_member_t, annotation=f"{annotation}.{i}" if annotation else None
                 )
                 if self.is_unbounded_sequence_type(dst_member_t):
                     member_vv = self.copy_sequence_to_scratch(

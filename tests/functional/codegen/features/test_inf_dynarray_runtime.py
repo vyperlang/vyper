@@ -835,11 +835,7 @@ def deploy(s: Bytes[INF], values: DynArray[uint256, INF]) -> address:
 
     deployer = _deploy_venom(env, deployer_code)
     ret = _call(
-        env,
-        deployer,
-        "deploy(bytes,uint256[])",
-        "(bytes,uint256[])",
-        (initcode, [11, 22, 33]),
+        env, deployer, "deploy(bytes,uint256[])", "(bytes,uint256[])", (initcode, [11, 22, 33])
     )
     addr = abi_decode("(address)", ret)[0]
 

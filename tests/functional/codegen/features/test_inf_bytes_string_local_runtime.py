@@ -1757,13 +1757,7 @@ def deploy(target: address, args: Bytes[INF]) -> address:
     assert abi_decode("(bytes)", ret) == (payload,)
 
 
-@pytest.mark.parametrize(
-    "call",
-    [
-        "raw_create(s, (x, y))",
-        "create_from_blueprint(target, (x, y))",
-    ],
-)
+@pytest.mark.parametrize("call", ["raw_create(s, (x, y))", "create_from_blueprint(target, (x, y))"])
 def test_create_rejects_nested_inf_ctor_arg(call):
     target_arg = "target: address, " if call.startswith("create_from_blueprint") else ""
     code = f"""
