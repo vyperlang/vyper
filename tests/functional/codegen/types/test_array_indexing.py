@@ -2,13 +2,6 @@
 
 import pytest
 
-from vyper.compiler import compile_code
-
-
-def _xfail_legacy_codegen(experimental_codegen):
-    if not experimental_codegen:
-        pytest.xfail("legacy codegen still rejects risky subscript overlap")
-
 
 def _abi_fn(name, return_type):
     return {
@@ -18,12 +11,6 @@ def _abi_fn(name, return_type):
         "outputs": [{"name": "", "type": return_type}],
         "stateMutability": "nonpayable",
     }
-
-
-def _deploy_contract(env, code, compiler_settings, abi):
-    out = compile_code(code, output_formats=("bytecode",), settings=compiler_settings)
-    bytecode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
-    return env.deploy(abi, bytecode)
 
 
 def test_negative_ix_access(get_contract, tx_failed):
@@ -157,8 +144,9 @@ def foo():
         assert c.arr(i) == i
 
 
-def test_array_index_overlap(env, compiler_settings, experimental_codegen):
-    _xfail_legacy_codegen(experimental_codegen)
+def test_array_index_overlap(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen still rejects risky subscript overlap")
 
     code = """
 a: public(DynArray[DynArray[Bytes[96], 5], 5])
@@ -175,12 +163,13 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    c = _deploy_contract(env, code, compiler_settings, [_abi_fn("foo", "bytes")])
+    c = get_contract(code, output_formats=("bytecode",), abi=[_abi_fn("foo", "bytes")])
     assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
-def test_array_index_overlap_extcall(env, compiler_settings, experimental_codegen):
-    _xfail_legacy_codegen(experimental_codegen)
+def test_array_index_overlap_extcall(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen still rejects risky subscript overlap")
 
     code = """
 
@@ -201,12 +190,13 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    c = _deploy_contract(env, code, compiler_settings, [_abi_fn("foo", "bytes")])
+    c = get_contract(code, output_formats=("bytecode",), abi=[_abi_fn("foo", "bytes")])
     assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
-def test_array_index_overlap_extcall2(env, compiler_settings, experimental_codegen):
-    _xfail_legacy_codegen(experimental_codegen)
+def test_array_index_overlap_extcall2(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen still rejects risky subscript overlap")
 
     code = """
 interface B:
@@ -224,13 +214,14 @@ def calculate_index() -> uint256:
     self.a[0] = [1]
     return 0
     """
-    c = _deploy_contract(env, code, compiler_settings, [_abi_fn("bar", "uint256")])
+    c = get_contract(code, output_formats=("bytecode",), abi=[_abi_fn("bar", "uint256")])
 
     assert c.bar() == 1
 
 
-def test_array_index_overlap_pop(env, compiler_settings, experimental_codegen, tx_failed):
-    _xfail_legacy_codegen(experimental_codegen)
+def test_array_index_overlap_pop(get_contract, experimental_codegen, tx_failed):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen still rejects risky subscript overlap")
 
     code = """
 a: DynArray[uint256, 5]
@@ -240,7 +231,7 @@ def foo() -> uint256:
     self.a = [1, 1]
     return self.a[self.a.pop()]
     """
-    c = _deploy_contract(env, code, compiler_settings, [_abi_fn("foo", "uint256")])
+    c = get_contract(code, output_formats=("bytecode",), abi=[_abi_fn("foo", "uint256")])
 
     with tx_failed():
         c.foo()

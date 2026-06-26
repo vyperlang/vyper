@@ -163,7 +163,7 @@ def _subscript_read_write_overlap(
     return _contains_risky_call(index_node)
 
 
-def _subscript_base_pointer_can_stale(base_node: vy_ast.VyperNode) -> bool:
+def _subscript_base_length_can_stale(base_node: vy_ast.VyperNode) -> bool:
     if not isinstance(base_node, vy_ast.Subscript):
         return False
 
@@ -944,7 +944,7 @@ class Expr:
         # through to their target.
         if (
             not self.as_ptr
-            and _subscript_base_pointer_can_stale(node.value)
+            and _subscript_base_length_can_stale(node.value)
             and _subscript_read_write_overlap(node.value, node.slice)
         ):
             base_vv = self.ctx.materialize_value(base_vv, base_typ)
