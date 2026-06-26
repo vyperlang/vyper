@@ -417,14 +417,18 @@ class VenomCodegenContext:
         in_bounds = b.iszero(b.gt(data_end, hi))
         b.assert_(b.and_(no_end_overflow, in_bounds))
 
-    def assert_abi_length_word_in_bounds(self, src: IROperand, hi: IROperand) -> IROperand:
-        """Assert ABI sequence length word `[src, src + 32)` is in bounds."""
+    def assert_abi_head_word_in_bounds(self, src: IROperand, hi: IROperand) -> IROperand:
+        """Assert ABI dynamic child head word `[src, src + 32)` is in bounds."""
         b = self.builder
         data_start = b.add(src, IRLiteral(32))
         no_start_overflow = b.iszero(b.lt(data_start, src))
-        has_length_word = b.iszero(b.gt(data_start, hi))
-        b.assert_(b.and_(no_start_overflow, has_length_word))
+        has_head_word = b.iszero(b.gt(data_start, hi))
+        b.assert_(b.and_(no_start_overflow, has_head_word))
         return data_start
+
+    def assert_abi_length_word_in_bounds(self, src: IROperand, hi: IROperand) -> IROperand:
+        """Assert ABI sequence length word `[src, src + 32)` is in bounds."""
+        return self.assert_abi_head_word_in_bounds(src, hi)
 
     def assert_abi_dynarray_payload_in_bounds(
         self,

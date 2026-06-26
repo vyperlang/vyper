@@ -1088,13 +1088,17 @@ def _materialize_unbounded_bytestring_abi_arg(
     assert ctx.is_unbounded_bytestring_type(typ)
     assert src.location is not None, "src must have a location for ABI decoding"
 
+    hi = _abi_arg_hi(ctx, src.location)
+    data_start = None
+    if hi is not None:
+        data_start = ctx.assert_abi_length_word_in_bounds(src.operand, hi)
+
     length = ctx.builder.load(src.operand, src.location)
     data_offset = ctx.builder.add(src.operand, IRLiteral(32))
-    hi = _abi_arg_hi(ctx, src.location)
 
     if src.location == DataLocation.CALLDATA:
         assert hi is not None
-        ctx.assert_abi_bytes_payload_in_bounds(src.operand, length, hi)
+        ctx.assert_abi_bytes_payload_in_bounds(src.operand, length, hi, data_start=data_start)
         return ctx.materialize_calldata_bytes(data_offset, length, typ, annotation=name)
 
     if src.location == DataLocation.CODE:

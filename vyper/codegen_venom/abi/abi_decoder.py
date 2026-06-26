@@ -165,6 +165,11 @@ def clamp_bytestring(
     """
     b = ctx.builder
     assert src.location is not None, "src must have a location for bytestring clamping"
+
+    data_start = None
+    if hi is not None:
+        data_start = ctx.assert_abi_length_word_in_bounds(src.operand, hi)
+
     length = b.load(src.operand, src.location)  # Length word at start
 
     # Check length <= maxlen. INF bytestrings have no type cap; callers pass
@@ -174,10 +179,10 @@ def clamp_bytestring(
 
     if hi is not None:
         if ctx.is_unbounded_bytestring_type(typ):
-            ctx.assert_abi_bytes_payload_in_bounds(src.operand, length, hi)
+            ctx.assert_abi_bytes_payload_in_bounds(src.operand, length, hi, data_start=data_start)
         else:
-            item_end = b.add(src.operand, IRLiteral(32))
-            item_end = b.add(item_end, length)
+            assert data_start is not None
+            item_end = b.add(data_start, length)
             b.assert_(b.iszero(b.gt(item_end, hi)))
 
 
@@ -195,6 +200,11 @@ def clamp_dyn_array(
     """
     b = ctx.builder
     assert src.location is not None, "src must have a location for dyn_array clamping"
+
+    data_start = None
+    if hi is not None:
+        data_start = ctx.assert_abi_length_word_in_bounds(src.operand, hi)
+
     count = b.load(src.operand, src.location)  # Count word at start
 
     # Check count <= max_count
@@ -204,11 +214,13 @@ def clamp_dyn_array(
     if hi is not None:
         elem_static_size = typ.value_type.abi_type.embedded_static_size()
         if ctx.is_unbounded_dynarray_type(typ):
-            ctx.assert_abi_dynarray_payload_in_bounds(src.operand, count, elem_static_size, hi)
+            ctx.assert_abi_dynarray_payload_in_bounds(
+                src.operand, count, elem_static_size, hi, data_start=data_start
+            )
         else:
+            assert data_start is not None
             payload_size = b.mul(count, IRLiteral(elem_static_size))
-            payload_size = b.add(payload_size, IRLiteral(32))
-            item_end = b.add(src.operand, payload_size)
+            item_end = b.add(data_start, payload_size)
             b.assert_(b.iszero(b.gt(item_end, hi)))
 
 
@@ -246,7 +258,7 @@ def _getelemptr_abi(
             # payload bounds are evaluated.
             b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
             if hi is not None:
-                ctx.assert_abi_length_word_in_bounds(actual_ptr, hi)
+                ctx.assert_abi_head_word_in_bounds(actual_ptr, hi)
         return _make_ptr_value(actual_ptr, loc, member_typ)
     else:
         # Static: data is inline
@@ -330,7 +342,11 @@ def decode_unbounded_dynarray_to_scratch(
             "with ABI-dynamic elements"
         )  # pragma: nocover
 
+    if hi is not None:
+        if data_start is None:
+            data_start = ctx.assert_abi_length_word_in_bounds(src.operand, hi)
     length = ctx.builder.load(src.operand, src.location)
+
     if hi is not None:
         elem_static_size = typ.value_type.abi_type.embedded_static_size()
         ctx.assert_abi_dynarray_payload_in_bounds(
@@ -419,7 +435,7 @@ def _decode_dyn_array(
             # Dynamic element offsets must not wrap below the DynArray payload.
             b.assert_(b.iszero(b.lt(elem_src_ptr, src_data)))
             if hi is not None:
-                ctx.assert_abi_length_word_in_bounds(elem_src_ptr, hi)
+                ctx.assert_abi_head_word_in_bounds(elem_src_ptr, hi)
     else:
         elem_src_ptr = b.add(src_data, b.mul(i, IRLiteral(elem_static_size)))
 
