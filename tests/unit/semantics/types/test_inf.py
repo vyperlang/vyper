@@ -465,6 +465,78 @@ def foo() -> DynArray[uint256, INF]:
 @pytest.mark.parametrize(
     "code",
     [
+        "a: Bytes[INF]",
+        "a: String[INF]",
+        "a: DynArray[uint256, INF]",
+        "a: transient(Bytes[INF])",
+        "a: transient(String[INF])",
+        "a: transient(DynArray[uint256, INF])",
+        """
+a: immutable(Bytes[INF])
+
+@deploy
+def __init__():
+    a = b""
+        """,
+        """
+a: immutable(String[INF])
+
+@deploy
+def __init__():
+    a = ""
+        """,
+        """
+a: immutable(DynArray[uint256, INF])
+
+@deploy
+def __init__():
+    a = []
+        """,
+    ],
+)
+def test_inf_module_variable_locations_rejected(code):
+    with pytest.raises(StructureException, match="Module variables cannot use unbounded"):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+
+
+@pytest.mark.parametrize(
+    ("typ", "message"),
+    [
+        (
+            "DynArray[Bytes[INF], INF]",
+            "DynArray element types cannot contain unbounded sequence types",
+        ),
+        (
+            "DynArray[DynArray[uint256, INF], INF]",
+            "DynArray element types cannot contain unbounded sequence types",
+        ),
+        (
+            "DynArray[Bytes[10], INF]",
+            "DynArray\\[\\.\\.\\., INF\\] is only supported with ABI-static element types",
+        ),
+        (
+            "DynArray[String[10], INF]",
+            "DynArray\\[\\.\\.\\., INF\\] is only supported with ABI-static element types",
+        ),
+        (
+            "DynArray[DynArray[uint256, 3], INF]",
+            "DynArray\\[\\.\\.\\., INF\\] is only supported with ABI-static element types",
+        ),
+    ],
+)
+def test_inf_deferred_dynarray_shapes_rejected(typ, message):
+    code = f"""
+@external
+def foo(x: {typ}):
+    pass
+    """
+    with pytest.raises(StructureException, match=message):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
         """
 @external
 def foo(x: Bytes[INF]) -> Bytes[INF]:

@@ -957,6 +957,48 @@ def deploy(s: Bytes[INF]) -> (address, DynArray[uint256, 3], DynArray[uint256, I
     assert abi_decode("(uint256)", ret) == (6,)
 
 
+def test_inf_dynarray_create_from_blueprint_unbounded_ctor_arg(env):
+    payload = [(i * 17) % 1000 for i in range(777)]
+    child_code = """
+stored_len: public(uint256)
+first: public(uint256)
+last: public(uint256)
+
+@deploy
+def __init__(x: DynArray[uint256, INF]):
+    self.stored_len = len(x)
+    self.first = x[0]
+    self.last = x[len(x) - 1]
+    """
+    out = _compile_venom(child_code, ["blueprint_bytecode"])
+    blueprint = env.deploy([], bytes.fromhex(out["blueprint_bytecode"].removeprefix("0x")))
+
+    deployer_code = """
+@external
+def deploy(target: address, x: DynArray[uint256, INF]) -> address:
+    return create_from_blueprint(target, x)
+    """
+
+    deployer = _deploy_venom(env, deployer_code)
+    ret = _call(
+        env,
+        deployer,
+        "deploy(address,uint256[])",
+        "(address,uint256[])",
+        (blueprint.address, payload),
+    )
+    addr = abi_decode("(address)", ret)[0]
+    assert abi_decode("(uint256)", env.message_call(addr, data=method_id("stored_len()"))) == (
+        len(payload),
+    )
+    assert abi_decode("(uint256)", env.message_call(addr, data=method_id("first()"))) == (
+        payload[0],
+    )
+    assert abi_decode("(uint256)", env.message_call(addr, data=method_id("last()"))) == (
+        payload[-1],
+    )
+
+
 def test_inf_dynarray_internal_tuple_return_coerces_bounded_complex_member(env):
     payload = bytes((i * 49) % 256 for i in range(2001))
     code = """

@@ -1194,6 +1194,19 @@ def join(x: Bytes[INF]) -> Bytes[INF]:
     assert abi_decode("(bytes)", ret) == (b"pre:" + payload + b":post",)
 
 
+def test_inf_string_concat_runtime_length(env):
+    payload = "concat string " * 170 + "tail"
+    code = """
+@external
+def join(x: String[INF]) -> String[INF]:
+    return concat("pre:", x, ":post")
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "join(string)", "(string)", (payload,))
+    assert abi_decode("(string)", ret) == ("pre:" + payload + ":post",)
+
+
 def test_inf_bytes_string_keccak256_runtime_length(env, keccak):
     payload = bytes((i * 81) % 256 for i in range(2001))
     text = "hash string " * 170 + "tail"
@@ -1629,6 +1642,22 @@ def second(x: Bytes[INF]) -> Bytes[3]:
     assert abi_decode("(bytes)", ret) == (b"cat",)
 
 
+def test_inf_string_internal_tuple_return_subscript(env):
+    code = """
+@internal
+def _pair(x: String[INF]) -> (uint256, String[INF]):
+    return 17, x
+
+@external
+def second(x: String[INF]) -> String[6]:
+    return slice(self._pair(x)[1], 0, 6)
+    """
+
+    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    ret = _call(env, c, "second(string)", "(string)", ("kitten",))
+    assert abi_decode("(string)", ret) == ("kitten",)
+
+
 def test_inf_bytes_string_internal_tuple_return_mixed_ordering(env):
     payload = bytes((i * 91) % 256 for i in range(2001))
     text = "mixed ordering " * 150 + "tail"
@@ -1967,6 +1996,66 @@ def deploy(target: address, args: Bytes[INF]) -> address:
     assert abi_decode("(bytes)", ret) == (payload,)
 
 
+def test_inf_string_raw_create_unbounded_ctor_arg(env):
+    payload = "raw create string " * 120 + "tail"
+    to_deploy_code = """
+stored_len: public(uint256)
+stored_hash: public(bytes32)
+
+@deploy
+def __init__(x: String[INF]):
+    self.stored_len = len(x)
+    self.stored_hash = sha256(x)
+    """
+    out = _compile_venom(to_deploy_code, ["bytecode"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+
+    deployer_code = """
+@external
+def deploy(s: Bytes[INF], x: String[INF]) -> address:
+    return raw_create(s, x)
+    """
+
+    deployer = _deploy_venom(env, deployer_code)
+    ret = _call(env, deployer, "deploy(bytes,string)", "(bytes,string)", (initcode, payload))
+    addr = abi_decode("(address)", ret)[0]
+    ret = env.message_call(addr, data=method_id("stored_len()"))
+    assert abi_decode("(uint256)", ret) == (len(payload),)
+    ret = env.message_call(addr, data=method_id("stored_hash()"))
+    assert abi_decode("(bytes32)", ret) == (hashlib.sha256(payload.encode()).digest(),)
+
+
+def test_inf_string_create_from_blueprint_unbounded_ctor_arg(env):
+    payload = "blueprint string " * 130 + "tail"
+    to_deploy_code = """
+stored_len: public(uint256)
+stored_hash: public(bytes32)
+
+@deploy
+def __init__(x: String[INF]):
+    self.stored_len = len(x)
+    self.stored_hash = sha256(x)
+    """
+    out = _compile_venom(to_deploy_code, ["blueprint_bytecode"])
+    blueprint = env.deploy([], bytes.fromhex(out["blueprint_bytecode"].removeprefix("0x")))
+
+    code = """
+@external
+def deploy(target: address, x: String[INF]) -> address:
+    return create_from_blueprint(target, x)
+    """
+
+    deployer = _deploy_venom(env, code)
+    ret = _call(
+        env, deployer, "deploy(address,string)", "(address,string)", (blueprint.address, payload)
+    )
+    addr = abi_decode("(address)", ret)[0]
+    ret = env.message_call(addr, data=method_id("stored_len()"))
+    assert abi_decode("(uint256)", ret) == (len(payload),)
+    ret = env.message_call(addr, data=method_id("stored_hash()"))
+    assert abi_decode("(bytes32)", ret) == (hashlib.sha256(payload.encode()).digest(),)
+
+
 @pytest.mark.parametrize("call", ["raw_create(s, (x, y))", "create_from_blueprint(target, (x, y))"])
 def test_create_rejects_nested_inf_ctor_arg(call):
     target_arg = "target: address, " if call.startswith("create_from_blueprint") else ""
@@ -2159,6 +2248,17 @@ def value() -> (uint256, Bytes[INF]):
 
     c = _deploy_venom(env, code)
     assert abi_decode("(uint256,bytes)", _call(env, c, "value()")) == (0, b"")
+
+
+def test_empty_inf_string_dynamic_tuple_builtin(env):
+    code = """
+@external
+def value() -> (uint256, String[INF]):
+    return empty((uint256, String[INF]))
+    """
+
+    c = _deploy_venom(env, code)
+    assert abi_decode("(uint256,string)", _call(env, c, "value()")) == (0, "")
 
 
 def test_inf_bytes_local_reassignment_larger_and_smaller(env):

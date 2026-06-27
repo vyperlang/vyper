@@ -54,6 +54,30 @@ def foo() -> Bytes[5]:
     assert "dalloca" not in opcodes
 
 
+def test_inf_string_local_emits_dalloca():
+    code = """
+@external
+def foo() -> String[5]:
+    x: String[INF] = "hello"
+    return slice(x, 0, 5)
+    """
+
+    opcodes = _opcodes(_compile_frontend_ir(code))
+    assert "dalloca" in opcodes
+
+
+def test_bounded_string_local_stays_static_alloca():
+    code = """
+@external
+def foo() -> String[5]:
+    x: String[5] = "hello"
+    return x
+    """
+
+    opcodes = _opcodes(_compile_frontend_ir(code))
+    assert "dalloca" not in opcodes
+
+
 def test_inf_dynarray_local_emits_dalloca():
     code = """
 @external
