@@ -316,6 +316,45 @@ def __init__(to_copy: address):
     assert c.b() == 0
 
 
+# GH issue 5053 (cf. GH issue 3101). dynamic (msize-based) memory allocation
+# before any other memory write in the constructor must not return a pointer
+# inside the immutables staging region. the constructor takes no arguments so
+# that nothing bumps msize before `create_copy_of` allocates its scratch
+# buffer; it then reads a not-yet-initialized immutable, which would observe
+# scratch garbage (the copied code) if the staging region was clobbered.
+def test_immutables_initialized3(get_contract, deploy_blueprint_for, env):
+    code = """
+a0: immutable(uint256[10])
+a: public(immutable(uint256))
+b: public(uint256)
+
+@deploy
+def __init__():
+    # copy whoever is deploying us - in this test, the factory contract
+    c: address = create_copy_of(msg.sender)
+    self.b = a0[1]
+    a = 12
+    a0 = empty(uint256[10])
+    """
+
+    factory_code = """
+created_address: public(address)
+
+@external
+def test(target: address):
+    self.created_address = create_from_blueprint(target)
+    """
+
+    blueprint, ContractFactory = deploy_blueprint_for(code)
+    factory = get_contract(factory_code)
+
+    factory.test(blueprint.address)
+    c = ContractFactory(factory.created_address())
+
+    assert c.b() == 0
+    assert c.a() == 12
+
+
 # GH issue 3292
 def test_internal_functions_called_by_ctor_location(get_contract):
     code = """
