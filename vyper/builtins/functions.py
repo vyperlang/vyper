@@ -82,6 +82,7 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT8_T, UINT256_T
+from vyper.semantics.types.user import FlagT
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import (
     DECIMAL_DIVISOR,
@@ -192,15 +193,118 @@ class Ceil(BuiltinFunctionT):
 
 
 class Convert(BuiltinFunctionT):
+    """
+    Built-in type for convert(value, target_type).
+
+    `_source_types_by_target_type` is target-keyed: the second argument's
+    destination type determines which first-argument source types it accepts.
+    """
+
     _id = "convert"
+    _source_types_by_target_type: dict[type, tuple[type, ...]] = {
+        BoolT: (IntegerT, DecimalT, BytesM_T, AddressT, BoolT, BytesT, StringT),
+        AddressT: (BytesM_T, IntegerT, BytesT),
+        IntegerT: (IntegerT, DecimalT, BytesM_T, AddressT, BoolT, FlagT, BytesT),
+        DecimalT: (IntegerT, BoolT, BytesM_T, BytesT),
+        BytesM_T: (IntegerT, DecimalT, BytesM_T, AddressT, BytesT, BoolT, FlagT),
+        BytesT: (StringT, BytesT),
+        StringT: (BytesT, StringT),
+    }
+
+    @staticmethod
+    def _convert_fail(value_type, target_type, node):
+        raise TypeMismatch(f"Can't convert {value_type} to {target_type}", node)
+
+    @classmethod
+    def _source_types_for_target(cls, target_type):
+        if isinstance(target_type, FlagT):
+            return (UINT256_T,)
+
+        allowed = cls._source_types_by_target_type.get(type(target_type))
+        if allowed is None:
+            return None
+
+        if isinstance(target_type, AddressT):
+            # addresses are unsigned, so only unsigned integer inputs are valid
+            return (BytesM_T.any(),) + IntegerT.unsigneds() + (BytesT.any(),)
+
+        if isinstance(target_type, IntegerT):
+            allowed = (IntegerT, DecimalT, BytesM_T.any(), BoolT, BytesT.any())
+            if not target_type.is_signed:
+                allowed += (AddressT,)
+            if target_type == UINT256_T:
+                # flags only convert to uint256
+                allowed += (FlagT,)
+            return allowed
+
+        if isinstance(target_type, BoolT):
+            return (
+                (IntegerT, DecimalT)
+                + (BytesM_T.any(),)
+                + (AddressT, BoolT)
+                + (BytesT.any(),)
+                + (StringT(32),)
+            )
+
+        if isinstance(target_type, DecimalT):
+            return (IntegerT, BoolT, BytesM_T.any(), BytesT.any())
+
+        if isinstance(target_type, BytesM_T):
+            allowed = []
+            allowed.extend(i for i in IntegerT.all() if i.bits <= target_type.m_bits)
+            if DecimalT().bits <= target_type.m_bits:
+                allowed.append(DecimalT)
+            allowed.append(BytesM_T.any())
+            if target_type.m_bits >= 160:
+                allowed.append(AddressT)
+            allowed.extend((BytesT(target_type.m), BoolT))
+            if target_type.m_bits == 256:
+                allowed.append(FlagT)
+            return tuple(allowed)
+
+        return allowed
+
+    @staticmethod
+    def _matches_source_type(value_type, target_type, allowed_type):
+        if isinstance(allowed_type, type):
+            matched = isinstance(value_type, allowed_type)
+        else:
+            matched = value_type.is_subtype_of(allowed_type)
+
+        if not matched:
+            return False
+
+        if isinstance(target_type, _BytestringT):
+            # widening a bytestring within the same class is not a real
+            # conversion -- the assignment is already legal without convert()
+            if (
+                isinstance(value_type, type(target_type))
+                and value_type.maxlen <= target_type.maxlen
+            ):
+                return False
+
+        return True
+
+    @classmethod
+    def _validate_type_pair(cls, value_type, target_type, node):
+        allowed = cls._source_types_for_target(target_type)
+        if allowed is None:
+            raise StructureException(f"Conversion to {target_type} is invalid.", node)
+
+        if any(cls._matches_source_type(value_type, target_type, i) for i in allowed):
+            return
+
+        cls._convert_fail(value_type, target_type, node)
 
     def fetch_call_return(self, node):
         _, target_typedef = self.infer_arg_types(node)
 
-        # note: more type conversion validation happens in convert.py
+        # note: value-dependent validation (e.g. literal range checks)
+        # happens in convert.py
         return target_typedef.typedef
 
-    # TODO: push this down into convert.py for more consistency
+    # TODO: push the literal type inference down into convert.py for
+    # more consistency
     def infer_arg_types(self, node, expected_return_typ=None):
         validate_call_args(node, 2)
 
@@ -230,6 +334,11 @@ class Convert(BuiltinFunctionT):
             raise CodegenPanic("convert not yet implemented for unbounded sequence type")
         if isinstance(value_type, DArrayT) and not is_bounded_length(value_type.count):
             raise CodegenPanic("convert not yet implemented for unbounded sequence type")
+
+        # Keep conversion legality in argument inference so callers cannot get
+        # a return type for an invalid source/target pair. This intentionally
+        # validates the expression's declared type before codegen constant folding.
+        self._validate_type_pair(value_type, target_type, node)
 
         return [value_type, TYPE_T(target_type)]
 
