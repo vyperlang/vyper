@@ -232,6 +232,24 @@ def build() -> DynArray[uint256, INF]:
     assert abi_decode("(uint256[])", ret) == ([i * i + 7 for i in range(64)],)
 
 
+def test_inf_dynarray_indexed_store(env, tx_failed):
+    code = """
+@external
+def set(i: uint256, val: uint256) -> DynArray[uint256, INF]:
+    x: DynArray[uint256, INF] = [10, 20, 30]
+    x[i] = val
+    return x
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "set(uint256,uint256)", "(uint256,uint256)", (1, 99))
+    assert abi_decode("(uint256[])", ret) == ([10, 99, 30],)
+
+    # indexed store into an INF dynarray retains the runtime out-of-bounds guard
+    with tx_failed():
+        _call(env, c, "set(uint256,uint256)", "(uint256,uint256)", (3, 99))
+
+
 def test_inf_dynarray_internal_call_freezes_arg_before_later_mutation(env):
     code = """
 @internal

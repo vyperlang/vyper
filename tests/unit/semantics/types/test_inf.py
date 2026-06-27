@@ -356,6 +356,14 @@ def foo(x: DynArray[uint256, INF][2]):
     """,
         StructureException,
     ),
+    (
+        """
+@external
+def foo(x: Bytes[INF][3]):
+    pass
+    """,
+        StructureException,
+    ),
     # Unbounded sequence types are not supported in HashMap keys
     (
         """
@@ -372,6 +380,13 @@ a: HashMap[String[INF], uint256]
     (
         """
 a: HashMap[uint256, HashMap[Bytes[INF], uint256]]
+    """,
+        StructureException,
+    ),
+    # Unbounded sequence types are not supported in HashMap values
+    (
+        """
+a: HashMap[uint256, Bytes[INF]]
     """,
         StructureException,
     ),
@@ -556,6 +571,11 @@ def foo(target: address, x: Bytes[INF]) -> address:
 @external
 def foo(x: Bytes[INF]) -> Bytes[INF]:
     return abi_decode(x, Bytes[INF])
+        """,
+        """
+@external
+def foo(x: Bytes[INF]):
+    print(x)
         """,
     ],
 )
