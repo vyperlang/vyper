@@ -102,7 +102,9 @@ class VyperType:
 
     decl_node: Optional[vy_ast.VyperNode] = None
 
-    def __init__(self, members: Optional[Dict] = None) -> None:
+    def __init__(
+        self, members: Optional[Dict] = None, *, validate_member_identifiers: bool = True
+    ) -> None:
         self.members: Dict = {}
 
         # add members that are on the class instance.
@@ -114,7 +116,11 @@ class VyperType:
 
         members = members or {}
         for k, v in members.items():
-            self.add_member(k, v)
+            if validate_member_identifiers:
+                self.add_member(k, v)
+            else:
+                self._check_add_member(k)
+                self.members[k] = v
 
     def _get_equality_attrs(self):
         return tuple(getattr(self, attr) for attr in self._equality_attrs)

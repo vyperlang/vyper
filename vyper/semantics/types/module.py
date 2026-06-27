@@ -59,10 +59,10 @@ class InterfaceT(_UserType):
             flags
         )
 
+        self._id = _id
         super().__init__(functions)
 
         self._helper = VyperType(events | errors | structs | flags)
-        self._id = _id
         self._helper._id = _id
         self.functions = functions
         self.events = events

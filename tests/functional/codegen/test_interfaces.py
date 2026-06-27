@@ -5,7 +5,13 @@ from eth_utils import to_wei
 
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code, compile_from_file_input
-from vyper.exceptions import CodegenPanic, DuplicateImport, InterfaceViolation, NamespaceCollision
+from vyper.exceptions import (
+    CodegenPanic,
+    DuplicateImport,
+    InterfaceViolation,
+    NamespaceCollision,
+    StructureException,
+)
 
 
 # TODO CMC 2024-10-13: this should probably be in tests/unit/compiler/
@@ -149,6 +155,85 @@ def bar() -> uint256:
     assert compile_code(main, input_bundle=input_bundle) is not None
 
 
+def test_json_interface_event_without_indexed(make_input_bundle):
+    event_abi = [
+        {
+            "type": "event",
+            "name": "Transfer",
+            "inputs": [
+                {"name": "from", "type": "address"},
+                {"name": "to", "type": "address"},
+                {"name": "value", "type": "uint256"},
+            ],
+        }
+    ]
+
+    input_bundle = make_input_bundle({"token.json": json.dumps(event_abi)})
+
+    main = """
+import token as Token
+
+@external
+def foo() -> bool:
+    return True
+    """
+
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_json_interface_event_duplicate_input_names(make_input_bundle):
+    event_abi = [
+        {
+            "type": "event",
+            "name": "Transfer",
+            "inputs": [
+                {"name": "from", "type": "address"},
+                {"name": "from", "type": "address"},
+                {"name": "value", "type": "uint256"},
+            ],
+        }
+    ]
+
+    input_bundle = make_input_bundle({"token.json": json.dumps(event_abi)})
+
+    main = """
+import token as Token
+
+@external
+def foo() -> bool:
+    return True
+    """
+
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_json_interface_function_name_conflicts_with_builtin_member(make_input_bundle):
+    abi = [
+        {
+            "type": "function",
+            "name": "address",
+            "inputs": [],
+            "outputs": [{"type": "address"}],
+            "stateMutability": "view",
+        }
+    ]
+
+    input_bundle = make_input_bundle({"token.json": json.dumps(abi)})
+
+    main = """
+import token as Token
+
+@external
+def foo() -> bool:
+    return True
+    """
+
+    with pytest.raises(NamespaceCollision) as exc:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert exc.value.message == "Member 'address' already exists in token.json"
+
+
 VALID_IMPORT_CODE = [
     # import statement, import path without suffix
     ("import a as Foo", "a.vyi"),
@@ -266,6 +351,33 @@ def bar() -> uint256:
     file_input = input_bundle.load_file("pkg/main.vy")
     with pytest.raises(DuplicateImport):
         compile_from_file_input(file_input, input_bundle=input_bundle)
+
+
+def test_json_interface_invalid_state_mutability(make_input_bundle):
+    bad_abi = [
+        {
+            "type": "function",
+            "name": "foo",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "banana",
+        }
+    ]
+    code = """
+import bad_mut as ifc
+
+@external
+def f(addr: address):
+    extcall ifc(addr).foo()
+    """
+
+    input_bundle = make_input_bundle({"bad_mut.json": json.dumps(bad_abi)})
+    with pytest.raises(StructureException) as exc_info:
+        compile_code(code, input_bundle=input_bundle)
+    assert exc_info.value.message == (
+        "Invalid stateMutability 'banana': "
+        "expected one of ['pure', 'view', 'nonpayable', 'payable']"
+    )
 
 
 def test_external_call_to_interface(env, get_contract, make_input_bundle):
