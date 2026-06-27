@@ -1689,8 +1689,8 @@ def __init__():
     """
     c = get_contract(code)
 
-    for i, l in enumerate([[1, 2, 3]]):
-        for j, t in enumerate(l):
+    for i, row in enumerate([[1, 2, 3]]):
+        for j, t in enumerate(row):
             assert c.my_list(i, j) == t
 
 
