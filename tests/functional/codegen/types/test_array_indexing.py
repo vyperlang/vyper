@@ -2,15 +2,20 @@
 
 import pytest
 
+from tests.evm_backends.abi import abi_decode
+from vyper.compiler import compile_code
+from vyper.utils import method_id
 
-def _abi_fn(name, return_type):
-    return {
-        "type": "function",
-        "name": name,
-        "inputs": [],
-        "outputs": [{"name": "", "type": return_type}],
-        "stateMutability": "nonpayable",
-    }
+
+def _deploy_bytecode(env, compiler_settings, source_code):
+    out = compile_code(source_code, output_formats=("bytecode",), settings=compiler_settings)
+    bytecode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    return env.deploy([], bytecode)
+
+
+def _call(env, contract, signature, return_type):
+    result = env.message_call(contract.address, data=method_id(signature))
+    return abi_decode(f"({return_type})", result)[0]
 
 
 def test_negative_ix_access(get_contract, tx_failed):
@@ -144,7 +149,7 @@ def foo():
         assert c.arr(i) == i
 
 
-def test_array_index_overlap(get_contract, experimental_codegen):
+def test_array_index_overlap(env, compiler_settings, experimental_codegen):
     if not experimental_codegen:
         pytest.xfail("legacy codegen still rejects risky subscript overlap")
 
@@ -163,11 +168,11 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    c = get_contract(code, output_formats=("bytecode",), abi=[_abi_fn("foo", "bytes")])
-    assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    c = _deploy_bytecode(env, compiler_settings, code)
+    assert _call(env, c, "foo()", "bytes") == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
-def test_array_index_overlap_extcall(get_contract, experimental_codegen):
+def test_array_index_overlap_extcall(env, compiler_settings, experimental_codegen):
     if not experimental_codegen:
         pytest.xfail("legacy codegen still rejects risky subscript overlap")
 
@@ -190,11 +195,11 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    c = get_contract(code, output_formats=("bytecode",), abi=[_abi_fn("foo", "bytes")])
-    assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    c = _deploy_bytecode(env, compiler_settings, code)
+    assert _call(env, c, "foo()", "bytes") == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
-def test_array_index_overlap_extcall2(get_contract, experimental_codegen):
+def test_array_index_overlap_extcall2(env, compiler_settings, experimental_codegen):
     if not experimental_codegen:
         pytest.xfail("legacy codegen still rejects risky subscript overlap")
 
@@ -214,12 +219,12 @@ def calculate_index() -> uint256:
     self.a[0] = [1]
     return 0
     """
-    c = get_contract(code, output_formats=("bytecode",), abi=[_abi_fn("bar", "uint256")])
+    c = _deploy_bytecode(env, compiler_settings, code)
 
-    assert c.bar() == 1
+    assert _call(env, c, "bar()", "uint256") == 1
 
 
-def test_array_index_overlap_pop(get_contract, experimental_codegen, tx_failed):
+def test_array_index_overlap_pop(env, compiler_settings, experimental_codegen, tx_failed):
     if not experimental_codegen:
         pytest.xfail("legacy codegen still rejects risky subscript overlap")
 
@@ -231,7 +236,7 @@ def foo() -> uint256:
     self.a = [1, 1]
     return self.a[self.a.pop()]
     """
-    c = get_contract(code, output_formats=("bytecode",), abi=[_abi_fn("foo", "uint256")])
+    c = _deploy_bytecode(env, compiler_settings, code)
 
     with tx_failed():
-        c.foo()
+        env.message_call(c.address, data=method_id("foo()"))

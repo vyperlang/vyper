@@ -264,9 +264,6 @@ def hevm_marker(request):
 @pytest.fixture(scope="module")
 def get_contract(env, optimize, output_formats, compiler_settings, hevm, request):
     def fn(source_code, *args, **kwargs):
-        selected_output_formats = kwargs.pop("output_formats", output_formats)
-        abi = kwargs.pop("abi", None)
-
         if "override_opt_level" in kwargs:
             kwargs["compiler_settings"] = Settings(
                 **dict(compiler_settings.__dict__, optimize=kwargs.pop("override_opt_level"))
@@ -295,21 +292,7 @@ def get_contract(env, optimize, output_formats, compiler_settings, hevm, request
             )["bytecode_runtime"]
             tests.hevm.hevm_check_bytecode(bytecode1, bytecode2, addl_args=_HEVM_MARKER.args)
 
-        if abi is not None:
-            input_bundle = kwargs.pop("input_bundle", None)
-            settings = kwargs.pop("compiler_settings", compiler_settings)
-            storage_layout_override = kwargs.pop("storage_layout_override", None)
-            out = compile_code(
-                source_code,
-                output_formats=selected_output_formats,
-                input_bundle=input_bundle,
-                settings=settings,
-                storage_layout_override=storage_layout_override,
-            )
-            bytecode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
-            return env.deploy(abi, bytecode, *args, **kwargs)
-
-        return env.deploy_source(source_code, selected_output_formats, *args, **kwargs)
+        return env.deploy_source(source_code, output_formats, *args, **kwargs)
 
     return fn
 
