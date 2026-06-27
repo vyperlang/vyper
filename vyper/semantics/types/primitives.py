@@ -425,7 +425,7 @@ class AddressT(_PrimT):
         if node.n_bytes != 20:
             raise InvalidLiteral(f"Invalid address. Expected 20 bytes, got {node.n_bytes}.", node)
 
-        addr = node.value
+        addr = node.original_value
         if not is_checksum_encoded(addr):
             raise InvalidLiteral(
                 "Address checksum mismatch. If you are sure this is the right "

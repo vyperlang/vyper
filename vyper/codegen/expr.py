@@ -116,9 +116,11 @@ class Expr:
         n_bytes = (len(hexstr) - 2) // 2  # e.g. "0x1234" is 2 bytes
 
         if t == AddressT():
+            original_hexstr = self.expr.original_value
+
             # sanity check typechecker did its job
-            assert len(hexstr) == 42 and is_checksum_encoded(hexstr)
-            return IRnode.from_list(int(self.expr.value, 16), typ=t)
+            assert len(original_hexstr) == 42 and is_checksum_encoded(original_hexstr)
+            return IRnode.from_list(int(hexstr, 16), typ=t)
 
         elif is_bytes_m_type(t):
             assert n_bytes == t.m
