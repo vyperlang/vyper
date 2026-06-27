@@ -50,7 +50,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: pcaversaccio/snekmate
-          ref: 400f6b4f2288635aff5861aa95f5e99c5f451d54
+          ref: main
           submodules: recursive
           path: snekmate
           persist-credentials: false
