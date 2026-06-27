@@ -96,6 +96,7 @@ from vyper.utils import (
     keccak256,
     method_id,
     method_id_int,
+    wrap256,
 )
 from vyper.warnings import vyper_warn
 
@@ -1335,7 +1336,8 @@ class Shift(BuiltinFunctionT):
         if shift < 0:
             value = value >> -shift
         else:
-            value = (value << shift) % (2**256)
+            is_signed_shift = value < 0
+            value = wrap256(value << shift, signed=is_signed_shift)
         return vy_ast.Int.from_node(node, value=value)
 
     def fetch_call_return(self, node):

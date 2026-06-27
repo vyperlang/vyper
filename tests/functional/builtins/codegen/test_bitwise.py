@@ -4,7 +4,7 @@ from hypothesis import given, settings
 
 from vyper.compiler import compile_code
 from vyper.exceptions import InvalidLiteral, InvalidOperation, TypeMismatch, UnimplementedException
-from vyper.utils import unsigned_to_signed
+from vyper.utils import SizeLimits, unsigned_to_signed
 
 
 def get_code_for_type(typ, use_shift=True):
@@ -209,6 +209,47 @@ def _shl(x: int256, y: uint256) -> int256:
         for s in (0, 1, 3, 255, 256):
             assert c._sar(t, s) == t >> s
             assert c._shl(t, s) == unsigned_to_signed((t << s) % (2**256), 256)
+
+
+def test_shift_builtin_negative_literal(get_contract):
+    # folding the deprecated `shift()` builtin must not turn a negative
+    # value into an unsigned constant, which is out of bounds for the
+    # signed output type
+    code = """
+@external
+def foo() -> int256:
+    return shift(-1, 1)
+
+@external
+def bar() -> int256:
+    return shift(-4, -1)
+    """
+    c = get_contract(code)
+    assert c.foo() == -2
+    assert c.bar() == -2
+
+
+@pytest.mark.parametrize(
+    "value,shift,expected",
+    [
+        (-1, 0, -1),
+        (-1, 1, -2),
+        (-1, 255, SizeLimits.MIN_INT256),
+        (-1, 256, 0),
+        (-2, 255, 0),
+        (-4, -1, -2),
+    ],
+)
+def test_shift_builtin_negative_literal_constant(get_contract, value, shift, expected):
+    code = f"""
+FOO: constant(int256) = shift({value}, {shift})
+
+@external
+def foo() -> int256:
+    return FOO
+    """
+    c = get_contract(code)
+    assert c.foo() == expected
 
 
 def test_precedence(get_contract):
