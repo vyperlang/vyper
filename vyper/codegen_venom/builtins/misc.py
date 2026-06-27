@@ -22,6 +22,7 @@ from vyper.codegen_venom.abi import (
     runtime_abi_size_for_encode,
 )
 from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PRECOMPILE
+from vyper.codegen_venom.eval_order import later_expressions_can_mutate_memory_or_storage
 from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, EvmVersionException
@@ -435,10 +436,13 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     # Get arg types and values
     arg_types = [arg._metadata["type"] for arg in node.args]
     arg_vals = []
-    for arg in node.args:
+    for i, arg in enumerate(node.args):
         arg_vv = Expr(arg, ctx).lower()
+        copy_composites = later_expressions_can_mutate_memory_or_storage(node.args[i + 1 :])
         arg_vals.append(
-            ctx.snapshot_value_for_delayed_use(arg_vv, annotation="print", copy_composites=True)
+            ctx.snapshot_value_for_delayed_use(
+                arg_vv, annotation="print", copy_composites=copy_composites
+            )
         )
     tuple_t = TupleT(tuple(arg_types))
     args_abi_t = tuple_t.abi_type

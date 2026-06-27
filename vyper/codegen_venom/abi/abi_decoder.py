@@ -65,10 +65,16 @@ def needs_clamp(typ: VyperType) -> bool:
     raise CompilerPanic(f"needs_clamp: unhandled type {typ}")  # pragma: nocover
 
 
-def _guard_dynamic_offset(loc: DataLocation, hi: IROperand | None) -> bool:
+def _guard_dynamic_offset(
+    typ: VyperType, loc: DataLocation, hi: IROperand | None, force_runtime_bounds: bool = False
+) -> bool:
     # Calldata and explicit hi-bounded buffers are untrusted. Constructor CODE
-    # args intentionally keep legacy's lenient decode behavior.
-    return loc == DataLocation.CALLDATA or hi is not None
+    # args intentionally keep legacy's lenient decode behavior. Bounded types
+    # keep the legacy clamp-only model; INF and runtime-sized ABI sources need
+    # runtime bounds.
+    return (force_runtime_bounds or type_contains_unbounded_sequence(typ)) and (
+        loc == DataLocation.CALLDATA or hi is not None
+    )
 
 
 def int_clamp(ctx: VenomCodegenContext, val: IROperand, bits: int, signed: bool) -> IROperand:
@@ -152,7 +158,11 @@ def clamp_basetype(ctx: VenomCodegenContext, val: IROperand, typ: VyperType) -> 
 
 
 def clamp_bytestring(
-    ctx: VenomCodegenContext, src: VyperValue, typ: _BytestringT, hi: IROperand = None
+    ctx: VenomCodegenContext,
+    src: VyperValue,
+    typ: _BytestringT,
+    hi: IROperand = None,
+    force_runtime_bounds: bool = False,
 ) -> None:
     """
     Validate bytestring length and bounds.
@@ -167,7 +177,11 @@ def clamp_bytestring(
     assert src.location is not None, "src must have a location for bytestring clamping"
 
     data_start = None
-    if hi is not None:
+    needs_runtime_bounds = hi is not None and (
+        force_runtime_bounds or ctx.is_unbounded_bytestring_type(typ)
+    )
+    if needs_runtime_bounds:
+        assert hi is not None
         data_start = ctx.assert_abi_length_word_in_bounds(src.operand, hi)
 
     length = b.load(src.operand, src.location)  # Length word at start
@@ -177,17 +191,17 @@ def clamp_bytestring(
     if is_bounded_length(typ.maxlen):
         b.assert_(b.iszero(b.gt(length, IRLiteral(typ.maxlen))))
 
-    if hi is not None:
-        if ctx.is_unbounded_bytestring_type(typ):
-            ctx.assert_abi_bytes_payload_in_bounds(src.operand, length, hi, data_start=data_start)
-        else:
-            assert data_start is not None
-            item_end = b.add(data_start, length)
-            b.assert_(b.iszero(b.gt(item_end, hi)))
+    if needs_runtime_bounds:
+        assert hi is not None
+        ctx.assert_abi_bytes_payload_in_bounds(src.operand, length, hi, data_start=data_start)
 
 
 def clamp_dyn_array(
-    ctx: VenomCodegenContext, src: VyperValue, typ: DArrayT, hi: IROperand = None
+    ctx: VenomCodegenContext,
+    src: VyperValue,
+    typ: DArrayT,
+    hi: IROperand = None,
+    force_runtime_bounds: bool = False,
 ) -> None:
     """
     Validate DynArray count and bounds.
@@ -202,7 +216,11 @@ def clamp_dyn_array(
     assert src.location is not None, "src must have a location for dyn_array clamping"
 
     data_start = None
-    if hi is not None:
+    needs_runtime_bounds = hi is not None and (
+        force_runtime_bounds or ctx.is_unbounded_dynarray_type(typ)
+    )
+    if needs_runtime_bounds:
+        assert hi is not None
         data_start = ctx.assert_abi_length_word_in_bounds(src.operand, hi)
 
     count = b.load(src.operand, src.location)  # Count word at start
@@ -211,17 +229,12 @@ def clamp_dyn_array(
     if is_bounded_length(typ.count):
         b.assert_(b.iszero(b.gt(count, IRLiteral(typ.count))))
 
-    if hi is not None:
+    if needs_runtime_bounds:
+        assert hi is not None
         elem_static_size = typ.value_type.abi_type.embedded_static_size()
-        if ctx.is_unbounded_dynarray_type(typ):
-            ctx.assert_abi_dynarray_payload_in_bounds(
-                src.operand, count, elem_static_size, hi, data_start=data_start
-            )
-        else:
-            assert data_start is not None
-            payload_size = b.mul(count, IRLiteral(elem_static_size))
-            item_end = b.add(data_start, payload_size)
-            b.assert_(b.iszero(b.gt(item_end, hi)))
+        ctx.assert_abi_dynarray_payload_in_bounds(
+            src.operand, count, elem_static_size, hi, data_start=data_start
+        )
 
 
 def _getelemptr_abi(
@@ -230,6 +243,7 @@ def _getelemptr_abi(
     member_typ: VyperType,
     static_offset: int,
     hi: IROperand = None,
+    force_runtime_bounds: bool = False,
 ) -> VyperValue:
     """
     Navigate to ABI-encoded element.
@@ -253,7 +267,7 @@ def _getelemptr_abi(
         # Double dereference: read offset, add to parent base
         offset_val = b.load(static_loc, loc)
         actual_ptr = b.add(parent.operand, offset_val)
-        if _guard_dynamic_offset(loc, hi):
+        if _guard_dynamic_offset(member_typ, loc, hi, force_runtime_bounds):
             # Dynamic offsets must not wrap below their ABI parent before later
             # payload bounds are evaluated.
             b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
@@ -296,6 +310,7 @@ def _decode_bytestring(
     src: VyperValue,
     typ: _BytestringT,
     hi: IROperand = None,
+    force_runtime_bounds: bool = False,
 ) -> None:
     """
     Decode a bytestring (Bytes/String) type.
@@ -304,7 +319,7 @@ def _decode_bytestring(
     So we just validate and copy.
     """
     # Validate length and bounds
-    clamp_bytestring(ctx, src, typ, hi)
+    clamp_bytestring(ctx, src, typ, hi, force_runtime_bounds)
 
     assert src.location is not None, "src must have a location for bytestring decoding"
     if not ctx.is_unbounded_bytestring_type(typ):
@@ -359,7 +374,12 @@ def decode_unbounded_dynarray_to_scratch(
 
 
 def _decode_dyn_array(
-    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, typ: DArrayT, hi: IROperand = None
+    ctx: VenomCodegenContext,
+    dst: IRVariable,
+    src: VyperValue,
+    typ: DArrayT,
+    hi: IROperand = None,
+    force_runtime_bounds: bool = False,
 ) -> None:
     """
     Decode a dynamic array.
@@ -374,7 +394,7 @@ def _decode_dyn_array(
     elem_abi_t = elem_typ.abi_type
 
     # Validate count and bounds
-    clamp_dyn_array(ctx, src, typ, hi)
+    clamp_dyn_array(ctx, src, typ, hi, force_runtime_bounds)
 
     # Copy count word
     count = b.load(src.operand, loc)
@@ -431,7 +451,7 @@ def _decode_dyn_array(
         static_loc = b.add(src_data, b.mul(i, IRLiteral(elem_static_size)))
         offset_val = b.load(static_loc, loc)
         elem_src_ptr = b.add(src_data, offset_val)
-        if _guard_dynamic_offset(loc, hi):
+        if _guard_dynamic_offset(elem_typ, loc, hi, force_runtime_bounds):
             # Dynamic element offsets must not wrap below the DynArray payload.
             b.assert_(b.iszero(b.lt(elem_src_ptr, src_data)))
             if hi is not None:
@@ -447,7 +467,7 @@ def _decode_dyn_array(
     elem_dst = b.add(dst_data, b.mul(i, IRLiteral(elem_mem_size)))
 
     # Recursively decode element
-    _abi_decode_to_buf(ctx, elem_dst, elem_src, hi)
+    _abi_decode_to_buf(ctx, elem_dst, elem_src, hi, force_runtime_bounds)
 
     # Increment counter
     new_i = b.add(i, IRLiteral(1))
@@ -459,7 +479,12 @@ def _decode_dyn_array(
 
 
 def _decode_complex(
-    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, typ: VyperType, hi: IROperand = None
+    ctx: VenomCodegenContext,
+    dst: IRVariable,
+    src: VyperValue,
+    typ: VyperType,
+    hi: IROperand = None,
+    force_runtime_bounds: bool = False,
 ) -> None:
     """
     Decode a complex type (tuple/struct/static array).
@@ -491,13 +516,13 @@ def _decode_complex(
 
     for _key, elem_typ in items:
         # Get source pointer (ABI layout) - returns VyperValue
-        elem_src = _getelemptr_abi(ctx, src, elem_typ, abi_offset, hi)
+        elem_src = _getelemptr_abi(ctx, src, elem_typ, abi_offset, hi, force_runtime_bounds)
 
         # Get destination pointer (Vyper layout)
         elem_dst = b.add(dst, IRLiteral(vyper_offset))
 
         # Recursively decode element
-        _abi_decode_to_buf(ctx, elem_dst, elem_src, hi)
+        _abi_decode_to_buf(ctx, elem_dst, elem_src, hi, force_runtime_bounds)
 
         # Advance offsets
         abi_offset += elem_typ.abi_type.embedded_static_size()
@@ -505,7 +530,11 @@ def _decode_complex(
 
 
 def _abi_decode_to_buf(
-    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, hi: IROperand = None
+    ctx: VenomCodegenContext,
+    dst: IRVariable,
+    src: VyperValue,
+    hi: IROperand = None,
+    force_runtime_bounds: bool = False,
 ) -> None:
     """
     Internal decoder dispatcher.
@@ -519,17 +548,21 @@ def _abi_decode_to_buf(
     if src_typ._is_prim_word:
         _decode_primitive(ctx, dst, src, src_typ)
     elif isinstance(src_typ, _BytestringT):
-        _decode_bytestring(ctx, dst, src, src_typ, hi)
+        _decode_bytestring(ctx, dst, src, src_typ, hi, force_runtime_bounds)
     elif isinstance(src_typ, DArrayT):
-        _decode_dyn_array(ctx, dst, src, src_typ, hi)
+        _decode_dyn_array(ctx, dst, src, src_typ, hi, force_runtime_bounds)
     elif is_tuple_like(src_typ) or isinstance(src_typ, SArrayT):
-        _decode_complex(ctx, dst, src, src_typ, hi)
+        _decode_complex(ctx, dst, src, src_typ, hi, force_runtime_bounds)
     else:  # pragma: nocover
         raise CompilerPanic(f"Cannot ABI decode type: {src_typ}")
 
 
 def abi_decode_to_buf(
-    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, hi: IROperand = None
+    ctx: VenomCodegenContext,
+    dst: IRVariable,
+    src: VyperValue,
+    hi: IROperand = None,
+    force_runtime_bounds: bool = False,
 ) -> None:
     """
     Decode ABI-encoded src to Vyper-encoded dst.
@@ -544,4 +577,4 @@ def abi_decode_to_buf(
         hi: Upper bound of valid buffer. Required when decoding untrusted data
             (calldata in memory, returndata, user Bytes). Prevents overread attacks.
     """
-    return _abi_decode_to_buf(ctx, dst, src, hi)
+    return _abi_decode_to_buf(ctx, dst, src, hi, force_runtime_bounds)

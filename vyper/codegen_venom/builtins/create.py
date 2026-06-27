@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.abi import abi_encode_values_to_buf, runtime_abi_size_for_encode
+from vyper.codegen_venom.eval_order import later_expressions_can_mutate_memory_or_storage
 from vyper.exceptions import UnfoldableNode
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.semantics.data_locations import DataLocation
@@ -163,11 +164,12 @@ def _prepare_ctor_args(ctx: VenomCodegenContext, ctor_arg_nodes: list[vy_ast.Vyp
     ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
     runtime_ctor_args = _ctor_args_need_runtime_encoding(ctor_arg_types)
     ctor_arg_vvs = []
-    for arg, arg_t in zip(ctor_arg_nodes, ctor_arg_types):
+    for i, (arg, arg_t) in enumerate(zip(ctor_arg_nodes, ctor_arg_types)):
         arg_vv = Expr(arg, ctx).lower()
+        copy_composites = later_expressions_can_mutate_memory_or_storage(ctor_arg_nodes[i + 1 :])
         ctor_arg_vvs.append(
             ctx.snapshot_value_for_delayed_use(
-                arg_vv, arg_t, annotation="ctor_arg", copy_composites=True
+                arg_vv, arg_t, annotation="ctor_arg", copy_composites=copy_composites
             )
         )
 

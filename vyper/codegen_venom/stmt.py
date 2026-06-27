@@ -36,6 +36,7 @@ from .calling_convention import (
     returns_stack_count,
 )
 from .context import Constancy, LocalVariable, VenomCodegenContext
+from .eval_order import later_expressions_can_mutate_memory_or_storage
 from .expr import Expr
 from .value import VyperValue
 
@@ -974,8 +975,13 @@ class Stmt:
         for i, elem in enumerate(value_node.elements):
             member_t = ret_typ.member_types[i]
             arg_vv = Expr(elem, self.ctx).lower()
+            copy_composites = later_expressions_can_mutate_memory_or_storage(
+                value_node.elements[i + 1 :]
+            )
             arg_vvs.append(
-                self._freeze_external_tuple_return_member(arg_vv, member_t, annotation="return")
+                self._freeze_external_tuple_return_member(
+                    arg_vv, member_t, annotation="return", copy_composites=copy_composites
+                )
             )
 
         src_typ = TupleT(tuple(arg_vv.typ for arg_vv in arg_vvs))
@@ -993,7 +999,7 @@ class Stmt:
         return True
 
     def _freeze_external_tuple_return_member(
-        self, arg_vv: VyperValue, target_typ: VyperType, annotation: str
+        self, arg_vv: VyperValue, target_typ: VyperType, annotation: str, copy_composites: bool
     ) -> VyperValue:
         """Snapshot tuple literal return members before later elements run.
 
@@ -1013,7 +1019,7 @@ class Stmt:
             )  # pragma: nocover
 
         return self.ctx.snapshot_value_for_delayed_use(
-            arg_vv, target_typ, annotation=annotation, copy_composites=True
+            arg_vv, target_typ, annotation=annotation, copy_composites=copy_composites
         )
 
     def _emit_external_dynamic_tuple_return(
@@ -1338,11 +1344,12 @@ class Stmt:
         # Lower all argument expressions and snapshot before later arguments
         # can mutate memory/storage that earlier arguments point at.
         arg_vals = []
-        for arg in arg_nodes:
+        for i, arg in enumerate(arg_nodes):
             arg_vv = Expr(arg, self.ctx).lower()
+            copy_composites = later_expressions_can_mutate_memory_or_storage(arg_nodes[i + 1 :])
             arg_vals.append(
                 self.ctx.snapshot_value_for_delayed_use(
-                    arg_vv, annotation="log", copy_composites=True
+                    arg_vv, annotation="log", copy_composites=copy_composites
                 )
             )
 
@@ -1538,11 +1545,12 @@ class Stmt:
         try:
             self.ctx.constancy = Constancy.Constant
             arg_vvs = []
-            for arg_node in arg_nodes:
+            for i, arg_node in enumerate(arg_nodes):
                 arg_vv = Expr(arg_node, self.ctx).lower()
+                copy_composites = later_expressions_can_mutate_memory_or_storage(arg_nodes[i + 1 :])
                 arg_vvs.append(
                     self.ctx.snapshot_value_for_delayed_use(
-                        arg_vv, annotation="custom error", copy_composites=True
+                        arg_vv, annotation="custom error", copy_composites=copy_composites
                     )
                 )
         finally:

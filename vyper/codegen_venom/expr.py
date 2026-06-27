@@ -60,6 +60,7 @@ from .abi import (
 from .buffer import Buffer, Ptr
 from .calling_convention import pass_via_stack, returns_dynamic_count, returns_stack_count
 from .context import VenomCodegenContext
+from .eval_order import later_expressions_can_mutate_memory_or_storage
 from .value import VyperValue
 
 
@@ -1414,11 +1415,12 @@ class Expr:
         # sources such as storage pointers must not be observed after later
         # arguments with side effects.
         arg_vals: list[VyperValue] = []
-        for arg_node, arg_t in zip(all_arg_nodes, func_t.arguments):
+        for i, (arg_node, arg_t) in enumerate(zip(all_arg_nodes, func_t.arguments)):
             arg_vv = Expr(arg_node, self.ctx).lower()
+            copy_composites = later_expressions_can_mutate_memory_or_storage(all_arg_nodes[i + 1 :])
             arg_vals.append(
                 self.ctx.snapshot_value_for_delayed_use(
-                    arg_vv, arg_t.typ, annotation=arg_t.name, copy_composites=True
+                    arg_vv, arg_t.typ, annotation=arg_t.name, copy_composites=copy_composites
                 )
             )
 
@@ -1905,11 +1907,14 @@ class Expr:
 
         # Evaluate arguments.
         arg_vals: list[VyperValue] = []
-        for arg, arg_t in zip(call_node.args, fn_type.arguments):
+        kwarg_value_nodes = [kw.value for kw in call_node.keywords]
+        for i, (arg, arg_t) in enumerate(zip(call_node.args, fn_type.arguments)):
             arg_vv = Expr(arg, self.ctx).lower()
+            later_nodes = list(call_node.args[i + 1 :]) + kwarg_value_nodes
+            copy_composites = later_expressions_can_mutate_memory_or_storage(later_nodes)
             arg_vals.append(
                 self.ctx.snapshot_value_for_delayed_use(
-                    arg_vv, arg_t.typ, annotation=arg_t.name, copy_composites=True
+                    arg_vv, arg_t.typ, annotation=arg_t.name, copy_composites=copy_composites
                 )
             )
 

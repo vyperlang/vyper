@@ -19,6 +19,7 @@ from vyper.codegen_venom.abi import (
     runtime_abi_size_for_encode,
 )
 from vyper.codegen_venom.buffer import Buffer, Ptr
+from vyper.codegen_venom.eval_order import later_expressions_can_mutate_memory_or_storage
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
@@ -174,11 +175,12 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     arg_types = [arg._metadata["type"] for arg in node.args]
     arg_vals = []
-    for arg in node.args:
+    for i, arg in enumerate(node.args):
         arg_vv = Expr(arg, ctx).lower()
+        copy_composites = later_expressions_can_mutate_memory_or_storage(node.args[i + 1 :])
         arg_vals.append(
             ctx.snapshot_value_for_delayed_use(
-                arg_vv, annotation="abi_encode", copy_composites=True
+                arg_vv, annotation="abi_encode", copy_composites=copy_composites
             )
         )
 
@@ -298,7 +300,13 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     buf = Buffer(_ptr=data_ptr, size=wrapped_typ.memory_bytes_required, annotation="abi_decode_src")
     ptr = Ptr(operand=data_ptr, location=DataLocation.MEMORY, buf=buf)
     src_vv = VyperValue.from_ptr(ptr, wrapped_typ)
-    abi_decode_to_buf(ctx, output_val.operand, src_vv, hi=hi)
+    abi_decode_to_buf(
+        ctx,
+        output_val.operand,
+        src_vv,
+        hi=hi,
+        force_runtime_bounds=type_contains_unbounded_sequence(data_vv.typ),
+    )
 
     # Return with output_typ (unwrapped type if applicable)
     if unwrap_tuple and wrapped_typ != output_typ:
