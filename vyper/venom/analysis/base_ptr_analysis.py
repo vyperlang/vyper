@@ -367,12 +367,7 @@ class BasePtrAnalysis(IRAnalysis):
         return self._pointer_uses_may_touch_r(var, loc, dfg, mem_alias, set())
 
     def _pointer_uses_may_touch_r(
-        self,
-        var: IRVariable,
-        loc: MemoryLocation,
-        dfg,
-        mem_alias,
-        seen: set[IRVariable],
+        self, var: IRVariable, loc: MemoryLocation, dfg, mem_alias, seen: set[IRVariable]
     ) -> bool:
         if var in seen:
             return True
