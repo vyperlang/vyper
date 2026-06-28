@@ -162,6 +162,8 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         if src_loc.is_fixed:
             if src_loc.is_empty() or self.mem_alias.may_alias(src_loc, dst_loc):
                 return None
+            if src_loc.alloca is None:
+                return None
             if src_loc.alloca is not None and src_loc.alloca.is_dynamic:
                 return None
         elif self._source_is_readonly_param(src):
@@ -263,7 +265,10 @@ class RedundantMemoryCopyForwardingPass(IRPass):
                 if use.get_read_effects() & Effects.MEMORY == EMPTY:
                     return None
 
-        if len(alias_rewrites) == 0 and len(direct_read_rewrites) == 0:
+        if any(delta is None for delta in alias_rewrites.values()):
+            return None
+
+        if len(read_sites) == 0:
             return None
 
         return _ForwardPlan(

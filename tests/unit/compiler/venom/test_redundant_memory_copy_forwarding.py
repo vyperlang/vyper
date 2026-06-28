@@ -125,6 +125,22 @@ def test_keeps_copy_when_source_is_clobbered_before_read():
     _checker(pre, pre)
 
 
+def test_keeps_copy_from_concrete_scratch_memory():
+    pre = """
+    main:
+        %tmp = alloca 96
+        mstore 0, 2
+        mstore 32, 1
+        mstore 64, 2
+        mcopy %tmp, 0, 96
+        mstore 0, 0
+        %val = mload %tmp
+        sink %val
+    """
+
+    _checker(pre, pre)
+
+
 def test_keeps_copy_when_unknown_invoke_clobbers_before_read():
     src = """
     function callee {
@@ -190,6 +206,23 @@ def test_keeps_copy_when_root_derived_read_overlaps_segment():
         mcopy %dst, %payload, 64
         %revert_ptr = add 28, %buf
         revert %revert_ptr, 68
+    """
+
+    _checker(pre, pre)
+
+
+def test_keeps_copy_when_destination_read_uses_dynamic_root_offset():
+    pre = """
+    main:
+        %src = alloca 96
+        %out = alloca 224
+        %dst = add 32, %out
+        mcopy %dst, %src, 96
+        %idx = calldataload 0
+        %offset = mul 96, %idx
+        %ptr = add %out, %offset
+        %val = mload %ptr
+        sink %val
     """
 
     _checker(pre, pre)
