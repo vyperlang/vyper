@@ -139,7 +139,7 @@ def foo():
         assert c.arr(i) == i
 
 
-def test_array_index_overlap(env, compiler_settings, experimental_codegen):
+def test_array_index_overlap(get_contract, compiler_settings, experimental_codegen):
     if not experimental_codegen:
         pytest.xfail("legacy codegen still rejects risky subscript overlap")
 
@@ -158,7 +158,9 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    c = env.deploy_source(code, OVERLAP_OUTPUT_FORMATS.copy(), compiler_settings=compiler_settings)
+    c = get_contract(
+        code, output_formats=OVERLAP_OUTPUT_FORMATS.copy(), compiler_settings=compiler_settings
+    )
     assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
@@ -191,7 +193,7 @@ def bar() -> uint256:
     assert out["bytecode"].startswith("0x")
 
 
-def test_array_index_overlap_extcall(env, compiler_settings, experimental_codegen):
+def test_array_index_overlap_extcall(get_contract, compiler_settings, experimental_codegen):
     if not experimental_codegen:
         pytest.xfail("legacy codegen still rejects risky subscript overlap")
 
@@ -214,11 +216,13 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    c = env.deploy_source(code, OVERLAP_OUTPUT_FORMATS.copy(), compiler_settings=compiler_settings)
+    c = get_contract(
+        code, output_formats=OVERLAP_OUTPUT_FORMATS.copy(), compiler_settings=compiler_settings
+    )
     assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
-def test_array_index_overlap_extcall2(env, compiler_settings, experimental_codegen):
+def test_array_index_overlap_extcall2(get_contract, compiler_settings, experimental_codegen):
     if not experimental_codegen:
         pytest.xfail("legacy codegen still rejects risky subscript overlap")
 
@@ -238,12 +242,14 @@ def calculate_index() -> uint256:
     self.a[0] = [1]
     return 0
     """
-    c = env.deploy_source(code, OVERLAP_OUTPUT_FORMATS.copy(), compiler_settings=compiler_settings)
+    c = get_contract(
+        code, output_formats=OVERLAP_OUTPUT_FORMATS.copy(), compiler_settings=compiler_settings
+    )
 
     assert c.bar() == 1
 
 
-def test_array_index_overlap_pop(env, compiler_settings, experimental_codegen, tx_failed):
+def test_array_index_overlap_pop(get_contract, compiler_settings, experimental_codegen, tx_failed):
     if not experimental_codegen:
         pytest.xfail("legacy codegen still rejects risky subscript overlap")
 
@@ -255,7 +261,9 @@ def foo() -> uint256:
     self.a = [1, 1]
     return self.a[self.a.pop()]
     """
-    c = env.deploy_source(code, OVERLAP_OUTPUT_FORMATS.copy(), compiler_settings=compiler_settings)
+    c = get_contract(
+        code, output_formats=OVERLAP_OUTPUT_FORMATS.copy(), compiler_settings=compiler_settings
+    )
 
     with tx_failed():
         c.foo()
