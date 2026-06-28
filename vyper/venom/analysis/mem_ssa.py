@@ -323,6 +323,22 @@ class MemSSAAbstract(IRAnalysis):
         query_loc = access.loc
         return self._walk_for_aliased_access(access, query_loc, OrderedSet())
 
+    def get_aliased_memory_accesses_before(
+        self, inst: IRInstruction, query_loc: MemoryLocation
+    ) -> OrderedSet[MemoryAccess]:
+        """
+        Get memory definitions that may alias `query_loc` and reach `inst`.
+
+        This is useful when a pass wants to ask about a location different from
+        the location read by `inst`, while still using MemorySSA's reaching-def
+        chain at that program point.
+        """
+        mem_use = self.get_memory_use(inst)
+        if mem_use is None:
+            return OrderedSet()
+
+        return self._walk_for_aliased_access(mem_use.reaching_def, query_loc, OrderedSet())
+
     def _walk_for_aliased_access(
         self,
         current: Optional[MemoryAccess],
