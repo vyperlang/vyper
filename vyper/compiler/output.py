@@ -223,8 +223,7 @@ def build_settings_output(compiler_data: CompilerData) -> dict:
 
 
 def build_metadata_output(compiler_data: CompilerData) -> dict:
-    # need ir info to be computed
-    _ = compiler_data.function_signatures
+    _function_signatures_with_ir_info(compiler_data, include_deploytime=True)
     module_t = compiler_data.annotated_vyper_module._metadata["type"]
     sigs = dict[str, ContractFunctionT]()
 
@@ -257,8 +256,10 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             args = ret[attr]
             ret[attr] = {arg.name: str(arg.typ) for arg in args}
 
-        ret["frame_info"] = vars(func_t._ir_info.frame_info).copy()
-        del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
+        frame_info = func_t._ir_info.frame_info
+        if frame_info is not None:
+            ret["frame_info"] = vars(frame_info).copy()
+            del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
 
         ret["module_path"] = safe_relpath(func_t.decl_node.module_node.resolved_path)
         ret["source_id"] = func_t.decl_node.module_node.source_id
@@ -302,11 +303,19 @@ def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
     return {k: hex(v) for fn_t in functions for k, v in fn_t.method_ids.items()}
 
 
-def _function_signatures_with_ir_info(compiler_data: CompilerData) -> dict[str, ContractFunctionT]:
+def _function_signatures_with_ir_info(
+    compiler_data: CompilerData, *, include_deploytime: bool = False
+) -> dict[str, ContractFunctionT]:
     if compiler_data.settings.experimental_codegen:
-        _ = compiler_data.venom_runtime
+        if include_deploytime:
+            _ = compiler_data.bytecode
+        else:
+            _ = compiler_data.venom_runtime
     else:
-        _ = compiler_data.ir_runtime
+        if include_deploytime:
+            _ = compiler_data.ir_nodes
+        else:
+            _ = compiler_data.ir_runtime
 
     fs = compiler_data.annotated_vyper_module.get_children(vy_ast.FunctionDef)
     return {f.name: f._metadata["func_type"] for f in fs}

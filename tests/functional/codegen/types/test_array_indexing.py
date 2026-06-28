@@ -2,20 +2,10 @@
 
 import pytest
 
-from tests.evm_backends.abi import abi_decode
 from vyper.compiler import compile_code
-from vyper.utils import method_id
 
 
-def _deploy_bytecode(env, compiler_settings, source_code):
-    out = compile_code(source_code, output_formats=("bytecode",), settings=compiler_settings)
-    bytecode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
-    return env.deploy([], bytecode)
-
-
-def _call(env, contract, signature, return_type):
-    result = env.message_call(contract.address, data=method_id(signature))
-    return abi_decode(f"({return_type})", result)[0]
+OVERLAP_OUTPUT_FORMATS = {"abi": True, "bytecode": True, "metadata": True}
 
 
 def test_negative_ix_access(get_contract, tx_failed):
@@ -168,8 +158,8 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    c = _deploy_bytecode(env, compiler_settings, code)
-    assert _call(env, c, "foo()", "bytes") == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    c = env.deploy_source(code, OVERLAP_OUTPUT_FORMATS.copy(), compiler_settings=compiler_settings)
+    assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
 def test_array_index_overlap_abi_output(compiler_settings, experimental_codegen):
@@ -224,8 +214,8 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    c = _deploy_bytecode(env, compiler_settings, code)
-    assert _call(env, c, "foo()", "bytes") == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    c = env.deploy_source(code, OVERLAP_OUTPUT_FORMATS.copy(), compiler_settings=compiler_settings)
+    assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
 def test_array_index_overlap_extcall2(env, compiler_settings, experimental_codegen):
@@ -248,9 +238,9 @@ def calculate_index() -> uint256:
     self.a[0] = [1]
     return 0
     """
-    c = _deploy_bytecode(env, compiler_settings, code)
+    c = env.deploy_source(code, OVERLAP_OUTPUT_FORMATS.copy(), compiler_settings=compiler_settings)
 
-    assert _call(env, c, "bar()", "uint256") == 1
+    assert c.bar() == 1
 
 
 def test_array_index_overlap_pop(env, compiler_settings, experimental_codegen, tx_failed):
@@ -265,7 +255,7 @@ def foo() -> uint256:
     self.a = [1, 1]
     return self.a[self.a.pop()]
     """
-    c = _deploy_bytecode(env, compiler_settings, code)
+    c = env.deploy_source(code, OVERLAP_OUTPUT_FORMATS.copy(), compiler_settings=compiler_settings)
 
     with tx_failed():
-        env.message_call(c.address, data=method_id("foo()"))
+        c.foo()
