@@ -302,10 +302,20 @@ def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
     return {k: hex(v) for fn_t in functions for k, v in fn_t.method_ids.items()}
 
 
+def _function_signatures_with_ir_info(compiler_data: CompilerData) -> dict[str, ContractFunctionT]:
+    if compiler_data.settings.experimental_codegen:
+        _ = compiler_data.venom_runtime
+    else:
+        _ = compiler_data.ir_runtime
+
+    fs = compiler_data.annotated_vyper_module.get_children(vy_ast.FunctionDef)
+    return {f.name: f._metadata["func_type"] for f in fs}
+
+
 def build_abi_output(compiler_data: CompilerData) -> list:
     module_t = compiler_data.annotated_vyper_module._metadata["type"]
     if not compiler_data.annotated_vyper_module.is_interface:
-        _ = compiler_data.ir_runtime  # ensure _ir_info is generated
+        _function_signatures_with_ir_info(compiler_data)
 
     abi = module_t.to_toplevel_abi_dict()
     if module_t.init_function:
@@ -313,7 +323,7 @@ def build_abi_output(compiler_data: CompilerData) -> list:
 
     if compiler_data.show_gas_estimates:
         # Add gas estimates for each function to ABI
-        gas_estimates = build_gas_estimates(compiler_data.function_signatures)
+        gas_estimates = build_gas_estimates(_function_signatures_with_ir_info(compiler_data))
         for func in abi:
             try:
                 func_signature = func["name"]

@@ -172,6 +172,35 @@ def bar() -> uint256:
     assert _call(env, c, "foo()", "bytes") == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
+def test_array_index_overlap_abi_output(compiler_settings, experimental_codegen):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen still rejects risky subscript overlap")
+
+    code = """
+a: public(DynArray[DynArray[Bytes[96], 5], 5])
+
+@external
+def foo() -> Bytes[96]:
+    self.a.append([b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'])
+    return self.a[0][self.bar()]
+
+
+@internal
+def bar() -> uint256:
+    self.a[0] = [b'yyy']
+    self.a.pop()
+    return 0
+    """
+    out = compile_code(
+        code,
+        output_formats=("abi", "bytecode"),
+        settings=compiler_settings,
+        show_gas_estimates=True,
+    )
+    assert out["abi"][0]["name"] == "foo"
+    assert out["bytecode"].startswith("0x")
+
+
 def test_array_index_overlap_extcall(env, compiler_settings, experimental_codegen):
     if not experimental_codegen:
         pytest.xfail("legacy codegen still rejects risky subscript overlap")
