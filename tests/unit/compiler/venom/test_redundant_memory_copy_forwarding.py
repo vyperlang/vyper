@@ -33,7 +33,7 @@ def test_forwards_whole_temp_copy_to_readonly_uses():
         %src = alloca 64
         %tmp = alloca 64
         %src0 = add 0, %src
-        %dst0 = assign %src0
+        %dst0 = %src0
         nop
         %ptr = add %src0, 32
         %val = mload %ptr
@@ -94,14 +94,14 @@ def test_forwards_segmented_tuple_temp_copies():
         %src2 = alloca 64
         %tmp = alloca 128
         %src1_0 = add 0, %src1
-        %dst1 = assign %src1_0
+        %dst1 = %src1_0
         nop
         %src2_0 = add 0, %src2
-        %dst2 = assign %src2_0
+        %dst2 = %src2_0
         nop
         %ptr1 = add %src1_0, 32
         %val1 = mload %ptr1
-        %ptr2 = assign %src2_0
+        %ptr2 = %src2_0
         %val2 = mload %ptr2
         sink %val1, %val2
     """

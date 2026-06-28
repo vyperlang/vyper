@@ -8,7 +8,6 @@ from vyper.venom.analysis import (
     BasePtrAnalysis,
     DFGAnalysis,
     DominatorTreeAnalysis,
-    LivenessAnalysis,
     MemoryAliasAnalysis,
     MemSSA,
     ReachableAnalysis,
@@ -110,10 +109,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
     def _invalidate(self) -> None:
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
-        self.analyses_cache.invalidate_analysis(MemoryAliasAnalysis)
         self.analyses_cache.invalidate_analysis(MemSSA)
-        self.analyses_cache.invalidate_analysis(DominatorTreeAnalysis)
-        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _find_forwardable_copy(self) -> IRInstruction | None:
         for bb in self.function.get_basic_blocks():
