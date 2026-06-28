@@ -25,6 +25,11 @@ from vyper.venom.passes.copy_forwarding import CopyForwardingPolicy
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
 _POINTER_OPCODES = {"assign", "add", "sub"}
+# This pass runs before concrete memory layout and has no high-water cost
+# model. Huge aggregate staging copies can be cheaper to keep because they
+# keep later reads in a compact frame region. Leave those to layout-aware
+# optimizations.
+_MAX_FORWARD_COPY_SIZE = 4096
 
 
 @dataclass(frozen=True)
@@ -132,6 +137,8 @@ class RedundantMemoryCopyForwardingPass(IRPass):
     def _candidate(self, copy_inst: IRInstruction) -> _ForwardPlan | None:
         copy_size = self.copy_forwarding.copy_size(copy_inst)
         if copy_size is None:
+            return None
+        if copy_size > _MAX_FORWARD_COPY_SIZE:
             return None
 
         src = self.copy_forwarding.copy_source(copy_inst)

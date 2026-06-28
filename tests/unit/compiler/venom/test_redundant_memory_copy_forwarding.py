@@ -193,3 +193,16 @@ def test_keeps_copy_when_root_derived_read_overlaps_segment():
     """
 
     _checker(pre, pre)
+
+
+def test_keeps_large_aggregate_copy_without_layout_cost_model():
+    pre = """
+    main:
+        %src = alloca 8192
+        %tmp = alloca 8192
+        mcopy %tmp, %src, 8192
+        %val = mload %tmp
+        sink %val
+    """
+
+    _checker(pre, pre)
