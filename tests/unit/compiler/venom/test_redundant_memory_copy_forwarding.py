@@ -315,9 +315,12 @@ def test_keeps_copy_when_loop_back_edge_clobbers_src():
     _checker(pre, pre)
 
 
-def test_keeps_copy_when_alias_defined_before_src():
-    # %alias (a pointer into %tmp) is defined *before* %src. Rewriting %alias
-    # to reference %src would be a use-before-def, so the copy is kept.
+def test_forwards_via_redirect_when_alias_defined_before_src():
+    # %alias (a pointer into %tmp) is defined *before* %src, so it cannot be
+    # rewritten in place (that would be a use-before-def). Instead its read is
+    # redirected to a fresh `add 32, %src` inserted at the read site -- which
+    # %src dominates by construction -- and the copy is forwarded. hevm confirms
+    # the forwarded form is equivalent.
     pre = """
     main:
         %tmp = alloca 64
@@ -327,5 +330,15 @@ def test_keeps_copy_when_alias_defined_before_src():
         %val = mload %alias
         sink %val
     """
+    post = """
+    main:
+        %tmp = alloca 64
+        %alias = add 32, %tmp
+        %src = alloca 64
+        nop
+        %1 = add %src, 32
+        %val = mload %1
+        sink %val
+    """
 
-    _checker(pre, pre)
+    _checker(pre, post)

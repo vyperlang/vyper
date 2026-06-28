@@ -215,6 +215,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         alias_rewrites = self._segment_aliases(dst_alloca, aliases, dst_start, dst_end)
         direct_read_rewrites = []
         read_sites: set[IRInstruction] = set()
+        alias_read_uses: dict[IRVariable, list[tuple[IRInstruction, int]]] = {}
 
         for alias in alias_rewrites:
             for use in self.dfg.get_uses(alias):
@@ -227,6 +228,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
                         continue
                     if self._is_allowed_memory_read_use(use, pos, copy_inst, dst_alloca, dst_loc):
                         read_sites.add(use)
+                        alias_read_uses.setdefault(alias, []).append((use, pos))
                         continue
                     return None
 
@@ -268,17 +270,27 @@ class RedundantMemoryCopyForwardingPass(IRPass):
             return None
 
         # Each alias with a concrete delta is rewritten *in place* to reference
-        # `src` (`assign src` / `add delta, src`). That is only valid if `src`'s
-        # definition dominates the alias instruction; otherwise the rewrite
-        # would be a use-before-def. (The direct-read path inserts its `add` at
-        # the read site, which is dominated by construction, so it needs no such
-        # check.)
-        for alias in alias_rewrites:
+        # `src` (`assign src` / `add delta, src`). That is only valid where
+        # `src`'s definition dominates the alias instruction; otherwise the
+        # rewrite would be a use-before-def. For an alias `src` does NOT
+        # dominate, leave its instruction untouched (it becomes dead once its
+        # reads move off it and the copy is nopped) and redirect its reads
+        # through the direct-read path instead: the inserted `add delta, src`
+        # sits at the read site, which `src` dominates by construction (`src`
+        # dominates the copy, the copy dominates every read site). The common
+        # case is the copy's own dst pointer, which is dead after the nop and so
+        # has no reads to redirect.
+        for alias in list(alias_rewrites):
             alias_inst = self.dfg.get_producing_instruction(alias)
             if alias_inst is None:
                 continue
-            if not self._src_dominates_inst(src, alias_inst):
-                return None
+            if self._src_dominates_inst(src, alias_inst):
+                continue
+            delta = alias_rewrites[alias]
+            assert delta is not None  # None deltas already bailed above
+            for use, pos in alias_read_uses.get(alias, ()):
+                direct_read_rewrites.append((use, pos, delta))
+            del alias_rewrites[alias]
 
         if len(read_sites) == 0:
             return None
