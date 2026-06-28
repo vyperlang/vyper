@@ -228,6 +228,25 @@ def test_keeps_copy_when_destination_read_uses_dynamic_root_offset():
     _checker(pre, pre)
 
 
+def test_keeps_copy_when_alias_read_has_dynamic_size():
+    # The read starts inside the copied segment, but its runtime size could
+    # extend beyond the bytes populated by the staging copy. The pass cannot
+    # prove containment, so it must keep the copy.
+    pre = """
+    main:
+        %src = alloca 64
+        %tmp = alloca 96
+        %out = alloca 96
+        mcopy %tmp, %src, 64
+        %alias = add 32, %tmp
+        %n = calldataload 0
+        mcopy %out, %alias, %n
+        sink
+    """
+
+    _checker(pre, pre)
+
+
 def test_keeps_large_aggregate_copy_without_layout_cost_model():
     pre = """
     main:
@@ -294,10 +313,9 @@ def test_keeps_copy_when_src_clobbered_on_inter_block_path():
 
 
 def test_keeps_copy_when_loop_back_edge_clobbers_src():
-    # The read of %tmp could forward to %src within one iteration, but the
-    # loop body writes %src and the back-edge carries that write into the next
-    # iteration's copy. The clobber walk sees it through the loop-header memory
-    # phi, so the copy is conservatively kept.
+    # The loop body writes %src, and that write reaches the next iteration's
+    # read through the loop-header memory phi. The clobber walk sees the
+    # backedge and conservatively keeps the copy.
     pre = """
     main:
         %src = alloca 64

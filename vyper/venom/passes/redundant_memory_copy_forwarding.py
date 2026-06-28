@@ -23,10 +23,10 @@ from vyper.venom.passes.copy_forwarding import CopyForwardingPolicy
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
 _POINTER_OPCODES = {"assign", "add", "sub"}
-# This pass runs before concrete memory layout and has no high-water cost
-# model. Huge aggregate staging copies can be cheaper to keep because they
-# keep later reads in a compact frame region. Leave those to layout-aware
-# optimizations.
+# This pass runs before concrete memory layout and has no layout/lifetime cost
+# model. Forwarding very large staging copies can extend the source buffer's
+# live range across later memory operations and regress the eventual frame
+# high-water mark, so leave those cases to layout-aware optimizations.
 _MAX_FORWARD_COPY_SIZE = 4096
 
 
@@ -106,15 +106,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
     def _invalidate(self) -> None:
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
-        # MemoryAliasAnalysis (consumed by the next iteration's `_candidate`
-        # via `may_alias`) is built on top of BasePtrAnalysis, but the cache
-        # does NOT auto-invalidate BasePtr dependents -- BasePtrAnalysis has
-        # the default no-op `invalidate()`. It is dropped transitively here:
-        # invalidating MemSSA runs MemSSA.invalidate(), which invalidates its
-        # `mem_alias_type` (== MemoryAliasAnalysis). The next `_prepare()` then
-        # rebuilds the alias facts on top of the fresh BasePtr. This cascade --
-        # not a direct invalidate -- is what keeps `may_alias` sound across
-        # fixpoint iterations, so it must stay ordered after the BasePtr drop.
+        self.analyses_cache.invalidate_analysis(MemoryAliasAnalysis)
         self.analyses_cache.invalidate_analysis(MemSSA)
 
     def _find_forwardable_copy(self) -> IRInstruction | None:
@@ -245,7 +237,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
                     if not use.has_outputs:
                         return None
                     if not self.base_ptr.pointer_uses_may_touch(
-                        use.output, dst_loc, self.mem_alias
+                        use.output, dst_loc, self.mem_alias, self.dfg
                     ):
                         continue
                     return None
@@ -374,13 +366,10 @@ class RedundantMemoryCopyForwardingPass(IRPass):
             if self.mem_alias.may_alias(write_loc, dst_loc):
                 return False
 
-        if read_loc.is_offset_fixed and read_loc.is_size_fixed:
-            return dst_loc.completely_contains(read_loc)
+        if not (read_loc.is_offset_fixed and read_loc.is_size_fixed):
+            return False
 
-        # Dynamic-offset reads are accepted only after they are derived from a
-        # fixed alias inside this copied segment.  This matches Venom's
-        # abstract-allocation contract before concretization.
-        return True
+        return dst_loc.completely_contains(read_loc)
 
     def _is_allowed_direct_root_read(
         self,
@@ -390,10 +379,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         dst_alloca: Allocation,
         dst_loc: MemoryLocation,
     ) -> bool:
-        if not self._is_allowed_memory_read_use(use, operand_pos, copy_inst, dst_alloca, dst_loc):
-            return False
-        read_loc = self.base_ptr.get_read_location(use, addr_space.MEMORY)
-        return read_loc.is_offset_fixed and read_loc.is_size_fixed
+        return self._is_allowed_memory_read_use(use, operand_pos, copy_inst, dst_alloca, dst_loc)
 
     def _has_src_clobber_between(
         self,
