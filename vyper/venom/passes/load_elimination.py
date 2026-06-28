@@ -6,11 +6,6 @@ from vyper.venom.analysis import (
     LivenessAnalysis,
     LoadAnalysis,
 )
-from vyper.venom.analysis.mem_alias import (
-    MemoryAliasAnalysis,
-    StorageAliasAnalysis,
-    TransientAliasAnalysis,
-)
 from vyper.venom.analysis.mem_ssa import MemSSA, StorageSSA, TransientSSA
 from vyper.venom.basicblock import IRVariable
 from vyper.venom.effects import Effects
@@ -45,9 +40,6 @@ class LoadElimination(IRPass):
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
-        self.analyses_cache.invalidate_analysis(MemoryAliasAnalysis)
-        self.analyses_cache.invalidate_analysis(StorageAliasAnalysis)
-        self.analyses_cache.invalidate_analysis(TransientAliasAnalysis)
         self.analyses_cache.invalidate_analysis(MemSSA)
         self.analyses_cache.invalidate_analysis(StorageSSA)
         self.analyses_cache.invalidate_analysis(TransientSSA)
