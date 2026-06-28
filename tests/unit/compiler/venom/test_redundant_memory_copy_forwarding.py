@@ -3,7 +3,7 @@ from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel, IRLiteral, IRVariable
 from vyper.venom.passes import RedundantMemoryCopyForwardingPass
 
-_checker = PrePostChecker([RedundantMemoryCopyForwardingPass], default_hevm=False)
+_checker = PrePostChecker([RedundantMemoryCopyForwardingPass], default_hevm=True)
 
 
 def _run_redundant_forwarding(src: str):
@@ -235,6 +235,96 @@ def test_keeps_large_aggregate_copy_without_layout_cost_model():
         %tmp = alloca 8192
         mcopy %tmp, %src, 8192
         %val = mload %tmp
+        sink %val
+    """
+
+    _checker(pre, pre)
+
+
+# ---------------------------------------------------------------------------
+# cross-block coverage
+# ---------------------------------------------------------------------------
+
+
+def test_forwards_into_dominated_successor_block():
+    # mcopy in one block, readonly read in a strictly-dominated successor:
+    # the read forwards back to %src.
+    src = """
+    function main {
+    main:
+        %src = alloca 64
+        %tmp = alloca 64
+        mcopy %tmp, %src, 64
+        jmp @next
+    next:
+        %ptr = add 32, %tmp
+        %val = mload %ptr
+        sink %val
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    main = ctx.get_function(IRLabel("main"))
+    insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
+
+    assert all(inst.opcode != "mcopy" for inst in insts)
+    ptr_inst = next(
+        inst for inst in insts if inst.has_outputs and inst.output == IRVariable("%ptr")
+    )
+    assert ptr_inst.opcode == "add"
+    assert ptr_inst.operands == [IRLiteral(32), IRVariable("%src")]
+
+
+def test_keeps_copy_when_src_clobbered_on_inter_block_path():
+    # A write to %src on the path between the copy and a read in the
+    # successor block must keep the copy.
+    pre = """
+    main:
+        %src = alloca 64
+        %tmp = alloca 64
+        mcopy %tmp, %src, 64
+        jmp @next
+    next:
+        mstore %src, 1
+        %val = mload %tmp
+        sink %val
+    """
+
+    _checker(pre, pre)
+
+
+def test_keeps_copy_when_loop_back_edge_clobbers_src():
+    # The read of %tmp could forward to %src within one iteration, but the
+    # loop body writes %src and the back-edge carries that write into the next
+    # iteration's copy. The clobber walk sees it through the loop-header memory
+    # phi, so the copy is conservatively kept.
+    pre = """
+    main:
+        %src = alloca 64
+        %tmp = alloca 64
+        jmp @loop
+    loop:
+        mcopy %tmp, %src, 64
+        %val = mload %tmp
+        mstore %src, %val
+        jnz %val, @loop, @exit
+    exit:
+        sink %val
+    """
+
+    _checker(pre, pre)
+
+
+def test_keeps_copy_when_alias_defined_before_src():
+    # %alias (a pointer into %tmp) is defined *before* %src. Rewriting %alias
+    # to reference %src would be a use-before-def, so the copy is kept.
+    pre = """
+    main:
+        %tmp = alloca 64
+        %alias = add 32, %tmp
+        %src = alloca 64
+        mcopy %tmp, %src, 64
+        %val = mload %alias
         sink %val
     """
 

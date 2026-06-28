@@ -106,6 +106,15 @@ class RedundantMemoryCopyForwardingPass(IRPass):
     def _invalidate(self) -> None:
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
+        # MemoryAliasAnalysis (consumed by the next iteration's `_candidate`
+        # via `may_alias`) is built on top of BasePtrAnalysis, but the cache
+        # does NOT auto-invalidate BasePtr dependents -- BasePtrAnalysis has
+        # the default no-op `invalidate()`. It is dropped transitively here:
+        # invalidating MemSSA runs MemSSA.invalidate(), which invalidates its
+        # `mem_alias_type` (== MemoryAliasAnalysis). The next `_prepare()` then
+        # rebuilds the alias facts on top of the fresh BasePtr. This cascade --
+        # not a direct invalidate -- is what keeps `may_alias` sound across
+        # fixpoint iterations, so it must stay ordered after the BasePtr drop.
         self.analyses_cache.invalidate_analysis(MemSSA)
 
     def _find_forwardable_copy(self) -> IRInstruction | None:
@@ -170,6 +179,16 @@ class RedundantMemoryCopyForwardingPass(IRPass):
 
         plan = self._build_forward_plan(copy_inst, src, dst_alloca, dst_loc, aliases)
         if plan is None:
+            return None
+
+        # Fail closed: the MemSSA clobber queries below silently report "no
+        # clobber" for a read-site that has no MemoryUse
+        # (get_aliased_memory_accesses_before returns empty when
+        # get_memory_use is None). Every read-site that passes our read filter
+        # has a non-EMPTY read location -- and therefore a MemoryUse -- today,
+        # but guard explicitly so a future filter change cannot make us skip a
+        # clobber and forward unsoundly.
+        if any(self.mem_ssa.get_memory_use(rs) is None for rs in plan.read_sites):
             return None
 
         if self._has_location_clobber_between(copy_inst, plan.read_sites, dst_loc):
@@ -247,6 +266,19 @@ class RedundantMemoryCopyForwardingPass(IRPass):
 
         if any(delta is None for delta in alias_rewrites.values()):
             return None
+
+        # Each alias with a concrete delta is rewritten *in place* to reference
+        # `src` (`assign src` / `add delta, src`). That is only valid if `src`'s
+        # definition dominates the alias instruction; otherwise the rewrite
+        # would be a use-before-def. (The direct-read path inserts its `add` at
+        # the read site, which is dominated by construction, so it needs no such
+        # check.)
+        for alias in alias_rewrites:
+            alias_inst = self.dfg.get_producing_instruction(alias)
+            if alias_inst is None:
+                continue
+            if not self._src_dominates_inst(src, alias_inst):
+                return None
 
         if len(read_sites) == 0:
             return None
@@ -371,10 +403,23 @@ class RedundantMemoryCopyForwardingPass(IRPass):
     def _has_unresolved_param_clobber_between(
         self, copy_inst: IRInstruction, read_sites: frozenset[IRInstruction]
     ) -> bool:
-        # An unresolved readonly param is clobbered only by a write to an
-        # unknown base (alloca is None). Filtering on `alloca is None` is
-        # transform policy, so we compose it here over MemSSA's reachable
-        # alias walk for the conservative UNDEFINED location.
+        # Frame-separation invariant (load-bearing, pre-inlining):
+        #
+        # This runs while static allocas are still abstract (before
+        # ConcretizeMemLocPass, see required_successors). At that point a
+        # callee's own allocas live in the callee's own frame and provably do
+        # NOT alias a caller-provided memory parameter -- distinct Allocation
+        # identities never may_alias across the param boundary, and the param's
+        # concrete address is not even visible yet. Therefore the ONLY way to
+        # clobber a readonly param's region from inside the callee is a write to
+        # an *unknown base* (`MemoryLocation.alloca is None`): an escaped/opaque
+        # pointer (e.g. an invoke, or arithmetic off an untracked base). That is
+        # exactly what we detect below.
+        #
+        # We use the conservative UNDEFINED query location (the param's concrete
+        # extent is unknown) and then keep only unknown-base writes. Filtering
+        # on `alloca is None` is transform policy, so we compose it here over
+        # MemSSA's reachable alias walk rather than inside MemSSA.
         accesses = self.mem_ssa.clobbering_accesses_between(
             copy_inst, read_sites, MemoryLocation.UNDEFINED, ignore=(copy_inst,)
         )
@@ -420,6 +465,11 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         return new_var
 
     def _source_is_readonly_param(self, src: IROperand) -> bool:
+        # When the copy source is (rooted at) a memory parameter that every
+        # caller passes read-only, the source region is stable for the lifetime
+        # of this callee. The only clobbers we must still rule out are
+        # unknown-base writes -- see the frame-separation invariant documented
+        # in `_has_unresolved_param_clobber_between`.
         roots = self.param_roots.root_param_indices(src)
         if len(roots) == 0:
             return False
@@ -436,3 +486,21 @@ class RedundantMemoryCopyForwardingPass(IRPass):
             return bb_insts.index(use_inst) > bb_insts.index(copy_inst)
 
         return self.domtree.dominates(copy_bb, use_bb)
+
+    def _src_dominates_inst(self, src: IROperand, inst: IRInstruction) -> bool:
+        # Does `src`'s definition dominate `inst`? Literals/constants have no
+        # definition point and dominate everything. A variable with no
+        # producing instruction is a function parameter (defined at entry),
+        # which also dominates everything. Mirrors `_is_after`'s within-BB
+        # index ordering plus the dominator tree across blocks.
+        if not isinstance(src, IRVariable):
+            return True
+        def_inst = self.dfg.get_producing_instruction(src)
+        if def_inst is None:
+            return True
+        def_bb = def_inst.parent
+        inst_bb = inst.parent
+        if def_bb is inst_bb:
+            bb_insts = def_bb.instructions
+            return bb_insts.index(def_inst) < bb_insts.index(inst)
+        return self.domtree.dominates(def_bb, inst_bb)
