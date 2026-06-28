@@ -469,14 +469,14 @@ class Stmt:
             sub_typ = target.value._metadata.get("type")
             if isinstance(sub_typ, StructT) and target.attr in sub_typ.member_types:
                 # Use Expr to compute the field pointer
-                return Expr(target, self.ctx).lower().ptr()
+                return Expr(target, self.ctx, as_ptr=True).lower().ptr()
 
             raise CompilerPanic(f"Unsupported attribute target: {target.attr}")  # pragma: nocover
 
         elif isinstance(target, vy_ast.Subscript):
             # x[i] = ... or self.arr[i] = ... or self.map[key] = ...
             # Use Expr to compute the element pointer/slot
-            return Expr(target, self.ctx).lower().ptr()
+            return Expr(target, self.ctx, as_ptr=True).lower().ptr()
 
         raise CompilerPanic(f"Unsupported assignment target: {type(target)}")  # pragma: nocover
 
