@@ -1,5 +1,12 @@
 from vyper.utils import OrderedSet, uniq
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
+from vyper.venom.analysis import BasePtrAnalysis, DFGAnalysis, LivenessAnalysis
+from vyper.venom.analysis.load_analysis import LoadAnalysis
+from vyper.venom.analysis.mem_alias import (
+    MemoryAliasAnalysis,
+    StorageAliasAnalysis,
+    TransientAliasAnalysis,
+)
+from vyper.venom.analysis.mem_ssa import MemSSA, StorageSSA, TransientSSA
 from vyper.venom.basicblock import IRInstruction
 from vyper.venom.passes.base_pass import IRPass
 
@@ -28,6 +35,15 @@ class RemoveUnusedVariablesPass(IRPass):
         for bb in self.function.get_basic_blocks():
             bb.clear_nops()
 
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
+        self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
+        self.analyses_cache.invalidate_analysis(LoadAnalysis)
+        self.analyses_cache.invalidate_analysis(MemoryAliasAnalysis)
+        self.analyses_cache.invalidate_analysis(StorageAliasAnalysis)
+        self.analyses_cache.invalidate_analysis(TransientAliasAnalysis)
+        self.analyses_cache.invalidate_analysis(MemSSA)
+        self.analyses_cache.invalidate_analysis(StorageSSA)
+        self.analyses_cache.invalidate_analysis(TransientSSA)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _process_instruction(self, inst):
