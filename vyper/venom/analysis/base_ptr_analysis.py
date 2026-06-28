@@ -1,7 +1,7 @@
 import dataclasses as dc
 from collections import deque
 from dataclasses import dataclass
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import vyper.venom.effects as effects
 from vyper.evm.address_space import (
@@ -17,6 +17,7 @@ from vyper.evm.address_space import (
 from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.memory_location import (
     Allocation,
@@ -25,6 +26,15 @@ from vyper.venom.memory_location import (
     memory_read_ops,
     memory_write_ops,
 )
+
+if TYPE_CHECKING:
+    # MemoryAliasAnalysis is built on top of BasePtrAnalysis, so it can only be
+    # referenced for typing here -- importing it at runtime would create an
+    # import cycle.
+    from vyper.venom.analysis.mem_alias import MemoryAliasAnalysis
+
+# opcodes that forward a base pointer to a single output (pointer arithmetic)
+_POINTER_OPCODES = {"assign", "add", "sub"}
 
 
 @dataclass(frozen=True)
@@ -326,3 +336,80 @@ class BasePtrAnalysis(IRAnalysis):
 
     def get_possible_ptrs(self, var: IRVariable) -> set[Ptr]:
         return self.var_to_mem.get(var, set())
+
+    def aliases_of_allocation(self, alloca: Allocation) -> Optional[set[IRVariable]]:
+        """
+        All variables that point into `alloca`.
+
+        Returns None if any variable may point into `alloca` *and* into another
+        allocation (an ambiguous alias): callers that rewrite through these
+        aliases cannot prove every use stays within `alloca`.
+        """
+        aliases: set[IRVariable] = set()
+
+        for var, ptrs in self.var_to_mem.items():
+            if len(ptrs) == 0:
+                continue
+            if not any(ptr.base_alloca == alloca for ptr in ptrs):
+                continue
+            if any(ptr.base_alloca != alloca for ptr in ptrs):
+                return None
+            aliases.add(var)
+
+        return aliases
+
+    def pointer_uses_may_touch(
+        self, var: IRVariable, loc: MemoryLocation, mem_alias: "MemoryAliasAnalysis"
+    ) -> bool:
+        """
+        Conservatively report whether any memory-effecting use reachable from
+        pointer `var` (following pointer arithmetic) may touch `loc`.
+
+        Cycles in the pointer-use graph and uses with no statically known
+        memory effect both resolve to True (fail closed).
+
+        `mem_alias` is passed in rather than requested internally: it is built
+        on top of BasePtrAnalysis, so requesting it here would invert the
+        analysis layering / create an import cycle.
+        """
+        dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        return self._pointer_uses_may_touch_r(var, loc, dfg, mem_alias, set())
+
+    def _pointer_uses_may_touch_r(
+        self,
+        var: IRVariable,
+        loc: MemoryLocation,
+        dfg: DFGAnalysis,
+        mem_alias: "MemoryAliasAnalysis",
+        seen: set[IRVariable],
+    ) -> bool:
+        if var in seen:
+            return True
+        seen.add(var)
+
+        for use in dfg.get_uses(var):
+            for op in use.operands:
+                if op != var:
+                    continue
+                if use.opcode in _POINTER_OPCODES:
+                    if not use.has_outputs:
+                        return True
+                    if self._pointer_uses_may_touch_r(use.output, loc, dfg, mem_alias, seen):
+                        return True
+                    continue
+
+                read_loc = self.get_read_location(use, MEMORY)
+                if mem_alias.may_alias(read_loc, loc):
+                    return True
+
+                write_loc = self.get_write_location(use, MEMORY)
+                if mem_alias.may_alias(write_loc, loc):
+                    return True
+
+                if (
+                    use.get_read_effects() & effects.MEMORY == effects.EMPTY
+                    and use.get_write_effects() & effects.MEMORY == effects.EMPTY
+                ):
+                    return True
+
+        return False

@@ -10,7 +10,6 @@ from vyper.venom.analysis import (
     DominatorTreeAnalysis,
     MemoryAliasAnalysis,
     MemSSA,
-    ReachableAnalysis,
 )
 from vyper.venom.analysis.readonly_memory_args import (
     MemoryParamRootResolver,
@@ -62,7 +61,6 @@ class RedundantMemoryCopyForwardingPass(IRPass):
     base_ptr: BasePtrAnalysis
     mem_alias: MemoryAliasAnalysis
     mem_ssa: MemSSA
-    reachable: ReachableAnalysis
     updater: InstUpdater
     copy_forwarding: CopyForwardingPolicy
     readonly_memory_args: ReadonlyMemoryArgsGlobalAnalysis
@@ -90,7 +88,6 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.mem_alias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
         self.mem_ssa = self.analyses_cache.request_analysis(MemSSA)
-        self.reachable = self.analyses_cache.request_analysis(ReachableAnalysis)
         self.updater = InstUpdater(self.dfg)
         self.copy_forwarding = CopyForwardingPolicy(
             self.function, self.dfg, self.base_ptr, self.mem_alias
@@ -167,7 +164,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         else:
             return None
 
-        aliases = self._allocation_aliases(dst_alloca)
+        aliases = self.base_ptr.aliases_of_allocation(dst_alloca)
         if aliases is None:
             return None
 
@@ -184,21 +181,6 @@ class RedundantMemoryCopyForwardingPass(IRPass):
             return None
 
         return plan
-
-    def _allocation_aliases(self, alloca: Allocation) -> set[IRVariable] | None:
-        aliases: set[IRVariable] = set()
-
-        for var in self.dfg.outputs:
-            ptrs = self.base_ptr.get_possible_ptrs(var)
-            if len(ptrs) == 0:
-                continue
-            if not any(ptr.base_alloca == alloca for ptr in ptrs):
-                continue
-            if any(ptr.base_alloca != alloca for ptr in ptrs):
-                return None
-            aliases.add(var)
-
-        return aliases
 
     def _build_forward_plan(
         self,
@@ -241,7 +223,9 @@ class RedundantMemoryCopyForwardingPass(IRPass):
                 if use.opcode in _POINTER_OPCODES:
                     if not use.has_outputs:
                         return None
-                    if not self._pointer_uses_overlap_segment(use.output, dst_loc):
+                    if not self.base_ptr.pointer_uses_may_touch(
+                        use.output, dst_loc, self.mem_alias
+                    ):
                         continue
                     return None
                 if self._is_allowed_direct_root_read(use, pos, copy_inst, dst_alloca, dst_loc):
@@ -305,42 +289,6 @@ class RedundantMemoryCopyForwardingPass(IRPass):
                 changed = True
 
         return ret
-
-    def _pointer_uses_overlap_segment(
-        self, var: IRVariable, dst_loc: MemoryLocation, seen: set[IRVariable] | None = None
-    ) -> bool:
-        if seen is None:
-            seen = set()
-        if var in seen:
-            return True
-        seen.add(var)
-
-        for use in self.dfg.get_uses(var):
-            for op in use.operands:
-                if op != var:
-                    continue
-                if use.opcode in _POINTER_OPCODES:
-                    if not use.has_outputs:
-                        return True
-                    if self._pointer_uses_overlap_segment(use.output, dst_loc, seen):
-                        return True
-                    continue
-
-                read_loc = self.base_ptr.get_read_location(use, addr_space.MEMORY)
-                if self.mem_alias.may_alias(read_loc, dst_loc):
-                    return True
-
-                write_loc = self.base_ptr.get_write_location(use, addr_space.MEMORY)
-                if self.mem_alias.may_alias(write_loc, dst_loc):
-                    return True
-
-                if (
-                    use.get_read_effects() & Effects.MEMORY == EMPTY
-                    and use.get_write_effects() & Effects.MEMORY == EMPTY
-                ):
-                    return True
-
-        return False
 
     def _is_allowed_pointer_use(self, use: IRInstruction, aliases: Collection[IRVariable]) -> bool:
         if use.opcode not in _POINTER_OPCODES:
@@ -418,41 +366,24 @@ class RedundantMemoryCopyForwardingPass(IRPass):
     def _has_location_clobber_between(
         self, copy_inst: IRInstruction, read_sites: frozenset[IRInstruction], loc: MemoryLocation
     ) -> bool:
-        if loc.is_empty():
-            return False
-
-        for read_inst in read_sites:
-            for access in self.mem_ssa.get_aliased_memory_accesses_before(read_inst, loc):
-                if access.inst is copy_inst:
-                    continue
-                if self._is_reachable_from(access.inst, copy_inst):
-                    return True
-
-        return False
+        return self.mem_ssa.is_clobbered_between(copy_inst, read_sites, loc, ignore=(copy_inst,))
 
     def _has_unresolved_param_clobber_between(
         self, copy_inst: IRInstruction, read_sites: frozenset[IRInstruction]
     ) -> bool:
-        for read_inst in read_sites:
-            for access in self.mem_ssa.get_aliased_memory_accesses_before(
-                read_inst, MemoryLocation.UNDEFINED
-            ):
-                if access.inst is copy_inst:
-                    continue
-                if not self._is_reachable_from(access.inst, copy_inst):
-                    continue
-                write_loc = access.loc
-                if write_loc.alloca is None and not write_loc.is_empty():
-                    return True
+        # An unresolved readonly param is clobbered only by a write to an
+        # unknown base (alloca is None). Filtering on `alloca is None` is
+        # transform policy, so we compose it here over MemSSA's reachable
+        # alias walk for the conservative UNDEFINED location.
+        accesses = self.mem_ssa.clobbering_accesses_between(
+            copy_inst, read_sites, MemoryLocation.UNDEFINED, ignore=(copy_inst,)
+        )
+        for access in accesses:
+            write_loc = access.loc
+            if write_loc.alloca is None and not write_loc.is_empty():
+                return True
 
         return False
-
-    def _is_reachable_from(self, inst: IRInstruction, start_inst: IRInstruction) -> bool:
-        if inst.parent == start_inst.parent:
-            bb_insts = inst.parent.instructions
-            return bb_insts.index(start_inst) < bb_insts.index(inst)
-
-        return inst.parent in self.reachable.reachable[start_inst.parent]
 
     def _apply_forward_plan(self, plan: _ForwardPlan) -> None:
         for alias, delta in plan.alias_rewrites.items():

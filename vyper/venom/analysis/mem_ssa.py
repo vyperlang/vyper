@@ -1,5 +1,5 @@
 import contextlib
-from typing import Iterable, Optional
+from typing import Collection, Iterable, Optional
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
@@ -10,6 +10,7 @@ from vyper.venom.analysis.mem_alias import (
     StorageAliasAnalysis,
     TransientAliasAnalysis,
 )
+from vyper.venom.analysis.reachable import ReachableAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.memory_location import MemoryLocation
 
@@ -369,6 +370,61 @@ class MemSSAAbstract(IRAnalysis):
             current = current.reaching_def
 
         return aliased_accesses
+
+    def clobbering_accesses_between(
+        self,
+        start_inst: IRInstruction,
+        end_insts: Collection[IRInstruction],
+        loc: MemoryLocation,
+        *,
+        ignore: Collection[IRInstruction] = (),
+    ) -> OrderedSet[MemoryAccess]:
+        """
+        Memory defs that may-alias `loc` and lie strictly between `start_inst`
+        and any instruction in `end_insts` (i.e. are reachable from
+        `start_inst`).
+
+        This is the reachability-filtered companion to
+        `get_aliased_memory_accesses_before`, letting callers reason about
+        clobbers on a path between two program points. Instructions in
+        `ignore` are excluded from the result.
+        """
+        reachable = self.analyses_cache.request_analysis(ReachableAnalysis)
+        ret: OrderedSet[MemoryAccess] = OrderedSet()
+        for end_inst in end_insts:
+            for access in self.get_aliased_memory_accesses_before(end_inst, loc):
+                if access.inst in ignore:
+                    continue
+                if self._is_reachable_from(access.inst, start_inst, reachable):
+                    ret.add(access)
+        return ret
+
+    def is_clobbered_between(
+        self,
+        start_inst: IRInstruction,
+        end_insts: Collection[IRInstruction],
+        loc: MemoryLocation,
+        *,
+        ignore: Collection[IRInstruction] = (),
+    ) -> bool:
+        """
+        True if any memory write that may-alias `loc` lies on a path strictly
+        between `start_inst` and any instruction in `end_insts`.
+        """
+        if loc.is_empty():
+            return False
+        clobbers = self.clobbering_accesses_between(start_inst, end_insts, loc, ignore=ignore)
+        return len(clobbers) > 0
+
+    @staticmethod
+    def _is_reachable_from(
+        inst: IRInstruction, start_inst: IRInstruction, reachable: ReachableAnalysis
+    ) -> bool:
+        if inst.parent == start_inst.parent:
+            bb_insts = inst.parent.instructions
+            return bb_insts.index(start_inst) < bb_insts.index(inst)
+
+        return inst.parent in reachable.reachable[start_inst.parent]
 
     def get_clobbered_memory_access(self, access: MemoryAccess) -> Optional[MemoryAccess]:
         """
