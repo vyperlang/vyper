@@ -392,10 +392,8 @@ def _get_bool_kwarg(node: vy_ast.Call, kwarg_name: str, default: bool) -> bool:
     if kw_node is None:
         return default
     kw_node = kw_node.reduced()
-    # The value should be a NameConstant (True/False)
     if isinstance(kw_node, vy_ast.NameConstant):
         return kw_node.value
-    # Could also be an Int with constant value
     if isinstance(kw_node, vy_ast.Int):
         return bool(kw_node.value)
     raise CompilerPanic(f"unfoldable boolean kwarg: {kwarg_name}", kw_node)
