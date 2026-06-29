@@ -1083,7 +1083,8 @@ def _parse_args(
 
     for i, arg in enumerate(funcdef.args.args):
         argname = arg.arg
-        if argname in ("gas", "value", "skip_contract_check", "default_return_value"):
+        # TODO: Forbid `self`/`Self`/... everywhere, would be a breaking change
+        if argname in ("gas", "value", "skip_contract_check", "default_return_value", "self"):
             raise ArgumentException(
                 f"Cannot use '{argname}' as a variable name in a function input", arg
             )
