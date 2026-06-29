@@ -438,6 +438,117 @@ def test_forwards_pointer_phi_with_sibling_phi():
                 seen_non_phi = True
 
 
+def test_keeps_copy_when_pointer_phi_merges_untracked_address():
+    # %p merges the staged buffer with an untracked (calldata-derived) address.
+    # On the @b edge %p does not point into %tmp, so its read cannot be
+    # forwarded to %src and the copy must stay.
+    src = """
+    function main {
+    main:
+        %src = alloca 64
+        %tmp = alloca 64
+        mcopy %tmp, %src, 64
+        %ext = calldataload 0
+        jnz 1, @a, @b
+    a:
+        jmp @join
+    b:
+        jmp @join
+    join:
+        %p = phi @a, %tmp, @b, %ext
+        %v = mload %p
+        sink %v
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    main = ctx.get_function(IRLabel("main"))
+    insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
+    assert any(inst.opcode == "mcopy" for inst in insts)
+
+
+def test_keeps_copy_when_readonly_param_source_has_local_alloca_base():
+    # %s is rooted in a local alloca (writable) with an offset coming from a
+    # readonly param. The readonly-param clobber check sees unknown-base writes
+    # only, so the write to %local would be missed -- the copy must stay.
+    src = """
+    function callee {
+    callee:
+        %arg = param
+        %local = alloca 64
+        %tmp = alloca 64
+        %s = add %arg, %local
+        mcopy %tmp, %s, 64
+        mstore %local, 1
+        %v = mload %tmp
+        sink %v
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    callee = ctx.get_function(IRLabel("callee"))
+    insts = [inst for bb in callee.get_basic_blocks() for inst in bb.instructions]
+    assert any(inst.opcode == "mcopy" for inst in insts)
+
+
+def test_keeps_copy_when_readonly_param_source_merges_with_local_bases():
+    # MemoryLocation collapses to an unknown base when several local bases can
+    # reach %s. That must still not take the readonly-param path, because a
+    # later write to either local base can clobber the source selected at runtime.
+    src = """
+    function callee {
+    callee:
+        %arg = param
+        %local1 = alloca 64
+        %local2 = alloca 64
+        %tmp = alloca 64
+        jnz 1, @a, @b
+    a:
+        jmp @join
+    b:
+        jnz 1, @b1, @b2
+    b1:
+        jmp @join
+    b2:
+        jmp @join
+    join:
+        %s = phi @a, %arg, @b1, %local1, @b2, %local2
+        mcopy %tmp, %s, 64
+        mstore %local1, 1
+        %v = mload %tmp
+        sink %v
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    callee = ctx.get_function(IRLabel("callee"))
+    insts = [inst for bb in callee.get_basic_blocks() for inst in bb.instructions]
+    assert any(inst.opcode == "mcopy" for inst in insts)
+
+
+def test_keeps_copy_when_root_escapes_as_stored_value():
+    # The staged buffer pointer is stored into another buffer as a value; a
+    # later load through that buffer could read %tmp, so even though %tmp is
+    # also read directly, the copy cannot be removed.
+    src = """
+    function main {
+    main:
+        %src = alloca 64
+        %tmp = alloca 64
+        %box = alloca 64
+        mcopy %tmp, %src, 64
+        %v = mload %tmp
+        mstore %box, %tmp
+        sink %v
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    main = ctx.get_function(IRLabel("main"))
+    insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
+    assert any(inst.opcode == "mcopy" for inst in insts)
+
+
 def test_keeps_copy_when_src_clobbered_on_inter_block_path():
     # A write to %src on the path between the copy and a read in the
     # successor block must keep the copy.

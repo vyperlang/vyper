@@ -151,7 +151,12 @@ class RedundantMemoryCopyForwardingPass(IRPass):
                 return None
             if src_loc.alloca.is_dynamic:
                 return None
-        elif self._source_is_readonly_param(src):
+        elif not self._source_has_tracked_base(src) and self._source_is_readonly_param(src):
+            # Only a source with no tracked local-alloca base may take the
+            # readonly-param path: its clobber check sees unknown-base writes
+            # only, so it cannot observe writes to a local alloca. A source
+            # with any tracked local base -- even if the final MemoryLocation
+            # collapsed to unknown because several bases reach it -- must bail.
             src_is_readonly_param = True
         else:
             return None
@@ -239,11 +244,14 @@ class RedundantMemoryCopyForwardingPass(IRPass):
                 read_loc = self.base_ptr.get_read_location(use, addr_space.MEMORY)
                 if self.mem_alias.may_alias(read_loc, dst_loc):
                     return None
-                write_loc = self.base_ptr.get_write_location(use, addr_space.MEMORY)
                 if use.get_write_effects() & Effects.MEMORY != EMPTY:
-                    if self.mem_alias.may_alias(write_loc, dst_loc):
-                        return None
-                    continue
+                    # Any memory-writing use of `root` is disqualifying. If root
+                    # is the write's address operand the write hits the staged
+                    # region (a clobber); if it is not, root flows in as the
+                    # stored value and the destination pointer escapes into
+                    # memory, where a later load could read the now-uncopied
+                    # buffer. Bail either way.
+                    return None
                 if use.get_read_effects() & Effects.MEMORY == EMPTY:
                     return None
 
@@ -486,6 +494,11 @@ class RedundantMemoryCopyForwardingPass(IRPass):
 
         readonly_idxs = self.readonly_memory_args.get_readonly_invoke_arg_idxs(self.function)
         return roots.issubset(readonly_idxs)
+
+    def _source_has_tracked_base(self, src: IROperand) -> bool:
+        if not isinstance(src, IRVariable):
+            return False
+        return len(self.base_ptr.get_possible_ptrs(src)) > 0
 
     def _is_after(self, copy_inst: IRInstruction, use_inst: IRInstruction) -> bool:
         copy_bb = copy_inst.parent

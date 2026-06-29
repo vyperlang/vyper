@@ -57,10 +57,17 @@ class BasePtrAnalysis(IRAnalysis):
     """
 
     var_to_mem: dict[IRVariable, set[Ptr]]
+    var_to_def: dict[IRVariable, IRInstruction]
 
     def analyze(self):
         self.var_to_mem = dict()
+        self.var_to_def = dict()
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                for out in inst.get_outputs():
+                    self.var_to_def[out] = inst
 
         worklist = deque(self.cfg.dfs_pre_walk)
 
@@ -331,9 +338,10 @@ class BasePtrAnalysis(IRAnalysis):
         """
         All variables that point into `alloca`.
 
-        Returns None if any variable may point into `alloca` *and* into another
-        allocation (an ambiguous alias): callers that rewrite through these
-        aliases cannot prove every use stays within `alloca`.
+        Returns None if any variable may point into `alloca` *and* somewhere
+        else -- another allocation, or an untracked address merged in through a
+        phi -- since callers that rewrite through these aliases cannot prove
+        every use stays within `alloca`.
         """
         aliases: set[IRVariable] = set()
 
@@ -344,9 +352,26 @@ class BasePtrAnalysis(IRAnalysis):
                 continue
             if any(ptr.base_alloca != alloca for ptr in ptrs):
                 return None
+            if self._merges_untracked_pointer(var):
+                return None
             aliases.add(var)
 
         return aliases
+
+    def _merges_untracked_pointer(self, var: IRVariable) -> bool:
+        # A phi whose facts point only into one allocation can still carry an
+        # *untracked* address on some incoming edge: a phi operand with no
+        # pointer facts (a param, a calldata-derived pointer, ...) contributes
+        # nothing to the union, so the result looks like a clean alias while
+        # actually selecting an off-allocation address on that path. Such a phi
+        # is not a provable alias of the allocation.
+        inst = self.var_to_def.get(var)
+        if inst is None or inst.opcode != "phi":
+            return False
+        return any(
+            isinstance(op, IRVariable) and len(self.get_possible_ptrs(op)) == 0
+            for _, op in inst.phi_operands
+        )
 
     def instruction_derives_pointer_from(self, inst: IRInstruction, var: IRVariable) -> bool:
         """
