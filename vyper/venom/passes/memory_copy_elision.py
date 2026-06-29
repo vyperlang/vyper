@@ -8,6 +8,7 @@ from vyper.venom.analysis import (
     DFGAnalysis,
     LivenessAnalysis,
     MemoryAliasAnalysis,
+    DominatorTreeAnalysis
 )
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
 from vyper.venom.effects import Effects, to_addr_space, MEMORY
@@ -57,6 +58,7 @@ class MemoryCopyElisionPass(IRPass):
         self.mem_alias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
         self.updater = InstUpdater(self.dfg)
         self.copy_forwarding = CopyForwardingPolicy(
             self.function, self.dfg, self.base_ptr, self.mem_alias
@@ -383,6 +385,7 @@ class MemoryCopyElisionPass(IRPass):
             for use in self.dfg.get_uses(var_use):
                 if use is inst:
                     uses.add(use)
+                    continue
                 if MEMORY not in use.get_write_effects():
                     continue
                 if not self._use_dominates(use, inst):
@@ -404,7 +407,7 @@ class MemoryCopyElisionPass(IRPass):
             inst_idx = bb.instructions.index(inst)
             return use_idx < inst_idx
 
-        return False
+        return self.dom.dominates(use.parent, inst.parent)
 
     def _try_update_from_translates_read(self, inst: IRInstruction):
         read_loc = self.base_ptr.get_read_location(inst, addr_space.MEMORY)
