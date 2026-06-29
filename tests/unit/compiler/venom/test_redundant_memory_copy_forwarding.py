@@ -1,7 +1,11 @@
+import pytest
+
 from tests.venom_utils import PrePostChecker, parse_venom
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel, IRLiteral, IRVariable
 from vyper.venom.passes import RedundantMemoryCopyForwardingPass
+
+pytestmark = pytest.mark.hevm
 
 _checker = PrePostChecker([RedundantMemoryCopyForwardingPass], default_hevm=True)
 
