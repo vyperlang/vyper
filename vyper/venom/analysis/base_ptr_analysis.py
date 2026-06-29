@@ -428,6 +428,14 @@ class BasePtrAnalysis(IRAnalysis):
                 if mem_alias.may_alias(read_loc, loc):
                     return True
 
+                if use.get_write_effects() & effects.MEMORY != effects.EMPTY:
+                    # If `var` is not the write address, the pointer is flowing
+                    # into memory as data (or another non-address operand). A
+                    # later load can recover that pointer and read through it,
+                    # so treat it as an escape.
+                    if memory_write_ops(use).ofst != var:
+                        return True
+
                 write_loc = self.get_write_location(use, MEMORY)
                 if mem_alias.may_alias(write_loc, loc):
                     return True

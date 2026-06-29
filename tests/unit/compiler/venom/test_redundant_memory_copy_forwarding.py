@@ -549,6 +549,31 @@ def test_keeps_copy_when_root_escapes_as_stored_value():
     assert any(inst.opcode == "mcopy" for inst in insts)
 
 
+def test_keeps_copy_when_derived_pointer_escapes_as_stored_value():
+    # Same escape as storing %tmp directly, but through a derived unknown-offset
+    # pointer. The pointer-use walk must treat the non-address mstore operand as
+    # an escape even though the write target itself (%box) does not alias %tmp.
+    src = """
+    function main {
+    main:
+        %src = alloca 64
+        %tmp = alloca 64
+        %box = alloca 64
+        %idx = calldataload 0
+        mcopy %tmp, %src, 64
+        %p = add %idx, %tmp
+        %v = mload %tmp
+        mstore %box, %p
+        sink %v
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    main = ctx.get_function(IRLabel("main"))
+    insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
+    assert any(inst.opcode == "mcopy" for inst in insts)
+
+
 def test_keeps_copy_when_src_clobbered_on_inter_block_path():
     # A write to %src on the path between the copy and a read in the
     # successor block must keep the copy.
