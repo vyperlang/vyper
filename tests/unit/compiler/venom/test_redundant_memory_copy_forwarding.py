@@ -247,6 +247,39 @@ def test_keeps_copy_when_alias_read_has_dynamic_size():
     _checker(pre, pre)
 
 
+def test_forwards_dynamic_size_read_when_whole_alloca_staged():
+    # When the staging copy fills the ENTIRE alloca from %src (copy_size ==
+    # alloca_size) every in-bounds byte of %tmp mirrors %src, so a fixed-offset
+    # dynamic-size read can be forwarded: a well-formed read cannot exceed the
+    # alloca it targets, so it observes only staged bytes (e.g. a bounded
+    # DynArray copy-out of `32 + count*size` bytes, count <= N). Contrast
+    # test_keeps_copy_when_alias_read_has_dynamic_size, where staging is partial.
+    # Uses the structural runner rather than the hevm checker: a free symbolic
+    # size can exceed the alloca -- exactly the well-formedness case that bounded
+    # Vyper never emits but that hevm would (correctly) flag.
+    src = """
+    function main {
+    main:
+        %src = alloca 64
+        %tmp = alloca 64
+        mcopy %tmp, %src, 64
+        %n = calldataload 0
+        %out = alloca 64
+        mcopy %out, %tmp, %n
+        sink
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    main = ctx.get_function(IRLabel("main"))
+    insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
+
+    mcopies = [i for i in insts if i.opcode == "mcopy"]
+    # the staging copy is gone; the surviving out-copy reads straight from %src
+    assert len(mcopies) == 1
+    assert mcopies[0].operands[1] == IRVariable("%src")
+
+
 def test_keeps_large_aggregate_copy_without_layout_cost_model():
     pre = """
     main:

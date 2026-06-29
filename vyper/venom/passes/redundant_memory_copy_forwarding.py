@@ -366,10 +366,22 @@ class RedundantMemoryCopyForwardingPass(IRPass):
             if self.mem_alias.may_alias(write_loc, dst_loc):
                 return False
 
-        if not (read_loc.is_offset_fixed and read_loc.is_size_fixed):
+        if not read_loc.is_offset_fixed:
             return False
 
-        return dst_loc.completely_contains(read_loc)
+        if read_loc.is_size_fixed:
+            return dst_loc.completely_contains(read_loc)
+
+        # Fixed offset but dynamic (runtime) size. We can still forward when the
+        # staging copy filled the *entire* destination alloca from `src`
+        # (dst_loc covers [0, alloca_size)). Every in-bounds byte of the alloca
+        # then mirrors `src`, so -- relying on the Venom well-formedness
+        # invariant that a memory access does not read past the allocation it
+        # targets -- the read observes only staged bytes whatever its runtime
+        # size. (e.g. a bounded `DynArray[T, N]` copy-out of `32 + count*size`
+        # bytes from its `32 + N*size`-byte buffer: count <= N, so it stays in
+        # bounds.) A *partial* staging copy gives no such guarantee, so bail.
+        return dst_loc.offset == 0 and dst_loc.size == dst_alloca.alloca_size
 
     def _is_allowed_direct_root_read(
         self,
