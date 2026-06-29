@@ -364,10 +364,10 @@ class BasePtrAnalysis(IRAnalysis):
         top of BasePtrAnalysis, so referencing either module from this low-level
         analysis would invert the layering and create an import cycle.
         """
-        return self._pointer_uses_may_touch_r(var, loc, dfg, mem_alias, set())
+        return self._pointer_uses_may_touch_r(var, loc, mem_alias, dfg, set())
 
     def _pointer_uses_may_touch_r(
-        self, var: IRVariable, loc: MemoryLocation, dfg, mem_alias, seen: set[IRVariable]
+        self, var: IRVariable, loc: MemoryLocation, mem_alias, dfg, seen: set[IRVariable]
     ) -> bool:
         if var in seen:
             return True
@@ -380,7 +380,7 @@ class BasePtrAnalysis(IRAnalysis):
                 if use.opcode in _POINTER_OPCODES:
                     if not use.has_outputs:
                         return True
-                    if self._pointer_uses_may_touch_r(use.output, loc, dfg, mem_alias, seen):
+                    if self._pointer_uses_may_touch_r(use.output, loc, mem_alias, dfg, seen):
                         return True
                     continue
 
