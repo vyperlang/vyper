@@ -11,7 +11,6 @@ from vyper.venom.analysis import (
     MemoryAliasAnalysis,
     MemSSA,
 )
-from vyper.venom.analysis.base_ptr_analysis import POINTER_DERIVATION_OPCODES
 from vyper.venom.analysis.readonly_memory_args import (
     MemoryParamRootResolver,
     ReadonlyMemoryArgsGlobalAnalysis,
@@ -208,7 +207,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
                         continue
                     if use is copy_inst and pos == 2:
                         continue
-                    if self._is_allowed_pointer_use(use, aliases):
+                    if self._is_allowed_pointer_use(use, alias, aliases):
                         continue
                     if self._is_allowed_memory_read_use(use, pos, copy_inst, dst_alloca, dst_loc):
                         read_sites.add(use)
@@ -223,11 +222,9 @@ class RedundantMemoryCopyForwardingPass(IRPass):
                     continue
                 if use is copy_inst and pos == 2:
                     continue
-                if self._is_allowed_pointer_use(use, alias_rewrites.keys()):
+                if self._is_allowed_pointer_use(use, root, alias_rewrites.keys()):
                     continue
-                if use.opcode in POINTER_DERIVATION_OPCODES:
-                    if not use.has_outputs:
-                        return None
+                if self.base_ptr.instruction_derives_pointer_from(use, root):
                     if not self.base_ptr.pointer_uses_may_touch(
                         use.output, dst_loc, self.mem_alias, self.dfg
                     ):
@@ -268,7 +265,15 @@ class RedundantMemoryCopyForwardingPass(IRPass):
             alias_inst = self.dfg.get_producing_instruction(alias)
             if alias_inst is None:
                 continue
-            if self._src_dominates_inst(src, alias_inst):
+            # Pass policy: do not rewrite phis in place. Converting one to
+            # `add`/`assign` can leave a non-phi ahead of a sibling phi in the
+            # same block, breaking the phis-at-block-top invariant (SCCP and
+            # other consumers stop scanning at the first non-phi). A lone phi
+            # would be safe, but redirecting is simpler and always correct:
+            # route its reads through the direct-read path -- the same mechanism
+            # as the non-dominated case -- so the phi goes dead and the reads
+            # point straight at `src`.
+            if alias_inst.opcode != "phi" and self._src_dominates_inst(src, alias_inst):
                 continue
             delta = alias_rewrites[alias]
             assert delta is not None  # None deltas already bailed above
@@ -309,19 +314,22 @@ class RedundantMemoryCopyForwardingPass(IRPass):
                 if alias in ret or alias == root:
                     continue
                 inst = self.dfg.get_producing_instruction(alias)
-                if inst is None or inst.opcode not in POINTER_DERIVATION_OPCODES:
+                if inst is None:
                     continue
-                if not any(isinstance(op, IRVariable) and op in ret for op in inst.operands):
+                if not any(
+                    op in ret and self.base_ptr.instruction_derives_pointer_from(inst, op)
+                    for op in inst.get_input_variables()
+                ):
                     continue
                 ret[alias] = None
                 changed = True
 
         return ret
 
-    def _is_allowed_pointer_use(self, use: IRInstruction, aliases: Collection[IRVariable]) -> bool:
-        if use.opcode not in POINTER_DERIVATION_OPCODES:
-            return False
-        if not use.has_outputs:
+    def _is_allowed_pointer_use(
+        self, use: IRInstruction, var: IRVariable, aliases: Collection[IRVariable]
+    ) -> bool:
+        if not self.base_ptr.instruction_derives_pointer_from(use, var):
             return False
         return use.output in aliases
 

@@ -26,9 +26,6 @@ from vyper.venom.memory_location import (
     memory_write_ops,
 )
 
-# opcodes that forward a base pointer to a single output (pointer arithmetic)
-POINTER_DERIVATION_OPCODES = {"assign", "add", "sub"}
-
 
 @dataclass(frozen=True)
 class Ptr:
@@ -351,6 +348,26 @@ class BasePtrAnalysis(IRAnalysis):
 
         return aliases
 
+    def instruction_derives_pointer_from(self, inst: IRInstruction, var: IRVariable) -> bool:
+        """
+        Whether `inst` forwards pointer provenance from `var` to its output.
+
+        This intentionally asks the analysis facts instead of matching opcodes:
+        if BasePtrAnalysis learns a new pure pointer-derivation form, callers
+        that walk pointer-use graphs should inherit that knowledge.
+        """
+        if inst.num_outputs != 1:
+            return False
+        if var not in inst.get_input_variables():
+            return False
+        if len(self.get_possible_ptrs(inst.output)) == 0:
+            return False
+        if inst.get_read_effects() & effects.MEMORY != effects.EMPTY:
+            return False
+        if inst.get_write_effects() & effects.MEMORY != effects.EMPTY:
+            return False
+        return True
+
     def pointer_uses_may_touch(self, var: IRVariable, loc: MemoryLocation, mem_alias, dfg) -> bool:
         """
         Conservatively report whether any memory-effecting use reachable from
@@ -377,9 +394,7 @@ class BasePtrAnalysis(IRAnalysis):
             for op in use.operands:
                 if op != var:
                     continue
-                if use.opcode in POINTER_DERIVATION_OPCODES:
-                    if not use.has_outputs:
-                        return True
+                if self.instruction_derives_pointer_from(use, var):
                     if self._pointer_uses_may_touch_r(use.output, loc, mem_alias, dfg, seen):
                         return True
                     continue

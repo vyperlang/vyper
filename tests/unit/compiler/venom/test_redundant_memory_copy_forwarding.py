@@ -331,6 +331,113 @@ def test_forwards_into_dominated_successor_block():
     assert ptr_inst.operands == [IRLiteral(32), IRVariable("%src")]
 
 
+def test_forwards_through_pointer_phi():
+    src = """
+    function main {
+    main:
+        %src = alloca 64
+        %tmp = alloca 64
+        mcopy %tmp, %src, 64
+        jnz 1, @left, @right
+    left:
+        %left_ptr = add 32, %tmp
+        jmp @join
+    right:
+        %right_ptr = add 32, %tmp
+        jmp @join
+    join:
+        %ptr = phi @left, %left_ptr, @right, %right_ptr
+        %val = mload %ptr
+        sink %val
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    main = ctx.get_function(IRLabel("main"))
+    insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
+
+    assert all(inst.opcode != "mcopy" for inst in insts)
+
+    # The phi is left intact -- rewriting it in place would put a non-phi at the
+    # block top. Its read is redirected to a fresh `add 32, %src`.
+    phi_inst = next(
+        inst for inst in insts if inst.has_outputs and inst.output == IRVariable("%ptr")
+    )
+    assert phi_inst.opcode == "phi"
+
+    load = next(inst for inst in insts if inst.opcode == "mload")
+    ptr_inst = next(inst for inst in insts if inst.has_outputs and inst.output == load.operands[0])
+    assert ptr_inst.opcode == "add"
+    assert ptr_inst.operands == [IRLiteral(32), IRVariable("%src")]
+
+
+def test_keeps_copy_when_pointer_phi_may_leave_copied_segment():
+    pre = """
+    main:
+        %src = alloca 64
+        %tmp = alloca 128
+        mcopy %tmp, %src, 64
+        jnz 1, @left, @right
+    left:
+        %left_ptr = add 32, %tmp
+        jmp @join
+    right:
+        %right_ptr = add 96, %tmp
+        jmp @join
+    join:
+        %ptr = phi @left, %left_ptr, @right, %right_ptr
+        %val = mload %ptr
+        sink %val
+    """
+
+    _checker(pre, pre)
+
+
+def test_forwards_pointer_phi_with_sibling_phi():
+    # A pointer-phi that normalizes to a concrete offset must NOT be rewritten in
+    # place when the join block has other phis: doing so would drop an `add`
+    # ahead of the `%optr` phi and break the phis-at-block-top invariant. The
+    # read is redirected instead and both phis stay at the top of @join.
+    src = """
+    function main {
+    main:
+        %src = alloca 64
+        %tmp = alloca 64
+        %osrc = alloca 32
+        mcopy %tmp, %src, 64
+        jnz 1, @left, @right
+    left:
+        %lp = add 32, %tmp
+        %lo = add 0, %osrc
+        jmp @join
+    right:
+        %rp = add 32, %tmp
+        %ro = add 0, %osrc
+        jmp @join
+    join:
+        %ptr = phi @left, %lp, @right, %rp
+        %optr = phi @left, %lo, @right, %ro
+        %val = mload %ptr
+        %v2 = mload %optr
+        sink %val, %v2
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    main = ctx.get_function(IRLabel("main"))
+
+    assert all(inst.opcode != "mcopy" for bb in main.get_basic_blocks() for inst in bb.instructions)
+
+    # no non-phi instruction may precede a phi in any block
+    for bb in main.get_basic_blocks():
+        seen_non_phi = False
+        for inst in bb.instructions:
+            if inst.opcode == "phi":
+                assert not seen_non_phi, "phi follows a non-phi instruction"
+            else:
+                seen_non_phi = True
+
+
 def test_keeps_copy_when_src_clobbered_on_inter_block_path():
     # A write to %src on the path between the copy and a read in the
     # successor block must keep the copy.
