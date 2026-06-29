@@ -395,7 +395,7 @@ class MemSSAAbstract(IRAnalysis):
             for access in self.get_aliased_memory_accesses_before(end_inst, loc):
                 if access.inst in ignore:
                     continue
-                if self._is_reachable_from(access.inst, start_inst, reachable):
+                if reachable.is_reachable_from(access.inst, start_inst):
                     ret.add(access)
         return ret
 
@@ -415,16 +415,6 @@ class MemSSAAbstract(IRAnalysis):
             return False
         clobbers = self.clobbering_accesses_between(start_inst, end_insts, loc, ignore=ignore)
         return len(clobbers) > 0
-
-    @staticmethod
-    def _is_reachable_from(
-        inst: IRInstruction, start_inst: IRInstruction, reachable: ReachableAnalysis
-    ) -> bool:
-        if inst.parent == start_inst.parent:
-            bb_insts = inst.parent.instructions
-            return bb_insts.index(start_inst) < bb_insts.index(inst)
-
-        return inst.parent in reachable.reachable[start_inst.parent]
 
     def get_clobbered_memory_access(self, access: MemoryAccess) -> Optional[MemoryAccess]:
         """
