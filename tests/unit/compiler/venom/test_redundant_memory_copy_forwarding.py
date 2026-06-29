@@ -526,6 +526,37 @@ def test_keeps_copy_when_readonly_param_source_merges_with_local_bases():
     assert any(inst.opcode == "mcopy" for inst in insts)
 
 
+def test_keeps_copy_when_readonly_param_source_merges_untracked_address():
+    # root_param_indices(%s) sees %arg, but the %ext arm is an unknown address
+    # root. That missing root must not be accepted as proof that every source
+    # path is readonly-param-backed.
+    src = """
+    function callee {
+    callee:
+        %arg = param
+        %local = alloca 64
+        %tmp = alloca 64
+        %ext = calldataload 0
+        jnz 1, @a, @b
+    a:
+        jmp @join
+    b:
+        jmp @join
+    join:
+        %s = phi @a, %arg, @b, %ext
+        mcopy %tmp, %s, 64
+        mstore %local, 1
+        %v = mload %tmp
+        sink %v
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    callee = ctx.get_function(IRLabel("callee"))
+    insts = [inst for bb in callee.get_basic_blocks() for inst in bb.instructions]
+    assert any(inst.opcode == "mcopy" for inst in insts)
+
+
 def test_keeps_copy_when_root_escapes_as_stored_value():
     # The staged buffer pointer is stored into another buffer as a value; a
     # later load through that buffer could read %tmp, so even though %tmp is

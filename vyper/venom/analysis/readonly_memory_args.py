@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from vyper.venom.basicblock import IRInstruction, IRLabel, IROperand, IRVariable
@@ -31,12 +32,32 @@ class MemoryParamRootResolver:
         self.all_param_roots = frozenset(range(len(self.invoke_params)))
         self.cycle_roots = self.all_param_roots if cycle_roots is None else cycle_roots
         self.memo: dict[IRVariable, frozenset[int]] = {}
+        self.exclusive_memo: dict[IRVariable, frozenset[int] | None] = {}
         self.active: set[IRVariable] = set()
+        self.exclusive_active: set[IRVariable] = set()
 
     def root_param_indices(self, op: IROperand) -> frozenset[int]:
+        """
+        Return every memory-param root that is known to reach `op`.
+
+        This is a may-style query for mutability inference: unknown/non-param
+        roots are ignored, because they do not identify a specific param to mark
+        mutable.
+        """
         if not isinstance(op, IRVariable):
             return frozenset()
         return self._root_param_indices_var(op)
+
+    def exclusive_root_param_indices(self, op: IROperand) -> frozenset[int] | None:
+        """
+        Return param roots only if every root reaching `op` is known.
+
+        None means some path has an unknown/non-param root, which is not proof
+        that a pointer source is readonly-param-backed.
+        """
+        if not isinstance(op, IRVariable):
+            return frozenset()
+        return self._exclusive_root_param_indices_var(op)
 
     def _root_param_indices_var(self, var: IRVariable) -> frozenset[int]:
         if var in self.memo:
@@ -94,6 +115,50 @@ class MemoryParamRootResolver:
         roots: set[int] = set()
         roots.update(self.root_param_indices(a))
         roots.update(self.root_param_indices(b))
+        return frozenset(roots)
+
+    def _exclusive_root_param_indices_var(self, var: IRVariable) -> frozenset[int] | None:
+        if var in self.exclusive_memo:
+            return self.exclusive_memo[var]
+        if var in self.exclusive_active:
+            return None
+
+        idx = self.invoke_param_index.get(var, None)
+        if idx is not None:
+            roots = frozenset([idx])
+            self.exclusive_memo[var] = roots
+            return roots
+
+        self.exclusive_active.add(var)
+        inst = self.dfg.get_producing_instruction(var)
+        roots = self._exclusive_root_from_inst(inst)
+        self.exclusive_active.remove(var)
+        self.exclusive_memo[var] = roots
+        return roots
+
+    def _exclusive_root_from_inst(self, inst: IRInstruction | None) -> frozenset[int] | None:
+        if inst is None:
+            return None
+
+        op = inst.opcode
+        if op == "assign":
+            return self.exclusive_root_param_indices(inst.operands[0])
+
+        if op in ("add", "sub"):
+            return self._combine_exclusive_roots(inst.operands)
+
+        if op == "phi":
+            return self._combine_exclusive_roots(var for _, var in inst.phi_operands)
+
+        return None
+
+    def _combine_exclusive_roots(self, operands: Iterable[IROperand]) -> frozenset[int] | None:
+        roots: set[int] = set()
+        for operand in operands:
+            operand_roots = self.exclusive_root_param_indices(operand)
+            if operand_roots is None:
+                return None
+            roots.update(operand_roots)
         return frozenset(roots)
 
 
