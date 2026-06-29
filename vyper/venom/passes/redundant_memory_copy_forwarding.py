@@ -75,7 +75,8 @@ class RedundantMemoryCopyForwardingPass(IRPass):
             if copy_inst is None:
                 break
 
-            assert self._try_forward_copy(copy_inst)
+            did_forward = self._try_forward_copy(copy_inst)
+            assert did_forward
             changed = True
             self._invalidate()
 
@@ -158,7 +159,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
                 return None
             if src_loc.alloca is None:
                 return None
-            if src_loc.alloca is not None and src_loc.alloca.is_dynamic:
+            if src_loc.alloca.is_dynamic:
                 return None
         elif self._source_is_readonly_param(src):
             src_is_readonly_param = True
