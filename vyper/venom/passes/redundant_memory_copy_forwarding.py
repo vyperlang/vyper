@@ -71,12 +71,12 @@ class RedundantMemoryCopyForwardingPass(IRPass):
 
         while True:
             self._prepare()
-            copy_inst = self._find_forwardable_copy()
-            if copy_inst is None:
+            plan = self._find_forwardable_plan()
+            if plan is None:
                 break
 
-            did_forward = self._try_forward_copy(copy_inst)
-            assert did_forward
+            self._apply_forward_plan(plan)
+            self.updater.nop(plan.copy_inst, annotation="[redundant memory copy forwarding]")
             changed = True
             self._invalidate()
 
@@ -110,24 +110,15 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         self.analyses_cache.invalidate_analysis(MemoryAliasAnalysis)
         self.analyses_cache.invalidate_analysis(MemSSA)
 
-    def _find_forwardable_copy(self) -> IRInstruction | None:
+    def _find_forwardable_plan(self) -> _ForwardPlan | None:
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
-                if inst.opcode == "mcopy" and self._copy_is_forwardable(inst):
-                    return inst
+                if inst.opcode != "mcopy":
+                    continue
+                plan = self._candidate(inst)
+                if plan is not None:
+                    return plan
         return None
-
-    def _copy_is_forwardable(self, copy_inst: IRInstruction) -> bool:
-        return self._candidate(copy_inst) is not None
-
-    def _try_forward_copy(self, copy_inst: IRInstruction) -> bool:
-        plan = self._candidate(copy_inst)
-        if plan is None:
-            return False
-
-        self._apply_forward_plan(plan)
-        self.updater.nop(copy_inst, annotation="[redundant memory copy forwarding]")
-        return True
 
     def _candidate(self, copy_inst: IRInstruction) -> _ForwardPlan | None:
         copy_size = self.copy_forwarding.copy_size(copy_inst)
