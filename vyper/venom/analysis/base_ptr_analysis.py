@@ -22,7 +22,9 @@ from vyper.venom.memory_location import (
     Allocation,
     InstAccessOps,
     MemoryLocation,
+    memory_read_ofst_index,
     memory_read_ops,
+    memory_write_ofst_index,
     memory_write_ops,
 )
 
@@ -352,26 +354,52 @@ class BasePtrAnalysis(IRAnalysis):
                 continue
             if any(ptr.base_alloca != alloca for ptr in ptrs):
                 return None
-            if self._merges_untracked_pointer(var):
+            if self.pointer_may_include_untracked_root(var):
                 return None
             aliases.add(var)
 
         return aliases
 
-    def _merges_untracked_pointer(self, var: IRVariable) -> bool:
-        # A phi whose facts point only into one allocation can still carry an
-        # *untracked* address on some incoming edge: a phi operand with no
+    def pointer_may_include_untracked_root(self, var: IRVariable) -> bool:
+        return self._pointer_may_include_untracked_root_r(var, set())
+
+    def _pointer_may_include_untracked_root_r(self, var: IRVariable, seen: set[IRVariable]) -> bool:
+        # A value whose facts point only into one allocation can still carry an
+        # *untracked* address through phi/assign chains: an operand with no
         # pointer facts (a param, a calldata-derived pointer, ...) contributes
-        # nothing to the union, so the result looks like a clean alias while
-        # actually selecting an off-allocation address on that path. Such a phi
-        # is not a provable alias of the allocation.
+        # nothing to the base-pointer union, so the result looks like a clean
+        # alias while actually selecting an off-allocation address on that path.
+        # Such a value is not a provable alias of the allocation.
+        if var in seen:
+            return True
+        seen.add(var)
+
         inst = self.var_to_def.get(var)
-        if inst is None or inst.opcode != "phi":
+        if inst is None:
             return False
-        return any(
-            isinstance(op, IRVariable) and len(self.get_possible_ptrs(op)) == 0
-            for _, op in inst.phi_operands
-        )
+
+        if inst.opcode == "phi":
+            for _, op in inst.phi_operands:
+                if len(self.get_possible_ptrs(op)) == 0:
+                    return True
+                if self._pointer_may_include_untracked_root_r(op, seen.copy()):
+                    return True
+            return False
+
+        if inst.opcode == "assign" and isinstance(inst.operands[0], IRVariable):
+            op = inst.operands[0]
+            if len(self.get_possible_ptrs(op)) == 0:
+                return True
+            return self._pointer_may_include_untracked_root_r(op, seen.copy())
+
+        if inst.opcode in ("add", "sub"):
+            for op in inst.get_input_variables():
+                if len(self.get_possible_ptrs(op)) == 0:
+                    continue
+                if self._pointer_may_include_untracked_root_r(op, seen.copy()):
+                    return True
+
+        return False
 
     def instruction_derives_pointer_from(self, inst: IRInstruction, var: IRVariable) -> bool:
         """
@@ -416,7 +444,7 @@ class BasePtrAnalysis(IRAnalysis):
         seen.add(var)
 
         for use in dfg.get_uses(var):
-            for op in use.operands:
+            for pos, op in enumerate(use.operands):
                 if op != var:
                     continue
                 if self.instruction_derives_pointer_from(use, var):
@@ -424,26 +452,32 @@ class BasePtrAnalysis(IRAnalysis):
                         return True
                     continue
 
-                read_loc = self.get_read_location(use, MEMORY)
-                if mem_alias.may_alias(read_loc, loc):
-                    return True
+                has_memory_read = use.get_read_effects() & effects.MEMORY != effects.EMPTY
+                has_memory_write = use.get_write_effects() & effects.MEMORY != effects.EMPTY
+                read_idx = memory_read_ofst_index(use) if has_memory_read else None
+                write_idx = memory_write_ofst_index(use) if has_memory_write else None
+                is_read_address = read_idx is not None and pos == read_idx
+                is_write_address = write_idx is not None and pos == write_idx
 
-                if use.get_write_effects() & effects.MEMORY != effects.EMPTY:
-                    # If `var` is not the write address, the pointer is flowing
-                    # into memory as data (or another non-address operand). A
-                    # later load can recover that pointer and read through it,
-                    # so treat it as an escape.
-                    if memory_write_ops(use).ofst != var:
+                if has_memory_read and is_read_address:
+                    read_loc = self.get_read_location(use, MEMORY)
+                    if mem_alias.may_alias(read_loc, loc):
                         return True
 
-                write_loc = self.get_write_location(use, MEMORY)
-                if mem_alias.may_alias(write_loc, loc):
+                if has_memory_write and is_write_address:
+                    write_loc = self.get_write_location(use, MEMORY)
+                    if mem_alias.may_alias(write_loc, loc):
+                        return True
+
+                # If `var` is used by a memory-effecting instruction but not
+                # as one of its memory address operands, it is flowing as data
+                # (size, stored value, call arg, ...). Treat that as an escape.
+                if (has_memory_read or has_memory_write) and not (
+                    is_read_address or is_write_address
+                ):
                     return True
 
-                if (
-                    use.get_read_effects() & effects.MEMORY == effects.EMPTY
-                    and use.get_write_effects() & effects.MEMORY == effects.EMPTY
-                ):
+                if not (has_memory_read or has_memory_write):
                     return True
 
         return False

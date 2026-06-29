@@ -557,6 +557,41 @@ def test_keeps_copy_when_readonly_param_source_merges_untracked_address():
     assert any(inst.opcode == "mcopy" for inst in insts)
 
 
+def test_keeps_copy_when_fixed_source_merges_untracked_address():
+    # BasePtrAnalysis can report a fixed local source for %s by ignoring the
+    # untracked arm. That is not enough proof for forwarding: %ext can alias
+    # another local buffer which is written after the snapshot.
+    src = """
+    function main {
+    main:
+        %local = alloca 64
+        %other = alloca 64
+        %tmp = alloca 64
+        %ext = calldataload 0
+        jnz 1, @a, @b
+    a:
+        jmp @join
+    b:
+        jmp @join
+    join:
+        %s = phi @a, %local, @b, %ext
+        mcopy %tmp, %s, 64
+        mstore %other, 1
+        %v = mload %tmp
+        sink %v
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    main = ctx.get_function(IRLabel("main"))
+    insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
+    assert any(
+        inst.opcode == "mcopy"
+        and inst.operands == [IRLiteral(64), IRVariable("%s"), IRVariable("%tmp")]
+        for inst in insts
+    )
+
+
 def test_keeps_copy_when_root_escapes_as_stored_value():
     # The staged buffer pointer is stored into another buffer as a value; a
     # later load through that buffer could read %tmp, so even though %tmp is
@@ -578,6 +613,32 @@ def test_keeps_copy_when_root_escapes_as_stored_value():
     main = ctx.get_function(IRLabel("main"))
     insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
     assert any(inst.opcode == "mcopy" for inst in insts)
+
+
+def test_keeps_copy_when_same_pointer_is_store_address_and_value():
+    # %p is outside the copied segment as a write address, but it also escapes
+    # as the stored value. Operand role, not value equality, decides that.
+    src = """
+    function main {
+    main:
+        %src = alloca 64
+        %tmp = alloca 128
+        mcopy %tmp, %src, 64
+        %p = add 96, %tmp
+        %v = mload %tmp
+        mstore %p, %p
+        sink %v
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    main = ctx.get_function(IRLabel("main"))
+    insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
+    assert any(
+        inst.opcode == "mcopy"
+        and inst.operands == [IRLiteral(64), IRVariable("%src"), IRVariable("%tmp")]
+        for inst in insts
+    )
 
 
 def test_keeps_copy_when_derived_pointer_escapes_as_stored_value():
@@ -603,6 +664,33 @@ def test_keeps_copy_when_derived_pointer_escapes_as_stored_value():
     main = ctx.get_function(IRLabel("main"))
     insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
     assert any(inst.opcode == "mcopy" for inst in insts)
+
+
+def test_keeps_copy_when_alias_is_memory_read_size_operand():
+    # The staged pointer appears in both the source-address slot and the size
+    # slot. Only the source-address occurrence is a readonly memory read; the
+    # size occurrence is an ordinary value use and cannot be redirected.
+    src = """
+    function main {
+    main:
+        %src = alloca 64
+        %tmp = alloca 64
+        %out = alloca 64
+        mcopy %tmp, %src, 64
+        %p = add 0, %tmp
+        mcopy %out, %p, %p
+        sink
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    main = ctx.get_function(IRLabel("main"))
+    insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
+    assert any(
+        inst.opcode == "mcopy"
+        and inst.operands == [IRLiteral(64), IRVariable("%src"), IRVariable("%tmp")]
+        for inst in insts
+    )
 
 
 def test_keeps_copy_when_src_clobbered_on_inter_block_path():

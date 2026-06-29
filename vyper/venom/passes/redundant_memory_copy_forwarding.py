@@ -17,7 +17,7 @@ from vyper.venom.analysis.readonly_memory_args import (
 )
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.effects import EMPTY, Effects
-from vyper.venom.memory_location import Allocation, MemoryLocation, memory_read_ops
+from vyper.venom.memory_location import Allocation, MemoryLocation, memory_read_ofst_index
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.copy_forwarding import CopyForwardingPolicy
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
@@ -145,6 +145,8 @@ class RedundantMemoryCopyForwardingPass(IRPass):
             return None
         src_is_readonly_param = False
         if src_loc.is_fixed:
+            if self._source_may_include_untracked_root(src):
+                return None
             if src_loc.is_empty() or self.mem_alias.may_alias(src_loc, dst_loc):
                 return None
             if src_loc.alloca is None:
@@ -357,12 +359,8 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         if not self._is_after(copy_inst, use):
             return False
 
-        read_op = memory_read_ops(use).ofst
-        if (
-            read_op is None
-            or operand_pos >= len(use.operands)
-            or use.operands[operand_pos] != read_op
-        ):
+        read_idx = memory_read_ofst_index(use)
+        if read_idx is None or operand_pos != read_idx:
             return False
 
         read_loc = self.base_ptr.get_read_location(use, addr_space.MEMORY)
@@ -499,6 +497,11 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         if not isinstance(src, IRVariable):
             return False
         return len(self.base_ptr.get_possible_ptrs(src)) > 0
+
+    def _source_may_include_untracked_root(self, src: IROperand) -> bool:
+        if not isinstance(src, IRVariable):
+            return False
+        return self.base_ptr.pointer_may_include_untracked_root(src)
 
     def _is_after(self, copy_inst: IRInstruction, use_inst: IRInstruction) -> bool:
         copy_bb = copy_inst.parent
