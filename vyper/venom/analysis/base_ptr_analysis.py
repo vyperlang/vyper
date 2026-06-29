@@ -27,7 +27,7 @@ from vyper.venom.memory_location import (
 )
 
 # opcodes that forward a base pointer to a single output (pointer arithmetic)
-_POINTER_OPCODES = {"assign", "add", "sub"}
+POINTER_DERIVATION_OPCODES = {"assign", "add", "sub"}
 
 
 @dataclass(frozen=True)
@@ -377,7 +377,7 @@ class BasePtrAnalysis(IRAnalysis):
             for op in use.operands:
                 if op != var:
                     continue
-                if use.opcode in _POINTER_OPCODES:
+                if use.opcode in POINTER_DERIVATION_OPCODES:
                     if not use.has_outputs:
                         return True
                     if self._pointer_uses_may_touch_r(use.output, loc, mem_alias, dfg, seen):

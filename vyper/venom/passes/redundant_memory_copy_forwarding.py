@@ -11,6 +11,7 @@ from vyper.venom.analysis import (
     MemoryAliasAnalysis,
     MemSSA,
 )
+from vyper.venom.analysis.base_ptr_analysis import POINTER_DERIVATION_OPCODES
 from vyper.venom.analysis.readonly_memory_args import (
     MemoryParamRootResolver,
     ReadonlyMemoryArgsGlobalAnalysis,
@@ -22,7 +23,6 @@ from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.copy_forwarding import CopyForwardingPolicy
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
-_POINTER_OPCODES = {"assign", "add", "sub"}
 # This pass runs before concrete memory layout and has no layout/lifetime cost
 # model. Forwarding very large staging copies can extend the source buffer's
 # live range across later memory operations and regress the eventual frame
@@ -225,7 +225,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
                     continue
                 if self._is_allowed_pointer_use(use, alias_rewrites.keys()):
                     continue
-                if use.opcode in _POINTER_OPCODES:
+                if use.opcode in POINTER_DERIVATION_OPCODES:
                     if not use.has_outputs:
                         return None
                     if not self.base_ptr.pointer_uses_may_touch(
@@ -309,7 +309,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
                 if alias in ret or alias == root:
                     continue
                 inst = self.dfg.get_producing_instruction(alias)
-                if inst is None or inst.opcode not in _POINTER_OPCODES:
+                if inst is None or inst.opcode not in POINTER_DERIVATION_OPCODES:
                     continue
                 if not any(isinstance(op, IRVariable) and op in ret for op in inst.operands):
                     continue
@@ -319,7 +319,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         return ret
 
     def _is_allowed_pointer_use(self, use: IRInstruction, aliases: Collection[IRVariable]) -> bool:
-        if use.opcode not in _POINTER_OPCODES:
+        if use.opcode not in POINTER_DERIVATION_OPCODES:
             return False
         if not use.has_outputs:
             return False
