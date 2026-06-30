@@ -37,6 +37,9 @@ class _GenericTypeAcceptor:
         return self.compare_type(other) and other.compare_type(self)
 
     def compare_type(self, other):
+        if isinstance(other, BottomT):
+            return True
+
         if isinstance(other, self.type_):
             return True
         # compare two GenericTypeAcceptors -- they are the same if the base
@@ -407,6 +410,9 @@ class VyperType:
         bool
             Indicates if the types are equivalent.
         """
+        if isinstance(other, BottomT):
+            return True
+
         return isinstance(other, type(self))
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional["VyperType"]:
@@ -478,6 +484,10 @@ class KwargSettings:
         self.typ = typ
         self.default = default
         self.require_literal = require_literal
+
+
+class BottomT(VyperType):
+    _id = "Never"  # see python's typing.Never
 
 
 class _VoidType(VyperType):
