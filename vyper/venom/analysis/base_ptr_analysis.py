@@ -22,9 +22,7 @@ from vyper.venom.memory_location import (
     Allocation,
     InstAccessOps,
     MemoryLocation,
-    memory_read_ofst_index,
     memory_read_ops,
-    memory_write_ofst_index,
     memory_write_ops,
 )
 
@@ -455,8 +453,8 @@ class BasePtrAnalysis(IRAnalysis):
 
                 has_memory_read = use.get_read_effects() & effects.MEMORY != effects.EMPTY
                 has_memory_write = use.get_write_effects() & effects.MEMORY != effects.EMPTY
-                read_idx = memory_read_ofst_index(use) if has_memory_read else None
-                write_idx = memory_write_ofst_index(use) if has_memory_write else None
+                read_idx = memory_read_ops(use).ofst_index if has_memory_read else None
+                write_idx = memory_write_ops(use).ofst_index if has_memory_write else None
                 is_read_address = read_idx is not None and pos == read_idx
                 is_write_address = write_idx is not None and pos == write_idx
 

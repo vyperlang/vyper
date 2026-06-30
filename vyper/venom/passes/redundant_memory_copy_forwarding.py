@@ -17,7 +17,7 @@ from vyper.venom.analysis.readonly_memory_args import (
 )
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.effects import EMPTY, Effects
-from vyper.venom.memory_location import Allocation, MemoryLocation, memory_read_ofst_index
+from vyper.venom.memory_location import Allocation, MemoryLocation, memory_read_ops
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.copy_forwarding import CopyForwardingPolicy
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
@@ -359,7 +359,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         if not self._is_after(copy_inst, use):
             return False
 
-        read_idx = memory_read_ofst_index(use)
+        read_idx = memory_read_ops(use).ofst_index
         if read_idx is None or operand_pos != read_idx:
             return False
 
