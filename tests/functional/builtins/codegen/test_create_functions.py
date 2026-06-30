@@ -1175,8 +1175,8 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32) -> address
     assert env.get_code(res) == runtime
 
 
-# evaluation of the value kwarg changes the value of the salt kwarg
-# value kwarg comes after the salt kwarg in the source code
+# evaluation of the value kwarg changes the value of the salt kwarg.
+# value kwarg comes after the salt kwarg in the source code.
 @pytest.mark.xfail(raises=AssertionError, reason="salt kwarg is evaluated after value kwarg")
 def test_raw_create_order_of_eval_of_kwargs(get_contract, env, create2_address_of, keccak):
     to_deploy_code = """
@@ -1223,12 +1223,16 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32, value_: ui
     assert env.get_balance(res) == value
 
 
-# test vararg and kwarg order of evaluation
-# test fails because `value` gets evaluated
-# before the 1st vararg which doesn't follow
-# source code order
-@pytest.mark.xfail(raises=AssertionError)
-def test_raw_create_eval_order(get_contract):
+# test vararg and kwarg expression evaluation order.
+def test_raw_create_eval_order(get_contract, experimental_codegen, request):
+    if not experimental_codegen:
+        request.node.add_marker(
+            pytest.mark.xfail(
+                raises=AssertionError,
+                reason="legacy raw_create lowers value= before the preceding vararg",
+            )
+        )
+
     code = """
 a: public(uint256)
 
