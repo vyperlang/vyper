@@ -380,6 +380,7 @@ class BasePtrAnalysis(IRAnalysis):
 
         if inst.opcode == "phi":
             for _, op in inst.phi_operands:
+                assert isinstance(op, IRVariable)  # mypy help
                 if len(self.get_possible_ptrs(op)) == 0:
                     return True
                 if self._pointer_may_include_untracked_root_r(op, seen.copy()):

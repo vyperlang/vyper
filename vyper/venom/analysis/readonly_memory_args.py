@@ -33,8 +33,10 @@ class MemoryParamRootResolver:
         self.cycle_roots = self.all_param_roots if cycle_roots is None else cycle_roots
         self.memo: dict[IRVariable, frozenset[int]] = {}
         self.exclusive_memo: dict[IRVariable, frozenset[int] | None] = {}
+        self.exclusive_alias_memo: dict[IRVariable, frozenset[int] | None] = {}
         self.active: set[IRVariable] = set()
         self.exclusive_active: set[IRVariable] = set()
+        self.exclusive_alias_active: set[IRVariable] = set()
 
     def root_param_indices(self, op: IROperand) -> frozenset[int]:
         """
@@ -58,6 +60,18 @@ class MemoryParamRootResolver:
         if not isinstance(op, IRVariable):
             return frozenset()
         return self._exclusive_root_param_indices_var(op)
+
+    def exclusive_param_alias_indices(self, op: IROperand) -> frozenset[int] | None:
+        """
+        Return param roots only if `op` is exactly param-backed.
+
+        This intentionally follows only param, assign, and phi edges. Unlike
+        `exclusive_root_param_indices`, it does not treat pointer arithmetic as
+        proof that the resulting value still points inside a param region.
+        """
+        if not isinstance(op, IRVariable):
+            return frozenset()
+        return self._exclusive_param_alias_indices_var(op)
 
     def _root_param_indices_var(self, var: IRVariable) -> frozenset[int]:
         if var in self.memo:
@@ -125,13 +139,13 @@ class MemoryParamRootResolver:
 
         idx = self.invoke_param_index.get(var, None)
         if idx is not None:
-            roots = frozenset([idx])
-            self.exclusive_memo[var] = roots
-            return roots
+            param_roots = frozenset([idx])
+            self.exclusive_memo[var] = param_roots
+            return param_roots
 
         self.exclusive_active.add(var)
         inst = self.dfg.get_producing_instruction(var)
-        roots = self._exclusive_root_from_inst(inst)
+        roots: frozenset[int] | None = self._exclusive_root_from_inst(inst)
         self.exclusive_active.remove(var)
         self.exclusive_memo[var] = roots
         return roots
@@ -156,6 +170,49 @@ class MemoryParamRootResolver:
         roots: set[int] = set()
         for operand in operands:
             operand_roots = self.exclusive_root_param_indices(operand)
+            if operand_roots is None:
+                return None
+            roots.update(operand_roots)
+        return frozenset(roots)
+
+    def _exclusive_param_alias_indices_var(self, var: IRVariable) -> frozenset[int] | None:
+        if var in self.exclusive_alias_memo:
+            return self.exclusive_alias_memo[var]
+        if var in self.exclusive_alias_active:
+            return None
+
+        idx = self.invoke_param_index.get(var, None)
+        if idx is not None:
+            param_roots = frozenset([idx])
+            self.exclusive_alias_memo[var] = param_roots
+            return param_roots
+
+        self.exclusive_alias_active.add(var)
+        inst = self.dfg.get_producing_instruction(var)
+        roots: frozenset[int] | None = self._exclusive_param_alias_from_inst(inst)
+        self.exclusive_alias_active.remove(var)
+        self.exclusive_alias_memo[var] = roots
+        return roots
+
+    def _exclusive_param_alias_from_inst(self, inst: IRInstruction | None) -> frozenset[int] | None:
+        if inst is None:
+            return None
+
+        op = inst.opcode
+        if op == "assign":
+            return self.exclusive_param_alias_indices(inst.operands[0])
+
+        if op == "phi":
+            return self._combine_exclusive_param_aliases(var for _, var in inst.phi_operands)
+
+        return None
+
+    def _combine_exclusive_param_aliases(
+        self, operands: Iterable[IROperand]
+    ) -> frozenset[int] | None:
+        roots: set[int] = set()
+        for operand in operands:
+            operand_roots = self.exclusive_param_alias_indices(operand)
             if operand_roots is None:
                 return None
             roots.update(operand_roots)

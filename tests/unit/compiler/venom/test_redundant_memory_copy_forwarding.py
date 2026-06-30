@@ -557,6 +557,54 @@ def test_keeps_copy_when_readonly_param_source_merges_untracked_address():
     assert any(inst.opcode == "mcopy" for inst in insts)
 
 
+def test_keeps_copy_when_readonly_param_source_has_param_offset():
+    # The readonly-param root query sees both params, but %s is not proven to
+    # stay inside either readonly param region. The source could alias a local
+    # alloca that is written after the snapshot.
+    src = """
+    function callee {
+    callee:
+        %arg = param
+        %idx = param
+        %local = alloca 64
+        %tmp = alloca 64
+        %s = add %idx, %arg
+        mcopy %tmp, %s, 64
+        mstore %local, 1
+        %v = mload %tmp
+        sink %v
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    callee = ctx.get_function(IRLabel("callee"))
+    insts = [inst for bb in callee.get_basic_blocks() for inst in bb.instructions]
+    assert any(inst.opcode == "mcopy" for inst in insts)
+
+
+def test_keeps_copy_when_readonly_param_source_has_constant_offset():
+    # A constant offset from a readonly param is still pointer arithmetic, and
+    # this pass has no proof that the copied range stays within the param.
+    src = """
+    function callee {
+    callee:
+        %arg = param
+        %local = alloca 64
+        %tmp = alloca 64
+        %s = add 32, %arg
+        mcopy %tmp, %s, 64
+        mstore %local, 1
+        %v = mload %tmp
+        sink %v
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    callee = ctx.get_function(IRLabel("callee"))
+    insts = [inst for bb in callee.get_basic_blocks() for inst in bb.instructions]
+    assert any(inst.opcode == "mcopy" for inst in insts)
+
+
 def test_keeps_copy_when_fixed_source_merges_untracked_address():
     # BasePtrAnalysis can report a fixed local source for %s by ignoring the
     # untracked arm. That is not enough proof for forwarding: %ext can alias

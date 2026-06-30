@@ -486,7 +486,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         # of this callee. The only clobbers we must still rule out are
         # unknown-base writes -- see the frame-separation invariant documented
         # in `_has_unresolved_param_clobber_between`.
-        roots = self.param_roots.exclusive_root_param_indices(src)
+        roots = self.param_roots.exclusive_param_alias_indices(src)
         if roots is None or len(roots) == 0:
             return False
 
