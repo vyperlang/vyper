@@ -1546,6 +1546,22 @@ def choose(flag: bool) -> (uint256, Bytes[INF]):
     )
 
 
+def test_inf_bytes_tuple_ternary_materializes_bounded_arm(env):
+    code = """
+@external
+def choose(flag: bool, x: Bytes[INF]) -> (uint256, Bytes[INF]):
+    d: (uint256, Bytes[4]) = (9, b"fish")
+    n: uint256 = 7
+    return d if flag else (n, x)
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "choose(bool,bytes)", "(bool,bytes)", (True, b"cat"))
+    assert abi_decode("(uint256,bytes)", ret) == (9, b"fish")
+    ret = _call(env, c, "choose(bool,bytes)", "(bool,bytes)", (False, b"kitten"))
+    assert abi_decode("(uint256,bytes)", ret) == (7, b"kitten")
+
+
 def test_inf_bytes_singleton_tuple_literal_return(env):
     payload = bytes((i * 83) % 256 for i in range(2001))
 
@@ -2259,6 +2275,17 @@ def value() -> (uint256, String[INF]):
 
     c = _deploy_venom(env, code)
     assert abi_decode("(uint256,string)", _call(env, c, "value()")) == (0, "")
+
+
+def test_empty_nested_inf_aggregate_rejected():
+    code = """
+@external
+def value() -> uint256:
+    return len(empty(((Bytes[INF],), uint256))[0][0])
+    """
+
+    with pytest.raises(StructureException, match="inside aggregate types"):
+        compile_code(code, settings=_venom_settings())
 
 
 def test_inf_bytes_local_reassignment_larger_and_smaller(env):

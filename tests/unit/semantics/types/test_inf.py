@@ -679,6 +679,16 @@ def test_unused_inf_internal_legacy_requires_experimental_codegen(code):
         compiler.compile_code(code, settings=Settings(experimental_codegen=False))
 
 
+def test_expression_only_inf_legacy_requires_experimental_codegen():
+    code = """
+@external
+def foo() -> uint256:
+    return len(empty(Bytes[INF]))
+    """
+    with pytest.raises(StructureException):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=False))
+
+
 def test_legacy_codegen_allows_bounded_local_user_type():
     code = """
 struct Quote:

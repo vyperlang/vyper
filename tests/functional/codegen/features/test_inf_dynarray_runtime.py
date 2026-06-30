@@ -933,6 +933,41 @@ def deploy(s: Bytes[INF], values: DynArray[uint256, INF]) -> address:
     assert abi_decode("(uint256)", ret) == (33,)
 
 
+def test_inf_dynarray_raw_create_snapshots_ctor_arg_before_value_kwarg(env):
+    child_code = """
+stored_len: public(uint256)
+last: public(uint256)
+
+@deploy
+@payable
+def __init__(xs: DynArray[uint256, INF]):
+    self.stored_len = len(xs)
+    self.last = xs[len(xs) - 1]
+    """
+    out = _compile_venom(child_code, ["bytecode"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+
+    deployer_code = """
+@external
+def deploy(s: Bytes[INF], values: DynArray[uint256, INF]) -> (address, uint256):
+    xs: DynArray[uint256, INF] = values
+    addr: address = raw_create(s, xs, value=xs.pop())
+    return addr, len(xs)
+    """
+
+    deployer = _deploy_venom(env, deployer_code)
+    ret = _call(
+        env, deployer, "deploy(bytes,uint256[])", "(bytes,uint256[])", (initcode, [11, 22, 0])
+    )
+    addr, local_len = abi_decode("(address,uint256)", ret)
+    assert local_len == 2
+
+    ret = env.message_call(addr, data=method_id("stored_len()"))
+    assert abi_decode("(uint256)", ret) == (3,)
+    ret = env.message_call(addr, data=method_id("last()"))
+    assert abi_decode("(uint256)", ret) == (0,)
+
+
 def test_inf_dynarray_raw_create_freezes_bounded_ctor_arg_in_runtime_encoding(env):
     child_code = """
 stored_len_a: public(uint256)
@@ -1015,6 +1050,44 @@ def deploy(target: address, x: DynArray[uint256, INF]) -> address:
     assert abi_decode("(uint256)", env.message_call(addr, data=method_id("last()"))) == (
         payload[-1],
     )
+
+
+def test_inf_dynarray_create_from_blueprint_snapshots_ctor_arg_before_code_offset(env):
+    child_code = """
+stored_len: public(uint256)
+last: public(uint256)
+
+@deploy
+def __init__(x: DynArray[uint256, INF]):
+    self.stored_len = len(x)
+    self.last = x[len(x) - 1]
+    """
+    out = _compile_venom(child_code, ["blueprint_bytecode"])
+    blueprint = env.deploy([], bytes.fromhex(out["blueprint_bytecode"].removeprefix("0x")))
+
+    deployer_code = """
+@external
+def deploy(target: address, values: DynArray[uint256, INF]) -> (address, uint256):
+    x: DynArray[uint256, INF] = values
+    addr: address = create_from_blueprint(target, x, code_offset=x.pop())
+    return addr, len(x)
+    """
+
+    deployer = _deploy_venom(env, deployer_code)
+    ret = _call(
+        env,
+        deployer,
+        "deploy(address,uint256[])",
+        "(address,uint256[])",
+        (blueprint.address, [11, 22, 3]),
+    )
+    addr, local_len = abi_decode("(address,uint256)", ret)
+    assert local_len == 2
+
+    ret = env.message_call(addr, data=method_id("stored_len()"))
+    assert abi_decode("(uint256)", ret) == (3,)
+    ret = env.message_call(addr, data=method_id("last()"))
+    assert abi_decode("(uint256)", ret) == (3,)
 
 
 def test_inf_dynarray_internal_tuple_return_coerces_bounded_complex_member(env):

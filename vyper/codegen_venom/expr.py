@@ -818,18 +818,30 @@ class Expr:
 
         # Pre-allocate result variable
         result = self.builder.new_variable()
+        result_typ = node._metadata["type"]
+
+        def lower_arm(expr_node: vy_ast.VyperNode) -> IROperand:
+            if result_typ._is_prim_word:
+                return Expr(expr_node, self.ctx).lower_value()
+            if self.ctx.is_dynamic_tuple_frame_type(result_typ):
+                arm_vv = Expr(expr_node, self.ctx).lower()
+                frame_vv = self.ctx.dynamic_tuple_frame_from_value(
+                    arm_vv, result_typ, annotation="ternary"
+                )
+                return frame_vv.operand
+            return Expr(expr_node, self.ctx).lower_value()
 
         # Process then branch
         self.builder.append_block(then_block)
         self.builder.set_block(then_block)
-        then_val = Expr(node.body, self.ctx).lower_value()
+        then_val = lower_arm(node.body)
         then_block_finish = self.builder.current_block
         then_block_finish.append_instruction("assign", then_val, ret=result)
 
         # Process else branch
         self.builder.append_block(else_block)
         self.builder.set_block(else_block)
-        else_val = Expr(node.orelse, self.ctx).lower_value()
+        else_val = lower_arm(node.orelse)
         else_block_finish = self.builder.current_block
         else_block_finish.append_instruction("assign", else_val, ret=result)
 
@@ -844,7 +856,6 @@ class Expr:
         then_block_finish.append_instruction("jmp", exit_block.label)
         else_block_finish.append_instruction("jmp", exit_block.label)
 
-        result_typ = node._metadata["type"]
         if result_typ._is_prim_word:
             return VyperValue.from_stack_op(result, result_typ)
         return self._make_ptr_value(result, DataLocation.MEMORY, result_typ)

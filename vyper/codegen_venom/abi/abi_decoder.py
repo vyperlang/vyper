@@ -36,7 +36,7 @@ from vyper.semantics.types import (
     VyperType,
     _BytestringT,
 )
-from vyper.semantics.types.infinity import is_bounded_length, type_contains_unbounded_sequence
+from vyper.semantics.types.infinity import is_bounded_length
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -69,12 +69,9 @@ def _guard_dynamic_offset(
     typ: VyperType, loc: DataLocation, hi: IROperand | None, force_runtime_bounds: bool = False
 ) -> bool:
     # Calldata and explicit hi-bounded buffers are untrusted. Constructor CODE
-    # args intentionally keep legacy's lenient decode behavior. Bounded types
-    # keep the legacy clamp-only model; INF and runtime-sized ABI sources need
-    # runtime bounds.
-    return (force_runtime_bounds or type_contains_unbounded_sequence(typ)) and (
-        loc == DataLocation.CALLDATA or hi is not None
-    )
+    # args intentionally keep legacy's lenient decode behavior by passing
+    # hi=None at their call sites.
+    return loc == DataLocation.CALLDATA or hi is not None
 
 
 def int_clamp(ctx: VenomCodegenContext, val: IROperand, bits: int, signed: bool) -> IROperand:
@@ -177,9 +174,7 @@ def clamp_bytestring(
     assert src.location is not None, "src must have a location for bytestring clamping"
 
     data_start = None
-    needs_runtime_bounds = hi is not None and (
-        force_runtime_bounds or ctx.is_unbounded_bytestring_type(typ)
-    )
+    needs_runtime_bounds = hi is not None
     if needs_runtime_bounds:
         assert hi is not None
         data_start = ctx.assert_abi_length_word_in_bounds(src.operand, hi)
@@ -216,9 +211,7 @@ def clamp_dyn_array(
     assert src.location is not None, "src must have a location for dyn_array clamping"
 
     data_start = None
-    needs_runtime_bounds = hi is not None and (
-        force_runtime_bounds or ctx.is_unbounded_dynarray_type(typ)
-    )
+    needs_runtime_bounds = hi is not None
     if needs_runtime_bounds:
         assert hi is not None
         data_start = ctx.assert_abi_length_word_in_bounds(src.operand, hi)
@@ -497,10 +490,8 @@ def _decode_complex(
     if hi is not None:
         static_size = typ.abi_type.static_size()
         item_end = b.add(src.operand, IRLiteral(static_size))
-        item_in_bounds = b.iszero(b.gt(item_end, hi))
-        if type_contains_unbounded_sequence(typ):
-            no_item_end_wrap = b.iszero(b.lt(item_end, src.operand))
-            item_in_bounds = b.and_(no_item_end_wrap, item_in_bounds)
+        no_item_end_wrap = b.iszero(b.lt(item_end, src.operand))
+        item_in_bounds = b.and_(no_item_end_wrap, b.iszero(b.gt(item_end, hi)))
         b.assert_(item_in_bounds)
 
     if is_tuple_like(typ):

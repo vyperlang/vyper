@@ -329,11 +329,6 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     salt_node = _get_kwarg_value(node, "salt")
     revert_on_failure, _ = _get_literal_kwarg(node, "revert_on_failure", True)
 
-    if value_node is not None:
-        value = Expr(value_node, ctx).lower_value()
-    else:
-        value = IRLiteral(0)
-
     # Get bytecode length and data pointer
     assert isinstance(bytecode, IRVariable)
     bytecode_len = b.mload(bytecode)
@@ -341,6 +336,11 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # If no constructor args, just create with bytecode
     if len(ctor_arg_nodes) == 0:
+        if value_node is not None:
+            value = Expr(value_node, ctx).lower_value()
+        else:
+            value = IRLiteral(0)
+
         raw_salt_op: Optional[IROperand] = None
         if salt_node is not None:
             raw_salt_op = Expr(salt_node, ctx).lower_value()
@@ -387,6 +387,11 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         total_len = b.add(bytecode_len, args_len)
 
     # Create contract
+    if value_node is not None:
+        value = Expr(value_node, ctx).lower_value()
+    else:
+        value = IRLiteral(0)
+
     ctor_salt_op: Optional[IROperand] = None
     if salt_node is not None:
         ctor_salt_op = Expr(salt_node, ctx).lower_value()
@@ -578,6 +583,45 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     raw_args, _ = _get_literal_kwarg(node, "raw_args", False)
     revert_on_failure, _ = _get_literal_kwarg(node, "revert_on_failure", True)
 
+    # Handle constructor arguments
+    args_len: IROperand
+    args_ptr: IROperand
+    runtime_args = False
+
+    if raw_args:
+        # raw_args=True: single bytes argument contains raw constructor args
+        # Semantic analysis validates raw_args=True has exactly one bytes argument.
+        assert len(ctor_arg_nodes) == 1
+
+        raw_arg_typ = ctor_arg_nodes[0]._metadata["type"]
+        runtime_args = type_contains_unbounded_sequence(raw_arg_typ)
+        raw_arg_vv = Expr(ctor_arg_nodes[0], ctx).lower()
+        raw_arg_vv = ctx.snapshot_value_for_delayed_use(
+            raw_arg_vv, raw_arg_typ, annotation="ctor_arg", copy_composites=True
+        )
+        raw_arg = ctx.unwrap(raw_arg_vv)
+        assert isinstance(raw_arg, IRVariable)
+        args_len = b.mload(raw_arg)
+        args_ptr = b.add(raw_arg, IRLiteral(32))
+    elif len(ctor_arg_nodes) > 0:
+        ctor_tuple_typ, ctor_arg_vvs, runtime_ctor_args, ctor_abi_size = _prepare_ctor_args(
+            ctx, ctor_arg_nodes
+        )
+        runtime_args = runtime_ctor_args
+
+        if runtime_ctor_args:
+            args_ptr = ctx.allocate_scratch(ctor_abi_size)
+        else:
+            assert isinstance(ctor_abi_size, IRLiteral)
+            args_buf = ctx.allocate_buffer(ctor_abi_size.value, annotation="ctor_args_buf")
+            args_ptr = args_buf._ptr
+        assert isinstance(args_ptr, IRVariable)
+        args_len = _encode_ctor_args_to_buf(ctx, args_ptr, ctor_tuple_typ, ctor_arg_vvs)
+    else:
+        # No constructor arguments
+        args_len = IRLiteral(0)
+        args_ptr = IRLiteral(0)
+
     if value_node is not None:
         value = Expr(value_node, ctx).lower_value()
     else:
@@ -607,42 +651,6 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         has_code = b.gt(full_codesize, code_offset)
         codesize = b.sub(full_codesize, code_offset)
     b.assert_(has_code)
-
-    # Handle constructor arguments
-    args_len: IROperand
-    args_ptr: IROperand
-    runtime_args = False
-
-    if raw_args:
-        # raw_args=True: single bytes argument contains raw constructor args
-        # Semantic analysis validates raw_args=True has exactly one bytes argument.
-        assert len(ctor_arg_nodes) == 1
-
-        raw_arg_typ = ctor_arg_nodes[0]._metadata["type"]
-        runtime_args = type_contains_unbounded_sequence(raw_arg_typ)
-        raw_arg_vv = Expr(ctor_arg_nodes[0], ctx).lower()
-        raw_arg = ctx.unwrap(raw_arg_vv)  # Copies storage/transient to memory
-        assert isinstance(raw_arg, IRVariable)
-        args_len = b.mload(raw_arg)
-        args_ptr = b.add(raw_arg, IRLiteral(32))
-    elif len(ctor_arg_nodes) > 0:
-        ctor_tuple_typ, ctor_arg_vvs, runtime_ctor_args, ctor_abi_size = _prepare_ctor_args(
-            ctx, ctor_arg_nodes
-        )
-        runtime_args = runtime_ctor_args
-
-        if runtime_ctor_args:
-            args_ptr = ctx.allocate_scratch(ctor_abi_size)
-        else:
-            assert isinstance(ctor_abi_size, IRLiteral)
-            args_buf = ctx.allocate_buffer(ctor_abi_size.value, annotation="ctor_args_buf")
-            args_ptr = args_buf._ptr
-        assert isinstance(args_ptr, IRVariable)
-        args_len = _encode_ctor_args_to_buf(ctx, args_ptr, ctor_tuple_typ, ctor_arg_vvs)
-    else:
-        # No constructor arguments
-        args_len = IRLiteral(0)
-        args_ptr = IRLiteral(0)
 
     # Total length = codesize + args_len. When args_len is literal 0,
     # algebraic optimization folds `add(codesize, 0) -> codesize`.

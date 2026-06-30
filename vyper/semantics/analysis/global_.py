@@ -3,7 +3,7 @@ from collections import defaultdict
 from vyper import ast as vy_ast
 from vyper.exceptions import CompilerPanic, ExceptionList, InitializerException, StructureException
 from vyper.semantics.analysis.base import InitializesInfo, UsesInfo
-from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.infinity import type_contains_unbounded_sequence
 from vyper.semantics.types.module import ModuleT
 
@@ -17,6 +17,29 @@ def validate_compilation_target(module_t: ModuleT, experimental_codegen: bool = 
 def _reject_legacy_unbounded_sequence(typ: VyperType, node: vy_ast.VyperNode) -> None:
     if type_contains_unbounded_sequence(typ):
         raise StructureException("unbounded sequence types require --experimental-codegen", node)
+
+
+def _legacy_value_type_from_node(node: vy_ast.VyperNode) -> VyperType | None:
+    typ = getattr(node, "_metadata", {}).get("type")
+    if isinstance(typ, VyperType) and not isinstance(typ, TYPE_T):
+        return typ
+
+    expr_info = getattr(node, "_expr_info", None)
+    typ = getattr(expr_info, "typ", None)
+    if isinstance(typ, VyperType) and not isinstance(typ, TYPE_T):
+        return typ
+
+    return None
+
+
+def _validate_legacy_function_body_no_unbounded_sequences(func_t) -> None:
+    assert func_t.ast_def is not None
+
+    for stmt in func_t.ast_def.body:
+        for node in stmt.get_descendants(vy_ast.ExprNode):
+            typ = _legacy_value_type_from_node(node)
+            if typ is not None:
+                _reject_legacy_unbounded_sequence(typ, node)
 
 
 def _validate_legacy_codegen_no_unbounded_sequences(module_t: ModuleT) -> None:
@@ -44,6 +67,8 @@ def _validate_legacy_codegen_no_unbounded_sequences(module_t: ModuleT) -> None:
             if typ is None:  # pragma: nocover
                 raise CompilerPanic("local variable missing analysis metadata")
             _reject_legacy_unbounded_sequence(typ, node.annotation)
+
+        _validate_legacy_function_body_no_unbounded_sequences(func_t)
 
 
 def _collect_used_modules_r(module_t):

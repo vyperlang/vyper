@@ -8,7 +8,9 @@ from typing import TYPE_CHECKING, Union
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.value import VyperValue
+from vyper.exceptions import StructureException
 from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types.infinity import type_contains_unsupported_unbounded_sequence
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import DArrayT
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
@@ -67,6 +69,10 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
                 member_vv = _empty_memory_value(ctx, member_t)
                 ctx.builder.mstore(cell, member_vv.operand)
         return ctx.dynamic_tuple_frame_value(frame, typ, annotation="empty")
+    if type_contains_unsupported_unbounded_sequence(typ):
+        raise StructureException(
+            "empty() does not support unbounded sequence types inside aggregate types", node
+        )
     return _empty_memory_value(ctx, typ)
 
 
