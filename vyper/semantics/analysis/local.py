@@ -60,7 +60,6 @@ from vyper.semantics.types import (
     StructT,
     TupleT,
     VyperType,
-    _BytestringT,
     is_type_t,
     map_void,
 )
