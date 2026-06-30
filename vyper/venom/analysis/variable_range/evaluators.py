@@ -370,8 +370,8 @@ def eval_sdiv(dividend: ValueRange, divisor: ValueRange) -> ValueRange:
         elif dividend.hi < 0:
             # Both negative: division truncates toward zero
             # -7 // 3 in EVM = -2 (truncate), in Python = -3 (floor)
-            result_hi = -(abs(dividend.lo) // d)
-            result_lo = -(abs(dividend.hi) // d)
+            result_lo = -(abs(dividend.lo) // d)
+            result_hi = -(abs(dividend.hi) // d)
         else:
             # Range spans zero - result spans from negative to positive
             result_lo = -(abs(dividend.lo) // d)
