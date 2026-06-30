@@ -58,6 +58,22 @@ def test_nested_list_fail(bad_code, exc):
         compiler.compile_code(bad_code)
 
 
+def test_nested_dynarray_mismatched_inner_bytes():
+    code = """
+@external
+def foo():
+    tmp1: DynArray[Bytes[3], 5] = []
+    tmp2: DynArray[Bytes[5], 5] = []
+    tmp: DynArray[DynArray[Bytes[3], 5], 5] = [tmp1, tmp2]
+    """
+    with pytest.raises(TypeMismatch) as excinfo:
+        compiler.compile_code(code)
+    assert excinfo.value.message == (
+        "Expected DynArray[DynArray[Bytes[3], 5], 5] but literal can only be cast as"
+        " DynArray[Bytes[5], 5][2] or DynArray[DynArray[Bytes[5], 5], 2]."
+    )
+
+
 valid_list = [
     """
 bar: int128[3][3]
