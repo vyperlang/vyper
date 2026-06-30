@@ -19,15 +19,15 @@ def _reject_legacy_unbounded_sequence(typ: VyperType, node: vy_ast.VyperNode) ->
         raise StructureException("unbounded sequence types require --experimental-codegen", node)
 
 
-def _legacy_value_type_from_node(node: vy_ast.VyperNode) -> VyperType | None:
+def _legacy_type_expression_from_node(node: vy_ast.VyperNode) -> VyperType | None:
     typ = getattr(node, "_metadata", {}).get("type")
-    if isinstance(typ, VyperType) and not isinstance(typ, TYPE_T):
-        return typ
+    if isinstance(typ, TYPE_T):
+        return typ.typedef
 
     expr_info = getattr(node, "_expr_info", None)
     typ = getattr(expr_info, "typ", None)
-    if isinstance(typ, VyperType) and not isinstance(typ, TYPE_T):
-        return typ
+    if isinstance(typ, TYPE_T):
+        return typ.typedef
 
     return None
 
@@ -37,7 +37,7 @@ def _validate_legacy_function_body_no_unbounded_sequences(func_t) -> None:
 
     for stmt in func_t.ast_def.body:
         for node in stmt.get_descendants(vy_ast.ExprNode):
-            typ = _legacy_value_type_from_node(node)
+            typ = _legacy_type_expression_from_node(node)
             if typ is not None:
                 _reject_legacy_unbounded_sequence(typ, node)
 
