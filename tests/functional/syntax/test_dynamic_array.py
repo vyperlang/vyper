@@ -112,6 +112,16 @@ interface IFoo:
 interface IFoo:
     def bar() -> DynArray[uint256, ...]: nonpayable
     """,  # DynArray with wildcard in interface return type
+    """
+@external
+def foo():
+    tmp: DynArray[Bytes[3], 1] = [[b"abc"], []][0]
+    """,
+    """
+@external
+def foo():
+    tmp: DynArray[Bytes[3], 1] = [[], [b"abc"]][1]
+    """,
 ]
 
 
