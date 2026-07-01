@@ -390,9 +390,7 @@ class _ExprAnalyser:
             and "self" in self.namespace
             and name in self.namespace["self"].typ.members
         ):
-            raise InvalidReference(
-                f"'{name}' is an assignable variable, access it as self.{name}", node
-            )
+            raise InvalidReference(f"'{name}'", node, hint=f"did you mean self.{name}?")
         try:
             t = self.namespace[node.id]
             # when this is a type, we want to lower it

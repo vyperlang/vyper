@@ -156,7 +156,8 @@ def __init__(x: uint256):
 def report() -> uint256:
     return imm
     """,
-        "'imm' is an assignable variable, access it as self.imm",
+        "'imm'",
+        "did you mean self.imm?",
     ),
     (
         """
@@ -168,6 +169,7 @@ def __init__(x: uint256):
     """,
         # TODO: not great UX, the user did try to assign, we should point them to how to fix it
         "Immutable definition requires an assignment in the constructor",
+        None,
     ),
     (
         """
@@ -185,6 +187,7 @@ def hello() :
     self.x.a =  2
     """,
         "Immutable value cannot be written to",
+        None,
     ),
     (
         """
@@ -199,12 +202,16 @@ def bump():
     self.VALUE += 1
     """,
         "Immutable value cannot be written to",
+        None,
     ),
 ]
 
 
-@pytest.mark.parametrize(["bad_code", "message"], fail_list_with_messages)
-def test_compilation_fails_with_exception_message(bad_code: str, message: str):
+@pytest.mark.parametrize(["bad_code", "message", "hint"], fail_list_with_messages)
+def test_compilation_fails_with_exception_message(
+    bad_code: str, message: str, hint: str | None
+):
     with pytest.raises(VyperException) as excinfo:
         compile_code(bad_code)
     assert excinfo.value.message == message
+    assert excinfo.value.hint == hint
