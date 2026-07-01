@@ -71,7 +71,7 @@ RESERVED_KEYWORDS = _PYTHON_RESERVED_KEYWORDS | {
     "struct",
     "event",
     "enum",
-    # "flag", # Made into a soft keyword, since it's useful as an identifier
+    # "flag", # allowed since it's useful as an identifier per user feedback
     # EVM operations
     "unreachable",
     # special functions (no name mangling)
