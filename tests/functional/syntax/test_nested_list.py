@@ -111,6 +111,21 @@ def foo():
 def foo():
     tmp: uint256 = [[], [1]][1][0]
     """,
+    """
+@external
+def foo():
+    tmp: DynArray[DynArray[int128, 1], 2] = [[1], []]
+    """,
+    """
+@external
+def foo():
+    tmp: DynArray[DynArray[int128, 1], 2] = [[], [1]]
+    """,
+    """
+@external
+def foo():
+    tmp: DynArray[DynArray[int128, 1], 3] = [[], [1], [-1]]
+    """,
 ]
 
 

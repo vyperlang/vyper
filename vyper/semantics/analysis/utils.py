@@ -502,11 +502,9 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
 
                 if t.is_subtype_of(c):
                     tmp.append(c)
-                    break
 
-                if c.is_subtype_of(t):
+                elif c.is_subtype_of(t):
                     tmp.append(t)
-                    break
 
         common_types = tmp
 
