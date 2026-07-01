@@ -1,7 +1,13 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import CodegenPanic, StructureException, TypeMismatch, UndeclaredDefinition
+from vyper.exceptions import (
+    CodegenPanic,
+    CompilerPanic,
+    StructureException,
+    TypeMismatch,
+    UndeclaredDefinition,
+)
 
 fail_list = [
     (
@@ -63,6 +69,15 @@ def foo(x: DynArray[uint256, INF]) -> DynArray[uint256, 5]:
     return x
     """,
         TypeMismatch,
+    ),
+    pytest.param(
+        """
+@external
+def foo():
+    x: uint256 = [].pop()
+    """,
+        StructureException,
+        marks=pytest.mark.xfail(raises=CompilerPanic),
     ),
 ]
 
