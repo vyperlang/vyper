@@ -208,9 +208,7 @@ def bump():
 
 
 @pytest.mark.parametrize(["bad_code", "message", "hint"], fail_list_with_messages)
-def test_compilation_fails_with_exception_message(
-    bad_code: str, message: str, hint: str | None
-):
+def test_compilation_fails_with_exception_message(bad_code: str, message: str, hint: str | None):
     with pytest.raises(VyperException) as excinfo:
         compile_code(bad_code)
     assert excinfo.value.message == message
