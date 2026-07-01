@@ -496,6 +496,13 @@ class BottomT(VyperType):
 
     _id = "Never"  # see python's typing.Never
 
+    @property
+    def abi_type(self) -> ABIType:
+        """
+        The ABI type corresponding to this type
+        """
+        raise InvalidOperation(f"`{self._id}` does not have an abi encoding")
+
 
 class _VoidType(VyperType):
     _id = "(void)"

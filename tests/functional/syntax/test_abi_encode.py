@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InvalidLiteral, TypeMismatch
+from vyper.exceptions import InvalidLiteral, InvalidOperation, TypeMismatch
 
 fail_list = [
     (
@@ -79,6 +79,17 @@ def foo() -> Bytes[132]:
 def test_abi_encode_fail(bad_code, exc):
     with pytest.raises(exc):
         compiler.compile_code(bad_code)
+
+
+def test_abi_encode_empty_list():
+    code = """
+@external
+def foo():
+    tmp: Bytes[100] = abi_encode([])
+    """
+    with pytest.raises(InvalidOperation) as excinfo:
+        compiler.compile_code(code)
+    assert excinfo.value.message == "`Never` does not have an abi encoding"
 
 
 valid_list = [
