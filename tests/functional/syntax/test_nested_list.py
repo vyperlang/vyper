@@ -49,6 +49,15 @@ def foo(x: int128[2][2]) -> int128:
     """,
         TypeMismatch,
     ),
+    (
+        """
+bar: int128[2][2]
+@external
+def foo():
+    self.bar = [[], [1, 2]]
+    """,
+        TypeMismatch,
+    ),
 ]
 
 
@@ -80,6 +89,16 @@ bar: int128[3][3]
 @external
 def foo():
     self.bar = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    """,
+    """
+bar: int128[3][3][3]
+@external
+def foo():
+    self.bar = [
+        [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+        [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+        [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+    ]
     """,
     """
 bar: decimal[3][3]

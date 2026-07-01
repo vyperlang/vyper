@@ -24,7 +24,7 @@ from vyper.semantics import types
 from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarAccess, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import TYPE_T, VyperType
+from vyper.semantics.types.base import TYPE_T, BottomT, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
 from vyper.semantics.types.infinity import is_bounded_length
 
@@ -349,28 +349,10 @@ class _ExprAnalyser:
 
     def types_from_List(self, node):
         # literal array
-        if _is_empty_list(node):
-            ret = []
 
-            if len(node.elements) > 0:
-                # empty nested list literals `[[], []]`
-                subtypes = self.get_possible_types_from_node(node.elements[0])
-            else:
-                # empty list literal `[]`
-                # subtype can be anything
-                subtypes = types.PRIMITIVE_TYPES.values()
-
-            for t in subtypes:
-                # 1 is minimum possible length for dynarray,
-                # can be assigned to anything
-                if isinstance(t, VyperType):
-                    ret.append(DArrayT(t, 1))
-                elif isinstance(t, type) and issubclass(t, VyperType):
-                    # for typeclasses like bytestrings, use a generic type acceptor
-                    ret.append(DArrayT(t.any(), 1))
-                else:
-                    raise CompilerPanic(f"busted type {t}", node)
-            return ret
+        if len(node.elements) == 0:
+            # can't have an empty SArrayT
+            return [DArrayT(BottomT(), 1)]
 
         types_list = get_common_types(*node.elements)
 
@@ -430,18 +412,6 @@ class _ExprAnalyser:
         # unary operation: `-foo`
         types_list = self.get_possible_types_from_node(node.operand)
         return _validate_op(node, types_list, "validate_numeric_op")
-
-
-def _is_empty_list(node):
-    # Checks if a node is a `List` node with an empty list for `elements`,
-    # including any nested `List` nodes. ex. `[]` or `[[]]` will return True,
-    # [1] will return False.
-    if not isinstance(node, vy_ast.List):
-        return False
-
-    if not node.elements:
-        return True
-    return all(_is_empty_list(t) for t in node.elements)
 
 
 def _is_type_in_list(obj, types_list):
@@ -602,17 +572,9 @@ def validate_expected_type(node, expected_type):
 
     given_types = _ExprAnalyser().get_possible_types_from_node(node)
 
-    if isinstance(node, vy_ast.List):
-        # special case - for literal arrays we individually validate each item
-        for expected in expected_type:
-            if not isinstance(expected, (DArrayT, SArrayT)):
-                continue
-            if _validate_literal_array(node, expected):
-                return
-    else:
-        for given, expected in itertools.product(given_types, expected_type):
-            if given.is_subtype_of(expected):
-                return
+    for given, expected in itertools.product(given_types, expected_type):
+        if given.is_subtype_of(expected):
+            return
 
     # validation failed, prepare a meaningful error message
     if len(expected_type) > 1:
