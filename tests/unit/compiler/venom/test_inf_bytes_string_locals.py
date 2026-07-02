@@ -321,3 +321,58 @@ def f(a: address, b: Bytes[10]) -> uint256:
     """
 
     compile_code(code, output_formats=["bytecode"], settings=Settings(experimental_codegen=True))
+
+
+def _dalloca_size_add32_depths(ctx):
+    """For each dalloca, count trailing `add _, 32` steps feeding its size operand."""
+    depths = []
+    for fn in ctx.functions.values():
+        definitions = {}
+        for bb in fn.get_basic_blocks():
+            for inst in bb.instructions:
+                for out in inst.get_outputs():
+                    definitions[out] = inst
+        for bb in fn.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.opcode != "dalloca":
+                    continue
+                op = inst.operands[0]
+                depth = 0
+                while (d := definitions.get(op)) is not None:
+                    if d.opcode == "store":
+                        op = d.operands[0]
+                        continue
+                    non_literals = [o for o in d.operands if not isinstance(o, IRLiteral)]
+                    if (
+                        d.opcode == "add"
+                        and len(non_literals) == 1
+                        and any(isinstance(o, IRLiteral) and o.value == 32 for o in d.operands)
+                    ):
+                        depth += 1
+                        op = non_literals[0]
+                        continue
+                    break
+                depths.append(depth)
+    return depths
+
+
+def test_unbounded_concat_bytesm_output_reserves_slack_word():
+    # a trailing bytesM arg is written with a full 32-byte mstore that can
+    # extend past ceil32(total_len), so the concat output buffer must reserve
+    # an extra word. differential vs a Bytes[4] literal arg, which takes the
+    # byte-precise copy path and needs no slack.
+    bytesm = """
+@external
+def join(x: Bytes[INF]) -> Bytes[INF]:
+    return concat(x, 0xdeadbeef)
+    """
+    control = """
+@external
+def join(x: Bytes[INF]) -> Bytes[INF]:
+    return concat(x, b"\\xde\\xad\\xbe\\xef")
+    """
+
+    bytesm_depths = _dalloca_size_add32_depths(_compile_frontend_ir(bytesm))
+    control_depths = _dalloca_size_add32_depths(_compile_frontend_ir(control))
+    assert len(bytesm_depths) == len(control_depths)
+    assert sum(bytesm_depths) == sum(control_depths) + 1

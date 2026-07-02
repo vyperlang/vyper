@@ -151,7 +151,14 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     # Allocate output buffer (length word + data)
     out_ptr: IROperand
-    scratch_ptr = ctx.allocate_scratch(ctx.bytestring_runtime_size_from_length(total_len))
+    scratch_size = ctx.bytestring_runtime_size_from_length(total_len)
+    if any(isinstance(arg_t, BytesM_T) for arg_t, _, _ in lowered_args):
+        # bytesM args are written with full-word mstores; one landing in the
+        # final data word extends up to 32-m bytes (31 for bytes1) past
+        # ceil32(total_len), so reserve a slack word to keep the store inside
+        # the allocation.
+        scratch_size = ctx.checked_add(scratch_size, IRLiteral(32))
+    scratch_ptr = ctx.allocate_scratch(scratch_size)
     ctx.zero_bytestring_padding(scratch_ptr, total_len)
     out_val = ctx.dynamic_memory_value(scratch_ptr, out_typ, annotation="concat")
     out_ptr = scratch_ptr

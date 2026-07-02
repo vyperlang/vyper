@@ -1207,6 +1207,28 @@ def join(x: String[INF]) -> String[INF]:
     assert abi_decode("(string)", ret) == ("pre:" + payload + ":post",)
 
 
+def test_inf_bytes_concat_trailing_bytesm_word_boundary(env):
+    # lengths are chosen so each trailing bytesM word-store lands in the last
+    # data word of its exact-sized output (31+1 and 28+4 both fill a word);
+    # the next buffer is allocated immediately above, so a store escaping the
+    # first allocation corrupts it
+    payload_a = bytes((i * 83) % 256 for i in range(31))
+    payload_b = bytes((i * 89) % 256 for i in range(28))
+    code = """
+@external
+def join(x: Bytes[INF], y: Bytes[INF]) -> Bytes[INF]:
+    t: bytes1 = 0xde
+    a: Bytes[INF] = concat(x, t)
+    b: Bytes[INF] = concat(y, 0xdeadbeef)
+    return concat(a, b)
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "join(bytes,bytes)", "(bytes,bytes)", (payload_a, payload_b))
+    expected = payload_a + b"\xde" + payload_b + b"\xde\xad\xbe\xef"
+    assert abi_decode("(bytes)", ret) == (expected,)
+
+
 def test_inf_bytes_string_keccak256_runtime_length(env, keccak):
     payload = bytes((i * 81) % 256 for i in range(2001))
     text = "hash string " * 170 + "tail"
