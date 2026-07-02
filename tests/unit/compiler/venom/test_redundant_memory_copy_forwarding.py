@@ -557,6 +557,37 @@ def test_keeps_copy_when_readonly_param_source_merges_untracked_address():
     assert any(inst.opcode == "mcopy" for inst in insts)
 
 
+def test_keeps_copy_when_readonly_param_source_merges_literal_address():
+    # The %lit arm is a literal address, not a param root. A literal is still a
+    # non-param root, so it must not be accepted as proof that every source
+    # path is readonly-param-backed.
+    src = """
+    function callee {
+    callee:
+        %arg = param
+        %local = alloca 64
+        %tmp = alloca 64
+        %lit = assign 288
+        jnz 1, @a, @b
+    a:
+        jmp @join
+    b:
+        jmp @join
+    join:
+        %s = phi @a, %arg, @b, %lit
+        mcopy %tmp, %s, 64
+        mstore %local, 1
+        %v = mload %tmp
+        sink %v
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    callee = ctx.get_function(IRLabel("callee"))
+    insts = [inst for bb in callee.get_basic_blocks() for inst in bb.instructions]
+    assert any(inst.opcode == "mcopy" for inst in insts)
+
+
 def test_keeps_copy_when_readonly_param_source_has_param_offset():
     # The readonly-param root query sees both params, but %s is not proven to
     # stay inside either readonly param region. The source could alias a local

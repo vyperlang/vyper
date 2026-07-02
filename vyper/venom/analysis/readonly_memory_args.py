@@ -58,7 +58,7 @@ class MemoryParamRootResolver:
         returns None when some path has an unknown/non-param root.
         """
         if not isinstance(op, IRVariable):
-            return frozenset()
+            return None
         return self._exclusive_param_alias_indices_var(op)
 
     def _root_param_indices_var(self, var: IRVariable) -> frozenset[int]:
