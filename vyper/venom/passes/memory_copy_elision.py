@@ -1,6 +1,7 @@
 from collections import deque
 
 import vyper.evm.address_space as addr_space
+from vyper.utils import OrderedSet
 from vyper.venom import effects
 from vyper.venom.analysis import (
     BasePtrAnalysis,
@@ -10,6 +11,7 @@ from vyper.venom.analysis import (
     MemoryAliasAnalysis,
     DominatorTreeAnalysis
 )
+from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
 from vyper.venom.effects import Effects, to_addr_space, MEMORY
 from vyper.venom.memory_location import (
@@ -30,7 +32,7 @@ _STORES = {"mstore": Effects.MEMORY, "sstore": Effects.STORAGE, "tstore": Effect
 
 # Type alias for copy tracking: maps memory location to the copy instruction
 CopyMap = dict[MemoryLocation, IRInstruction]
-TranslateMap = dict[Allocation, tuple[Allocation, bool]]
+TranslateMap = dict[Allocation, Allocation]
 
 
 class MemoryCopyElisionPass(IRPass):
@@ -46,11 +48,9 @@ class MemoryCopyElisionPass(IRPass):
     #   %res = mload %new_ptr <- this can be rewritten to %ptr
     #
     # this can be done as long as the source and destionation are in sync
-    total_translation: TranslateMap
     loads: dict[Effects, dict[IRVariable, tuple[MemoryLocation, IRInstruction]]]
     # For cross-BB analysis: maps BB -> copy state at end of BB
     bb_copies: dict[IRBasicBlock, CopyMap]
-    bb_translates: dict[IRBasicBlock, TranslateMap]
     copy_forwarding: CopyForwardingPolicy
 
     def run_pass(self):
@@ -59,14 +59,13 @@ class MemoryCopyElisionPass(IRPass):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
+        self.translates = self.analyses_cache.request_analysis(TranslateAnalysis)
         self.updater = InstUpdater(self.dfg)
         self.copy_forwarding = CopyForwardingPolicy(
             self.function, self.dfg, self.base_ptr, self.mem_alias
         )
         self.loads = {Effects.MEMORY: dict(), Effects.STORAGE: dict(), Effects.TRANSIENT: dict()}
         self.bb_copies = {}
-        self.total_translation = dict()
-        self.bb_translates = dict()
 
         # Use worklist algorithm for cross-BB copy propagation
         worklist = deque(self.cfg.dfs_pre_walk)
@@ -84,6 +83,7 @@ class MemoryCopyElisionPass(IRPass):
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
         self.analyses_cache.invalidate_analysis(MemoryAliasAnalysis)
+        self.analyses_cache.invalidate_analysis(TranslateAnalysis)
 
     def _merge_copies(self, bb: IRBasicBlock) -> CopyMap:
         """Merge copy info from all predecessors using intersection semantics."""
@@ -119,42 +119,10 @@ class MemoryCopyElisionPass(IRPass):
         """Check if two copy instructions are semantically equivalent."""
         return self.copy_forwarding.copies_equivalent(inst1, inst2)
 
-    def _merge_translates(self, bb: IRBasicBlock) -> TranslateMap:
-        preds = list(self.cfg.cfg_in(bb))
-
-        if len(preds) == 0:
-            return TranslateMap()
-
-        # Start with first predecessor's state
-        first_pred = preds[0]
-        if first_pred not in self.bb_translates:
-            return {}
-
-        result = self.bb_translates[first_pred].copy()
-
-        # Intersect with other predecessors
-        for pred in preds[1:]:
-            if pred not in self.bb_translates:
-                # If any predecessor hasn't been processed, be conservative
-                return {}
-            other = self.bb_translates[pred]
-
-            common_keys = result.keys() & other.keys()
-            new_result = {}
-            for key in common_keys:
-                # Keep if instructions are equivalent (same opcode and source location)
-                if result[key] == other[key]:
-                    new_result[key] = result[key]
-
-            result = new_result
-
-        return result
-
     def _process_bb(self, bb: IRBasicBlock) -> bool:
         """Process a basic block, return True if copy state changed."""
         # Get incoming copy state from predecessors
         self.copies = self._merge_copies(bb)
-        self.total_translation = self._merge_translates(bb)
 
         # Clear loads at BB boundary (loads are still per-BB only)
         for e in self.loads.values():
@@ -203,11 +171,6 @@ class MemoryCopyElisionPass(IRPass):
                 if write_loc.is_fixed and not MemoryLocation.may_overlap(read_loc, write_loc):
                     self.copies[write_loc] = inst
 
-                # it was not elided to some different
-                # copy
-                if inst.opcode == "mcopy":
-                    self._try_create_translate(inst)
-
             elif _volatile_memory(inst):
                 self._invalidate(
                     self.base_ptr.get_write_location(inst, addr_space.MEMORY), Effects.MEMORY
@@ -230,11 +193,6 @@ class MemoryCopyElisionPass(IRPass):
             self.bb_copies[bb] = self.copies.copy()
             change = True
 
-        old_translates = self.bb_translates.get(bb, None)
-        if old_translates is None or old_translates != self.total_translation:
-            self.bb_translates[bb] = self.total_translation
-            change = True
-
         return change
 
     def _invalidate_returndata_copies(self):
@@ -249,7 +207,6 @@ class MemoryCopyElisionPass(IRPass):
     def _invalidate(self, write_loc: MemoryLocation, eff: Effects):
         if not write_loc.is_fixed and Effects.MEMORY in eff:
             self.copies.clear()
-            self.total_translation.clear()
         if not write_loc.is_fixed:
             self.loads[eff].clear()
         if Effects.MEMORY in eff:
@@ -270,20 +227,6 @@ class MemoryCopyElisionPass(IRPass):
 
             for mem_loc in to_remove:
                 del self.copies[mem_loc]
-
-            if write_loc.is_concrete:
-                self.total_translation.clear()
-            else:
-                to_remove_allocations = []
-                for dst, translate in self.total_translation.items():
-                    src, temp = translate
-                    if temp:
-                        continue
-                    if dst == write_loc.alloca or src == write_loc.alloca:
-                        to_remove_allocations.append(dst)
-
-                for item in to_remove_allocations:
-                    del self.total_translation[item]
 
         vars_to_remove = []
         for var, (mem_loc, _) in self.loads[eff].items():
@@ -355,7 +298,200 @@ class MemoryCopyElisionPass(IRPass):
         # removed.
         self.updater.nop(inst)
 
-    def _try_create_translate(self, inst: IRInstruction):
+    def _use_dominates(self, use: IRInstruction, inst: IRInstruction) -> bool:
+        if use.parent == inst.parent:
+            bb = inst.parent
+            use_idx = bb.instructions.index(use)
+            inst_idx = bb.instructions.index(inst)
+            return use_idx < inst_idx
+
+        return self.dom.dominates(use.parent, inst.parent)
+
+    def _try_update_from_translates_read(self, inst: IRInstruction):
+        read_loc = self.base_ptr.get_read_location(inst, addr_space.MEMORY)
+        translates = self.translates.translates
+        if read_loc.is_concrete:
+            return
+        if read_loc.alloca not in translates:
+            return
+        self._update_base_allocation_read(inst, read_loc, translates)
+
+    def _update_base_allocation_read(self, inst: IRInstruction, read_loc: MemoryLocation, translates: TranslateMap):
+        if read_loc.alloca not in translates:
+            return
+
+        if read_loc.offset is None:
+            return
+
+        new_base = translates[read_loc.alloca]
+
+        new_operand = new_base.inst.output
+        if read_loc.offset != 0:
+            tmp = self.updater.add_before(
+                inst, "add", [new_base.inst.output, IRLiteral(read_loc.offset)]
+            )
+            assert tmp is not None
+            new_operand = tmp  # help mypy
+            self.base_ptr.new_gep(new_operand, new_base, read_loc.offset)
+
+        update_read_location(inst, new_operand)
+
+    def _try_update_from_translates_write(self, inst: IRInstruction):
+        write_loc = self.base_ptr.get_write_location(inst, addr_space.MEMORY)
+        translates = self.translates.translates
+        if write_loc.is_concrete:
+            return
+        if write_loc.alloca not in translates:
+            return
+        self._update_base_allocation_write(inst, write_loc, translates)
+
+    def _update_base_allocation_write(self, inst: IRInstruction, write_loc: MemoryLocation, translates: TranslateMap):
+        if write_loc.alloca not in translates:
+            return
+
+        if write_loc.offset is None:
+            return
+
+        new_base = translates[write_loc.alloca]
+
+        new_operand = new_base.inst.output
+        if write_loc.offset != 0:
+            tmp = self.updater.add_before(
+                inst, "add", [new_base.inst.output, IRLiteral(write_loc.offset)]
+            )
+            assert tmp is not None
+            new_operand = tmp  # help mypy
+            self.base_ptr.new_gep(new_operand, new_base, write_loc.offset)
+
+        update_write_location(inst, new_operand)
+
+
+def _volatile_memory(inst):
+    # Only clear copies when memory is written by an instruction not handled above.
+    # Reading memory (sha3, log, return, revert) doesn't invalidate tracked copies.
+    return Effects.MEMORY in inst.get_write_effects()
+
+class TranslateAnalysis(IRAnalysis):
+    translates: TranslateMap
+    _inst_translates: dict[IRInstruction, TranslateMap]
+    bb_translates: dict[IRBasicBlock, TranslateMap]
+
+
+    def analyze(self):
+        self._inst_translates = dict()
+        self.bb_translates = dict()
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
+
+        while True:
+            change = False
+            for bb in self.function.get_basic_blocks():
+                change |= self._process_bb(bb)
+            
+            if not change:
+                break
+        
+        self.translates = TranslateMap()
+
+        checked = OrderedSet()
+
+        for translate_map in self._inst_translates.values():
+            for translate in translate_map.items():
+                dst, src = translate
+                if dst in checked:
+                    continue
+
+                dst_vars = self.base_ptr.vars_in_allocations[dst]
+                uses: OrderedSet[IRInstruction] = OrderedSet() 
+                for var in dst_vars:
+                    uses.addmany(self.dfg.get_uses(var))
+                
+                for use in uses:
+                    if use.get_read_effects() | use.get_write_effects() == effects.EMPTY:
+                        continue
+                    
+                    if dst not in self._inst_translates[use]:
+                        break
+
+                    if self._inst_translates[use][dst] != src:
+                        break
+                else:
+                    if dst in self.translates:
+                        assert self.translates[dst] == src
+                    else:
+                        self.translates[dst] = src
+
+
+
+
+    def _process_bb(self, bb: IRBasicBlock):
+        curr = self._merge_translates(bb)
+
+        for inst in bb.instructions:
+            if inst.get_read_effects() | inst.get_write_effects() != effects.EMPTY:
+                self._inst_translates[inst] = curr.copy()
+
+            if inst.get_write_effects() != effects.EMPTY:
+                self._invalidate(curr, self.base_ptr.get_write_location(inst, addr_space.MEMORY))
+
+            if inst.get_read_effects() != effects.EMPTY:
+                self._invalidate(curr, self.base_ptr.get_read_location(inst, addr_space.MEMORY))
+
+            if inst.opcode == "mcopy":
+                self._try_create_translate(inst, curr)
+
+        old_translates = self.bb_translates.get(bb, None)
+        if old_translates is None or old_translates != curr:
+            self.bb_translates[bb] = curr 
+            return True
+
+        return False
+
+    def _invalidate(self, curr: TranslateMap, loc: MemoryLocation):
+        if loc.is_concrete:
+            curr.clear()
+        else:
+            to_remove_allocations = []
+            for dst, src in curr.items():
+                if src == loc.alloca:
+                    to_remove_allocations.append(dst)
+
+            for item in to_remove_allocations:
+                del curr[item]
+
+    def _merge_translates(self, bb: IRBasicBlock) -> TranslateMap:
+        preds = list(self.cfg.cfg_in(bb))
+
+        if len(preds) == 0:
+            return TranslateMap()
+
+        # Start with first predecessor's state
+        first_pred = preds[0]
+        if first_pred not in self.bb_translates:
+            return {}
+
+        result = self.bb_translates[first_pred].copy()
+
+        # Intersect with other predecessors
+        for pred in preds[1:]:
+            if pred not in self.bb_translates:
+                # If any predecessor hasn't been processed, be conservative
+                return {}
+            other = self.bb_translates[pred]
+
+            common_keys = result.keys() & other.keys()
+            new_result = {}
+            for key in common_keys:
+                # Keep if instructions are equivalent (same opcode and source location)
+                if result[key] == other[key]:
+                    new_result[key] = result[key]
+
+            result = new_result
+
+        return result
+
+    def _try_create_translate(self, inst: IRInstruction, curr: TranslateMap):
         assert inst.opcode == "mcopy"
 
         read_loc = self.base_ptr.get_read_location(inst, addr_space.MEMORY)
@@ -379,97 +515,10 @@ class MemoryCopyElisionPass(IRPass):
         if write_loc.alloca.alloca_size != write_loc.size:
             return
 
-        read_var_uses = self.base_ptr.vars_in_allocations[read_loc.alloca]
-        uses = set()
-        for var_use in read_var_uses:
-            for use in self.dfg.get_uses(var_use):
-                if use is inst:
-                    uses.add(use)
-                    continue
-                if MEMORY not in use.get_write_effects():
-                    continue
-                if not self._use_dominates(use, inst):
-                    uses.add(use)
-
-        temp_memory = len(uses) == 1
-
         translates_to = read_loc.alloca
         if translates_to == write_loc.alloca:
             return
-        while translates_to in self.total_translation:
-            translates_to, temp_memory = self.total_translation[translates_to]
-        self.total_translation[write_loc.alloca] = (translates_to, temp_memory)
+        while translates_to in curr:
+            translates_to = curr[translates_to]
+        curr[write_loc.alloca] = translates_to
 
-    def _use_dominates(self, use: IRInstruction, inst: IRInstruction) -> bool:
-        if use.parent == inst.parent:
-            bb = inst.parent
-            use_idx = bb.instructions.index(use)
-            inst_idx = bb.instructions.index(inst)
-            return use_idx < inst_idx
-
-        return self.dom.dominates(use.parent, inst.parent)
-
-    def _try_update_from_translates_read(self, inst: IRInstruction):
-        read_loc = self.base_ptr.get_read_location(inst, addr_space.MEMORY)
-        if read_loc.is_concrete:
-            return
-        if read_loc.alloca not in self.total_translation:
-            return
-        self._update_base_allocation_read(inst, read_loc)
-
-    def _update_base_allocation_read(self, inst: IRInstruction, read_loc: MemoryLocation):
-        if read_loc.alloca not in self.total_translation:
-            return
-
-        if read_loc.offset is None:
-            return
-
-        new_base = self.total_translation[read_loc.alloca][0]
-
-        new_operand = new_base.inst.output
-        if read_loc.offset != 0:
-            tmp = self.updater.add_before(
-                inst, "add", [new_base.inst.output, IRLiteral(read_loc.offset)]
-            )
-            assert tmp is not None
-            new_operand = tmp  # help mypy
-            self.base_ptr.new_gep(new_operand, new_base, read_loc.offset)
-
-        update_read_location(inst, new_operand)
-
-    def _try_update_from_translates_write(self, inst: IRInstruction):
-        write_loc = self.base_ptr.get_write_location(inst, addr_space.MEMORY)
-        if write_loc.is_concrete:
-            return
-        if write_loc.alloca not in self.total_translation:
-            return
-        self._update_base_allocation_write(inst, write_loc)
-
-    def _update_base_allocation_write(self, inst: IRInstruction, write_loc: MemoryLocation):
-        if write_loc.alloca not in self.total_translation:
-            return
-
-        if write_loc.offset is None:
-            return
-
-        new_base, temp = self.total_translation[write_loc.alloca]
-
-        if not temp:
-            return
-
-        new_operand = new_base.inst.output
-        if write_loc.offset != 0:
-            tmp = self.updater.add_before(
-                inst, "add", [new_base.inst.output, IRLiteral(write_loc.offset)]
-            )
-            assert tmp is not None
-            new_operand = tmp  # help mypy
-            self.base_ptr.new_gep(new_operand, new_base, write_loc.offset)
-
-        update_write_location(inst, new_operand)
-
-
-def _volatile_memory(inst):
-    # Only clear copies when memory is written by an instruction not handled above.
-    # Reading memory (sha3, log, return, revert) doesn't invalidate tracked copies.
-    return Effects.MEMORY in inst.get_write_effects()
