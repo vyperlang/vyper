@@ -235,6 +235,18 @@ def uoo(inp: DynArray[Foobar, 2]) -> DynArray[DynArray[Foobar, 2], 2]:
     print("Passed list output tests")
 
 
+def test_nested_dynarray_empty_and_flag_literal(get_contract):
+    code = """
+flag Foo:
+    Member1
+
+@external
+def foo():
+    tmp: DynArray[DynArray[Foo, 5], 5] = [[], [Foo.Member1]]
+    """
+    get_contract(code)
+
+
 def test_array_accessor(get_contract):
     array_accessor = """
 @external

@@ -1,7 +1,13 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import CodegenPanic, StructureException, TypeMismatch, UndeclaredDefinition
+from vyper.exceptions import (
+    CodegenPanic,
+    CompilerPanic,
+    StructureException,
+    TypeMismatch,
+    UndeclaredDefinition,
+)
 
 fail_list = [
     (
@@ -64,6 +70,15 @@ def foo(x: DynArray[uint256, INF]) -> DynArray[uint256, 5]:
     """,
         TypeMismatch,
     ),
+    pytest.param(
+        """
+@external
+def foo():
+    x: uint256 = [].pop()
+    """,
+        StructureException,
+        marks=pytest.mark.xfail(raises=CompilerPanic),
+    ),
 ]
 
 
@@ -112,6 +127,16 @@ interface IFoo:
 interface IFoo:
     def bar() -> DynArray[uint256, ...]: nonpayable
     """,  # DynArray with wildcard in interface return type
+    """
+@external
+def foo():
+    tmp: DynArray[Bytes[3], 1] = [[b"abc"], []][0]
+    """,
+    """
+@external
+def foo():
+    tmp: DynArray[Bytes[3], 1] = [[], [b"abc"]][1]
+    """,
 ]
 
 
