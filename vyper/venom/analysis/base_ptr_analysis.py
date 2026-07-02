@@ -363,6 +363,11 @@ class BasePtrAnalysis(IRAnalysis):
         return aliases
 
     def pointer_may_include_untracked_root(self, var: IRVariable) -> bool:
+        """
+        Return True when `var` may carry an address that is not rooted in a
+        tracked allocation on some phi/assign path (e.g. a param or
+        calldata-derived pointer). Fails closed (True) on def cycles.
+        """
         return self._pointer_may_include_untracked_root_r(var)
 
     def _pointer_may_include_untracked_root_r(self, var: IRVariable) -> bool:
