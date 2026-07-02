@@ -167,9 +167,8 @@ imm: immutable(uint256)
 def __init__(x: uint256):
     imm = x
     """,
-        # TODO: not great UX, the user did try to assign, we should point them to how to fix it
-        "Immutable definition requires an assignment in the constructor",
-        None,
+        "'imm'",
+        "did you mean self.imm?",
     ),
     (
         """

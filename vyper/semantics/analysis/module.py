@@ -16,6 +16,7 @@ from vyper.exceptions import (
     InitializerException,
     InterfaceViolation,
     InvalidLiteral,
+    InvalidReference,
     InvalidType,
     StateAccessViolation,
     StructureException,
@@ -756,11 +757,20 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             # mutability is checked automatically preventing assignment
             # outside of the constructor, here we just check a value is assigned,
             # not necessarily where
-            # Assign(target=Attribute(value=Name("self"), attr=<node.target.id>))
+            # `self.<name> = ...`: Assign(target=Attribute(value=Name("self"), attr=<name>))
             assignments = self.ast.get_descendants(
-                vy_ast.Assign, filters={"target.value.id": "self", "target.attr": node.target.id}
+                vy_ast.Assign, filters={"target.value.id": "self", "target.attr": name}
             )
             if not assignments:
+                # `<name> = ...`: Assign(target=<name>)
+                wrong_assignments = self.ast.get_descendants(
+                    vy_ast.Assign, filters={"target.id": name}
+                )
+                if wrong_assignments:
+                    # same error that would be raised later
+                    node = wrong_assignments[0].target
+                    raise InvalidReference(f"'{name}'", node, hint=f"did you mean self.{name}?")
+
                 message = "Immutable definition requires an assignment in the constructor"
                 raise ImmutableViolation(message, node)
 
