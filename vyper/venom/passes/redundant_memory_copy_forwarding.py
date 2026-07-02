@@ -67,8 +67,6 @@ class RedundantMemoryCopyForwardingPass(IRPass):
     param_roots: MemoryParamRootResolver
 
     def run_pass(self):
-        changed = False
-
         # Reuse the interprocedural readonly-param facts already used by the
         # invoke forwarding passes. They let this pass reason about internal
         # memory parameters whose concrete alloca is not visible pre-inlining.
@@ -86,10 +84,6 @@ class RedundantMemoryCopyForwardingPass(IRPass):
 
             self._apply_forward_plan(plan)
             self.updater.nop(plan.copy_inst, annotation="[redundant memory copy forwarding]")
-            changed = True
-            self._invalidate()
-
-        if changed:
             self._invalidate()
 
     def _prepare(self) -> None:
