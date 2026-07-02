@@ -38,21 +38,29 @@ from vyper.semantics.types import (
     InterfaceT,
     StringT,
     TupleT,
+    VyperType,
     is_type_t,
 )
 from vyper.semantics.types.base import VOID_TYPE
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
+from vyper.semantics.types.infinity import is_bounded_length, type_contains_unbounded_sequence
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT
 from vyper.semantics.types.user import FlagT, StructT
 from vyper.utils import DECIMAL_DIVISOR, keccak256
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 
-from .abi import abi_decode_to_buf, abi_encode_to_buf
+from .abi import (
+    abi_decode_to_buf,
+    abi_encode_values_to_buf,
+    decode_unbounded_dynarray_to_scratch,
+    runtime_abi_size_for_encode,
+)
 from .buffer import Buffer, Ptr
-from .calling_convention import pass_via_stack, returns_stack_count
+from .calling_convention import pass_via_stack, returns_dynamic_count, returns_stack_count
 from .context import VenomCodegenContext
+from .eval_order import later_expressions_can_mutate_memory_or_storage
 from .value import VyperValue
 
 
@@ -189,6 +197,42 @@ class Expr:
         assert isinstance(node, vy_ast.Tuple)
         typ = node._metadata["type"]
 
+        if typ.has_wildcard:
+            member_types = []
+            for elem_node in node.elements:
+                expr_info = getattr(elem_node, "_expr_info", None)
+                elem_typ = getattr(expr_info, "typ", None) or elem_node._metadata["type"]
+                member_types.append(elem_typ)
+            typ = TupleT(tuple(member_types))
+
+        if self.ctx.is_dynamic_tuple_frame_type(typ):
+            member_values: list[IROperand] = []
+            for i, elem_node in enumerate(node.elements):
+                elem_typ = typ.member_types[i]
+                elem_vv = Expr(elem_node, self.ctx).lower()
+                if elem_typ._is_prim_word:
+                    member_values.append(self.ctx.unwrap(elem_vv))
+                else:
+                    if self.ctx.is_unbounded_sequence_type(elem_typ):
+                        elem_vv = self.ctx.copy_sequence_to_scratch(
+                            elem_vv, elem_typ, annotation="tuple"
+                        )
+                    elif type_contains_unbounded_sequence(elem_typ):
+                        raise CompilerPanic(
+                            "semantic analysis should reject nested INF tuple literals"
+                        )  # pragma: nocover
+                    else:
+                        elem_vv = self.ctx.materialize_value(elem_vv, elem_typ, annotation="tuple")
+                    member_ptr = self.ctx.unwrap(elem_vv)
+                    member_values.append(member_ptr)
+
+            frame = self.ctx.allocate_scratch(IRLiteral(self.ctx.dynamic_tuple_frame_size(typ)))
+            for i, value in enumerate(member_values):
+                cell = self.builder.add(frame, IRLiteral(i * 32))
+                self.builder.mstore(cell, value)
+
+            return self.ctx.dynamic_tuple_frame_value(frame, typ, annotation="tuple")
+
         # Allocate memory for the tuple
         val = self.ctx.new_temporary_value(typ)
         assert isinstance(val.operand, IRVariable)
@@ -224,7 +268,12 @@ class Expr:
         num_elements = len(node.elements)
 
         # Allocate memory for the array
-        val = self.ctx.new_temporary_value(typ)
+        if isinstance(typ, DArrayT) and self.ctx.is_unbounded_dynarray_type(typ):
+            size = IRLiteral(32 + num_elements * elem_size)
+            ptr = self.ctx.allocate_scratch(size)
+            val = self.ctx.dynamic_memory_value(ptr, typ, annotation="list")
+        else:
+            val = self.ctx.new_temporary_value(typ)
         assert isinstance(val.operand, IRVariable)
 
         # DArrayT has a length word at offset 0
@@ -257,23 +306,7 @@ class Expr:
 
         Returns VyperValue with allocated memory.
         """
-        bytez_length = len(bytez)
-        btype = typeclass(bytez_length)
-
-        # Allocate memory for length word + data
-        val = self.ctx.new_temporary_value(btype)
-
-        # Store length at ptr
-        self.ctx.ptr_store(val.ptr(), IRLiteral(bytez_length))
-
-        # Store data in 32-byte chunks, right-padded with zeros
-        for i in range(0, bytez_length, 32):
-            chunk = (bytez + b"\x00" * 31)[i : i + 32]
-            word = int.from_bytes(chunk, "big")
-            offset = self.builder.add(val.operand, IRLiteral(32 + i))
-            self.builder.mstore(offset, IRLiteral(word))
-
-        return val
+        return self.ctx.const_bytestring_value(bytez, typeclass)
 
     # === Binary Operations ===
 
@@ -596,6 +629,8 @@ class Expr:
         # Return pointer, caller will unwrap if needed
         if varname in self.ctx.variables:
             var = self.ctx.lookup(varname)
+            if var.is_pointer_cell:
+                return self.ctx.load_pointer_cell_value(var)
             return var.value
 
         # Case 3: Module constant - recursively lower the constant's value
@@ -664,15 +699,27 @@ class Expr:
             sub = Expr(node.value, self.ctx).lower_value()
             return VyperValue.from_stack_op(self.builder.extcodehash(sub), BYTES32_T)
 
-        # .code on address is an adhoc node handled by slice() - should not be lowered directly
-        # But "code" can be a valid struct field name, so only check for address types
-        if attr == "code" and isinstance(
-            node.value._metadata.get("type"), AddressT
-        ):  # pragma: nocover
-            raise CompilerPanic(".code requires slice() context")
+        # .code on address materializes the full runtime code as Bytes[INF].
+        # Struct fields named "code" are handled above before this address check.
+        if attr == "code" and isinstance(node.value._metadata.get("type"), AddressT):
+            if isinstance(node.value, vy_ast.Name) and node.value.id == "self":
+                length = self.builder.codesize()
+                return self.ctx.materialize_code_bytes(
+                    IRLiteral(0), length, typ, annotation="self.code"
+                )
+            address = Expr(node.value, self.ctx).lower_value()
+            length = self.builder.extcodesize(address)
+            return self.ctx.materialize_code_bytes(
+                IRLiteral(0), length, typ, address=address, annotation="addr.code"
+            )
 
         # Case 4: Environment variables (msg.*, block.*, tx.*, chain.*)
         if isinstance(node.value, vy_ast.Name) and node.value.id in ENVIRONMENT_VARIABLES:
+            if node.value.id == "msg" and attr == "data":
+                length = self.builder.calldatasize()
+                return self.ctx.materialize_calldata_bytes(
+                    IRLiteral(0), length, typ, annotation="msg.data"
+                )
             return VyperValue.from_stack_op(self._lower_environment_attr(), typ)
 
         # Case 5: State variables (self.x)
@@ -771,18 +818,30 @@ class Expr:
 
         # Pre-allocate result variable
         result = self.builder.new_variable()
+        result_typ = node._metadata["type"]
+
+        def lower_arm(expr_node: vy_ast.VyperNode) -> IROperand:
+            if result_typ._is_prim_word:
+                return Expr(expr_node, self.ctx).lower_value()
+            if self.ctx.is_dynamic_tuple_frame_type(result_typ):
+                arm_vv = Expr(expr_node, self.ctx).lower()
+                frame_vv = self.ctx.dynamic_tuple_frame_from_value(
+                    arm_vv, result_typ, annotation="ternary"
+                )
+                return frame_vv.operand
+            return Expr(expr_node, self.ctx).lower_value()
 
         # Process then branch
         self.builder.append_block(then_block)
         self.builder.set_block(then_block)
-        then_val = Expr(node.body, self.ctx).lower_value()
+        then_val = lower_arm(node.body)
         then_block_finish = self.builder.current_block
         then_block_finish.append_instruction("assign", then_val, ret=result)
 
         # Process else branch
         self.builder.append_block(else_block)
         self.builder.set_block(else_block)
-        else_val = Expr(node.orelse, self.ctx).lower_value()
+        else_val = lower_arm(node.orelse)
         else_block_finish = self.builder.current_block
         else_block_finish.append_instruction("assign", else_val, ret=result)
 
@@ -797,7 +856,6 @@ class Expr:
         then_block_finish.append_instruction("jmp", exit_block.label)
         else_block_finish.append_instruction("jmp", exit_block.label)
 
-        result_typ = node._metadata["type"]
         if result_typ._is_prim_word:
             return VyperValue.from_stack_op(result, result_typ)
         return self._make_ptr_value(result, DataLocation.MEMORY, result_typ)
@@ -997,16 +1055,24 @@ class Expr:
         assert isinstance(node, vy_ast.Subscript)
         base_vv = Expr(node.value, self.ctx).lower()
         base = base_vv.operand  # Extract pointer for address math
-        base_typ = node.value._metadata["type"]
+        base_typ = base_vv.typ
 
         # Get the compile-time index
         reduced_slice = node.slice.reduced()
         assert isinstance(reduced_slice, vy_ast.Int)
         index = reduced_slice.value
 
+        if self.ctx.is_dynamic_tuple_frame_type(base_typ):
+            assert isinstance(base_typ, TupleT)
+            assert isinstance(base, IRVariable)
+            return self.ctx.dynamic_tuple_frame_values(base, base_typ, annotation="subscript")[
+                index
+            ]
+
         # Propagate location from base
         data_loc = base_vv.location
         assert data_loc is not None
+        assert isinstance(base_typ, (TupleT, StructT))
 
         # Compute offset by summing sizes of preceding elements
         attrs = list(base_typ.tuple_keys())
@@ -1061,7 +1127,10 @@ class Expr:
         if location == DataLocation.MEMORY:
             # Buffer requires IRVariable; memory pointers from arithmetic ops are always IRVariables
             assert isinstance(operand, IRVariable)
-            buf = Buffer(_ptr=operand, size=typ.memory_bytes_required, annotation="computed_ptr")
+            if self.ctx.is_dynamic_tuple_frame_type(typ):
+                return self.ctx.dynamic_tuple_frame_value(operand, typ, annotation="computed_ptr")
+            size = None if self.ctx.is_unbounded_sequence_type(typ) else typ.memory_bytes_required
+            buf = Buffer(_ptr=operand, size=size, annotation="computed_ptr")
             ptr = Ptr(operand=operand, location=location, buf=buf)
         else:
             ptr = Ptr(operand=operand, location=location)
@@ -1181,7 +1250,7 @@ class Expr:
         self.builder.assign_to(IRLiteral(0), result)  # result = 0 (not found)
 
         # Bound check for dynamic arrays
-        if isinstance(haystack_typ, DArrayT):
+        if isinstance(haystack_typ, DArrayT) and is_bounded_length(bound):
             invalid = self.builder.gt(length, IRLiteral(bound))
             valid = self.builder.iszero(invalid)
             self.builder.assert_(valid)
@@ -1316,6 +1385,7 @@ class Expr:
             )
 
         returns_count = returns_stack_count(func_t)
+        dynamic_returns_count = returns_dynamic_count(func_t)
         pass_via_stack_dict = pass_via_stack(func_t)
 
         # Generate function label
@@ -1326,11 +1396,13 @@ class Expr:
 
         # Allocate return buffer
         return_buf: Optional[IROperand] = None
-        if func_t.return_type is not None:
+        if func_t.return_type is not None and not self.ctx.is_dynamic_tuple_frame_type(
+            func_t.return_type
+        ):
             if returns_count > 0:
                 # Multi-return: allocate scratch buffer
                 return_buf = self.builder.alloca(32 * returns_count)
-            else:
+            elif dynamic_returns_count == 0:
                 # Memory return: allocate buffer for full return type
                 return_buf = self.ctx.new_temporary_value(func_t.return_type).operand
 
@@ -1349,15 +1421,19 @@ class Expr:
         default_nodes = [kwarg.default_value for kwarg in unprovided_kwargs]
         all_arg_nodes = list(node.args) + default_nodes
 
-        # IMPORTANT: Evaluate ALL arguments first before allocating staging buffers.
-        # If arguments contain nested internal calls, those calls may use the callee's
-        # frame which can overlap with our staging buffers (due to memory reuse).
-        # By evaluating all args first, we ensure nested calls complete before we
-        # allocate staging buffers, avoiding corruption.
-        # See legacy codegen: vyper/codegen/self_call.py (contains_self_call handling)
+        # Evaluate arguments left-to-right and snapshot each value immediately.
+        # Final call staging still happens after every expression has run, but
+        # sources such as storage pointers must not be observed after later
+        # arguments with side effects.
         arg_vals: list[VyperValue] = []
-        for arg_node in all_arg_nodes:
-            arg_vals.append(Expr(arg_node, self.ctx).lower())
+        for i, (arg_node, arg_t) in enumerate(zip(all_arg_nodes, func_t.arguments)):
+            arg_vv = Expr(arg_node, self.ctx).lower()
+            copy_composites = later_expressions_can_mutate_memory_or_storage(all_arg_nodes[i + 1 :])
+            arg_vals.append(
+                self.ctx.snapshot_value_for_delayed_use(
+                    arg_vv, arg_t.typ, annotation=arg_t.name, copy_composites=copy_composites
+                )
+            )
 
         # Now allocate staging buffers and copy evaluated values
         for i, arg_val in enumerate(arg_vals):
@@ -1373,16 +1449,42 @@ class Expr:
                     arg_op = self.builder.mload(arg_op)
                 invoke_args.append(arg_op)
             else:
-                # Memory-passed arg: allocate buffer, copy value, pass pointer.
-                # Backend passes can forward safe readonly arguments.
+                # Memory-passed arg: pass a pointer to a stable memory snapshot.
+                # Backend passes can forward safe readonly bounded arguments.
+                if self.ctx.is_unbounded_sequence_type(arg_t.typ):
+                    # snapshot_value_for_delayed_use already copied this value.
+                    # Pass that stable snapshot directly instead of staging the
+                    # same buffer twice.
+                    assert isinstance(arg_op, IRVariable)
+                    invoke_args.append(arg_op)
+                    continue
+
                 buf_val = self.ctx.new_temporary_value(arg_t.typ)
                 assert isinstance(buf_val.operand, IRVariable)
                 self.ctx.store_vyper_value(arg_val, buf_val.operand, arg_t.typ)
                 invoke_args.append(buf_val.operand)
 
         # Emit invoke instruction
-        if returns_count > 0:
-            outs = self.builder.invoke(IRLabel(target_label), invoke_args, returns=returns_count)
+        invoke_returns_count = returns_count + dynamic_returns_count
+        if invoke_returns_count > 0:
+            outs = self.builder.invoke(
+                IRLabel(target_label), invoke_args, returns=invoke_returns_count
+            )
+            if dynamic_returns_count > 0:
+                assert func_t.return_type is not None
+                if self.ctx.is_dynamic_tuple_frame_type(func_t.return_type):
+                    assert isinstance(func_t.return_type, TupleT)
+                    return self.ctx.dynamic_tuple_frame_from_outputs(
+                        outs, func_t.return_type, annotation=func_name
+                    )
+
+                assert returns_count == 0
+                assert len(outs) == 1
+                # Dynamic internal returns publish a runtime memory pointer directly.
+                return self.ctx.dynamic_memory_value(
+                    outs[0], func_t.return_type, annotation=func_name
+                )
+
             # Copy stack returns to buffer
             assert return_buf is not None
             assert isinstance(return_buf, IRVariable)
@@ -1499,6 +1601,9 @@ class Expr:
         darray_typ = darray_node._metadata["type"]
         elem_typ = darray_typ.value_type
 
+        if self.ctx.is_unbounded_dynarray_type(darray_typ):
+            return self._lower_unbounded_dynarray_append()
+
         # Get the array VyperValue
         darray_vv = Expr(darray_node, self.ctx).lower()
         darray_ptr = darray_vv.operand
@@ -1550,8 +1655,9 @@ class Expr:
         length = self.builder.load(darray_ptr, data_loc)
 
         # 2. Assert length < capacity
-        valid = self.builder.lt(length, IRLiteral(capacity))
-        self.builder.assert_(valid)
+        if is_bounded_length(capacity):
+            valid = self.builder.lt(length, IRLiteral(capacity))
+            self.builder.assert_(valid)
 
         # 3. Compute element pointer: data_ptr + length * elem_size
         overhead = word_scale * DYNAMIC_ARRAY_OVERHEAD
@@ -1578,6 +1684,70 @@ class Expr:
         self.builder.store(darray_ptr, new_length, data_loc)
 
         # append() returns nothing
+        return VyperValue.from_stack_op(IRLiteral(0), VOID_TYPE)
+
+    def _lower_unbounded_dynarray_append(self) -> VyperValue:
+        """Lower append on exact-sized DynArray[..., INF] pointer-cell locals.
+
+        The current representation keeps no spare capacity: each append
+        allocates the exact new size and copies the old payload before writing
+        the new element. Repeated appends are therefore linear per append and
+        quadratic in aggregate.
+        """
+        node = self.node
+        assert isinstance(node, vy_ast.Call)
+        assert isinstance(node.func, vy_ast.Attribute)
+        assert len(node.args) == 1
+
+        darray_node = node.func.value
+        darray_typ = darray_node._metadata["type"]
+        assert isinstance(darray_typ, DArrayT)
+        elem_typ = darray_typ.value_type
+
+        if not isinstance(darray_node, vy_ast.Name):
+            raise CompilerPanic(
+                "semantic analysis should reject append() on non-local DynArray[..., INF]"
+            )  # pragma: nocover
+
+        var = self.ctx.lookup(darray_node.id)
+        if not var.is_pointer_cell:
+            raise CompilerPanic(
+                "unbounded DynArray append expects pointer-cell storage"
+            )  # pragma: nocover
+
+        arg_vv = Expr(node.args[0], self.ctx).lower()
+        arg_val = self.ctx.unwrap(arg_vv)
+
+        if not elem_typ._is_prim_word:
+            temp_buf = self.ctx.new_temporary_value(elem_typ)
+            assert isinstance(temp_buf.operand, IRVariable)
+            self.ctx.store_vyper_value(arg_vv, temp_buf.operand, elem_typ)
+            elem_val: IROperand = temp_buf.operand
+        else:
+            elem_val = arg_val
+
+        old_ptr = self.ctx.ptr_load(var.value.ptr())
+        assert isinstance(old_ptr, IRVariable)
+        length = self.builder.mload(old_ptr)
+        elem_size = elem_typ.memory_bytes_required
+
+        old_size = self.ctx.dynarray_runtime_size_from_length(length, darray_typ)
+        data_size = self.builder.sub(old_size, IRLiteral(32))
+        new_size = self.ctx.checked_add(old_size, IRLiteral(elem_size))
+
+        new_ptr = self.ctx.allocate_scratch(new_size)
+        self.ctx.copy_memory_dynamic(new_ptr, old_ptr, old_size)
+
+        data_ptr = self.builder.add(new_ptr, IRLiteral(32))
+        elem_ptr = self.builder.add(data_ptr, data_size)
+        if elem_typ._is_prim_word:
+            self.builder.mstore(elem_ptr, elem_val)
+        else:
+            self.ctx.store_memory(elem_val, elem_ptr, elem_typ, src_typ=elem_typ)
+
+        new_length = self.builder.add(length, IRLiteral(1))
+        self.builder.mstore(new_ptr, new_length)
+        self.ctx.ptr_store(var.value.ptr(), new_ptr)
         return VyperValue.from_stack_op(IRLiteral(0), VOID_TYPE)
 
     def _lower_dynarray_pop(self) -> VyperValue:
@@ -1648,7 +1818,7 @@ class Expr:
         """
         return self._lower_external_call()
 
-    def _parse_external_call_kwargs(self, call_node) -> _CallKwargs:
+    def _parse_external_call_kwargs(self, call_node, return_t: VyperType | None) -> _CallKwargs:
         """Parse keyword arguments for external calls.
 
         Handles: value, gas, skip_contract_check, default_return_value
@@ -1682,6 +1852,17 @@ class Expr:
                     default_return_value = VyperValue.from_stack_op(
                         self.ctx.unwrap(default_vv), default_vv.typ
                     )
+                elif return_t is not None and self.ctx.is_dynamic_tuple_frame_type(return_t):
+                    assert isinstance(return_t, TupleT)
+                    default_return_value = self.ctx.dynamic_tuple_frame_from_value(
+                        default_vv, return_t, annotation="external call default_return_value"
+                    )
+                elif self.ctx.is_dynamic_tuple_frame_type(default_vv.typ):
+                    default_return_value = default_vv
+                elif self.ctx.is_unbounded_sequence_type(default_vv.typ):
+                    default_return_value = self.ctx.copy_sequence_to_scratch(
+                        default_vv, default_vv.typ, annotation="external call default_return_value"
+                    )
                 else:
                     default_return_value = self.ctx.materialize_value(
                         default_vv, annotation="external call default_return_value"
@@ -1698,6 +1879,9 @@ class Expr:
             skip_contract_check=skip_contract_check,
             default_return_value=default_return_value,
         )
+
+    def _external_call_args_need_runtime_encoding(self, arg_vals: list[VyperValue]) -> bool:
+        return any(self.ctx.is_unbounded_sequence_type(arg_vv.typ) for arg_vv in arg_vals)
 
     def _lower_external_call(self) -> VyperValue:
         """Lower external call (extcall/staticcall).
@@ -1724,65 +1908,87 @@ class Expr:
 
         # get un-wildcard-ed return type
         return_t = call_node._metadata["call_return_type"]
+        has_unbounded_return = self.ctx.is_unbounded_sequence_type(return_t)
+        has_dynamic_tuple_return = return_t is not None and self.ctx.is_dynamic_tuple_frame_type(
+            return_t
+        )
 
         # Evaluate contract address (the interface value)
         contract_address = Expr(call_node.func.value, self.ctx).lower_value()
 
         # Evaluate arguments.
         arg_vals: list[VyperValue] = []
-        for arg in call_node.args:
-            arg_vals.append(Expr(arg, self.ctx).lower())
+        kwarg_value_nodes = [kw.value for kw in call_node.keywords]
+        for i, (arg, arg_t) in enumerate(zip(call_node.args, fn_type.arguments)):
+            arg_vv = Expr(arg, self.ctx).lower()
+            later_nodes = list(call_node.args[i + 1 :]) + kwarg_value_nodes
+            copy_composites = later_expressions_can_mutate_memory_or_storage(later_nodes)
+            arg_vals.append(
+                self.ctx.snapshot_value_for_delayed_use(
+                    arg_vv, arg_t.typ, annotation=arg_t.name, copy_composites=copy_composites
+                )
+            )
 
         # Parse kwargs
-        call_kwargs = self._parse_external_call_kwargs(call_node)
+        call_kwargs = self._parse_external_call_kwargs(call_node, return_t)
 
         # Calculate buffer size needed.
         # Use concrete types from the lowered argument values, not the interface's
         # declared parameter types (which may be WILDCARD for JSON ABI interfaces).
         args_tuple_t = TupleT(tuple(v.typ for v in arg_vals))
-        args_abi_t = args_tuple_t.abi_type
-        args_abi_size = args_abi_t.size_bound()
+        dynamic_args = self._external_call_args_need_runtime_encoding(arg_vals)
+        if dynamic_args:
+            args_alloc_size = runtime_abi_size_for_encode(self.ctx, arg_vals, args_tuple_t)
+        else:
+            args_abi_t = args_tuple_t.abi_type
+            args_abi_size = args_abi_t.size_bound()
 
         if return_t is not None:
-            return_abi_t = calculate_type_for_external_return(return_t).abi_type
-            return_abi_size = return_abi_t.size_bound()
+            if has_unbounded_return or has_dynamic_tuple_return:
+                return_abi_size = 0
+            else:
+                return_abi_t = calculate_type_for_external_return(return_t).abi_type
+                return_abi_size = return_abi_t.size_bound()
         else:
             return_abi_size = 0
 
         # Buffer size: max(args, return) + 32 for method ID padding
-        buf_size = max(args_abi_size, return_abi_size) + 32
-
-        # Allocate buffer
-        buf = self.ctx.allocate_buffer(buf_size, annotation="external_call_buf")
+        if dynamic_args:
+            buf_payload_size = args_alloc_size
+            if return_abi_size > 0:
+                buf_payload_size = b.select(
+                    b.lt(args_alloc_size, IRLiteral(return_abi_size)),
+                    IRLiteral(return_abi_size),
+                    args_alloc_size,
+                )
+            buf_ptr = self.ctx.allocate_scratch(
+                self.ctx.checked_add(buf_payload_size, IRLiteral(32))
+            )
+        else:
+            buf_size = max(args_abi_size, return_abi_size) + 32
+            buf = self.ctx.allocate_buffer(buf_size, annotation="external_call_buf")
+            buf_ptr = buf._ptr
 
         # === Pack Arguments ===
         # Store method ID at buf (right-aligned in 32-byte word, so selector at buf+28)
         # Method ID = first 4 bytes of keccak256(signature)
         abi_signature = fn_type.name + args_tuple_t.abi_type.selector_name()
         method_id = util.method_id_int(abi_signature)
-        self.ctx.ptr_store(buf.base_ptr(), IRLiteral(method_id))
+        b.mstore(buf_ptr, IRLiteral(method_id))
 
         # ABI-encode arguments starting at buf+32
         if len(arg_vals) > 0:
-            # Create temp buffer for args in memory
-            args_val = self.ctx.new_temporary_value(args_tuple_t)
-            assert isinstance(args_val.operand, IRVariable)
+            encode_dst = b.add(buf_ptr, IRLiteral(32))
+            args_abi_len = abi_encode_values_to_buf(self.ctx, encode_dst, arg_vals, args_tuple_t)
+            if dynamic_args:
+                args_len = self.ctx.checked_add(args_abi_len, IRLiteral(4))
+            else:
+                args_len = b.add(args_abi_len, IRLiteral(4))
+        else:
+            args_len = IRLiteral(4)
 
-            # Store each arg at its position in args_buf
-            offset = 0
-            for arg_vv in arg_vals:
-                arg_typ = arg_vv.typ
-                dst = b.add(args_val.operand, IRLiteral(offset))
-                self.ctx.store_vyper_value(arg_vv, dst, arg_typ)
-                offset += arg_typ.memory_bytes_required
-
-            # ABI-encode from args_buf to buf+32
-            encode_dst = b.add(buf._ptr, IRLiteral(32))
-            abi_encode_to_buf(self.ctx, encode_dst, args_val.operand, args_tuple_t)
-
-        # Call starts at buf+28, length = 4 + args_abi_size
-        args_ofst = b.add(buf._ptr, IRLiteral(28))
-        args_len = IRLiteral(4 + args_abi_size)
+        # Call starts at buf+28, length = 4-byte selector + ABI args payload.
+        args_ofst = b.add(buf_ptr, IRLiteral(28))
 
         # === Contract Existence Check ===
         # If function returns nothing and skip_contract_check is False,
@@ -1795,7 +2001,7 @@ class Expr:
         use_staticcall = fn_type.mutability in (StateMutability.VIEW, StateMutability.PURE)
 
         # Return buffer location and size
-        ret_ofst = buf._ptr
+        ret_ofst = buf_ptr
         ret_len = IRLiteral(return_abi_size) if return_abi_size > 0 else IRLiteral(0)
 
         if use_staticcall:
@@ -1835,6 +2041,16 @@ class Expr:
         # === Unpack Return Value ===
         if return_t is None:
             return VyperValue.from_stack_op(IRLiteral(0), VOID_TYPE)
+
+        if has_unbounded_return:
+            return self._unpack_unbounded_external_call_return(
+                call_kwargs, contract_address, return_t
+            )
+        if has_dynamic_tuple_return:
+            assert isinstance(return_t, TupleT)
+            return self._unpack_dynamic_tuple_external_call_return(
+                call_kwargs, contract_address, return_t
+            )
 
         wrapped_return_t = calculate_type_for_external_return(return_t)
         min_return_size = wrapped_return_t.abi_type.static_size()
@@ -1881,7 +2097,7 @@ class Expr:
             b.assert_(ok)
 
             # No returndatacopy needed: staticcall/call already wrote
-            # min(returndatasize, ret_len) bytes to buf._ptr, and
+            # min(returndatasize, ret_len) bytes to buf_ptr, and
             # payload_bound caps reads at ret_len (== size_bound()).
 
             # Compute hi bound for decode (prevents overread)
@@ -1890,8 +2106,8 @@ class Expr:
             payload_bound = b.select(
                 b.lt(rds, IRLiteral(max_return_size)), rds, IRLiteral(max_return_size)
             )
-            hi = b.add(buf._ptr, payload_bound)
-            src = self._make_ptr_value(buf._ptr, DataLocation.MEMORY, wrapped_return_t)
+            hi = b.add(buf_ptr, payload_bound)
+            src = self._make_ptr_value(buf_ptr, DataLocation.MEMORY, wrapped_return_t)
             abi_decode_to_buf(self.ctx, result_val.operand, src, hi=hi)
 
             b.jmp(exit_bb.label)
@@ -1908,7 +2124,7 @@ class Expr:
             b.assert_(ok)
 
             # No returndatacopy needed: staticcall/call already wrote
-            # min(returndatasize, ret_len) bytes to buf._ptr, and
+            # min(returndatasize, ret_len) bytes to buf_ptr, and
             # payload_bound caps reads at ret_len (== size_bound()).
 
             # Compute hi bound for decode (prevents overread)
@@ -1917,8 +2133,8 @@ class Expr:
             payload_bound = b.select(
                 b.lt(rds, IRLiteral(max_return_size)), rds, IRLiteral(max_return_size)
             )
-            hi = b.add(buf._ptr, payload_bound)
-            src = self._make_ptr_value(buf._ptr, DataLocation.MEMORY, wrapped_return_t)
+            hi = b.add(buf_ptr, payload_bound)
+            src = self._make_ptr_value(buf_ptr, DataLocation.MEMORY, wrapped_return_t)
             abi_decode_to_buf(self.ctx, result_val.operand, src, hi=hi)
 
         # Return as location in memory with unwrapped type
@@ -1926,3 +2142,217 @@ class Expr:
         if needs_external_call_wrap(return_t):
             return VyperValue.from_ptr(result_val.ptr(), return_t)
         return result_val
+
+    def _decode_unbounded_sequence_external_call_member(
+        self, return_t: VyperType, src: IRVariable, hi: IROperand
+    ) -> VyperValue:
+        assert self.ctx.is_unbounded_sequence_type(return_t)
+        b = self.builder
+
+        # Check the length word before reading it. Attacker-controlled return
+        # offsets must not be allowed to trigger huge-memory `mload` expansion.
+        data_start = self.ctx.assert_abi_length_word_in_bounds(src, hi)
+
+        if self.ctx.is_unbounded_bytestring_type(return_t):
+            length = b.mload(src)
+            self.ctx.assert_abi_bytes_payload_in_bounds(src, length, hi, data_start=data_start)
+            return self.ctx.materialize_bytes_from_location(
+                data_start, length, return_t, DataLocation.MEMORY, annotation="external call return"
+            )
+
+        assert isinstance(return_t, DArrayT)
+        src_vv = self._make_ptr_value(src, DataLocation.MEMORY, return_t)
+        return decode_unbounded_dynarray_to_scratch(
+            self.ctx, src_vv, return_t, hi, "external call return", data_start=data_start
+        )
+
+    def _copy_returndata_to_scratch(
+        self, returndata_size: IROperand
+    ) -> tuple[IRVariable, IROperand]:
+        b = self.builder
+
+        returndata_ptr = self.ctx.allocate_scratch(returndata_size)
+        b.returndatacopy(returndata_ptr, IRLiteral(0), returndata_size)
+
+        hi = b.add(returndata_ptr, returndata_size)
+        no_hi_wrap = b.iszero(b.lt(hi, returndata_ptr))
+        b.assert_(no_hi_wrap)
+        return returndata_ptr, hi
+
+    def _copy_and_decode_unbounded_external_call_return(
+        self, return_t: VyperType, returndata_size: IROperand
+    ) -> VyperValue:
+        assert self.ctx.is_unbounded_sequence_type(return_t)
+        b = self.builder
+
+        ok = b.iszero(b.lt(returndata_size, IRLiteral(32)))
+        b.assert_(ok)
+
+        returndata_ptr, hi = self._copy_returndata_to_scratch(returndata_size)
+
+        # ABI external returns are encoded as a tuple. For a single dynamic
+        # return this is normally `[offset][length][data...]`. As with the
+        # bounded legacy path, non-canonical but in-bounds offsets are accepted;
+        # the no-wrap and payload bounds below are the safety checks.
+        offset = b.mload(returndata_ptr)
+
+        src = b.add(returndata_ptr, offset)
+        no_src_wrap = b.iszero(b.lt(src, returndata_ptr))
+        b.assert_(no_src_wrap)
+        assert isinstance(src, IRVariable)
+        return self._decode_unbounded_sequence_external_call_member(return_t, src, hi)
+
+    def _copy_and_decode_dynamic_tuple_external_call_return(
+        self, return_t: TupleT, returndata_size: IROperand
+    ) -> VyperValue:
+        assert self.ctx.is_dynamic_tuple_frame_type(return_t)
+        b = self.builder
+
+        static_size = return_t.abi_type.static_size()
+        ok = b.iszero(b.lt(returndata_size, IRLiteral(static_size)))
+        b.assert_(ok)
+
+        returndata_ptr, hi = self._copy_returndata_to_scratch(returndata_size)
+
+        tuple_src = returndata_ptr
+        if needs_external_call_wrap(return_t):
+            offset = b.mload(returndata_ptr)
+            # Keep bounded legacy behavior for non-canonical but in-bounds
+            # offsets; validate memory safety with no-wrap and bounds checks.
+            tuple_src = b.add(returndata_ptr, offset)
+            no_tuple_src_wrap = b.iszero(b.lt(tuple_src, returndata_ptr))
+            b.assert_(no_tuple_src_wrap)
+
+        assert isinstance(tuple_src, IRVariable)
+        static_end = b.add(tuple_src, IRLiteral(static_size))
+        no_static_end_wrap = b.iszero(b.lt(static_end, tuple_src))
+        static_in_bounds = b.iszero(b.gt(static_end, hi))
+        b.assert_(b.and_(no_static_end_wrap, static_in_bounds))
+
+        frame = self.ctx.allocate_scratch(IRLiteral(self.ctx.dynamic_tuple_frame_size(return_t)))
+        abi_offset = 0
+        for i, member_t in enumerate(return_t.member_types):
+            static_loc = b.add(tuple_src, IRLiteral(abi_offset))
+            if member_t.abi_type.is_dynamic():
+                offset = b.mload(static_loc)
+                member_src = b.add(tuple_src, offset)
+                no_member_src_wrap = b.iszero(b.lt(member_src, tuple_src))
+                b.assert_(no_member_src_wrap)
+                self.ctx.assert_abi_head_word_in_bounds(member_src, hi)
+            else:
+                member_src = static_loc
+
+            assert isinstance(member_src, IRVariable)
+            if self.ctx.is_unbounded_sequence_type(member_t):
+                member_vv = self._decode_unbounded_sequence_external_call_member(
+                    member_t, member_src, hi
+                )
+            else:
+                member_vv = self.ctx.new_temporary_value(member_t)
+                assert isinstance(member_vv.operand, IRVariable)
+                src_vv = self._make_ptr_value(member_src, DataLocation.MEMORY, member_t)
+                abi_decode_to_buf(self.ctx, member_vv.operand, src_vv, hi=hi)
+
+            cell = b.add(frame, IRLiteral(i * 32))
+            if member_t._is_prim_word:
+                value = self.ctx.unwrap(member_vv)
+            else:
+                value = member_vv.operand
+            b.mstore(cell, value)
+            abi_offset += member_t.abi_type.embedded_static_size()
+
+        return self.ctx.dynamic_tuple_frame_value(
+            frame, return_t, annotation="external call return"
+        )
+
+    def _unpack_unbounded_external_call_return(
+        self, call_kwargs: _CallKwargs, contract_address: IROperand, return_t: VyperType
+    ) -> VyperValue:
+        b = self.builder
+        rds = b.returndatasize()
+
+        if call_kwargs.default_return_value is None:
+            return self._copy_and_decode_unbounded_external_call_return(return_t, rds)
+
+        ret_cell = self.ctx.allocate_buffer(32, annotation="external call dynamic return ptr")
+        default_bb = b.create_block("extcall_default")
+        decode_bb = b.create_block("extcall_decode")
+        exit_bb = b.create_block("extcall_exit")
+
+        b.jnz(b.iszero(rds), default_bb.label, decode_bb.label)
+
+        b.append_block(default_bb)
+        b.set_block(default_bb)
+
+        default_vv = call_kwargs.default_return_value
+        assert default_vv is not None
+        default_value = self.ctx.copy_sequence_to_scratch(
+            default_vv, return_t, annotation="external call default_return_value"
+        )
+        b.mstore(ret_cell._ptr, default_value.operand)
+
+        if not call_kwargs.skip_contract_check:
+            codesize = b.extcodesize(contract_address)
+            b.assert_(codesize)
+
+        b.jmp(exit_bb.label)
+
+        b.append_block(decode_bb)
+        b.set_block(decode_bb)
+
+        decoded_value = self._copy_and_decode_unbounded_external_call_return(return_t, rds)
+        b.mstore(ret_cell._ptr, decoded_value.operand)
+        b.jmp(exit_bb.label)
+
+        b.append_block(exit_bb)
+        b.set_block(exit_bb)
+
+        ret_ptr = b.mload(ret_cell._ptr)
+        assert isinstance(ret_ptr, IRVariable)
+        return self.ctx.dynamic_memory_value(ret_ptr, return_t, annotation="external call return")
+
+    def _unpack_dynamic_tuple_external_call_return(
+        self, call_kwargs: _CallKwargs, contract_address: IROperand, return_t: TupleT
+    ) -> VyperValue:
+        b = self.builder
+        rds = b.returndatasize()
+
+        if call_kwargs.default_return_value is None:
+            return self._copy_and_decode_dynamic_tuple_external_call_return(return_t, rds)
+
+        ret_cell = self.ctx.allocate_buffer(32, annotation="external call dynamic tuple return ptr")
+        default_bb = b.create_block("extcall_default")
+        decode_bb = b.create_block("extcall_decode")
+        exit_bb = b.create_block("extcall_exit")
+
+        b.jnz(b.iszero(rds), default_bb.label, decode_bb.label)
+
+        b.append_block(default_bb)
+        b.set_block(default_bb)
+
+        default_vv = call_kwargs.default_return_value
+        assert default_vv is not None
+        default_ptr = self.ctx.unwrap(default_vv)
+        b.mstore(ret_cell._ptr, default_ptr)
+
+        if not call_kwargs.skip_contract_check:
+            codesize = b.extcodesize(contract_address)
+            b.assert_(codesize)
+
+        b.jmp(exit_bb.label)
+
+        b.append_block(decode_bb)
+        b.set_block(decode_bb)
+
+        decoded_value = self._copy_and_decode_dynamic_tuple_external_call_return(return_t, rds)
+        b.mstore(ret_cell._ptr, decoded_value.operand)
+        b.jmp(exit_bb.label)
+
+        b.append_block(exit_bb)
+        b.set_block(exit_bb)
+
+        ret_ptr = b.mload(ret_cell._ptr)
+        assert isinstance(ret_ptr, IRVariable)
+        return self.ctx.dynamic_tuple_frame_value(
+            ret_ptr, return_t, annotation="external call return"
+        )

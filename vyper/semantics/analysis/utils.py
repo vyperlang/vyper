@@ -20,7 +20,6 @@ from vyper.exceptions import (
     VyperException,
     ZeroDivisionException,
 )
-from vyper.semantics import types
 from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarAccess, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
@@ -34,6 +33,12 @@ if TYPE_CHECKING:
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.utils import OrderedSet, checksum_encode, int_to_fourbytes
+
+
+def _primitive_types():
+    from vyper.semantics import types
+
+    return types.PRIMITIVE_TYPES.values()
 
 
 def _validate_op(node, types_list, validation_fn_name):
@@ -307,7 +312,7 @@ class _ExprAnalyser:
     def types_from_Constant(self, node):
         # literal value (integer, string, etc)
         types_list = []
-        for t in types.PRIMITIVE_TYPES.values():
+        for t in _primitive_types():
             try:
                 # clarity and perf note: will be better to construct a
                 # map from node types to valid vyper types
@@ -358,7 +363,7 @@ class _ExprAnalyser:
             else:
                 # empty list literal `[]`
                 # subtype can be anything
-                subtypes = types.PRIMITIVE_TYPES.values()
+                subtypes = _primitive_types()
 
             for t in subtypes:
                 # 1 is minimum possible length for dynarray,

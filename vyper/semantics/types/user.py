@@ -12,6 +12,7 @@ from vyper.exceptions import (
     StructureException,
     UnfoldableNode,
     VariableDeclarationException,
+    VyperException,
 )
 from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import (
@@ -21,6 +22,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.infinity import type_contains_unbounded_sequence
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import keccak256, method_id_int
@@ -109,6 +111,23 @@ def _abi_input_name(item: dict, index: int, members: dict[str, VyperType]) -> st
         name = f"_arg{index}_{suffix}"
         suffix += 1
     return name
+
+
+def _validated_expr_contains_unbounded_sequence(node: vy_ast.ExprNode) -> bool:
+    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
+        return any(_validated_expr_contains_unbounded_sequence(item) for item in node.elements)
+
+    from vyper.semantics.analysis.utils import get_exact_type_from_node
+
+    try:
+        return type_contains_unbounded_sequence(get_exact_type_from_node(node))
+    except VyperException:
+        return False
+
+
+def _reject_unbounded_event_or_error_arg(arg_node: vy_ast.ExprNode, kind: str) -> None:
+    if _validated_expr_contains_unbounded_sequence(arg_node):
+        raise StructureException(f"{kind} cannot contain unbounded sequence types", arg_node)
 
 
 # note: flag behaves a lot like uint256, or uints in general.
@@ -327,6 +346,10 @@ class EventT(_UserType):
                 indexed.append(False)
 
             member_type = type_from_annotation(annotation)
+            if type_contains_unbounded_sequence(member_type):
+                raise StructureException(
+                    "Events cannot contain unbounded sequence types", annotation
+                )
             _add_user_type_member(members, member_name, node, member_type)
 
         return cls(base_node.name, members, indexed, base_node)
@@ -341,7 +364,10 @@ class EventT(_UserType):
                     node,
                 )
 
-            return validate_kwargs(node, self.arguments, self.typeclass)
+            validate_kwargs(node, self.arguments, self.typeclass)
+            for kwarg in node.keywords:
+                _reject_unbounded_event_or_error_arg(kwarg.value, "Events")
+            return
 
         # warn about positional argument deprecation
         if len(node.args) != 0:
@@ -360,6 +386,7 @@ class EventT(_UserType):
         validate_call_args(node, len(self.arguments))
         for arg, expected in zip(node.args, self.arguments.values()):
             validate_expected_type(arg, expected)
+            _reject_unbounded_event_or_error_arg(arg, "Events")
 
     def to_toplevel_abi_dict(self) -> list[dict]:
         return [
@@ -416,6 +443,10 @@ class ErrorT(_UserType):
 
         for member_name, node in _iter_user_type_members(base_node, "Error"):
             member_type = type_from_annotation(node.annotation)
+            if type_contains_unbounded_sequence(member_type):
+                raise StructureException(
+                    "Custom errors cannot contain unbounded sequence types", node.annotation
+                )
             _add_user_type_member(members, member_name, node, member_type)
 
         return cls(base_node.name, members, base_node)
@@ -430,10 +461,13 @@ class ErrorT(_UserType):
                 )
 
             validate_kwargs(node, self.arguments, self.typeclass)
+            for kwarg in node.keywords:
+                _reject_unbounded_event_or_error_arg(kwarg.value, "Custom errors")
         else:
             validate_call_args(node, len(self.arguments))
             for arg, expected in zip(node.args, self.arguments.values()):
                 validate_expected_type(arg, expected)
+                _reject_unbounded_event_or_error_arg(arg, "Custom errors")
 
         return self
 
@@ -533,6 +567,10 @@ class StructT(_UserType):
                 )
 
             member_type = type_from_annotation(node.annotation)
+            if type_contains_unbounded_sequence(member_type):
+                raise StructureException(
+                    "Structs cannot contain unbounded sequence types", node.annotation
+                )
             members[member_name] = member_type
             node.target._metadata["type"] = member_type
 

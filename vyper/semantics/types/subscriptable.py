@@ -11,6 +11,7 @@ from vyper.semantics.types.infinity import (
     LengthUpperBound,
     is_bounded_length,
     length_to_json,
+    type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.primitives import IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -142,7 +143,7 @@ class _SequenceT(_SubscriptableT):
         if isinstance(node, vy_ast.Int):
             if node.value < 0:
                 raise ArrayIndexException("Vyper does not support negative indexing", node)
-            if node.value >= self.length:
+            if is_bounded_length(self.length) and node.value >= self.length:
                 raise ArrayIndexException("Index out of range", node)
 
         validate_expected_type(node, IntegerT.any())
@@ -232,6 +233,11 @@ class SArrayT(_SequenceT):
 
         if not value_type.is_valid_element_type:
             raise StructureException(f"arrays of {value_type} are not allowed!")
+
+        if type_contains_unbounded_sequence(value_type):
+            raise StructureException(
+                "Static arrays of unbounded sequence types are not supported", node
+            )
 
         # note: validates index
         length = get_index_value(node.slice)
@@ -355,6 +361,16 @@ class DArrayT(_SequenceT):
         value_type = type_from_annotation(value_node)
         if not value_type._as_darray:
             raise StructureException(f"Arrays of {value_type} are not allowed", value_node)
+
+        if type_contains_unbounded_sequence(value_type):
+            raise StructureException(
+                "DynArray element types cannot contain unbounded sequence types", value_node
+            )
+
+        if length is INF and value_type.abi_type.is_dynamic():
+            raise StructureException(
+                "DynArray[..., INF] is only supported with ABI-static element types", value_node
+            )
 
         return cls(value_type, length)
 

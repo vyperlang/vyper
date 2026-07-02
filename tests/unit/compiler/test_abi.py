@@ -3,6 +3,7 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.compiler.output import build_abi_output
 from vyper.compiler.phases import CompilerData
+from vyper.compiler.settings import Settings
 
 source_codes = [
     """
@@ -89,6 +90,29 @@ def foo(s: decimal) -> decimal:
         },
     ]
     assert out["abi"] == expected_abi
+
+
+def test_inf_abi_output_uses_experimental_codegen():
+    code = """
+@external
+def echo(x: Bytes[INF]) -> Bytes[INF]:
+    return x
+    """
+
+    abi = compile_code(code, output_formats=["abi"], settings=Settings(experimental_codegen=True))[
+        "abi"
+    ]
+
+    assert abi[0]["inputs"] == [{"name": "x", "type": "bytes"}]
+    assert abi[0]["outputs"] == [{"name": "", "type": "bytes"}]
+
+    abi_with_gas = compile_code(
+        code,
+        output_formats=["abi"],
+        settings=Settings(experimental_codegen=True),
+        show_gas_estimates=True,
+    )["abi"]
+    assert abi_with_gas[0]["gas"] is None
 
 
 def test_custom_error_abi():

@@ -10,13 +10,50 @@ This module is the single source of truth for these decisions.
 from __future__ import annotations
 
 from vyper.codegen.core import is_tuple_like
+from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import VyperType
+from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types.infinity import INF, is_supported_unbounded_tuple_type
+from vyper.semantics.types.infinity import is_unbounded_sequence_type as _is_unbounded_sequence_type
+from vyper.semantics.types.infinity import type_contains_unbounded_sequence
+from vyper.semantics.types.subscriptable import DArrayT, TupleT
 
 # Maximum number of word-type arguments passed via the stack.
 MAX_STACK_ARGS = 6
 
 # Maximum number of word-type return values passed via the stack (for tuples).
 MAX_STACK_RETURNS = 2
+
+
+def is_unbounded_bytestring_type(typ: VyperType | None) -> bool:
+    return isinstance(typ, _BytestringT) and typ.length is INF
+
+
+def is_unbounded_dynarray_type(typ: VyperType | None) -> bool:
+    return isinstance(typ, DArrayT) and typ.length is INF
+
+
+def is_unbounded_sequence_type(typ: VyperType | None) -> bool:
+    return _is_unbounded_sequence_type(typ)
+
+
+def is_dynamic_tuple_return_type(typ: VyperType | None) -> bool:
+    return isinstance(typ, TupleT) and type_contains_unbounded_sequence(typ)
+
+
+def is_dynamic_tuple_dynamic_member_type(typ: VyperType) -> bool:
+    return is_unbounded_sequence_type(typ) or not typ._is_prim_word
+
+
+def validate_dynamic_tuple_return_type(typ: VyperType | None) -> None:
+    if not is_dynamic_tuple_return_type(typ):
+        return
+
+    assert isinstance(typ, TupleT)
+    if not is_supported_unbounded_tuple_type(typ):
+        raise CompilerPanic(
+            "semantic analysis should reject nested INF tuple returns"
+        )  # pragma: nocover
 
 
 def is_word_type(typ: VyperType) -> bool:
@@ -26,14 +63,43 @@ def is_word_type(typ: VyperType) -> bool:
     uint256[1] are 32 bytes but not primitive words - they must be passed
     via memory pointer, not by value on the stack.
     """
+    if is_unbounded_sequence_type(typ):
+        return False
+
     return typ.memory_bytes_required == 32 and typ._is_prim_word
 
 
+def returns_dynamic_count(func_t) -> int:
+    """How many memory-copy return pairs are returned via `dret`."""
+    ret_t = func_t.return_type
+    if is_unbounded_sequence_type(ret_t):
+        return 1
+    if is_dynamic_tuple_return_type(ret_t):
+        validate_dynamic_tuple_return_type(ret_t)
+        return sum(
+            1 for member_t in ret_t.member_types if is_dynamic_tuple_dynamic_member_type(member_t)
+        )
+    return 0
+
+
 def returns_stack_count(func_t) -> int:
-    """How many values returned via stack (0, 1, or 2 for tuples)."""
+    """How many ordinary values are returned via stack.
+
+    Plain bounded tuple returns still use the historical 0/1/2 stack-return
+    cutoff. Dynamic tuple returns may pair more ordinary stack outputs with
+    one or more `dret` dynamic outputs.
+    """
     ret_t = func_t.return_type
     if ret_t is None:
         return 0
+
+    if is_dynamic_tuple_return_type(ret_t):
+        validate_dynamic_tuple_return_type(ret_t)
+        return sum(
+            1
+            for member_t in ret_t.member_types
+            if not is_dynamic_tuple_dynamic_member_type(member_t)
+        )
 
     if is_tuple_like(ret_t):
         members = ret_t.tuple_items()
@@ -55,7 +121,7 @@ def pass_via_stack(func_t) -> dict[str, bool]:
     stack_items = 0
 
     # Reserve stack slots for return values
-    stack_items += returns_stack_count(func_t)
+    stack_items += returns_stack_count(func_t) + returns_dynamic_count(func_t)
 
     for arg in func_t.arguments:
         if not is_word_type(arg.typ) or stack_items >= MAX_STACK_ARGS:

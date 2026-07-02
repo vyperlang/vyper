@@ -12,20 +12,31 @@ from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen.core import calculate_type_for_external_return, has_length_word
-from vyper.codegen_venom.abi import abi_encode_to_buf
+from vyper.codegen_venom.abi import (
+    abi_encode_to_buf,
+    abi_encode_values_to_buf,
+    runtime_abi_size_for_encode,
+)
 from vyper.codegen_venom.arithmetic import apply_binop
 from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
 from vyper.semantics.data_locations import DataLocation
+from vyper.semantics.types import VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.infinity import is_bounded_length, type_contains_unbounded_sequence
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.types.user import ErrorT, EventT, StructT
 from vyper.utils import method_id_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .buffer import Ptr
-from .calling_convention import returns_stack_count
-from .context import Constancy, VenomCodegenContext
+from .calling_convention import (
+    is_dynamic_tuple_dynamic_member_type,
+    returns_dynamic_count,
+    returns_stack_count,
+)
+from .context import Constancy, LocalVariable, VenomCodegenContext
+from .eval_order import later_expressions_can_mutate_memory_or_storage
 from .expr import Expr
 from .value import VyperValue
 
@@ -64,6 +75,12 @@ class Stmt:
         # AnnAssign always has a value in Vyper (semantic analysis ensures this)
         assert node.value is not None
 
+        if self.ctx.is_unbounded_sequence_type(ltyp):
+            rhs = Expr(node.value, self.ctx).lower()
+            var = self.ctx.new_pointer_cell_variable(varname, ltyp)
+            self._assign_unbounded_sequence_local(var, rhs, ltyp)
+            return
+
         # Allocate memory for the new variable
         var = self.ctx.new_variable(varname, ltyp)
 
@@ -95,6 +112,13 @@ class Stmt:
         if isinstance(target, vy_ast.Tuple):
             return self._lower_tuple_unpack()
 
+        if isinstance(target, vy_ast.Name) and target.id in self.ctx.variables:
+            var = self.ctx.lookup(target.id)
+            if var.is_pointer_cell:
+                src = Expr(node.value, self.ctx).lower()
+                self._assign_unbounded_sequence_local(var, src, target_typ)
+                return
+
         # Special case: empty Bytestring/DynArray assignment — just zero the
         # length word.
         if has_length_word(target_typ) and self._is_empty_value(node.value):
@@ -108,6 +132,14 @@ class Stmt:
         src = Expr(node.value, self.ctx).lower()
         dst_ptr = self._get_target_ptr(target)
         self._assign_value(dst_ptr, src, target_typ, src_node=node.value)
+
+    def _assign_unbounded_sequence_local(self, var: LocalVariable, src: VyperValue, typ: VyperType):
+        if not var.is_pointer_cell:  # pragma: nocover
+            raise CompilerPanic("unbounded sequence local requires pointer-cell storage")
+        if not self.ctx.is_unbounded_sequence_type(typ):  # pragma: nocover
+            raise CompilerPanic(f"expected unbounded sequence type, got {typ}")
+        value = self.ctx.copy_sequence_to_scratch(src, typ, annotation=var.name)
+        self.ctx.ptr_store(var.value.ptr(), value.operand)
 
     def _assign_value(
         self, dst_ptr: Ptr, src: VyperValue, typ, *, src_node: vy_ast.VyperNode
@@ -222,16 +254,17 @@ class Stmt:
         assert isinstance(dst_tuple_typ, TupleT)
         targets = target.elements
 
+        if self.ctx.is_dynamic_tuple_frame_type(src_tuple_typ):
+            assert isinstance(src, IRVariable)
+            self._lower_dynamic_tuple_frame_unpack(src, src_tuple_typ, dst_tuple_typ, targets)
+            return
+
         # First pass: load all values from source tuple to temp variables.
         # This ensures correct semantics for overlapping cases like a,b = b,a.
         temp_vals = []
         src_offset = 0
         src_member_types = src_tuple_typ.member_types
         dst_member_types = dst_tuple_typ.member_types
-        if isinstance(src_member_types, dict):
-            src_member_types = tuple(src_member_types.values())
-        if isinstance(dst_member_types, dict):
-            dst_member_types = tuple(dst_member_types.values())
 
         # If source and destination may alias in memory, snapshot the source tuple once.
         # This preserves tuple-assignment semantics (a, b = b, a) for complex members
@@ -261,6 +294,17 @@ class Stmt:
 
         # Second pass: assign each loaded value to its target
         for (val, src_elem_typ, dst_elem_typ), target_node in zip(temp_vals, targets):
+            if isinstance(target_node, vy_ast.Name) and target_node.id in self.ctx.variables:
+                var = self.ctx.lookup(target_node.id)
+                if var.is_pointer_cell:
+                    assert self.ctx.is_unbounded_sequence_type(dst_elem_typ)
+                    assert isinstance(val, IRVariable)
+                    src_vv = self.ctx.dynamic_memory_value(
+                        val, src_elem_typ, annotation=target_node.id
+                    )
+                    self._assign_unbounded_sequence_local(var, src_vv, dst_elem_typ)
+                    continue
+
             target_ptr = self._get_target_ptr(target_node)
 
             if dst_elem_typ._is_prim_word:
@@ -268,6 +312,34 @@ class Stmt:
             else:
                 # Complex element type: val is a memory pointer in source layout.
                 self._store_complex_type(target_ptr, val, dst_elem_typ, src_elem_typ)
+
+    def _lower_dynamic_tuple_frame_unpack(
+        self,
+        src: IRVariable,
+        src_tuple_typ: TupleT,
+        dst_tuple_typ: TupleT,
+        targets: list[vy_ast.VyperNode],
+    ) -> None:
+        src_values = self.ctx.dynamic_tuple_frame_values(src, src_tuple_typ, annotation="unpack")
+        dst_member_types = dst_tuple_typ.member_types
+
+        for src_vv, dst_elem_typ, target_node in zip(src_values, dst_member_types, targets):
+            src_elem_typ = src_vv.typ
+
+            if isinstance(target_node, vy_ast.Name) and target_node.id in self.ctx.variables:
+                var = self.ctx.lookup(target_node.id)
+                if var.is_pointer_cell:
+                    assert self.ctx.is_unbounded_sequence_type(dst_elem_typ)
+                    self._assign_unbounded_sequence_local(var, src_vv, dst_elem_typ)
+                    continue
+
+            target_ptr = self._get_target_ptr(target_node)
+            if dst_elem_typ._is_prim_word:
+                self.ctx.ptr_store(target_ptr, self.ctx.unwrap(src_vv))
+            else:
+                self._store_complex_type(
+                    target_ptr, self.ctx.unwrap(src_vv), dst_elem_typ, src_elem_typ
+                )
 
     def lower_AugAssign(self) -> None:
         """Lower augmented assignment.
@@ -438,7 +510,10 @@ class Stmt:
 
             # Check if it's a local variable
             if varname in self.ctx.variables:
-                return self.ctx.variables[varname].value.ptr()
+                var = self.ctx.variables[varname]
+                if var.is_pointer_cell:  # pragma: nocover
+                    raise CompilerPanic("pointer-cell local has no direct assignment pointer")
+                return var.value.ptr()
 
             # Check if it's an immutable assignment in constructor
             varinfo = target._expr_info.var_info
@@ -479,6 +554,17 @@ class Stmt:
             return Expr(target, self.ctx).lower().ptr()
 
         raise CompilerPanic(f"Unsupported assignment target: {type(target)}")  # pragma: nocover
+
+    def _can_encode_from_source_return_layout(self, dst_typ: VyperType, src_typ: VyperType) -> bool:
+        """
+        True when `src_typ` has a concrete memory layout and can be ABI-encoded
+        directly for a declared return type `dst_typ`.
+
+        This covers bounded bytes/string values returned through INF supertypes,
+        including tuple members such as raw_call's `(bool, Bytes[N])` checkable
+        result returned as `(bool, Bytes[INF])`.
+        """
+        return dst_typ.compare_type(src_typ)
 
     # === Control Flow Statements ===
 
@@ -738,7 +824,7 @@ class Stmt:
         index_var = self.builder.assign(IRLiteral(0))
 
         # Bound check for dynamic arrays: assert length <= bound
-        if isinstance(array_typ, DArrayT):
+        if isinstance(array_typ, DArrayT) and is_bounded_length(bound):
             invalid = self.builder.gt(length, IRLiteral(bound))
             valid = self.builder.iszero(invalid)
             self.builder.assert_(valid)
@@ -854,6 +940,12 @@ class Stmt:
         ret_val: Optional[IROperand] = None
         ret_src_typ = None
         if node.value is not None:
+            if (
+                self.ctx.return_pc is None
+                and self._try_lower_external_dynamic_tuple_literal_return(node.value, func_t)
+            ):
+                return
+
             # lower() preserves source type so return coercions can use
             # layout-aware copying when source and declared return type differ.
             ret_vv = Expr(node.value, self.ctx).lower()
@@ -865,6 +957,92 @@ class Stmt:
             self._lower_internal_return(ret_val, func_t, ret_src_typ)
         else:
             self._lower_external_return(ret_val, func_t, ret_src_typ)
+
+    def _try_lower_external_dynamic_tuple_literal_return(
+        self, value_node: vy_ast.VyperNode, func_t: ContractFunctionT
+    ) -> bool:
+        ret_typ = func_t.return_type
+        if (
+            func_t.do_raw_return
+            or ret_typ is None
+            or not isinstance(ret_typ, TupleT)
+            or not isinstance(value_node, vy_ast.Tuple)
+            or not type_contains_unbounded_sequence(ret_typ)
+        ):
+            return False
+
+        arg_vvs = []
+        for i, elem in enumerate(value_node.elements):
+            member_t = ret_typ.member_types[i]
+            arg_vv = Expr(elem, self.ctx).lower()
+            copy_composites = later_expressions_can_mutate_memory_or_storage(
+                value_node.elements[i + 1 :]
+            )
+            arg_vvs.append(
+                self._freeze_external_tuple_return_member(
+                    arg_vv, member_t, annotation="return", copy_composites=copy_composites
+                )
+            )
+
+        src_typ = TupleT(tuple(arg_vv.typ for arg_vv in arg_vvs))
+        if not self._can_encode_from_source_return_layout(ret_typ, src_typ):
+            raise CompilerPanic(
+                f"semantic analysis should reject returning {src_typ} as {ret_typ}"
+            )  # pragma: nocover
+
+        self.ctx.emit_nonreentrant_unlock(func_t)
+        external_return_type = calculate_type_for_external_return(ret_typ)
+
+        self._emit_external_dynamic_tuple_return(
+            arg_vvs, src_typ, wrap_outer=external_return_type is not ret_typ
+        )
+        return True
+
+    def _freeze_external_tuple_return_member(
+        self, arg_vv: VyperValue, target_typ: VyperType, annotation: str, copy_composites: bool
+    ) -> VyperValue:
+        """Snapshot tuple literal return members before later elements run.
+
+        ABI encoding happens after the full tuple is evaluated. Without this,
+        a later element with side effects, e.g. `return x, x.pop()`, can mutate
+        the memory/storage pointed to by an earlier member before it is encoded.
+        """
+        target_has_nested_inf = type_contains_unbounded_sequence(
+            target_typ
+        ) and not self.ctx.is_unbounded_sequence_type(target_typ)
+        source_has_nested_inf = type_contains_unbounded_sequence(
+            arg_vv.typ
+        ) and not self.ctx.is_unbounded_sequence_type(arg_vv.typ)
+        if target_has_nested_inf or source_has_nested_inf:
+            raise CompilerPanic(
+                "semantic analysis should reject nested INF tuple returns"
+            )  # pragma: nocover
+
+        return self.ctx.snapshot_value_for_delayed_use(
+            arg_vv, target_typ, annotation=annotation, copy_composites=copy_composites
+        )
+
+    def _emit_external_dynamic_tuple_return(
+        self, arg_vvs: list[VyperValue], encode_typ: TupleT, wrap_outer: bool
+    ) -> None:
+        if wrap_outer:
+            # External returns are always ABI tuples. A declared singleton
+            # tuple `-> (T,)` is therefore returned as `((T,),)`.
+            encoded_size = self.ctx.checked_add(
+                IRLiteral(32), runtime_abi_size_for_encode(self.ctx, arg_vvs, encode_typ)
+            )
+            buf_ptr = self.ctx.allocate_scratch(encoded_size)
+            self.builder.mstore(buf_ptr, IRLiteral(32))
+            child_dst = self.builder.add(buf_ptr, IRLiteral(32))
+            child_len = abi_encode_values_to_buf(self.ctx, child_dst, arg_vvs, encode_typ)
+            encoded_len = self.ctx.checked_add(IRLiteral(32), child_len)
+            self.builder.return_(buf_ptr, encoded_len)
+            return
+
+        encoded_size = runtime_abi_size_for_encode(self.ctx, arg_vvs, encode_typ)
+        buf_ptr = self.ctx.allocate_scratch(encoded_size)
+        encoded_len = abi_encode_values_to_buf(self.ctx, buf_ptr, arg_vvs, encode_typ)
+        self.builder.return_(buf_ptr, encoded_len)
 
     def _lower_internal_return(
         self, ret_val: Optional[IROperand], func_t: ContractFunctionT, ret_src_typ=None
@@ -888,10 +1066,24 @@ class Stmt:
             return
 
         returns_count = returns_stack_count(func_t)
+        dynamic_returns_count = returns_dynamic_count(func_t)
         ret_typ = func_t.return_type
         assert ret_typ is not None
 
-        if returns_count > 0:
+        if dynamic_returns_count > 0:
+            assert isinstance(ret_val, IRVariable)
+            if self.ctx.is_dynamic_tuple_frame_type(ret_typ):
+                assert isinstance(ret_typ, TupleT)
+                assert isinstance(ret_src_typ, TupleT)
+                self._emit_dynamic_tuple_internal_return(ret_val, ret_typ, ret_src_typ, return_pc)
+                return
+
+            assert returns_count == 0
+            size = self.ctx.sequence_runtime_size(ret_val, ret_typ)
+            self.builder.dret(IRLiteral(dynamic_returns_count), ret_val, size, return_pc)
+            return
+
+        elif returns_count > 0:
             # Stack return - load values and pass to ret
             ret_vals: list[IROperand] = []
 
@@ -915,6 +1107,105 @@ class Stmt:
         else:  # pragma: nocover
             raise CompilerPanic("Internal function missing return mechanism")
 
+    def _dynamic_return_member_size(
+        self, member_ptr: IRVariable, dst_typ: VyperType, src_typ: VyperType
+    ) -> IROperand:
+        if isinstance(dst_typ, _BytestringT) and isinstance(src_typ, _BytestringT):
+            return self.ctx.bytestring_runtime_size(member_ptr)
+
+        if isinstance(dst_typ, DArrayT) and isinstance(src_typ, DArrayT):
+            if self.ctx.is_unbounded_dynarray_type(dst_typ) or self.ctx.is_unbounded_dynarray_type(
+                src_typ
+            ):
+                return self.ctx.dynarray_runtime_size(member_ptr, dst_typ)
+            return IRLiteral(src_typ.memory_bytes_required)
+
+        if type_contains_unbounded_sequence(dst_typ) or type_contains_unbounded_sequence(src_typ):
+            raise CompilerPanic(
+                "semantic analysis should reject nested INF tuple internal returns"
+            )  # pragma: nocover
+
+        return IRLiteral(src_typ.memory_bytes_required)
+
+    def _emit_dynamic_tuple_internal_return(
+        self, ret_val: IRVariable, ret_typ: TupleT, ret_src_typ: TupleT, return_pc: IRVariable
+    ) -> None:
+        dst_member_types = ret_typ.member_types
+        src_member_types = ret_src_typ.member_types
+
+        src_is_frame = self.ctx.is_dynamic_tuple_frame_type(ret_src_typ)
+        src_offset = 0
+        ordinary_returns: list[IROperand] = []
+        dynamic_return_operands: list[IROperand] = []
+
+        for i, (dst_member_t, src_member_t) in enumerate(zip(dst_member_types, src_member_types)):
+            member_value: IROperand | None
+            member_ptr: IRVariable | None
+            if src_is_frame:
+                cell = self.builder.add(ret_val, IRLiteral(i * 32))
+                if src_member_t._is_prim_word:
+                    member_value = self.builder.mload(cell)
+                    member_ptr = None
+                else:
+                    member_value = None
+                    member_ptr = self.builder.mload(cell)
+                    assert isinstance(member_ptr, IRVariable)
+            else:
+                if type_contains_unbounded_sequence(src_member_t):
+                    raise CompilerPanic(
+                        "dynamic tuple returns with INF members should use a frame"
+                    )  # pragma: nocover
+                member_ptr = self.builder.add(ret_val, IRLiteral(src_offset))
+                assert isinstance(member_ptr, IRVariable)
+                if src_member_t._is_prim_word:
+                    member_value = self.ctx.load_memory(member_ptr, src_member_t)
+                else:
+                    member_value = None
+                src_offset += src_member_t.memory_bytes_required
+
+            if dst_member_t._is_prim_word:
+                assert member_value is not None
+                ordinary_returns.append(member_value)
+                continue
+
+            assert member_ptr is not None
+            if (
+                dst_member_t != src_member_t
+                and not type_contains_unbounded_sequence(dst_member_t)
+                and not type_contains_unbounded_sequence(src_member_t)
+            ):
+                normalized = self.ctx.new_temporary_value(dst_member_t)
+                assert isinstance(normalized.operand, IRVariable)
+                self.ctx.store_memory(
+                    member_ptr, normalized.operand, dst_member_t, src_typ=src_member_t
+                )
+                member_ptr = normalized.operand
+                src_member_t = dst_member_t
+
+            if is_dynamic_tuple_dynamic_member_type(dst_member_t):
+                size = self._dynamic_return_member_size(member_ptr, dst_member_t, src_member_t)
+                dynamic_return_operands.extend([member_ptr, size])
+                continue
+
+            ordinary_returns.append(member_ptr)
+
+        dyn_count = len(dynamic_return_operands) // 2
+        self.builder.dret(
+            IRLiteral(dyn_count), *ordinary_returns, *dynamic_return_operands, return_pc
+        )
+
+    def _emit_external_unbounded_sequence_return(
+        self, ret_val: IRVariable, ret_typ: VyperType, external_return_type: VyperType
+    ) -> None:
+        assert self.ctx.is_unbounded_sequence_type(ret_typ)
+
+        ret_vv = self.ctx.dynamic_memory_value(ret_val, ret_typ, annotation="return")
+        tail_len = runtime_abi_size_for_encode(self.ctx, [ret_vv], ret_typ)
+        encoded_size = self.ctx.checked_add(IRLiteral(32), tail_len)
+        buf_ptr = self.ctx.allocate_scratch(encoded_size)
+        encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, external_return_type)
+        self.builder.return_(buf_ptr, encoded_len)
+
     def _lower_external_return(
         self, ret_val: Optional[IROperand], func_t: ContractFunctionT, ret_src_typ=None
     ) -> None:
@@ -936,11 +1227,18 @@ class Stmt:
         ret_typ = func_t.return_type
         assert ret_typ is not None
 
+        can_encode_from_src = (
+            ret_src_typ is not None
+            and not type_contains_unbounded_sequence(ret_src_typ)
+            and self._can_encode_from_source_return_layout(ret_typ, ret_src_typ)
+        )
+
         if (
             ret_src_typ is not None
             and not ret_typ._is_prim_word
             and not (isinstance(ret_typ, _BytestringT) and isinstance(ret_src_typ, _BytestringT))
             and ret_src_typ != ret_typ
+            and not can_encode_from_src
             and ret_val is not None
         ):
             normalized = self.ctx.new_temporary_value(ret_typ)
@@ -952,6 +1250,13 @@ class Stmt:
         # Raw return: return bytes directly without ABI encoding
         # The @raw_return decorator bypasses ABI encoding for proxy patterns
         if func_t.do_raw_return:
+            if self.ctx.is_unbounded_bytestring_type(ret_typ):
+                assert isinstance(ret_val, IRVariable)
+                return_len = self.builder.mload(ret_val)
+                return_offset = self.builder.add(ret_val, IRLiteral(32))
+                self.builder.return_(return_offset, return_len)
+                return
+
             # ret_val is a pointer to [length (32 bytes)][data...]
             # Copy to a fresh buffer to ensure it's in memory
             buf_val = self.ctx.new_temporary_value(ret_typ)
@@ -977,14 +1282,38 @@ class Stmt:
         # For ABI conformance, single-element returns are wrapped in a tuple
         # This is what provides the offset pointer for dynamic types
         external_return_type = calculate_type_for_external_return(ret_typ)
-        maxlen = external_return_type.abi_type.size_bound()
+        encode_typ = external_return_type
+        if can_encode_from_src:
+            assert ret_src_typ is not None
+            encode_typ = calculate_type_for_external_return(ret_src_typ)
+
+        if self.ctx.is_unbounded_sequence_type(ret_typ):
+            assert isinstance(ret_val, IRVariable)
+            self._emit_external_unbounded_sequence_return(ret_val, ret_typ, external_return_type)
+            return
+
+        if (
+            self.ctx.is_dynamic_tuple_frame_type(ret_typ)
+            and ret_src_typ is not None
+            and type_contains_unbounded_sequence(ret_src_typ)
+        ):
+            assert isinstance(ret_typ, TupleT)
+            assert isinstance(ret_val, IRVariable)
+            arg_vvs = self.ctx.dynamic_tuple_frame_values(ret_val, ret_typ, annotation="return")
+
+            self._emit_external_dynamic_tuple_return(
+                arg_vvs, ret_typ, wrap_outer=external_return_type is not ret_typ
+            )
+            return
+
+        maxlen = encode_typ.abi_type.size_bound()
 
         # Allocate return buffer
         buf = self.ctx.allocate_buffer(maxlen)
 
-        # ABI encode to buffer
-        # Use external_return_type (wrapped in tuple) for proper ABI encoding
-        encoded_len = abi_encode_to_buf(self.ctx, buf._ptr, ret_val, external_return_type)
+        # ABI encode using the declared return ABI shape, or a compatible
+        # bounded source layout when returning through an INF supertype.
+        encoded_len = abi_encode_to_buf(self.ctx, buf._ptr, ret_val, encode_typ)
 
         # Return encoded data
         self.builder.return_(buf._ptr, encoded_len)
@@ -1012,57 +1341,50 @@ class Stmt:
         else:
             arg_nodes = call_node.args
 
-        # Lower all argument expressions
-        args = []
-        for arg in arg_nodes:
-            arg_typ = arg._metadata["type"]
+        # Lower all argument expressions and snapshot before later arguments
+        # can mutate memory/storage that earlier arguments point at.
+        arg_vals = []
+        for i, arg in enumerate(arg_nodes):
             arg_vv = Expr(arg, self.ctx).lower()
-            arg_val = self.ctx.unwrap(arg_vv)
-            args.append((arg_val, arg_typ, arg_vv.typ))
+            copy_composites = later_expressions_can_mutate_memory_or_storage(arg_nodes[i + 1 :])
+            arg_vals.append(
+                self.ctx.snapshot_value_for_delayed_use(
+                    arg_vv, annotation="log", copy_composites=copy_composites
+                )
+            )
 
         # Split into indexed (topics) and non-indexed (data)
         topic_vals = []
         data_vals = []
-        data_typs = []
 
-        for (arg_val, arg_typ, src_typ), is_indexed in zip(args, event.indexed):
+        for arg_vv, is_indexed in zip(arg_vals, event.indexed):
             if is_indexed:
-                topic_vals.append((arg_val, arg_typ))
+                topic_vals.append(arg_vv)
             else:
-                data_vals.append((arg_val, src_typ))
-                data_typs.append(arg_typ)
+                data_vals.append(arg_vv)
 
         # Build topics list - starts with event signature hash
         topics: list[IROperand] = [IRLiteral(event.event_id)]
 
-        for val, typ in topic_vals:
-            topic = self._encode_log_topic(val, typ)
+        for arg_vv in topic_vals:
+            topic = self._encode_log_topic(self.ctx.unwrap(arg_vv), arg_vv.typ)
             topics.append(topic)
 
         # Encode non-indexed data to buffer
         abi_buf_ptr: IROperand
         encoded_len: IROperand
         if data_vals:
-            # Create a tuple type from the data types
-            tuple_typ = TupleT(tuple(data_typs))
+            # Event declarations reject INF members, so log data is statically bounded here.
+            data_typs = tuple(arg_vv.typ for arg_vv in data_vals)
+            tuple_typ = TupleT(data_typs)
             bufsz = tuple_typ.abi_type.size_bound()
-
-            # Allocate buffer for tuple data in memory
-            data_buf = self.ctx.allocate_buffer(tuple_typ.memory_bytes_required)
-
-            # Store each data value into the tuple buffer
-            offset = 0
-            for (val, src_typ), typ in zip(data_vals, data_typs):
-                dst = self.builder.add(data_buf._ptr, IRLiteral(offset))
-                self.ctx.store_memory(val, dst, typ, src_typ=src_typ)
-                offset += typ.memory_bytes_required
 
             # Allocate ABI encoding output buffer
             abi_buf = self.ctx.allocate_buffer(bufsz)
             abi_buf_ptr = abi_buf._ptr
 
             # ABI encode the tuple
-            encoded_len = abi_encode_to_buf(self.ctx, abi_buf_ptr, data_buf._ptr, tuple_typ)
+            encoded_len = abi_encode_values_to_buf(self.ctx, abi_buf_ptr, data_vals, tuple_typ)
         else:
             # No data - use zero size
             log_buf = self.ctx.allocate_buffer(0, annotation="log empty buffer")
@@ -1219,13 +1541,23 @@ class Stmt:
         assert isinstance(msg, vy_ast.Call)
 
         arg_nodes = self._custom_error_arg_nodes(msg, error_t)
-        arg_types = tuple(error_t.arguments.values())
-        args_tuple_t = TupleT(arg_types)
+        old_constancy = self.ctx.constancy
+        try:
+            self.ctx.constancy = Constancy.Constant
+            arg_vvs = []
+            for i, arg_node in enumerate(arg_nodes):
+                arg_vv = Expr(arg_node, self.ctx).lower()
+                copy_composites = later_expressions_can_mutate_memory_or_storage(arg_nodes[i + 1 :])
+                arg_vvs.append(
+                    self.ctx.snapshot_value_for_delayed_use(
+                        arg_vv, annotation="custom error", copy_composites=copy_composites
+                    )
+                )
+        finally:
+            self.ctx.constancy = old_constancy
 
-        args_tuple_buf = self.ctx.allocate_buffer(
-            args_tuple_t.memory_bytes_required, annotation="custom error args"
-        )
-        self._store_custom_error_args(args_tuple_buf._ptr, arg_nodes, arg_types)
+        arg_types = tuple(arg_vv.typ for arg_vv in arg_vvs)
+        args_tuple_t = TupleT(arg_types)
 
         bufsz = args_tuple_t.abi_type.size_bound() + 32
         buf = self.ctx.allocate_buffer(bufsz, annotation="custom error revert buffer")
@@ -1238,28 +1570,12 @@ class Stmt:
             return
 
         payload_buf = self.builder.add(buf._ptr, IRLiteral(32))
-        encoded_len = abi_encode_to_buf(self.ctx, payload_buf, args_tuple_buf._ptr, args_tuple_t)
+        encoded_len = abi_encode_values_to_buf(self.ctx, payload_buf, arg_vvs, args_tuple_t)
 
         revert_offset = self.builder.add(buf._ptr, IRLiteral(28))
         revert_len = self.builder.add(IRLiteral(4), encoded_len)
         with self.builder.error_context("user revert with custom error"):
             self.builder.revert(revert_offset, revert_len)
-
-    def _store_custom_error_args(
-        self, dst: IRVariable, arg_nodes: list[vy_ast.VyperNode], arg_types: tuple
-    ) -> None:
-        old_constancy = self.ctx.constancy
-        try:
-            self.ctx.constancy = Constancy.Constant
-            offset = 0
-            for arg_node, arg_type in zip(arg_nodes, arg_types):
-                arg_vv = Expr(arg_node, self.ctx).lower()
-                arg_ptr = dst if offset == 0 else self.builder.add(dst, IRLiteral(offset))
-                assert isinstance(arg_ptr, IRVariable)
-                self.ctx.store_vyper_value(arg_vv, arg_ptr, arg_type)
-                offset += arg_type.memory_bytes_required
-        finally:
-            self.ctx.constancy = old_constancy
 
     def _revert_with_reason(self, msg: vy_ast.VyperNode) -> None:
         """Emit revert with Error(string) encoding.

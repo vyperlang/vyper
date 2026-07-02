@@ -2,7 +2,7 @@ import pytest
 from eth_utils import to_bytes
 
 from vyper import compiler
-from vyper.exceptions import CodegenPanic, TypeMismatch, VyperException
+from vyper.exceptions import StructureException, TypeMismatch, VyperException
 from vyper.utils import method_id
 
 
@@ -235,23 +235,29 @@ def foo(_value: uint256) -> uint256:
         contract.foo(42)
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_msg_data_assign_to_bytes_inf():
+def test_msg_data_assign_to_bytes_inf(experimental_codegen):
     code = """
 @external
 def foo() -> Bytes[100]:
     x: Bytes[INF] = msg.data
     return slice(x, 0, 100)
     """
-    compiler.compile_code(code)
+    if not experimental_codegen:
+        with pytest.raises(StructureException):
+            compiler.compile_code(code)
+    else:
+        compiler.compile_code(code)
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_msg_data_convert():
+def test_msg_data_convert(experimental_codegen):
     code = """
 @external
 def foo() -> uint256:
     bar: uint256 = convert(msg.data, uint256)
     return bar
     """
-    compiler.compile_code(code)
+    if not experimental_codegen:
+        with pytest.raises(StructureException):
+            compiler.compile_code(code)
+    else:
+        compiler.compile_code(code)

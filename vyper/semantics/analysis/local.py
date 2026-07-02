@@ -70,7 +70,24 @@ from vyper.semantics.types.function import (
     StateMutability,
     is_ellipsis_body,
 )
+from vyper.semantics.types.infinity import (
+    is_unbounded_sequence_type,
+    type_contains_nested_unbounded_sequence,
+    type_contains_unbounded_dynarray_with_dynamic_elements,
+    type_contains_unbounded_sequence,
+    type_contains_unsupported_unbounded_sequence,
+)
 from vyper.semantics.types.utils import type_from_annotation
+
+
+def _expr_contains_unbounded_sequence(node: vy_ast.VyperNode) -> bool:
+    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
+        return any(_expr_contains_unbounded_sequence(item) for item in node.elements)
+
+    try:
+        return type_contains_unbounded_sequence(get_exact_type_from_node(node))
+    except VyperException:
+        return False
 
 
 def analyze_functions(vy_module: vy_ast.Module) -> None:
@@ -473,6 +490,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             )
 
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
+        if type_contains_nested_unbounded_sequence(typ):
+            raise StructureException(
+                "Memory variables cannot contain unbounded sequence types inside aggregate types",
+                node.annotation,
+            )
 
         # validate the value before adding it to the namespace
         self.expr_visitor.visit(node.value, typ)
@@ -572,7 +594,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             raise ImmutableViolation("Constant value cannot be written to.")
 
         var_access = _get_variable_access(target)
-        assert var_access is not None
+        if var_access is None:
+            raise ImmutableViolation("Cannot modify temporary value", target)
 
         info._writes.add(var_access)
 
@@ -823,6 +846,23 @@ class ExprVisitor(VyperNodeVisitorBase):
             return "function"
         return "module"
 
+    def _annotation_type(self, node: vy_ast.VyperNode, typ: VyperType) -> VyperType:
+        if not getattr(typ, "has_wildcard", False):
+            return typ
+
+        try:
+            actual_typ = get_exact_type_from_node(node)
+        except VyperException:
+            return typ.resolve_wildcard()
+
+        if actual_typ.has_wildcard:
+            actual_typ = actual_typ.resolve_wildcard()
+
+        if actual_typ.is_subtype_of(typ):
+            return actual_typ
+
+        return typ.resolve_wildcard()
+
     def visit(self, node, typ):
         if typ is not VOID_TYPE and not isinstance(typ, TYPE_T):
             validate_expected_type(node, typ)
@@ -832,7 +872,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         super().visit(node, typ)
 
         # annotate
-        node._metadata["type"] = typ
+        node._metadata["type"] = self._annotation_type(node, typ)
 
         if not isinstance(typ, TYPE_T):
             info = get_expr_info(node)  # get_expr_info fills in node._expr_info
@@ -995,6 +1035,24 @@ class ExprVisitor(VyperNodeVisitorBase):
                     )
 
             for arg, arg_typ in zip(node.args, func_type.argument_types):
+                if isinstance(arg, (vy_ast.Tuple, vy_ast.List)):
+                    has_nested_unbounded = _expr_contains_unbounded_sequence(arg)
+                else:
+                    try:
+                        actual_arg_typ = get_exact_type_from_node(arg)
+                    except VyperException:
+                        has_nested_unbounded = False
+                    else:
+                        has_nested_unbounded = _expr_contains_unbounded_sequence(
+                            arg
+                        ) and not is_unbounded_sequence_type(actual_arg_typ)
+
+                if has_nested_unbounded:
+                    raise StructureException(
+                        "Function arguments cannot contain unbounded sequence types "
+                        "inside aggregate types",
+                        arg,
+                    )
                 self.visit(arg, arg_typ)
             for kwarg in node.keywords:
                 # We should only see special kwargs
@@ -1010,6 +1068,20 @@ class ExprVisitor(VyperNodeVisitorBase):
                     else:
                         # Replace wildcards in the type by INF, since there is no expected type
                         return_t = return_t.resolve_wildcard()
+                        if type_contains_unsupported_unbounded_sequence(return_t):
+                            raise StructureException(
+                                "Function returns cannot contain unbounded sequence types "
+                                "inside aggregate types",
+                                node,
+                            )
+                        # Wildcard resolution constructs the concrete DArrayT directly,
+                        # bypassing DArrayT.from_annotation's ABI-static element guard.
+                        if type_contains_unbounded_dynarray_with_dynamic_elements(return_t):
+                            raise StructureException(
+                                "DynArray[..., INF] is only supported with ABI-static "
+                                "element types",
+                                node,
+                            )
                     # Sanity check
                     assert func_type.return_type is not None
                     assert return_t.is_subtype_of(func_type.return_type)

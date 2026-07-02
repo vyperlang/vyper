@@ -163,6 +163,19 @@ def abi_encode(d: DynArray[uint256, 3], ensure_tuple: bool, include_method_id: b
     )
 
 
+def test_abi_encode_snapshots_bounded_dynarray_before_later_mutation(get_contract):
+    code = """
+@external
+def run() -> Bytes[192]:
+    x: DynArray[uint256, 3] = [1, 2, 3]
+    return abi_encode(x, x.pop())
+    """
+    c = get_contract(code)
+
+    expected = abi.encode("(uint256[],uint256)", ([1, 2, 3], 3))
+    assert c.run().hex() == expected.hex()
+
+
 nested_2d_array_args = [
     [[123, 456, 789], [234, 567, 891], [345, 678, 912]],
     [[], [], []],

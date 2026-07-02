@@ -25,7 +25,7 @@ class Buffer:
     """
 
     _ptr: IRVariable  # The alloca result (private)
-    size: int  # Allocation size in bytes
+    size: int | None  # Allocation size in bytes, or None for runtime-sized buffers
     annotation: Optional[str] = None  # Debug annotation
 
     def base_ptr(self) -> Ptr:

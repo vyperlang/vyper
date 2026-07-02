@@ -40,11 +40,11 @@ from vyper.codegen.core import (
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import Encoding, scope_multi
 from vyper.codegen.keccak256_helper import keccak256_helper
+from vyper.compiler.settings import get_global_settings
 from vyper.evm.address_space import MEMORY
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
-    CodegenPanic,
     CompilerPanic,
     EvmVersionException,
     InvalidLiteral,
@@ -81,6 +81,11 @@ from vyper.semantics.types import (
     is_bounded_length,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types.infinity import (
+    is_unbounded_sequence_type,
+    type_contains_nested_unbounded_sequence,
+    type_contains_unbounded_sequence,
+)
 from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT8_T, UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import (
@@ -226,10 +231,13 @@ class Convert(BuiltinFunctionT):
             hint = "remove convert()"
             raise InvalidType(f"Already a '{target_type}' !", node, hint=hint)
 
-        if isinstance(value_type, _BytestringT) and not is_bounded_length(value_type.maxlen):
-            raise CodegenPanic("convert not yet implemented for unbounded sequence type")
-        if isinstance(value_type, DArrayT) and not is_bounded_length(value_type.count):
-            raise CodegenPanic("convert not yet implemented for unbounded sequence type")
+        if isinstance(value_type, DArrayT) or isinstance(target_type, DArrayT):
+            raise TypeMismatch(f"Can't convert {value_type} to {target_type}", node.args[0])
+
+        if type_contains_unbounded_sequence(value_type) or type_contains_unbounded_sequence(
+            target_type
+        ):
+            _reject_legacy_unbounded_sequence_builtin(node)
 
         return [value_type, TYPE_T(target_type)]
 
@@ -1461,6 +1469,18 @@ class Abs(BuiltinFunctionT):
 CREATE2_SENTINEL = dummy_node_for_type(BYTES32_T)
 
 
+def _experimental_codegen_enabled() -> bool:
+    settings = get_global_settings()
+    return settings is not None and settings.experimental_codegen is True
+
+
+def _reject_legacy_unbounded_sequence_builtin(node: vy_ast.Call) -> None:
+    if not _experimental_codegen_enabled():
+        raise StructureException(
+            "unbounded sequence types require --experimental-codegen for this builtin", node
+        )
+
+
 # create helper functions
 # generates CREATE op sequence + zero check for result
 def _create_ir(value, buf, length, salt, revert_on_failure=True):
@@ -1598,11 +1618,27 @@ class _CreateBase(BuiltinFunctionT):
 
 class RawCreate(_CreateBase):
     _id = "raw_create"
-    _inputs = [("bytecode", BytesT(EIP_3860_LIMIT))]
+    _inputs = [("bytecode", BytesT.any())]
     _has_varargs = True
 
     def _add_gas_estimate(self, args, should_use_create2):
         return _create_addl_gas_estimate(EIP_170_LIMIT, should_use_create2)
+
+    def infer_arg_types(self, node, expected_return_typ=None):
+        self._validate_arg_types(node)
+        bytecode_type = get_possible_types_from_node(node.args[0]).pop()
+        if is_bounded_length(bytecode_type.length) and bytecode_type.length > EIP_3860_LIMIT:
+            raise TypeMismatch(f"initcode length cannot exceed {EIP_3860_LIMIT}", node.args[0])
+        ctor_arg_types = [get_exact_type_from_node(arg) for arg in node.args[1:]]
+        if any(type_contains_nested_unbounded_sequence(t) for t in ctor_arg_types):
+            raise StructureException(
+                "constructor arguments cannot contain nested unbounded sequence types", node
+            )
+        if type_contains_unbounded_sequence(bytecode_type) or any(
+            type_contains_unbounded_sequence(t) for t in ctor_arg_types
+        ):
+            _reject_legacy_unbounded_sequence_builtin(node)
+        return [bytecode_type, *ctor_arg_types]
 
     def _build_create_IR(self, expr, args, context, value, salt, revert_on_failure):
         args = [ensure_in_memory(arg, context) for arg in args]
@@ -1759,6 +1795,30 @@ class CreateFromBlueprint(_CreateBase):
         "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
     _has_varargs = True
+
+    def infer_arg_types(self, node, expected_return_typ=None):
+        arg_types = super().infer_arg_types(node, expected_return_typ)
+        ctor_arg_types = arg_types[1:]
+
+        kwargs = {kw.arg: kw.value for kw in node.keywords}
+        raw_args = False
+        raw_args_kwarg = kwargs.get("raw_args")
+        if raw_args_kwarg is not None:
+            raw_args_kwarg = raw_args_kwarg.reduced()
+        if isinstance(raw_args_kwarg, vy_ast.NameConstant):
+            raw_args = raw_args_kwarg.value
+
+        if raw_args and not (len(ctor_arg_types) == 1 and isinstance(ctor_arg_types[0], BytesT)):
+            raise StructureException("raw_args must be used with exactly 1 bytes argument", node)
+
+        if any(type_contains_nested_unbounded_sequence(t) for t in ctor_arg_types):
+            raise StructureException(
+                "constructor arguments cannot contain nested unbounded sequence types", node
+            )
+
+        if any(type_contains_unbounded_sequence(t) for t in ctor_arg_types):
+            _reject_legacy_unbounded_sequence_builtin(node)
+        return arg_types
 
     def _add_gas_estimate(self, args, should_use_create2):
         ctor_args = ir_tuple_from_args(args[1:])
@@ -2146,6 +2206,17 @@ class Print(BuiltinFunctionT):
             vyper_warn("`print` should only be used for debugging!", node)
             self._warned = True
 
+        arg_types = [get_exact_type_from_node(arg) for arg in node.args]
+        if any(type_contains_unbounded_sequence(arg_t) for arg_t in arg_types):
+            for arg, arg_t in zip(node.args, arg_types):
+                if type_contains_nested_unbounded_sequence(arg_t):
+                    raise StructureException(
+                        "print arguments cannot contain unbounded sequence types "
+                        "inside aggregate types",
+                        arg,
+                    )
+            _reject_legacy_unbounded_sequence_builtin(node)
+
         return None
 
     @process_inputs
@@ -2262,6 +2333,17 @@ class ABIEncode(BuiltinFunctionT):
         else:
             arg_abi_t = ABI_Tuple(arg_abi_types)
 
+        if any(type_contains_unbounded_sequence(t) for t in arg_types):
+            for arg, arg_t in zip(node.args, arg_types):
+                if type_contains_nested_unbounded_sequence(arg_t):
+                    raise StructureException(
+                        "abi_encode arguments cannot contain unbounded sequence types "
+                        "inside aggregate types",
+                        arg,
+                    )
+            _reject_legacy_unbounded_sequence_builtin(node)
+            return BytesT(INF)
+
         maxlen = arg_abi_t.size_bound()
 
         if has_method_id:
@@ -2349,6 +2431,14 @@ class ABIDecode(BuiltinFunctionT):
 
         data_type = get_exact_type_from_node(node.args[0])
         output_type = type_from_annotation(node.args[1])
+        if type_contains_unbounded_sequence(output_type):
+            if not is_unbounded_sequence_type(output_type):
+                raise StructureException(
+                    "abi_decode output type cannot contain unbounded sequence types "
+                    "inside aggregate types",
+                    node.args[1],
+                )
+            _reject_legacy_unbounded_sequence_builtin(node)
 
         return [data_type, TYPE_T(output_type)]
 

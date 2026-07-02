@@ -33,14 +33,17 @@ def _assert_slice_bounds(
     b.assert_(b.iszero(oob))
 
 
-def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
-    """
-    concat(a, b, ...) -> bytes | string
+def _new_slice_output(ctx: VenomCodegenContext, out_t, length: IROperand) -> VyperValue:
+    if ctx.is_unbounded_bytestring_type(out_t):
+        size = ctx.bytestring_runtime_size_from_length(length)
+        ptr = ctx.allocate_scratch(size)
+        ctx.zero_bytestring_padding(ptr, length)
+        return ctx.dynamic_memory_value(ptr, out_t, annotation="slice")
 
-    Concatenate 2+ bytes/string arguments.
-    BytesM args contribute fixed M bytes, bytestring args contribute
-    their dynamic length.
-    """
+    return ctx.new_temporary_value(out_t)
+
+
+def _lower_concat_bounded(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     from vyper.codegen_venom.expr import Expr
 
     b = ctx.builder
@@ -95,6 +98,105 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             dst = b.add(data_ptr.operand, offset)
             b.mstore(dst, arg_val)
             new_offset = b.add(offset, IRLiteral(m))
+            ctx.ptr_store(offset_local.ptr(), new_offset)
+
+    # Store final length at output buffer
+    final_len = ctx.ptr_load(offset_local.ptr())
+    ctx.ptr_store(out_val.ptr(), final_len)
+    return out_val
+
+
+def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+    """
+    concat(a, b, ...) -> bytes | string
+
+    Concatenate 2+ bytes/string arguments.
+    BytesM args contribute fixed M bytes, bytestring args contribute
+    their dynamic length.
+    """
+    from vyper.codegen_venom.expr import Expr
+
+    b = ctx.builder
+    args = node.args
+
+    out_typ = node._metadata["type"]
+    assert isinstance(out_typ, _BytestringT)
+    if not ctx.is_unbounded_bytestring_type(out_typ):
+        return _lower_concat_bounded(node, ctx)
+
+    lowered_args: list[tuple[_BytestringT | BytesM_T, IROperand, IROperand]] = []
+    total_len: IROperand = IRLiteral(0)
+    # Once an INF argument contributes to the length, subsequent additions use
+    # checked arithmetic. Purely bounded prefixes keep the legacy plain-add path.
+    total_len_unbounded = False
+    for arg_node in args:
+        arg_t = arg_node._metadata["type"]
+        if isinstance(arg_t, _BytestringT):
+            arg_vv = Expr(arg_node, ctx).lower()
+            arg_ptr = ctx.unwrap(arg_vv)
+            assert isinstance(arg_ptr, IRVariable)
+            arg_len: IROperand = b.mload(arg_ptr)
+            lowered_args.append((arg_t, arg_ptr, arg_len))
+        else:  # BytesM_T
+            arg_val = Expr(arg_node, ctx).lower_value()
+            arg_len = IRLiteral(arg_t.m)
+            lowered_args.append((arg_t, arg_val, arg_len))
+
+        arg_unbounded = ctx.is_unbounded_bytestring_type(arg_t)
+        if total_len_unbounded or arg_unbounded:
+            total_len = ctx.checked_add(total_len, arg_len)
+            total_len_unbounded = True
+        else:
+            total_len = b.add(total_len, arg_len)
+
+    # Allocate output buffer (length word + data)
+    out_ptr: IROperand
+    scratch_size = ctx.bytestring_runtime_size_from_length(total_len)
+    if any(isinstance(arg_t, BytesM_T) for arg_t, _, _ in lowered_args):
+        # bytesM args are written with full-word mstores; one landing in the
+        # final data word extends up to 32-m bytes (31 for bytes1) past
+        # ceil32(total_len), so reserve a slack word to keep the store inside
+        # the allocation.
+        scratch_size = ctx.checked_add(scratch_size, IRLiteral(32))
+    scratch_ptr = ctx.allocate_scratch(scratch_size)
+    ctx.zero_bytestring_padding(scratch_ptr, total_len)
+    out_val = ctx.dynamic_memory_value(scratch_ptr, out_typ, annotation="concat")
+    out_ptr = scratch_ptr
+
+    data_ptr = b.add(out_ptr, IRLiteral(32))
+
+    # Track current offset as a variable
+    offset_local = ctx.new_temporary_value(BytesT(32))  # just need 32 bytes
+    ctx.ptr_store(offset_local.ptr(), IRLiteral(0))
+
+    # Same sticky policy as total_len: only offsets that depend on an INF input
+    # need overflow checks.
+    offset_unbounded = False
+    for arg_t, arg_val, arg_len in lowered_args:
+        if isinstance(arg_t, _BytestringT):
+            # Variable-length bytes/string: copy data, advance by actual length
+            assert isinstance(arg_val, IRVariable)
+            arg_data = b.add(arg_val, IRLiteral(32))
+            offset = ctx.ptr_load(offset_local.ptr())
+            dst = b.add(data_ptr, offset)
+            ctx.copy_memory_dynamic(dst, arg_data, arg_len)
+            arg_unbounded = ctx.is_unbounded_bytestring_type(arg_t)
+            if offset_unbounded or arg_unbounded:
+                new_offset = ctx.checked_add(offset, arg_len)
+                offset_unbounded = True
+            else:
+                new_offset = b.add(offset, arg_len)
+            ctx.ptr_store(offset_local.ptr(), new_offset)
+        else:
+            # Fixed bytesM: the value is already left-aligned in 32 bytes
+            # Store full 32 bytes and advance by M
+            offset = ctx.ptr_load(offset_local.ptr())
+            dst = b.add(data_ptr, offset)
+            b.mstore(dst, arg_val)
+            if offset_unbounded:
+                new_offset = ctx.checked_add(offset, arg_len)
+            else:
+                new_offset = b.add(offset, arg_len)
             ctx.ptr_store(offset_local.ptr(), new_offset)
 
     # Store final length at output buffer
@@ -158,7 +260,7 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     _assert_slice_bounds(ctx, start, length, src_len)
 
     # Allocate output buffer
-    out_val = ctx.new_temporary_value(out_t)
+    out_val = _new_slice_output(ctx, out_t, length)
     out_data = ctx.add_offset(out_val.ptr(), IRLiteral(32))
 
     # Copy bytes from src_data + start to out_data
@@ -208,9 +310,12 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
     length = Expr(length_node, ctx).lower_value()
 
     out_t = node._metadata["type"]
-    out_val = ctx.new_temporary_value(out_t)
-    out_data = ctx.add_offset(out_val.ptr(), IRLiteral(32))
-    assert isinstance(out_data.operand, IRVariable)
+
+    def _alloc_output() -> tuple[VyperValue, IRVariable]:
+        out_val = _new_slice_output(ctx, out_t, length)
+        out_data = ctx.add_offset(out_val.ptr(), IRLiteral(32))
+        assert isinstance(out_data.operand, IRVariable)
+        return out_val, out_data.operand
 
     # Determine which opcode to use
     if isinstance(src_node.value, vy_ast.Name):
@@ -218,8 +323,9 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
             # msg.data: use calldatacopy, bounds check against calldatasize
             src_len = b.calldatasize()
             _assert_slice_bounds(ctx, start, length, src_len)
+            out_val, out_data = _alloc_output()
             # calldatacopy(destOffset, offset, size)
-            b.calldatacopy(out_data.operand, start, length)
+            b.calldatacopy(out_data, start, length)
             ctx.ptr_store(out_val.ptr(), length)
             return out_val
 
@@ -227,8 +333,9 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
             # self.code: use codecopy, bounds check against codesize
             src_len = b.codesize()
             _assert_slice_bounds(ctx, start, length, src_len)
+            out_val, out_data = _alloc_output()
             # codecopy(destOffset, offset, size)
-            b.codecopy(out_data.operand, start, length)
+            b.codecopy(out_data, start, length)
             ctx.ptr_store(out_val.ptr(), length)
             return out_val
 
@@ -236,8 +343,9 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
     addr = Expr(src_node.value, ctx).lower_value()
     src_len = b.extcodesize(addr)
     _assert_slice_bounds(ctx, start, length, src_len)
+    out_val, out_data = _alloc_output()
     # extcodecopy(address, destOffset, offset, size)
-    b.extcodecopy(addr, out_data.operand, start, length)
+    b.extcodecopy(addr, out_data, start, length)
     ctx.ptr_store(out_val.ptr(), length)
     return out_val
 

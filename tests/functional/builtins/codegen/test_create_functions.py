@@ -6,6 +6,8 @@ from hexbytes import HexBytes
 import vyper.ir.compile_ir as compile_ir
 from tests.utils import ZERO_ADDRESS
 from vyper.compiler import compile_code
+from vyper.compiler.settings import Settings
+from vyper.exceptions import StructureException
 from vyper.ir.compile_ir import DATA_ITEM, PUSH, PUSHLABEL, DataHeader, Label
 from vyper.utils import EIP_170_LIMIT, ERC5202_PREFIX, checksum_encode, keccak256
 
@@ -275,7 +277,7 @@ def test2(target: address, salt: bytes32):
 
 
 def test_create_from_blueprint_bad_code_offset(
-    get_contract, get_contract_from_ir, deploy_blueprint_for, env, tx_failed
+    get_contract, get_contract_from_ir, deploy_blueprint_for, env, tx_failed, experimental_codegen
 ):
     deployer_code = """
 BLUEPRINT: immutable(address)
@@ -287,6 +289,10 @@ def __init__(blueprint_address: address):
 @external
 def test(code_ofst: uint256) -> address:
     return create_from_blueprint(BLUEPRINT, code_offset=code_ofst)
+
+@external
+def test_no_revert(code_ofst: uint256) -> address:
+    return create_from_blueprint(BLUEPRINT, code_offset=code_ofst, revert_on_failure=False)
     """
 
     initcode_len = 100
@@ -326,6 +332,19 @@ def test(code_ofst: uint256) -> address:
     # code_offset=EIP_170_LIMIT definitely not fine!
     with tx_failed():
         d.test(EIP_170_LIMIT)
+
+    # Venom guards runtime offsets before subtracting. Legacy still uses the
+    # wrapped subtraction result in its check, so keep this hardening assertion
+    # scoped to the pipeline that implements it.
+    if not experimental_codegen:
+        return
+
+    # wrapped subtraction must not make huge offsets look like valid code sizes
+    for code_offset in [2**256 - initcode_len, 2**256 - 1]:
+        with tx_failed():
+            d.test(code_offset)
+        with tx_failed():
+            d.test_no_revert(code_offset)
 
 
 # test create_from_blueprint with args
@@ -929,6 +948,17 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32) -> address
     assert env.get_code(res) == runtime
 
 
+def test_create_from_blueprint_raw_args_requires_bytes():
+    code = """
+@external
+def deploy(target: address, x: uint256) -> address:
+    return create_from_blueprint(target, x, raw_args=True)
+    """
+
+    with pytest.raises(StructureException):
+        compile_code(code, settings=Settings(experimental_codegen=True))
+
+
 # test that create_from_blueprint bubbles up revert data
 def test_bubble_revert_data_blueprint(get_contract, tx_failed, deploy_blueprint_for):
     ctor_code = """
@@ -1145,8 +1175,8 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32) -> address
     assert env.get_code(res) == runtime
 
 
-# evaluation of the value kwarg changes the value of the salt kwarg
-# value kwarg comes after the salt kwarg in the source code
+# evaluation of the value kwarg changes the value of the salt kwarg.
+# value kwarg comes after the salt kwarg in the source code.
 @pytest.mark.xfail(raises=AssertionError, reason="salt kwarg is evaluated after value kwarg")
 def test_raw_create_order_of_eval_of_kwargs(get_contract, env, create2_address_of, keccak):
     to_deploy_code = """
@@ -1193,12 +1223,16 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32, value_: ui
     assert env.get_balance(res) == value
 
 
-# test vararg and kwarg order of evaluation
-# test fails because `value` gets evaluated
-# before the 1st vararg which doesn't follow
-# source code order
-@pytest.mark.xfail(raises=AssertionError)
-def test_raw_create_eval_order(get_contract):
+# test vararg and kwarg expression evaluation order.
+def test_raw_create_eval_order(get_contract, experimental_codegen, request):
+    if not experimental_codegen:
+        request.node.add_marker(
+            pytest.mark.xfail(
+                raises=AssertionError,
+                reason="legacy raw_create lowers value= before the preceding vararg",
+            )
+        )
+
     code = """
 a: public(uint256)
 

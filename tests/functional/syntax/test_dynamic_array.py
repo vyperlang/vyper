@@ -1,7 +1,12 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import CodegenPanic, StructureException, TypeMismatch, UndeclaredDefinition
+from vyper.exceptions import (
+    ImmutableViolation,
+    StructureException,
+    TypeMismatch,
+    UndeclaredDefinition,
+)
 
 fail_list = [
     (
@@ -64,6 +69,30 @@ def foo(x: DynArray[uint256, INF]) -> DynArray[uint256, 5]:
     """,
         TypeMismatch,
     ),
+    (
+        """
+@external
+def foo(x: DynArray[Bytes[5], INF]):
+    pass
+    """,
+        StructureException,
+    ),
+    (
+        """
+@external
+def foo(x: DynArray[Bytes[INF], 5]):
+    pass
+    """,
+        StructureException,
+    ),
+    (
+        """
+@external
+def foo(x: DynArray[DynArray[uint256, 5], INF]):
+    pass
+    """,
+        StructureException,
+    ),
 ]
 
 
@@ -81,6 +110,15 @@ flag Foo:
 
 bar: DynArray[Foo, 10]
     """,  # dynamic arrays of flags are allowed, but not static arrays
+    """
+flag Foo:
+    FE
+    FI
+
+@external
+def bar():
+    d: DynArray[Foo, 10] = []
+    """,  # empty arrays can be assigned to dynamic arrays of flags
     """
 bar: DynArray[Bytes[30], 10]
     """,  # dynamic arrays of bytestrings are allowed, but not static arrays
@@ -112,6 +150,10 @@ interface IFoo:
 interface IFoo:
     def bar() -> DynArray[uint256, ...]: nonpayable
     """,  # DynArray with wildcard in interface return type
+    """
+interface IFoo:
+    def bar() -> DynArray[Bytes[10], ...]: nonpayable
+    """,  # DynArray with wildcard in interface return type can have dynamic elements
 ]
 
 
@@ -120,17 +162,23 @@ def test_dynarray_pass(good_code):
     assert compile_code(good_code) is not None
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_dynarray_inf_param():
+def _compile_inf_dynarray_code(code, experimental_codegen):
+    if experimental_codegen:
+        compile_code(code)
+    else:
+        with pytest.raises(StructureException):
+            compile_code(code)
+
+
+def test_dynarray_inf_param(experimental_codegen):
     code = """
 @external
 def foo(x: DynArray[uint256, INF]):
     pass
     """
-    compile_code(code)
+    _compile_inf_dynarray_code(code, experimental_codegen)
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
 def test_dynarray_inf_state_var():
     code = """
 a: DynArray[uint256, INF]
@@ -139,54 +187,74 @@ a: DynArray[uint256, INF]
 def foo() -> DynArray[uint256, INF]:
     return self.a
     """
-    compile_code(code)
+    with pytest.raises(StructureException):
+        compile_code(code)
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_dynarray_inf_local_var():
+def test_dynarray_inf_local_var(experimental_codegen):
     code = """
 @external
 def foo():
     a: DynArray[uint256, INF] = []
     b: DynArray[uint256, INF] = [1, 2, 3, 4, 5, max_value(uint256)]
     """
-    compile_code(code)
+    _compile_inf_dynarray_code(code, experimental_codegen)
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
 def test_dynarray_inf_nested():
-    code = """
+    for code in (
+        """
 a: DynArray[DynArray[uint256, 5], INF]
+        """,
+        """
 b: DynArray[DynArray[uint256, INF], 5]
-
-@external
-def foo(other_a: DynArray[DynArray[uint256, 5], INF]) -> DynArray[DynArray[uint256, 5], INF]:
-    return self.a
-
-@external
-def bar(other_b: DynArray[DynArray[uint256, INF], 5]) -> DynArray[DynArray[uint256, INF], 5]:
-    return self.b
-    """
-    compile_code(code)
+        """,
+    ):
+        with pytest.raises(StructureException):
+            compile_code(code)
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_dynarray_inf_append():
+def test_dynarray_inf_append(experimental_codegen):
     code = """
 @external
 def foo():
     a: DynArray[uint256, INF] = []
     a.append(1)
     """
-    compile_code(code)
+    _compile_inf_dynarray_code(code, experimental_codegen)
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_dynarray_inf_assign_bounded_to_unbounded():
+def test_dynarray_mutating_temporary_rejected():
+    for code in (
+        """
+@external
+def foo():
+    empty(DynArray[uint256, 5]).append(1)
+        """,
+        """
+@internal
+def _xs() -> DynArray[uint256, INF]:
+    return [1, 2]
+
+@external
+def foo():
+    self._xs().append(3)
+        """,
+        """
+@external
+def foo() -> uint256:
+    return empty(DynArray[uint256, INF]).pop()
+        """,
+    ):
+        with pytest.raises(ImmutableViolation):
+            compile_code(code)
+
+
+def test_dynarray_inf_assign_bounded_to_unbounded(experimental_codegen):
     code = """
 @external
 def foo():
     a: DynArray[uint256, 5] = [1, 2, 3]
     b: DynArray[uint256, INF] = a
     """
-    compile_code(code)
+    _compile_inf_dynarray_code(code, experimental_codegen)

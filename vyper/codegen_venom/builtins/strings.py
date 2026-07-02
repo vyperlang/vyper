@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from vyper import ast as vy_ast
 from vyper.codegen_venom.buffer import Buffer
 from vyper.codegen_venom.value import VyperValue
+from vyper.semantics.types import StringT
 from vyper.venom.basicblock import IRLiteral
 
 if TYPE_CHECKING:
@@ -43,7 +44,12 @@ def lower_uint2str(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     val_input = Expr(node.args[0], ctx).lower_value()
     out_t = node._metadata["type"]
-    n_digits = out_t.maxlen
+    if ctx.is_unbounded_bytestring_type(out_t):
+        arg_t = node.args[0]._metadata["type"]
+        n_digits = len(str(2**arg_t.bits - 1))
+        out_t = StringT(n_digits)
+    else:
+        n_digits = out_t.maxlen
 
     # Allocate buffer
     out_val = ctx.new_temporary_value(out_t)

@@ -16,13 +16,102 @@ from typing import TYPE_CHECKING
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.core import is_tuple_like
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types import DArrayT, SArrayT, VyperType, _BytestringT
+from vyper.semantics.types import DArrayT, SArrayT, TupleT, VyperType, _BytestringT
+from vyper.semantics.types.infinity import type_contains_unbounded_sequence
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
-    from vyper.codegen_venom.types import VyperValue
+    from vyper.codegen_venom.value import VyperValue
+
+
+def runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IROperand:
+    typ = arg_vv.typ
+    if isinstance(typ, _BytestringT):
+        ptr = ctx.unwrap(arg_vv)
+        assert isinstance(ptr, IRVariable)
+        if ctx.is_unbounded_bytestring_type(typ):
+            return ctx.bytestring_runtime_size(ptr)
+        return ctx.unchecked_bytestring_runtime_size(ptr)
+    if isinstance(typ, DArrayT) and ctx.is_unbounded_dynarray_type(typ):
+        ptr = ctx.unwrap(arg_vv)
+        assert isinstance(ptr, IRVariable)
+        return ctx.dynarray_runtime_abi_size(ptr, typ)
+    return IRLiteral(typ.abi_type.size_bound())
+
+
+def _abi_size_add(
+    ctx: VenomCodegenContext,
+    left: IROperand,
+    right: IROperand,
+    left_unbounded: bool,
+    right_unbounded: bool,
+) -> tuple[IROperand, bool]:
+    if left_unbounded or right_unbounded:
+        return ctx.checked_add(left, right), True
+
+    return ctx.builder.add(left, right), False
+
+
+def runtime_abi_size_for_encode(
+    ctx: VenomCodegenContext, arg_vals: list[VyperValue], encode_type: VyperType
+) -> IROperand:
+    if isinstance(encode_type, TupleT):
+        size: IROperand = IRLiteral(encode_type.abi_type.static_size())
+        size_unbounded = False
+        for arg_vv in arg_vals:
+            if arg_vv.typ.abi_type.is_dynamic():
+                arg_unbounded = type_contains_unbounded_sequence(arg_vv.typ)
+                size, size_unbounded = _abi_size_add(
+                    ctx, size, runtime_abi_size_for_arg(ctx, arg_vv), size_unbounded, arg_unbounded
+                )
+        return size
+
+    return runtime_abi_size_for_arg(ctx, arg_vals[0])
+
+
+def abi_encode_values_to_buf(
+    ctx: VenomCodegenContext, dst: IRVariable, arg_vals: list[VyperValue], encode_type: VyperType
+) -> IROperand:
+    b = ctx.builder
+
+    if not isinstance(encode_type, TupleT):
+        if encode_type._is_prim_word:
+            ctx.store_vyper_value(arg_vals[0], dst, encode_type)
+            return IRLiteral(encode_type.abi_type.static_size())
+
+        src = ctx.unwrap(arg_vals[0])
+        assert isinstance(src, IRVariable)
+        return abi_encode_to_buf(ctx, dst, src, encode_type)
+
+    dyn_ofst_val = ctx.new_temporary_value(UINT256_T)
+    ctx.ptr_store(dyn_ofst_val.ptr(), IRLiteral(encode_type.abi_type.static_size()))
+    dyn_ofst_unbounded = False
+
+    static_ofst = 0
+    for arg_vv in arg_vals:
+        typ = arg_vv.typ
+        static_loc = b.add(dst, IRLiteral(static_ofst))
+
+        if typ.abi_type.is_dynamic():
+            dyn_ofst = ctx.ptr_load(dyn_ofst_val.ptr())
+            child_dst = b.add(dst, dyn_ofst)
+            child_src = ctx.unwrap(arg_vv)
+            assert isinstance(child_src, IRVariable)
+            child_len = abi_encode_to_buf(ctx, child_dst, child_src, typ)
+            b.mstore(static_loc, dyn_ofst)
+            arg_unbounded = type_contains_unbounded_sequence(typ)
+            new_dyn_ofst, dyn_ofst_unbounded = _abi_size_add(
+                ctx, dyn_ofst, child_len, dyn_ofst_unbounded, arg_unbounded
+            )
+            ctx.ptr_store(dyn_ofst_val.ptr(), new_dyn_ofst)
+        else:
+            ctx.store_vyper_value(arg_vv, static_loc, typ)
+
+        static_ofst += typ.abi_type.embedded_static_size()
+
+    return ctx.ptr_load(dyn_ofst_val.ptr())
 
 
 def _is_complex_type(typ: VyperType) -> bool:
@@ -321,9 +410,6 @@ def _abi_encode_to_buf(
     elif isinstance(src_typ, _BytestringT):
         # Bytes/String: pre-zero-pad then copy
         # Layout: [length(32)][data(length bytes)][zero-padding]
-        size = src_typ.memory_bytes_required
-        assert size > 0
-
         assert isinstance(src, IRVariable)
         length = b.mload(src)
         _pre_zero_pad(ctx, dst, length)
@@ -333,9 +419,9 @@ def _abi_encode_to_buf(
         ctx.copy_memory_dynamic(dst, src, copy_len)
 
         # Return total encoded size = ceil32(32 + length) = 32 + ceil32(length)
-        inv_31 = (~31) & (2**256 - 1)
-        padded_len = b.add(IRLiteral(32), b.and_(b.add(length, IRLiteral(31)), IRLiteral(inv_31)))
-        return padded_len
+        if ctx.is_unbounded_bytestring_type(src_typ):
+            return ctx.bytestring_runtime_size_from_length(length)
+        return ctx.unchecked_bytestring_runtime_size_from_length(length)
 
     elif isinstance(src_typ, DArrayT):
         # Dynamic array: use helper
