@@ -240,7 +240,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
                     ):
                         continue
                     return None
-                if self._is_allowed_direct_root_read(use, pos, copy_inst, dst_alloca, dst_loc):
+                if self._is_allowed_memory_read_use(use, pos, copy_inst, dst_alloca, dst_loc):
                     read_loc = self.base_ptr.get_read_location(use, addr_space.MEMORY)
                     assert read_loc.offset is not None
                     direct_read_rewrites.append((use, pos, read_loc.offset - dst_start))
@@ -391,16 +391,6 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         # bytes from its `32 + N*size`-byte buffer: count <= N, so it stays in
         # bounds.) A *partial* staging copy gives no such guarantee, so bail.
         return dst_loc.offset == 0 and dst_loc.size == dst_alloca.alloca_size
-
-    def _is_allowed_direct_root_read(
-        self,
-        use: IRInstruction,
-        operand_pos: int,
-        copy_inst: IRInstruction,
-        dst_alloca: Allocation,
-        dst_loc: MemoryLocation,
-    ) -> bool:
-        return self._is_allowed_memory_read_use(use, operand_pos, copy_inst, dst_alloca, dst_loc)
 
     def _has_src_clobber_between(
         self,

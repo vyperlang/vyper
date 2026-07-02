@@ -221,10 +221,6 @@ def memory_write_ops(inst) -> InstAccessOps:
     return InstAccessOps(ofst=None, size=None)
 
 
-def memory_write_ofst_index(inst: IRInstruction) -> Optional[int]:
-    return memory_write_ops(inst).ofst_index
-
-
 # REVIEW: rename (mem_write_ofst? get_mem_write_ofst?)
 def get_memory_write_op(inst: IRInstruction) -> Optional[IROperand]:
     return memory_write_ops(inst).ofst
@@ -284,10 +280,6 @@ def memory_read_ops(inst) -> InstAccessOps:
         return InstAccessOps(ofst=src, size=size, ofst_index=1)
 
     return InstAccessOps(ofst=None, size=None)
-
-
-def memory_read_ofst_index(inst: IRInstruction) -> Optional[int]:
-    return memory_read_ops(inst).ofst_index
 
 
 # REVIEW: get_mem_read_ofst
