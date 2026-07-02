@@ -36,7 +36,7 @@ from vyper.semantics.types import (
     VyperType,
     _BytestringT,
 )
-from vyper.semantics.types.infinity import is_bounded_length
+from vyper.semantics.types.infinity import type_contains_unbounded_sequence
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -173,21 +173,31 @@ def clamp_bytestring(
     b = ctx.builder
     assert src.location is not None, "src must have a location for bytestring clamping"
 
+    if not ctx.is_unbounded_bytestring_type(typ):
+        # Bounded types keep the legacy emission: length is capped by a small
+        # compile-time literal before the payload comparison, so a wrapping
+        # item_end requires an absurd src pointer, which reverts downstream on
+        # memory expansion. Wrap guards here would tax every bounded decode.
+        length = b.load(src.operand, src.location)  # Length word at start
+        b.assert_(b.iszero(b.gt(length, IRLiteral(typ.maxlen))))
+        if hi is not None:
+            # Check item_end <= hi
+            # item_end = src + 32 + length
+            item_end = b.add(src.operand, IRLiteral(32))
+            item_end = b.add(item_end, length)
+            b.assert_(b.iszero(b.gt(item_end, hi)))
+        return
+
+    # INF bytestrings have no type cap, so the attacker-controlled length can
+    # make item_end wrap: the payload bounds must be wrap-safe, and the length
+    # word itself must be proven readable before it is loaded.
     data_start = None
-    needs_runtime_bounds = hi is not None
-    if needs_runtime_bounds:
-        assert hi is not None
+    if hi is not None:
         data_start = ctx.assert_abi_length_word_in_bounds(src.operand, hi)
 
     length = b.load(src.operand, src.location)  # Length word at start
 
-    # Check length <= maxlen. INF bytestrings have no type cap; callers pass
-    # `hi` for untrusted/uncapped sources that need runtime payload bounds.
-    if is_bounded_length(typ.maxlen):
-        b.assert_(b.iszero(b.gt(length, IRLiteral(typ.maxlen))))
-
-    if needs_runtime_bounds:
-        assert hi is not None
+    if hi is not None:
         ctx.assert_abi_bytes_payload_in_bounds(src.operand, length, hi, data_start=data_start)
 
 
@@ -210,20 +220,33 @@ def clamp_dyn_array(
     b = ctx.builder
     assert src.location is not None, "src must have a location for dyn_array clamping"
 
+    if not ctx.is_unbounded_dynarray_type(typ):
+        # Bounded types keep the legacy emission: count is capped by a small
+        # compile-time literal before the payload comparison, so the payload
+        # size cannot overflow and a wrapping item_end requires an absurd src
+        # pointer, which reverts downstream on memory expansion.
+        count = b.load(src.operand, src.location)  # Count word at start
+        b.assert_(b.iszero(b.gt(count, IRLiteral(typ.count))))
+        if hi is not None:
+            # Check payload_end <= hi
+            # payload_end = src + 32 + count * elem_static_size
+            elem_static_size = typ.value_type.abi_type.embedded_static_size()
+            payload_size = b.mul(count, IRLiteral(elem_static_size))
+            payload_size = b.add(payload_size, IRLiteral(32))
+            item_end = b.add(src.operand, payload_size)
+            b.assert_(b.iszero(b.gt(item_end, hi)))
+        return
+
+    # INF dynarrays have no count cap, so the payload-size multiply and the
+    # end-of-payload comparison must be wrap-safe, and the count word must be
+    # proven readable before it is loaded.
     data_start = None
-    needs_runtime_bounds = hi is not None
-    if needs_runtime_bounds:
-        assert hi is not None
+    if hi is not None:
         data_start = ctx.assert_abi_length_word_in_bounds(src.operand, hi)
 
     count = b.load(src.operand, src.location)  # Count word at start
 
-    # Check count <= max_count
-    if is_bounded_length(typ.count):
-        b.assert_(b.iszero(b.gt(count, IRLiteral(typ.count))))
-
-    if needs_runtime_bounds:
-        assert hi is not None
+    if hi is not None:
         elem_static_size = typ.value_type.abi_type.embedded_static_size()
         ctx.assert_abi_dynarray_payload_in_bounds(
             src.operand, count, elem_static_size, hi, data_start=data_start
@@ -264,7 +287,10 @@ def _getelemptr_abi(
             # Dynamic offsets must not wrap below their ABI parent before later
             # payload bounds are evaluated.
             b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
-            if hi is not None:
+            if hi is not None and type_contains_unbounded_sequence(member_typ):
+                # Defense in depth for the wrap-safe INF decode path (the
+                # duplicate is CSE'd). Bounded members rely on their clamps'
+                # payload checks alone, matching the legacy emission.
                 ctx.assert_abi_head_word_in_bounds(actual_ptr, hi)
         return _make_ptr_value(actual_ptr, loc, member_typ)
     else:
@@ -447,7 +473,8 @@ def _decode_dyn_array(
         if _guard_dynamic_offset(elem_typ, loc, hi, force_runtime_bounds):
             # Dynamic element offsets must not wrap below the DynArray payload.
             b.assert_(b.iszero(b.lt(elem_src_ptr, src_data)))
-            if hi is not None:
+            if hi is not None and type_contains_unbounded_sequence(elem_typ):
+                # See _getelemptr_abi: only INF elements keep the extra probe.
                 ctx.assert_abi_head_word_in_bounds(elem_src_ptr, hi)
     else:
         elem_src_ptr = b.add(src_data, b.mul(i, IRLiteral(elem_static_size)))
@@ -490,8 +517,13 @@ def _decode_complex(
     if hi is not None:
         static_size = typ.abi_type.static_size()
         item_end = b.add(src.operand, IRLiteral(static_size))
-        no_item_end_wrap = b.iszero(b.lt(item_end, src.operand))
-        item_in_bounds = b.and_(no_item_end_wrap, b.iszero(b.gt(item_end, hi)))
+        item_in_bounds = b.iszero(b.gt(item_end, hi))
+        if type_contains_unbounded_sequence(typ):
+            # Keep the INF static footprint check wrap-safe; for bounded
+            # types static_size is a small literal and a wrapping item_end
+            # requires an absurd src pointer (legacy OOG model).
+            no_item_end_wrap = b.iszero(b.lt(item_end, src.operand))
+            item_in_bounds = b.and_(no_item_end_wrap, item_in_bounds)
         b.assert_(item_in_bounds)
 
     if is_tuple_like(typ):

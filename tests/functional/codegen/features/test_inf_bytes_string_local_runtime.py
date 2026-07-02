@@ -4,6 +4,7 @@ import json
 import pytest
 
 from tests.evm_backends.abi import abi_decode, abi_encode
+from tests.evm_backends.base_env import EvmError
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings, VenomOptimizationFlags
 from vyper.exceptions import StructureException
@@ -1124,7 +1125,10 @@ def dec(x: Bytes[INF]) -> DynArray[Bytes[4], 2]:
         return value.to_bytes(32, "big")
 
     payload = word(1) + word(2**251)
-    with tx_failed():
+    # bounded element types keep the legacy failure model: an absurd element
+    # head offset fails on memory expansion rather than an explicit bounds
+    # revert, so accept any EVM failure here
+    with tx_failed(EvmError):
         _call(env, c, "dec(bytes)", "(bytes)", (payload,))
 
 
