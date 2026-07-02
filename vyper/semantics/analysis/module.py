@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from itertools import zip_longest
+from collections import defaultdict
+from itertools import chain, zip_longest
 from typing import Optional
 
 from vyper import ast as vy_ast
@@ -148,7 +149,7 @@ def _analyze_module_bodies(module_ast: vy_ast.Module) -> None:
     with override_global_namespace(namespace):
         analyze_functions(module_ast)
         _validate_exports_uses(module_ast, module_t)
-        _validate_initialized_modules(module_ast, module_t)
+        ConstructorValidator(module_t).validate()
         _validate_used_modules(module_ast, module_t)
 
 
@@ -192,73 +193,231 @@ def _validate_used_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None
         err_list.raise_if_not_empty()
 
 
-def _validate_initialized_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
-    """Check all `initializes:` modules have `__init__()` called exactly once."""
-    # only call `__init__()` for modules which have an
-    # `__init__()` function
-    should_initialize = {
-        t.module_info.module_t: t
-        for t in module_t.initialized_modules
-        if t.module_info.module_t.init_function is not None
-    }
+class ConstructorValidator(VyperNodeVisitorBase):
+    """
+    Check all `initializes:`-ed modules each have `__init__()` executed exactly once.
+    Also checks that the initializes calls are done in the correct order,
+    if a uses b, init of b is called before init of a.
 
-    constructor = module_t.init_function
+    This check handles branching by requiring the set of initialized modules to be
+    the same in both branches.
+    (If one branch raises, we act as if it initialized all necessary modules.)
+    """
 
-    # Methods called by the constructor
-    init_calls: list[vy_ast.Call] = []
-    if constructor is not None:
-        init_calls = constructor.ast_def.get_descendants(vy_ast.Call)  # type: ignore
+    modules_to_initialize: list[ModuleInfo]
+    constructor: vy_ast.FunctionDef | None
 
-    seen_initializers: dict[ModuleT, vy_ast.VyperNode] = {}
-    for call_node in init_calls:
-        expr_info = call_node.func._expr_info
+    def __init__(self, module_t: ModuleT):
+
+        self.modules_to_initialize = [
+            t.module_info
+            for t in module_t.initialized_modules
+            if t.module_info.module_t.init_function is not None
+        ]
+
+        init_fun = module_t.init_function
+        if init_fun is None:
+            self.constructor = None
+        else:
+            assert isinstance(init_fun.ast_def, vy_ast.FunctionDef)  # help mypy
+
+            self.constructor = init_fun.ast_def
+
+    def validate(self):
+        if self.constructor is not None:
+            body = self.constructor.body
+        else:
+            body = []
+
+        init_calls_by_module = self.visit_block(body, defaultdict(list))
+
+        # is None when body ends in a revert or return (also considers branches,
+        # so if it ends with an 'if' where both branches return, it will also be none)
+        if init_calls_by_module is not None:
+            self._validate_init_return(init_calls_by_module)
+
+    def _validate_init_return(
+        self, init_calls_by_module: dict[ModuleInfo, list[vy_ast.VyperNode]]
+    ) -> None:
+        """
+        Checks that the correct modules have their init called when returning from the constructor
+        """
+
+        err_list = ExceptionList()
+        for module_info in self.modules_to_initialize:
+            init_calls = init_calls_by_module.get(module_info, [])
+            if len(init_calls) == 0:
+                msg = "not initialized!"
+                hint = f"add `{module_info.alias}.__init__()` to "
+                hint += "your `__init__()` function"
+
+                err_list.append(
+                    InitializerException(
+                        msg, self.constructor, module_info.ownership_decl, hint=hint
+                    )
+                )
+        err_list.raise_if_not_empty()
+
+        for module_info in init_calls_by_module:
+            if module_info not in self.modules_to_initialize:
+                msg = f"tried to initialize `{module_info.alias}`, "
+                msg += "but it is not in initializer list!"
+                hint = f"add `initializes: {module_info.alias}` "
+                hint += "as a top-level statement to your contract"
+                raise InitializerException(msg, *init_calls_by_module[module_info], hint=hint)
+
+    def visit_block(
+        self, block: list[vy_ast.VyperNode], init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]]
+    ) -> dict[ModuleInfo, list[vy_ast.VyperNode]] | None:
+        # Make a copy so that branches do not interfere
+        init_calls = defaultdict(list, {k: v.copy() for k, v in init_calls.items()})
+
+        # Subset of init_calls that happen in this block
+        local_init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]] = defaultdict(list)
+
+        for node in block:
+            node_init_calls = self.visit(node, init_calls)
+            if node_init_calls is None:
+                # Return or Raise, terminates block with wildcard
+                return None
+            for module_info, calls in node_init_calls.items():
+                init_calls[module_info] += calls
+                local_init_calls[module_info] += calls
+
+        return local_init_calls
+
+    def visit_Raise(self, _: vy_ast.Raise, init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]]):
+        # If we raise, return wildcard
+        return None
+
+    def visit_Return(self, _: vy_ast.Return, init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]]):
+        # If we return, return wildcard
+        # Instead, move _validate_init_return inside ConstructorValidator
+        self._validate_init_return(init_calls)
+        return None
+
+    def visit_If(self, node: vy_ast.If, init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]]):
+        then_nodes = self.visit_block(node.body, init_calls)
+        else_nodes = self.visit_block(node.orelse, init_calls)
+
+        if then_nodes is None or else_nodes is None:
+            # If either branch reverts/returns, return the other
+            # (if both revert, will return None)
+            return then_nodes or else_nodes
+
+        assert then_nodes is not None and else_nodes is not None  # help mypy
+
+        # TODO: UX: instead of raising on the first, batch them all together
+        for module_info in {**then_nodes, **else_nodes}:
+            if bool(then_nodes[module_info]) != bool(else_nodes[module_info]):
+                msg = f"`{module_info.alias}`.__init__() is not guaranteed to be reachable: "
+                msg += "present only in a single branch of an if"
+                raise InitializerException(msg, node)
+
+            # If the context and the branches had init calls,
+            # then we would already have errored: "__init__() function was already called!"
+            assert init_calls[module_info] == [] or (
+                then_nodes[module_info] == [] and else_nodes[module_info] == []
+            )
+
+        merged: dict[ModuleInfo, list[vy_ast.VyperNode]] = defaultdict(list)
+        for module_info, calls in chain(then_nodes.items(), else_nodes.items()):
+            merged[module_info] += calls
+        return merged
+
+    def visit_For(self, node: vy_ast.For, init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]]):
+        loop_nodes = self.visit_block(node.body, init_calls)
+        if loop_nodes is not None:
+            for module_info in loop_nodes:
+                if len(loop_nodes[module_info]) != 0:
+                    msg = f"`{module_info.alias}`.__init__() is not guaranteed to be reachable: "
+                    msg += "present in a for loop"
+                    raise InitializerException(msg, node)
+        # Note: the above is more fine-grained than simply forbidding init calls in a for loop,
+        # it allows the following:
+        # def __init__(xs):
+        #     for x in xs:
+        #         if is_valid(x):
+        #             lib.__init__(x)
+        #             return
+        #     raise "No valid x in xs"
+
+        return {}
+
+    def _validate_call(
+        self, call: vy_ast.Call, init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]]
+    ) -> ModuleInfo | None:
+
+        expr_info = call.func._expr_info
+
         if expr_info is None:
             # this can happen for range() calls; CMC 2024-02-05 try to
             # refactor so that range() is properly tagged.
-            continue
+            return None
 
         call_t = expr_info.typ
 
         if not isinstance(call_t, ContractFunctionT):
-            continue
+            return None
 
         if not call_t.is_constructor:
-            continue
+            return None
 
         # XXX: check this works as expected for nested attributes
-        initialized_module = call_node.func.value._expr_info.module_info  # type: ignore
+        other_module_info = call.func.value._expr_info.module_info  # type: ignore
 
-        if initialized_module.module_t in seen_initializers:
-            seen_location = seen_initializers[initialized_module.module_t]
-            msg = f"tried to initialize `{initialized_module.alias}`, "
+        # If A.__init__ is called, make sure it was not called before
+
+        init_calls_m = init_calls[other_module_info]
+
+        if len(init_calls_m) != 0:
+            msg = f"tried to initialize `{other_module_info.alias}`, "
             msg += "but its __init__() function was already called!"
-            raise InitializerException(msg, call_node.func, seen_location)
+            raise InitializerException(msg, call.func, init_calls_m)
 
-        if initialized_module.module_t not in should_initialize:
-            msg = f"tried to initialize `{initialized_module.alias}`, "
-            msg += "but it is not in initializer list!"
-            hint = f"add `initializes: {initialized_module.alias}` "
-            hint += "as a top-level statement to your contract"
-            raise InitializerException(msg, call_node.func, hint=hint)
+        # If A uses B, make sure B.__init__ is called before A.__init__
 
-        del should_initialize[initialized_module.module_t]
-        seen_initializers[initialized_module.module_t] = call_node.func
+        uninitialized_dependents: list[str] = []
+        """
+        Modules which the other module initializes, but whose init are not called beforehand
+        """
 
-    if len(should_initialize) > 0:
-        err_list = ExceptionList()
-        for s in should_initialize.values():
-            msg = "not initialized!"
-            hint = f"add `{s.module_info.alias}.__init__()` to "
-            hint += "your `__init__()` function"
+        for dependent in other_module_info.module_t.used_modules:
+            if dependent.module_t.init_function is None:
+                # no constructor to check
+                continue
 
-            # grab the init function AST node for error message
-            # (it could be None, it's ok since it's just for diagnostics)
-            init_func_node = None
-            if constructor is not None:
-                init_func_node = constructor.decl_node
-            err_list.append(InitializerException(msg, init_func_node, s.node, hint=hint))
+            dependent_init_calls = init_calls[dependent]
+            if len(dependent_init_calls) == 0:
+                uninitialized_dependents.append(dependent.alias)
 
-        err_list.raise_if_not_empty()
+        if len(uninitialized_dependents) != 0:
+            msg = f"tried to initialize `{other_module_info.alias}`, "
+            msg += "but it depends on the following modules "
+            msg += "which have not been initialized: " + ", ".join(uninitialized_dependents)
+            hint = "call their `__init__()` methods before "
+            hint += f"`{other_module_info.alias}.__init__()`."
+            raise InitializerException(msg, call.func, init_calls, hint=hint)
+
+        return other_module_info
+
+    def visit_VyperNode(
+        self, node: vy_ast.VyperNode, init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]]
+    ):
+        # Regular, non-branching node
+
+        ret: dict[ModuleInfo, list[vy_ast.VyperNode]] = {}
+
+        for call in node.get_descendants(vy_ast.Call):
+            initialized_module_info = self._validate_call(call, init_calls)
+            if initialized_module_info is not None:
+
+                # There should always be at most one init call per statement!
+                assert not ret
+
+                ret[initialized_module_info] = [call]
+
+        return ret
 
 
 def _validate_exports_uses(module_ast: vy_ast.Module, module_t: ModuleT) -> None:

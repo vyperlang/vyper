@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from functools import cached_property
 from typing import TYPE_CHECKING, Optional
 
@@ -10,7 +12,7 @@ from vyper.exceptions import (
     StructureException,
     UnfoldableNode,
 )
-from vyper.semantics.analysis.base import Modifiability
+from vyper.semantics.analysis.base import InitializesInfo, Modifiability
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     validate_expected_type,
@@ -100,7 +102,7 @@ class InterfaceT(_UserType):
         return node
 
     # when using the type itself (not an instance) in the call position
-    def _ctor_call_return(self, node: vy_ast.Call) -> "InterfaceT":
+    def _ctor_call_return(self, node: vy_ast.Call) -> InterfaceT:
         self._ctor_arg_types(node)
         return self
 
@@ -173,7 +175,7 @@ class InterfaceT(_UserType):
         error_list: Optional[list[tuple[str, ErrorT]]] = None,
         struct_list: Optional[list[tuple[str, StructT]]] = None,
         flag_list: Optional[list[tuple[str, FlagT]]] = None,
-    ) -> "InterfaceT":
+    ) -> InterfaceT:
         functions: dict[str, ContractFunctionT] = {}
         events: dict[str, EventT] = {}
         errors: dict[str, ErrorT] = {}
@@ -206,7 +208,7 @@ class InterfaceT(_UserType):
         return cls(interface_name, decl_node, functions, events, errors, structs, flags)
 
     @classmethod
-    def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
+    def from_json_abi(cls, name: str, abi: dict) -> InterfaceT:
         """
         Generate an `InterfaceT` object from an ABI.
 
@@ -274,7 +276,7 @@ class InterfaceT(_UserType):
         return [(fn_name, fn) for fn_name, fn in parsed_fns.items()]
 
     @classmethod
-    def from_ModuleT(cls, module_t: "ModuleT") -> "InterfaceT":
+    def from_ModuleT(cls, module_t: ModuleT) -> InterfaceT:
         """
         Generate an `InterfaceT` object from a Vyper ast node.
 
@@ -306,7 +308,7 @@ class InterfaceT(_UserType):
         )
 
     @classmethod
-    def from_InterfaceDef(cls, node: vy_ast.InterfaceDef) -> "InterfaceT":
+    def from_InterfaceDef(cls, node: vy_ast.InterfaceDef) -> InterfaceT:
         functions = []
         for func_ast in node.body:
             if not isinstance(func_ast, vy_ast.FunctionDef):
@@ -435,7 +437,7 @@ class ModuleT(VyperType):
     def decl_node(self) -> Optional[vy_ast.VyperNode]:  # type: ignore[override]
         return self._module
 
-    def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
+    def get_type_member(self, key: str, node: vy_ast.VyperNode) -> VyperType:
         return self._helper.get_member(key, node)
 
     @cached_property
@@ -499,7 +501,7 @@ class ModuleT(VyperType):
         return self._module.get_children((vy_ast.Import, vy_ast.ImportFrom))
 
     @cached_property
-    def imported_modules(self) -> dict[str, "ModuleInfo"]:
+    def imported_modules(self) -> dict[str, ModuleInfo]:
         ret = {}
         for s in self.import_stmts:
             for info in s._metadata["import_infos"]:
@@ -509,7 +511,7 @@ class ModuleT(VyperType):
                 ret[info.alias] = module_info
         return ret
 
-    def find_module_info(self, needle: "ModuleT") -> Optional["ModuleInfo"]:
+    def find_module_info(self, needle: ModuleT) -> Optional[ModuleInfo]:
         for s in self.imported_modules.values():
             if s.module_t == needle:
                 return s
@@ -532,7 +534,7 @@ class ModuleT(VyperType):
         return self._module.get_children(vy_ast.ExportsDecl)
 
     @cached_property
-    def used_modules(self):
+    def used_modules(self) -> list[ModuleInfo]:
         # modules which are written to
         ret = []
         for node in self.uses_decls:
@@ -541,7 +543,7 @@ class ModuleT(VyperType):
         return ret
 
     @property
-    def initialized_modules(self):
+    def initialized_modules(self) -> list[InitializesInfo]:
         # modules which are initialized to
         ret = []
         for node in self.initializes_decls:
