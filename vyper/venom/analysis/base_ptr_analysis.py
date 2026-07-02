@@ -57,10 +57,21 @@ class BasePtrAnalysis(IRAnalysis):
     """
 
     var_to_mem: dict[IRVariable, set[Ptr]]
+    var_to_def: dict[IRVariable, IRInstruction]
+    _untracked_root_memo: dict[IRVariable, bool]
+    _untracked_root_active: set[IRVariable]
 
     def analyze(self):
         self.var_to_mem = dict()
+        self.var_to_def = dict()
+        self._untracked_root_memo = dict()
+        self._untracked_root_active = set()
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                for out in inst.get_outputs():
+                    self.var_to_def[out] = inst
 
         worklist = deque(self.cfg.dfs_pre_walk)
 
@@ -326,3 +337,181 @@ class BasePtrAnalysis(IRAnalysis):
 
     def get_possible_ptrs(self, var: IRVariable) -> set[Ptr]:
         return self.var_to_mem.get(var, set())
+
+    def aliases_of_allocation(self, alloca: Allocation) -> Optional[set[IRVariable]]:
+        """
+        All variables that point into `alloca`.
+
+        Returns None if any variable may point into `alloca` *and* somewhere
+        else -- another allocation, or an untracked address merged in through a
+        phi -- since callers that rewrite through these aliases cannot prove
+        every use stays within `alloca`.
+        """
+        aliases: set[IRVariable] = set()
+
+        for var, ptrs in self.var_to_mem.items():
+            if len(ptrs) == 0:
+                continue
+            if not any(ptr.base_alloca == alloca for ptr in ptrs):
+                continue
+            if any(ptr.base_alloca != alloca for ptr in ptrs):
+                return None
+            if self.pointer_may_include_untracked_root(var):
+                return None
+            aliases.add(var)
+
+        return aliases
+
+    def pointer_may_include_untracked_root(self, var: IRVariable) -> bool:
+        """
+        Return True when `var` may carry an address that is not rooted in a
+        tracked allocation on some phi/assign path (e.g. a param or
+        calldata-derived pointer). Fails closed (True) on def cycles.
+        """
+        return self._pointer_may_include_untracked_root_r(var)
+
+    def _pointer_may_include_untracked_root_r(self, var: IRVariable) -> bool:
+        # A value whose facts point only into one allocation can still carry an
+        # *untracked* address through phi/assign chains: an operand with no
+        # pointer facts (a param, a calldata-derived pointer, ...) contributes
+        # nothing to the base-pointer union, so the result looks like a clean
+        # alias while actually selecting an off-allocation address on that path.
+        # Such a value is not a provable alias of the allocation.
+        #
+        # The result is path-independent, so completed results are memoized;
+        # `_untracked_root_active` only guards against on-path cycles, which
+        # fail closed. A cycle-tainted result is always True, so memoizing the
+        # frames that complete on a cycle path stays conservative.
+        if var in self._untracked_root_memo:
+            return self._untracked_root_memo[var]
+        if var in self._untracked_root_active:
+            return True
+
+        self._untracked_root_active.add(var)
+        ret = self._untracked_root_from_def(var)
+        self._untracked_root_active.remove(var)
+        self._untracked_root_memo[var] = ret
+        return ret
+
+    def _untracked_root_from_def(self, var: IRVariable) -> bool:
+        inst = self.var_to_def.get(var)
+        if inst is None:
+            return False
+
+        if inst.opcode == "phi":
+            for _, op in inst.phi_operands:
+                assert isinstance(op, IRVariable)  # mypy help
+                if len(self.get_possible_ptrs(op)) == 0:
+                    return True
+                if self._pointer_may_include_untracked_root_r(op):
+                    return True
+            return False
+
+        if inst.opcode == "assign" and isinstance(inst.operands[0], IRVariable):
+            op = inst.operands[0]
+            if len(self.get_possible_ptrs(op)) == 0:
+                return True
+            return self._pointer_may_include_untracked_root_r(op)
+
+        if inst.opcode in ("add", "sub"):
+            for op in inst.get_input_variables():
+                if len(self.get_possible_ptrs(op)) == 0:
+                    continue
+                if self._pointer_may_include_untracked_root_r(op):
+                    return True
+            return False
+
+        # Tracked roots: the pointer originates here, so no operand can
+        # smuggle in an untracked address.
+        if inst.opcode in ("bump", "alloca", "dalloca"):
+            return False
+
+        # Fail closed: any other instruction that forwards pointer provenance
+        # from an input is a derivation form this walk does not model (e.g. a
+        # new opcode taught to `_handle_inst`), so it may also forward an
+        # untracked root. Asking `instruction_derives_pointer_from` keeps this
+        # walk in sync with the transfer function instead of opcode-matching.
+        return any(
+            self.instruction_derives_pointer_from(inst, op) for op in inst.get_input_variables()
+        )
+
+    def instruction_derives_pointer_from(self, inst: IRInstruction, var: IRVariable) -> bool:
+        """
+        Whether `inst` forwards pointer provenance from `var` to its output.
+
+        This intentionally asks the analysis facts instead of matching opcodes:
+        if BasePtrAnalysis learns a new pure pointer-derivation form, callers
+        that walk pointer-use graphs should inherit that knowledge.
+        """
+        if inst.num_outputs != 1:
+            return False
+        if var not in inst.get_input_variables():
+            return False
+        if len(self.get_possible_ptrs(inst.output)) == 0:
+            return False
+        if inst.get_read_effects() & effects.MEMORY != effects.EMPTY:
+            return False
+        if inst.get_write_effects() & effects.MEMORY != effects.EMPTY:
+            return False
+        return True
+
+    def pointer_uses_may_touch(self, var: IRVariable, loc: MemoryLocation, mem_alias, dfg) -> bool:
+        """
+        Conservatively report whether any memory-effecting use reachable from
+        pointer `var` (following pointer arithmetic) may touch `loc`.
+
+        Cycles in the pointer-use graph and uses with no statically known
+        memory effect both resolve to True (fail closed).
+
+        `mem_alias` (a MemoryAliasAnalysis) and `dfg` (a DFGAnalysis) are passed
+        in rather than imported/requested here: MemoryAliasAnalysis is built on
+        top of BasePtrAnalysis, so referencing either module from this low-level
+        analysis would invert the layering and create an import cycle.
+        """
+        return self._pointer_uses_may_touch_r(var, loc, mem_alias, dfg, set())
+
+    def _pointer_uses_may_touch_r(
+        self, var: IRVariable, loc: MemoryLocation, mem_alias, dfg, seen: set[IRVariable]
+    ) -> bool:
+        if var in seen:
+            return True
+        seen.add(var)
+
+        for use in dfg.get_uses(var):
+            for pos, op in enumerate(use.operands):
+                if op != var:
+                    continue
+                if self.instruction_derives_pointer_from(use, var):
+                    if self._pointer_uses_may_touch_r(use.output, loc, mem_alias, dfg, seen):
+                        return True
+                    continue
+
+                has_memory_read = use.get_read_effects() & effects.MEMORY != effects.EMPTY
+                has_memory_write = use.get_write_effects() & effects.MEMORY != effects.EMPTY
+                read_idx = memory_read_ops(use).ofst_index if has_memory_read else None
+                write_idx = memory_write_ops(use).ofst_index if has_memory_write else None
+                is_read_address = read_idx is not None and pos == read_idx
+                is_write_address = write_idx is not None and pos == write_idx
+
+                if has_memory_read and is_read_address:
+                    read_loc = self.get_read_location(use, MEMORY)
+                    if mem_alias.may_alias(read_loc, loc):
+                        return True
+
+                if has_memory_write and is_write_address:
+                    write_loc = self.get_write_location(use, MEMORY)
+                    if mem_alias.may_alias(write_loc, loc):
+                        return True
+
+                # If `var` is used by a memory-effecting instruction but not
+                # as one of its memory address operands, it is flowing as data
+                # (size, stored value, call arg, ...). Treat that as an escape.
+                if (has_memory_read or has_memory_write) and not (
+                    is_read_address or is_write_address
+                ):
+                    return True
+
+                if not (has_memory_read or has_memory_write):
+                    return True
+
+        return False

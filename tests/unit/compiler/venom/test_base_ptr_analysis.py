@@ -3,7 +3,7 @@ from vyper.evm.address_space import MEMORY
 from vyper.venom.analysis import BasePtrAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRVariable
-from vyper.venom.memory_location import MemoryLocation
+from vyper.venom.memory_location import Allocation, MemoryLocation
 
 
 def test_base_ptr_basic():
@@ -89,3 +89,54 @@ def test_base_ptr_loop_offsets_collapse_to_unknown():
     assert ptr is not None
     assert ptr.base_alloca.inst.opcode == "dalloca"
     assert ptr.offset is None
+
+
+def test_aliases_of_allocation():
+    code = """
+    main:
+        %p = alloca 64
+        %a0 = add 0, %p
+        %a32 = add 32, %p
+        %v = mload %a0
+        sink %v
+    """
+
+    ctx = parse_from_basic_block(code)
+    fn = next(ctx.get_functions())
+    ac = IRAnalysesCache(fn)
+    base_ptr = ac.request_analysis(BasePtrAnalysis)
+
+    alloca = fn.entry.instructions[0]
+    aliases = base_ptr.aliases_of_allocation(Allocation(alloca))
+
+    assert aliases == {IRVariable("%p"), IRVariable("%a0"), IRVariable("%a32")}
+
+
+def test_aliases_of_allocation_ambiguous_returns_none():
+    # %x merges pointers into two different allocations, so it cannot be
+    # attributed unambiguously to either one.
+    code = """
+    main:
+        %p = alloca 64
+        %q = alloca 64
+        %cond = 1
+        jnz %cond, @b1, @b2
+    b1:
+        %x1 = add 0, %p
+        jmp @join
+    b2:
+        %x2 = add 0, %q
+        jmp @join
+    join:
+        %x = phi @b1, %x1, @b2, %x2
+        %v = mload %x
+        sink %v
+    """
+
+    ctx = parse_from_basic_block(code)
+    fn = next(ctx.get_functions())
+    ac = IRAnalysesCache(fn)
+    base_ptr = ac.request_analysis(BasePtrAnalysis)
+
+    alloca_p = fn.entry.instructions[0]
+    assert base_ptr.aliases_of_allocation(Allocation(alloca_p)) is None

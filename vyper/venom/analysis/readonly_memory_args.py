@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from vyper.venom.basicblock import IRInstruction, IRLabel, IROperand, IRVariable
@@ -14,7 +15,152 @@ from .dfg import DFGAnalysis
 @dataclass(frozen=True)
 class _FnParamInfo:
     invoke_params: tuple[IRVariable, ...]
-    invoke_param_index: dict[IRVariable, int]
+
+
+class MemoryParamRootResolver:
+    """
+    Resolve a pointer-like operand back to the user memory parameter indexes it derives from.
+
+    This is shared by readonly-arg inference and copy-forwarding passes so
+    "readonly internal param" means the same thing at every call site.
+    """
+
+    def __init__(self, fn: IRFunction, dfg: DFGAnalysis, cycle_roots: frozenset[int] | None = None):
+        self.dfg = dfg
+        self.invoke_params = tuple(inst.output for inst in FunctionCallLayout(fn).user_params)
+        self.invoke_param_index = {var: i for i, var in enumerate(self.invoke_params)}
+        self.all_param_roots = frozenset(range(len(self.invoke_params)))
+        self.cycle_roots = self.all_param_roots if cycle_roots is None else cycle_roots
+        self.memo: dict[IRVariable, frozenset[int]] = {}
+        self.exclusive_alias_memo: dict[IRVariable, frozenset[int] | None] = {}
+        self.active: set[IRVariable] = set()
+        self.exclusive_alias_active: set[IRVariable] = set()
+
+    def root_param_indices(self, op: IROperand) -> frozenset[int]:
+        """
+        Return every memory-param root that is known to reach `op`.
+
+        This is a may-style query for mutability inference: unknown/non-param
+        roots are ignored, because they do not identify a specific param to mark
+        mutable.
+        """
+        if not isinstance(op, IRVariable):
+            return frozenset()
+        return self._root_param_indices_var(op)
+
+    def exclusive_param_alias_indices(self, op: IROperand) -> frozenset[int] | None:
+        """
+        Return param roots only if `op` is exactly param-backed.
+
+        This intentionally follows only param, assign, and phi edges. Unlike
+        `root_param_indices`, it does not treat pointer arithmetic as proof
+        that the resulting value still points inside a param region, and it
+        returns None when some path has an unknown/non-param root.
+        """
+        if not isinstance(op, IRVariable):
+            return None
+        return self._exclusive_param_alias_indices_var(op)
+
+    def _root_param_indices_var(self, var: IRVariable) -> frozenset[int]:
+        if var in self.memo:
+            return self.memo[var]
+        if var in self.active:
+            return self.cycle_roots
+
+        idx = self.invoke_param_index.get(var, None)
+        if idx is not None:
+            roots = frozenset([idx])
+            self.memo[var] = roots
+            return roots
+
+        self.active.add(var)
+        inst = self.dfg.get_producing_instruction(var)
+        roots = self._root_from_inst(inst)
+        self.active.remove(var)
+        self.memo[var] = roots
+        return roots
+
+    def _root_from_inst(self, inst: IRInstruction | None) -> frozenset[int]:
+        if inst is None:
+            return frozenset()
+
+        op = inst.opcode
+        if op == "assign":
+            src = inst.operands[0]
+            return self.root_param_indices(src)
+
+        if op == "add":
+            return self._root_from_add(inst)
+
+        if op == "sub":
+            return self._root_from_sub(inst)
+
+        if op == "phi":
+            roots: set[int] = set()
+            for _, v in inst.phi_operands:
+                assert isinstance(v, IRVariable)
+                roots.update(self._root_param_indices_var(v))
+            return frozenset(roots)
+
+        return frozenset()
+
+    def _root_from_add(self, inst: IRInstruction) -> frozenset[int]:
+        roots: set[int] = set()
+        for op in inst.operands:
+            roots.update(self.root_param_indices(op))
+        return frozenset(roots)
+
+    def _root_from_sub(self, inst: IRInstruction) -> frozenset[int]:
+        if len(inst.operands) != 2:
+            return frozenset()
+        b, a = inst.operands
+        roots: set[int] = set()
+        roots.update(self.root_param_indices(a))
+        roots.update(self.root_param_indices(b))
+        return frozenset(roots)
+
+    def _exclusive_param_alias_indices_var(self, var: IRVariable) -> frozenset[int] | None:
+        if var in self.exclusive_alias_memo:
+            return self.exclusive_alias_memo[var]
+        if var in self.exclusive_alias_active:
+            return None
+
+        idx = self.invoke_param_index.get(var, None)
+        if idx is not None:
+            param_roots = frozenset([idx])
+            self.exclusive_alias_memo[var] = param_roots
+            return param_roots
+
+        self.exclusive_alias_active.add(var)
+        inst = self.dfg.get_producing_instruction(var)
+        roots: frozenset[int] | None = self._exclusive_param_alias_from_inst(inst)
+        self.exclusive_alias_active.remove(var)
+        self.exclusive_alias_memo[var] = roots
+        return roots
+
+    def _exclusive_param_alias_from_inst(self, inst: IRInstruction | None) -> frozenset[int] | None:
+        if inst is None:
+            return None
+
+        op = inst.opcode
+        if op == "assign":
+            return self.exclusive_param_alias_indices(inst.operands[0])
+
+        if op == "phi":
+            return self._combine_exclusive_param_aliases(var for _, var in inst.phi_operands)
+
+        return None
+
+    def _combine_exclusive_param_aliases(
+        self, operands: Iterable[IROperand]
+    ) -> frozenset[int] | None:
+        roots: set[int] = set()
+        for operand in operands:
+            operand_roots = self.exclusive_param_alias_indices(operand)
+            if operand_roots is None:
+                return None
+            roots.update(operand_roots)
+        return frozenset(roots)
 
 
 class ReadonlyMemoryArgsGlobalAnalysis(IRGlobalAnalysis):
@@ -51,8 +197,7 @@ class ReadonlyMemoryArgsGlobalAnalysis(IRGlobalAnalysis):
 
     def _collect_param_info(self, fn: IRFunction) -> _FnParamInfo:
         invoke_params = tuple(inst.output for inst in FunctionCallLayout(fn).user_params)
-        invoke_param_index = {var: i for i, var in enumerate(invoke_params)}
-        return _FnParamInfo(invoke_params, invoke_param_index)
+        return _FnParamInfo(invoke_params)
 
     def _analyze_fn(
         self, fn: IRFunction, info: _FnParamInfo, readonly_by_fn: dict[IRFunction, tuple[bool, ...]]
@@ -63,46 +208,21 @@ class ReadonlyMemoryArgsGlobalAnalysis(IRGlobalAnalysis):
 
         mutable = [False] * n
         dfg = self.analyses_caches[fn].request_analysis(DFGAnalysis)
-        all_param_roots = frozenset(range(n))
-
-        root_memo: dict[IRVariable, frozenset[int]] = {}
-        root_active: set[IRVariable] = set()
-
-        def root_param_indices(op: IROperand) -> frozenset[int]:
-            if not isinstance(op, IRVariable):
-                return frozenset()
-            return root_param_indices_var(op)
-
-        def root_param_indices_var(var: IRVariable) -> frozenset[int]:
-            if var in root_memo:
-                return root_memo[var]
-            if var in root_active:
-                return all_param_roots
-
-            idx = info.invoke_param_index.get(var, None)
-            if idx is not None:
-                roots = frozenset([idx])
-                root_memo[var] = roots
-                return roots
-
-            root_active.add(var)
-            inst = dfg.get_producing_instruction(var)
-            roots = self._root_from_inst(inst, root_param_indices_var)
-            root_active.remove(var)
-            root_memo[var] = roots
-            return roots
+        root_resolver = MemoryParamRootResolver(fn, dfg)
 
         for bb in fn.get_basic_blocks():
             for inst in bb.instructions:
                 if inst.opcode == "invoke":
-                    self._handle_invoke(inst, mutable, root_param_indices, readonly_by_fn)
+                    self._handle_invoke(
+                        inst, mutable, root_resolver.root_param_indices, readonly_by_fn
+                    )
                     continue
 
                 write_ofst = memory_write_ops(inst).ofst
                 if write_ofst is None:
                     continue
 
-                for idx in root_param_indices(write_ofst):
+                for idx in root_resolver.root_param_indices(write_ofst):
                     mutable[idx] = True
 
         return tuple(not is_mut for is_mut in mutable)
@@ -138,47 +258,3 @@ class ReadonlyMemoryArgsGlobalAnalysis(IRGlobalAnalysis):
             if callee_arg_idx >= len(callee_state) or not callee_state[callee_arg_idx]:
                 for caller_idx in caller_idxs:
                     mutable[caller_idx] = True
-
-    def _root_from_inst(self, inst: IRInstruction | None, root_param_indices_var) -> frozenset[int]:
-        if inst is None:
-            return frozenset()
-
-        op = inst.opcode
-        if op == "assign":
-            src = inst.operands[0]
-            if isinstance(src, IRVariable):
-                return root_param_indices_var(src)
-            return frozenset()
-
-        if op == "add":
-            return self._root_from_add(inst, root_param_indices_var)
-
-        if op == "sub":
-            return self._root_from_sub(inst, root_param_indices_var)
-
-        if op == "phi":
-            roots: set[int] = set()
-            for _, v in inst.phi_operands:
-                roots.update(root_param_indices_var(v))
-            return frozenset(roots)
-
-        return frozenset()
-
-    def _root_from_add(self, inst: IRInstruction, root_param_indices_var) -> frozenset[int]:
-        roots: set[int] = set()
-        for op in inst.operands:
-            if not isinstance(op, IRVariable):
-                continue
-            roots.update(root_param_indices_var(op))
-        return frozenset(roots)
-
-    def _root_from_sub(self, inst: IRInstruction, root_param_indices_var) -> frozenset[int]:
-        if len(inst.operands) != 2:
-            return frozenset()
-        b, a = inst.operands
-        roots: set[int] = set()
-        if isinstance(a, IRVariable):
-            roots.update(root_param_indices_var(a))
-        if isinstance(b, IRVariable):
-            roots.update(root_param_indices_var(b))
-        return frozenset(roots)

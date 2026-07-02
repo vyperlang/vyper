@@ -183,6 +183,7 @@ class InstAccessOps:
     ofst: Optional[IROperand]
     size: Optional[IROperand]
     max_size: Optional[IROperand] = None
+    ofst_index: Optional[int] = None
 
     def __post_init__(self):
         if self.max_size is None:
@@ -195,27 +196,27 @@ def memory_write_ops(inst) -> InstAccessOps:
     opcode = inst.opcode
     if opcode == "mstore":
         dst = inst.operands[1]
-        return InstAccessOps(ofst=dst, size=IRLiteral(32))
+        return InstAccessOps(ofst=dst, size=IRLiteral(32), ofst_index=1)
     if opcode == "istore":
         # istore offset, val -> writes to memory at offset
         # operands = [offset, val]
         dst = inst.operands[0]
-        return InstAccessOps(ofst=dst, size=IRLiteral(32))
+        return InstAccessOps(ofst=dst, size=IRLiteral(32), ofst_index=0)
     if opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
         size, _, dst = inst.operands
-        return InstAccessOps(ofst=dst, size=size)
+        return InstAccessOps(ofst=dst, size=size, ofst_index=2)
     if opcode == "call":
         max_size, dst, _, _, _, _, _ = inst.operands
         # number of bytes written is indeterminate -- could
         # write anywhere between 0 and output_buffer_size bytes.
-        return InstAccessOps(ofst=dst, size=None, max_size=max_size)
+        return InstAccessOps(ofst=dst, size=None, max_size=max_size, ofst_index=1)
     if opcode in ("delegatecall", "staticcall"):
         max_size, dst, _, _, _, _ = inst.operands
         # ditto
-        return InstAccessOps(ofst=dst, size=None, max_size=max_size)
+        return InstAccessOps(ofst=dst, size=None, max_size=max_size, ofst_index=1)
     if opcode == "extcodecopy":
         size, _, dst, _ = inst.operands
-        return InstAccessOps(ofst=dst, size=size)
+        return InstAccessOps(ofst=dst, size=size, ofst_index=2)
 
     return InstAccessOps(ofst=None, size=None)
 
@@ -239,45 +240,44 @@ def memory_read_ops(inst) -> InstAccessOps:
     if opcode == "mload":
         ofst = inst.operands[0]
         size = IRLiteral(32)
-        return InstAccessOps(ofst=ofst, size=size)
+        return InstAccessOps(ofst=ofst, size=size, ofst_index=0)
 
     if opcode == "iload":
         # iload offset -> reads from memory at offset
         ofst = inst.operands[0]
         size = IRLiteral(32)
-        return InstAccessOps(ofst=ofst, size=size)
+        return InstAccessOps(ofst=ofst, size=size, ofst_index=0)
 
     if opcode == "mcopy":
         size, src, _ = inst.operands
-        return InstAccessOps(ofst=src, size=size)
+        return InstAccessOps(ofst=src, size=size, ofst_index=1)
 
     if opcode == "call":
         _, _, size, src, _, _, _ = inst.operands
-        return InstAccessOps(ofst=src, size=size)
+        return InstAccessOps(ofst=src, size=size, ofst_index=3)
     if opcode in ("delegatecall", "staticcall"):
         _, _, size, src, _, _ = inst.operands
-        return InstAccessOps(ofst=src, size=size)
+        return InstAccessOps(ofst=src, size=size, ofst_index=3)
     if opcode == "return":
         size, src = inst.operands
-        return InstAccessOps(ofst=src, size=size)
+        return InstAccessOps(ofst=src, size=size, ofst_index=1)
     if opcode == "create":
-        size, _, _ = inst.operands
         size, src, _ = inst.operands
-        return InstAccessOps(ofst=src, size=size)
+        return InstAccessOps(ofst=src, size=size, ofst_index=1)
 
     if opcode == "create2":
         _, size, src, _ = inst.operands
-        return InstAccessOps(ofst=src, size=size)
+        return InstAccessOps(ofst=src, size=size, ofst_index=2)
 
     elif opcode == "sha3":
         size, ofst = inst.operands
-        return InstAccessOps(ofst=ofst, size=size)
+        return InstAccessOps(ofst=ofst, size=size, ofst_index=1)
     elif opcode == "log":
         size, src = inst.operands[-2:]
-        return InstAccessOps(ofst=src, size=size)
+        return InstAccessOps(ofst=src, size=size, ofst_index=len(inst.operands) - 1)
     elif opcode == "revert":
         size, src = inst.operands
-        return InstAccessOps(ofst=src, size=size)
+        return InstAccessOps(ofst=src, size=size, ofst_index=1)
 
     return InstAccessOps(ofst=None, size=None)
 
