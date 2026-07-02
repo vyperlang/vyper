@@ -388,10 +388,15 @@ class MemSSAAbstract(IRAnalysis):
         `get_aliased_memory_accesses_before`, letting callers reason about
         clobbers on a path between two program points. Instructions in
         `ignore` are excluded from the result.
+
+        Precondition: every instruction in `end_insts` must have a MemoryUse;
+        otherwise its reaching-def chain is invisible here and the query would
+        silently report "no clobber".
         """
         reachable = self.analyses_cache.request_analysis(ReachableAnalysis)
         ret: OrderedSet[MemoryAccess] = OrderedSet()
         for end_inst in end_insts:
+            assert self.get_memory_use(end_inst) is not None, f"no MemoryUse: {end_inst}"
             for access in self.get_aliased_memory_accesses_before(end_inst, loc):
                 if access.inst in ignore:
                     continue
@@ -410,6 +415,9 @@ class MemSSAAbstract(IRAnalysis):
         """
         True if any memory write that may-alias `loc` lies on a path strictly
         between `start_inst` and any instruction in `end_insts`.
+
+        Precondition (unless `loc` is empty): every instruction in `end_insts`
+        must have a MemoryUse -- see `clobbering_accesses_between`.
         """
         if loc.is_empty():
             return False
