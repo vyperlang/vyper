@@ -58,10 +58,14 @@ class BasePtrAnalysis(IRAnalysis):
 
     var_to_mem: dict[IRVariable, set[Ptr]]
     var_to_def: dict[IRVariable, IRInstruction]
+    _untracked_root_memo: dict[IRVariable, bool]
+    _untracked_root_active: set[IRVariable]
 
     def analyze(self):
         self.var_to_mem = dict()
         self.var_to_def = dict()
+        self._untracked_root_memo = dict()
+        self._untracked_root_active = set()
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
         for bb in self.function.get_basic_blocks():
@@ -359,19 +363,32 @@ class BasePtrAnalysis(IRAnalysis):
         return aliases
 
     def pointer_may_include_untracked_root(self, var: IRVariable) -> bool:
-        return self._pointer_may_include_untracked_root_r(var, set())
+        return self._pointer_may_include_untracked_root_r(var)
 
-    def _pointer_may_include_untracked_root_r(self, var: IRVariable, seen: set[IRVariable]) -> bool:
+    def _pointer_may_include_untracked_root_r(self, var: IRVariable) -> bool:
         # A value whose facts point only into one allocation can still carry an
         # *untracked* address through phi/assign chains: an operand with no
         # pointer facts (a param, a calldata-derived pointer, ...) contributes
         # nothing to the base-pointer union, so the result looks like a clean
         # alias while actually selecting an off-allocation address on that path.
         # Such a value is not a provable alias of the allocation.
-        if var in seen:
+        #
+        # The result is path-independent, so completed results are memoized;
+        # `_untracked_root_active` only guards against on-path cycles, which
+        # fail closed. A cycle-tainted result is always True, so memoizing the
+        # frames that complete on a cycle path stays conservative.
+        if var in self._untracked_root_memo:
+            return self._untracked_root_memo[var]
+        if var in self._untracked_root_active:
             return True
-        seen.add(var)
 
+        self._untracked_root_active.add(var)
+        ret = self._untracked_root_from_def(var)
+        self._untracked_root_active.remove(var)
+        self._untracked_root_memo[var] = ret
+        return ret
+
+    def _untracked_root_from_def(self, var: IRVariable) -> bool:
         inst = self.var_to_def.get(var)
         if inst is None:
             return False
@@ -381,7 +398,7 @@ class BasePtrAnalysis(IRAnalysis):
                 assert isinstance(op, IRVariable)  # mypy help
                 if len(self.get_possible_ptrs(op)) == 0:
                     return True
-                if self._pointer_may_include_untracked_root_r(op, seen.copy()):
+                if self._pointer_may_include_untracked_root_r(op):
                     return True
             return False
 
@@ -389,13 +406,13 @@ class BasePtrAnalysis(IRAnalysis):
             op = inst.operands[0]
             if len(self.get_possible_ptrs(op)) == 0:
                 return True
-            return self._pointer_may_include_untracked_root_r(op, seen.copy())
+            return self._pointer_may_include_untracked_root_r(op)
 
         if inst.opcode in ("add", "sub"):
             for op in inst.get_input_variables():
                 if len(self.get_possible_ptrs(op)) == 0:
                     continue
-                if self._pointer_may_include_untracked_root_r(op, seen.copy()):
+                if self._pointer_may_include_untracked_root_r(op):
                     return True
 
         return False
