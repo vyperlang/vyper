@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import VyperException
+from vyper.exceptions import ImmutableViolation, VyperException
 
 fail_list = [
     # VALUE is not set in the constructor
@@ -19,7 +19,7 @@ VALUE: immutable(uint256)
 @view
 @external
 def get_value() -> uint256:
-    return VALUE
+    return self.VALUE
     """,
     # VALUE given an initial value
     """
@@ -35,11 +35,11 @@ VALUE: immutable(uint256)
 
 @deploy
 def __init__():
-    VALUE = 0
+    self.VALUE = 0
 
 @external
 def set_value(_value: uint256):
-    VALUE = _value
+    self.VALUE = _value
     """,
     # modifying immutable multiple times in constructor
     """
@@ -47,8 +47,8 @@ VALUE: immutable(uint256)
 
 @deploy
 def __init__(_value: uint256):
-    VALUE = _value * 3
-    VALUE = VALUE + 1
+    self.VALUE = _value * 3
+    self.VALUE = self.VALUE + 1
     """,
     # immutable(public()) banned
     """
@@ -56,7 +56,7 @@ VALUE: immutable(public(uint256))
 
 @deploy
 def __init__(_value: uint256):
-    VALUE = _value * 3
+    self.VALUE = _value * 3
     """,
 ]
 
@@ -65,6 +65,33 @@ def __init__(_value: uint256):
 def test_compilation_fails_with_exception(bad_code):
     with pytest.raises(VyperException):
         compile_code(bad_code)
+
+
+def test_augassign_modification():
+    code = """
+VALUE: immutable(uint256)
+
+@deploy
+def __init__():
+    self.VALUE = 1
+    self.VALUE += 1
+    """
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(code)
+    assert e.value.message == "Immutable value cannot be modified after assignment"
+
+
+def test_augassign_setting():
+    code = """
+VALUE: immutable(uint256)
+
+@deploy
+def __init__():
+    self.VALUE += 1
+    """
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(code)
+    assert e.value.message == "Immutable definition requires an assignment in the constructor"
 
 
 types_list = (
@@ -87,12 +114,12 @@ VALUE: immutable({typ})
 
 @deploy
 def __init__(_value: {typ}):
-    VALUE = _value
+    self.VALUE = _value
 
 @view
 @external
 def get_value() -> {typ}:
-    return VALUE
+    return self.VALUE
     """
 
     assert compile_code(code)
@@ -105,8 +132,8 @@ VALUE: immutable(uint256)
 
 @deploy
 def __init__(_value: uint256):
-    VALUE = _value * 3
-    x: uint256 = VALUE + 1
+    self.VALUE = _value * 3
+    x: uint256 = self.VALUE + 1
     """
 ]
 
@@ -124,22 +151,13 @@ imm: immutable(uint256)
 @deploy
 def __init__(x: uint256):
     self.imm = x
-    """,
-        "Immutable variables must be accessed without 'self'",
-    ),
-    (
-        """
-imm: immutable(uint256)
-
-@deploy
-def __init__(x: uint256):
-    x = imm
 
 @external
-def report():
-    y: uint256 = imm + imm
+def report() -> uint256:
+    return imm
     """,
-        "Immutable definition requires an assignment in the constructor",
+        "'imm'",
+        "did you mean self.imm?",
     ),
     (
         """
@@ -148,13 +166,9 @@ imm: immutable(uint256)
 @deploy
 def __init__(x: uint256):
     imm = x
-
-@external
-def report():
-    y: uint256 = imm
-    z: uint256 = self.imm
     """,
-        "'imm' is not a storage variable, it should not be prepended with self",
+        "'imm'",
+        "did you mean self.imm?",
     ),
     (
         """
@@ -165,19 +179,36 @@ x: immutable(Foo)
 
 @deploy
 def __init__():
-    x = Foo(a=1)
+    self.x = Foo(a=1)
 
 @external
 def hello() :
-    x.a =  2
+    self.x.a =  2
     """,
         "Immutable value cannot be written to",
+        None,
+    ),
+    (
+        """
+VALUE: immutable(uint256)
+
+@deploy
+def __init__():
+    self.VALUE = 1
+
+@external
+def bump():
+    self.VALUE += 1
+    """,
+        "Immutable value cannot be written to",
+        None,
     ),
 ]
 
 
-@pytest.mark.parametrize(["bad_code", "message"], fail_list_with_messages)
-def test_compilation_fails_with_exception_message(bad_code: str, message: str):
+@pytest.mark.parametrize(["bad_code", "message", "hint"], fail_list_with_messages)
+def test_compilation_fails_with_exception_message(bad_code: str, message: str, hint: str | None):
     with pytest.raises(VyperException) as excinfo:
         compile_code(bad_code)
     assert excinfo.value.message == message
+    assert excinfo.value.hint == hint

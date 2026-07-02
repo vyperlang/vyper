@@ -380,11 +380,11 @@ MY_BYTES: immutable(Bytes[100])
 
 @deploy
 def __init__():
-    MY_BYTES = b"hello"
+    self.MY_BYTES = b"hello"
 
 @external
 def compare(x: Bytes[100]) -> bool:
-    return x == MY_BYTES
+    return x == self.MY_BYTES
     """
     c = get_contract(code)
     assert c.compare(b"hello") is True
