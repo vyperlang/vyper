@@ -68,6 +68,15 @@ class RedundantMemoryCopyForwardingPass(IRPass):
     def run_pass(self):
         changed = False
 
+        # Reuse the interprocedural readonly-param facts already used by the
+        # invoke forwarding passes. They let this pass reason about internal
+        # memory parameters whose concrete alloca is not visible pre-inlining.
+        # Force once per run: the pass only removes writes and redirects reads,
+        # so facts computed at pass entry stay conservatively sound throughout.
+        self.readonly_memory_args = self.analyses_cache.force_analysis(
+            ReadonlyMemoryArgsGlobalAnalysis
+        )
+
         while True:
             self._prepare()
             plan = self._find_forwardable_plan()
@@ -91,12 +100,6 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         self.updater = InstUpdater(self.dfg)
         self.copy_forwarding = CopyForwardingPolicy(
             self.function, self.dfg, self.base_ptr, self.mem_alias
-        )
-        # Reuse the interprocedural readonly-param facts already used by the
-        # invoke forwarding passes. They let this pass reason about internal
-        # memory parameters whose concrete alloca is not visible pre-inlining.
-        self.readonly_memory_args = self.analyses_cache.force_analysis(
-            ReadonlyMemoryArgsGlobalAnalysis
         )
         # Cycles in the root graph are "all params" for mutability analysis,
         # but this transform must fail closed: an unresolvable source is not
