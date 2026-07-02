@@ -1421,13 +1421,32 @@ class Expr:
         default_nodes = [kwarg.default_value for kwarg in unprovided_kwargs]
         all_arg_nodes = list(node.args) + default_nodes
 
-        # Evaluate arguments left-to-right and snapshot each value immediately.
-        # Final call staging still happens after every expression has run, but
-        # sources such as storage pointers must not be observed after later
-        # arguments with side effects.
+        # Evaluate arguments left-to-right and freeze each value immediately,
+        # so sources such as storage pointers are not observed after later
+        # arguments with side effects. Memory-passed arguments are staged into
+        # their callee buffer right here: the single copy doubles as the
+        # eval-order snapshot.
         arg_vals: list[VyperValue] = []
         for i, (arg_node, arg_t) in enumerate(zip(all_arg_nodes, func_t.arguments)):
             arg_vv = Expr(arg_node, self.ctx).lower()
+
+            if not pass_via_stack_dict[arg_t.name]:
+                if self.ctx.is_unbounded_sequence_type(
+                    arg_t.typ
+                ) or self.ctx.is_unbounded_sequence_type(arg_vv.typ):
+                    # Unbounded values need an owned runtime-sized snapshot.
+                    arg_vals.append(
+                        self.ctx.snapshot_value_for_delayed_use(
+                            arg_vv, arg_t.typ, annotation=arg_t.name, copy_composites=True
+                        )
+                    )
+                else:
+                    buf_val = self.ctx.new_temporary_value(arg_t.typ)
+                    assert isinstance(buf_val.operand, IRVariable)
+                    self.ctx.store_vyper_value(arg_vv, buf_val.operand, arg_t.typ)
+                    arg_vals.append(buf_val)
+                continue
+
             copy_composites = later_expressions_can_mutate_memory_or_storage(all_arg_nodes[i + 1 :])
             arg_vals.append(
                 self.ctx.snapshot_value_for_delayed_use(
@@ -1435,7 +1454,7 @@ class Expr:
                 )
             )
 
-        # Now allocate staging buffers and copy evaluated values
+        # Assemble invoke operands from the frozen values
         for i, arg_val in enumerate(arg_vals):
             arg_t = func_t.arguments[i]
             arg_op = self.ctx.unwrap(arg_val)
@@ -1449,20 +1468,10 @@ class Expr:
                     arg_op = self.builder.mload(arg_op)
                 invoke_args.append(arg_op)
             else:
-                # Memory-passed arg: pass a pointer to a stable memory snapshot.
+                # Memory-passed arg: pointer to the owned snapshot staged above.
                 # Backend passes can forward safe readonly bounded arguments.
-                if self.ctx.is_unbounded_sequence_type(arg_t.typ):
-                    # snapshot_value_for_delayed_use already copied this value.
-                    # Pass that stable snapshot directly instead of staging the
-                    # same buffer twice.
-                    assert isinstance(arg_op, IRVariable)
-                    invoke_args.append(arg_op)
-                    continue
-
-                buf_val = self.ctx.new_temporary_value(arg_t.typ)
-                assert isinstance(buf_val.operand, IRVariable)
-                self.ctx.store_vyper_value(arg_val, buf_val.operand, arg_t.typ)
-                invoke_args.append(buf_val.operand)
+                assert isinstance(arg_op, IRVariable)
+                invoke_args.append(arg_op)
 
         # Emit invoke instruction
         invoke_returns_count = returns_count + dynamic_returns_count
