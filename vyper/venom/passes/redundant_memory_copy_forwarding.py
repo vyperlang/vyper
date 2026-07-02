@@ -20,6 +20,7 @@ from vyper.venom.effects import EMPTY, Effects
 from vyper.venom.memory_location import Allocation, MemoryLocation, memory_read_ops
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.copy_forwarding import CopyForwardingPolicy
+from vyper.venom.passes.invoke_copy_forwarding_common import is_after
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
 # This pass runs before concrete memory layout and has no layout/lifetime cost
@@ -359,7 +360,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
 
         if use.get_read_effects() & Effects.MEMORY == EMPTY:
             return False
-        if not self._is_after(copy_inst, use):
+        if not is_after(self.domtree, copy_inst, use):
             return False
 
         read_idx = memory_read_ops(use).ofst_index
@@ -496,21 +497,11 @@ class RedundantMemoryCopyForwardingPass(IRPass):
             return False
         return self.base_ptr.pointer_may_include_untracked_root(src)
 
-    def _is_after(self, copy_inst: IRInstruction, use_inst: IRInstruction) -> bool:
-        copy_bb = copy_inst.parent
-        use_bb = use_inst.parent
-
-        if use_bb is copy_bb:
-            bb_insts = copy_bb.instructions
-            return bb_insts.index(use_inst) > bb_insts.index(copy_inst)
-
-        return self.domtree.dominates(copy_bb, use_bb)
-
     def _src_dominates_inst(self, src: IROperand, inst: IRInstruction) -> bool:
         # Does `src`'s definition dominate `inst`? Literals/constants have no
         # definition point and dominate everything. A variable with no
         # producing instruction is a function parameter (defined at entry),
-        # which also dominates everything. Mirrors `_is_after`'s within-BB
+        # which also dominates everything. Mirrors `is_after`'s within-BB
         # index ordering plus the dominator tree across blocks.
         if not isinstance(src, IRVariable):
             return True
