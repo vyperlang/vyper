@@ -1,4 +1,10 @@
-from vyper.venom.analysis import BasePtrAnalysis, DFGAnalysis, LivenessAnalysis, MemSSA
+from vyper.venom.analysis import (
+    BasePtrAnalysis,
+    DFGAnalysis,
+    LivenessAnalysis,
+    MemoryAliasAnalysis,
+    MemSSA,
+)
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
@@ -20,6 +26,9 @@ class LowerDloadPass(IRPass):
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
+        # invalidate MemoryAliasAnalysis directly: the MemSSA invalidation
+        # below only cascades to it when a MemSSA is actually cached
+        self.analyses_cache.invalidate_analysis(MemoryAliasAnalysis)
         self.analyses_cache.invalidate_analysis(MemSSA)
 
     def _handle_bb(self, bb: IRBasicBlock):
