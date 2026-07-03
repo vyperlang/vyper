@@ -32,7 +32,7 @@ _STORES = {"mstore": Effects.MEMORY, "sstore": Effects.STORAGE, "tstore": Effect
 
 # Type alias for copy tracking: maps memory location to the copy instruction
 CopyMap = dict[MemoryLocation, IRInstruction]
-TranslateMap = dict[Allocation, Allocation]
+TranslateMap = dict[Allocation, tuple[Allocation, IRInstruction]]
 
 
 class MemoryCopyElisionPass(IRPass):
@@ -323,7 +323,7 @@ class MemoryCopyElisionPass(IRPass):
         if read_loc.offset is None:
             return
 
-        new_base = translates[read_loc.alloca]
+        new_base = translates[read_loc.alloca][0]
 
         new_operand = new_base.inst.output
         if read_loc.offset != 0:
@@ -352,7 +352,7 @@ class MemoryCopyElisionPass(IRPass):
         if write_loc.offset is None:
             return
 
-        new_base = translates[write_loc.alloca]
+        new_base = translates[write_loc.alloca][0]
 
         new_operand = new_base.inst.output
         if write_loc.offset != 0:
@@ -397,30 +397,45 @@ class TranslateAnalysis(IRAnalysis):
         checked = OrderedSet()
 
         for translate_map in self._inst_translates.values():
+            #breakpoint()
             for translate in translate_map.items():
-                dst, src = translate
+                dst, data = translate
+                src, source = data
                 if dst in checked:
                     continue
 
                 dst_vars = self.base_ptr.vars_in_allocations[dst]
-                uses: OrderedSet[IRInstruction] = OrderedSet() 
+                uses: OrderedSet[IRInstruction] = OrderedSet()
+                all_ok = True
                 for var in dst_vars:
+                    possible = self.base_ptr.get_possible_ptrs(var).copy()
+                    if len(possible) != 1:
+                        all_ok = False
+                        break
+                    if possible.pop().offset is None:
+                        all_ok = False
+                        break
                     uses.addmany(self.dfg.get_uses(var))
+
+                if not all_ok:
+                    break
                 
                 for use in uses:
+                    if use == source:
+                        continue
                     if use.get_read_effects() | use.get_write_effects() == effects.EMPTY:
                         continue
                     
                     if dst not in self._inst_translates[use]:
                         break
 
-                    if self._inst_translates[use][dst] != src:
+                    if self._inst_translates[use][dst][0] != src:
                         break
                 else:
                     if dst in self.translates:
-                        assert self.translates[dst] == src
+                        assert self.translates[dst][0] == src
                     else:
-                        self.translates[dst] = src
+                        self.translates[dst] = (src, source)
 
 
 
@@ -429,17 +444,19 @@ class TranslateAnalysis(IRAnalysis):
         curr = self._merge_translates(bb)
 
         for inst in bb.instructions:
-            if inst.get_read_effects() | inst.get_write_effects() != effects.EMPTY:
-                self._inst_translates[inst] = curr.copy()
 
-            if inst.get_write_effects() != effects.EMPTY:
-                self._invalidate(curr, self.base_ptr.get_write_location(inst, addr_space.MEMORY))
+
 
             if inst.get_read_effects() != effects.EMPTY:
                 self._invalidate(curr, self.base_ptr.get_read_location(inst, addr_space.MEMORY))
 
             if inst.opcode == "mcopy":
                 self._try_create_translate(inst, curr)
+
+            if inst.get_write_effects() != effects.EMPTY:
+                self._invalidate(curr, self.base_ptr.get_write_location(inst, addr_space.MEMORY))
+            if inst.get_read_effects() | inst.get_write_effects() != effects.EMPTY:
+                self._inst_translates[inst] = curr.copy()
 
         old_translates = self.bb_translates.get(bb, None)
         if old_translates is None or old_translates != curr:
@@ -519,6 +536,6 @@ class TranslateAnalysis(IRAnalysis):
         if translates_to == write_loc.alloca:
             return
         while translates_to in curr:
-            translates_to = curr[translates_to]
-        curr[write_loc.alloca] = translates_to
+            translates_to, _ = curr[translates_to]
+        curr[write_loc.alloca] = (translates_to, inst)
 
