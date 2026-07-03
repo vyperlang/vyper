@@ -4,7 +4,6 @@ import dataclasses as dc
 from dataclasses import dataclass
 from typing import ClassVar, Optional
 
-from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand
 
 
@@ -289,51 +288,3 @@ def get_memory_read_op(inst) -> Optional[IROperand]:
 
 def get_read_size(inst: IRInstruction) -> Optional[IROperand]:
     return memory_read_ops(inst).size
-
-
-def update_write_location(inst, new_op: IROperand):
-    opcode = inst.opcode
-    if opcode == "mstore":
-        inst.operands[1] = new_op
-    elif opcode == "istore":
-        inst.operands[0] = new_op
-    elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
-        inst.operands[2] = new_op
-    elif opcode == "call":
-        inst.operands[1] = new_op
-    elif opcode in ("delegatecall", "staticcall"):
-        inst.operands[1] = new_op
-    elif opcode == "extcodecopy":
-        inst.operands[2] = new_op
-
-    else:  # pragma: nocover
-        raise CompilerPanic("unreachable")
-
-
-def update_read_location(inst, new_op: IROperand):
-    opcode = inst.opcode
-    if opcode == "mload":
-        inst.operands[0] = new_op
-    elif opcode == "iload":
-        inst.operands[0] = new_op
-    elif opcode == "mcopy":
-        inst.operands[1] = new_op
-    elif opcode == "call":
-        inst.operands[3] = new_op
-    elif opcode in ("delegatecall", "staticcall", "call"):
-        inst.operands[3] = new_op
-    elif opcode == "return":
-        inst.operands[1] = new_op
-    elif opcode == "create":
-        inst.operands[1] = new_op
-    elif opcode == "create2":
-        inst.operands[2] = new_op
-    elif opcode == "sha3":
-        inst.operands[1] = new_op
-    elif opcode == "log":
-        inst.operands[-1] = new_op
-    elif opcode == "revert":
-        inst.operands[1] = new_op
-
-    else:  # pragma: nocover
-        raise CompilerPanic("unreachable")
