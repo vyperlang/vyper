@@ -766,10 +766,16 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                 wrong_assignments = self.ast.get_descendants(
                     vy_ast.Assign, filters={"target.id": name}
                 )
-                if wrong_assignments:
+
+                err_list = ExceptionList()
+
+                for wrong_assignment in wrong_assignments:
                     # same error that would be raised later
-                    node = wrong_assignments[0].target
-                    raise InvalidReference(f"'{name}'", node, hint=f"did you mean self.{name}?")
+                    node = wrong_assignment.target
+
+                    err_list.append(InvalidReference(f"'{name}'", node, hint=f"did you mean self.{name}?"))
+                
+                err_list.raise_if_not_empty()
 
                 message = "Immutable definition requires an assignment in the constructor"
                 raise ImmutableViolation(message, node)
