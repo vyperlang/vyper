@@ -75,6 +75,11 @@ class RedundantMemoryCopyForwardingPass(IRPass):
             ReadonlyMemoryArgsGlobalAnalysis
         )
 
+        # TODO: this restarts analysis per forwarded copy (K copies cost K+1
+        # full analysis rebuilds). Batching non-interacting plans per rebuild
+        # would need disjointness checks between plans: a plan's read site can
+        # itself be another candidate mcopy, and alias rewrites change
+        # BasePtr facts.
         while True:
             self._prepare()
             plan = self._find_forwardable_plan()
