@@ -56,9 +56,12 @@ class MemoryCopyElisionPass(IRPass):
                     if succ not in worklist:
                         worklist.append(succ)
 
-        # Invalidate analyses that may be affected by IR modifications
+        # Invalidate analyses that may be affected by IR modifications.
+        # MemoryAliasAnalysis captures the DFG instance it was built with, so
+        # it must not outlive the DFG invalidation below.
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
+        self.analyses_cache.invalidate_analysis(MemoryAliasAnalysis)
 
     def _merge_copies(self, bb: IRBasicBlock) -> CopyMap:
         """Merge copy info from all predecessors using intersection semantics."""
