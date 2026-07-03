@@ -1421,6 +1421,9 @@ class PowMod256(BuiltinFunctionT):
             raise UnfoldableNode
 
         left, right = values
+        if left.value < 0 or right.value < 0:
+            # proper error will be raised later, for now just fail folding
+            raise UnfoldableNode()
         value = pow(left.value, right.value, 2**256)
         return vy_ast.Int.from_node(node, value=value)
 
