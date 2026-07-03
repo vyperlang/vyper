@@ -234,9 +234,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
                 if self._is_allowed_pointer_use(use, root, alias_rewrites.keys()):
                     continue
                 if self.base_ptr.instruction_derives_pointer_from(use, root):
-                    if not self.base_ptr.pointer_uses_may_touch(
-                        use.output, dst_loc, self.mem_alias, self.dfg
-                    ):
+                    if not self.mem_alias.pointer_uses_may_touch(use.output, dst_loc):
                         continue
                     return None
                 if self._is_allowed_memory_read_use(use, pos, copy_inst, dst_alloca, dst_loc):
