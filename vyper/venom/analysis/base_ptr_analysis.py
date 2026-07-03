@@ -368,6 +368,10 @@ class BasePtrAnalysis(IRAnalysis):
         tracked allocation on some phi/assign path (e.g. a param or
         calldata-derived pointer). Fails closed (True) on def cycles.
         """
+        # a variable with no pointer facts at all is itself an untracked
+        # root; the recursive walk assumes its callers guard on this.
+        if len(self.get_possible_ptrs(var)) == 0:
+            return True
         return self._pointer_may_include_untracked_root_r(var)
 
     def _pointer_may_include_untracked_root_r(self, var: IRVariable) -> bool:
