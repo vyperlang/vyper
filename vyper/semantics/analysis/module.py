@@ -773,8 +773,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
                     # same error that would be raised later
                     node = wrong_assignment.target
 
-                    err_list.append(InvalidReference(f"'{name}'", node, hint=f"did you mean self.{name}?"))
-                
+                    err_list.append(
+                        InvalidReference(f"'{name}'", node, hint=f"did you mean self.{name}?")
+                    )
+
                 err_list.raise_if_not_empty()
 
                 message = "Immutable definition requires an assignment in the constructor"
