@@ -97,6 +97,7 @@ def _finish_abi_encoded_bytes(
     method_id: Optional[int],
     encode_fn: Callable[[IRVariable], IROperand],
     add_fn: Callable[[IROperand, IROperand], IROperand],
+    zero_tail_padding: bool = False,
 ) -> None:
     b = ctx.builder
     if method_id is not None:
@@ -106,6 +107,15 @@ def _finish_abi_encoded_bytes(
         b.mstore(b.add(buf_ptr, IRLiteral(32)), IRLiteral(method_id_word))
         data_dst = b.add(buf_ptr, IRLiteral(36))
         encoded_len = encode_fn(data_dst)
+        if zero_tail_padding:
+            # encoded_len is a word multiple, so with the 4-byte method_id
+            # prefix the value's last word spans [buf+32+encoded_len,
+            # buf+64+encoded_len): 4 data bytes followed by 28 padding bytes
+            # of scratch memory. Zero the padding bytes; they can hold stale
+            # data when the allocation size over-estimated encoded_len.
+            last_word_ptr = b.add(b.add(buf_ptr, IRLiteral(32)), encoded_len)
+            keep_data_mask = IRLiteral(((1 << 32) - 1) << 224)
+            b.mstore(last_word_ptr, b.and_(b.mload(last_word_ptr), keep_data_mask))
         total_len = add_fn(encoded_len, IRLiteral(4))
         b.mstore(buf_ptr, total_len)
     else:
@@ -196,14 +206,22 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             alloc_size = ctx.checked_add(alloc_size, IRLiteral(4))
 
         buf_ptr = ctx.allocate_scratch(ctx.checked_add(alloc_size, IRLiteral(32)))
-        # Safe margin: buf is exactly `[length word] + alloc_size`, and the
-        # padding zero write lands at `buf_ptr + ceil32(alloc_size)`.
-        ctx.zero_bytestring_padding(buf_ptr, alloc_size)
+        if method_id is None:
+            # Safe margin: buf is exactly `[length word] + alloc_size`, and the
+            # padding zero write lands at `buf_ptr + ceil32(alloc_size)`.
+            #
+            # With method_id, `alloc_size` can over-estimate the runtime
+            # encoded length (bounded dynamic args are sized by their bound),
+            # so this write can land past the value's actual last word;
+            # _finish_abi_encoded_bytes zeroes the tail padding instead.
+            ctx.zero_bytestring_padding(buf_ptr, alloc_size)
 
         def encode_unbounded(dst: IRVariable) -> IROperand:
             return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type)
 
-        _finish_abi_encoded_bytes(ctx, buf_ptr, method_id, encode_unbounded, ctx.checked_add)
+        _finish_abi_encoded_bytes(
+            ctx, buf_ptr, method_id, encode_unbounded, ctx.checked_add, zero_tail_padding=True
+        )
 
         return ctx.dynamic_memory_value(buf_ptr, node._metadata["type"], annotation="abi_encode")
 

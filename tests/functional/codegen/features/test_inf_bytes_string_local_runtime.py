@@ -1051,6 +1051,30 @@ def enc(x: Bytes[INF]) -> Bytes[INF]:
     assert abi_decode("(bytes)", ret) == (expected,)
 
 
+def test_inf_bytes_abi_encode_method_id_bounded_dynarray_below_bound(env):
+    # the allocation size uses the DynArray bound while the actual encoding
+    # uses the runtime length, so the encoded length is smaller than the
+    # allocation estimate; the result must still be an exact encoding with
+    # clean tail padding after the 4-byte method_id prefix.
+    payload = b"\xff" * 300
+    code = """
+@internal
+def _dirty(x: Bytes[INF]) -> uint256:
+    y: Bytes[INF] = abi_encode(x, x)
+    return len(y)
+
+@external
+def enc(x: Bytes[INF], d: DynArray[uint256, 4]) -> Bytes[INF]:
+    assert self._dirty(x) > 0
+    return abi_encode(x, d, method_id=0xa1b2c3d4)
+    """
+
+    c = _deploy_venom(env, code)
+    ret = _call(env, c, "enc(bytes,uint256[])", "(bytes,uint256[])", (payload, [7]))
+    expected = b"\xa1\xb2\xc3\xd4" + abi_encode("(bytes,uint256[])", (payload, [7]))
+    assert ret == abi_encode("(bytes)", (expected,))
+
+
 def test_inf_string_abi_encode_default_tuple(env):
     payload = "abi string " * 170 + "tail"
     code = """

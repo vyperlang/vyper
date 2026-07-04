@@ -376,3 +376,70 @@ def join(x: Bytes[INF]) -> Bytes[INF]:
     control_depths = _dalloca_size_add32_depths(_compile_frontend_ir(control))
     assert len(bytesm_depths) == len(control_depths)
     assert sum(bytesm_depths) == sum(control_depths) + 1
+
+
+def _has_tail_padding_mask_store(ctx):
+    """Find mstore(ptr, and(mload(ptr), 0xffffffff << 224)).
+
+    This is the masked store that re-zeroes the 28 padding bytes after the
+    last 4 data bytes of an INF abi_encode result with a method_id prefix.
+    """
+    keep_data_mask = ((1 << 32) - 1) << 224
+    for fn in ctx.functions.values():
+        definitions = {}
+        for bb in fn.get_basic_blocks():
+            for inst in bb.instructions:
+                for out in inst.get_outputs():
+                    definitions[out] = inst
+        for bb in fn.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.opcode != "mstore":
+                    continue
+                for val_op in inst.operands:
+                    ptr_ops = [op for op in inst.operands if op is not val_op]
+                    and_inst = definitions.get(val_op)
+                    if and_inst is None or and_inst.opcode != "and":
+                        continue
+                    if not any(
+                        isinstance(op, IRLiteral) and op.value == keep_data_mask
+                        for op in and_inst.operands
+                    ):
+                        continue
+                    for and_op in and_inst.operands:
+                        mload_inst = definitions.get(and_op)
+                        if mload_inst is None or mload_inst.opcode != "mload":
+                            continue
+                        if mload_inst.operands[0] in ptr_ops:
+                            return True
+    return False
+
+
+def test_inf_abi_encode_method_id_zeroes_tail_padding_at_runtime_length():
+    # with a method_id prefix, the encoded value's last word holds 4 data
+    # bytes followed by 28 padding bytes at buf+32+encoded_len. encoded_len
+    # is only known at runtime and can be smaller than the allocation
+    # estimate (bounded dynamic args are sized by their bound), so the
+    # padding must be zeroed relative to the runtime encoded length, via a
+    # masked read-modify-write of that word. differential vs the same encode
+    # without method_id, whose total length is a word multiple and has no
+    # partial last word.
+    with_method_id = """
+@external
+def enc(x: Bytes[INF], d: DynArray[uint256, 4]) -> Bytes[INF]:
+    return abi_encode(x, d, method_id=0xa1b2c3d4)
+    """
+    without_method_id = """
+@external
+def enc(x: Bytes[INF], d: DynArray[uint256, 4]) -> Bytes[INF]:
+    return abi_encode(x, d)
+    """
+    bounded = """
+@external
+def enc(x: Bytes[32], d: DynArray[uint256, 4]) -> Bytes[300]:
+    return abi_encode(x, d, method_id=0xa1b2c3d4)
+    """
+
+    assert _has_tail_padding_mask_store(_compile_frontend_ir(with_method_id))
+    assert not _has_tail_padding_mask_store(_compile_frontend_ir(without_method_id))
+    # bounded path is unchanged (no masked store there)
+    assert not _has_tail_padding_mask_store(_compile_frontend_ir(bounded))
