@@ -49,7 +49,13 @@ def _validate_legacy_codegen_no_unbounded_sequences(module_t: ModuleT) -> None:
                 raise CompilerPanic("constant missing declaration node")
             _reject_legacy_unbounded_sequence(var_info.typ, var_info.decl_node.annotation)
 
-    for func_t in module_t.functions.values():
+    # legacy codegen compiles all functions reachable from the compilation
+    # target's entry points, including functions defined in imported modules;
+    # validate that same set (plus the target module's own functions).
+    functions = list(module_t.functions.values())
+    functions.extend(f for f in module_t.reachable_functions if f not in functions)
+
+    for func_t in functions:
         for arg in func_t.arguments:
             if arg.ast_source is None:  # pragma: nocover
                 raise CompilerPanic("function argument missing declaration node")

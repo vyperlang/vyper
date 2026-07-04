@@ -4,7 +4,13 @@ import pytest
 
 from vyper import compiler
 from vyper.compiler.settings import Settings
-from vyper.exceptions import InvalidType, StructureException, TypeMismatch, UndeclaredDefinition
+from vyper.exceptions import (
+    InvalidType,
+    StateAccessViolation,
+    StructureException,
+    TypeMismatch,
+    UndeclaredDefinition,
+)
 from vyper.semantics.types import INF, BytesT, DArrayT, StringT
 from vyper.semantics.types.infinity import WILDCARD, Inf, Wildcard
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -687,6 +693,72 @@ def foo() -> uint256:
     """
     with pytest.raises(StructureException):
         compiler.compile_code(code, settings=Settings(experimental_codegen=False))
+
+
+def test_exported_inf_function_legacy_requires_experimental_codegen(make_input_bundle):
+    lib = """
+@external
+def foo() -> uint256:
+    x: Bytes[INF] = b"hi"
+    return len(x)
+    """
+    code = """
+import lib
+
+exports: lib.foo
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib})
+    with pytest.raises(StructureException):
+        compiler.compile_code(
+            code, input_bundle=input_bundle, settings=Settings(experimental_codegen=False)
+        )
+    compiler.compile_code(
+        code,
+        output_formats=["bytecode"],
+        input_bundle=input_bundle,
+        settings=Settings(experimental_codegen=True),
+    )
+
+
+def test_imported_inf_function_call_legacy_requires_experimental_codegen(make_input_bundle):
+    lib = """
+@internal
+def helper() -> uint256:
+    x: Bytes[INF] = b"hi"
+    return len(x)
+    """
+    code = """
+import lib
+
+@external
+def foo() -> uint256:
+    return lib.helper()
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib})
+    with pytest.raises(StructureException):
+        compiler.compile_code(
+            code, input_bundle=input_bundle, settings=Settings(experimental_codegen=False)
+        )
+    compiler.compile_code(
+        code,
+        output_formats=["bytecode"],
+        input_bundle=input_bundle,
+        settings=Settings(experimental_codegen=True),
+    )
+
+
+@pytest.mark.parametrize("exp_codegen", [False, True])
+def test_inf_default_arg_expression_rejected(exp_codegen):
+    # default argument expressions may only be literals or environment
+    # variables, so INF-typed expressions cannot appear in defaults with
+    # a bounded arg type; INF-typed args are covered by the argument checks
+    code = """
+@external
+def foo(x: uint256 = len(empty(Bytes[INF]))) -> uint256:
+    return x
+    """
+    with pytest.raises(StateAccessViolation):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=exp_codegen))
 
 
 def test_legacy_codegen_allows_bounded_local_user_type():
