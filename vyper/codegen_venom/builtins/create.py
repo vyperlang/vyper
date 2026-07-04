@@ -596,8 +596,10 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         raw_arg_typ = ctor_arg_nodes[0]._metadata["type"]
         runtime_args = type_contains_unbounded_sequence(raw_arg_typ)
         raw_arg_vv = Expr(ctor_arg_nodes[0], ctx).lower()
+        later_nodes = [n for n in (value_node, salt_node, code_offset_node) if n is not None]
+        copy_composites = later_expressions_can_mutate_memory_or_storage(later_nodes)
         raw_arg_vv = ctx.snapshot_value_for_delayed_use(
-            raw_arg_vv, raw_arg_typ, annotation="ctor_arg", copy_composites=True
+            raw_arg_vv, raw_arg_typ, annotation="ctor_arg", copy_composites=copy_composites
         )
         raw_arg = ctx.unwrap(raw_arg_vv)
         assert isinstance(raw_arg, IRVariable)
