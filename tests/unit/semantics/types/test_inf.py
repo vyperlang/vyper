@@ -695,6 +695,75 @@ def foo() -> uint256:
         compiler.compile_code(code, settings=Settings(experimental_codegen=False))
 
 
+@pytest.mark.parametrize(
+    "code",
+    [
+        """
+@external
+def foo(x: address) -> bytes32:
+    return keccak256(x.code)
+        """,
+        """
+@external
+def foo(x: address) -> Bytes[32]:
+    return raw_call(0x0000000000000000000000000000000000000004, x.code, max_outsize=32)
+        """,
+        """
+interface Foo:
+    def f() -> Bytes[...]: view
+
+@external
+def bar(a: address) -> uint256:
+    return len(staticcall Foo(a).f())
+        """,
+    ],
+)
+def test_inf_valued_expression_legacy_requires_experimental_codegen(code):
+    with pytest.raises(StructureException):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=False))
+
+    # the same code compiles with the venom pipeline
+    compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        """
+@external
+def foo() -> uint256:
+    return len(msg.data)
+        """,
+        """
+@external
+def foo() -> Bytes[4]:
+    return slice(msg.data, 0, 4)
+        """,
+        """
+@external
+def foo(x: address) -> Bytes[4]:
+    return slice(x.code, 0, 4)
+        """,
+        """
+@external
+def foo() -> Bytes[4]:
+    return slice(self.code, 0, 4)
+        """,
+        """
+@external
+@payable
+def foo(target: address) -> Bytes[32]:
+    return raw_call(target, msg.data, max_outsize=32)
+        """,
+    ],
+)
+def test_adhoc_bytes_sources_allowed_in_legacy(code):
+    # msg.data, self.code and <address>.code have special legacy lowerings
+    # inside len()/slice()/raw_call() which never materialize an unbounded
+    # sequence value
+    compiler.compile_code(code, settings=Settings(experimental_codegen=False))
+
+
 def test_exported_inf_function_legacy_requires_experimental_codegen(make_input_bundle):
     lib = """
 @external
