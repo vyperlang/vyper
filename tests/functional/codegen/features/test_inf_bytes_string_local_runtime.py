@@ -1393,6 +1393,38 @@ def to_bool(x: Bytes[INF]) -> bool:
         _call(env, c, "to_bytes4(bytes)", "(bytes)", (b"abcde",))
 
 
+def test_empty_inf_bytes_signed_convert(env):
+    # empty INF bytestrings allocate only the length word; the data word
+    # position may hold garbage from previously reclaimed scratch memory.
+    # sar of that garbage must not leak into the conversion result.
+    code = """
+@internal
+def _dirty_scratch(a: Bytes[INF]) -> bytes32:
+    t: Bytes[INF] = concat(a, a)
+    return keccak256(t)
+
+@external
+def to_int256(a: Bytes[INF], n: uint256) -> int256:
+    h: bytes32 = self._dirty_scratch(a)
+    x: Bytes[INF] = slice(a, 0, n)
+    return convert(x, int256)
+
+@external
+def to_decimal(a: Bytes[INF], n: uint256) -> decimal:
+    h: bytes32 = self._dirty_scratch(a)
+    x: Bytes[INF] = slice(a, 0, n)
+    return convert(x, decimal)
+    """
+
+    c = _deploy_venom(env, code)
+    # dirty scratch memory with 0xff words, then convert an empty slice
+    dirt = b"\xff" * 32
+    ret = _call(env, c, "to_int256(bytes,uint256)", "(bytes,uint256)", (dirt, 0))
+    assert abi_decode("(int256)", ret) == (0,)
+    ret = _call(env, c, "to_decimal(bytes,uint256)", "(bytes,uint256)", (dirt, 0))
+    assert abi_decode("(int168)", ret) == (0,)
+
+
 def test_inf_bytes_string_print(env):
     payload = bytes((i * 63) % 256 for i in range(2001))
     text = "print string " * 170 + "tail"
