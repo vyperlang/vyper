@@ -79,10 +79,8 @@ from vyper.semantics.types import (
     SArrayT,
     StringT,
     TupleT,
+    _BytestringT,
     is_bounded_length,
-)
-from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.infinity import (
     is_unbounded_sequence_type,
     type_contains_nested_unbounded_sequence,
     type_contains_unbounded_sequence,

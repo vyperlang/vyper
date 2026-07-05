@@ -20,10 +20,16 @@ from vyper.codegen_venom.abi import (
 from vyper.codegen_venom.arithmetic import apply_binop
 from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types import VyperType
-from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types import (
+    VyperType,
+    _BytestringT,
+    is_bounded_length,
+    is_unbounded_bytestring_type,
+    is_unbounded_dynarray_type,
+    is_unbounded_sequence_type,
+    type_contains_unbounded_sequence,
+)
 from vyper.semantics.types.function import ContractFunctionT
-from vyper.semantics.types.infinity import is_bounded_length, type_contains_unbounded_sequence
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.types.user import ErrorT, EventT, StructT
 from vyper.utils import method_id_int
@@ -75,7 +81,7 @@ class Stmt:
         # AnnAssign always has a value in Vyper (semantic analysis ensures this)
         assert node.value is not None
 
-        if self.ctx.is_unbounded_sequence_type(ltyp):
+        if is_unbounded_sequence_type(ltyp):
             rhs = Expr(node.value, self.ctx).lower()
             var = self.ctx.new_pointer_cell_variable(varname, ltyp)
             self._assign_unbounded_sequence_local(var, rhs, ltyp)
@@ -136,7 +142,7 @@ class Stmt:
     def _assign_unbounded_sequence_local(self, var: LocalVariable, src: VyperValue, typ: VyperType):
         if not var.is_pointer_cell:  # pragma: nocover
             raise CompilerPanic("unbounded sequence local requires pointer-cell storage")
-        if not self.ctx.is_unbounded_sequence_type(typ):  # pragma: nocover
+        if not is_unbounded_sequence_type(typ):  # pragma: nocover
             raise CompilerPanic(f"expected unbounded sequence type, got {typ}")
         value = self.ctx.copy_sequence_to_scratch(src, typ, annotation=var.name)
         self.ctx.ptr_store(var.value.ptr(), value.operand)
@@ -297,7 +303,7 @@ class Stmt:
             if isinstance(target_node, vy_ast.Name) and target_node.id in self.ctx.variables:
                 var = self.ctx.lookup(target_node.id)
                 if var.is_pointer_cell:
-                    assert self.ctx.is_unbounded_sequence_type(dst_elem_typ)
+                    assert is_unbounded_sequence_type(dst_elem_typ)
                     assert isinstance(val, IRVariable)
                     src_vv = self.ctx.dynamic_memory_value(
                         val, src_elem_typ, annotation=target_node.id
@@ -329,7 +335,7 @@ class Stmt:
             if isinstance(target_node, vy_ast.Name) and target_node.id in self.ctx.variables:
                 var = self.ctx.lookup(target_node.id)
                 if var.is_pointer_cell:
-                    assert self.ctx.is_unbounded_sequence_type(dst_elem_typ)
+                    assert is_unbounded_sequence_type(dst_elem_typ)
                     self._assign_unbounded_sequence_local(var, src_vv, dst_elem_typ)
                     continue
 
@@ -1009,10 +1015,10 @@ class Stmt:
         """
         target_has_nested_inf = type_contains_unbounded_sequence(
             target_typ
-        ) and not self.ctx.is_unbounded_sequence_type(target_typ)
+        ) and not is_unbounded_sequence_type(target_typ)
         source_has_nested_inf = type_contains_unbounded_sequence(
             arg_vv.typ
-        ) and not self.ctx.is_unbounded_sequence_type(arg_vv.typ)
+        ) and not is_unbounded_sequence_type(arg_vv.typ)
         if target_has_nested_inf or source_has_nested_inf:
             raise CompilerPanic(
                 "semantic analysis should reject nested INF tuple returns"
@@ -1114,9 +1120,7 @@ class Stmt:
             return self.ctx.bytestring_runtime_size(member_ptr)
 
         if isinstance(dst_typ, DArrayT) and isinstance(src_typ, DArrayT):
-            if self.ctx.is_unbounded_dynarray_type(dst_typ) or self.ctx.is_unbounded_dynarray_type(
-                src_typ
-            ):
+            if is_unbounded_dynarray_type(dst_typ) or is_unbounded_dynarray_type(src_typ):
                 return self.ctx.dynarray_runtime_size(member_ptr, dst_typ)
             return IRLiteral(src_typ.memory_bytes_required)
 
@@ -1197,7 +1201,7 @@ class Stmt:
     def _emit_external_unbounded_sequence_return(
         self, ret_val: IRVariable, ret_typ: VyperType, external_return_type: VyperType
     ) -> None:
-        assert self.ctx.is_unbounded_sequence_type(ret_typ)
+        assert is_unbounded_sequence_type(ret_typ)
 
         ret_vv = self.ctx.dynamic_memory_value(ret_val, ret_typ, annotation="return")
         tail_len = runtime_abi_size_for_encode(self.ctx, [ret_vv], ret_typ)
@@ -1250,7 +1254,7 @@ class Stmt:
         # Raw return: return bytes directly without ABI encoding
         # The @raw_return decorator bypasses ABI encoding for proxy patterns
         if func_t.do_raw_return:
-            if self.ctx.is_unbounded_bytestring_type(ret_typ):
+            if is_unbounded_bytestring_type(ret_typ):
                 assert isinstance(ret_val, IRVariable)
                 return_len = self.builder.mload(ret_val)
                 return_offset = self.builder.add(ret_val, IRLiteral(32))
@@ -1287,7 +1291,7 @@ class Stmt:
             assert ret_src_typ is not None
             encode_typ = calculate_type_for_external_return(ret_src_typ)
 
-        if self.ctx.is_unbounded_sequence_type(ret_typ):
+        if is_unbounded_sequence_type(ret_typ):
             assert isinstance(ret_val, IRVariable)
             self._emit_external_unbounded_sequence_return(ret_val, ret_typ, external_return_type)
             return

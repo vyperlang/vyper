@@ -39,14 +39,21 @@ def is_bounded_length(_lengthval: LengthUpperBound) -> TypeGuard[int]:
     return _lengthval is not INF and _lengthval is not WILDCARD
 
 
-def is_unbounded_sequence_type(typ) -> bool:
-    """Return True if `typ` is a direct Bytes/String/DynArray with INF length."""
-    if getattr(typ, "_is_bytestring", False):
-        return getattr(typ, "length", None) is INF
+def is_unbounded_bytestring_type(typ) -> bool:
+    """Return True if `typ` is a Bytes/String with INF length."""
+    return getattr(typ, "_is_bytestring", False) and getattr(typ, "length", None) is INF
 
+
+def is_unbounded_dynarray_type(typ) -> bool:
+    """Return True if `typ` is a DynArray with INF length."""
     return (
         getattr(typ, "typeclass", None) == "dynamic_array" and getattr(typ, "length", None) is INF
     )
+
+
+def is_unbounded_sequence_type(typ) -> bool:
+    """Return True if `typ` is a direct Bytes/String/DynArray with INF length."""
+    return is_unbounded_bytestring_type(typ) or is_unbounded_dynarray_type(typ)
 
 
 def is_supported_unbounded_tuple_type(typ) -> bool:

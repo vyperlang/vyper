@@ -23,8 +23,13 @@ from vyper.codegen_venom.eval_order import later_expressions_can_mutate_memory_o
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types import BytesT, TupleT, VyperType
-from vyper.semantics.types.infinity import type_contains_unbounded_sequence
+from vyper.semantics.types import (
+    BytesT,
+    TupleT,
+    VyperType,
+    is_unbounded_sequence_type,
+    type_contains_unbounded_sequence,
+)
 from vyper.utils import fourbytes_to_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -237,7 +242,7 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     data_ptr = b.add(data, IRLiteral(32))  # Data starts after length word
     hi = b.add(data_ptr, data_len)
 
-    if ctx.is_unbounded_sequence_type(output_typ):
+    if is_unbounded_sequence_type(output_typ):
         no_hi_wrap = b.iszero(b.lt(hi, data_ptr))
         b.assert_(no_hi_wrap)
 

@@ -26,8 +26,15 @@ from vyper.codegen_venom.eval_order import later_expressions_can_mutate_memory_o
 from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, EvmVersionException
-from vyper.semantics.types import BytesT, DecimalT, IntegerT, StringT, TupleT
-from vyper.semantics.types.infinity import INF, type_contains_unbounded_sequence
+from vyper.semantics.types import (
+    INF,
+    BytesT,
+    DecimalT,
+    IntegerT,
+    StringT,
+    TupleT,
+    type_contains_unbounded_sequence,
+)
 from vyper.utils import DECIMAL_DIVISOR, method_id_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 

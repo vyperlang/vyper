@@ -11,30 +11,19 @@ from __future__ import annotations
 
 from vyper.codegen.core import is_tuple_like
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types import VyperType
-from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.infinity import INF, is_supported_unbounded_tuple_type
-from vyper.semantics.types.infinity import is_unbounded_sequence_type as _is_unbounded_sequence_type
-from vyper.semantics.types.infinity import type_contains_unbounded_sequence
-from vyper.semantics.types.subscriptable import DArrayT, TupleT
+from vyper.semantics.types import (
+    VyperType,
+    is_supported_unbounded_tuple_type,
+    is_unbounded_sequence_type,
+    type_contains_unbounded_sequence,
+)
+from vyper.semantics.types.subscriptable import TupleT
 
 # Maximum number of word-type arguments passed via the stack.
 MAX_STACK_ARGS = 6
 
 # Maximum number of word-type return values passed via the stack (for tuples).
 MAX_STACK_RETURNS = 2
-
-
-def is_unbounded_bytestring_type(typ: VyperType | None) -> bool:
-    return isinstance(typ, _BytestringT) and typ.length is INF
-
-
-def is_unbounded_dynarray_type(typ: VyperType | None) -> bool:
-    return isinstance(typ, DArrayT) and typ.length is INF
-
-
-def is_unbounded_sequence_type(typ: VyperType | None) -> bool:
-    return _is_unbounded_sequence_type(typ)
 
 
 def is_dynamic_tuple_return_type(typ: VyperType | None) -> bool:

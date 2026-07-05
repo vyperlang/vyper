@@ -27,8 +27,8 @@ from vyper.semantics.types import (
     TupleT,
     VyperType,
     _BytestringT,
+    is_bounded_length,
 )
-from vyper.semantics.types.infinity import is_bounded_length
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.subscriptable import SArrayT
 from vyper.semantics.types.user import FlagT

@@ -30,7 +30,13 @@ from vyper.compiler.settings import Settings, _opt_codesize, _opt_none
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types import TupleT, VyperType
+from vyper.semantics.types import (
+    TupleT,
+    VyperType,
+    is_unbounded_bytestring_type,
+    is_unbounded_dynarray_type,
+    is_unbounded_sequence_type,
+)
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.subscriptable import DArrayT
@@ -1085,7 +1091,7 @@ def _get_abi_arg_ptr(
 def _materialize_unbounded_bytestring_abi_arg(
     ctx: VenomCodegenContext, name: str, typ: VyperType, src: VyperValue
 ) -> VyperValue:
-    assert ctx.is_unbounded_bytestring_type(typ)
+    assert is_unbounded_bytestring_type(typ)
     assert src.location is not None, "src must have a location for ABI decoding"
 
     hi = _abi_arg_hi(ctx, src.location)
@@ -1114,7 +1120,7 @@ def _materialize_unbounded_bytestring_abi_arg(
 def _materialize_unbounded_dynarray_abi_arg(
     ctx: VenomCodegenContext, name: str, typ: DArrayT, src: VyperValue
 ) -> VyperValue:
-    assert ctx.is_unbounded_dynarray_type(typ)
+    assert is_unbounded_dynarray_type(typ)
     assert src.location is not None, "src must have a location for ABI decoding"
 
     hi = _abi_arg_hi(ctx, src.location)
@@ -1124,17 +1130,17 @@ def _materialize_unbounded_dynarray_abi_arg(
 def _materialize_unbounded_sequence_abi_arg(
     ctx: VenomCodegenContext, name: str, typ: VyperType, src: VyperValue
 ) -> VyperValue:
-    if ctx.is_unbounded_bytestring_type(typ):
+    if is_unbounded_bytestring_type(typ):
         return _materialize_unbounded_bytestring_abi_arg(ctx, name, typ, src)
 
-    if isinstance(typ, DArrayT) and ctx.is_unbounded_dynarray_type(typ):
+    if isinstance(typ, DArrayT) and is_unbounded_dynarray_type(typ):
         return _materialize_unbounded_dynarray_abi_arg(ctx, name, typ, src)
 
     raise CompilerPanic(f"expected unbounded sequence type, got {typ}")  # pragma: nocover
 
 
 def _register_abi_arg_from_src(ctx: VenomCodegenContext, arg, elem_src: VyperValue) -> None:
-    if ctx.is_unbounded_sequence_type(arg.typ):
+    if is_unbounded_sequence_type(arg.typ):
         val = _materialize_unbounded_sequence_abi_arg(ctx, arg.name, arg.typ, elem_src)
         assert isinstance(val.operand, IRVariable)
         ctx.register_dynamic_variable(arg.name, arg.typ, val.operand, mutable=False)
@@ -1153,7 +1159,7 @@ def _register_abi_arg_from_src(ctx: VenomCodegenContext, arg, elem_src: VyperVal
 def _store_abi_arg_to_existing_ptr(
     ctx: VenomCodegenContext, dst: IRVariable, arg, elem_src: VyperValue
 ) -> None:
-    if ctx.is_unbounded_sequence_type(arg.typ):
+    if is_unbounded_sequence_type(arg.typ):
         val = _materialize_unbounded_sequence_abi_arg(ctx, arg.name, arg.typ, elem_src)
         ctx.builder.mstore(dst, val.operand)
         return
@@ -1163,7 +1169,7 @@ def _store_abi_arg_to_existing_ptr(
 
 
 def _register_default_arg(ctx: VenomCodegenContext, arg, default_node: vy_ast.VyperNode) -> None:
-    if ctx.is_unbounded_sequence_type(arg.typ):
+    if is_unbounded_sequence_type(arg.typ):
         default_vv = Expr(default_node, ctx).lower()
         val = ctx.copy_sequence_to_scratch(default_vv, arg.typ, annotation=arg.name)
         assert isinstance(val.operand, IRVariable)
@@ -1184,7 +1190,7 @@ def _register_default_arg(ctx: VenomCodegenContext, arg, default_node: vy_ast.Vy
 def _store_default_arg_to_existing_ptr(
     ctx: VenomCodegenContext, dst: IRVariable, arg, default_node: vy_ast.VyperNode
 ) -> None:
-    if ctx.is_unbounded_sequence_type(arg.typ):
+    if is_unbounded_sequence_type(arg.typ):
         default_vv = Expr(default_node, ctx).lower()
         val = ctx.copy_sequence_to_scratch(default_vv, arg.typ, annotation=arg.name)
         ctx.builder.mstore(dst, val.operand)
@@ -1265,7 +1271,7 @@ def _create_kwarg_allocas(
 
     kwarg_vars: dict[str, IRVariable] = {}
     for arg in func_t.keyword_args:
-        if VenomCodegenContext.is_unbounded_sequence_type(arg.typ):
+        if is_unbounded_sequence_type(arg.typ):
             size = 32
         else:
             size = arg.typ.memory_bytes_required
@@ -1349,7 +1355,7 @@ def _register_kwarg_variables(ctx: VenomCodegenContext, func_t: ContractFunction
         alloca_ptr = kwarg_vars[arg.name]
 
         # Register as a variable pointing to the existing alloca (no new allocation)
-        if ctx.is_unbounded_sequence_type(arg.typ):
+        if is_unbounded_sequence_type(arg.typ):
             ctx.register_pointer_cell_variable(arg.name, arg.typ, alloca_ptr, mutable=False)
         else:
             ctx.register_variable(arg.name, arg.typ, alloca_ptr, mutable=False)
@@ -1460,7 +1466,7 @@ def _generate_internal_function(
         else:
             # Memory-passed: receive pointer, register directly (no allocation)
             ptr = builder.param()
-            if codegen_ctx.is_unbounded_sequence_type(arg.typ):
+            if is_unbounded_sequence_type(arg.typ):
                 var = codegen_ctx.new_pointer_cell_variable(arg.name, arg.typ, mutable=True)
                 codegen_ctx.ptr_store(var.value.ptr(), ptr)
             else:

@@ -9,8 +9,11 @@ from typing import TYPE_CHECKING, Union
 from vyper import ast as vy_ast
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import StructureException
-from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.infinity import type_contains_unsupported_unbounded_sequence
+from vyper.semantics.types import (
+    _BytestringT,
+    is_unbounded_sequence_type,
+    type_contains_unsupported_unbounded_sequence,
+)
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import DArrayT
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
@@ -77,7 +80,7 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
 
 
 def _empty_memory_value(ctx: VenomCodegenContext, typ) -> VyperValue:
-    if ctx.is_unbounded_sequence_type(typ):
+    if is_unbounded_sequence_type(typ):
         # Empty INF values have a known exact size: just the zero length word.
         buf = ctx.allocate_buffer(32, annotation="empty")
         ptr = buf._ptr

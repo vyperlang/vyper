@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING
 
 from vyper.codegen.core import is_tuple_like
 from vyper.codegen_venom.buffer import Buffer, Ptr
-from vyper.codegen_venom.calling_convention import is_unbounded_sequence_type
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.data_locations import DataLocation
@@ -35,8 +34,11 @@ from vyper.semantics.types import (
     SArrayT,
     VyperType,
     _BytestringT,
+    is_unbounded_bytestring_type,
+    is_unbounded_dynarray_type,
+    is_unbounded_sequence_type,
+    type_contains_unbounded_sequence,
 )
-from vyper.semantics.types.infinity import type_contains_unbounded_sequence
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -167,7 +169,7 @@ def clamp_bytestring(
     b = ctx.builder
     assert src.location is not None, "src must have a location for bytestring clamping"
 
-    if not ctx.is_unbounded_bytestring_type(typ):
+    if not is_unbounded_bytestring_type(typ):
         # Bounded types keep the legacy emission: length is capped by a small
         # compile-time literal before the payload comparison, so a wrapping
         # item_end requires an absurd src pointer, which reverts downstream on
@@ -210,7 +212,7 @@ def clamp_dyn_array(
     b = ctx.builder
     assert src.location is not None, "src must have a location for dyn_array clamping"
 
-    if not ctx.is_unbounded_dynarray_type(typ):
+    if not is_unbounded_dynarray_type(typ):
         # Bounded types keep the legacy emission: count is capped by a small
         # compile-time literal before the payload comparison, so the payload
         # size cannot overflow and a wrapping item_end requires an absurd src
@@ -329,7 +331,7 @@ def _decode_bytestring(
     clamp_bytestring(ctx, src, typ, hi)
 
     assert src.location is not None, "src must have a location for bytestring decoding"
-    if not ctx.is_unbounded_bytestring_type(typ):
+    if not is_unbounded_bytestring_type(typ):
         # Match the legacy bounded path: copy the destination maxbound after
         # length<=maxlen and optional `hi` bounds checks. If the source is an
         # exact-sized INF buffer, this can copy bytes past the runtime payload,
@@ -356,7 +358,7 @@ def decode_unbounded_dynarray_to_scratch(
     data_start: IROperand | None = None,
 ) -> VyperValue:
     assert src.location is not None, "src must have a location for ABI decoding"
-    assert ctx.is_unbounded_dynarray_type(typ)
+    assert is_unbounded_dynarray_type(typ)
 
     if typ.value_type.abi_type.is_dynamic():
         raise CompilerPanic(
@@ -394,7 +396,7 @@ def decode_unbounded_sequence_to_scratch(
     # must not be allowed to trigger huge-memory `mload` expansion.
     data_start = ctx.assert_abi_length_word_in_bounds(src, hi)
 
-    if ctx.is_unbounded_bytestring_type(typ):
+    if is_unbounded_bytestring_type(typ):
         length = b.mload(src)
         ctx.assert_abi_bytes_payload_in_bounds(src, length, hi, data_start=data_start)
         return ctx.materialize_bytes_from_location(

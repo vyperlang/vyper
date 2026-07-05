@@ -39,12 +39,15 @@ from vyper.semantics.types import (
     StringT,
     TupleT,
     VyperType,
+    _BytestringT,
+    is_bounded_length,
     is_type_t,
+    is_unbounded_dynarray_type,
+    is_unbounded_sequence_type,
+    type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.base import VOID_TYPE
-from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
-from vyper.semantics.types.infinity import is_bounded_length, type_contains_unbounded_sequence
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT
 from vyper.semantics.types.user import FlagT, StructT
@@ -213,7 +216,7 @@ class Expr:
                 if elem_typ._is_prim_word:
                     member_values.append(self.ctx.unwrap(elem_vv))
                 else:
-                    if self.ctx.is_unbounded_sequence_type(elem_typ):
+                    if is_unbounded_sequence_type(elem_typ):
                         elem_vv = self.ctx.copy_sequence_to_scratch(
                             elem_vv, elem_typ, annotation="tuple"
                         )
@@ -268,7 +271,7 @@ class Expr:
         num_elements = len(node.elements)
 
         # Allocate memory for the array
-        if isinstance(typ, DArrayT) and self.ctx.is_unbounded_dynarray_type(typ):
+        if isinstance(typ, DArrayT) and is_unbounded_dynarray_type(typ):
             size = IRLiteral(32 + num_elements * elem_size)
             ptr = self.ctx.allocate_scratch(size)
             val = self.ctx.dynamic_memory_value(ptr, typ, annotation="list")
@@ -1129,7 +1132,7 @@ class Expr:
             assert isinstance(operand, IRVariable)
             if self.ctx.is_dynamic_tuple_frame_type(typ):
                 return self.ctx.dynamic_tuple_frame_value(operand, typ, annotation="computed_ptr")
-            size = None if self.ctx.is_unbounded_sequence_type(typ) else typ.memory_bytes_required
+            size = None if is_unbounded_sequence_type(typ) else typ.memory_bytes_required
             buf = Buffer(_ptr=operand, size=size, annotation="computed_ptr")
             ptr = Ptr(operand=operand, location=location, buf=buf)
         else:
@@ -1431,9 +1434,7 @@ class Expr:
             arg_vv = Expr(arg_node, self.ctx).lower()
 
             if not pass_via_stack_dict[arg_t.name]:
-                if self.ctx.is_unbounded_sequence_type(
-                    arg_t.typ
-                ) or self.ctx.is_unbounded_sequence_type(arg_vv.typ):
+                if is_unbounded_sequence_type(arg_t.typ) or is_unbounded_sequence_type(arg_vv.typ):
                     # Unbounded values need an owned runtime-sized snapshot.
                     arg_vals.append(
                         self.ctx.snapshot_value_for_delayed_use(
@@ -1610,7 +1611,7 @@ class Expr:
         darray_typ = darray_node._metadata["type"]
         elem_typ = darray_typ.value_type
 
-        if self.ctx.is_unbounded_dynarray_type(darray_typ):
+        if is_unbounded_dynarray_type(darray_typ):
             return self._lower_unbounded_dynarray_append()
 
         # Get the array VyperValue
@@ -1868,7 +1869,7 @@ class Expr:
                     )
                 elif self.ctx.is_dynamic_tuple_frame_type(default_vv.typ):
                     default_return_value = default_vv
-                elif self.ctx.is_unbounded_sequence_type(default_vv.typ):
+                elif is_unbounded_sequence_type(default_vv.typ):
                     default_return_value = self.ctx.copy_sequence_to_scratch(
                         default_vv, default_vv.typ, annotation="external call default_return_value"
                     )
@@ -1890,7 +1891,7 @@ class Expr:
         )
 
     def _external_call_args_need_runtime_encoding(self, arg_vals: list[VyperValue]) -> bool:
-        return any(self.ctx.is_unbounded_sequence_type(arg_vv.typ) for arg_vv in arg_vals)
+        return any(is_unbounded_sequence_type(arg_vv.typ) for arg_vv in arg_vals)
 
     def _lower_external_call(self) -> VyperValue:
         """Lower external call (extcall/staticcall).
@@ -1917,7 +1918,7 @@ class Expr:
 
         # get un-wildcard-ed return type
         return_t = call_node._metadata["call_return_type"]
-        has_unbounded_return = self.ctx.is_unbounded_sequence_type(return_t)
+        has_unbounded_return = is_unbounded_sequence_type(return_t)
         has_dynamic_tuple_return = return_t is not None and self.ctx.is_dynamic_tuple_frame_type(
             return_t
         )
@@ -2168,7 +2169,7 @@ class Expr:
     def _copy_and_decode_unbounded_external_call_return(
         self, return_t: VyperType, returndata_size: IROperand
     ) -> VyperValue:
-        assert self.ctx.is_unbounded_sequence_type(return_t)
+        assert is_unbounded_sequence_type(return_t)
         b = self.builder
 
         ok = b.iszero(b.lt(returndata_size, IRLiteral(32)))
@@ -2231,7 +2232,7 @@ class Expr:
                 member_src = static_loc
 
             assert isinstance(member_src, IRVariable)
-            if self.ctx.is_unbounded_sequence_type(member_t):
+            if is_unbounded_sequence_type(member_t):
                 member_vv = decode_unbounded_sequence_to_scratch(
                     self.ctx, member_src, member_t, hi, "external call return"
                 )

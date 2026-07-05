@@ -13,8 +13,14 @@ from typing import TYPE_CHECKING
 from vyper import ast as vy_ast
 from vyper.codegen_venom.arithmetic import clamp_basetype
 from vyper.codegen_venom.value import VyperValue
-from vyper.semantics.types import AddressT, BytesM_T, BytesT, StringT
-from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types import (
+    AddressT,
+    BytesM_T,
+    BytesT,
+    StringT,
+    _BytestringT,
+    is_unbounded_bytestring_type,
+)
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
@@ -34,7 +40,7 @@ def _assert_slice_bounds(
 
 
 def _new_slice_output(ctx: VenomCodegenContext, out_t, length: IROperand) -> VyperValue:
-    if ctx.is_unbounded_bytestring_type(out_t):
+    if is_unbounded_bytestring_type(out_t):
         size = ctx.bytestring_runtime_size_from_length(length)
         ptr = ctx.allocate_scratch(size)
         ctx.zero_bytestring_padding(ptr, length)
@@ -121,7 +127,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     out_typ = node._metadata["type"]
     assert isinstance(out_typ, _BytestringT)
-    if not ctx.is_unbounded_bytestring_type(out_typ):
+    if not is_unbounded_bytestring_type(out_typ):
         return _lower_concat_bounded(node, ctx)
 
     lowered_args: list[tuple[_BytestringT | BytesM_T, IROperand, IROperand]] = []
@@ -142,7 +148,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             arg_len = IRLiteral(arg_t.m)
             lowered_args.append((arg_t, arg_val, arg_len))
 
-        arg_unbounded = ctx.is_unbounded_bytestring_type(arg_t)
+        arg_unbounded = is_unbounded_bytestring_type(arg_t)
         if total_len_unbounded or arg_unbounded:
             total_len = ctx.checked_add(total_len, arg_len)
             total_len_unbounded = True
@@ -180,7 +186,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             offset = ctx.ptr_load(offset_local.ptr())
             dst = b.add(data_ptr, offset)
             ctx.copy_memory_dynamic(dst, arg_data, arg_len)
-            arg_unbounded = ctx.is_unbounded_bytestring_type(arg_t)
+            arg_unbounded = is_unbounded_bytestring_type(arg_t)
             if offset_unbounded or arg_unbounded:
                 new_offset = ctx.checked_add(offset, arg_len)
                 offset_unbounded = True

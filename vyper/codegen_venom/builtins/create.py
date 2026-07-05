@@ -18,8 +18,11 @@ from vyper.codegen_venom.eval_order import later_expressions_can_mutate_memory_o
 from vyper.exceptions import UnfoldableNode
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types import TupleT
-from vyper.semantics.types.infinity import type_contains_unbounded_sequence
+from vyper.semantics.types import (
+    TupleT,
+    is_unbounded_bytestring_type,
+    type_contains_unbounded_sequence,
+)
 from vyper.utils import EIP_3860_LIMIT, bytes_to_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -290,7 +293,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     bytecode_vv = Expr(bytecode_node, ctx).lower()
     bytecode_typ = bytecode_node._metadata["type"]
 
-    bytecode_is_unbounded = ctx.is_unbounded_bytestring_type(bytecode_typ)
+    bytecode_is_unbounded = is_unbounded_bytestring_type(bytecode_typ)
 
     # Ensure bytecode is in memory. Storage/transient data needs to be copied first.
     # This is critical when ctor args might modify the storage location that holds

@@ -20,14 +20,18 @@ from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, MemoryAllocationException, StateAccessViolation
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types import TupleT, VyperType
-from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.function import ContractFunctionT, StateMutability
-from vyper.semantics.types.infinity import (
+from vyper.semantics.types import (
+    TupleT,
+    VyperType,
+    _BytestringT,
     is_bounded_length,
     is_supported_unbounded_tuple_type,
+    is_unbounded_bytestring_type,
+    is_unbounded_dynarray_type,
+    is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
 )
+from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
@@ -38,9 +42,6 @@ from vyper.venom.builder import VenomBuilder
 from .calling_convention import (
     is_dynamic_tuple_dynamic_member_type as _is_dynamic_tuple_dynamic_member_type,
 )
-from .calling_convention import is_unbounded_bytestring_type as _is_unbounded_bytestring_type
-from .calling_convention import is_unbounded_dynarray_type as _is_unbounded_dynarray_type
-from .calling_convention import is_unbounded_sequence_type as _is_unbounded_sequence_type
 
 
 class Constancy(Enum):
@@ -102,18 +103,6 @@ class VenomCodegenContext:
     # Reserves memory at position 0 for immutables staging;
     # used by deploy epilogue to copy staging area into bytecode.
     immutables_alloca: Optional[IRVariable] = None
-
-    @staticmethod
-    def is_unbounded_bytestring_type(typ: VyperType) -> bool:
-        return _is_unbounded_bytestring_type(typ)
-
-    @staticmethod
-    def is_unbounded_dynarray_type(typ: VyperType) -> bool:
-        return _is_unbounded_dynarray_type(typ)
-
-    @staticmethod
-    def is_unbounded_sequence_type(typ: VyperType) -> bool:
-        return _is_unbounded_sequence_type(typ)
 
     @staticmethod
     def is_dynamic_tuple_frame_type(typ: VyperType) -> bool:
@@ -317,7 +306,7 @@ class VenomCodegenContext:
                 src_vv = self.dynamic_memory_value(
                     src_member, src_member_t, annotation=f"{annotation}.{i}" if annotation else None
                 )
-                if self.is_unbounded_sequence_type(dst_member_t):
+                if is_unbounded_sequence_type(dst_member_t):
                     member_vv = self.copy_sequence_to_scratch(
                         src_vv, dst_member_t, annotation=annotation
                     )
@@ -489,9 +478,9 @@ class VenomCodegenContext:
 
     def sequence_runtime_size(self, ptr: IRVariable, typ: VyperType) -> IROperand:
         """Return runtime memory size for an unbounded sequence."""
-        if self.is_unbounded_bytestring_type(typ):
+        if is_unbounded_bytestring_type(typ):
             return self.bytestring_runtime_size(ptr)
-        if isinstance(typ, DArrayT) and self.is_unbounded_dynarray_type(typ):
+        if isinstance(typ, DArrayT) and is_unbounded_dynarray_type(typ):
             return self.dynarray_runtime_size(ptr, typ)
         raise CompilerPanic(f"expected unbounded sequence type, got {typ}")  # pragma: nocover
 
@@ -559,7 +548,7 @@ class VenomCodegenContext:
         """Copy a bytestring value into exact-sized runtime scratch memory."""
         src = self.unwrap(vv)
         assert isinstance(src, IRVariable)
-        if self.is_unbounded_bytestring_type(vv.typ):
+        if is_unbounded_bytestring_type(vv.typ):
             # INF source length is runtime-controlled, so keep overflow-checked
             # size arithmetic. Bounded source length is already capped by type.
             size = self.bytestring_runtime_size(src)
@@ -589,9 +578,9 @@ class VenomCodegenContext:
         self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
     ) -> VyperValue:
         """Copy an unbounded sequence value into exact-sized runtime scratch memory."""
-        if self.is_unbounded_bytestring_type(typ):
+        if is_unbounded_bytestring_type(typ):
             return self.copy_bytestring_to_scratch(vv, typ, annotation=annotation)
-        if isinstance(typ, DArrayT) and self.is_unbounded_dynarray_type(typ):
+        if isinstance(typ, DArrayT) and is_unbounded_dynarray_type(typ):
             return self.copy_dynarray_to_scratch(vv, typ, annotation=annotation)
         raise CompilerPanic(f"expected unbounded sequence type, got {typ}")  # pragma: nocover
 
@@ -629,8 +618,8 @@ class VenomCodegenContext:
         if target_typ is None:
             target_typ = vv.typ
 
-        target_is_unbounded = self.is_unbounded_sequence_type(target_typ)
-        if target_is_unbounded or self.is_unbounded_sequence_type(vv.typ):
+        target_is_unbounded = is_unbounded_sequence_type(target_typ)
+        if target_is_unbounded or is_unbounded_sequence_type(vv.typ):
             copy_typ = target_typ if target_is_unbounded else vv.typ
             return self.copy_sequence_to_scratch(vv, copy_typ, annotation=annotation)
 
@@ -848,7 +837,7 @@ class VenomCodegenContext:
         elif isinstance(typ, _BytestringT):
             # Bytestring: copy length word + ceil32(actual data), not max size.
             assert isinstance(val, IRVariable)
-            if self.is_unbounded_bytestring_type(typ) or self.is_unbounded_bytestring_type(src_typ):
+            if is_unbounded_bytestring_type(typ) or is_unbounded_bytestring_type(src_typ):
                 copy_len = self.bytestring_runtime_size(val)
             else:
                 copy_len = self.unchecked_bytestring_runtime_size(val)

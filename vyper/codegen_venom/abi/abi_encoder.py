@@ -16,8 +16,16 @@ from typing import TYPE_CHECKING
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.core import is_tuple_like
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types import DArrayT, SArrayT, TupleT, VyperType, _BytestringT
-from vyper.semantics.types.infinity import type_contains_unbounded_sequence
+from vyper.semantics.types import (
+    DArrayT,
+    SArrayT,
+    TupleT,
+    VyperType,
+    _BytestringT,
+    is_unbounded_bytestring_type,
+    is_unbounded_dynarray_type,
+    type_contains_unbounded_sequence,
+)
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -31,10 +39,10 @@ def runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IR
     if isinstance(typ, _BytestringT):
         ptr = ctx.unwrap(arg_vv)
         assert isinstance(ptr, IRVariable)
-        if ctx.is_unbounded_bytestring_type(typ):
+        if is_unbounded_bytestring_type(typ):
             return ctx.bytestring_runtime_size(ptr)
         return ctx.unchecked_bytestring_runtime_size(ptr)
-    if isinstance(typ, DArrayT) and ctx.is_unbounded_dynarray_type(typ):
+    if isinstance(typ, DArrayT) and is_unbounded_dynarray_type(typ):
         ptr = ctx.unwrap(arg_vv)
         assert isinstance(ptr, IRVariable)
         return ctx.dynarray_runtime_abi_size(ptr, typ)
@@ -419,7 +427,7 @@ def _abi_encode_to_buf(
         ctx.copy_memory_dynamic(dst, src, copy_len)
 
         # Return total encoded size = ceil32(32 + length) = 32 + ceil32(length)
-        if ctx.is_unbounded_bytestring_type(src_typ):
+        if is_unbounded_bytestring_type(src_typ):
             return ctx.bytestring_runtime_size_from_length(length)
         return ctx.unchecked_bytestring_runtime_size_from_length(length)
 

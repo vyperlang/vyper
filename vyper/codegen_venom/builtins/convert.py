@@ -19,9 +19,18 @@ from vyper import ast as vy_ast
 from vyper.codegen_venom.buffer import Buffer
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic, InvalidLiteral, TypeMismatch
-from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
-from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.infinity import is_bounded_length
+from vyper.semantics.types import (
+    AddressT,
+    BoolT,
+    BytesM_T,
+    BytesT,
+    DecimalT,
+    IntegerT,
+    StringT,
+    _BytestringT,
+    is_bounded_length,
+    is_unbounded_bytestring_type,
+)
 from vyper.semantics.types.shortcuts import UINT160_T, UINT256_T
 from vyper.semantics.types.user import FlagT
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
@@ -76,7 +85,7 @@ def _bytestring_convert_value(
     ptr: IROperand, out_t: _BytestringT, ctx: VenomCodegenContext
 ) -> VyperValue:
     assert isinstance(ptr, IRVariable)
-    if ctx.is_unbounded_bytestring_type(out_t):
+    if is_unbounded_bytestring_type(out_t):
         return ctx.dynamic_memory_value(ptr, out_t, annotation="convert")
     buf = Buffer(_ptr=ptr, size=out_t.memory_bytes_required, annotation="convert")
     return VyperValue.from_ptr(buf.base_ptr(), out_t)
