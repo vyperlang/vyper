@@ -69,7 +69,10 @@ def _is_msg_data(node: vy_ast.VyperNode) -> bool:
 # legacy codegen has adhoc lowerings for msg.data, self.code and <address>.code
 # which never materialize an unbounded sequence value: `slice()` of any of them,
 # plus `len()` and `raw_call()`'s data argument for msg.data. exempt exactly
-# those forms from the unbounded sequence check.
+# those forms from the unbounded sequence check. every other consumer of an
+# INF-valued expression (including these sources in other contexts, and
+# extcall/staticcall returns of unbounded interface types) has no legacy
+# lowering and would panic in legacy codegen.
 def _is_legacy_blessed_unbounded_expr(node: vy_ast.VyperNode) -> bool:
     if not _is_adhoc_bytes_source(node):
         return False

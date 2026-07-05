@@ -716,6 +716,22 @@ interface Foo:
 def bar(a: address) -> uint256:
     return len(staticcall Foo(a).f())
         """,
+        """
+interface Foo:
+    def f() -> Bytes[...]: nonpayable
+
+@external
+def bar(a: address) -> Bytes[2]:
+    return slice(extcall Foo(a).f(), 0, 2)
+        """,
+        """
+interface Foo:
+    def f() -> Bytes[...]: view
+
+@external
+def bar(a: address) -> Bytes[2]:
+    return slice(staticcall Foo(a).f(), 0, 2)
+        """,
     ],
 )
 def test_inf_valued_expression_legacy_requires_experimental_codegen(code):
@@ -724,6 +740,38 @@ def test_inf_valued_expression_legacy_requires_experimental_codegen(code):
 
     # the same code compiles with the venom pipeline
     compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+
+
+def test_json_abi_extcall_slice_legacy_requires_experimental_codegen(make_input_bundle):
+    # bytes returns from JSON ABI interfaces resolve to Bytes[INF] at the
+    # call site; legacy codegen has no lowering for the resulting value
+    abi = [
+        {
+            "inputs": [],
+            "name": "returns_bytes",
+            "outputs": [{"name": "", "type": "bytes"}],
+            "stateMutability": "nonpayable",
+            "type": "function",
+        }
+    ]
+    code = """
+import JSONInterface
+
+@external
+def foo(x: JSONInterface) -> Bytes[2]:
+    return slice(extcall x.returns_bytes(), 0, 2)
+    """
+    input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
+    with pytest.raises(StructureException):
+        compiler.compile_code(
+            code, input_bundle=input_bundle, settings=Settings(experimental_codegen=False)
+        )
+    compiler.compile_code(
+        code,
+        output_formats=["bytecode"],
+        input_bundle=input_bundle,
+        settings=Settings(experimental_codegen=True),
+    )
 
 
 @pytest.mark.parametrize(

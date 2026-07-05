@@ -5,7 +5,13 @@ from eth_utils import to_wei
 
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code, compile_from_file_input
-from vyper.exceptions import CodegenPanic, DuplicateImport, InterfaceViolation, NamespaceCollision
+from vyper.exceptions import (
+    CodegenPanic,
+    DuplicateImport,
+    InterfaceViolation,
+    NamespaceCollision,
+    StructureException,
+)
 
 
 # TODO CMC 2024-10-13: this should probably be in tests/unit/compiler/
@@ -524,10 +530,7 @@ def test_fail2() -> Bytes[3]:
         c.test_fail2()
 
 
-# TODO: unmark once INF backend exists
-# Note: on master this doesn't compile
-@pytest.mark.xfail(raises=CodegenPanic)
-def test_json_abi_bytes_slice(get_contract, tx_failed, assert_compile_failed, make_input_bundle):
+def test_json_abi_bytes_slice(get_contract, experimental_codegen, make_input_bundle):
     external_contract = """
 @external
 def returns_Bytes3() -> Bytes[3]:
@@ -544,7 +547,18 @@ def foo(x: JSONInterface) -> Bytes[2]:
 
     input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(ext_c.abi)})
 
-    c = get_contract(contract, input_bundle=input_bundle)
+    if not experimental_codegen:
+        # legacy codegen has no lowering for unbounded extcall return values
+        with pytest.raises(StructureException):
+            get_contract(contract, input_bundle=input_bundle)
+        return
+
+    try:
+        c = get_contract(contract, input_bundle=input_bundle)
+    except CodegenPanic:
+        # TODO: remove once `ir_dict` output works for unbounded extcall
+        # return values
+        pytest.xfail("ir_dict output does not support unbounded extcall returns")
 
     assert ext_c.returns_Bytes3() == b"123"
     assert c.foo(ext_c.address) == b"12"  # slice takes first 2 elements
