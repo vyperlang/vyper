@@ -15,7 +15,7 @@ from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import (
     abi_decode_to_buf,
     abi_encode_values_to_buf,
-    decode_unbounded_dynarray_to_scratch,
+    decode_unbounded_sequence_to_scratch,
     runtime_abi_size_for_encode,
 )
 from vyper.codegen_venom.buffer import Buffer, Ptr
@@ -25,7 +25,6 @@ from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import BytesT, TupleT, VyperType
 from vyper.semantics.types.infinity import type_contains_unbounded_sequence
-from vyper.semantics.types.subscriptable import DArrayT
 from vyper.utils import fourbytes_to_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -122,44 +121,6 @@ def _finish_abi_encoded_bytes(
         data_dst = b.add(buf_ptr, IRLiteral(32))
         encoded_len = encode_fn(data_dst)
         b.mstore(buf_ptr, encoded_len)
-
-
-def _decode_unbounded_bytestring_from_abi(
-    ctx: VenomCodegenContext, src: IRVariable, hi: IROperand, typ: VyperType
-) -> VyperValue:
-    b = ctx.builder
-    assert ctx.is_unbounded_bytestring_type(typ)
-
-    data_start = ctx.assert_abi_length_word_in_bounds(src, hi)
-    length = b.mload(src)
-    ctx.assert_abi_bytes_payload_in_bounds(src, length, hi, data_start=data_start)
-
-    return ctx.materialize_bytes_from_location(
-        data_start, length, typ, DataLocation.MEMORY, annotation="abi_decode"
-    )
-
-
-def _decode_unbounded_sequence_from_abi(
-    ctx: VenomCodegenContext, src: IRVariable, hi: IROperand, typ: VyperType
-) -> VyperValue:
-    if ctx.is_unbounded_bytestring_type(typ):
-        return _decode_unbounded_bytestring_from_abi(ctx, src, hi, typ)
-
-    if isinstance(typ, DArrayT) and ctx.is_unbounded_dynarray_type(typ):
-        data_start = ctx.assert_abi_length_word_in_bounds(src, hi)
-        src_vv = VyperValue.from_ptr(
-            Ptr(
-                operand=src,
-                location=DataLocation.MEMORY,
-                buf=Buffer(_ptr=src, size=None, annotation="abi_decode_src"),
-            ),
-            typ,
-        )
-        return decode_unbounded_dynarray_to_scratch(
-            ctx, src_vv, typ, hi, "abi_decode", data_start=data_start
-        )
-
-    raise CompilerPanic(f"expected unbounded sequence type, got {typ}")  # pragma: nocover
 
 
 def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
@@ -289,11 +250,11 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             src = b.add(data_ptr, offset)
             no_src_wrap = b.iszero(b.lt(src, data_ptr))
             b.assert_(no_src_wrap)
-            return _decode_unbounded_sequence_from_abi(ctx, src, hi, output_typ)
+            return decode_unbounded_sequence_to_scratch(ctx, src, output_typ, hi, "abi_decode")
 
         ge_length_word = b.iszero(b.lt(data_len, IRLiteral(32)))
         b.assert_(ge_length_word)
-        return _decode_unbounded_sequence_from_abi(ctx, data_ptr, hi, output_typ)
+        return decode_unbounded_sequence_to_scratch(ctx, data_ptr, output_typ, hi, "abi_decode")
 
     # Validate size
     abi_min_size = wrapped_typ.abi_type.static_size()

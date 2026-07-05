@@ -54,7 +54,7 @@ from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from .abi import (
     abi_decode_to_buf,
     abi_encode_values_to_buf,
-    decode_unbounded_dynarray_to_scratch,
+    decode_unbounded_sequence_to_scratch,
     runtime_abi_size_for_encode,
 )
 from .buffer import Buffer, Ptr
@@ -2152,29 +2152,6 @@ class Expr:
             return VyperValue.from_ptr(result_val.ptr(), return_t)
         return result_val
 
-    def _decode_unbounded_sequence_external_call_member(
-        self, return_t: VyperType, src: IRVariable, hi: IROperand
-    ) -> VyperValue:
-        assert self.ctx.is_unbounded_sequence_type(return_t)
-        b = self.builder
-
-        # Check the length word before reading it. Attacker-controlled return
-        # offsets must not be allowed to trigger huge-memory `mload` expansion.
-        data_start = self.ctx.assert_abi_length_word_in_bounds(src, hi)
-
-        if self.ctx.is_unbounded_bytestring_type(return_t):
-            length = b.mload(src)
-            self.ctx.assert_abi_bytes_payload_in_bounds(src, length, hi, data_start=data_start)
-            return self.ctx.materialize_bytes_from_location(
-                data_start, length, return_t, DataLocation.MEMORY, annotation="external call return"
-            )
-
-        assert isinstance(return_t, DArrayT)
-        src_vv = self._make_ptr_value(src, DataLocation.MEMORY, return_t)
-        return decode_unbounded_dynarray_to_scratch(
-            self.ctx, src_vv, return_t, hi, "external call return", data_start=data_start
-        )
-
     def _copy_returndata_to_scratch(
         self, returndata_size: IROperand
     ) -> tuple[IRVariable, IROperand]:
@@ -2209,7 +2186,9 @@ class Expr:
         no_src_wrap = b.iszero(b.lt(src, returndata_ptr))
         b.assert_(no_src_wrap)
         assert isinstance(src, IRVariable)
-        return self._decode_unbounded_sequence_external_call_member(return_t, src, hi)
+        return decode_unbounded_sequence_to_scratch(
+            self.ctx, src, return_t, hi, "external call return"
+        )
 
     def _copy_and_decode_dynamic_tuple_external_call_return(
         self, return_t: TupleT, returndata_size: IROperand
@@ -2253,8 +2232,8 @@ class Expr:
 
             assert isinstance(member_src, IRVariable)
             if self.ctx.is_unbounded_sequence_type(member_t):
-                member_vv = self._decode_unbounded_sequence_external_call_member(
-                    member_t, member_src, hi
+                member_vv = decode_unbounded_sequence_to_scratch(
+                    self.ctx, member_src, member_t, hi, "external call return"
                 )
             else:
                 member_vv = self.ctx.new_temporary_value(member_t)

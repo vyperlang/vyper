@@ -9,6 +9,7 @@ This module provides functions to:
 from vyper.codegen_venom.abi.abi_decoder import (
     abi_decode_to_buf,
     decode_unbounded_dynarray_to_scratch,
+    decode_unbounded_sequence_to_scratch,
 )
 from vyper.codegen_venom.abi.abi_encoder import (
     abi_encode_to_buf,
@@ -21,5 +22,6 @@ __all__ = [
     "abi_decode_to_buf",
     "abi_encode_values_to_buf",
     "decode_unbounded_dynarray_to_scratch",
+    "decode_unbounded_sequence_to_scratch",
     "runtime_abi_size_for_encode",
 ]

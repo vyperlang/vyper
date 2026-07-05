@@ -380,6 +380,41 @@ def decode_unbounded_dynarray_to_scratch(
     return ctx.dynamic_memory_value(dst, typ, annotation=annotation)
 
 
+def decode_unbounded_sequence_to_scratch(
+    ctx: VenomCodegenContext, src: IRVariable, typ: VyperType, hi: IROperand, annotation: str
+) -> VyperValue:
+    """
+    Decode an unbounded (INF) bytestring or dynarray from ABI-encoded memory
+    at `src` into a fresh scratch allocation, validating bounds against `hi`.
+    """
+    assert is_unbounded_sequence_type(typ)
+    b = ctx.builder
+
+    # Check the length word before reading it. Attacker-controlled offsets
+    # must not be allowed to trigger huge-memory `mload` expansion.
+    data_start = ctx.assert_abi_length_word_in_bounds(src, hi)
+
+    if ctx.is_unbounded_bytestring_type(typ):
+        length = b.mload(src)
+        ctx.assert_abi_bytes_payload_in_bounds(src, length, hi, data_start=data_start)
+        return ctx.materialize_bytes_from_location(
+            data_start, length, typ, DataLocation.MEMORY, annotation=annotation
+        )
+
+    assert isinstance(typ, DArrayT)
+    src_vv = VyperValue.from_ptr(
+        Ptr(
+            operand=src,
+            location=DataLocation.MEMORY,
+            buf=Buffer(_ptr=src, size=None, annotation="abi_decode_src"),
+        ),
+        typ,
+    )
+    return decode_unbounded_dynarray_to_scratch(
+        ctx, src_vv, typ, hi, annotation, data_start=data_start
+    )
+
+
 def _decode_dyn_array(
     ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, typ: DArrayT, hi: IROperand = None
 ) -> None:
