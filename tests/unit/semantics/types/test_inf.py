@@ -1000,6 +1000,32 @@ def f(a: address) -> DynArray[Bytes[10], 5]:
     compiler.compile_code(accepted, settings=Settings(experimental_codegen=True))
 
 
+def test_wildcard_arg_dynamic_element_requires_expected_bound():
+    rejected = """
+interface I:
+    def foo(xs: DynArray[Bytes[10], ...]): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).foo([])
+    """
+    with pytest.raises(
+        StructureException,
+        match="DynArray\\[\\.\\.\\., INF\\] is only supported with ABI-static element types",
+    ):
+        compiler.compile_code(rejected, settings=Settings(experimental_codegen=True))
+
+    accepted = """
+interface I:
+    def foo(xs: DynArray[Bytes[10], ...]): nonpayable
+
+@external
+def f(a: address, xs: DynArray[Bytes[10], 5]):
+    extcall I(a).foo(xs)
+    """
+    compiler.compile_code(accepted, settings=Settings(experimental_codegen=True))
+
+
 def test_wildcard_tuple_interface_arg_rejects_inf_source():
     code = """
 interface I:

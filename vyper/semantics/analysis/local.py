@@ -73,7 +73,6 @@ from vyper.semantics.types.function import (
 from vyper.semantics.types.infinity import (
     is_unbounded_sequence_type,
     type_contains_nested_unbounded_sequence,
-    type_contains_unbounded_dynarray_with_dynamic_elements,
     type_contains_unbounded_sequence,
     type_contains_unsupported_unbounded_sequence,
 )
@@ -1072,14 +1071,6 @@ class ExprVisitor(VyperNodeVisitorBase):
                             raise StructureException(
                                 "Function returns cannot contain unbounded sequence types "
                                 "inside aggregate types",
-                                node,
-                            )
-                        # Wildcard resolution constructs the concrete DArrayT directly,
-                        # bypassing DArrayT.from_annotation's ABI-static element guard.
-                        if type_contains_unbounded_dynarray_with_dynamic_elements(return_t):
-                            raise StructureException(
-                                "DynArray[..., INF] is only supported with ABI-static "
-                                "element types",
                                 node,
                             )
                     # Sanity check

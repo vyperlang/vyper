@@ -315,6 +315,10 @@ class DArrayT(_SequenceT):
     def resolve_wildcard(self):
         resolved_value = self.value_type.resolve_wildcard()
         resolved_length = INF if self.length is WILDCARD else self.length
+        if resolved_length is INF and resolved_value.abi_type.is_dynamic():
+            raise StructureException(
+                "DynArray[..., INF] is only supported with ABI-static element types"
+            )
         if resolved_value is not self.value_type or resolved_length is not self.length:
             return DArrayT(resolved_value, resolved_length)
         return self

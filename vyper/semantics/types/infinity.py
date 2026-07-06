@@ -80,37 +80,6 @@ def type_contains_unsupported_unbounded_sequence(typ) -> bool:
     )
 
 
-def type_contains_unbounded_dynarray_with_dynamic_elements(typ) -> bool:
-    """Return True for DynArray[T, INF] whose element ABI needs dynamic offsets."""
-    typeclass = getattr(typ, "typeclass", None)
-
-    if typeclass == "dynamic_array":
-        if getattr(typ, "length", None) is INF and typ.value_type.abi_type.is_dynamic():
-            return True
-        return type_contains_unbounded_dynarray_with_dynamic_elements(typ.value_type)
-
-    if typeclass == "static_array":
-        return type_contains_unbounded_dynarray_with_dynamic_elements(typ.value_type)
-
-    if typeclass == "hashmap":
-        return type_contains_unbounded_dynarray_with_dynamic_elements(
-            typ.key_type
-        ) or type_contains_unbounded_dynarray_with_dynamic_elements(typ.value_type)
-
-    if typeclass == "tuple":
-        return any(
-            type_contains_unbounded_dynarray_with_dynamic_elements(t) for t in typ.member_types
-        )
-
-    if typeclass in ("struct", "error", "event"):
-        members = typ.members
-        return any(
-            type_contains_unbounded_dynarray_with_dynamic_elements(t) for t in members.values()
-        )
-
-    return False
-
-
 def length_to_json(length: LengthUpperBound) -> int | str:
     """Return a JSON-serializable representation of a length value."""
     if length is INF or length is WILDCARD:
