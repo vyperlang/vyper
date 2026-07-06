@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.utils import OrderedSet, checksum_encode, int_to_fourbytes
+from vyper.warnings import Deprecation, vyper_warn
 
 
 def _validate_op(node, types_list, validation_fn_name):
@@ -385,12 +386,21 @@ class _ExprAnalyser:
     def types_from_Name(self, node):
         # variable name, e.g. `foo`
         name = node.id
+
+        if "self" in self.namespace and getattr(
+            self.namespace["self"].typ.members.get(name), "is_immutable", False
+        ):
+            msg = "immutables should now be accessed through `self`"
+            hint = f"use `self.{name}` instead"
+            vyper_warn(Deprecation(msg, node, hint=hint))
+
         if (
             name not in self.namespace
             and "self" in self.namespace
             and name in self.namespace["self"].typ.members
         ):
             raise InvalidReference(f"'{name}'", node, hint=f"did you mean self.{name}?")
+
         try:
             t = self.namespace[node.id]
             # when this is a type, we want to lower it

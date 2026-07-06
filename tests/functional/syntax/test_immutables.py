@@ -146,32 +146,6 @@ def test_compilation_success(good_code):
 fail_list_with_messages = [
     (
         """
-imm: immutable(uint256)
-
-@deploy
-def __init__(x: uint256):
-    self.imm = x
-
-@external
-def report() -> uint256:
-    return imm
-    """,
-        "'imm'",
-        "did you mean self.imm?",
-    ),
-    (
-        """
-imm: immutable(uint256)
-
-@deploy
-def __init__(x: uint256):
-    imm = x
-    """,
-        "'imm'",
-        "did you mean self.imm?",
-    ),
-    (
-        """
 struct Foo:
     a : uint256
 
@@ -212,23 +186,3 @@ def test_compilation_fails_with_exception_message(bad_code: str, message: str, h
         compile_code(bad_code)
     assert excinfo.value.message == message
     assert excinfo.value.hint == hint
-
-
-def test_immutable_multiple_wrong_assignments_all_reported():
-    bad_code = """
-imm: immutable(uint256)
-
-@deploy
-def __init__(x: uint256, y: uint256):
-    imm = x
-    imm = y
-    """
-    with pytest.raises(VyperException) as excinfo:
-        compile_code(bad_code)
-
-    err = str(excinfo.value)
-    assert "Compilation failed with the following errors:" in err
-    assert err.count("InvalidReference") == 2
-    assert err.count("did you mean self.imm?") == 2
-    assert "imm = x" in err
-    assert "imm = y" in err

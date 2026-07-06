@@ -44,17 +44,6 @@ a: public(constant(uint256)) = 1
 def foo():
     b: uint256 = self.a
     """,
-    """
-a: public(immutable(uint256))
-
-@deploy
-def __init__():
-    self.a = 123
-
-@external
-def foo():
-    b: uint256 = a
-    """,
 ]
 
 

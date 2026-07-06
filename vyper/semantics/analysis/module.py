@@ -16,7 +16,6 @@ from vyper.exceptions import (
     InitializerException,
     InterfaceViolation,
     InvalidLiteral,
-    InvalidReference,
     InvalidType,
     StateAccessViolation,
     StructureException,
@@ -761,23 +760,12 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             assignments = self.ast.get_descendants(
                 vy_ast.Assign, filters={"target.value.id": "self", "target.attr": name}
             )
-            if not assignments:
-                # `<name> = ...`: Assign(target=<name>)
-                wrong_assignments = self.ast.get_descendants(
-                    vy_ast.Assign, filters={"target.id": name}
-                )
+            # `<name> = ...`: Assign(target=<name>)
+            deprecated_assignments = self.ast.get_descendants(
+                vy_ast.Assign, filters={"target.id": name}
+            )
 
-                err_list = ExceptionList()
-
-                for wrong_assignment in wrong_assignments:
-                    # same error that would be raised later
-                    node = wrong_assignment.target
-
-                    err_list.append(
-                        InvalidReference(f"'{name}'", node, hint=f"did you mean self.{name}?")
-                    )
-
-                err_list.raise_if_not_empty()
+            if not assignments and not deprecated_assignments:
 
                 message = "Immutable definition requires an assignment in the constructor"
                 raise ImmutableViolation(message, node)
@@ -850,6 +838,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         assert node.value is None  # checked in VariableDecl.validate()
 
         self.namespace.validate_assignment(name)
+
+        if node.is_immutable:
+            # TODO: Remove once referring to immutables without going through self is forbidden
+            self.namespace[name] = var_info
 
         return _finalize()
 
