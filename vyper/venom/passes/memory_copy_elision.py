@@ -7,13 +7,13 @@ from vyper.venom.analysis import (
     BasePtrAnalysis,
     CFGAnalysis,
     DFGAnalysis,
+    DominatorTreeAnalysis,
     LivenessAnalysis,
     MemoryAliasAnalysis,
-    DominatorTreeAnalysis
 )
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
-from vyper.venom.effects import Effects, to_addr_space, MEMORY
+from vyper.venom.effects import Effects, to_addr_space
 from vyper.venom.memory_location import (
     Allocation,
     MemoryLocation,
@@ -77,7 +77,7 @@ class MemoryCopyElisionPass(IRPass):
                     for succ in self.cfg.cfg_out(bb):
                         if succ not in worklist:
                             worklist.append(succ)
-            
+
             self.translates = self.analyses_cache.force_analysis(TranslateAnalysis)
 
             change = False
@@ -137,7 +137,6 @@ class MemoryCopyElisionPass(IRPass):
                 change |= self._try_update_from_translates_read(inst)
 
         return change
-
 
     def _process_bb(self, bb: IRBasicBlock) -> bool:
         """Process a basic block, return True if copy state changed."""
@@ -331,7 +330,9 @@ class MemoryCopyElisionPass(IRPass):
             return False
         return self._update_base_allocation_read(inst, read_loc, translates)
 
-    def _update_base_allocation_read(self, inst: IRInstruction, read_loc: MemoryLocation, translates: TranslateMap):
+    def _update_base_allocation_read(
+        self, inst: IRInstruction, read_loc: MemoryLocation, translates: TranslateMap
+    ):
         if read_loc.alloca not in translates:
             return False
 
@@ -361,7 +362,9 @@ class MemoryCopyElisionPass(IRPass):
             return False
         return self._update_base_allocation_write(inst, write_loc, translates)
 
-    def _update_base_allocation_write(self, inst: IRInstruction, write_loc: MemoryLocation, translates: TranslateMap):
+    def _update_base_allocation_write(
+        self, inst: IRInstruction, write_loc: MemoryLocation, translates: TranslateMap
+    ):
         if write_loc.alloca not in translates:
             return False
 
@@ -388,11 +391,11 @@ def _volatile_memory(inst):
     # Reading memory (sha3, log, return, revert) doesn't invalidate tracked copies.
     return Effects.MEMORY in inst.get_write_effects()
 
+
 class TranslateAnalysis(IRAnalysis):
     translates: TranslateMap
     _inst_translates: dict[IRInstruction, TranslateMap]
     bb_translates: dict[IRBasicBlock, TranslateMap]
-
 
     def analyze(self):
         self._inst_translates = dict()
@@ -405,10 +408,10 @@ class TranslateAnalysis(IRAnalysis):
             change = False
             for bb in self.function.get_basic_blocks():
                 change |= self._process_bb(bb)
-            
+
             if not change:
                 break
-        
+
         self.translates = TranslateMap()
 
         checked = OrderedSet()
@@ -435,13 +438,13 @@ class TranslateAnalysis(IRAnalysis):
 
                 if not all_ok:
                     break
-                
+
                 for use in uses:
                     if use == source:
                         continue
                     if use.get_read_effects() | use.get_write_effects() == effects.EMPTY:
                         continue
-                    
+
                     if dst not in self._inst_translates[use]:
                         break
 
@@ -453,9 +456,6 @@ class TranslateAnalysis(IRAnalysis):
                     else:
                         self.translates[dst] = (src, source)
 
-
-
-
     def _process_bb(self, bb: IRBasicBlock):
         curr = self._merge_translates(bb)
 
@@ -463,20 +463,20 @@ class TranslateAnalysis(IRAnalysis):
             if inst.get_read_effects() != effects.EMPTY:
                 self._invalidate(curr, self.base_ptr.get_read_location(inst, addr_space.MEMORY))
 
-
             if inst.get_write_effects() != effects.EMPTY:
-                self._invalidate(curr, self.base_ptr.get_write_location(inst, addr_space.MEMORY), write=True)
+                self._invalidate(
+                    curr, self.base_ptr.get_write_location(inst, addr_space.MEMORY), write=True
+                )
 
             if inst.opcode == "mcopy":
                 self._try_create_translate(inst, curr)
-
 
             if inst.get_read_effects() | inst.get_write_effects() != effects.EMPTY:
                 self._inst_translates[inst] = curr.copy()
 
         old_translates = self.bb_translates.get(bb, None)
         if old_translates is None or old_translates != curr:
-            self.bb_translates[bb] = curr 
+            self.bb_translates[bb] = curr
             return True
 
         return False
@@ -557,4 +557,3 @@ class TranslateAnalysis(IRAnalysis):
         while translates_to in curr:
             translates_to, _ = curr[translates_to]
         curr[write_loc.alloca] = (translates_to, inst)
-

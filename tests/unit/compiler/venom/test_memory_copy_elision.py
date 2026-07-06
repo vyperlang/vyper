@@ -1962,28 +1962,6 @@ def test_mcopy_translation_non_rewriteble_multiple_bb():
         sink %res
     """
 
-    post = """
-    main:
-        %cond = source
-        %dst = alloca 1, 64
-        %ret_buf = alloca 2, 64
-        invoke @fn, %ret_buf
-        nop
-        jnz %cond, @then, @after
-    then:
-        %2 = add 32, %dst
-        %4 = add 32, %ret_buf
-        mstore %4, 123
-        jmp @after
-    after:
-        %a = mload %ret_buf
-        %3 = add 32, %dst
-        %5 = add 32, %ret_buf
-        %b = mload %5
-        %res = add %a, %b
-        sink %res
-    """
-
     _check_no_change(pre)
 
 
