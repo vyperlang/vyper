@@ -850,10 +850,21 @@ class ExprVisitor(VyperNodeVisitorBase):
             return typ
 
         try:
-            actual_typ = get_exact_type_from_node(node)
+            possible_types = get_possible_types_from_node(node)
         except VyperException:
+            # the expression has no standalone type. it already passed
+            # `validate_expected_type`, so resolve the wildcards without
+            # a bound.
             return typ.resolve_wildcard()
 
+        # use the expected type to disambiguate expressions which have
+        # several possible types on their own (e.g. the literal `[]`), so
+        # that provably bounded expressions get a bounded annotation.
+        candidates = [t for t in possible_types if t.is_subtype_of(typ)]
+        if len(candidates) != 1:
+            return typ.resolve_wildcard()
+
+        actual_typ = candidates[0]
         if actual_typ.has_wildcard:
             actual_typ = actual_typ.resolve_wildcard()
 

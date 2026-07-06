@@ -1026,6 +1026,23 @@ def f(a: address, xs: DynArray[Bytes[10], 5]):
     compiler.compile_code(accepted, settings=Settings(experimental_codegen=True))
 
 
+@pytest.mark.parametrize("arg_source", ["xs", "[]", "[1, 2]"])
+def test_wildcard_arg_accepts_bounded_values(arg_source):
+    # bounded variables and literals passed to a wildcard interface arg
+    # compile under both pipelines
+    code = f"""
+interface I:
+    def foo(xs: DynArray[uint256, ...]): nonpayable
+
+@external
+def f(a: address):
+    xs: DynArray[uint256, 3] = [1, 2, 3]
+    extcall I(a).foo({arg_source})
+    """
+    compiler.compile_code(code, settings=Settings(experimental_codegen=False))
+    compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+
+
 def test_wildcard_tuple_interface_arg_rejects_inf_source():
     code = """
 interface I:

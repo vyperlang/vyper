@@ -789,6 +789,34 @@ def get(addr: address, x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     assert abi_decode("(uint256[])", ret) == ([9, 8, 7],)
 
 
+def test_wildcard_arg_literal_roundtrip(env):
+    target_code = """
+@external
+def data(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
+    return x
+    """
+
+    caller_code = """
+interface Source:
+    def data(x: DynArray[uint256, ...]) -> DynArray[uint256, ...]: nonpayable
+
+@external
+def get_empty(addr: address) -> DynArray[uint256, 4]:
+    return extcall Source(addr).data([])
+
+@external
+def get_literal(addr: address) -> DynArray[uint256, 4]:
+    return extcall Source(addr).data([5, 6])
+    """
+
+    target = _deploy_venom(env, target_code)
+    caller = _deploy_venom(env, caller_code)
+    ret = _call(env, caller, "get_empty(address)", "(address)", (target.address,))
+    assert abi_decode("(uint256[])", ret) == ([],)
+    ret = _call(env, caller, "get_literal(address)", "(address)", (target.address,))
+    assert abi_decode("(uint256[])", ret) == ([5, 6],)
+
+
 def test_inf_dynarray_abi_encode_default_tuple(env):
     payload = [i * 31 for i in range(2001)]
     code = """
