@@ -16,7 +16,6 @@ def _check_pre_post(pre, post, hevm: bool = True):
     for fn in pre_ctx.functions.values():
         ac = IRAnalysesCache(fn)
         DeadStoreElimination(ac, fn).run_pass(addr_space=MEMORY)
-
     _checker.check(pre_ctx, post_ctx, pre, post, hevm)
 
 
@@ -1087,20 +1086,7 @@ def test_no_repeated_alloca_mcopy_elision_when_source_modified():
         sink %3, %4
     """
 
-    post = """
-    _global:
-        %a1 = alloca 64
-        %a2 = alloca 64
-        mcopy %a2, %a1, 64
-        %1 = mload %a1
-        mstore %a1, 999
-        %2 = mload %a2
-        %3 = add %1, %2
-        %4 = mload %a1
-        sink %3, %4
-    """
-
-    _check_pre_post(pre, post)
+    _check_no_change(pre)
 
 
 def test_no_repeated_self_overlapping_alloca_mcopy_elision():
@@ -1952,24 +1938,7 @@ def test_mcopy_translation_non_rewriteble_tmp():
         sink %res
     """
 
-    post = """
-    main:
-        %dst = alloca 1, 64
-        %ret_buf = alloca 2, 64
-        invoke @fn, %ret_buf
-        nop
-        %2 = add 32, %dst
-        %4 = add 32, %ret_buf
-        mstore %4, 123
-        %a = mload %ret_buf
-        %3 = add 32, %dst
-        %5 = add 32, %ret_buf
-        %b = mload %5
-        %res = add %a, %b
-        sink %res
-    """
-
-    _check_pre_post(pre, post)
+    _check_no_change(pre)
 
 
 def test_mcopy_translation_non_rewriteble_multiple_bb():
@@ -2015,7 +1984,7 @@ def test_mcopy_translation_non_rewriteble_multiple_bb():
         sink %res
     """
 
-    _check_pre_post(pre, post)
+    _check_no_change(pre)
 
 
 def test_memcopy_translate_multiple_copies():
@@ -2042,16 +2011,14 @@ def test_memcopy_translate_multiple_copies():
         %b = alloca 2, 64
         %c = alloca 3, 64
         invoke @fn, %a
-        nop
+        mcopy %b, %a, 64
         nop
         %pc = add 32, %c
         nop
         %pc2 = add 32, %b
-        %1 = add 32, %a
-        mstore %1, 666
+        mstore %pc2, 666
         %pb = add 32, %b
-        %2 = add 32, %a
-        %x = mload %2
+        %x = mload %pb
         sink %x
     """
 

@@ -77,7 +77,7 @@ class MemoryCopyElisionPass(IRPass):
                     for succ in self.cfg.cfg_out(bb):
                         if succ not in worklist:
                             worklist.append(succ)
-
+            
             self.translates = self.analyses_cache.force_analysis(TranslateAnalysis)
 
             change = False
@@ -463,11 +463,13 @@ class TranslateAnalysis(IRAnalysis):
             if inst.get_read_effects() != effects.EMPTY:
                 self._invalidate(curr, self.base_ptr.get_read_location(inst, addr_space.MEMORY))
 
+
+            if inst.get_write_effects() != effects.EMPTY:
+                self._invalidate(curr, self.base_ptr.get_write_location(inst, addr_space.MEMORY), write=True)
+
             if inst.opcode == "mcopy":
                 self._try_create_translate(inst, curr)
 
-            if inst.get_write_effects() != effects.EMPTY:
-                self._invalidate(curr, self.base_ptr.get_write_location(inst, addr_space.MEMORY))
 
             if inst.get_read_effects() | inst.get_write_effects() != effects.EMPTY:
                 self._inst_translates[inst] = curr.copy()
@@ -479,13 +481,16 @@ class TranslateAnalysis(IRAnalysis):
 
         return False
 
-    def _invalidate(self, curr: TranslateMap, loc: MemoryLocation):
+    def _invalidate(self, curr: TranslateMap, loc: MemoryLocation, write=False):
         if loc.is_concrete:
             curr.clear()
         else:
             to_remove_allocations = []
-            for dst, src in curr.items():
+            for dst, data in curr.items():
+                src, _ = data
                 if src == loc.alloca:
+                    to_remove_allocations.append(dst)
+                if write and dst == loc.alloca:
                     to_remove_allocations.append(dst)
 
             for item in to_remove_allocations:
