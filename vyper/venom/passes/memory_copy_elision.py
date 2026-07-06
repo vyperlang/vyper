@@ -59,7 +59,6 @@ class MemoryCopyElisionPass(IRPass):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
-        self.translates = self.analyses_cache.request_analysis(TranslateAnalysis)
         self.updater = InstUpdater(self.dfg)
         self.copy_forwarding = CopyForwardingPolicy(
             self.function, self.dfg, self.base_ptr, self.mem_alias
@@ -77,6 +76,11 @@ class MemoryCopyElisionPass(IRPass):
                 for succ in self.cfg.cfg_out(bb):
                     if succ not in worklist:
                         worklist.append(succ)
+
+        self.translates = self.analyses_cache.request_analysis(TranslateAnalysis)
+
+        for bb in self.function.get_basic_blocks():
+            self._process_translation(bb)
 
         # Invalidate analyses that may be affected by IR modifications
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
@@ -119,6 +123,14 @@ class MemoryCopyElisionPass(IRPass):
         """Check if two copy instructions are semantically equivalent."""
         return self.copy_forwarding.copies_equivalent(inst1, inst2)
 
+    def _process_translation(self, bb: IRBasicBlock):
+        for inst in bb.instructions.copy():
+            if Effects.MEMORY in inst.get_write_effects():
+                self._try_update_from_translates_write(inst)
+            if Effects.MEMORY in inst.get_read_effects():
+                self._try_update_from_translates_read(inst)
+
+
     def _process_bb(self, bb: IRBasicBlock) -> bool:
         """Process a basic block, return True if copy state changed."""
         # Get incoming copy state from predecessors
@@ -128,11 +140,6 @@ class MemoryCopyElisionPass(IRPass):
         for e in self.loads.values():
             e.clear()
         for inst in bb.instructions.copy():
-            if Effects.MEMORY in inst.get_write_effects():
-                self._try_update_from_translates_write(inst)
-            if Effects.MEMORY in inst.get_read_effects():
-                self._try_update_from_translates_read(inst)
-
             if inst.opcode in _LOADS:
                 eff = _LOADS[inst.opcode]
                 space = to_addr_space(eff)
@@ -397,7 +404,6 @@ class TranslateAnalysis(IRAnalysis):
         checked = OrderedSet()
 
         for translate_map in self._inst_translates.values():
-            #breakpoint()
             for translate in translate_map.items():
                 dst, data = translate
                 src, source = data
@@ -444,9 +450,6 @@ class TranslateAnalysis(IRAnalysis):
         curr = self._merge_translates(bb)
 
         for inst in bb.instructions:
-
-
-
             if inst.get_read_effects() != effects.EMPTY:
                 self._invalidate(curr, self.base_ptr.get_read_location(inst, addr_space.MEMORY))
 
@@ -455,6 +458,7 @@ class TranslateAnalysis(IRAnalysis):
 
             if inst.get_write_effects() != effects.EMPTY:
                 self._invalidate(curr, self.base_ptr.get_write_location(inst, addr_space.MEMORY))
+
             if inst.get_read_effects() | inst.get_write_effects() != effects.EMPTY:
                 self._inst_translates[inst] = curr.copy()
 
