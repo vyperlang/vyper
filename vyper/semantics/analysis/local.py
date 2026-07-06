@@ -207,7 +207,6 @@ def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
         if (attr := info.attr) is not None:
             path.append(attr)
 
-        assert isinstance(node, (vy_ast.Subscript, vy_ast.Attribute))  # help mypy
         node = node.value
         info = get_expr_info(node)
 
