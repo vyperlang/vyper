@@ -37,7 +37,7 @@ A_GOOD_PRIME: public(immutable(uint256))
 
 @deploy
 def __init__():
-    A_GOOD_PRIME = 967
+    self.A_GOOD_PRIME = 967
 """
 
 

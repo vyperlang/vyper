@@ -80,16 +80,16 @@ deployer: immutable(address)
 
 @deploy
 def __init__():
-    deployer = msg.sender
-    self.owner = deployer
+    self.deployer = msg.sender
+    self.owner = self.deployer
 
 
 @external
 def set_owner(_owner: address):
 
-    assert msg.sender == deployer
-    assert self.owner == deployer
-    assert _owner != deployer
+    assert msg.sender == self.deployer
+    assert self.owner == self.deployer
+    assert _owner != self.deployer
 
     self.owner = _owner
     log TransferOwnership(_old_owner=empty(address), _new_owner=_owner)
