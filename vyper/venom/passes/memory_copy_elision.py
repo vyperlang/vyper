@@ -66,21 +66,26 @@ class MemoryCopyElisionPass(IRPass):
         self.loads = {Effects.MEMORY: dict(), Effects.STORAGE: dict(), Effects.TRANSIENT: dict()}
         self.bb_copies = {}
 
-        # Use worklist algorithm for cross-BB copy propagation
-        worklist = deque(self.cfg.dfs_pre_walk)
+        while True:
+            # Use worklist algorithm for cross-BB copy propagation
+            worklist = deque(self.cfg.dfs_pre_walk)
 
-        while len(worklist) > 0:
-            bb = worklist.popleft()
-            changed = self._process_bb(bb)
-            if changed:
-                for succ in self.cfg.cfg_out(bb):
-                    if succ not in worklist:
-                        worklist.append(succ)
+            while len(worklist) > 0:
+                bb = worklist.popleft()
+                changed = self._process_bb(bb)
+                if changed:
+                    for succ in self.cfg.cfg_out(bb):
+                        if succ not in worklist:
+                            worklist.append(succ)
 
-        self.translates = self.analyses_cache.request_analysis(TranslateAnalysis)
+            self.translates = self.analyses_cache.force_analysis(TranslateAnalysis)
 
-        for bb in self.function.get_basic_blocks():
-            self._process_translation(bb)
+            change = False
+            for bb in self.function.get_basic_blocks():
+                change |= self._process_translation(bb)
+
+            if not change:
+                break
 
         # Invalidate analyses that may be affected by IR modifications
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
@@ -124,11 +129,14 @@ class MemoryCopyElisionPass(IRPass):
         return self.copy_forwarding.copies_equivalent(inst1, inst2)
 
     def _process_translation(self, bb: IRBasicBlock):
+        change = False
         for inst in bb.instructions.copy():
             if Effects.MEMORY in inst.get_write_effects():
-                self._try_update_from_translates_write(inst)
+                change |= self._try_update_from_translates_write(inst)
             if Effects.MEMORY in inst.get_read_effects():
-                self._try_update_from_translates_read(inst)
+                change |= self._try_update_from_translates_read(inst)
+
+        return change
 
 
     def _process_bb(self, bb: IRBasicBlock) -> bool:
@@ -318,17 +326,17 @@ class MemoryCopyElisionPass(IRPass):
         read_loc = self.base_ptr.get_read_location(inst, addr_space.MEMORY)
         translates = self.translates.translates
         if read_loc.is_concrete:
-            return
+            return False
         if read_loc.alloca not in translates:
-            return
-        self._update_base_allocation_read(inst, read_loc, translates)
+            return False
+        return self._update_base_allocation_read(inst, read_loc, translates)
 
     def _update_base_allocation_read(self, inst: IRInstruction, read_loc: MemoryLocation, translates: TranslateMap):
         if read_loc.alloca not in translates:
-            return
+            return False
 
         if read_loc.offset is None:
-            return
+            return False
 
         new_base = translates[read_loc.alloca][0]
 
@@ -342,22 +350,23 @@ class MemoryCopyElisionPass(IRPass):
             self.base_ptr.new_gep(new_operand, new_base, read_loc.offset)
 
         update_read_location(inst, new_operand)
+        return True
 
     def _try_update_from_translates_write(self, inst: IRInstruction):
         write_loc = self.base_ptr.get_write_location(inst, addr_space.MEMORY)
         translates = self.translates.translates
         if write_loc.is_concrete:
-            return
+            return False
         if write_loc.alloca not in translates:
-            return
-        self._update_base_allocation_write(inst, write_loc, translates)
+            return False
+        return self._update_base_allocation_write(inst, write_loc, translates)
 
     def _update_base_allocation_write(self, inst: IRInstruction, write_loc: MemoryLocation, translates: TranslateMap):
         if write_loc.alloca not in translates:
-            return
+            return False
 
         if write_loc.offset is None:
-            return
+            return False
 
         new_base = translates[write_loc.alloca][0]
 
@@ -371,6 +380,7 @@ class MemoryCopyElisionPass(IRPass):
             self.base_ptr.new_gep(new_operand, new_base, write_loc.offset)
 
         update_write_location(inst, new_operand)
+        return True
 
 
 def _volatile_memory(inst):
