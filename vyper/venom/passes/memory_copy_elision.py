@@ -17,8 +17,8 @@ from vyper.venom.effects import Effects, to_addr_space
 from vyper.venom.memory_location import (
     Allocation,
     MemoryLocation,
-    update_read_location,
-    update_write_location,
+    read_location_idx,
+    write_location_idx,
 )
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.copy_forwarding import CopyForwardingPolicy
@@ -340,8 +340,12 @@ class MemoryCopyElisionPass(IRPass):
             assert tmp is not None
             new_operand = tmp  # help mypy
             self.base_ptr.new_gep(new_operand, new_base, read_loc.offset)
-
-        update_read_location(inst, new_operand)
+        
+        idx = read_location_idx(inst)
+        assert idx is not None
+        new_ops = inst.operands.copy()
+        new_ops[idx] = new_operand
+        self.updater.update(inst, inst.opcode, new_ops)
         return True
 
     def _try_update_from_translates_write(self, inst: IRInstruction):
@@ -373,7 +377,11 @@ class MemoryCopyElisionPass(IRPass):
             new_operand = tmp  # help mypy
             self.base_ptr.new_gep(new_operand, new_base, write_loc.offset)
 
-        update_write_location(inst, new_operand)
+        idx = write_location_idx(inst)
+        assert idx is not None
+        new_ops = inst.operands.copy()
+        new_ops[idx] = new_operand
+        self.updater.update(inst, inst.opcode, new_ops)
         return True
 
 

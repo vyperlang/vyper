@@ -290,50 +290,61 @@ def get_memory_read_op(inst) -> Optional[IROperand]:
 def get_read_size(inst: IRInstruction) -> Optional[IROperand]:
     return memory_read_ops(inst).size
 
-
-def update_write_location(inst, new_op: IROperand):
+def write_location_idx(inst) -> Optional[int]:
     opcode = inst.opcode
     if opcode == "mstore":
-        inst.operands[1] = new_op
+        return 1
     elif opcode == "istore":
-        inst.operands[0] = new_op
+        return 0
     elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
-        inst.operands[2] = new_op
+        return 2
     elif opcode == "call":
-        inst.operands[1] = new_op
+        return 1
     elif opcode in ("delegatecall", "staticcall"):
-        inst.operands[1] = new_op
+        return 1
     elif opcode == "extcodecopy":
-        inst.operands[2] = new_op
+        return 2
 
     else:  # pragma: nocover
-        raise CompilerPanic("unreachable")
+        return None
+    
+
+def update_write_location(inst, new_op: IROperand):
+    idx = write_location_idx(inst)
+    assert idx is None
+    inst.operands[idx] = new_op
+
+
+def read_location_idx(inst) -> Optional[int]:
+    opcode = inst.opcode
+    if opcode == "mload":
+        return 0
+    elif opcode == "iload":
+        return 0
+    elif opcode == "mcopy":
+        return 1
+    elif opcode == "call":
+        return 3
+    elif opcode in ("delegatecall", "staticcall", "call"):
+        return 3
+    elif opcode == "return":
+        return 1
+    elif opcode == "create":
+        return 1
+    elif opcode == "create2":
+        return 2
+    elif opcode == "sha3":
+        return 1
+    elif opcode == "log":
+        return -1
+    elif opcode == "revert":
+        return 1
+
+    else:  # pragma: nocover
+        return None
 
 
 def update_read_location(inst, new_op: IROperand):
-    opcode = inst.opcode
-    if opcode == "mload":
-        inst.operands[0] = new_op
-    elif opcode == "iload":
-        inst.operands[0] = new_op
-    elif opcode == "mcopy":
-        inst.operands[1] = new_op
-    elif opcode == "call":
-        inst.operands[3] = new_op
-    elif opcode in ("delegatecall", "staticcall", "call"):
-        inst.operands[3] = new_op
-    elif opcode == "return":
-        inst.operands[1] = new_op
-    elif opcode == "create":
-        inst.operands[1] = new_op
-    elif opcode == "create2":
-        inst.operands[2] = new_op
-    elif opcode == "sha3":
-        inst.operands[1] = new_op
-    elif opcode == "log":
-        inst.operands[-1] = new_op
-    elif opcode == "revert":
-        inst.operands[1] = new_op
-
-    else:  # pragma: nocover
-        raise CompilerPanic("unreachable")
+    idx = write_location_idx(inst)
+    assert idx is None
+    inst.operands[idx] = new_op
