@@ -185,16 +185,13 @@ class MemoryCopyElisionPass(IRPass):
                 if write_loc.is_fixed and not MemoryLocation.may_overlap(read_loc, write_loc):
                     self.copies[write_loc] = inst
 
-            elif _volatile_memory(inst):
-                self._invalidate(
-                    self.base_ptr.get_write_location(inst, addr_space.MEMORY), Effects.MEMORY
-                )
             else:
                 if Effects.RETURNDATA in inst.get_write_effects():
                     self._invalidate_returndata_copies()
                 if Effects.MEMORY in inst.get_write_effects():
-                    self.copies.clear()
-                    self.loads[Effects.MEMORY].clear()
+                    self._invalidate(
+                        self.base_ptr.get_write_location(inst, addr_space.MEMORY), Effects.MEMORY
+                    )
                 if Effects.STORAGE in inst.get_write_effects():
                     self.loads[Effects.STORAGE].clear()
                 if Effects.TRANSIENT in inst.get_write_effects():
@@ -383,12 +380,6 @@ class MemoryCopyElisionPass(IRPass):
         new_ops[idx] = new_operand
         self.updater.update(inst, inst.opcode, new_ops)
         return True
-
-
-def _volatile_memory(inst):
-    # Only clear copies when memory is written by an instruction not handled above.
-    # Reading memory (sha3, log, return, revert) doesn't invalidate tracked copies.
-    return Effects.MEMORY in inst.get_write_effects()
 
 
 class TranslateAnalysis(IRAnalysis):
