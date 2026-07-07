@@ -65,7 +65,7 @@ n: public(HashMap[uint256, bool][a])
 
 @deploy
 def __init__():
-    a = 3
+    self.a = 3
     """,
     """
 n: HashMap[uint256, bool][3][3]

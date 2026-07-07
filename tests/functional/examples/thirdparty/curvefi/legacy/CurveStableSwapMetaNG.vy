@@ -220,7 +220,7 @@ nonces: public(HashMap[address, uint256])
 
 # keccak256("isValidSignature(bytes32,bytes)")[:4] << 224
 ERC1271_MAGIC_VAL: constant(bytes32) = 0x1626ba7e00000000000000000000000000000000000000000000000000000000
-EIP712_TYPEHASH: constant(bytes32) = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)")
+EIP712_TYPEHASH: constant(bytes32) = keccak256("EIP712Domain(string self.name,string version,uint256 chainId,address verifyingContract,bytes32 self.salt)")
 EIP2612_TYPEHASH: constant(bytes32) = keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)")
 
 VERSION_HASH: constant(bytes32) = keccak256(version)
@@ -272,24 +272,24 @@ def __init__(
     @param _oracles Array of rate oracle addresses.
     """
 
-    WETH20 = _weth
-    BASE_POOL = _base_pool
-    BASE_COINS = _base_coins
-    BASE_N_COINS = len(_base_coins)
-    coins = _coins
-    rate_multipliers = _rate_multipliers
-    asset_types = _asset_types  # contains asset types for all pool tokens including base pool tokens
+    self.WETH20 = _weth
+    self.BASE_POOL = _base_pool
+    self.BASE_COINS = _base_coins
+    self.BASE_N_COINS = len(_base_coins)
+    self.coins = _coins
+    self.rate_multipliers = _rate_multipliers
+    self.asset_types = _asset_types  # contains asset types for all pool tokens including base pool tokens
 
     for i: uint256 in range(MAX_COINS):
-        if i < BASE_N_COINS:
+        if i < self.BASE_N_COINS:
             # Approval needed for add_liquidity operation on base pool in _exchange_underlying
-            extcall IERC20(_base_coins[i]).approve(BASE_POOL, max_value(uint256))
+            extcall IERC20(_base_coins[i]).approve(self.BASE_POOL, max_value(uint256))
 
     self.last_prices_packed.append(self.pack_prices(10**18, 10**18))
 
     # ----------------- Parameters independent of pool type ------------------
 
-    factory = Factory(msg.sender)
+    self.factory = Factory(msg.sender)
 
     A: uint256 = _A * A_PRECISION
     self.initial_A = A
@@ -303,7 +303,7 @@ def __init__(
     for i: int128 in range(N_COINS_128):
 
         # Enforce native token as coin[0]
-        if _coins[i] == WETH20:
+        if _coins[i] == self.WETH20:
             assert i == 0 # dev: "ETH must be at index 0"
 
         self.oracles.append(convert(_method_ids[i], uint256) * 2**224 | convert(_oracles[i], uint256))
@@ -311,21 +311,21 @@ def __init__(
 
     # --------------------------- ERC20 stuff ----------------------------
 
-    name = _name
-    symbol = _symbol
+    self.name = _name
+    self.symbol = _symbol
 
     # EIP712 related params -----------------
-    NAME_HASH = keccak256(name)
-    salt = block.prevhash
-    CACHED_CHAIN_ID = chain.id
-    CACHED_DOMAIN_SEPARATOR = keccak256(
+    self.NAME_HASH = keccak256(self.name)
+    self.salt = block.prevhash
+    self.CACHED_CHAIN_ID = chain.id
+    self.CACHED_DOMAIN_SEPARATOR = keccak256(
         abi_encode(
             EIP712_TYPEHASH,
-            NAME_HASH,
+            self.NAME_HASH,
             VERSION_HASH,
             chain.id,
             self,
-            salt,
+            self.salt,
         )
     )
 
@@ -341,7 +341,7 @@ def __init__(
 @external
 def __default__():
     if msg.value > 0:
-        assert WETH20 in coins
+        assert self.WETH20 in self.coins
 
 
 @internal
@@ -380,20 +380,20 @@ def _transfer_in(
     @params use_eth True if the transfer is ETH, False otherwise.
     @params expect_optimistic_transfer True if contract expects an optimistic coin transfer
     """
-    _dx: uint256 = staticcall IERC20(coins[coin_idx]).balanceOf(self)
-    _incoming_coin_asset_type: uint8 = asset_types[coin_idx]
+    _dx: uint256 = staticcall IERC20(self.coins[coin_idx]).balanceOf(self)
+    _incoming_coin_asset_type: uint8 = self.asset_types[coin_idx]
 
     # ------------------------- Handle Transfers -----------------------------
 
-    if use_eth and coins[coin_idx] == WETH20:
+    if use_eth and self.coins[coin_idx] == self.WETH20:
 
         _dx = mvalue
-        extcall WETH(WETH20).deposit(value=dx)
+        extcall WETH(self.WETH20).deposit(value=dx)
 
     elif expect_optimistic_transfer:
 
         assert _incoming_coin_asset_type != 3 # dev: "exchange_received not allowed if incoming token is rebasing"
-        _dx = staticcall IERC20(coins[coin_idx]).balanceOf(self) - self.stored_balances[coin_idx]
+        _dx = staticcall IERC20(self.coins[coin_idx]).balanceOf(self) - self.stored_balances[coin_idx]
 
     elif callback_sig != empty(bytes32):
 
@@ -401,19 +401,19 @@ def _transfer_in(
                 callbacker,
                 concat(
                     slice(callback_sig, 0, 4),
-                    abi_encode(sender, receiver, coins[coin_idx], dx, dy)
+                    abi_encode(sender, receiver, self.coins[coin_idx], dx, dy)
                 )
             )
 
-        _dx = staticcall IERC20(coins[coin_idx]).balanceOf(self) - _dx
+        _dx = staticcall IERC20(self.coins[coin_idx]).balanceOf(self) - _dx
 
     else:
 
-        assert extcall IERC20(coins[coin_idx]).transferFrom(
+        assert extcall IERC20(self.coins[coin_idx]).transferFrom(
             sender, self, dx, default_return_value=True
         )
 
-        _dx = staticcall IERC20(coins[coin_idx]).balanceOf(self) - _dx
+        _dx = staticcall IERC20(self.coins[coin_idx]).balanceOf(self) - _dx
 
     # --------------------------- Check Transfer -----------------------------
 
@@ -445,14 +445,14 @@ def _transfer_out(
 
     # ------------------------- Handle Transfers -----------------------------
 
-    if use_eth and coins[_coin_idx] == WETH20:
+    if use_eth and self.coins[_coin_idx] == self.WETH20:
 
-        extcall WETH(WETH20).withdraw(_amount)
+        extcall WETH(self.WETH20).withdraw(_amount)
         raw_call(receiver, b"", value=_amount)
 
     else:
 
-        assert extcall IERC20(coins[_coin_idx]).transfer(
+        assert extcall IERC20(self.coins[_coin_idx]).transfer(
             receiver, _amount, default_return_value=True
         )
 
@@ -474,10 +474,10 @@ def _stored_rates() -> DynArray[uint256, MAX_COINS]:
          contract.
     """
     rates: DynArray[uint256, MAX_COINS] = empty(DynArray[uint256, MAX_COINS])
-    if BASE_POOL != empty(address):
-        rates = [rate_multipliers[0], staticcall StableSwap(BASE_POOL).get_virtual_price()]
+    if self.BASE_POOL != empty(address):
+        rates = [self.rate_multipliers[0], staticcall StableSwap(self.BASE_POOL).get_virtual_price()]
     else:
-        rates = rate_multipliers
+        rates = self.rate_multipliers
 
     oracles: DynArray[uint256, MAX_COINS] = self.oracles
 
@@ -510,7 +510,7 @@ def _balances() -> DynArray[uint256, MAX_COINS]:
     result: DynArray[uint256, MAX_COINS] = empty(DynArray[uint256, MAX_COINS])
 
     for i: int128 in range(N_COINS_128):
-        result.append(staticcall IERC20(coins[i]).balanceOf(self) - self.admin_balances[i])
+        result.append(staticcall IERC20(self.coins[i]).balanceOf(self) - self.admin_balances[i])
 
     return result
 
@@ -1072,7 +1072,7 @@ def _exchange_underlying(
     expect_optimistic_transfer: bool = False
 ) -> uint256:
 
-    assert BASE_POOL != empty(address)  # dev: pool is not a metapool
+    assert self.BASE_POOL != empty(address)  # dev: pool is not a metapool
 
     rates: DynArray[uint256, MAX_COINS] = self._stored_rates()
     old_balances: DynArray[uint256, MAX_COINS] = self._balances()
@@ -1088,17 +1088,17 @@ def _exchange_underlying(
     output_coin: address = empty(address)
 
     if i == 0:
-        input_coin = coins[0]
+        input_coin = self.coins[0]
     else:
         base_i = i - MAX_METAPOOL_COIN_INDEX  # if i == 1, this reverts
         meta_i = 1
-        input_coin = BASE_COINS[base_i]
+        input_coin = self.BASE_COINS[base_i]
     if j == 0:
-        output_coin = coins[0]
+        output_coin = self.coins[0]
     else:
         base_j = j - MAX_METAPOOL_COIN_INDEX  # if j == 1, this reverts
         meta_j = 1
-        output_coin = BASE_COINS[base_j]
+        output_coin = self.BASE_COINS[base_j]
 
     # --------------------------- Do Transfer in -----------------------------
 
@@ -1107,10 +1107,10 @@ def _exchange_underlying(
     # for exchange_underlying, optimistic transfers need to be handled differently
     if expect_optimistic_transfer:
 
-        assert asset_types[i] != 3  # dev: rebasing coins not supported
+        assert self.asset_types[i] != 3  # dev: rebasing coins not supported
 
         # This branch is never reached for rebasing tokens
-        if input_coin == BASE_COINS[base_i]:
+        if input_coin == self.BASE_COINS[base_i]:
             # we expect base_coin's balance to be 0. So swap whatever base_coin's
             # balance the pool has:
             dx_w_fee = staticcall IERC20(input_coin).balanceOf(self)
@@ -1155,7 +1155,7 @@ def _exchange_underlying(
         # Withdraw from the base pool if needed
         if j > 0:
             out_amount: uint256 = staticcall IERC20(output_coin).balanceOf(self)
-            extcall StableSwap(BASE_POOL).remove_liquidity_one_coin(dy, base_j, 0)
+            extcall StableSwap(self.BASE_POOL).remove_liquidity_one_coin(dy, base_j, 0)
             dy = staticcall IERC20(output_coin).balanceOf(self) - out_amount
 
         assert dy >= _min_dy
@@ -1166,7 +1166,7 @@ def _exchange_underlying(
     else:  # base pool swap (user should swap at base pool for better gas)
 
         dy = staticcall IERC20(output_coin).balanceOf(self)
-        extcall StableSwap(BASE_POOL).exchange(base_i, base_j, dx_w_fee, _min_dy)
+        extcall StableSwap(self.BASE_POOL).exchange(base_i, base_j, dx_w_fee, _min_dy)
         dy = staticcall IERC20(output_coin).balanceOf(self) - dy
 
     # --------------------------- Do Transfer out ----------------------------
@@ -1183,26 +1183,26 @@ def _exchange_underlying(
 @internal
 def _meta_add_liquidity(dx: uint256, base_i: int128) -> uint256:
 
-    coin_i: address = coins[MAX_METAPOOL_COIN_INDEX]
+    coin_i: address = self.coins[MAX_METAPOOL_COIN_INDEX]
     x: uint256 = staticcall IERC20(coin_i).balanceOf(self)
 
-    if BASE_N_COINS == 2:
+    if self.BASE_N_COINS == 2:
 
         base_inputs: uint256[2] = empty(uint256[2])
         base_inputs[base_i] = dx
-        extcall StableSwap2(BASE_POOL).add_liquidity(base_inputs, 0)
+        extcall StableSwap2(self.BASE_POOL).add_liquidity(base_inputs, 0)
 
-    if BASE_N_COINS == 3:
+    if self.BASE_N_COINS == 3:
 
         base_inputs: uint256[3] = empty(uint256[3])
         base_inputs[base_i] = dx
-        extcall StableSwap3(BASE_POOL).add_liquidity(base_inputs, 0)
+        extcall StableSwap3(self.BASE_POOL).add_liquidity(base_inputs, 0)
 
     else:
 
         base_inputs: uint256[4] = empty(uint256[4])
         base_inputs[base_i] = dx
-        extcall StableSwap4(BASE_POOL).add_liquidity(base_inputs, 0)
+        extcall StableSwap4(self.BASE_POOL).add_liquidity(base_inputs, 0)
 
     return staticcall IERC20(coin_i).balanceOf(self) - x
 
@@ -1210,7 +1210,7 @@ def _meta_add_liquidity(dx: uint256, base_i: int128) -> uint256:
 @internal
 def _withdraw_admin_fees():
 
-    fee_receiver: address = staticcall factory.get_fee_receiver()
+    fee_receiver: address = staticcall self.factory.get_fee_receiver()
     assert fee_receiver != empty(address)  # dev: fee receiver not set
 
     for i: int128 in range(N_COINS_128):
@@ -1668,18 +1668,18 @@ def exp(x: int256) -> uint256:
 @view
 @internal
 def _domain_separator() -> bytes32:
-    if chain.id != CACHED_CHAIN_ID:
+    if chain.id != self.CACHED_CHAIN_ID:
         return keccak256(
             abi_encode(
                 EIP712_TYPEHASH,
-                NAME_HASH,
+                self.NAME_HASH,
                 VERSION_HASH,
                 chain.id,
                 self,
-                salt,
+                self.salt,
             )
         )
-    return CACHED_DOMAIN_SEPARATOR
+    return self.CACHED_DOMAIN_SEPARATOR
 
 
 @internal
@@ -1822,7 +1822,7 @@ def get_dx(i: int128, j: int128, dy: uint256) -> uint256:
     @param dy Amount of `j` being received after exchange
     @return Amount of `i` predicted
     """
-    return staticcall StableSwapViews(staticcall factory.views_implementation()).get_dx(i, j, dy, self)
+    return staticcall StableSwapViews(staticcall self.factory.views_implementation()).get_dx(i, j, dy, self)
 
 
 @view
@@ -1836,7 +1836,7 @@ def get_dy(i: int128, j: int128, dx: uint256) -> uint256:
     @param dx Amount of `i` being exchanged
     @return Amount of `j` predicted
     """
-    return staticcall StableSwapViews(staticcall factory.views_implementation()).get_dy(i, j, dx, self)
+    return staticcall StableSwapViews(staticcall self.factory.views_implementation()).get_dy(i, j, dx, self)
 
 
 @view
@@ -1879,7 +1879,7 @@ def calc_token_amount(
     @param _is_deposit set True for deposits, False for withdrawals
     @return Expected amount of LP tokens received
     """
-    views: address = staticcall factory.views_implementation()
+    views: address = staticcall self.factory.views_implementation()
     return staticcall StableSwapViews(views).calc_token_amount(_amounts, _is_deposit, self)
 
 
@@ -1936,7 +1936,7 @@ def stored_rates(i: uint256) -> uint256:
 
 @external
 def ramp_A(_future_A: uint256, _future_time: uint256):
-    assert msg.sender == staticcall factory.admin()  # dev: only owner
+    assert msg.sender == staticcall self.factory.admin()  # dev: only owner
     assert block.timestamp >= self.initial_A_time + MIN_RAMP_TIME
     assert _future_time >= block.timestamp + MIN_RAMP_TIME  # dev: insufficient time
 
@@ -1959,7 +1959,7 @@ def ramp_A(_future_A: uint256, _future_time: uint256):
 
 @external
 def stop_ramp_A():
-    assert msg.sender == staticcall factory.admin()  # dev: only owner
+    assert msg.sender == staticcall self.factory.admin()  # dev: only owner
 
     current_A: uint256 = self._A()
     self.initial_A = current_A
@@ -1974,7 +1974,7 @@ def stop_ramp_A():
 @external
 def apply_new_fee(_new_fee: uint256):
 
-    assert msg.sender == staticcall factory.admin()
+    assert msg.sender == staticcall self.factory.admin()
     assert _new_fee <= MAX_FEE
     self.fee = _new_fee
 
@@ -1987,7 +1987,7 @@ def set_ma_exp_time(_ma_exp_time: uint256):
     @notice Set the moving average window of the price oracle.
     @param _ma_exp_time Moving average window. It is time_in_seconds // ln(2)
     """
-    assert msg.sender == staticcall factory.admin()  # dev: only owner
+    assert msg.sender == staticcall self.factory.admin()  # dev: only owner
     assert _ma_exp_time != 0
 
     self.ma_exp_time = _ma_exp_time
