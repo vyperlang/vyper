@@ -2,17 +2,16 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from vyper.evm.assembler.instructions import DATA_ITEM, PUSH, DataHeader
+from vyper.evm.assembler.instructions import CONST, CONSTREF, DATA_ITEM, PUSH, PUSH_OFST, DataHeader
 from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import (
-    PUSH_OFST,
     PUSHLABEL,
     AssemblyInstruction,
     Label,
     TaggedInstruction,
     optimize_assembly,
 )
-from vyper.utils import OrderedSet, wrap256
+from vyper.utils import OrderedSet, ceil32, wrap256
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
 from vyper.venom.basicblock import (
     PSEUDO_INSTRUCTION,
@@ -110,6 +109,11 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
 
 _REVERT_POSTAMBLE = [Label("revert"), *PUSH(0), "DUP1", "REVERT"]
 
+# Name of the assembler-level CONST used by the `initial_fmp` Venom opcode.
+# The CONST is declared at the end of assembly generation (after spill
+# analysis completes) and resolved at assembly time.
+_INITIAL_FMP_CONST = "__initial_fmp__"
+
 
 def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
     ret = []
@@ -153,6 +157,7 @@ class VenomCompiler:
         self.label_counter = 0
         self.visited_basicblocks = OrderedSet()
         self.spiller = StackSpiller(ctx)
+        self._uses_initial_fmp_const = False
 
     def mklabel(self, name: str) -> Label:
         self.label_counter += 1
@@ -161,6 +166,8 @@ class VenomCompiler:
     def generate_evm_assembly(self, no_optimize: bool = False) -> list[AssemblyInstruction]:
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
+        self.spiller.reset_peak_spill_end()
+        self._uses_initial_fmp_const = False
 
         asm: list[AssemblyInstruction] = []
 
@@ -178,6 +185,15 @@ class VenomCompiler:
 
             self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), {})
             self.spiller.set_current_function(None)
+
+        # Declare the initial-FMP CONST if anything referenced it (the
+        # entry function's FMP root is an explicit `initial_fmp`
+        # instruction, lowered to a CONSTREF push below). The declaration
+        # must sit in the assembly stream before resolve_symbols runs; its
+        # value is known now that all per-function codegen (and spill
+        # analysis) has completed.
+        if self._uses_initial_fmp_const:
+            asm = [CONST(_INITIAL_FMP_CONST, self._initial_fmp_value())] + asm
 
         asm.extend(_REVERT_POSTAMBLE)
         # Append data segment
@@ -199,6 +215,19 @@ class VenomCompiler:
             optimize_assembly(asm)
 
         return asm
+
+    def _initial_fmp_value(self) -> int:
+        # Initial FMP must live above every function's static frame
+        # AND above every function's spill region. Spill slots start
+        # at fn_eom[fn] and grow upward; `peak_spill_end` tracks the
+        # maximum `fn_eom + N*32` reached across all functions during
+        # codegen. Placing the initial FMP at or above that value
+        # guarantees that the dynamic allocation region (bumped from
+        # FMP by each `bump` instruction) never aliases with any
+        # function's spill area.
+        eoms = [self.ctx.mem_allocator.fn_eom.get(fn, 0) for fn in self.ctx.functions.values()]
+        max_eom = max(eoms, default=0)
+        return ceil32(max(max_eom, self.spiller.peak_spill_end))
 
     def _stack_reorder(
         self,
@@ -351,7 +380,7 @@ class VenomCompiler:
     def _prepare_stack_for_function(self, asm, fn: IRFunction, stack: StackModel):
         last_param_inst = None
         for inst in fn.entry.instructions:
-            if inst.opcode != "param":
+            if not inst.is_param:
                 # note: always well defined if the bb is terminated
                 next_liveness = self.liveness.live_vars_at(inst)
                 break
@@ -375,7 +404,7 @@ class VenomCompiler:
         self._optimistic_swap(asm, last_param_inst, next_liveness, stack)
 
     def popmany(self, asm, to_pop: Iterable[IRVariable], stack):
-        to_pop = list(to_pop)
+        to_pop = [var for var in to_pop if stack.get_depth(var) is not StackModel.NOT_IN_STACK]
         if len(to_pop) == 0:
             return
 
@@ -425,7 +454,7 @@ class VenomCompiler:
         if len(self.cfg.cfg_in(basicblock)) == 1:
             self.clean_stack_from_cfg_in(asm, basicblock, stack)
 
-        all_insts = [inst for inst in basicblock.instructions if inst.opcode != "param"]
+        all_insts = [inst for inst in basicblock.instructions if not inst.is_param]
 
         # Check if this block ends with a halting terminator (return, revert, stop)
         # If so, we don't need to pop dead variables since execution halts anyway
@@ -582,9 +611,28 @@ class VenomCompiler:
             assembly.append(opcode.upper())
         elif opcode == "alloca":
             pass
-        elif opcode == "memtop":
-            assembly.append("MSIZE")
-        elif opcode == "param":
+        elif opcode == "bump":
+            self._emit_bump(assembly)
+        elif opcode == "dalloca":
+            # FmpLoweringPass is expected to eliminate every `dalloca`
+            # before we reach codegen. If we see one here, the pipeline is
+            # misconfigured.
+            raise CompilerPanic("dalloca reached codegen; FmpLoweringPass missing?")
+        elif opcode == "dret":
+            raise CompilerPanic("dret reached codegen; DretDesugarPass missing?")
+        elif opcode in ("getfmp", "setfmp", "retfmp"):
+            # FMP virtual-register opcodes exist only between DretDesugarPass
+            # and FmpLoweringPass; the latter must thread them away.
+            raise CompilerPanic(f"{opcode} reached codegen; FmpLoweringPass missing?")
+        elif opcode == "initial_fmp":
+            # Lowers to a deferred PUSH of the initial FMP value. We emit a
+            # CONSTREF here and declare the CONST with the final value once
+            # all per-function codegen (and spill analysis) has completed.
+            assembly.append(PUSH_OFST(CONSTREF(_INITIAL_FMP_CONST), 0))
+            self._uses_initial_fmp_const = True
+        elif opcode in ("param", "fmp_param", "retpc_param"):
+            # names for entry stack slots; all three assemble identically
+            # (no code emitted)
             pass
         elif opcode == "assign":
             pass
@@ -661,7 +709,12 @@ class VenomCompiler:
             return apply_line_numbers(inst, assembly)
 
         # Skip popping dead outputs if we're in a halting block (return/revert/stop)
-        if not skip_pops:
+        # and the instruction has a single output (popping a dead single output
+        # is safe to elide because the halting terminator discards the entire
+        # stack). For multi-output instructions the elision can leave a dead
+        # value sandwiched between operands needed by later instructions,
+        # breaking the spiller's reorder assumptions.
+        if not skip_pops or len(outputs) > 1:
             dead_outputs = [out for out in outputs if out not in next_liveness]
             self.popmany(assembly, dead_outputs, stack)
 
@@ -677,6 +730,19 @@ class VenomCompiler:
         self.spiller.release_dead_spills(spilled, next_liveness)
 
         return apply_line_numbers(inst, assembly)
+
+    def _emit_bump(self, assembly: list[AssemblyInstruction]) -> None:
+        # `bump a, b` is pure arithmetic: output (a, a + b).
+        # Input stack:  [..., a, b]           (b on TOS)
+        # Output stack: [..., a_out, sum]     (sum on TOS, a_out below)
+        #
+        # where a_out == a and sum == a + b. Order matches Venom's
+        # multi-output convention: outputs[0] lands deepest, outputs[-1]
+        # on TOS.
+        assembly.append("DUP2")
+        # stack: [..., a, b, a]
+        assembly.append("ADD")
+        # stack: [..., a, a+b]  == [..., a_out, sum]
 
     def _optimistic_swap(self, assembly, inst, next_liveness, stack):
         # heuristic: peek at next_liveness to find the next scheduled
