@@ -1,7 +1,13 @@
 import pytest
 
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import CodegenPanic, ImmutableViolation, InvalidType, TypeMismatch
+from vyper.exceptions import (
+    CodegenPanic,
+    ImmutableViolation,
+    InvalidType,
+    StructureException,
+    TypeMismatch,
+)
 
 
 def test_augassign(get_contract):
@@ -382,6 +388,34 @@ def foo(x: int128):
     x += 5
 """
     assert_compile_failed(lambda: get_contract(code), ImmutableViolation)
+
+
+def test_invalid_assign_to_call_return(assert_compile_failed, get_contract):
+    code = """
+@internal
+def g() -> uint256[3]:
+    return [1, 2, 3]
+
+@external
+def f():
+    self.g()[0] = 5
+"""
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+
+    assert e.value.message == "Cannot modify `self.g()[0]` since it is not a reference"
+
+
+def test_invalid_assign_to_self_balance(assert_compile_failed, get_contract):
+    code = """
+@external
+def f():
+    self.balance = 100
+"""
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+
+    assert e.value.message == "Cannot modify `self.balance` since it is not a reference"
 
 
 def test_valid_literal_increment(get_contract):

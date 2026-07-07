@@ -825,6 +825,6 @@ class Expr:
     @classmethod
     def parse_pointer_expr(cls, expr, context):
         o = cls(expr, context).ir_node
-        if not o.location:
-            raise StructureException("Looking for a variable location, instead got a value", expr)
+        # Looking for a variable location, instead got a value
+        assert o.location
         return o

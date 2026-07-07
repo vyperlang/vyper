@@ -567,6 +567,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if info.modifiability == Modifiability.CONSTANT:
             raise ImmutableViolation("Constant value cannot be written to.")
 
+        if info.location == DataLocation.UNSET:
+            raise StructureException(
+                f"Cannot modify `{target.node_source_code}` since it is not a reference", target
+            )
+
         var_access = _get_variable_access(target)
         assert var_access is not None
 
