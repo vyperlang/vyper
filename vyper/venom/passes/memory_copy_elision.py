@@ -289,7 +289,7 @@ class MemoryCopyElisionPass(IRPass):
             return True
 
         read_loc = self.base_ptr.get_read_location(inst, addr_space.MEMORY)
-        if not write_loc.is_concrete and write_loc == read_loc:
+        if not write_loc.is_concrete and write_loc.is_fixed and write_loc == read_loc:
             self.updater.nop(inst)
             return True
 
