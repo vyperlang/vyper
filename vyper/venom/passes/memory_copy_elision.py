@@ -544,6 +544,10 @@ class TranslateAnalysis(IRAnalysis):
         if write_loc.alloca.alloca_size != write_loc.size:
             return
 
+        # sanity check - it should follow from two previous condition
+        # and that the instruction is mcopy
+        assert write_loc.alloca.alloca_size == read_loc.alloca.alloca_size
+
         translates_to = read_loc.alloca
         if translates_to == write_loc.alloca:
             return
