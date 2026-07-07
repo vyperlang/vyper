@@ -311,7 +311,7 @@ def write_location_idx(inst) -> Optional[int]:
 
 def update_write_location(inst, new_op: IROperand):
     idx = write_location_idx(inst)
-    assert idx is None
+    assert idx is not None
     inst.operands[idx] = new_op
 
 
@@ -346,5 +346,5 @@ def read_location_idx(inst) -> Optional[int]:
 
 def update_read_location(inst, new_op: IROperand):
     idx = write_location_idx(inst)
-    assert idx is None
+    assert idx is not None
     inst.operands[idx] = new_op
