@@ -340,7 +340,7 @@ class MemoryCopyElisionPass(IRPass):
             assert tmp is not None
             new_operand = tmp  # help mypy
             self.base_ptr.new_gep(new_operand, new_base, read_loc.offset)
-        
+
         idx = read_location_idx(inst)
         assert idx is not None
         new_ops = inst.operands.copy()

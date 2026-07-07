@@ -4,7 +4,6 @@ import dataclasses as dc
 from dataclasses import dataclass
 from typing import ClassVar, Optional
 
-from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand
 
 
@@ -290,6 +289,7 @@ def get_memory_read_op(inst) -> Optional[IROperand]:
 def get_read_size(inst: IRInstruction) -> Optional[IROperand]:
     return memory_read_ops(inst).size
 
+
 def write_location_idx(inst) -> Optional[int]:
     opcode = inst.opcode
     if opcode == "mstore":
@@ -307,7 +307,7 @@ def write_location_idx(inst) -> Optional[int]:
 
     else:  # pragma: nocover
         return None
-    
+
 
 def update_write_location(inst, new_op: IROperand):
     idx = write_location_idx(inst)
