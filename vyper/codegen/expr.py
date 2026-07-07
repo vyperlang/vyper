@@ -35,7 +35,6 @@ from vyper.exceptions import (
     CodegenPanic,
     CompilerPanic,
     EvmVersionException,
-    StructureException,
     TypeCheckFailure,
     TypeMismatch,
     UnimplementedException,
