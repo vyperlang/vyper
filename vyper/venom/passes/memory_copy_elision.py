@@ -312,15 +312,6 @@ class MemoryCopyElisionPass(IRPass):
         # removed.
         self.updater.nop(inst)
 
-    def _use_dominates(self, use: IRInstruction, inst: IRInstruction) -> bool:
-        if use.parent == inst.parent:
-            bb = inst.parent
-            use_idx = bb.instructions.index(use)
-            inst_idx = bb.instructions.index(inst)
-            return use_idx < inst_idx
-
-        return self.dom.dominates(use.parent, inst.parent)
-
     def _try_update_from_translates_read(self, inst: IRInstruction):
         read_loc = self.base_ptr.get_read_location(inst, addr_space.MEMORY)
         translates = self.translates.translates
