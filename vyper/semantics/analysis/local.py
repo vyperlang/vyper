@@ -187,9 +187,9 @@ def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name, typ: VyperType) 
 
 
 # analyse the variable access for the attribute chain for a node
-# e.x. `x` will return varinfo for `x`
-# `module.foo` will return VarAccess for `module.foo`
-# `self.my_struct.x.y` will return VarAccess for `self.my_struct.x.y`
+# e.x. `x` will return `VarAccess(<x>, ())`
+# `module.foo` will return `VarAccess(<module.foo>, ())`
+# `self.my_struct.x.y` will return `VarAccess(<self.my_struct>, ('x', 'y'))`
 def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
     path: list[str | object] = []
     info = get_expr_info(node)
@@ -210,9 +210,6 @@ def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
         node = node.value
         info = get_expr_info(node)
 
-    # ignore `self.` as it interferes with VarAccess comparison across modules
-    if len(path) > 0 and path[-1] == "self":
-        path.pop()
     path.reverse()
 
     return VarAccess(info.var_info, tuple(path))
