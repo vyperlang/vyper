@@ -535,14 +535,17 @@ class TranslateAnalysis(IRAnalysis):
         if read_loc.is_concrete or write_loc.is_concrete:
             return
 
+        assert read_loc.alloca is not None
+        assert write_loc.alloca is not None
+
+        if read_loc.alloca.is_dynamic or write_loc.alloca.is_dynamic:
+            return
+
         if read_loc.offset != 0 or write_loc.offset != 0:
             return
 
         if read_loc.size is None:
             return
-
-        assert read_loc.alloca is not None
-        assert write_loc.alloca is not None
 
         if read_loc.alloca.alloca_size != read_loc.size:
             return
