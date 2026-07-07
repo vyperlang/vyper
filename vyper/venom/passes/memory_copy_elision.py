@@ -428,7 +428,7 @@ class TranslateAnalysis(IRAnalysis):
                     uses.addmany(self.dfg.get_uses(var))
 
                 if not all_ok:
-                    break
+                    continue
 
                 for use in uses:
                     if use == source:
