@@ -7,7 +7,6 @@ from vyper.venom.analysis import (
     BasePtrAnalysis,
     CFGAnalysis,
     DFGAnalysis,
-    DominatorTreeAnalysis,
     LivenessAnalysis,
     MemoryAliasAnalysis,
 )
@@ -58,7 +57,6 @@ class MemoryCopyElisionPass(IRPass):
         self.mem_alias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
-        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
         self.updater = InstUpdater(self.dfg)
         self.copy_forwarding = CopyForwardingPolicy(
             self.function, self.dfg, self.base_ptr, self.mem_alias
