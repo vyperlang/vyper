@@ -402,14 +402,10 @@ class TranslateAnalysis(IRAnalysis):
 
         self.translates = TranslateMap()
 
-        checked = OrderedSet()
-
         for translate_map in self._inst_translates.values():
             for translate in translate_map.items():
                 dst, data = translate
                 src, source = data
-                if dst in checked:
-                    continue
 
                 dst_vars = self.base_ptr.vars_in_allocations[dst]
                 uses: OrderedSet[IRInstruction] = OrderedSet()
