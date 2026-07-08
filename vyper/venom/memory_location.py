@@ -309,12 +309,6 @@ def write_location_idx(inst) -> Optional[int]:
         return None
 
 
-def update_write_location(inst, new_op: IROperand):
-    idx = write_location_idx(inst)
-    assert idx is not None
-    inst.operands[idx] = new_op
-
-
 def read_location_idx(inst) -> Optional[int]:
     opcode = inst.opcode
     if opcode == "mload":
@@ -343,8 +337,3 @@ def read_location_idx(inst) -> Optional[int]:
     else:  # pragma: nocover
         return None
 
-
-def update_read_location(inst, new_op: IROperand):
-    idx = write_location_idx(inst)
-    assert idx is not None
-    inst.operands[idx] = new_op
