@@ -336,4 +336,3 @@ def read_location_idx(inst) -> Optional[int]:
 
     else:  # pragma: nocover
         return None
-
