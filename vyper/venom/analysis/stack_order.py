@@ -43,7 +43,6 @@ class StackOrderAnalysis(IRAnalysis):
     _from_to: dict[tuple[IRBasicBlock, IRBasicBlock], Needed]
 
     def analyze(self):
-        print(self.function)
         self._from_to = dict()
         self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
