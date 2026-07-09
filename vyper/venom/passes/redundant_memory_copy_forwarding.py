@@ -8,6 +8,7 @@ from vyper.venom.analysis import (
     BasePtrAnalysis,
     DFGAnalysis,
     DominatorTreeAnalysis,
+    LivenessAnalysis,
     MemoryAliasAnalysis,
     MemSSA,
 )
@@ -106,6 +107,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         self.param_roots = MemoryParamRootResolver(self.function, self.dfg, cycle_roots=frozenset())
 
     def _invalidate(self) -> None:
+        self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
         self.analyses_cache.invalidate_analysis(MemoryAliasAnalysis)
