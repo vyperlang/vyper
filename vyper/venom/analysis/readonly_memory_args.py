@@ -89,11 +89,8 @@ class MemoryParamRootResolver:
             src = inst.operands[0]
             return self.root_param_indices(src)
 
-        if op == "add":
-            return self._root_from_add(inst)
-
-        if op == "sub":
-            return self._root_from_sub(inst)
+        if op in ("add", "sub"):
+            return self._root_from_arith(inst)
 
         if op == "phi":
             roots: set[int] = set()
@@ -104,19 +101,10 @@ class MemoryParamRootResolver:
 
         return frozenset()
 
-    def _root_from_add(self, inst: IRInstruction) -> frozenset[int]:
+    def _root_from_arith(self, inst: IRInstruction) -> frozenset[int]:
         roots: set[int] = set()
         for op in inst.operands:
             roots.update(self.root_param_indices(op))
-        return frozenset(roots)
-
-    def _root_from_sub(self, inst: IRInstruction) -> frozenset[int]:
-        if len(inst.operands) != 2:
-            return frozenset()
-        b, a = inst.operands
-        roots: set[int] = set()
-        roots.update(self.root_param_indices(a))
-        roots.update(self.root_param_indices(b))
         return frozenset(roots)
 
     def _exclusive_param_alias_indices_var(self, var: IRVariable) -> frozenset[int] | None:

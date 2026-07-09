@@ -95,13 +95,20 @@ def test_removeunused_invalidates_memory_ssa():
     main:
         %ptr = alloca 32
         %unused = mload %ptr
-        mstore 1, %ptr
+        mstore %ptr, 1
         stop
     """)
     fn = next(iter(ctx.functions.values()))
     ac = IRAnalysesCache(fn)
 
-    ac.request_analysis(MemSSA)
+    stale_mem_ssa = ac.request_analysis(MemSSA)
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
+    assert not any(inst.opcode == "mload" for inst in fn.entry.instructions)
+    # the cached MemorySSA still references the removed mload; it must
+    # have been invalidated by the pass
+    assert ac.request_analysis(MemSSA) is not stale_mem_ssa
+
+    # with fresh MemorySSA the store has no reader left, so DSE removes it
     DeadStoreElimination(ac, fn).run_pass(MEMORY)
+    assert not any(inst.opcode == "mstore" for inst in fn.entry.instructions)

@@ -17,6 +17,7 @@ from vyper.evm.address_space import (
 from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.memory_location import (
     Allocation,
@@ -57,21 +58,14 @@ class BasePtrAnalysis(IRAnalysis):
     """
 
     var_to_mem: dict[IRVariable, set[Ptr]]
-    var_to_def: dict[IRVariable, IRInstruction]
     _untracked_root_memo: dict[IRVariable, bool]
     _untracked_root_active: set[IRVariable]
 
     def analyze(self):
         self.var_to_mem = dict()
-        self.var_to_def = dict()
         self._untracked_root_memo = dict()
         self._untracked_root_active = set()
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
-
-        for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions:
-                for out in inst.get_outputs():
-                    self.var_to_def[out] = inst
 
         worklist = deque(self.cfg.dfs_pre_walk)
 
@@ -398,7 +392,11 @@ class BasePtrAnalysis(IRAnalysis):
         return ret
 
     def _untracked_root_from_def(self, var: IRVariable) -> bool:
-        inst = self.var_to_def.get(var)
+        # requested lazily (not in analyze()): this query runs after other
+        # passes may have invalidated DFGAnalysis without touching this
+        # analysis, so a reference held from analyze() could be stale.
+        dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        inst = dfg.get_producing_instruction(var)
         if inst is None:
             return False
 
