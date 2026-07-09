@@ -2328,6 +2328,25 @@ def __init__(cond: bool):
     assert compile_code(main, input_bundle=input_bundle) is not None
 
 
+def test_no_init_in_then_raise_in_else(make_input_bundle):
+    main = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__(cond: bool):
+    if cond:
+        pass
+    else:
+        raise "nope"
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "not initialized!"
+
+
 def test_both_branches_raise_with_initializer(make_input_bundle):
     main = """
 import lib1

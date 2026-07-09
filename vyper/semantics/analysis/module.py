@@ -300,10 +300,12 @@ class ConstructorValidator(VyperNodeVisitorBase):
         then_nodes = self.visit_block(node.body, init_calls)
         else_nodes = self.visit_block(node.orelse, init_calls)
 
-        if then_nodes is None or else_nodes is None:
-            # If either branch reverts/returns, return the other
-            # (if both revert, will return None)
-            return then_nodes or else_nodes
+        # If either branch reverts/returns, return the other
+        # (if both revert, will return None)
+        if then_nodes is None:
+            return else_nodes
+        elif else_nodes is None:
+            return then_nodes
 
         assert then_nodes is not None and else_nodes is not None  # help mypy
 
