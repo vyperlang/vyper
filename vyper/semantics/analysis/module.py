@@ -307,8 +307,6 @@ class ConstructorValidator(VyperNodeVisitorBase):
         elif else_nodes is None:
             return then_nodes
 
-        assert then_nodes is not None and else_nodes is not None  # help mypy
-
         # TODO: UX: instead of raising on the first, batch them all together
         for module_info in {**then_nodes, **else_nodes}:
             if bool(then_nodes[module_info]) != bool(else_nodes[module_info]):
