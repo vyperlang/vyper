@@ -427,3 +427,20 @@ def test_stack_order_two_trees():
     """
 
     _check_no_change(pre)
+
+def test_stack_order_same_var_in_phi_error(get_contract):
+    code = """
+@external
+def f(_t: uint256) -> uint256:
+    s: uint256 = 0
+    for i: uint256 in range(32):
+        if i == _t:
+            break
+        if i == _t:
+            s = 1
+            break
+    return s
+    """
+
+    c = get_contract(code)
+    assert c.f(5) == 0
