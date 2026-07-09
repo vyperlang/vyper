@@ -341,7 +341,9 @@ def lower_create_copy_of(call: BuiltinCall) -> IROperand:
     shifted_codesize = b.shl(IRLiteral(shl_bits), codesize)
     preamble_with_size = b.or_(IRLiteral(preamble_base), shifted_codesize)
 
-    mem_ofst = ctx.allocate_dyn()
+    # Scratch region holds: [32-byte preamble word] [codesize bytes of target code].
+    scratch_size = b.add(codesize, IRLiteral(32))
+    mem_ofst = ctx.allocate_scratch(scratch_size)
 
     # Store preamble at mem_ofst (will be stored as 32-byte word)
     b.mstore(mem_ofst, preamble_with_size)
@@ -443,7 +445,10 @@ def lower_create_from_blueprint(call: BuiltinCall) -> IROperand:
     has_code = b.sgt(codesize, IRLiteral(0))
     b.assert_(has_code)
 
-    mem_ofst = ctx.allocate_dyn()
+    # Total length = codesize + args_len. When args_len is literal 0,
+    # algebraic optimization folds `add(codesize, 0) -> codesize`.
+    total_len = b.add(codesize, args_len)
+    mem_ofst = ctx.allocate_scratch(total_len)
 
     # Copy blueprint code (skipping preamble) to memory
     b.extcodecopy(target, mem_ofst, code_offset, codesize)
@@ -452,9 +457,6 @@ def lower_create_from_blueprint(call: BuiltinCall) -> IROperand:
     if not isinstance(args_len, IRLiteral) or args_len.value > 0:
         args_dest = b.add(mem_ofst, codesize)
         ctx.copy_memory_dynamic(args_dest, args_ptr, args_len)
-
-    # Total length = codesize + args_len
-    total_len = b.add(codesize, args_len)
 
     # Create contract
     if salt is not None:

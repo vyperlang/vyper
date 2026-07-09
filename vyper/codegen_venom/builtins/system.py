@@ -101,11 +101,16 @@ def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
         out_val = None
         out_ptr = ctx.allocate_buffer(0)._ptr
 
-    # Copy msg.data to scratch AFTER all kwarg evaluation, so nothing
-    # else overwrites the memtop scratch region before the call.
+    # calldatasize must be computed before allocate_scratch, since the
+    # allocation is runtime-sized now. The copy stays after all kwarg
+    # evaluation, preserving the instruction order of the previous
+    # memtop (MSIZE-based) lowering, where the scratch region was
+    # genuinely unreserved and the copy had to be last; with a tracked
+    # `dalloca` buffer the ordering is no longer load-bearing, it is
+    # kept only to avoid disturbing generated code.
     if use_msg_data:
-        data_ptr = ctx.allocate_dyn()
         data_len = b.calldatasize()
+        data_ptr = ctx.allocate_scratch(data_len)
         b.calldatacopy(data_ptr, IRLiteral(0), data_len)
 
     # Build the call instruction

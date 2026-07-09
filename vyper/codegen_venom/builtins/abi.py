@@ -15,6 +15,7 @@ from vyper.codegen_venom.abi import abi_decode_to_buf, abi_encode_to_buf
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.builtins._call import BuiltinCall, callsite
 from vyper.codegen_venom.value import VyperValue
+from vyper.exceptions import StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import BytesT, TupleT
 from vyper.utils import fourbytes_to_int
@@ -70,6 +71,9 @@ def lower_abi_encode(call: BuiltinCall) -> VyperValue:
     """
     node = call.node
     ctx = call.ctx
+
+    if len(node.args) < 1:
+        raise StructureException("abi_encode expects at least one argument", node)
     b = ctx.builder
 
     ensure_tuple = call.kwarg_constants["ensure_tuple"]
