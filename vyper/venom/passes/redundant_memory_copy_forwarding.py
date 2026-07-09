@@ -101,10 +101,7 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         self.copy_forwarding = CopyForwardingPolicy(
             self.function, self.dfg, self.base_ptr, self.mem_alias
         )
-        # Cycles in the root graph are "all params" for mutability analysis,
-        # but this transform must fail closed: an unresolvable source is not
-        # proof that the source is a readonly internal param.
-        self.param_roots = MemoryParamRootResolver(self.function, self.dfg, cycle_roots=frozenset())
+        self.param_roots = MemoryParamRootResolver(self.function, self.dfg)
 
     def _invalidate(self) -> None:
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)

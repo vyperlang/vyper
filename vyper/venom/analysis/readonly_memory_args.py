@@ -25,12 +25,11 @@ class MemoryParamRootResolver:
     "readonly internal param" means the same thing at every call site.
     """
 
-    def __init__(self, fn: IRFunction, dfg: DFGAnalysis, cycle_roots: frozenset[int] | None = None):
+    def __init__(self, fn: IRFunction, dfg: DFGAnalysis):
         self.dfg = dfg
         self.invoke_params = tuple(inst.output for inst in FunctionCallLayout(fn).user_params)
         self.invoke_param_index = {var: i for i, var in enumerate(self.invoke_params)}
         self.all_param_roots = frozenset(range(len(self.invoke_params)))
-        self.cycle_roots = self.all_param_roots if cycle_roots is None else cycle_roots
         self.memo: dict[IRVariable, frozenset[int]] = {}
         self.exclusive_alias_memo: dict[IRVariable, frozenset[int] | None] = {}
         self.active: set[IRVariable] = set()
@@ -65,7 +64,10 @@ class MemoryParamRootResolver:
         if var in self.memo:
             return self.memo[var]
         if var in self.active:
-            return self.cycle_roots
+            # def cycle: conservatively attribute every param root. this is a
+            # may-query, so over-approximating marks more params mutable,
+            # which is the safe direction.
+            return self.all_param_roots
 
         idx = self.invoke_param_index.get(var, None)
         if idx is not None:
