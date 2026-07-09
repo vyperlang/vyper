@@ -397,8 +397,9 @@ class BasePtrAnalysis(IRAnalysis):
         # analysis, so a reference held from analyze() could be stale.
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         inst = dfg.get_producing_instruction(var)
-        if inst is None:
-            return False
+        # every var reaching this walk has pointer facts (callers guard on
+        # this), and facts are only ever attached to instruction outputs
+        assert inst is not None, var
 
         if inst.opcode == "phi":
             for _, op in inst.phi_operands:

@@ -277,8 +277,9 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         # has no reads to redirect.
         for alias in list(alias_rewrites):
             alias_inst = self.dfg.get_producing_instruction(alias)
-            if alias_inst is None:
-                continue
+            # aliases carry base-pointer facts, which only instruction
+            # outputs can acquire
+            assert alias_inst is not None, alias
             # Pass policy: do not rewrite phis in place. Converting one to
             # `add`/`assign` can leave a non-phi ahead of a sibling phi in the
             # same block, breaking the phis-at-block-top invariant (SCCP and
@@ -445,8 +446,9 @@ class RedundantMemoryCopyForwardingPass(IRPass):
             if delta is None:
                 continue
             inst = self.dfg.get_producing_instruction(alias)
-            if inst is None:
-                continue
+            # see _build_forward_plan; silently skipping here would leave
+            # the alias reading through the deleted copy
+            assert inst is not None, alias
             if delta == 0:
                 self.updater.update(
                     inst, "assign", [plan.src], annotation="[redundant memory copy forwarding]"
