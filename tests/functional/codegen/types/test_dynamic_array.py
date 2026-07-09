@@ -1904,7 +1904,7 @@ def foo():
     with pytest.raises(StructureException) as e:
         get_contract(code)
 
-    assert e.value.message == "Cannot modify `self.a.pop()` since it is not a reference"
+    assert e.value.message == "`self.a.pop()` is not a valid assignment target"
 
 
 def test_dynarray_append_single_field_struct_storage(get_contract):

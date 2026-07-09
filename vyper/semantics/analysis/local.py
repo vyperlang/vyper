@@ -569,7 +569,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         if info.location == DataLocation.UNSET:
             raise StructureException(
-                f"Cannot modify `{target.node_source_code}` since it is not a reference", target
+                f"`{target.node_source_code}` is not a valid assignment target", target
             )
 
         var_access = _get_variable_access(target)

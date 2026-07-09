@@ -403,7 +403,7 @@ def f():
     with pytest.raises(StructureException) as e:
         get_contract(code)
 
-    assert e.value.message == "Cannot modify `self.g()[0]` since it is not a reference"
+    assert e.value.message == "`self.g()[0]` is not a valid assignment target"
 
 
 def test_invalid_assign_to_self_balance(assert_compile_failed, get_contract):
@@ -415,7 +415,7 @@ def f():
     with pytest.raises(StructureException) as e:
         get_contract(code)
 
-    assert e.value.message == "Cannot modify `self.balance` since it is not a reference"
+    assert e.value.message == "`self.balance` is not a valid assignment target"
 
 
 def test_valid_literal_increment(get_contract):
