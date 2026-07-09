@@ -43,6 +43,7 @@ class StackOrderAnalysis(IRAnalysis):
     _from_to: dict[tuple[IRBasicBlock, IRBasicBlock], Needed]
 
     def analyze(self):
+        print(self.function)
         self._from_to = dict()
         self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
@@ -55,7 +56,10 @@ class StackOrderAnalysis(IRAnalysis):
             if inst.opcode == "assign":
                 self._handle_assign(inst)
             elif inst.opcode == "phi":
-                self._handle_inst(inst)
+                self._handle_phi(inst)
+                self.stack.pop()
+                self.stack.append(inst.output)
+                continue
             elif inst.is_bb_terminator:
                 self._handle_terminator(inst)
             else:
@@ -138,6 +142,21 @@ class StackOrderAnalysis(IRAnalysis):
             if op not in self.stack:
                 self.stack.append(op)
         self._reorder(ops)
+
+    def _handle_phi(self, inst: IRInstruction):
+        assert inst.opcode == "phi"
+
+        for _, var in inst.phi_operands:
+            assert isinstance(var, IRVariable)
+            if var not in self.stack:
+                self._add_needed(var)
+
+        _, chosen = next(inst.phi_operands)
+        assert isinstance(chosen, IRVariable)
+        if chosen not in self.stack:
+            self.stack.append(chosen)
+
+        self._reorder([chosen])
 
     def _merge(self, orders: list[Needed]) -> Needed:
         if len(orders) == 0:
