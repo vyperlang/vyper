@@ -192,6 +192,15 @@ class InstAccessOps:
 # REVIEW: rename to get_memory_write_ofst
 # or shorter: get_write_ofst, get_mem_write_ofst
 def memory_write_ops(inst) -> InstAccessOps:
+    ops = _memory_write_ops(inst)
+    # consumers use ofst_index to classify operand positions (e.g.
+    # pointer_uses_may_touch); drift between it and ofst would fail open
+    if ops.ofst_index is not None:
+        assert inst.operands[ops.ofst_index] is ops.ofst, inst
+    return ops
+
+
+def _memory_write_ops(inst) -> InstAccessOps:
     opcode = inst.opcode
     if opcode == "mstore":
         dst = inst.operands[1]
@@ -235,6 +244,14 @@ def get_write_max_size(inst: IRInstruction) -> Optional[IROperand]:
 
 
 def memory_read_ops(inst) -> InstAccessOps:
+    ops = _memory_read_ops(inst)
+    # see memory_write_ops
+    if ops.ofst_index is not None:
+        assert inst.operands[ops.ofst_index] is ops.ofst, inst
+    return ops
+
+
+def _memory_read_ops(inst) -> InstAccessOps:
     opcode = inst.opcode
     if opcode == "mload":
         ofst = inst.operands[0]
