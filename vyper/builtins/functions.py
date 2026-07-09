@@ -226,10 +226,10 @@ class Convert(BuiltinFunctionT):
 
         if isinstance(target_type, AddressT):
             # addresses are unsigned, so only unsigned integer inputs are valid
-            return (BytesM_T.any(),) + IntegerT.unsigneds() + (BytesT.any(),)
+            return (BytesM_T.any(),) + IntegerT.unsigneds() + (BytesT(32),)
 
         if isinstance(target_type, IntegerT):
-            allowed = (IntegerT, DecimalT, BytesM_T.any(), BoolT, BytesT.any())
+            allowed = (IntegerT, DecimalT, BytesM_T.any(), BoolT, BytesT(32))
             if not target_type.is_signed:
                 allowed += (AddressT,)
             if target_type == UINT256_T:
@@ -242,12 +242,12 @@ class Convert(BuiltinFunctionT):
                 (IntegerT, DecimalT)
                 + (BytesM_T.any(),)
                 + (AddressT, BoolT)
-                + (BytesT.any(),)
+                + (BytesT(32),)
                 + (StringT(32),)
             )
 
         if isinstance(target_type, DecimalT):
-            return (IntegerT, BoolT, BytesM_T.any(), BytesT.any())
+            return (IntegerT, BoolT, BytesM_T.any(), BytesT(32))
 
         if isinstance(target_type, BytesM_T):
             allowed = []

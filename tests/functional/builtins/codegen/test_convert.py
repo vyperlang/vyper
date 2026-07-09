@@ -383,10 +383,17 @@ def test_validate_type_pair_matches_can_convert(i_typ, o_typ):
     assert _validate_type_pair_allows(i_typ, o_typ) is can_convert(i_typ, o_typ)
 
 
-@pytest.mark.parametrize("i_typ", [BytesT(1), BytesT(20), BytesT(32), BytesT(33), BytesT(64)])
+@pytest.mark.parametrize("i_typ", [BytesT(1), BytesT(20), BytesT(32)])
 @pytest.mark.parametrize("o_typ", [AddressT(), UINT256_T, DecimalT(), BoolT()])
-def test_dynamic_bytes_sources_allowed_for_scalar_targets(i_typ, o_typ):
+def test_bounded_dynamic_bytes_sources_allowed_for_scalar_targets(i_typ, o_typ):
     Convert._validate_type_pair(i_typ, o_typ, None)
+
+
+@pytest.mark.parametrize("i_typ", [BytesT(33), BytesT(64)])
+@pytest.mark.parametrize("o_typ", [AddressT(), UINT256_T, DecimalT(), BoolT()])
+def test_oversized_dynamic_bytes_sources_rejected_for_scalar_targets(i_typ, o_typ):
+    with pytest.raises(TypeMismatch):
+        Convert._validate_type_pair(i_typ, o_typ, None)
 
 
 @pytest.mark.parametrize("o_typ", BytesM_T.all())
@@ -626,14 +633,16 @@ def foo(x: {i_typ}) -> {o_typ}:
 
 
 @pytest.mark.parametrize("typ", sorted(BASE_TYPES))
-def test_bytes_too_large_cases(typ):
+@pytest.mark.parametrize("use_experimental_codegen", [False, True])
+def test_bytes_too_large_cases(typ, use_experimental_codegen):
+    settings = Settings(experimental_codegen=use_experimental_codegen)
     code_1 = f"""
 @external
 def foo(x: Bytes[33]) -> {typ}:
     return convert(x, {typ})
     """
     with pytest.raises(TypeMismatch):
-        compile_code(code_1)
+        compile_code(code_1, settings=settings)
 
     bytes_33 = b"1" * 33
     code_2 = f"""
@@ -642,7 +651,7 @@ def foo() -> {typ}:
     return convert({bytes_33}, {typ})
     """
     with pytest.raises(TypeMismatch):
-        compile_code(code_2)
+        compile_code(code_2, settings=settings)
 
 
 @pytest.mark.parametrize("cls1,cls2", itertools.product((StringT, BytesT), (StringT, BytesT)))
