@@ -1,6 +1,11 @@
 from vyper.utils import OrderedSet, uniq
 from vyper.venom.analysis import BasePtrAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.analysis.load_analysis import LoadAnalysis
+from vyper.venom.analysis.mem_alias import (
+    MemoryAliasAnalysis,
+    StorageAliasAnalysis,
+    TransientAliasAnalysis,
+)
 from vyper.venom.analysis.mem_ssa import MemSSA, StorageSSA, TransientSSA
 from vyper.venom.basicblock import IRInstruction
 from vyper.venom.passes.base_pass import IRPass
@@ -36,8 +41,13 @@ class RemoveUnusedVariablesPass(IRPass):
 
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
-        # LoadAnalysis and the three *SSA analyses each cascade to their alias
-        # analyses on invalidation, so the alias analyses are dropped transitively.
+        # invalidate the alias analyses directly: the LoadAnalysis/*SSA
+        # invalidations below only cascade to them when the parent is
+        # actually cached, but the alias analyses can also be requested
+        # (and cached) on their own
+        self.analyses_cache.invalidate_analysis(MemoryAliasAnalysis)
+        self.analyses_cache.invalidate_analysis(StorageAliasAnalysis)
+        self.analyses_cache.invalidate_analysis(TransientAliasAnalysis)
         self.analyses_cache.invalidate_analysis(LoadAnalysis)
         self.analyses_cache.invalidate_analysis(MemSSA)
         self.analyses_cache.invalidate_analysis(StorageSSA)
