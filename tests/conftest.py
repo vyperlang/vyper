@@ -292,8 +292,7 @@ def get_contract(env, optimize, output_formats, compiler_settings, hevm, request
             )["bytecode_runtime"]
             tests.hevm.hevm_check_bytecode(bytecode1, bytecode2, addl_args=_HEVM_MARKER.args)
 
-        formats = kwargs.pop("output_formats", output_formats)
-        return env.deploy_source(source_code, formats, *args, **kwargs)
+        return env.deploy_source(source_code, output_formats, *args, **kwargs)
 
     return fn
 

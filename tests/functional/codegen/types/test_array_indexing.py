@@ -3,9 +3,7 @@
 import pytest
 
 from vyper.compiler import compile_code
-
-
-OVERLAP_OUTPUT_FORMATS = {"abi": True, "bytecode": True, "metadata": True}
+from vyper.exceptions import CompilerPanic
 
 
 def test_negative_ix_access(get_contract, tx_failed):
@@ -139,10 +137,9 @@ def foo():
         assert c.arr(i) == i
 
 
-def test_array_index_overlap(get_contract, compiler_settings, experimental_codegen):
-    if not experimental_codegen:
-        pytest.xfail("legacy codegen still rejects risky subscript overlap")
-
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+def test_array_index_overlap(get_contract):
     code = """
 a: public(DynArray[DynArray[Bytes[96], 5], 5])
 
@@ -158,45 +155,14 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    c = get_contract(
-        code, output_formats=OVERLAP_OUTPUT_FORMATS.copy(), compiler_settings=compiler_settings
-    )
+    c = get_contract(code)
+    # tricky to get this right, for now we just panic instead of generating code
     assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
-def test_array_index_overlap_abi_output(compiler_settings, experimental_codegen):
-    if not experimental_codegen:
-        pytest.xfail("legacy codegen still rejects risky subscript overlap")
-
-    code = """
-a: public(DynArray[DynArray[Bytes[96], 5], 5])
-
-@external
-def foo() -> Bytes[96]:
-    self.a.append([b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'])
-    return self.a[0][self.bar()]
-
-
-@internal
-def bar() -> uint256:
-    self.a[0] = [b'yyy']
-    self.a.pop()
-    return 0
-    """
-    out = compile_code(
-        code,
-        output_formats=("abi", "bytecode"),
-        settings=compiler_settings,
-        show_gas_estimates=True,
-    )
-    assert out["abi"][0]["name"] == "foo"
-    assert out["bytecode"].startswith("0x")
-
-
-def test_array_index_overlap_extcall(get_contract, compiler_settings, experimental_codegen):
-    if not experimental_codegen:
-        pytest.xfail("legacy codegen still rejects risky subscript overlap")
-
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+def test_array_index_overlap_extcall(get_contract):
     code = """
 
 interface Bar:
@@ -216,16 +182,13 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    c = get_contract(
-        code, output_formats=OVERLAP_OUTPUT_FORMATS.copy(), compiler_settings=compiler_settings
-    )
+    c = get_contract(code)
     assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
-def test_array_index_overlap_extcall2(get_contract, compiler_settings, experimental_codegen):
-    if not experimental_codegen:
-        pytest.xfail("legacy codegen still rejects risky subscript overlap")
-
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+def test_array_index_overlap_extcall2(get_contract):
     code = """
 interface B:
     def calculate_index() -> uint256: nonpayable
@@ -242,28 +205,70 @@ def calculate_index() -> uint256:
     self.a[0] = [1]
     return 0
     """
-    c = get_contract(
-        code, output_formats=OVERLAP_OUTPUT_FORMATS.copy(), compiler_settings=compiler_settings
-    )
+    c = get_contract(code)
 
     assert c.bar() == 1
 
 
-def test_array_index_overlap_pop(get_contract, compiler_settings, experimental_codegen, tx_failed):
-    if not experimental_codegen:
-        pytest.xfail("legacy codegen still rejects risky subscript overlap")
+# sources rejected by the read/write overlap guard in subscript lowering:
+# the base pointer is evaluated before the index expression, so an index
+# expression which can mutate the base could stale the base pointer.
+# see test_array_index_overlap* above for the runtime behavior.
+overlap_codes = [
+    # index (internal call) writes to the array being indexed
+    """
+a: public(DynArray[DynArray[Bytes[96], 5], 5])
 
-    code = """
+@external
+def foo() -> Bytes[96]:
+    self.a.append([b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'])
+    return self.a[0][self.bar()]
+
+@internal
+def bar() -> uint256:
+    self.a[0] = [b'yyy']
+    self.a.pop()
+    return 0
+    """,
+    # index expression contains a risky (external) call
+    """
+interface Bar:
+    def bar() -> uint256: payable
+
+a: public(DynArray[DynArray[Bytes[96], 5], 5])
+
+@external
+def foo() -> Bytes[96]:
+    self.a.append([b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'])
+    return self.a[0][extcall Bar(self).bar()]
+    """,
+    # risky call routed through an internal function
+    """
+interface Bar:
+    def bar() -> uint256: payable
+
+a: uint256[5]
+
+@external
+def foo() -> uint256:
+    return self.a[self.ix()]
+
+@internal
+def ix() -> uint256:
+    return extcall Bar(self).bar()
+    """,
+    # index expression (pop()) writes to the array being indexed
+    """
 a: DynArray[uint256, 5]
 
 @external
 def foo() -> uint256:
-    self.a = [1, 1]
     return self.a[self.a.pop()]
-    """
-    c = get_contract(
-        code, output_formats=OVERLAP_OUTPUT_FORMATS.copy(), compiler_settings=compiler_settings
-    )
+    """,
+]
 
-    with tx_failed():
-        c.foo()
+
+@pytest.mark.parametrize("code", overlap_codes)
+def test_array_index_rw_overlap_rejected(code):
+    with pytest.raises(CompilerPanic, match="risky overlap"):
+        compile_code(code)
