@@ -418,6 +418,63 @@ def f():
     assert e.value.message == "`self.balance` is not a valid assignment target"
 
 
+def test_invalid_assign_to_storage_addr_balance(assert_compile_failed, get_contract):
+    code = """
+addr: address
+
+@external
+def f():
+    self.addr.balance = 1
+"""
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+
+    assert e.value.message == "`self.addr.balance` is not a valid assignment target"
+
+
+def test_invalid_assign_to_storage_addr_codehash(assert_compile_failed, get_contract):
+    code = """
+addr: address
+
+@external
+def f():
+    self.addr.codehash = empty(bytes32)
+"""
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+
+    assert e.value.message == "`self.addr.codehash` is not a valid assignment target"
+
+
+def test_invalid_assign_to_iface_address(assert_compile_failed, get_contract):
+    code = """
+interface IFoo:
+    def foo() -> uint256: nonpayable
+
+f: IFoo
+
+@external
+def g():
+    self.f.address = empty(address)
+"""
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+
+    assert e.value.message == "`self.f.address` is not a valid assignment target"
+
+
+def test_read_addr_balance_still_works(get_contract):
+    code = """
+addr: address
+
+@external
+def f() -> uint256:
+    return self.addr.balance
+"""
+    c = get_contract(code)
+    assert c.f() == 0
+
+
 def test_valid_literal_increment(get_contract):
     code = """
 storx: uint256
