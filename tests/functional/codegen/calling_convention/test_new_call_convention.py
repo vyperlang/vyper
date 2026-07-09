@@ -24,11 +24,11 @@ a: immutable(uint256)
 
 @deploy
 def __init__():
-    a = 5
+    self.a = 5
 
 @internal
 def get_my_immutable() -> uint256:
-    return a
+    return self.a
 
 @external
 def get_immutable() -> uint256:

@@ -30,16 +30,18 @@ author = "Vyper Team (originally created by Vitalik Buterin)"
 language = "vyper"
 
 # -- Options for HTML output ----------------------------------------------
+html_static_path = ["_static"]
 html_theme = "shibuya"
 html_theme_options = {
+    "light_logo": "_static/logo-light.svg",
+    "dark_logo": "_static/logo-dark.svg",
     "accent_color": "purple",
     "twitter_creator": "vyperlang",
     "twitter_site": "vyperlang",
     "twitter_url": "https://twitter.com/vyperlang",
     "github_url": "https://github.com/vyperlang",
 }
-html_favicon = "logo.svg"
-html_logo = "logo.svg"
+html_favicon = "_static/logo.svg"
 
 # For the "Edit this page ->" link
 html_context = {

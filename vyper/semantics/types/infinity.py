@@ -37,3 +37,10 @@ LengthUpperBound: TypeAlias = int | Inf | Wildcard
 def is_bounded_length(_lengthval: LengthUpperBound) -> TypeGuard[int]:
     """Return True if val is a concrete int (not INF or WILDCARD)."""
     return _lengthval is not INF and _lengthval is not WILDCARD
+
+
+def length_to_json(length: LengthUpperBound) -> int | str:
+    """Return a JSON-serializable representation of a length value."""
+    if length is INF or length is WILDCARD:
+        return str(length)
+    return length

@@ -20,7 +20,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
 from vyper.semantics.types.primitives import AddressT
-from vyper.semantics.types.user import EventT, FlagT, StructT, _UserType
+from vyper.semantics.types.user import ErrorT, EventT, FlagT, StructT, _UserType
 from vyper.utils import OrderedSet
 
 if TYPE_CHECKING:
@@ -43,6 +43,7 @@ class InterfaceT(_UserType):
         decl_node: Optional[vy_ast.VyperNode],
         functions: dict,
         events: dict,
+        errors: dict,
         structs: dict,
         flags: dict,
     ) -> None:
@@ -51,18 +52,21 @@ class InterfaceT(_UserType):
 
         validate_unique_method_ids(list(functions.values()))
 
-        members = functions | events | structs | flags
+        members = functions | events | errors | structs | flags
 
         # sanity check: by construction, there should be no duplicates.
-        assert len(members) == len(functions) + len(events) + len(structs) + len(flags)
+        assert len(members) == len(functions) + len(events) + len(errors) + len(structs) + len(
+            flags
+        )
 
         super().__init__(functions)
 
-        self._helper = VyperType(events | structs | flags)
+        self._helper = VyperType(events | errors | structs | flags)
         self._id = _id
         self._helper._id = _id
         self.functions = functions
         self.events = events
+        self.errors = errors
         self.structs = structs
         self.flags = flags
 
@@ -148,6 +152,16 @@ class InterfaceT(_UserType):
                 f"Contract does not implement all interface functions: {missing_str}", node
             )
 
+    def to_toplevel_abi_dict(self) -> list[dict]:
+        abi = []
+        for event in self.events.values():
+            abi += event.to_toplevel_abi_dict()
+        for error in self.errors.values():
+            abi += error.to_toplevel_abi_dict()
+        for func in self.functions.values():
+            abi += func.to_toplevel_abi_dict()
+        return abi
+
     # helper function which performs namespace collision checking
     @classmethod
     def _from_lists(
@@ -156,11 +170,13 @@ class InterfaceT(_UserType):
         decl_node: Optional[vy_ast.VyperNode],
         function_list: list[tuple[str, ContractFunctionT]],
         event_list: Optional[list[tuple[str, EventT]]] = None,
+        error_list: Optional[list[tuple[str, ErrorT]]] = None,
         struct_list: Optional[list[tuple[str, StructT]]] = None,
         flag_list: Optional[list[tuple[str, FlagT]]] = None,
     ) -> "InterfaceT":
         functions: dict[str, ContractFunctionT] = {}
         events: dict[str, EventT] = {}
+        errors: dict[str, ErrorT] = {}
         structs: dict[str, StructT] = {}
         flags: dict[str, FlagT] = {}
 
@@ -168,7 +184,7 @@ class InterfaceT(_UserType):
 
         def _mark_seen(name, item):
             if name in seen_items:
-                msg = f"multiple functions or events named '{name}'!"
+                msg = f"multiple functions, events, or errors named '{name}'!"
                 prev_decl = seen_items[name].decl_node
                 raise NamespaceCollision(msg, item.decl_node, prev_decl=prev_decl)
             seen_items[name] = item
@@ -183,10 +199,11 @@ class InterfaceT(_UserType):
 
         _process(functions, function_list)
         _process(events, event_list)
+        _process(errors, error_list)
         _process(structs, struct_list)
         _process(flags, flag_list)
 
-        return cls(interface_name, decl_node, functions, events, structs, flags)
+        return cls(interface_name, decl_node, functions, events, errors, structs, flags)
 
     @classmethod
     def from_json_abi(cls, name: str, abi: dict) -> "InterfaceT":
@@ -205,15 +222,56 @@ class InterfaceT(_UserType):
         InterfaceT
             primitive interface type
         """
-        functions: list = []
+        functions: list = cls._dedup_default_arg_overloads(abi)
         events: list = []
+        errors: list = []
 
-        for item in [i for i in abi if i.get("type") == "function"]:
-            functions.append((item["name"], ContractFunctionT.from_abi(item)))
         for item in [i for i in abi if i.get("type") == "event"]:
             events.append((item["name"], EventT.from_abi(item)))
+        for item in [i for i in abi if i.get("type") == "error"]:
+            errors.append((item["name"], ErrorT.from_abi(item)))
 
-        return cls._from_lists(name, None, functions, events)
+        return cls._from_lists(name, None, functions, events, errors)
+
+    @classmethod
+    def _dedup_default_arg_overloads(cls, abi: dict) -> list:
+        """
+        Deduplicate function ABI entries produced by default-argument
+        expansion.
+
+        Functions with default arguments are expanded by the Vyper
+        compiler into multiple ABI entries sharing the same name but
+        with different input counts (one entry per arity). Keep the
+        overload with the most inputs, mirroring the AST-side handling
+        in _get_module_functions (d1859cd8). Entries with the same
+        name but incompatible input-type prefixes represent a genuine
+        collision and are rejected. Types are compared on the parsed
+        argument objects rather than the raw ABI "type" string, so
+        e.g. `int168` and `decimal` (which share `"type": "int168"`
+        but differ in `internalType`) are correctly treated as
+        incompatible.
+        """
+        parsed_fns: dict = {}
+        for item in [i for i in abi if i.get("type") == "function"]:
+            fn_name = item["name"]
+            curr_fn = ContractFunctionT.from_abi(item)
+            prev = parsed_fns.get(fn_name)
+            if prev is None:
+                parsed_fns[fn_name] = curr_fn
+                continue
+            prev_args = list(prev.arguments)
+            curr_args = list(curr_fn.arguments)
+            overlap = min(len(prev_args), len(curr_args))
+            for a, b in zip(prev_args[:overlap], curr_args[:overlap]):
+                if a.typ != b.typ:
+                    raise NamespaceCollision(
+                        f"ABI contains multiple functions named '{fn_name}' "
+                        f"with incompatible input types"
+                    )
+            if len(curr_args) > len(prev_args):
+                parsed_fns[fn_name] = curr_fn
+
+        return [(fn_name, fn) for fn_name, fn in parsed_fns.items()]
 
     @classmethod
     def from_ModuleT(cls, module_t: "ModuleT") -> "InterfaceT":
@@ -236,12 +294,16 @@ class InterfaceT(_UserType):
 
         events = [(e.name, e._metadata["event_type"]) for e in module_t.event_defs]
 
+        errors = [(node.name, node._metadata["error_type"]) for node in module_t.error_defs]
+
         # these are accessible via import, but they do not show up
         # in the ABI json
         structs = [(node.name, node._metadata["struct_type"]) for node in module_t.struct_defs]
         flags = [(node.name, node._metadata["flag_type"]) for node in module_t.flag_defs]
 
-        return cls._from_lists(module_t._id, module_t.decl_node, funcs, events, structs, flags)
+        return cls._from_lists(
+            module_t._id, module_t.decl_node, funcs, events, errors, structs, flags
+        )
 
     @classmethod
     def from_InterfaceDef(cls, node: vy_ast.InterfaceDef) -> "InterfaceT":
@@ -316,6 +378,10 @@ class ModuleT(VyperType):
             # add the type of the event so it can be used in call position
             self.add_member(e.name, TYPE_T(e._metadata["event_type"]))  # type: ignore
 
+        for e in self.error_defs:
+            # add the type of the error so it can be used in call position
+            self.add_member(e.name, TYPE_T(e._metadata["error_type"]))  # type: ignore
+
         for f in self.flag_defs:
             self.add_member(f.name, TYPE_T(f._metadata["flag_type"]))
             self._helper.add_member(f.name, TYPE_T(f._metadata["flag_type"]))
@@ -379,6 +445,10 @@ class ModuleT(VyperType):
     @cached_property
     def event_defs(self):
         return self._module.get_children(vy_ast.EventDef)
+
+    @cached_property
+    def error_defs(self):
+        return self._module.get_children(vy_ast.ErrorDef)
 
     @cached_property
     def flag_defs(self):
@@ -554,9 +624,35 @@ class ModuleT(VyperType):
                     f"multiple events named '{event.name}'!", event.decl_node, prev_decl=prev
                 )
 
+    @cached_property
+    def used_errors(self) -> OrderedSet[ErrorT]:
+        """
+        Collect custom errors raised from reachable functions.
+        Errors are recorded during function analysis via FunctionAnalyzer._validate_revert_reason().
+        """
+        ret: OrderedSet[ErrorT] = OrderedSet()
+
+        for fn_t in self.reachable_functions:
+            ret.update(fn_t.get_raised_errors())
+
+        return ret
+
+    def validate_used_errors(self):
+        # check for name collisions between defined and used errors
+        defined_errors = {e._metadata["error_type"].name: e for e in self.error_defs}
+        for error in self.used_errors:
+            if (
+                error.name in defined_errors
+                and error != defined_errors[error.name]._metadata["error_type"]
+            ):
+                prev = defined_errors[error.name]
+                raise NamespaceCollision(
+                    f"multiple errors named '{error.name}'!", error.decl_node, prev_decl=prev
+                )
+
     def to_toplevel_abi_dict(self) -> list[dict]:
-        # Note: This is not a property only of an interface,
-        # since it requires information which is not local to a module, for example `used_events`
+        # Note: This is not a property only of an interface, since it requires information which
+        # is not local to a module, for example `used_events` and `used_errors`.
         abi = []
         internal_events = self.interface.events
         external_events = self.used_events
@@ -564,8 +660,16 @@ class ModuleT(VyperType):
         events: OrderedSet[EventT] = OrderedSet(internal_events.values())
         events.update(external_events)
 
+        internal_errors = self.interface.errors
+        external_errors = self.used_errors
+
+        errors: OrderedSet[ErrorT] = OrderedSet(internal_errors.values())
+        errors.update(external_errors)
+
         for event in events:
             abi += event.to_toplevel_abi_dict()
+        for error in errors:
+            abi += error.to_toplevel_abi_dict()
         for func in self.interface.functions.values():
             abi += func.to_toplevel_abi_dict()
         return abi
