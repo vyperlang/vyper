@@ -174,11 +174,15 @@ def test_json_interface_event_without_indexed(make_input_bundle):
 import token as Token
 
 @external
-def foo() -> bool:
-    return True
+def foo():
+    log Token.Transfer(_arg0=msg.sender, to=msg.sender, value=1)
     """
 
-    assert compile_code(main, input_bundle=input_bundle) is not None
+    out = compile_code(main, input_bundle=input_bundle, output_formats=["interface"])["interface"]
+
+    assert "_arg0: address" in out
+    assert "from: address" not in out
+    compile_code(out, contract_path="main.vyi", output_formats=["interface"])
 
 
 def test_json_interface_event_duplicate_input_names(make_input_bundle):

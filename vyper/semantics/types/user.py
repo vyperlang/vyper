@@ -3,6 +3,7 @@ from typing import Iterator, Optional
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_GIntM, ABI_Tuple, ABIType
+from vyper.ast.identifiers import validate_identifier
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     EventDeclarationException,
@@ -29,10 +30,8 @@ from vyper.warnings import Deprecation, vyper_warn
 
 # user defined type
 class _UserType(VyperType):
-    def __init__(self, members=None, *, validate_member_identifiers: bool = True):
-        super().__init__(
-            members=members, validate_member_identifiers=validate_member_identifiers
-        )
+    def __init__(self, members=None):
+        super().__init__(members=members)
 
         if members is not None:
             for mt in members.values():
@@ -103,6 +102,11 @@ def _get_user_type_member_name(node: vy_ast.AnnAssign, seen: set[str], type_labe
 
 def _abi_input_name(item: dict, index: int, members: dict[str, VyperType]) -> str:
     name = item.get("name") or f"_arg{index}"
+    try:
+        validate_identifier(name)
+    except StructureException:
+        name = f"_arg{index}"
+
     if name not in members:
         return name
 
@@ -248,9 +252,8 @@ class EventT(_UserType):
         arguments: dict,
         indexed: list,
         decl_node: Optional[vy_ast.VyperNode] = None,
-        validate_member_identifiers: bool = True,
     ) -> None:
-        super().__init__(members=arguments, validate_member_identifiers=validate_member_identifiers)
+        super().__init__(members=arguments)
         self.name = name
         self.indexed = indexed
         assert len(self.indexed) == len(self.arguments)
@@ -300,9 +303,7 @@ class EventT(_UserType):
         for i, item in enumerate(abi["inputs"]):
             name = _abi_input_name(item, i, members)
             members[name] = type_from_abi(item)
-        # JSON ABI argument names can be reserved Vyper identifiers, e.g. ERC20 `from`.
-        # Skip identifier validation only; member additions still use the normal checks.
-        return cls(abi["name"], members, indexed, validate_member_identifiers=False)
+        return cls(abi["name"], members, indexed)
 
     @classmethod
     def from_EventDef(cls, base_node: vy_ast.EventDef) -> "EventT":
