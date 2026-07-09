@@ -116,7 +116,9 @@ class BytesM_T(_PrimT):
 
         assert isinstance(node, vy_ast.Hex)  # keep mypy happy
 
-        val = node.value
+        # Case is semantically irrelevant to constant folding, but mixed-case
+        # bytesM literals are invalid and must be checked before normalization.
+        val = node.original_value
 
         if node.n_bytes != self.m:
             raise InvalidLiteral(f"Invalid literal for type {self}", node)

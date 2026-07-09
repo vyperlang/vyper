@@ -880,6 +880,13 @@ class Hex(Constant):
     def get_comparison_fields(cls) -> set:
         return super().get_comparison_fields() - {"original_value"}
 
+    def to_dict(self):
+        ast_dict = super().to_dict()
+        # Preserve the source spelling in public AST output so a dict round-trip
+        # can reconstruct checksum-sensitive literals.
+        ast_dict["value"] = self.original_value
+        return ast_dict
+
     def validate(self):
         if len(self.original_value) % 2:
             raise InvalidLiteral("Hex notation requires an even number of digits", self)
