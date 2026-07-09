@@ -146,11 +146,16 @@ class StackOrderAnalysis(IRAnalysis):
     def _handle_phi(self, inst: IRInstruction):
         assert inst.opcode == "phi"
 
+        # add vars to needed if it is
+        # necessary as in other instructions
         for _, var in inst.phi_operands:
             assert isinstance(var, IRVariable)
             if var not in self.stack:
                 self._add_needed(var)
-
+        
+        # for reorder we need to simulate only
+        # one chosen varible since it should
+        # do the same behavior for all of them
         _, chosen = next(inst.phi_operands)
         assert isinstance(chosen, IRVariable)
         if chosen not in self.stack:
