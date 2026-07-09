@@ -16,7 +16,6 @@ from enum import Enum
 from typing import Optional
 
 from vyper.codegen_venom.buffer import Buffer, Ptr
-from vyper.codegen_venom.constants import IDENTITY_PRECOMPILE
 from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
@@ -33,6 +32,7 @@ from vyper.semantics.types.infinity import is_bounded_length
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
+from vyper.utils import IDENTITY_PRECOMPILE
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 
@@ -648,17 +648,13 @@ class VenomCodegenContext:
         ptr = self.builder.alloca(size)
         return Buffer(_ptr=ptr, size=size, annotation=annotation)
 
-    def allocate_dyn(self) -> "IRVariable":
-        """Get a pointer to scratch memory for runtime-sized data.
+    def allocate_scratch(self, size: "IROperand") -> "IRVariable":
+        """Allocate a scoped, runtime-sized scratch buffer.
 
-        Returns an address past all static allocations and any prior memory
-        use. The caller may write arbitrary data at this address; the region
-        is untracked and must be consumed (e.g. by CALL/CREATE) before any
-        other code that could also call allocate_dyn().
-
-        Lowers to EVM MSIZE at assembly time.
+        Returns a pointer to `ceil32(size)` bytes of scratch space above all
+        static allocations and spill slots.
         """
-        return self.builder.memtop()
+        return self.builder.dalloca(size)
 
     # === Storage Operations ===
 
