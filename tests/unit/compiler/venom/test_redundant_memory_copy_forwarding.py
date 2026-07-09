@@ -471,6 +471,8 @@ def test_keeps_copy_when_readonly_param_source_has_local_alloca_base():
     # %s is rooted in a local alloca (writable) with an offset coming from a
     # readonly param. The readonly-param clobber check sees unknown-base writes
     # only, so the write to %local would be missed -- the copy must stay.
+    # (The exclusive param walk rejects the add-derived %s; the tracked-base
+    # guard rejects it independently.)
     src = """
     function callee {
     callee:
@@ -495,6 +497,8 @@ def test_keeps_copy_when_readonly_param_source_merges_with_local_bases():
     # MemoryLocation collapses to an unknown base when several local bases can
     # reach %s. That must still not take the readonly-param path, because a
     # later write to either local base can clobber the source selected at runtime.
+    # (The phi's alloca arms make the exclusive param walk return None; the
+    # tracked-base guard rejects it independently.)
     src = """
     function callee {
     callee:
@@ -515,6 +519,33 @@ def test_keeps_copy_when_readonly_param_source_merges_with_local_bases():
         %s = phi @a, %arg, @b1, %local1, @b2, %local2
         mcopy %tmp, %s, 64
         mstore %local1, 1
+        %v = mload %tmp
+        sink %v
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    callee = ctx.get_function(IRLabel("callee"))
+    insts = [inst for bb in callee.get_basic_blocks() for inst in bb.instructions]
+    assert any(inst.opcode == "mcopy" for inst in insts)
+
+
+def test_keeps_copy_when_reassigned_param_var_has_tracked_base():
+    # The parser accepts pre-SSA input (this harness runs the pass without
+    # MakeSSA), so a reassigned param variable can be a param leaf for the
+    # exclusive param walk while carrying a tracked local-alloca base with
+    # unknown offset. Only the tracked-base guard rejects this shape: on SSA
+    # input the exclusive walk alone rejects arithmetic-derived sources.
+    src = """
+    function callee {
+    callee:
+        %arg = param
+        %local = alloca 64
+        %tmp = alloca 64
+        %dyn = calldataload 0
+        %arg = add %local, %dyn
+        mcopy %tmp, %arg, 64
+        mstore %local, 1
         %v = mload %tmp
         sink %v
     }

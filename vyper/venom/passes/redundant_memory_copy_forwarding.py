@@ -165,6 +165,11 @@ class RedundantMemoryCopyForwardingPass(IRPass):
             # only, so it cannot observe writes to a local alloca. A source
             # with any tracked local base -- even if the final MemoryLocation
             # collapsed to unknown because several bases reach it -- must bail.
+            # On SSA input the exclusive param walk already rejects such
+            # sources (it follows only param/assign/phi edges); this guard
+            # keeps the bail independent of that reasoning and covers pre-SSA
+            # input, where a reassigned param variable can carry a tracked
+            # base while still resolving as a param leaf.
             src_is_readonly_param = True
         else:
             return None
