@@ -24,10 +24,11 @@ from vyper.venom.passes.copy_forwarding import CopyForwardingPolicy
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
 
 # This pass runs before concrete memory layout and has no layout/lifetime cost
-# model. Forwarding very large staging copies can extend the source buffer's
-# live range across later memory operations and regress the eventual frame
-# high-water mark, so leave those cases to layout-aware optimizations.
+# model. Forwarding can extend the source buffer's full allocation across later
+# memory operations and regress the eventual frame high-water mark, so bound
+# both unresolved copies and tracked source allocations.
 _MAX_FORWARD_COPY_SIZE = 4096
+_MAX_FORWARD_SOURCE_ALLOCA_SIZE = 4096
 
 
 @dataclass(frozen=True)
@@ -155,6 +156,8 @@ class RedundantMemoryCopyForwardingPass(IRPass):
             if src_loc.alloca is None:
                 return None
             if src_loc.alloca.is_dynamic:
+                return None
+            if src_loc.alloca.alloca_size > _MAX_FORWARD_SOURCE_ALLOCA_SIZE:
                 return None
             assert src_loc.offset is not None  # implied by is_fixed
             if src_loc.offset < 0 or src_loc.offset + copy_size > src_loc.alloca.alloca_size:

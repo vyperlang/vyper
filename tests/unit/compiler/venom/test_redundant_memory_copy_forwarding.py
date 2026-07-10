@@ -297,6 +297,22 @@ def test_keeps_large_aggregate_copy_without_layout_cost_model():
     _checker(pre, pre)
 
 
+def test_keeps_small_slice_of_large_source_without_layout_cost_model():
+    pre = """
+    main:
+        %src = alloca 8192
+        %tmp = alloca 32
+        %pressure = alloca 8192
+        mstore %src, 1
+        mcopy %tmp, %src, 32
+        %hash = sha3 %pressure, 8192
+        %val = mload %tmp
+        sink %hash, %val
+    """
+
+    _checker(pre, pre)
+
+
 # ---------------------------------------------------------------------------
 # cross-block coverage
 # ---------------------------------------------------------------------------
