@@ -572,7 +572,7 @@ b: public(immutable(uint256))
 
 @deploy
 def __init__():
-    b = 666
+    self.b = 666
 
     """
     main = """
