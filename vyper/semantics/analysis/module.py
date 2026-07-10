@@ -202,12 +202,30 @@ class ConstructorValidator(VyperNodeVisitorBase):
     This check handles branching by requiring the set of initialized modules to be
     the same in both branches.
     (If one branch raises, we act as if it initialized all necessary modules.)
+
+    The `init_calls` parameter, which denotes "modules which have their init method called before
+    this" also includes indirectly initialized modules.
+    To be precise, it is the set of modules which:
+      1. Are `uses`ed by the current module
+      2. Have their constructor called above the current node (`node`)
+      3. Are `initializes`ed by another module in the set (transitive closure)
     """
 
     modules_to_initialize: list[ModuleInfo]
     constructor: vy_ast.FunctionDef | None
 
+    ambient_init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]]
+
     def __init__(self, module_t: ModuleT):
+
+        # All used modules must be initialized before this one,
+        # their init will therefore have been called
+        self.ambient_init_calls = defaultdict(list)
+        for other_module_info in module_t.used_modules:
+            assert other_module_info.ownership_decl is not None
+            self.update_init_calls_transitive(
+                self.ambient_init_calls, other_module_info, other_module_info.ownership_decl
+            )
 
         self.modules_to_initialize = [
             t.module_info
@@ -223,13 +241,41 @@ class ConstructorValidator(VyperNodeVisitorBase):
 
             self.constructor = init_fun.ast_def
 
+    def update_init_calls_transitive(
+        self,
+        init_calls_by_module: dict[ModuleInfo, list[vy_ast.VyperNode]],
+        other_module_info: ModuleInfo,
+        source_node: vy_ast.VyperNode,
+    ) -> None:
+        """
+        Mark `other_module_info` and every module it transitively initializes as initialized.
+        Source location is written as `source_node`, which is used for error messages.
+
+        Mutates `init_calls_by_module` param !
+        """
+        # algorithm is the same as breadth first search, worklist is the list of to-be-treated nodes
+        worklist = [other_module_info]
+        while worklist:
+            m_info = worklist.pop()
+
+            if m_info in init_calls_by_module:
+                # Only happens if a module is initialized twice, but the error is reported later
+                continue
+
+            # source_node here only really makes sense when m_info == other_module_info, but for
+            # the other cases the important thing is that the list has an element, not what it is
+            init_calls_by_module[m_info] = [source_node]
+
+            for indirect in m_info.module_t.initialized_modules:
+                worklist.append(indirect.module_info)
+
     def validate(self):
         if self.constructor is not None:
             body = self.constructor.body
         else:
             body = []
 
-        init_calls_by_module = self.visit_block(body, defaultdict(list))
+        init_calls_by_module = self.visit_block(body, self.ambient_init_calls)
 
         # is None when body ends in a revert or return (also considers branches,
         # so if it ends with an 'if' where both branches return, it will also be none)
@@ -257,14 +303,6 @@ class ConstructorValidator(VyperNodeVisitorBase):
                     )
                 )
         err_list.raise_if_not_empty()
-
-        for module_info in init_calls_by_module:
-            if module_info not in self.modules_to_initialize:
-                msg = f"tried to initialize `{module_info.alias}`, "
-                msg += "but it is not in initializer list!"
-                hint = f"add `initializes: {module_info.alias}` "
-                hint += "as a top-level statement to your contract"
-                raise InitializerException(msg, *init_calls_by_module[module_info], hint=hint)
 
     def visit_block(
         self, block: list[vy_ast.VyperNode], init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]]
@@ -366,7 +404,16 @@ class ConstructorValidator(VyperNodeVisitorBase):
         # XXX: check this works as expected for nested attributes
         other_module_info = call.func.value._expr_info.module_info  # type: ignore
 
-        # If A.__init__ is called, make sure it was not called before
+        # If A.__init__ is called, make sure the current module `initializes` A
+
+        if other_module_info not in self.modules_to_initialize:
+            msg = f"tried to initialize `{other_module_info.alias}`, "
+            msg += "but it is not in initializer list!"
+            hint = f"add `initializes: {other_module_info.alias}` "
+            hint += "as a top-level statement to your contract"
+            raise InitializerException(msg, call, hint=hint)
+
+        # If A.__init__ is called, make sure it was not already called before
 
         init_calls_m = init_calls[other_module_info]
 
@@ -414,8 +461,7 @@ class ConstructorValidator(VyperNodeVisitorBase):
 
                 # There should always be at most one init call per statement!
                 assert not ret
-
-                ret[initialized_module_info] = [call]
+                self.update_init_calls_transitive(ret, initialized_module_info, call)
 
         return ret
 

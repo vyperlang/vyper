@@ -115,6 +115,7 @@ class ModuleInfo(AnalysisResult):
                 f"ownership already set to `{self.ownership}`", node, self.ownership_decl
             )
         self.ownership = module_ownership
+        self.ownership_decl = node
 
     def __hash__(self):
         return hash(id(self.module_t))

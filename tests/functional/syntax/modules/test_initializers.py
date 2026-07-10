@@ -2178,6 +2178,322 @@ def __init__():
     assert compile_code(main, input_bundle=input_bundle) is not None
 
 
+def test_dep_initialized_by_prior_module_constructor1(make_input_bundle):
+    owner = """
+import lib1
+
+initializes: lib1
+
+counter: uint256
+
+@deploy
+def __init__():
+    lib1.__init__()
+
+@internal
+def touch():
+    lib1.counter += 1
+"""
+    user = """
+import lib1
+
+uses: lib1
+
+counter: uint256
+
+@deploy
+def __init__():
+    pass
+
+@internal
+def touch():
+    lib1.counter += 1
+"""
+    main = """
+import lib1
+import owner
+import user
+
+initializes: owner
+initializes: user[lib1 := lib1]
+
+@deploy
+def __init__():
+    owner.__init__()
+    user.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1, "owner.vy": owner, "user.vy": user})
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_transitive_init_through_nested_initializer(make_input_bundle):
+    owner = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__():
+    lib1.__init__()
+"""
+    mid = """
+import owner
+
+initializes: owner
+
+@deploy
+def __init__():
+    owner.__init__()
+"""
+    user = """
+import lib1
+
+uses: lib1
+
+@deploy
+def __init__():
+    pass
+
+@internal
+def touch():
+    lib1.counter += 1
+"""
+    main = """
+import lib1
+import mid
+import user
+
+initializes: mid
+initializes: user[lib1 := lib1]
+
+@deploy
+def __init__():
+    mid.__init__()
+    user.__init__()
+    """
+    input_bundle = make_input_bundle(
+        {"lib1.vy": _LIB1, "owner.vy": owner, "mid.vy": mid, "user.vy": user}
+    )
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_used_module_adds_its_initialized_modules_to_context(make_input_bundle):
+    owner = """
+import lib1
+
+initializes: lib1
+
+counter: uint256
+
+@deploy
+def __init__():
+    lib1.__init__()
+"""
+    user = """
+import lib1
+
+uses: lib1
+
+@deploy
+def __init__():
+    pass
+
+@internal
+def touch():
+    lib1.counter += 1
+"""
+    sub = """
+import lib1
+import owner
+import user
+
+uses: owner
+initializes: user[lib1 := lib1]
+
+@deploy
+def __init__():
+    user.__init__()
+
+@internal
+def touch():
+    x: uint256 = owner.counter
+"""
+    main = """
+import lib1
+import owner
+import sub
+
+initializes: owner
+initializes: sub[owner := owner]
+
+@deploy
+def __init__():
+    owner.__init__()
+    sub.__init__()
+"""
+    input_bundle = make_input_bundle(
+        {"lib1.vy": _LIB1, "owner.vy": owner, "user.vy": user, "sub.vy": sub}
+    )
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_dep_initialized_by_prior_module_constructor(make_input_bundle):
+    owner = """
+import lib1
+
+initializes: lib1
+
+counter: uint256
+
+@deploy
+def __init__():
+    lib1.__init__()
+
+@internal
+def touch():
+    lib1.counter += 1
+"""
+    user = """
+import lib1
+
+uses: lib1
+
+counter: uint256
+
+@deploy
+def __init__():
+    pass
+
+@internal
+def touch():
+    lib1.counter += 1
+"""
+    main = """
+import lib1
+import owner
+import user
+
+initializes: owner
+initializes: user[lib1 := lib1]
+
+@deploy
+def __init__():
+    user.__init__()
+    owner.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1, "owner.vy": owner, "user.vy": user})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    msg = "tried to initialize `user`, "
+    msg += "but it depends on the following modules which have not been initialized: lib1"
+    assert e.value._message == msg
+
+
+@pytest.mark.parametrize(
+    "init_body,expected_msg",
+    [
+        ("pass", "not initialized!"),
+        ("b.__init__()", None),
+        ("lib1.__init__()", "tried to initialize `lib1`, but it is not in initializer list!"),
+        (
+            "b.__init__()\n    lib1.__init__()",
+            "tried to initialize `lib1`, but it is not in initializer list!",
+        ),
+    ],
+)
+def test_uses_counts_as_init(make_input_bundle, init_body, expected_msg):
+    # b uses lib1
+    # a uses lib1
+    # a initializes b
+    # a.__init__() must call b.__init__()
+    # a.__init__() must not call lib1.__init__()
+    b = """
+import lib1
+
+uses: lib1
+
+@deploy
+def __init__():
+    pass
+
+@internal
+def touch():
+    lib1.counter += 1
+"""
+    a = f"""
+import lib1
+import b
+
+uses: lib1
+initializes: b[lib1 := lib1]
+
+@deploy
+def __init__():
+    {init_body}
+
+@internal
+def touch():
+    lib1.counter += 1
+    b.touch()
+"""
+    main = """
+import lib1
+import a
+
+initializes: lib1
+initializes: a[lib1 := lib1]
+
+@deploy
+def __init__():
+    lib1.__init__()
+    a.__init__()
+    """
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1, "b.vy": b, "a.vy": a})
+    if expected_msg is None:
+        assert compile_code(main, input_bundle=input_bundle) is not None
+    else:
+        with pytest.raises(InitializerException) as e:
+            compile_code(main, input_bundle=input_bundle)
+        assert e.value._message == expected_msg
+
+
+def test_duplicate_initialization_with_init_doesnt_panic(make_input_bundle):
+    d = """
+import lib1
+
+initializes: lib1
+
+@deploy
+def __init__():
+    lib1.__init__()
+"""
+    c = """
+import lib1
+import d
+
+initializes: lib1
+initializes: d
+
+@deploy
+def __init__():
+    lib1.__init__()
+    d.__init__()
+"""
+    p = """
+import c
+
+initializes: c
+
+@deploy
+def __init__():
+    c.__init__()
+"""
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1, "d.vy": d, "c.vy": c})
+    with pytest.raises(InitializerException) as e:
+        compile_code(p, input_bundle=input_bundle)
+    assert e.value._message == "`lib1` initialized twice!"
+
+
 def test_init_then_if_else_no_inner_init(make_input_bundle):
     main = """
 import lib1
