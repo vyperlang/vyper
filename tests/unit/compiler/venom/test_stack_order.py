@@ -428,6 +428,7 @@ def test_stack_order_two_trees():
 
     _check_no_change(pre)
 
+
 def test_stack_order_same_var_in_phi_error(get_contract):
     code = """
 @external
