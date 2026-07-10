@@ -633,16 +633,14 @@ def foo(x: {i_typ}) -> {o_typ}:
 
 
 @pytest.mark.parametrize("typ", sorted(BASE_TYPES))
-@pytest.mark.parametrize("use_experimental_codegen", [False, True])
-def test_bytes_too_large_cases(typ, use_experimental_codegen):
-    settings = Settings(experimental_codegen=use_experimental_codegen)
+def test_bytes_too_large_cases(typ):
     code_1 = f"""
 @external
 def foo(x: Bytes[33]) -> {typ}:
     return convert(x, {typ})
     """
     with pytest.raises(TypeMismatch):
-        compile_code(code_1, settings=settings)
+        compile_code(code_1)
 
     bytes_33 = b"1" * 33
     code_2 = f"""
@@ -651,7 +649,7 @@ def foo() -> {typ}:
     return convert({bytes_33}, {typ})
     """
     with pytest.raises(TypeMismatch):
-        compile_code(code_2, settings=settings)
+        compile_code(code_2)
 
 
 @pytest.mark.parametrize("cls1,cls2", itertools.product((StringT, BytesT), (StringT, BytesT)))

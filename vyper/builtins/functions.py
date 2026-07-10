@@ -239,13 +239,7 @@ class Convert(BuiltinFunctionT):
             return allowed
 
         if isinstance(target_type, BoolT):
-            return (
-                (IntegerT, DecimalT)
-                + (BytesM_T.any(),)
-                + (AddressT, BoolT)
-                + (BytesT(32),)
-                + (StringT(32),)
-            )
+            return (IntegerT, DecimalT, BytesM_T.any(), AddressT, BoolT, BytesT(32), StringT(32))
 
         if isinstance(target_type, DecimalT):
             return (IntegerT, BoolT, BytesM_T.any(), BytesT(32))
