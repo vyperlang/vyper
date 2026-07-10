@@ -1,270 +1,533 @@
-"""
-Uniform entry point for builtin call lowering.
-
-`lower_builtin()` wraps every builtin callsite in a `BuiltinCall`, which
-validates keyword arguments against the builtin's declared interface and
-lowers all runtime expressions -- positional args first, then keyword
-args -- exactly once, in source order, *before* the `lower_<builtin>`
-handler runs. Handlers consume pre-lowered values; they never lower
-argument expressions themselves.
-
-A builtin with keyword arguments (or positional args it must lower
-itself) declares its interface with the `@callsite` decorator:
-
-    @callsite(
-        constant_kwargs={"revert_on_failure": True},
-        runtime_kwargs={"value": 0, "salt": None},
-    )
-    def lower_raw_create(call: BuiltinCall) -> IROperand: ...
-
-- `constant_kwargs` must fold to compile-time constants.
-  `call.kwarg_constants` maps each declared name to its python value,
-  with defaults filled in.
-- `runtime_kwargs` are lowered in the user's keyword order.
-  `call.kwarg_values` maps each declared name to an `IROperand`, with
-  defaults filled in. A default may be an int (becomes an `IRLiteral`),
-  a callable taking the codegen context (invoked when the kwarg is
-  missing, e.g. to emit `gas`), or None (no default -- the value stays
-  None when the kwarg is not provided, e.g. `salt`, where presence
-  selects CREATE2 over CREATE).
-- `type_kwargs` are type expressions consumed during semantic analysis
-  (e.g. `extract32(..., output_type=...)`); they are accepted by
-  validation but have no runtime value.
-- `handler_args` lists positional args the handler lowers itself
-  because they have no uniform value form (e.g. `raw_log`'s topics list
-  literal). Everything else is pre-lowered.
-
-Two kinds of positional args are skipped generically:
-
-- type expressions (`empty(T)`, `convert(x, T)`) have no runtime value;
-- data views (`msg.data`, `self.code`, `<address>.code`) denote raw data
-  locations accessed via calldatacopy/codecopy/extcodecopy. For
-  `<address>.code`, the address subexpression is the view's only runtime
-  component and is lowered in the arg's place, preserving source order.
-"""
+"""Semantic binding and source-ordered preparation for Venom builtins."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from dataclasses import dataclass, field, replace
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Union
 
 from vyper import ast as vy_ast
-from vyper.codegen_venom.value import VyperValue
+from vyper.builtins._signatures import ContextDefault
+from vyper.codegen_venom.call_args import (
+    VALUE,
+    ArgPolicy,
+    DataSourcePolicy,
+    DataView,
+    DataViewKind,
+    FoldedArgument,
+    FoldedPolicy,
+    LengthPolicy,
+    PreparedArg,
+    PreparedDataSource,
+    PreparedList,
+    TypeArgument,
+    ValueListPolicy,
+    ValuePolicy,
+    classify_data_view,
+)
+from vyper.codegen_venom.value import PreparedValue, VyperValue
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types import TYPE_T, AddressT
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.semantics.types import TYPE_T, VyperType
+from vyper.semantics.types.shortcuts import UINT256_T
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
+    from vyper.builtins._signatures import BuiltinFunctionT
     from vyper.codegen_venom.context import VenomCodegenContext
 
-RuntimeDefault = Union[int, None, Callable[["VenomCodegenContext"], IROperand]]
+HandlerResult = Union[IROperand, VyperValue]
+BuiltinHandler = Callable[["PreparedBuiltinCall"], HandlerResult]
+ArgKey = Union[int, str]
 
 
 @dataclass(frozen=True)
-class CallsiteSpec:
-    constant_kwargs: dict[str, Any]
-    runtime_kwargs: dict[str, RuntimeDefault]
-    type_kwargs: tuple[str, ...]
-    handler_args: tuple[int, ...]
+class BuiltinSignature:
+    """The semantic builtin signature bound to one annotated call."""
+
+    func_t: "BuiltinFunctionT"
+    arg_types: tuple[Any, ...]
+    arg_names: tuple[str, ...]
+    declared_arg_names: tuple[str, ...]
+    kwarg_settings: Mapping[str, Any]
+    return_type: VyperType
+
+    @classmethod
+    def from_call(cls, func_t: "BuiltinFunctionT", node: vy_ast.Call) -> "BuiltinSignature":
+        # Semantic analysis has already resolved every source argument,
+        # including user-defined type expressions which cannot be reparsed
+        # here without the original namespace.
+        arg_types = tuple(arg._metadata["type"] for arg in node.args)
+
+        declared_names = tuple(name for name, _ in func_t._inputs)
+        arg_names = tuple(
+            declared_names[i] if i < len(declared_names) else f"arg{i}"
+            for i in range(len(node.args))
+        )
+        return cls(
+            func_t=func_t,
+            arg_types=arg_types,
+            arg_names=arg_names,
+            declared_arg_names=declared_names,
+            kwarg_settings=MappingProxyType(dict(func_t._kwargs)),
+            return_type=node._metadata["type"],
+        )
+
+
+@dataclass(frozen=True)
+class BuiltinLowerer:
+    """A handler plus backend representation policies for exceptional args."""
+
+    handler: BuiltinHandler
+    arg_policies: Mapping[str, ArgPolicy] = field(default_factory=dict)
+    vararg_policy: ArgPolicy = VALUE
 
     def __post_init__(self):
-        kinds = (set(self.constant_kwargs), set(self.runtime_kwargs), set(self.type_kwargs))
-        assert len(set().union(*kinds)) == sum(
-            len(kind) for kind in kinds
-        ), "kwarg declared with more than one kind"
+        object.__setattr__(self, "arg_policies", MappingProxyType(dict(self.arg_policies)))
 
-    @property
-    def allowed_kwargs(self) -> set[str]:
-        return set(self.constant_kwargs) | set(self.runtime_kwargs) | set(self.type_kwargs)
+    def validate(self, signature: BuiltinSignature) -> None:
+        unknown = set(self.arg_policies) - set(signature.declared_arg_names)
+        if unknown:  # pragma: nocover
+            names = ", ".join(sorted(unknown))
+            raise CompilerPanic(f"{signature.func_t._id}: policies for unknown args: {names}")
+
+    def policy_for_arg(self, signature: BuiltinSignature, index: int) -> ArgPolicy:
+        if index < len(signature.declared_arg_names):
+            return self.arg_policies.get(signature.arg_names[index], VALUE)
+        return self.vararg_policy
 
 
-DEFAULT_SPEC = CallsiteSpec({}, {}, (), ())
+@dataclass(frozen=True)
+class _ArgDestination:
+    index: int
 
 
-def callsite(
-    constant_kwargs: Optional[dict[str, Any]] = None,
-    runtime_kwargs: Optional[dict[str, RuntimeDefault]] = None,
-    type_kwargs: tuple[str, ...] = (),
-    handler_args: tuple[int, ...] = (),
-):
-    """Declare a builtin handler's callsite interface (see module docstring)."""
+@dataclass(frozen=True)
+class _LengthDestination:
+    index: int
 
-    def decorator(handler):
-        handler._callsite_spec = CallsiteSpec(
-            constant_kwargs or {}, runtime_kwargs or {}, type_kwargs, handler_args
+
+@dataclass(frozen=True)
+class _ListDestination:
+    index: int
+    element_index: int
+
+
+@dataclass(frozen=True)
+class _ViewDestination:
+    index: int
+    kind: DataViewKind
+    as_length: bool = False
+
+
+@dataclass(frozen=True)
+class _KwargDestination:
+    name: str
+
+
+_Destination = Union[
+    _ArgDestination, _LengthDestination, _ListDestination, _ViewDestination, _KwargDestination
+]
+
+
+@dataclass(frozen=True)
+class _ValueStep:
+    node: vy_ast.VyperNode
+    destination: _Destination
+    reduce_node: bool = False
+    snapshot_memory: bool = False
+
+
+@dataclass(frozen=True)
+class _LengthViewStep:
+    index: int
+    kind: DataViewKind
+
+
+@dataclass(frozen=True)
+class _DefaultStep:
+    name: str
+    settings: Any
+
+
+_EvaluationStep = Union[_ValueStep, _LengthViewStep, _DefaultStep]
+
+
+def _may_mutate_memory(node: vy_ast.VyperNode) -> bool:
+    """Conservatively identify expressions which can invalidate a borrowed pointer."""
+    return bool(node.get_descendants(vy_ast.Call, include_self=True))
+
+
+def _fold_constant(node: vy_ast.VyperNode, description: str) -> Any:
+    folded = node.reduced()
+    if not isinstance(folded, vy_ast.Constant):  # pragma: nocover
+        raise CompilerPanic(f"unfoldable {description}", node)
+    return folded.value
+
+
+def _is_type_setting(settings: Any) -> bool:
+    return TYPE_T.any().compare_type(settings.typ)
+
+
+@dataclass(frozen=True)
+class EvaluationPlan:
+    """A linear plan which is the sole owner of runtime argument lowering."""
+
+    steps: tuple[_EvaluationStep, ...]
+    prepared_args: Mapping[int, PreparedArg]
+    prepared_kwargs: Mapping[str, PreparedArg]
+    list_lengths: Mapping[int, int]
+
+    @classmethod
+    def build(
+        cls, signature: BuiltinSignature, lowerer: BuiltinLowerer, node: vy_ast.Call
+    ) -> "EvaluationPlan":
+        lowerer.validate(signature)
+        prepared_args: dict[int, PreparedArg] = {}
+        prepared_kwargs: dict[str, PreparedArg] = {}
+        list_lengths: dict[int, int] = {}
+        steps: list[_EvaluationStep] = []
+
+        for index, arg_node in enumerate(node.args):
+            arg_typ = signature.arg_types[index]
+            if isinstance(arg_typ, TYPE_T):
+                prepared_args[index] = TypeArgument(arg_typ.typedef)
+                continue
+
+            policy = lowerer.policy_for_arg(signature, index)
+            if isinstance(policy, FoldedPolicy):
+                prepared_args[index] = FoldedArgument(
+                    _fold_constant(arg_node, f"argument {signature.arg_names[index]}")
+                )
+                continue
+
+            if isinstance(policy, ValueListPolicy):
+                reduced = arg_node.reduced()
+                if not isinstance(reduced, vy_ast.List):  # pragma: nocover
+                    raise CompilerPanic(
+                        f"{signature.func_t._id}: {signature.arg_names[index]} must be a list",
+                        arg_node,
+                    )
+                list_lengths[index] = len(reduced.elements)
+                for element_index, element in enumerate(reduced.elements):
+                    steps.append(_ValueStep(element, _ListDestination(index, element_index)))
+                continue
+
+            if isinstance(policy, (DataSourcePolicy, LengthPolicy)):
+                view = classify_data_view(arg_node)
+                if view is not None:
+                    kind, address_node = view
+                    if kind not in policy.allowed_views:
+                        if isinstance(policy, DataSourcePolicy) and policy.unsupported_message:
+                            raise CompilerPanic(policy.unsupported_message, arg_node)
+                        # Route undeclared views through Expr so its established,
+                        # source-specific diagnostic is retained.
+                        destination: _Destination
+                        if isinstance(policy, LengthPolicy):
+                            destination = _LengthDestination(index)
+                        else:
+                            destination = _ArgDestination(index)
+                        steps.append(_ValueStep(arg_node, destination))
+                        continue
+
+                    if address_node is None:
+                        if isinstance(policy, LengthPolicy):
+                            steps.append(_LengthViewStep(index, kind))
+                        else:
+                            prepared_args[index] = DataView(kind)
+                    else:
+                        steps.append(
+                            _ValueStep(
+                                address_node,
+                                _ViewDestination(
+                                    index, kind, as_length=isinstance(policy, LengthPolicy)
+                                ),
+                            )
+                        )
+                    continue
+
+                destination = (
+                    _LengthDestination(index)
+                    if isinstance(policy, LengthPolicy)
+                    else _ArgDestination(index)
+                )
+                steps.append(_ValueStep(arg_node, destination))
+                continue
+
+            if not isinstance(policy, ValuePolicy):  # pragma: nocover
+                raise CompilerPanic(f"{signature.func_t._id}: unknown argument policy {policy}")
+            steps.append(_ValueStep(arg_node, _ArgDestination(index)))
+
+        kwarg_nodes: dict[str, vy_ast.VyperNode] = {}
+        for kwarg in node.keywords:
+            if kwarg.arg not in signature.kwarg_settings:  # pragma: nocover
+                raise CompilerPanic(f"unexpected kwarg: {kwarg.arg}", kwarg)
+            kwarg_nodes[kwarg.arg] = kwarg.value
+            settings = signature.kwarg_settings[kwarg.arg]
+            if _is_type_setting(settings):
+                typ = kwarg.value._metadata.get("type")
+                if not isinstance(typ, TYPE_T):  # pragma: nocover
+                    raise CompilerPanic(f"{kwarg.arg}: expected a type argument", kwarg.value)
+                prepared_kwargs[kwarg.arg] = TypeArgument(typ.typedef)
+            elif settings.require_literal:
+                prepared_kwargs[kwarg.arg] = FoldedArgument(
+                    _fold_constant(kwarg.value, f"constant kwarg {kwarg.arg}")
+                )
+            else:
+                steps.append(
+                    _ValueStep(kwarg.value, _KwargDestination(kwarg.arg), reduce_node=True)
+                )
+
+        for name, settings in signature.kwarg_settings.items():
+            if name in kwarg_nodes:
+                continue
+            if _is_type_setting(settings):
+                if not isinstance(settings.default, VyperType):  # pragma: nocover
+                    raise CompilerPanic(f"{name}: invalid type default {settings.default!r}")
+                prepared_kwargs[name] = TypeArgument(settings.default)
+            elif settings.require_literal:
+                prepared_kwargs[name] = FoldedArgument(settings.default)
+            else:
+                steps.append(_DefaultStep(name, settings))
+
+        # Snapshot a borrowed memory value only when a later source expression
+        # may mutate an alias. Primitive words are loaded eagerly regardless.
+        for index, step in enumerate(steps):
+            if not isinstance(step, _ValueStep):
+                continue
+            later_nodes = [
+                later.node for later in steps[index + 1 :] if isinstance(later, _ValueStep)
+            ]
+            if any(_may_mutate_memory(later) for later in later_nodes):
+                steps[index] = replace(step, snapshot_memory=True)
+
+        return cls(
+            tuple(steps),
+            MappingProxyType(prepared_args),
+            MappingProxyType(prepared_kwargs),
+            MappingProxyType(list_lengths),
         )
-        return handler
-
-    return decorator
 
 
-def is_msg_data(node: vy_ast.VyperNode) -> bool:
-    """Check for `msg.data`."""
-    return (
-        isinstance(node, vy_ast.Attribute)
-        and node.attr == "data"
-        and isinstance(node.value, vy_ast.Name)
-        and node.value.id == "msg"
-    )
+class PreparedBuiltinCall:
+    """A builtin call whose runtime arguments are ready for emission-free access."""
 
-
-def is_data_view(node: vy_ast.VyperNode) -> bool:
-    """Check for `msg.data`, `self.code` or `<address>.code`."""
-    if is_msg_data(node):
-        return True
-    if not isinstance(node, vy_ast.Attribute):
-        return False
-    if isinstance(node.value, vy_ast.Name) and node.value.id == "self" and node.attr == "code":
-        return True
-    return node.attr == "code" and isinstance(node.value._metadata.get("type"), AddressT)
-
-
-def _data_view_address(node: vy_ast.Attribute) -> Optional[vy_ast.VyperNode]:
-    """The address subexpression of an `<address>.code` view, if any."""
-    if isinstance(node.value, vy_ast.Name) and node.value.id in ("msg", "self"):
-        return None
-    return node.value
-
-
-def _may_have_side_effects(node: vy_ast.VyperNode) -> bool:
-    """Whether evaluating the expression can mutate observable state.
-
-    Conservative: any call (internal call, builtin, mutating method call
-    like `arr.append(...)`) counts as a side effect.
-    """
-    return len(node.get_descendants(vy_ast.Call, include_self=True)) > 0
-
-
-class BuiltinCall:
-    """A builtin callsite, prepared for lowering.
-
-    Construction validates keyword arguments and lowers every runtime
-    expression exactly once, in source order: positional args first,
-    then keyword args. An argument value is frozen (loaded onto the
-    stack or copied into a fresh temporary) when a later expression has
-    side effects, so it cannot be mutated between evaluation and use.
-    """
-
-    node: vy_ast.Call
-    ctx: "VenomCodegenContext"
-    # explicitly provided kwarg names (e.g. presence of `value=` is an
-    # error for static raw_calls even though it has a default)
-    provided_kwargs: frozenset[str]
-    # declared constant kwargs, folded to python values, defaults filled
-    kwarg_constants: dict[str, Any]
-    # declared runtime kwargs, lowered in keyword order, defaults filled
-    kwarg_values: dict[str, Optional[IROperand]]
-    # pre-lowered positional args; None for compile-time-only args
-    arg_values: list[Optional[VyperValue]]
-
-    def __init__(self, node: vy_ast.Call, ctx, spec: CallsiteSpec = DEFAULT_SPEC):
+    def __init__(
+        self,
+        func_t: "BuiltinFunctionT",
+        node: vy_ast.Call,
+        ctx: "VenomCodegenContext",
+        lowerer: BuiltinLowerer,
+    ):
+        self.func_t = func_t
         self.node = node
         self.ctx = ctx
+        self.signature = BuiltinSignature.from_call(func_t, node)
+        self.provided_kwargs = frozenset(kwarg.arg for kwarg in node.keywords)
 
-        kwarg_nodes = self._validate_kwargs(spec)
-        self.provided_kwargs = frozenset(kwarg_nodes)
+        plan = EvaluationPlan.build(self.signature, lowerer, node)
+        self._args: dict[int, PreparedArg] = dict(plan.prepared_args)
+        self._kwargs: dict[str, PreparedArg] = dict(plan.prepared_kwargs)
+        list_values: dict[int, list[Optional[PreparedValue]]] = {
+            index: [None] * length for index, length in plan.list_lengths.items()
+        }
 
-        self.kwarg_constants = self._fold_constant_kwargs(kwarg_nodes, spec)
-        self.arg_values = self._lower_args(kwarg_nodes, spec)
-        self.kwarg_values = self._lower_runtime_kwargs(kwarg_nodes, spec)
+        for step in plan.steps:
+            if isinstance(step, _DefaultStep):
+                self._kwargs[step.name] = self._prepare_default(step.name, step.settings)
+                continue
 
-    def kwarg_value(self, name: str) -> IROperand:
-        """A runtime kwarg whose default guarantees it a value. Kwargs
-        without a default (e.g. salt) are accessed via `kwarg_values`."""
-        value = self.kwarg_values[name]
-        assert value is not None
+            if isinstance(step, _LengthViewStep):
+                self._args[step.index] = self._prepare_view_length(step.kind)
+                continue
+
+            expr_node = step.node.reduced() if step.reduce_node else step.node
+            from vyper.codegen_venom.expr import Expr
+
+            vv = Expr(expr_node, ctx).lower()
+
+            if isinstance(step.destination, _LengthDestination):
+                self._args[step.destination.index] = self._prepare_length(vv)
+                continue
+
+            prepared = ctx.prepare_value(
+                vv, snapshot_memory=step.snapshot_memory, annotation="builtin argument"
+            )
+            destination = step.destination
+            if isinstance(destination, _ArgDestination):
+                self._args[destination.index] = prepared
+            elif isinstance(destination, _ListDestination):
+                list_values[destination.index][destination.element_index] = prepared
+            elif isinstance(destination, _ViewDestination):
+                if destination.as_length:
+                    address = prepared.word()
+                    self._args[destination.index] = PreparedValue.from_word(
+                        ctx.builder.extcodesize(address), UINT256_T
+                    )
+                else:
+                    self._args[destination.index] = DataView(destination.kind, prepared)
+            elif isinstance(destination, _KwargDestination):
+                self._kwargs[destination.name] = prepared
+            else:  # pragma: nocover
+                raise CompilerPanic(f"unknown evaluation destination {destination}")
+
+        for index, values in list_values.items():
+            if any(value is None for value in values):  # pragma: nocover
+                raise CompilerPanic(f"argument {index}: incomplete prepared list")
+            self._args[index] = PreparedList(tuple(value for value in values if value is not None))
+
+        if len(self._args) != len(node.args):  # pragma: nocover
+            raise CompilerPanic(f"{func_t._id}: incomplete positional argument preparation")
+        if set(self._kwargs) != set(self.signature.kwarg_settings):  # pragma: nocover
+            raise CompilerPanic(f"{func_t._id}: incomplete keyword argument preparation")
+
+    def _prepare_length(self, vv: VyperValue) -> PreparedValue:
+        if vv.typ._is_prim_word:  # pragma: nocover
+            raise CompilerPanic(f"len() expected a sequence, got {vv.typ}")
+        length: IROperand
+        if vv.location is None:
+            if not isinstance(vv.operand, IRVariable):  # pragma: nocover
+                raise CompilerPanic("len() expected a memory pointer")
+            length = self.ctx.builder.mload(vv.operand)
+        else:
+            length = self.ctx.load_word(vv.operand, vv.location)
+        return PreparedValue.from_word(length, UINT256_T)
+
+    def _prepare_view_length(self, kind: DataViewKind) -> PreparedValue:
+        if kind is DataViewKind.CALLDATA:
+            length = self.ctx.builder.calldatasize()
+        elif kind is DataViewKind.SELF_CODE:
+            length = self.ctx.builder.codesize()
+        else:  # pragma: nocover
+            raise CompilerPanic(f"cannot prepare {kind.name.lower()} length without an address")
+        return PreparedValue.from_word(length, UINT256_T)
+
+    def _prepare_default(self, name: str, settings: Any) -> PreparedValue:
+        typ = settings.typ
+        if not isinstance(typ, VyperType) or not typ._is_prim_word:  # pragma: nocover
+            raise CompilerPanic(f"{name}: unsupported runtime default type {typ}")
+
+        default = settings.default
+        operand: IROperand
+        if default is ContextDefault.GAS:
+            operand = self.ctx.builder.gas()
+        elif type(default) is int:
+            operand = IRLiteral(default)
+        else:  # pragma: nocover
+            raise CompilerPanic(f"{name}: unsupported runtime default {default!r}")
+        return PreparedValue.from_word(operand, typ)
+
+    @property
+    def return_type(self) -> VyperType:
+        return self.signature.return_type
+
+    @property
+    def arg_count(self) -> int:
+        return len(self.node.args)
+
+    def _arg_index(self, key: ArgKey) -> int:
+        if isinstance(key, int):
+            return key
+        try:
+            return self.signature.arg_names.index(key)
+        except ValueError:  # pragma: nocover
+            raise CompilerPanic(f"{self.func_t._id}: unknown argument {key}") from None
+
+    def arg_type(self, key: ArgKey) -> Any:
+        index = self._arg_index(key)
+        return self.signature.arg_types[index]
+
+    def source_arg(self, key: ArgKey) -> vy_ast.VyperNode:
+        """Return the source node only for diagnostics which need an anchor."""
+        index = self._arg_index(key)
+        return self.node.args[index]
+
+    def arg(self, key: ArgKey) -> PreparedValue:
+        index = self._arg_index(key)
+        value = self._args[index]
+        if not isinstance(value, PreparedValue):  # pragma: nocover
+            raise CompilerPanic(
+                f"{self.func_t._id} arg {index} is {type(value).__name__}, requested value"
+            )
         return value
 
-    def arg(self, index: int) -> VyperValue:
-        vv = self.arg_values[index]
-        assert vv is not None, "requested arg was not pre-lowered"
-        return vv
+    def arg_operand(self, key: ArgKey) -> IROperand:
+        """Return an already-prepared operand without emitting IR."""
+        return self.arg(key).operand
 
-    def arg_operand(self, index: int) -> IROperand:
-        """Unwrap a pre-lowered arg: a stack value for primitive words,
-        a memory pointer for composite types."""
-        return self.ctx.unwrap(self.arg(index))
+    def word(self, key: ArgKey) -> IROperand:
+        return self.arg(key).word()
+
+    def memory(self, key: ArgKey) -> IRVariable:
+        operand = self.arg(key).ptr().operand
+        if not isinstance(operand, IRVariable):  # pragma: nocover
+            raise CompilerPanic(f"{self.func_t._id} arg {key} is not a memory variable")
+        return operand
 
     def arg_operands(self) -> list[IROperand]:
-        return [self.arg_operand(i) for i in range(len(self.node.args))]
+        return [self.arg_operand(index) for index in range(self.arg_count)]
 
-    def _validate_kwargs(self, spec: CallsiteSpec) -> dict[str, vy_ast.VyperNode]:
-        allowed = spec.allowed_kwargs
-        ret = {}
-        for kw in self.node.keywords:
-            if kw.arg not in allowed:  # pragma: nocover
-                raise CompilerPanic(f"unexpected kwarg: {kw.arg}", kw)
-            ret[kw.arg] = kw.value
-        return ret
+    def data_source(self, key: ArgKey) -> PreparedDataSource:
+        index = self._arg_index(key)
+        value = self._args[index]
+        if not isinstance(value, (PreparedValue, DataView)):  # pragma: nocover
+            raise CompilerPanic(
+                f"{self.func_t._id} arg {index} is {type(value).__name__}, requested data source"
+            )
+        return value
 
-    def _fold_constant_kwargs(
-        self, kwarg_nodes: dict[str, vy_ast.VyperNode], spec: CallsiteSpec
-    ) -> dict[str, Any]:
-        ret = {}
-        for name, default in spec.constant_kwargs.items():
-            if name in kwarg_nodes:
-                folded = kwarg_nodes[name].reduced()
-                if not isinstance(folded, vy_ast.Constant):  # pragma: nocover
-                    raise CompilerPanic(f"unfoldable constant kwarg: {name}", folded)
-                ret[name] = folded.value
-            else:
-                ret[name] = default
-        return ret
+    def value_list(self, key: ArgKey) -> tuple[PreparedValue, ...]:
+        index = self._arg_index(key)
+        value = self._args[index]
+        if not isinstance(value, PreparedList):  # pragma: nocover
+            raise CompilerPanic(
+                f"{self.func_t._id} arg {index} is {type(value).__name__}, requested value list"
+            )
+        return value.values
 
-    def _lower_args(
-        self, kwarg_nodes: dict[str, vy_ast.VyperNode], spec: CallsiteSpec
-    ) -> list[Optional[VyperValue]]:
-        from vyper.codegen_venom.expr import Expr
+    def type_arg(self, key: ArgKey) -> VyperType:
+        index = self._arg_index(key)
+        value = self._args[index]
+        if not isinstance(value, TypeArgument):  # pragma: nocover
+            raise CompilerPanic(
+                f"{self.func_t._id} arg {index} is {type(value).__name__}, requested type"
+            )
+        return value.typ
 
-        args = self.node.args
-        runtime_kwarg_nodes = [
-            node for name, node in kwarg_nodes.items() if name in spec.runtime_kwargs
-        ]
+    def folded_arg(self, key: ArgKey) -> Any:
+        index = self._arg_index(key)
+        value = self._args[index]
+        if not isinstance(value, FoldedArgument):  # pragma: nocover
+            raise CompilerPanic(
+                f"{self.func_t._id} arg {index} is {type(value).__name__}, requested literal"
+            )
+        return value.value
 
-        ret: list[Optional[VyperValue]] = []
-        for i, arg in enumerate(args):
-            vv: Optional[VyperValue] = None
-            if i in spec.handler_args or isinstance(arg._metadata.get("type"), TYPE_T):
-                pass
-            elif is_data_view(arg):
-                assert isinstance(arg, vy_ast.Attribute)
-                address = _data_view_address(arg)
-                if address is not None:
-                    operand = Expr(address, self.ctx).lower_value()
-                    vv = VyperValue.from_stack_op(operand, address._metadata["type"])
-            else:
-                vv = Expr(arg, self.ctx).lower()
+    def kwarg_value(self, name: str) -> IROperand:
+        value = self._kwargs[name]
+        if not isinstance(value, PreparedValue):  # pragma: nocover
+            raise CompilerPanic(
+                f"{self.func_t._id} kwarg {name} is {type(value).__name__}, requested value"
+            )
+        return value.operand
 
-            later_nodes = list(args[i + 1 :]) + runtime_kwarg_nodes
-            if vv is not None and any(_may_have_side_effects(n) for n in later_nodes):
-                vv = self._freeze(vv)
-            ret.append(vv)
-        return ret
+    def literal(self, name: str) -> Any:
+        value = self._kwargs[name]
+        if not isinstance(value, FoldedArgument):  # pragma: nocover
+            raise CompilerPanic(
+                f"{self.func_t._id} kwarg {name} is {type(value).__name__}, requested literal"
+            )
+        return value.value
 
-    def _lower_runtime_kwargs(
-        self, kwarg_nodes: dict[str, vy_ast.VyperNode], spec: CallsiteSpec
-    ) -> dict[str, Optional[IROperand]]:
-        from vyper.codegen_venom.expr import Expr
+    def type_kwarg(self, name: str) -> VyperType:
+        value = self._kwargs[name]
+        if not isinstance(value, TypeArgument):  # pragma: nocover
+            raise CompilerPanic(
+                f"{self.func_t._id} kwarg {name} is {type(value).__name__}, requested type"
+            )
+        return value.typ
 
-        ret: dict[str, Optional[IROperand]] = {}
-        # explicit kwargs first, in the user's keyword order
-        for name, node in kwarg_nodes.items():
-            if name in spec.runtime_kwargs:
-                ret[name] = Expr(node.reduced(), self.ctx).lower_value()
+    def was_provided(self, name: str) -> bool:
+        return name in self.provided_kwargs
 
-        for name, default in spec.runtime_kwargs.items():
-            if name in ret:
-                continue
-            if default is None:
-                ret[name] = None
-            elif callable(default):
-                ret[name] = default(self.ctx)
-            else:
-                ret[name] = IRLiteral(default)
-        return ret
 
-    def _freeze(self, vv: VyperValue) -> VyperValue:
-        """Snapshot a value so later side effects cannot change it."""
-        if vv.typ._is_prim_word:
-            return VyperValue.from_stack_op(self.ctx.unwrap(vv), vv.typ)
-        return self.ctx.materialize_value(vv, annotation="builtin arg")
+__all__ = ["BuiltinLowerer", "PreparedBuiltinCall"]

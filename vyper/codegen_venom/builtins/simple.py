@@ -6,7 +6,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Union
 
-from vyper.codegen_venom.builtins._call import BuiltinCall, is_msg_data
+from vyper.codegen_venom.builtins._call import BuiltinLowerer, PreparedBuiltinCall
+from vyper.codegen_venom.call_args import DataViewKind, length_source
 from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -17,27 +18,17 @@ if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def lower_len(call: BuiltinCall) -> IROperand:
+def lower_len(call: PreparedBuiltinCall) -> IROperand:
     """
     len(x) for dynamic arrays, bytes, strings.
 
     Returns the length stored at the pointer (first word).
     Special case: len(msg.data) returns calldatasize.
     """
-    node = call.node
-    ctx = call.ctx
-
-    # Special case: len(msg.data) returns calldatasize
-    if is_msg_data(node.args[0]):
-        return ctx.builder.calldatasize()
-
-    # For bytes/string/DynArray: length is stored at pointer
-    arg_vv = call.arg(0)
-    assert arg_vv.location is not None
-    return ctx.load_word(arg_vv.operand, arg_vv.location)
+    return call.word("b")
 
 
-def lower_empty(call: BuiltinCall) -> Union[IROperand, VyperValue]:
+def lower_empty(call: PreparedBuiltinCall) -> Union[IROperand, VyperValue]:
     """
     empty(T) returns zero-initialized value of type T.
 
@@ -50,9 +41,8 @@ def lower_empty(call: BuiltinCall) -> Union[IROperand, VyperValue]:
     sufficient since length=0 means no valid data. For other complex types,
     we zero the entire buffer.
     """
-    node = call.node
     ctx = call.ctx
-    typ = node._metadata["type"]
+    typ = call.return_type
 
     if typ._is_prim_word:
         return IRLiteral(0)
@@ -80,28 +70,28 @@ def _zero_memory(ctx: VenomCodegenContext, ptr: IRVariable, size: int) -> None:
         ctx.builder.mstore(dst, IRLiteral(0))
 
 
-def lower_min(call: BuiltinCall) -> IROperand:
+def lower_min(call: PreparedBuiltinCall) -> IROperand:
     """min(a, b) - returns smaller of two values."""
     return _lower_minmax(call, is_max=False)
 
 
-def lower_max(call: BuiltinCall) -> IROperand:
+def lower_max(call: PreparedBuiltinCall) -> IROperand:
     """max(a, b) - returns larger of two values."""
     return _lower_minmax(call, is_max=True)
 
 
-def _lower_minmax(call: BuiltinCall, is_max: bool) -> IROperand:
+def _lower_minmax(call: PreparedBuiltinCall, is_max: bool) -> IROperand:
     """
     Common implementation for min/max.
 
     Uses select: if (a op b) then a else b
     """
-    node = call.node
     ctx = call.ctx
     b = ctx.builder
 
-    a_val, b_val = call.arg_operands()
-    typ = node.args[0]._metadata["type"]
+    a_val = call.word("a")
+    b_val = call.word("b")
+    typ = call.arg_type(0)
 
     # Choose comparison - signed for most types, unsigned only for uint256
     if typ == UINT256_T:
@@ -112,7 +102,7 @@ def _lower_minmax(call: BuiltinCall, is_max: bool) -> IROperand:
     return b.select(cmp_result, a_val, b_val)
 
 
-def lower_abs(call: BuiltinCall) -> IROperand:
+def lower_abs(call: PreparedBuiltinCall) -> IROperand:
     """
     abs(x) for int256 only.
 
@@ -122,7 +112,7 @@ def lower_abs(call: BuiltinCall) -> IROperand:
     ctx = call.ctx
     b = ctx.builder
 
-    val = call.arg_operand(0)
+    val = call.word("value")
 
     # Compute negation: neg_val = 0 - val
     neg_val = b.sub(IRLiteral(0), val)
@@ -140,9 +130,9 @@ def lower_abs(call: BuiltinCall) -> IROperand:
 
 # Export handlers
 HANDLERS = {
-    "len": lower_len,
-    "empty": lower_empty,
-    "min": lower_min,
-    "max": lower_max,
-    "abs": lower_abs,
+    "len": BuiltinLowerer(lower_len, arg_policies={"b": length_source(DataViewKind.CALLDATA)}),
+    "empty": BuiltinLowerer(lower_empty),
+    "min": BuiltinLowerer(lower_min),
+    "max": BuiltinLowerer(lower_max),
+    "abs": BuiltinLowerer(lower_abs),
 }

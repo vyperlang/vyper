@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Optional, Union
 from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import abi_decode_to_buf, abi_encode_to_buf
 from vyper.codegen_venom.buffer import Buffer, Ptr
-from vyper.codegen_venom.builtins._call import BuiltinCall, callsite
+from vyper.codegen_venom.builtins._call import BuiltinLowerer, PreparedBuiltinCall
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import StructureException
 from vyper.semantics.data_locations import DataLocation
@@ -59,8 +59,7 @@ def _create_tuple_in_memory(
     return val.operand, tuple_t
 
 
-@callsite(constant_kwargs={"ensure_tuple": True, "method_id": None})
-def lower_abi_encode(call: BuiltinCall) -> VyperValue:
+def lower_abi_encode(call: PreparedBuiltinCall) -> VyperValue:
     """
     abi_encode(*args, ensure_tuple=True, method_id=None) -> Bytes[N]
 
@@ -76,13 +75,12 @@ def lower_abi_encode(call: BuiltinCall) -> VyperValue:
         raise StructureException("abi_encode expects at least one argument", node)
     b = ctx.builder
 
-    ensure_tuple = call.kwarg_constants["ensure_tuple"]
-    method_id = _parse_method_id(call.kwarg_constants["method_id"])
+    ensure_tuple = call.literal("ensure_tuple")
+    method_id = _parse_method_id(call.literal("method_id"))
 
-    # Primitives are stack values, complex types are memory pointers
-    # (unwrap copies storage/transient to memory)
+    # Primitives are words; composite arguments are stable memory pointers.
     args = call.arg_operands()
-    arg_types = [arg._metadata["type"] for arg in node.args]
+    arg_types = [call.arg_type(index) for index in range(call.arg_count)]
 
     # Build input to encode
     if len(args) == 1 and not ensure_tuple:
@@ -101,13 +99,9 @@ def lower_abi_encode(call: BuiltinCall) -> VyperValue:
         # Create tuple from args
         encode_input, encode_type = _create_tuple_in_memory(ctx, args, arg_types)
 
-    # Calculate buffer size
-    maxlen = encode_type.abi_type.size_bound()
-    if method_id is not None:
-        maxlen += 4
-
     # Allocate output buffer: [32-byte length] | [optional 4-byte method_id] | [data]
-    buf_t = BytesT(maxlen)
+    buf_t = call.return_type
+    assert isinstance(buf_t, BytesT)
     buf_val = ctx.new_temporary_value(buf_t)
     assert isinstance(buf_val.operand, IRVariable)
 
@@ -135,8 +129,7 @@ def lower_abi_encode(call: BuiltinCall) -> VyperValue:
     return buf_val
 
 
-@callsite(constant_kwargs={"unwrap_tuple": True})
-def lower_abi_decode(call: BuiltinCall) -> VyperValue:
+def lower_abi_decode(call: PreparedBuiltinCall) -> VyperValue:
     """
     abi_decode(data, output_type, unwrap_tuple=True) -> output_type
 
@@ -144,14 +137,12 @@ def lower_abi_decode(call: BuiltinCall) -> VyperValue:
 
     - unwrap_tuple: If True (default), single-element tuples are unwrapped
     """
-    node = call.node
     ctx = call.ctx
     b = ctx.builder
 
-    unwrap_tuple = call.kwarg_constants["unwrap_tuple"]
+    unwrap_tuple = call.literal("unwrap_tuple")
 
-    # Get output type from type annotation
-    output_typ = node.args[1]._metadata["type"].typedef
+    output_typ = call.type_arg("output_type")
 
     # Apply tuple wrapping if needed (for ABI conformance)
     wrapped_typ = output_typ
@@ -159,8 +150,7 @@ def lower_abi_decode(call: BuiltinCall) -> VyperValue:
         wrapped_typ = calculate_type_for_external_return(output_typ)
 
     # Get data pointer and length
-    data = call.arg_operand(0)  # Copies storage/transient to memory
-    assert isinstance(data, IRVariable)
+    data = call.memory("data")
     data_len = b.mload(data)  # Length word at start of Bytes
     data_ptr = b.add(data, IRLiteral(32))  # Data starts after length word
 
@@ -198,8 +188,8 @@ def lower_abi_decode(call: BuiltinCall) -> VyperValue:
 
 
 HANDLERS = {
-    "abi_encode": lower_abi_encode,
-    "abi_decode": lower_abi_decode,
-    "_abi_encode": lower_abi_encode,  # deprecated alias
-    "_abi_decode": lower_abi_decode,  # deprecated alias
+    "abi_encode": BuiltinLowerer(lower_abi_encode),
+    "abi_decode": BuiltinLowerer(lower_abi_decode),
+    "_abi_encode": BuiltinLowerer(lower_abi_encode),  # deprecated alias
+    "_abi_decode": BuiltinLowerer(lower_abi_decode),  # deprecated alias
 }

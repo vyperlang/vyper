@@ -5,7 +5,6 @@ Miscellaneous built-in functions.
 - blockhash, blobhash: Block info
 - floor, ceil: Decimal truncation
 - as_wei_value: Wei denomination conversion
-- min_value, max_value, epsilon: Compile-time constants
 - breakpoint: Debug interrupt
 - print: Debug logging to console.log address
 """
@@ -16,10 +15,12 @@ from typing import TYPE_CHECKING
 
 from vyper.builtins.functions import AsWeiValue
 from vyper.codegen_venom.abi.abi_encoder import abi_encode_to_buf
-from vyper.codegen_venom.builtins._call import BuiltinCall, callsite
+from vyper.codegen_venom.builtins._call import BuiltinLowerer, PreparedBuiltinCall
+from vyper.codegen_venom.call_args import FOLDED
 from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PRECOMPILE
+from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import EvmVersionException
+from vyper.exceptions import CompilerPanic, EvmVersionException
 from vyper.semantics.types import BytesT, DecimalT, IntegerT, StringT, TupleT
 from vyper.utils import DECIMAL_DIVISOR, method_id_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
@@ -37,7 +38,7 @@ CONSOLE_ADDRESS = 0x000000000000000000636F6E736F6C652E6C6F67
 # =============================================================================
 
 
-def lower_ecrecover(call: BuiltinCall) -> IROperand:
+def lower_ecrecover(call: PreparedBuiltinCall) -> IROperand:
     """
     ecrecover(hash, v, r, s) -> address
 
@@ -48,7 +49,10 @@ def lower_ecrecover(call: BuiltinCall) -> IROperand:
     ctx = call.ctx
     b = ctx.builder
 
-    hash_val, v, r, s = call.arg_operands()
+    hash_val = call.word("hash")
+    v = call.word("v")
+    r = call.word("r")
+    s = call.word("s")
 
     # Prepare input buffer (128 bytes)
     input_buf = ctx.allocate_buffer(128)
@@ -75,7 +79,7 @@ def lower_ecrecover(call: BuiltinCall) -> IROperand:
     return b.mload(output_buf._ptr)
 
 
-def lower_ecadd(call: BuiltinCall) -> IROperand:
+def lower_ecadd(call: PreparedBuiltinCall) -> VyperValue:
     """
     ecadd(a, b) -> uint256[2]
 
@@ -86,7 +90,7 @@ def lower_ecadd(call: BuiltinCall) -> IROperand:
     return _lower_ec_arith(call, precompile=6)
 
 
-def lower_ecmul(call: BuiltinCall) -> IROperand:
+def lower_ecmul(call: PreparedBuiltinCall) -> VyperValue:
     """
     ecmul(point, scalar) -> uint256[2]
 
@@ -97,45 +101,40 @@ def lower_ecmul(call: BuiltinCall) -> IROperand:
     return _lower_ec_arith(call, precompile=7)
 
 
-def _lower_ec_arith(call: BuiltinCall, precompile: int) -> IROperand:
+def _lower_ec_arith(call: PreparedBuiltinCall, precompile: int) -> VyperValue:
     """
     Common implementation for ecadd/ecmul.
 
     Both return a uint256[2] stored in memory.
     """
-    node = call.node
     ctx = call.ctx
     b = ctx.builder
 
     # Get argument types to determine input size
     # ecadd: (uint256[2], uint256[2]) = 128 bytes
     # ecmul: (uint256[2], uint256) = 96 bytes
-    args_typ = [arg._metadata["type"] for arg in node.args]
+    args_typ = [call.arg_type(index) for index in range(call.arg_count)]
     input_size = sum(t.memory_bytes_required for t in args_typ)
-
-    # Arguments are pre-lowered in source order; unwrap copies
-    # storage/transient arrays to memory.
-    evaluated_args = call.arg_operands()
 
     # Copy evaluated arguments to input buffer
     input_buf = ctx.allocate_buffer(input_size)
     offset = 0
     for i, arg_typ in enumerate(args_typ):
-        arg_val = evaluated_args[i]
-
         if arg_typ._is_prim_word:
             # Single 32-byte value
-            b.mstore(b.add(input_buf._ptr, IRLiteral(offset)), arg_val)
+            b.mstore(b.add(input_buf._ptr, IRLiteral(offset)), call.word(i))
             offset += 32
         else:
             # Array (uint256[2]) - arg_val is now a memory pointer
+            arg_val = call.memory(i)
             for j in range(arg_typ.count):
                 word = b.mload(b.add(arg_val, IRLiteral(j * 32)))
                 b.mstore(b.add(input_buf._ptr, IRLiteral(offset)), word)
                 offset += 32
 
     # Output buffer (64 bytes for resulting point)
-    output_buf = ctx.allocate_buffer(64)
+    output_val = ctx.new_temporary_value(call.return_type)
+    assert isinstance(output_val.operand, IRVariable)
 
     # Call precompile
     success = b.staticcall(
@@ -143,13 +142,13 @@ def _lower_ec_arith(call: BuiltinCall, precompile: int) -> IROperand:
         IRLiteral(precompile),
         input_buf._ptr,
         IRLiteral(input_size),
-        output_buf._ptr,
+        output_val.operand,
         IRLiteral(64),
     )
     b.assert_(success)
 
     # Return pointer to output buffer (it's a memory location with the result array)
-    return output_buf._ptr
+    return output_val
 
 
 # =============================================================================
@@ -157,7 +156,7 @@ def _lower_ec_arith(call: BuiltinCall, precompile: int) -> IROperand:
 # =============================================================================
 
 
-def lower_blockhash(call: BuiltinCall) -> IROperand:
+def lower_blockhash(call: PreparedBuiltinCall) -> IROperand:
     """
     blockhash(block_num) -> bytes32
 
@@ -168,7 +167,7 @@ def lower_blockhash(call: BuiltinCall) -> IROperand:
     ctx = call.ctx
     b = ctx.builder
 
-    block_num = call.arg_operand(0)
+    block_num = call.word("block_num")
 
     # Validate block number is in valid range:
     # block_num >= block.number - BLOCKHASH_LOOKBACK_LIMIT AND block_num < block.number
@@ -189,7 +188,7 @@ def lower_blockhash(call: BuiltinCall) -> IROperand:
     return b.blockhash(block_num)
 
 
-def lower_blobhash(call: BuiltinCall) -> IROperand:
+def lower_blobhash(call: PreparedBuiltinCall) -> IROperand:
     """
     blobhash(index) -> bytes32
 
@@ -202,7 +201,7 @@ def lower_blobhash(call: BuiltinCall) -> IROperand:
 
     b = ctx.builder
 
-    index = call.arg_operand(0)
+    index = call.word("index")
     return b.blobhash(index)
 
 
@@ -211,7 +210,7 @@ def lower_blobhash(call: BuiltinCall) -> IROperand:
 # =============================================================================
 
 
-def lower_floor(call: BuiltinCall) -> IROperand:
+def lower_floor(call: PreparedBuiltinCall) -> IROperand:
     """
     floor(x) -> int256
 
@@ -222,7 +221,7 @@ def lower_floor(call: BuiltinCall) -> IROperand:
     ctx = call.ctx
     b = ctx.builder
 
-    val = call.arg_operand(0)
+    val = call.word("value")
     divisor = IRLiteral(DECIMAL_DIVISOR)
 
     # For negative values: subtract (divisor - 1) before dividing
@@ -234,7 +233,7 @@ def lower_floor(call: BuiltinCall) -> IROperand:
     return b.sdiv(adjusted_or_orig, divisor)
 
 
-def lower_ceil(call: BuiltinCall) -> IROperand:
+def lower_ceil(call: PreparedBuiltinCall) -> IROperand:
     """
     ceil(x) -> int256
 
@@ -245,7 +244,7 @@ def lower_ceil(call: BuiltinCall) -> IROperand:
     ctx = call.ctx
     b = ctx.builder
 
-    val = call.arg_operand(0)
+    val = call.word("value")
     divisor = IRLiteral(DECIMAL_DIVISOR)
 
     # For positive values: add (divisor - 1) before dividing
@@ -263,23 +262,24 @@ def lower_ceil(call: BuiltinCall) -> IROperand:
 
 
 # the unit is a denomination literal consumed at compile time
-@callsite(handler_args=(1,))
-def lower_as_wei_value(call: BuiltinCall) -> IROperand:
+def lower_as_wei_value(call: PreparedBuiltinCall) -> IROperand:
     """
     as_wei_value(value, unit) -> uint256
 
     Converts a value to wei based on denomination unit.
     Includes overflow check for the multiplication.
     """
-    node = call.node
     ctx = call.ctx
     b = ctx.builder
 
-    value = call.arg_operand(0)
-    typ = node.args[0]._metadata["type"]
+    value = call.word("value")
+    typ = call.arg_type("value")
 
-    # Get the denomination multiplier
-    denom = AsWeiValue().get_denomination(node)
+    unit = call.folded_arg("unit")
+    try:
+        denom = next(value for aliases, value in AsWeiValue.wei_denoms.items() if unit in aliases)
+    except StopIteration:  # pragma: nocover
+        raise CompilerPanic(f"unknown wei denomination: {unit}") from None
 
     if denom == 1:
         # No multiplication needed for "wei"
@@ -321,45 +321,6 @@ def lower_as_wei_value(call: BuiltinCall) -> IROperand:
 
 
 # =============================================================================
-# Compile-time Type Constants
-# =============================================================================
-
-
-def lower_min_value(call: BuiltinCall) -> IROperand:
-    """
-    min_value(T) -> T
-
-    Returns the minimum value for a numeric type.
-    This is evaluated at compile time.
-    """
-    node = call.node
-    typ = node.args[0]._metadata["type"].typedef
-    return IRLiteral(typ.ast_bounds[0])
-
-
-def lower_max_value(call: BuiltinCall) -> IROperand:
-    """
-    max_value(T) -> T
-
-    Returns the maximum value for a numeric type.
-    This is evaluated at compile time.
-    """
-    node = call.node
-    typ = node.args[0]._metadata["type"].typedef
-    return IRLiteral(typ.ast_bounds[1])
-
-
-def lower_epsilon(call: BuiltinCall) -> IROperand:
-    """
-    epsilon(decimal) -> decimal
-
-    Returns the smallest positive decimal value (10^-10).
-    """
-    # The smallest decimal unit is 1 (representing 10^-10)
-    return IRLiteral(1)
-
-
-# =============================================================================
 # Debug
 # =============================================================================
 
@@ -387,8 +348,7 @@ def _create_tuple_in_memory(
     return val.operand, tuple_t
 
 
-@callsite(constant_kwargs={"hardhat_compat": False})
-def lower_print(call: BuiltinCall) -> IROperand:
+def lower_print(call: PreparedBuiltinCall) -> IROperand:
     """
     print(*args, hardhat_compat=False) -> None
 
@@ -403,15 +363,13 @@ def lower_print(call: BuiltinCall) -> IROperand:
     - Uses method_id("log(type1,type2,...)") directly
     - Args are ABI-encoded inline
     """
-    node = call.node
     ctx = call.ctx
     b = ctx.builder
 
-    hardhat_compat = call.kwarg_constants["hardhat_compat"]
+    hardhat_compat = call.literal("hardhat_compat")
 
-    # Primitives are stack values, complex types are memory pointers
-    # (unwrap copies storage/transient to memory)
-    arg_types = [arg._metadata["type"] for arg in node.args]
+    # Primitives are words; composite arguments are stable memory pointers.
+    arg_types = [call.arg_type(index) for index in range(call.arg_count)]
     args = call.arg_operands()
 
     # Create tuple type for ABI encoding
@@ -519,7 +477,7 @@ def lower_print(call: BuiltinCall) -> IROperand:
     return IRLiteral(0)
 
 
-def lower_breakpoint(call: BuiltinCall) -> IROperand:
+def lower_breakpoint(call: PreparedBuiltinCall) -> IROperand:
     """
     breakpoint() -> None
 
@@ -532,17 +490,14 @@ def lower_breakpoint(call: BuiltinCall) -> IROperand:
 
 # Export handlers
 HANDLERS = {
-    "ecrecover": lower_ecrecover,
-    "ecadd": lower_ecadd,
-    "ecmul": lower_ecmul,
-    "blockhash": lower_blockhash,
-    "blobhash": lower_blobhash,
-    "floor": lower_floor,
-    "ceil": lower_ceil,
-    "as_wei_value": lower_as_wei_value,
-    "min_value": lower_min_value,
-    "max_value": lower_max_value,
-    "epsilon": lower_epsilon,
-    "breakpoint": lower_breakpoint,
-    "print": lower_print,
+    "ecrecover": BuiltinLowerer(lower_ecrecover),
+    "ecadd": BuiltinLowerer(lower_ecadd),
+    "ecmul": BuiltinLowerer(lower_ecmul),
+    "blockhash": BuiltinLowerer(lower_blockhash),
+    "blobhash": BuiltinLowerer(lower_blobhash),
+    "floor": BuiltinLowerer(lower_floor),
+    "ceil": BuiltinLowerer(lower_ceil),
+    "as_wei_value": BuiltinLowerer(lower_as_wei_value, arg_policies={"unit": FOLDED}),
+    "breakpoint": BuiltinLowerer(lower_breakpoint),
+    "print": BuiltinLowerer(lower_print),
 }

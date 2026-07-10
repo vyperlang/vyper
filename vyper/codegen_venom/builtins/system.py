@@ -11,28 +11,16 @@ from __future__ import annotations
 
 from typing import Optional, Union
 
-from vyper.codegen_venom.builtins._call import BuiltinCall, callsite, is_data_view, is_msg_data
+from vyper.codegen_venom.builtins._call import BuiltinLowerer, PreparedBuiltinCall
+from vyper.codegen_venom.call_args import VALUE_LIST, DataView, DataViewKind, data_source
 from vyper.codegen_venom.value import VyperValue
-from vyper.exceptions import ArgumentException, CompilerPanic, StateAccessViolation
+from vyper.exceptions import ArgumentException, StateAccessViolation
 from vyper.semantics.types import BytesT, TupleT
-from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
+from vyper.semantics.types.shortcuts import BYTES32_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 
-def _gas(ctx) -> IROperand:
-    return ctx.builder.gas()
-
-
-@callsite(
-    constant_kwargs={
-        "max_outsize": 0,
-        "is_delegate_call": False,
-        "is_static_call": False,
-        "revert_on_failure": True,
-    },
-    runtime_kwargs={"gas": _gas, "value": 0},
-)
-def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
+def lower_raw_call(call: PreparedBuiltinCall) -> Union[IROperand, VyperValue]:
     """
     raw_call(to, data, max_outsize=0, gas=gas, value=0,
              is_delegate_call=False, is_static_call=False,
@@ -50,10 +38,10 @@ def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
     ctx = call.ctx
     b = ctx.builder
 
-    max_outsize = call.kwarg_constants["max_outsize"]
-    is_delegate = call.kwarg_constants["is_delegate_call"]
-    is_static = call.kwarg_constants["is_static_call"]
-    revert_on_failure = call.kwarg_constants["revert_on_failure"]
+    max_outsize = call.literal("max_outsize")
+    is_delegate = call.literal("is_delegate_call")
+    is_static = call.literal("is_static_call")
+    revert_on_failure = call.literal("revert_on_failure")
 
     # Validate delegate/static mutual exclusivity
     if is_delegate and is_static:
@@ -62,7 +50,7 @@ def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
         )
 
     # Validate value not passed with delegate/static
-    if (is_delegate or is_static) and "value" in call.provided_kwargs:
+    if (is_delegate or is_static) and call.was_provided("value"):
         raise ArgumentException("value= may not be passed for static or delegate calls!", node)
 
     # Check constancy: non-static calls are not allowed from view/pure functions
@@ -73,16 +61,14 @@ def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
             node,
         )
 
-    to = call.arg_operand(0)
+    to = call.word("to")
 
-    # only msg.data is supported as a raw payload; semantic analysis lets
-    # `.code` views through, but they have no lowering (legacy panics too)
-    data_node = node.args[1]
-    use_msg_data = is_msg_data(data_node)
-    if not use_msg_data and is_data_view(data_node):
-        raise CompilerPanic("unsupported raw_call payload", data_node)
-    if not use_msg_data:
-        data = call.arg_operand(1)  # Copies storage/transient to memory
+    source = call.data_source("data")
+    if isinstance(source, DataView):
+        use_msg_data = True
+    else:
+        use_msg_data = False
+        data = source.operand
         # Bytes layout: [32-byte length][data...]
         assert isinstance(data, IRVariable)
         data_len = b.mload(data)
@@ -165,8 +151,10 @@ def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
 
             # Return (success, data) tuple with inline bytes
             # Layout: [bool (32)][bytes_len (32)][bytes_data (ceil32(max_outsize))]
-            bytes_t = BytesT(max_outsize)
-            tuple_t = TupleT((UINT256_T, bytes_t))
+            tuple_t = call.return_type
+            assert isinstance(tuple_t, TupleT)
+            bytes_t = tuple_t.member_types[1]
+            assert isinstance(bytes_t, BytesT)
             tuple_local = ctx.new_temporary_value(tuple_t)
 
             # Store success at offset 0
@@ -184,8 +172,7 @@ def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
         return success
 
 
-@callsite(runtime_kwargs={"gas": 0})
-def lower_send(call: BuiltinCall) -> IROperand:
+def lower_send(call: PreparedBuiltinCall) -> IROperand:
     """
     send(to, value, gas=0)
 
@@ -198,7 +185,8 @@ def lower_send(call: BuiltinCall) -> IROperand:
 
     b = ctx.builder
 
-    to, value = call.arg_operands()
+    to = call.word("to")
+    value = call.word("value")
     gas = call.kwarg_value("gas")
 
     argsptr_buf = ctx.allocate_buffer(0, annotation="lower send args buffer")
@@ -220,10 +208,7 @@ def lower_send(call: BuiltinCall) -> IROperand:
     return IRLiteral(0)  # Statement builtin, no return
 
 
-# the topics list literal has no uniform value form, and data must be
-# lowered after it to preserve source order, so the handler lowers both.
-@callsite(handler_args=(0, 1))
-def lower_raw_log(call: BuiltinCall) -> IROperand:
+def lower_raw_log(call: PreparedBuiltinCall) -> IROperand:
     """
     raw_log(topics, data)
 
@@ -231,39 +216,29 @@ def lower_raw_log(call: BuiltinCall) -> IROperand:
     - topics: list of bytes32 values (compile-time fixed length)
     - data: bytes32 or Bytes[N]
     """
-    from vyper.codegen_venom.expr import Expr
-
     node = call.node
     ctx = call.ctx
     ctx.check_is_not_constant("use raw_log", node)
 
     b = ctx.builder
 
-    topics_node = node.args[0]
-    data_node = node.args[1]
-
-    # Get the reduced topics list (compile-time constant)
-    topics_list = topics_node.reduced()
-    topic_values = [Expr(t, ctx).lower_value() for t in topics_list.elements]
+    topic_values = [topic.word() for topic in call.value_list("topics")]
     n_topics = len(topic_values)
 
-    # Get data type
-    data_typ = data_node._metadata["type"]
+    data_typ = call.arg_type("data")
 
     data_ptr: IROperand
     data_len: IROperand
     if data_typ == BYTES32_T:
         # For bytes32: store to temp memory, then log from there
         tmp_val = ctx.new_temporary_value(BYTES32_T)
-        data_val = Expr(data_node, ctx).lower_value()
+        data_val = call.word("data")
         ctx.ptr_store(tmp_val.ptr(), data_val)
         data_ptr = tmp_val.ptr().operand
         data_len = IRLiteral(32)
     else:
         # For Bytes[N]: data starts at ptr+32, length at ptr
-        data_vv = Expr(data_node, ctx).lower()
-        data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
-        assert isinstance(data, IRVariable)
+        data = call.memory("data")
         data_len = b.mload(data)
         data_ptr = b.add(data, IRLiteral(32))
 
@@ -274,7 +249,7 @@ def lower_raw_log(call: BuiltinCall) -> IROperand:
     return IRLiteral(0)  # Statement builtin, no return
 
 
-def lower_raw_revert(call: BuiltinCall) -> IROperand:
+def lower_raw_revert(call: PreparedBuiltinCall) -> IROperand:
     """
     raw_revert(data)
 
@@ -283,7 +258,7 @@ def lower_raw_revert(call: BuiltinCall) -> IROperand:
     ctx = call.ctx
     b = ctx.builder
 
-    data = call.arg_operand(0)  # Copies storage/transient to memory
+    data = call.memory("data")
 
     # Get data pointer and length
     assert isinstance(data, IRVariable)
@@ -296,7 +271,7 @@ def lower_raw_revert(call: BuiltinCall) -> IROperand:
     return IRLiteral(0)  # Unreachable
 
 
-def lower_selfdestruct(call: BuiltinCall) -> IROperand:
+def lower_selfdestruct(call: PreparedBuiltinCall) -> IROperand:
     """
     selfdestruct(to)
 
@@ -312,16 +287,23 @@ def lower_selfdestruct(call: BuiltinCall) -> IROperand:
 
     b = ctx.builder
 
-    to = call.arg_operand(0)
+    to = call.word("to")
     b.selfdestruct(to)
 
     return IRLiteral(0)  # Unreachable
 
 
 HANDLERS = {
-    "raw_call": lower_raw_call,
-    "send": lower_send,
-    "raw_log": lower_raw_log,
-    "raw_revert": lower_raw_revert,
-    "selfdestruct": lower_selfdestruct,
+    "raw_call": BuiltinLowerer(
+        lower_raw_call,
+        arg_policies={
+            "data": data_source(
+                DataViewKind.CALLDATA, unsupported_message="unsupported raw_call payload"
+            )
+        },
+    ),
+    "send": BuiltinLowerer(lower_send),
+    "raw_log": BuiltinLowerer(lower_raw_log, arg_policies={"topics": VALUE_LIST}),
+    "raw_revert": BuiltinLowerer(lower_raw_revert),
+    "selfdestruct": BuiltinLowerer(lower_selfdestruct),
 }

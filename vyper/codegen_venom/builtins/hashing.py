@@ -7,26 +7,25 @@ Hashing built-in functions.
 
 from __future__ import annotations
 
-from vyper.codegen_venom.builtins._call import BuiltinCall
+from vyper.codegen_venom.builtins._call import BuiltinLowerer, PreparedBuiltinCall
 from vyper.semantics.types import BytesM_T
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 
-def _prepare_hash_input(call: BuiltinCall) -> tuple[IROperand, IROperand]:
+def _prepare_hash_input(call: PreparedBuiltinCall) -> tuple[IROperand, IROperand]:
     """Normalize hash input to memory and return (data_ptr, length)."""
-    node = call.node
     ctx = call.ctx
     b = ctx.builder
-    arg_t = node.args[0]._metadata["type"]
-    arg_vv = call.arg(0)
+    arg_t = call.arg_type("value")
+    arg = call.arg("value")
 
     if isinstance(arg_t, _BytestringT):
-        arg_mem = ctx.ensure_bytestring_in_memory(arg_vv, arg_t)
-        return ctx.bytes_data_ptr(arg_mem), ctx.bytestring_length(arg_mem)
+        assert isinstance(arg.operand, IRVariable)
+        return b.add(arg.operand, IRLiteral(32)), b.mload(arg.operand)
 
     # Fixed-size word values are hashed from a temporary 32-byte buffer.
-    arg_val = ctx.unwrap(arg_vv)
+    arg_val = arg.word()
     buf = ctx.allocate_buffer(32)
     b.mstore(buf._ptr, arg_val)
 
@@ -35,7 +34,7 @@ def _prepare_hash_input(call: BuiltinCall) -> tuple[IROperand, IROperand]:
     return buf._ptr, IRLiteral(32)
 
 
-def lower_keccak256(call: BuiltinCall) -> IROperand:
+def lower_keccak256(call: PreparedBuiltinCall) -> IROperand:
     """
     keccak256(data) -> bytes32
 
@@ -47,7 +46,7 @@ def lower_keccak256(call: BuiltinCall) -> IROperand:
     return b.sha3(data_ptr, length)
 
 
-def lower_sha256(call: BuiltinCall) -> IROperand:
+def lower_sha256(call: PreparedBuiltinCall) -> IROperand:
     """
     sha256(data) -> bytes32
 
@@ -78,4 +77,4 @@ def lower_sha256(call: BuiltinCall) -> IROperand:
 
 
 # Export handlers
-HANDLERS = {"keccak256": lower_keccak256, "sha256": lower_sha256}
+HANDLERS = {"keccak256": BuiltinLowerer(lower_keccak256), "sha256": BuiltinLowerer(lower_sha256)}

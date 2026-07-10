@@ -1407,7 +1407,7 @@ class Expr:
         """
         from vyper.codegen_venom.builtins import lower_builtin
 
-        return lower_builtin(func_t._id, self.node, self.ctx)
+        return lower_builtin(func_t, self.node, self.ctx)
 
     # === Constructor and Member Function Calls ===
 

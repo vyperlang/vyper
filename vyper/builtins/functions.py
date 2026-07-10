@@ -98,10 +98,10 @@ from vyper.utils import (
     method_id,
     method_id_int,
 )
-from vyper.warnings import vyper_warn
+from vyper.warnings import Deprecation, vyper_warn
 
 from ._convert import convert
-from ._signatures import BuiltinFunctionT, process_inputs
+from ._signatures import BuiltinFunctionT, ContextDefault, process_inputs
 
 SHA256_ADDRESS = 2
 SHA256_BASE_GAS = 60
@@ -1010,17 +1010,13 @@ class AsWeiValue(BuiltinFunctionT):
             return IRnode.from_list(b1.resolve(sub), typ=UINT256_T)
 
 
-zero_value = IRnode.from_list(0, typ=UINT256_T)
-empty_value = IRnode.from_list(0, typ=BYTES32_T)
-
-
 class RawCall(BuiltinFunctionT):
     _id = "raw_call"
     _inputs = [("to", AddressT()), ("data", BytesT.any())]
     _kwargs = {
         "max_outsize": KwargSettings(UINT256_T, 0, require_literal=True),
-        "gas": KwargSettings(UINT256_T, "gas"),
-        "value": KwargSettings(UINT256_T, zero_value),
+        "gas": KwargSettings(UINT256_T, ContextDefault.GAS),
+        "value": KwargSettings(UINT256_T, 0),
         "is_delegate_call": KwargSettings(BoolT(), False, require_literal=True),
         "is_static_call": KwargSettings(BoolT(), False, require_literal=True),
         "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
@@ -1579,8 +1575,8 @@ def _create_preamble(codesize):
 
 class _CreateBase(BuiltinFunctionT):
     _kwargs = {
-        "value": KwargSettings(UINT256_T, zero_value),
-        "salt": KwargSettings(BYTES32_T, empty_value),
+        "value": KwargSettings(UINT256_T, 0),
+        "salt": KwargSettings(BYTES32_T, 0),
         "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
     _return_type = AddressT()
@@ -1697,12 +1693,13 @@ class CreateMinimalProxyTo(_CreateBase):
 
 
 class CreateForwarderTo(CreateMinimalProxyTo):
-    def build_IR(self, expr, context):
+    def fetch_call_return(self, node):
         vyper_warn(
-            "`create_forwarder_to` is a deprecated alias of `create_minimal_proxy_to`!", expr
+            Deprecation(
+                "`create_forwarder_to` is a deprecated alias of `create_minimal_proxy_to`!", node
+            )
         )
-
-        return super().build_IR(expr, context)
+        return super().fetch_call_return(node)
 
 
 class CreateCopyOf(_CreateBase):
@@ -1760,10 +1757,10 @@ class CreateFromBlueprint(_CreateBase):
     _id = "create_from_blueprint"
     _inputs = [("target", AddressT())]
     _kwargs = {
-        "value": KwargSettings(UINT256_T, zero_value),
-        "salt": KwargSettings(BYTES32_T, empty_value),
+        "value": KwargSettings(UINT256_T, 0),
+        "salt": KwargSettings(BYTES32_T, 0),
         "raw_args": KwargSettings(BoolT(), False, require_literal=True),
-        "code_offset": KwargSettings(UINT256_T, IRnode.from_list(3, typ=UINT256_T)),
+        "code_offset": KwargSettings(UINT256_T, 3),
         "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
     _has_varargs = True

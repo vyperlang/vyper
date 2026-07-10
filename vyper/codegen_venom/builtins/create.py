@@ -12,10 +12,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
-from vyper import ast as vy_ast
 from vyper.codegen_venom.abi import abi_encode_to_buf
-from vyper.codegen_venom.builtins._call import BuiltinCall, callsite
-from vyper.codegen_venom.value import VyperValue
+from vyper.codegen_venom.builtins._call import BuiltinLowerer, PreparedBuiltinCall
+from vyper.codegen_venom.value import PreparedValue
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.semantics.types import TupleT
 from vyper.utils import bytes_to_int
@@ -59,19 +58,18 @@ def _check_create_result(
 def _materialize_ctor_args(
     ctx: VenomCodegenContext,
     b,
-    ctor_arg_nodes: list[vy_ast.VyperNode],
-    ctor_arg_values: list[VyperValue],
+    ctor_arg_types: list,
+    ctor_arg_values: list[PreparedValue],
     ctor_tuple_typ: TupleT,
 ) -> IRVariable:
-    ctor_arg_types = [arg._metadata["type"] for arg in ctor_arg_nodes]
     ctor_args_val = ctx.new_temporary_value(ctor_tuple_typ)
     assert isinstance(ctor_args_val.operand, IRVariable)
 
     offset = 0
-    for vv, arg_t in zip(ctor_arg_values, ctor_arg_types):
+    for value, arg_t in zip(ctor_arg_values, ctor_arg_types):
         dst = b.add(ctor_args_val.operand, IRLiteral(offset))
         assert isinstance(dst, IRVariable)
-        ctx.store_vyper_value(vv, dst, arg_t)
+        ctx.store_memory(value.operand, dst, arg_t, src_typ=value.typ)
         offset += arg_t.memory_bytes_required
 
     return ctor_args_val.operand
@@ -157,8 +155,7 @@ def _create_preamble_bytes():
     return evm
 
 
-@callsite(constant_kwargs={"revert_on_failure": True}, runtime_kwargs={"value": 0, "salt": None})
-def lower_raw_create(call: BuiltinCall) -> IROperand:
+def lower_raw_create(call: PreparedBuiltinCall) -> IROperand:
     """
     raw_create(bytecode, *ctor_args, value=0, salt=None, revert_on_failure=True)
 
@@ -174,36 +171,34 @@ def lower_raw_create(call: BuiltinCall) -> IROperand:
     b = ctx.builder
 
     # Positional args: bytecode is first, rest are ctor_args
-    bytecode_node = node.args[0]
-    ctor_arg_nodes = node.args[1:]
+    ctor_arg_indices = range(1, call.arg_count)
+    bytecode_typ = call.arg_type("bytecode")
+    bytecode = call.memory("bytecode")
 
-    bytecode_typ = bytecode_node._metadata["type"]
-    bytecode = call.arg_operand(0)
-
-    revert_on_failure = call.kwarg_constants["revert_on_failure"]
+    revert_on_failure = call.literal("revert_on_failure")
     value = call.kwarg_value("value")
-    salt = call.kwarg_values["salt"]
+    salt = call.kwarg_value("salt")
+    use_create2 = call.was_provided("salt")
 
     ctor_args_val: Optional[IRVariable] = None
     ctor_tuple_typ: Optional[TupleT] = None
     ctor_abi_size = 0
-    if len(ctor_arg_nodes) > 0:
-        ctor_arg_types = [arg._metadata["type"] for arg in ctor_arg_nodes]
+    if call.arg_count > 1:
+        ctor_arg_types = [call.arg_type(index) for index in ctor_arg_indices]
         ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
         ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
-        ctor_arg_values = [call.arg(i) for i in range(1, len(node.args))]
+        ctor_arg_values = [call.arg(index) for index in ctor_arg_indices]
         ctor_args_val = _materialize_ctor_args(
-            ctx, b, ctor_arg_nodes, ctor_arg_values, ctor_tuple_typ
+            ctx, b, ctor_arg_types, ctor_arg_values, ctor_tuple_typ
         )
 
     # Get bytecode length and data pointer
-    assert isinstance(bytecode, IRVariable)
     bytecode_len = b.mload(bytecode)
     bytecode_ptr = b.add(bytecode, IRLiteral(32))
 
     # If no constructor args, just create with bytecode
-    if len(ctor_arg_nodes) == 0:
-        if salt is not None:
+    if call.arg_count == 1:
+        if use_create2:
             addr = b.create2(value, bytecode_ptr, bytecode_len, salt)
         else:
             addr = b.create(value, bytecode_ptr, bytecode_len)
@@ -226,7 +221,7 @@ def lower_raw_create(call: BuiltinCall) -> IROperand:
     total_len = b.add(bytecode_len, args_len)
 
     # Create contract
-    if salt is not None:
+    if use_create2:
         addr = b.create2(value, buf._ptr, total_len, salt)
     else:
         addr = b.create(value, buf._ptr, total_len)
@@ -234,8 +229,7 @@ def lower_raw_create(call: BuiltinCall) -> IROperand:
     return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
-@callsite(constant_kwargs={"revert_on_failure": True}, runtime_kwargs={"value": 0, "salt": None})
-def lower_create_minimal_proxy_to(call: BuiltinCall) -> IROperand:
+def lower_create_minimal_proxy_to(call: PreparedBuiltinCall) -> IROperand:
     """
     create_minimal_proxy_to(target, value=0, salt=None, revert_on_failure=True)
 
@@ -250,11 +244,12 @@ def lower_create_minimal_proxy_to(call: BuiltinCall) -> IROperand:
 
     b = ctx.builder
 
-    target = call.arg_operand(0)
+    target = call.word("target")
 
-    revert_on_failure = call.kwarg_constants["revert_on_failure"]
+    revert_on_failure = call.literal("revert_on_failure")
     value = call.kwarg_value("value")
-    salt = call.kwarg_values["salt"]
+    salt = call.kwarg_value("salt")
+    use_create2 = call.was_provided("salt")
 
     # Get EIP-1167 bytecode components
     loader_evm, forwarder_pre_evm, forwarder_post_evm = _eip1167_bytecode()
@@ -291,7 +286,7 @@ def lower_create_minimal_proxy_to(call: BuiltinCall) -> IROperand:
     b.mstore(post_offset, IRLiteral(forwarder_post))
 
     # Create contract
-    if salt is not None:
+    if use_create2:
         addr = b.create2(value, buf._ptr, IRLiteral(buf_len), salt)
     else:
         addr = b.create(value, buf._ptr, IRLiteral(buf_len))
@@ -299,8 +294,7 @@ def lower_create_minimal_proxy_to(call: BuiltinCall) -> IROperand:
     return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
-@callsite(constant_kwargs={"revert_on_failure": True}, runtime_kwargs={"value": 0, "salt": None})
-def lower_create_copy_of(call: BuiltinCall) -> IROperand:
+def lower_create_copy_of(call: PreparedBuiltinCall) -> IROperand:
     """
     create_copy_of(target, value=0, salt=None, revert_on_failure=True)
 
@@ -315,11 +309,12 @@ def lower_create_copy_of(call: BuiltinCall) -> IROperand:
 
     b = ctx.builder
 
-    target = call.arg_operand(0)
+    target = call.word("target")
 
-    revert_on_failure = call.kwarg_constants["revert_on_failure"]
+    revert_on_failure = call.literal("revert_on_failure")
     value = call.kwarg_value("value")
-    salt = call.kwarg_values["salt"]
+    salt = call.kwarg_value("salt")
+    use_create2 = call.was_provided("salt")
 
     # Get target code size
     codesize = b.extcodesize(target)
@@ -361,7 +356,7 @@ def lower_create_copy_of(call: BuiltinCall) -> IROperand:
     buf_len = b.add(codesize, IRLiteral(preamble_len))
 
     # Create contract
-    if salt is not None:
+    if use_create2:
         addr = b.create2(value, buf, buf_len, salt)
     else:
         addr = b.create(value, buf, buf_len)
@@ -369,11 +364,7 @@ def lower_create_copy_of(call: BuiltinCall) -> IROperand:
     return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
-@callsite(
-    constant_kwargs={"raw_args": False, "revert_on_failure": True},
-    runtime_kwargs={"value": 0, "salt": None, "code_offset": 3},
-)
-def lower_create_from_blueprint(call: BuiltinCall) -> IROperand:
+def lower_create_from_blueprint(call: PreparedBuiltinCall) -> IROperand:
     """
     create_from_blueprint(target, *ctor_args, value=0, salt=None,
                           raw_args=False, code_offset=3, revert_on_failure=True)
@@ -392,13 +383,14 @@ def lower_create_from_blueprint(call: BuiltinCall) -> IROperand:
     b = ctx.builder
 
     # Positional args: target is first, rest are ctor_args
-    target = call.arg_operand(0)
-    ctor_arg_nodes = node.args[1:]
+    target = call.word("target")
+    ctor_arg_indices = range(1, call.arg_count)
 
-    raw_args = call.kwarg_constants["raw_args"]
-    revert_on_failure = call.kwarg_constants["revert_on_failure"]
+    raw_args = call.literal("raw_args")
+    revert_on_failure = call.literal("revert_on_failure")
     value = call.kwarg_value("value")
-    salt = call.kwarg_values["salt"]
+    salt = call.kwarg_value("salt")
+    use_create2 = call.was_provided("salt")
     code_offset = call.kwarg_value("code_offset")
 
     args_len: Optional[IROperand] = None
@@ -409,17 +401,16 @@ def lower_create_from_blueprint(call: BuiltinCall) -> IROperand:
     if raw_args:
         # raw_args=True: single bytes argument contains raw constructor args
         # (the type checker enforces exactly one bytes argument)
-        raw_arg = call.arg_operand(1)
-        assert isinstance(raw_arg, IRVariable)
+        raw_arg = call.memory(1)
         args_len = b.mload(raw_arg)
         args_ptr = b.add(raw_arg, IRLiteral(32))
-    elif len(ctor_arg_nodes) > 0:
-        ctor_arg_types = [arg._metadata["type"] for arg in ctor_arg_nodes]
+    elif call.arg_count > 1:
+        ctor_arg_types = [call.arg_type(index) for index in ctor_arg_indices]
         ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
         ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
-        ctor_arg_values = [call.arg(i) for i in range(1, len(node.args))]
+        ctor_arg_values = [call.arg(index) for index in ctor_arg_indices]
         ctor_args_src = _materialize_ctor_args(
-            ctx, b, ctor_arg_nodes, ctor_arg_values, ctor_tuple_typ
+            ctx, b, ctor_arg_types, ctor_arg_values, ctor_tuple_typ
         )
     else:
         # No constructor arguments
@@ -459,7 +450,7 @@ def lower_create_from_blueprint(call: BuiltinCall) -> IROperand:
         ctx.copy_memory_dynamic(args_dest, args_ptr, args_len)
 
     # Create contract
-    if salt is not None:
+    if use_create2:
         addr = b.create2(value, mem_ofst, total_len, salt)
     else:
         addr = b.create(value, mem_ofst, total_len)
@@ -468,9 +459,8 @@ def lower_create_from_blueprint(call: BuiltinCall) -> IROperand:
 
 
 HANDLERS = {
-    "raw_create": lower_raw_create,
-    "create_minimal_proxy_to": lower_create_minimal_proxy_to,
-    "create_forwarder_to": lower_create_minimal_proxy_to,  # deprecated alias
-    "create_copy_of": lower_create_copy_of,
-    "create_from_blueprint": lower_create_from_blueprint,
+    "raw_create": BuiltinLowerer(lower_raw_create),
+    "create_minimal_proxy_to": BuiltinLowerer(lower_create_minimal_proxy_to),
+    "create_copy_of": BuiltinLowerer(lower_create_copy_of),
+    "create_from_blueprint": BuiltinLowerer(lower_create_from_blueprint),
 }

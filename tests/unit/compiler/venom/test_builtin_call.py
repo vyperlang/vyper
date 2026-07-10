@@ -1,71 +1,97 @@
+from types import SimpleNamespace
+
 import pytest
 
-from vyper import ast as vy_ast
-from vyper.codegen_venom.builtins._call import BuiltinCall, CallsiteSpec
+from vyper.builtins._signatures import ContextDefault
+from vyper.builtins.functions import get_builtin_functions
+from vyper.codegen.ir_node import IRnode
+from vyper.codegen_venom.builtins import BUILTIN_HANDLERS, _merge_handlers, _validate_handler_result
+from vyper.codegen_venom.builtins._call import BuiltinLowerer
+from vyper.codegen_venom.call_args import (
+    FOLDED,
+    VALUE_LIST,
+    DataViewKind,
+    data_source,
+    length_source,
+)
+from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic
+from vyper.semantics.types import TYPE_T, BoolT, VyperType
+from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.venom.basicblock import IRLiteral
 
 
-def _call_node(source):
-    return vy_ast.parse_to_ast(source).body[0].value
+def _semantic_builtins_by_id():
+    return {func_t._id: func_t for func_t in get_builtin_functions().values()}
 
 
-def _spec(constant_kwargs=None, runtime_kwargs=None, type_kwargs=(), handler_args=()):
-    return CallsiteSpec(constant_kwargs or {}, runtime_kwargs or {}, type_kwargs, handler_args)
+def test_handler_registry_has_no_dead_or_missing_runtime_entries():
+    semantic_ids = set(_semantic_builtins_by_id())
+    handler_ids = set(BUILTIN_HANDLERS)
+
+    assert handler_ids <= semantic_ids
+    assert semantic_ids - handler_ids == {
+        "method_id",  # mandatory fold
+        "min_value",  # mandatory fold
+        "max_value",  # mandatory fold
+        "epsilon",  # mandatory fold
+        "sqrt",  # removed builtin; semantic error
+        "isqrt",  # removed builtin; semantic error
+    }
 
 
-def test_constant_kwargs_fold_to_python_values():
-    call_node = _call_node("foo(flag=FLAG)")
-    call_node.keywords[0].value._set_folded_value(vy_ast.NameConstant(value=False))
+def test_exceptional_argument_policy_map_is_exhaustive():
+    expected = {
+        "len": {"b": length_source(DataViewKind.CALLDATA)},
+        "slice": {
+            "b": data_source(
+                DataViewKind.CALLDATA, DataViewKind.SELF_CODE, DataViewKind.EXTERNAL_CODE
+            )
+        },
+        "raw_call": {
+            "data": data_source(
+                DataViewKind.CALLDATA, unsupported_message="unsupported raw_call payload"
+            )
+        },
+        "raw_log": {"topics": VALUE_LIST},
+        "as_wei_value": {"unit": FOLDED},
+    }
+    actual = {
+        builtin_id: dict(lowerer.arg_policies)
+        for builtin_id, lowerer in BUILTIN_HANDLERS.items()
+        if lowerer.arg_policies
+    }
 
-    call = BuiltinCall(call_node, ctx=None, spec=_spec(constant_kwargs={"flag": True}))
-
-    assert call.kwarg_constants == {"flag": False}
-
-
-def test_constant_kwargs_fill_defaults():
-    call_node = _call_node("foo(flag=False)")
-
-    spec = _spec(constant_kwargs={"flag": True, "limit": 3, "salt": None})
-    call = BuiltinCall(call_node, ctx=None, spec=spec)
-
-    assert call.kwarg_constants == {"flag": False, "limit": 3, "salt": None}
-
-
-def test_constant_kwargs_reject_unfolded_values():
-    call_node = _call_node("foo(flag=FLAG)")
-
-    with pytest.raises(CompilerPanic, match="unfoldable constant kwarg: flag"):
-        BuiltinCall(call_node, ctx=None, spec=_spec(constant_kwargs={"flag": True}))
-
-
-def test_unexpected_kwarg_rejected():
-    call_node = _call_node("foo(flag=False)")
-
-    with pytest.raises(CompilerPanic, match="unexpected kwarg: flag"):
-        BuiltinCall(call_node, ctx=None, spec=_spec(constant_kwargs={"other": None}))
+    assert actual == expected
 
 
-def test_kwarg_declared_with_more_than_one_kind_rejected():
-    with pytest.raises(AssertionError, match="kwarg declared with more than one kind"):
-        _spec(constant_kwargs={"flag": True}, runtime_kwargs={"flag": 0})
+def test_policy_names_come_from_semantic_positional_signature():
+    semantic = _semantic_builtins_by_id()
+    for builtin_id, lowerer in BUILTIN_HANDLERS.items():
+        declared_names = {name for name, _ in semantic[builtin_id]._inputs}
+        assert set(lowerer.arg_policies) <= declared_names
 
 
-def test_provided_kwargs():
-    call_node = _call_node("foo(flag=False)")
+def test_builtin_runtime_defaults_are_backend_neutral():
+    for func_t in _semantic_builtins_by_id().values():
+        for name, settings in func_t._kwargs.items():
+            if TYPE_T.any().compare_type(settings.typ):
+                assert isinstance(settings.default, VyperType), name
+            elif settings.require_literal:
+                assert not isinstance(settings.default, IRnode), name
+            else:
+                assert settings.default is ContextDefault.GAS or type(settings.default) is int, name
 
-    call = BuiltinCall(call_node, ctx=None, spec=_spec(constant_kwargs={"flag": True}))
 
-    assert "flag" in call.provided_kwargs
-    assert "other" not in call.provided_kwargs
+def test_registry_merge_rejects_duplicates():
+    lowerer = BuiltinLowerer(lambda call: None)
+    with pytest.raises(CompilerPanic, match="duplicate Venom builtin handlers: example"):
+        _merge_handlers({"example": lowerer}, {"example": lowerer})
 
 
-def test_runtime_kwarg_defaults():
-    call_node = _call_node("foo()")
+def test_handler_result_must_match_semantic_return_type():
+    call = SimpleNamespace(func_t=SimpleNamespace(_id="example"), return_type=BoolT())
+    result = VyperValue.from_stack_op(IRLiteral(0), UINT256_T)
 
-    spec = _spec(runtime_kwargs={"gas": lambda ctx: "gas-left", "value": 0, "salt": None})
-    call = BuiltinCall(call_node, ctx=None, spec=spec)
-
-    # callables are invoked with the codegen context, ints become
-    # IRLiterals, None means "no default" and stays None
-    assert call.kwarg_values == {"gas": "gas-left", "value": IRLiteral(0), "salt": None}
+    with pytest.raises(CompilerPanic, match="returned uint256, expected bool"):
+        _validate_handler_result(call, result)
