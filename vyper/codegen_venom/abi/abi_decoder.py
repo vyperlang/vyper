@@ -200,7 +200,11 @@ def clamp_dyn_array(
 
 
 def _getelemptr_abi(
-    ctx: VenomCodegenContext, parent: VyperValue, member_typ: VyperType, static_offset: int
+    ctx: VenomCodegenContext,
+    parent: VyperValue,
+    member_typ: VyperType,
+    static_offset: int,
+    hi: IROperand = None,
 ) -> VyperValue:
     """
     Navigate to ABI-encoded element.
@@ -224,9 +228,14 @@ def _getelemptr_abi(
         # Double dereference: read offset, add to parent base
         offset_val = b.load(static_loc, loc)
         actual_ptr = b.add(parent.operand, offset_val)
-        # Security: prevent underflow attacks
-        # assert actual_ptr >= parent
-        b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
+        if hi is not None:
+            # Only hi-bounded (MEMORY) decodes need the no-wrap guard, mirroring
+            # legacy's _dirty_read_risk (MEMORY-only). For calldata/code the data
+            # is read in place from clean immutable regions: a wrapped offset reads
+            # deterministic zero-fill (calldataload/codeload), never an OOB read,
+            # and the value clamps handle safety.
+            # assert actual_ptr >= parent
+            b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
         return _make_ptr_value(actual_ptr, loc, member_typ)
     else:
         # Static: data is inline
@@ -352,10 +361,11 @@ def _decode_dyn_array(
         static_loc = b.add(src_data, b.mul(i, IRLiteral(elem_static_size)))
         offset_val = b.load(static_loc, loc)
         elem_src_ptr = b.add(src_data, offset_val)
-        # Security check: prevent underflow
-        b.assert_(b.iszero(b.lt(elem_src_ptr, src_data)))
-        # Bounds check: ensure element static footprint fits within buffer
         if hi is not None:
+            # Only hi-bounded (MEMORY) decodes need the no-wrap guard (see
+            # _getelemptr_abi); calldata/code read in place with zero-fill.
+            b.assert_(b.iszero(b.lt(elem_src_ptr, src_data)))
+            # Bounds check: ensure element static footprint fits within buffer
             elem_end = b.add(elem_src_ptr, IRLiteral(elem_static_size))
             b.assert_(b.iszero(b.gt(elem_end, hi)))
     else:
@@ -409,7 +419,7 @@ def _decode_complex(
 
     for _key, elem_typ in items:
         # Get source pointer (ABI layout) - returns VyperValue
-        elem_src = _getelemptr_abi(ctx, src, elem_typ, abi_offset)
+        elem_src = _getelemptr_abi(ctx, src, elem_typ, abi_offset, hi)
 
         # Get destination pointer (Vyper layout)
         elem_dst = b.add(dst, IRLiteral(vyper_offset))
