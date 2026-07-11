@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.variable_range import VariableRangeAnalysis
-from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX, SIGNED_MIN
+from vyper.venom.analysis.variable_range.evaluators import eval_sdiv
+from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX, SIGNED_MIN, ValueRange
 from vyper.venom.parser import parse_venom
 
 
@@ -2116,6 +2117,16 @@ def test_sdiv_negative_range():
     rng = analysis.get_range(sdiv_inst.output, entry.instructions[-1])
     # x in [-99, 0], y = x / 10, so y in [-9, 0] (truncation toward zero)
     assert rng.lo == -9 and rng.hi == 0
+
+
+def test_eval_sdiv_all_negative_range_positive_divisor():
+    rng = eval_sdiv(ValueRange.iv(-10, -3), ValueRange.constant(3))
+    assert rng == ValueRange.iv(-3, -1)
+
+
+def test_eval_sdiv_all_negative_range_exact_positive_divisor():
+    rng = eval_sdiv(ValueRange.iv(-9, -6), ValueRange.constant(3))
+    assert rng == ValueRange.iv(-3, -2)
 
 
 def test_sdiv_spanning_zero():
