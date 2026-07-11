@@ -17,7 +17,7 @@ from vyper.codegen_venom.abi import abi_encode_to_buf
 from vyper.exceptions import CompilerPanic, UnfoldableNode
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types import TupleT
+from vyper.semantics.types import BytesT, TupleT
 from vyper.utils import bytes_to_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -504,6 +504,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     # Handle constructor arguments
     args_len: IROperand
     args_ptr: IROperand
+    args_max_size: int
 
     if raw_args:
         # raw_args=True: single bytes argument contains raw constructor args
@@ -512,6 +513,8 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
             raise CompilerPanic("raw_args requires exactly 1 bytes argument")
 
         raw_arg_vv = Expr(ctor_arg_nodes[0], ctx).lower()
+        assert isinstance(raw_arg_vv.typ, BytesT)
+        args_max_size = raw_arg_vv.typ.maxlen
         raw_arg = ctx.unwrap(raw_arg_vv)  # Copies storage/transient to memory
         assert isinstance(raw_arg, IRVariable)
         args_len = b.mload(raw_arg)
@@ -519,10 +522,10 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     elif len(ctor_arg_nodes) > 0:
         ctor_arg_types = [arg._metadata["type"] for arg in ctor_arg_nodes]
         ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
-        ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
+        args_max_size = ctor_tuple_typ.abi_type.size_bound()
 
         # Allocate buffer for encoded args
-        args_buf = ctx.allocate_buffer(ctor_abi_size, annotation="ctor_args_buf")
+        args_buf = ctx.allocate_buffer(args_max_size, annotation="ctor_args_buf")
 
         # Evaluate and store ctor args to temp buffer
         ctor_arg_vvs = [Expr(arg, ctx).lower() for arg in ctor_arg_nodes]
@@ -541,6 +544,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         # No constructor arguments
         args_len = IRLiteral(0)
         args_ptr = IRLiteral(0)
+        args_max_size = 0
 
     # Total length = codesize + args_len. When args_len is literal 0,
     # algebraic optimization folds `add(codesize, 0) -> codesize`.
@@ -553,7 +557,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     # Append constructor args after code (copy from pre-encoded buffer)
     if not isinstance(args_len, IRLiteral) or args_len.value > 0:
         args_dest = b.add(mem_ofst, codesize)
-        ctx.copy_memory_dynamic(args_dest, args_ptr, args_len, ctor_abi_size)
+        ctx.copy_memory_dynamic(args_dest, args_ptr, args_len, args_max_size)
 
     # Create contract
     if salt is not None:
