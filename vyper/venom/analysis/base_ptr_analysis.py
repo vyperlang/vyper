@@ -17,7 +17,6 @@ from vyper.evm.address_space import (
 from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.memory_location import (
     Allocation,
@@ -392,6 +391,10 @@ class BasePtrAnalysis(IRAnalysis):
         return ret
 
     def _untracked_root_from_def(self, var: IRVariable) -> bool:
+        # Keep this dependency lazy: importing DFGAnalysis at module scope
+        # creates a cycle through vyper.venom.analysis.__init__.
+        from vyper.venom.analysis.dfg import DFGAnalysis
+
         # requested lazily (not in analyze()): this query runs after other
         # passes may have invalidated DFGAnalysis without touching this
         # analysis, so a reference held from analyze() could be stale.
