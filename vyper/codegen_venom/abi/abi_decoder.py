@@ -230,10 +230,10 @@ def _getelemptr_abi(
         actual_ptr = b.add(parent.operand, offset_val)
         if hi is not None:
             # Only hi-bounded (MEMORY) decodes need the no-wrap guard, mirroring
-            # legacy's _dirty_read_risk (MEMORY-only). For calldata/code the data
-            # is read in place from clean immutable regions: a wrapped offset reads
-            # deterministic zero-fill (calldataload/codeload), never an OOB read,
-            # and the value clamps handle safety.
+            # legacy's _dirty_read_risk (MEMORY-only). In calldata/code, wrapping
+            # can alias an earlier byte in the same immutable region. Bounded type
+            # clamps still cap decoder work and destination writes; out-of-range
+            # portions of the resulting loads/copies are zero-filled.
             # assert actual_ptr >= parent
             b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
         return _make_ptr_value(actual_ptr, loc, member_typ)
@@ -363,7 +363,7 @@ def _decode_dyn_array(
         elem_src_ptr = b.add(src_data, offset_val)
         if hi is not None:
             # Only hi-bounded (MEMORY) decodes need the no-wrap guard (see
-            # _getelemptr_abi); calldata/code read in place with zero-fill.
+            # _getelemptr_abi); calldata/code may alias earlier immutable data.
             b.assert_(b.iszero(b.lt(elem_src_ptr, src_data)))
             # Bounds check: ensure element static footprint fits within buffer
             elem_end = b.add(elem_src_ptr, IRLiteral(elem_static_size))
