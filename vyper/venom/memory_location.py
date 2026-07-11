@@ -245,6 +245,12 @@ def get_write_max_size(inst: IRInstruction) -> Optional[IROperand]:
 
 def memory_read_ops(inst) -> InstAccessOps:
     ops = _memory_read_ops(inst)
+    if inst.memory_read_max_size is not None:
+        assert ops.ofst is not None, inst
+        assert inst.memory_read_max_size >= 0, inst
+        if isinstance(ops.size, IRLiteral):
+            assert inst.memory_read_max_size >= ops.size.value, inst
+        ops.max_size = IRLiteral(inst.memory_read_max_size)
     # see memory_write_ops
     if ops.ofst_index is not None:
         assert inst.operands[ops.ofst_index] is ops.ofst, inst

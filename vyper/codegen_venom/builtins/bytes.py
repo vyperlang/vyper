@@ -83,7 +83,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             arg_data = b.add(arg_ptr, IRLiteral(32))
             offset = ctx.ptr_load(offset_local.ptr())
             dst = b.add(data_ptr.operand, offset)
-            ctx.copy_memory_dynamic(dst, arg_data, arg_len)
+            ctx.copy_memory_dynamic(dst, arg_data, arg_len, arg_t.memory_bytes_required - 32)
             new_offset = b.add(offset, arg_len)
             ctx.ptr_store(offset_local.ptr(), new_offset)
         else:
@@ -164,7 +164,7 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     # Copy bytes from src_data + start to out_data
     copy_src = b.add(src_data, start)
     assert isinstance(out_data.operand, IRVariable)
-    ctx.copy_memory_dynamic(out_data.operand, copy_src, length)
+    ctx.copy_memory_dynamic(out_data.operand, copy_src, length, out_t.memory_bytes_required - 32)
 
     # Store length
     ctx.ptr_store(out_val.ptr(), length)

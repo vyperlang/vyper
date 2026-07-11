@@ -140,3 +140,23 @@ def test_aliases_of_allocation_ambiguous_returns_none():
 
     alloca_p = fn.entry.instructions[0]
     assert base_ptr.aliases_of_allocation(Allocation(alloca_p)) is None
+
+
+def test_aliases_of_allocation_reassigned_to_non_pointer_returns_none():
+    for replacement in ("%p = 0", "%p = calldataload 0"):
+        code = f"""
+        main:
+            %tmp = alloca 64
+            %p = %tmp
+            {replacement}
+            %v = mload %p
+            sink %v
+        """
+
+        ctx = parse_from_basic_block(code)
+        fn = next(ctx.get_functions())
+        ac = IRAnalysesCache(fn)
+        base_ptr = ac.request_analysis(BasePtrAnalysis)
+
+        alloca = fn.entry.instructions[0]
+        assert base_ptr.aliases_of_allocation(Allocation(alloca)) is None

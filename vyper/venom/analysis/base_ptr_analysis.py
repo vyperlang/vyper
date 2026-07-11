@@ -413,8 +413,10 @@ class BasePtrAnalysis(IRAnalysis):
                     return True
             return False
 
-        if inst.opcode == "assign" and isinstance(inst.operands[0], IRVariable):
+        if inst.opcode == "assign":
             op = inst.operands[0]
+            if not isinstance(op, IRVariable):
+                return True
             if len(self.get_possible_ptrs(op)) == 0:
                 return True
             return self._pointer_may_include_untracked_root_r(op)
@@ -432,14 +434,11 @@ class BasePtrAnalysis(IRAnalysis):
         if inst.opcode in ("bump", "alloca", "dalloca"):
             return False
 
-        # Fail closed: any other instruction that forwards pointer provenance
-        # from an input is a derivation form this walk does not model (e.g. a
-        # new opcode taught to `_handle_inst`), so it may also forward an
-        # untracked root. Asking `instruction_derives_pointer_from` keeps this
-        # walk in sync with the transfer function instead of opcode-matching.
-        return any(
-            self.instruction_derives_pointer_from(inst, op) for op in inst.get_input_variables()
-        )
+        # A variable can retain pointer facts from an earlier definition in
+        # pre-SSA input. Any producer not modeled above may therefore be a
+        # non-pointer redefinition, or a new derivation form whose roots this
+        # walk does not understand. Both cases are ambiguous, so fail closed.
+        return True
 
     def instruction_derives_pointer_from(self, inst: IRInstruction, var: IRVariable) -> bool:
         """

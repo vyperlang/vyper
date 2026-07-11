@@ -223,7 +223,9 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         # Copy length word + data
         copy_size = b.add(bytecode_len_tmp, IRLiteral(32))
         assert isinstance(mem_buf.operand, IRVariable)
-        ctx.copy_memory_dynamic(mem_buf.operand, bytecode_vv.operand, copy_size)
+        ctx.copy_memory_dynamic(
+            mem_buf.operand, bytecode_vv.operand, copy_size, bytecode_typ.memory_bytes_required
+        )
         bytecode = mem_buf.operand
 
     # Parse kwargs
@@ -261,7 +263,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     buf = ctx.allocate_buffer(buf_size, annotation="raw_create_buf")
 
     # Copy bytecode to buffer
-    ctx.copy_memory_dynamic(buf._ptr, bytecode_ptr, bytecode_len)
+    ctx.copy_memory_dynamic(buf._ptr, bytecode_ptr, bytecode_len, bytecode_typ.maxlen)
 
     # Encode ctor args after bytecode
     # First, store ctor args to a temp buffer
@@ -551,7 +553,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     # Append constructor args after code (copy from pre-encoded buffer)
     if not isinstance(args_len, IRLiteral) or args_len.value > 0:
         args_dest = b.add(mem_ofst, codesize)
-        ctx.copy_memory_dynamic(args_dest, args_ptr, args_len)
+        ctx.copy_memory_dynamic(args_dest, args_ptr, args_len, ctor_abi_size)
 
     # Create contract
     if salt is not None:

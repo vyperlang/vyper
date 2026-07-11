@@ -37,10 +37,11 @@ def test_forwards_whole_temp_copy_to_readonly_uses():
         %src = alloca 64
         %tmp = alloca 64
         %src0 = add 0, %src
-        %dst0 = %src0
+        %dst0 = add 0, %tmp
         nop
-        %ptr = add %src0, 32
-        %val = mload %ptr
+        %ptr = add 32, %tmp
+        %1 = add %src0, 32
+        %val = mload %1
         %out = alloca 64
         mcopy %out, %src0, 64
         sink %val
@@ -67,11 +68,12 @@ def test_forwards_readonly_internal_param_source():
     insts = [inst for bb in callee.get_basic_blocks() for inst in bb.instructions]
 
     assert all(inst.opcode != "mcopy" for inst in insts)
-    ptr_inst = next(
-        inst for inst in insts if inst.has_outputs and inst.output == IRVariable("%ptr")
+    mload = next(inst for inst in insts if inst.opcode == "mload")
+    forwarded_ptr = next(
+        inst for inst in insts if inst.has_outputs and inst.output == mload.operands[0]
     )
-    assert ptr_inst.opcode == "add"
-    assert ptr_inst.operands == [IRLiteral(32), IRVariable("%arg")]
+    assert forwarded_ptr.opcode == "add"
+    assert forwarded_ptr.operands == [IRLiteral(32), IRVariable("%arg")]
 
 
 def test_forwards_segmented_tuple_temp_copies():
@@ -98,15 +100,16 @@ def test_forwards_segmented_tuple_temp_copies():
         %src2 = alloca 64
         %tmp = alloca 128
         %src1_0 = add 0, %src1
-        %dst1 = %src1_0
+        %dst1 = add 0, %tmp
         nop
         %src2_0 = add 0, %src2
-        %dst2 = %src2_0
+        %dst2 = add 64, %tmp
         nop
-        %ptr1 = add %src1_0, 32
-        %val1 = mload %ptr1
-        %ptr2 = %src2_0
-        %val2 = mload %ptr2
+        %ptr1 = add 32, %tmp
+        %1 = add %src1_0, 32
+        %val1 = mload %1
+        %ptr2 = add 64, %tmp
+        %val2 = mload %src2_0
         sink %val1, %val2
     """
 
@@ -223,6 +226,57 @@ def test_keeps_copy_when_root_is_memory_read_size_operand():
     )
 
 
+def test_keeps_copy_when_source_root_is_memory_read_size_operand():
+    # Forwarding extends %src's allocation lifetime. If its concrete address is
+    # also observable as ordinary data, the changed lifetime can change that
+    # value even though all memory reads themselves are equivalent.
+    src = """
+    function main {
+    main:
+        %src = alloca 64
+        %tmp = alloca 64
+        %out = alloca 64
+        mcopy %tmp, %src, 64
+        %value = mload %tmp
+        return %out, %src
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    main = ctx.get_function(IRLabel("main"))
+    insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
+    assert any(
+        inst.opcode == "mcopy"
+        and inst.operands == [IRLiteral(64), IRVariable("%src"), IRVariable("%tmp")]
+        for inst in insts
+    )
+
+
+def test_keeps_copy_when_source_alias_is_memory_read_size_operand():
+    src = """
+    function main {
+    main:
+        %src = alloca 96
+        %copy_src = add 32, %src
+        %observable_src = add 0, %src
+        %tmp = alloca 64
+        %out = alloca 64
+        mcopy %tmp, %copy_src, 64
+        %value = mload %tmp
+        return %out, %observable_src
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    main = ctx.get_function(IRLabel("main"))
+    insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
+    assert any(
+        inst.opcode == "mcopy"
+        and inst.operands == [IRLiteral(64), IRVariable("%copy_src"), IRVariable("%tmp")]
+        for inst in insts
+    )
+
+
 def test_keeps_copy_when_root_derived_read_overlaps_segment():
     pre = """
     main:
@@ -277,16 +331,11 @@ def test_keeps_copy_when_alias_read_has_dynamic_size():
     _checker(pre, pre)
 
 
-def test_forwards_dynamic_size_read_when_whole_alloca_staged():
-    # When the staging copy fills the ENTIRE alloca from %src (copy_size ==
-    # alloca_size) every in-bounds byte of %tmp mirrors %src, so a fixed-offset
-    # dynamic-size read can be forwarded: a well-formed read cannot exceed the
-    # alloca it targets, so it observes only staged bytes (e.g. a bounded
-    # DynArray copy-out of `32 + count*size` bytes, count <= N). Contrast
-    # test_keeps_copy_when_alias_read_has_dynamic_size, where staging is partial.
-    # Uses the structural runner rather than the hevm checker: a free symbolic
-    # size can exceed the alloca -- exactly the well-formedness case that bounded
-    # Vyper never emits but that hevm would (correctly) flag.
+def test_keeps_dynamic_size_read_when_whole_alloca_staged():
+    # Venom does not carry a proof that %n stays within %tmp. If it exceeds 64,
+    # the original read observes the bytes after %tmp while a forwarded read
+    # observes the bytes after %src, so even a whole-allocation copy is not
+    # sufficient evidence for forwarding.
     src = """
     function main {
     main:
@@ -305,9 +354,70 @@ def test_forwards_dynamic_size_read_when_whole_alloca_staged():
     insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
 
     mcopies = [i for i in insts if i.opcode == "mcopy"]
-    # the staging copy is gone; the surviving out-copy reads straight from %src
+    assert len(mcopies) == 2
+    assert any(
+        inst.operands == [IRLiteral(64), IRVariable("%src"), IRVariable("%tmp")] for inst in mcopies
+    )
+
+
+def test_forwards_bounded_dynamic_size_read():
+    src = """
+    function main {
+    main:
+        %src = alloca 64
+        %tmp = alloca 64
+        mcopy %tmp, %src, 64
+        %raw_n = calldataload 0
+        %n = and %raw_n, 63
+        %out = alloca 64
+        mcopy %out, %tmp, %n
+        sink
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    main = ctx.get_function(IRLabel("main"))
+    insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
+
+    mcopies = [inst for inst in insts if inst.opcode == "mcopy"]
     assert len(mcopies) == 1
     assert mcopies[0].operands[1] == IRVariable("%src")
+
+
+@pytest.mark.parametrize("max_size, forwards", [(64, True), (65, False)])
+def test_uses_dynamic_read_max_size_metadata(max_size, forwards):
+    src = """
+    function main {
+    main:
+        %src = alloca 64
+        %tmp = alloca 64
+        mcopy %tmp, %src, 64
+        %n = calldataload 0
+        %out = alloca 64
+        mcopy %out, %tmp, %n
+        sink
+    }
+    """
+
+    ctx = parse_venom(src)
+    main = ctx.get_function(IRLabel("main"))
+    dynamic_copy = next(
+        inst
+        for bb in main.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "mcopy" and isinstance(inst.operands[0], IRVariable)
+    )
+    dynamic_copy.memory_read_max_size = max_size
+
+    analyses = IRAnalysesCache(main)
+    RedundantMemoryCopyForwardingPass(analyses, main).run_pass()
+    staging_copy_exists = any(
+        inst.opcode == "mcopy"
+        and inst.operands == [IRLiteral(64), IRVariable("%src"), IRVariable("%tmp")]
+        for bb in main.get_basic_blocks()
+        for inst in bb.instructions
+    )
+    assert staging_copy_exists is not forwards
 
 
 def test_keeps_large_aggregate_copy_without_layout_cost_model():
@@ -366,11 +476,12 @@ def test_forwards_into_dominated_successor_block():
     insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
 
     assert all(inst.opcode != "mcopy" for inst in insts)
-    ptr_inst = next(
-        inst for inst in insts if inst.has_outputs and inst.output == IRVariable("%ptr")
+    mload = next(inst for inst in insts if inst.opcode == "mload")
+    forwarded_ptr = next(
+        inst for inst in insts if inst.has_outputs and inst.output == mload.operands[0]
     )
-    assert ptr_inst.opcode == "add"
-    assert ptr_inst.operands == [IRLiteral(32), IRVariable("%src")]
+    assert forwarded_ptr.opcode == "add"
+    assert forwarded_ptr.operands == [IRLiteral(32), IRVariable("%src")]
 
 
 def test_forwards_through_pointer_phi():
@@ -586,6 +697,30 @@ def test_keeps_copy_when_reassigned_param_var_has_tracked_base():
         %tmp = alloca 64
         %dyn = calldataload 0
         %arg = add %local, %dyn
+        mcopy %tmp, %arg, 64
+        mstore %local, 1
+        %v = mload %tmp
+        sink %v
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    callee = ctx.get_function(IRLabel("callee"))
+    insts = [inst for bb in callee.get_basic_blocks() for inst in bb.instructions]
+    assert any(inst.opcode == "mcopy" for inst in insts)
+
+
+def test_keeps_copy_when_reassigned_param_var_has_untracked_base():
+    # The source variable is syntactically a parameter but its reaching value
+    # can be an arbitrary address. Treating it as exclusively param-backed
+    # would incorrectly ignore a local write that may alias that address.
+    src = """
+    function callee {
+    callee:
+        %arg = param
+        %local = alloca 64
+        %tmp = alloca 64
+        %arg = calldataload 0
         mcopy %tmp, %arg, 64
         mstore %local, 1
         %v = mload %tmp
@@ -832,6 +967,34 @@ def test_keeps_copy_when_alias_is_memory_read_size_operand():
         %p = add 0, %tmp
         mcopy %out, %p, %p
         sink
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    main = ctx.get_function(IRLabel("main"))
+    insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
+    assert any(
+        inst.opcode == "mcopy"
+        and inst.operands == [IRLiteral(64), IRVariable("%src"), IRVariable("%tmp")]
+        for inst in insts
+    )
+
+
+def test_keeps_copy_when_destination_alias_is_reassigned_to_literal():
+    # BasePtr facts are monotone on pre-SSA input. %p therefore still carries
+    # %tmp's pointer fact after the literal assignment, but the mload's runtime
+    # address is zero and must not be redirected to %src.
+    src = """
+    function main {
+    main:
+        %src = alloca 64
+        %tmp = alloca 64
+        %p = %tmp
+        mcopy %tmp, %src, 64
+        %p = 0
+        %zero_value = mload %p
+        %tmp_value = mload %tmp
+        sink %zero_value, %tmp_value
     }
     """
 

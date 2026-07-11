@@ -256,6 +256,7 @@ class FunctionInlinerPass(IRGlobalPass):
         clone.annotation = inst.annotation
         clone.ast_source = inst.ast_source
         clone.error_msg = inst.error_msg
+        clone.memory_read_max_size = inst.memory_read_max_size
 
         if inst.opcode == "alloca":
             self.ctx.mem_allocator.clone_alloca(inst, clone)

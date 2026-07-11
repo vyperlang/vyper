@@ -1,4 +1,6 @@
-from vyper.venom.memory_location import MemoryLocation
+from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IRVariable
+from vyper.venom.function import IRFunction
+from vyper.venom.memory_location import MemoryLocation, memory_read_ops
 
 
 def test_completely_overlaps():
@@ -26,3 +28,14 @@ def test_completely_overlaps():
     assert loc1.completely_contains(MemoryLocation.EMPTY)
     assert not full_loc.completely_contains(loc1)
     assert not loc1.completely_contains(full_loc)
+
+
+def test_memory_read_max_size_metadata_survives_copy():
+    size = IRVariable("%size")
+    inst = IRInstruction("mcopy", [size, IRVariable("%src"), IRVariable("%dst")])
+    inst.parent = IRFunction(IRLabel("main")).entry
+    inst.memory_read_max_size = 64
+
+    assert memory_read_ops(inst).size == size
+    assert memory_read_ops(inst).max_size == IRLiteral(64)
+    assert inst.copy().memory_read_max_size == 64

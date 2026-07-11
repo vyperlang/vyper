@@ -134,3 +134,41 @@ def test_fcg_analysis_remains_requestable_from_function_cache():
     fcg = IRAnalysesCache(ctx.entry_function).force_analysis(FCGGlobalAnalysis)
 
     assert fcg.get_callees(ctx.entry_function).first() == ctx.get_function(IRLabel("callee"))
+
+
+def test_inliner_preserves_memory_read_max_size():
+    src = """
+    function main {
+    main:
+        %dst = alloca 64
+        %src = alloca 64
+        %size = 64
+        invoke @callee, %dst, %src, %size
+        stop
+    }
+
+    function callee {
+    callee:
+        %dst = param
+        %src = param
+        %size = param
+        %retpc = param
+        mcopy %dst, %src, %size
+        ret %retpc
+    }
+    """
+
+    ctx = parse_venom(src)
+    callee = ctx.get_function(IRLabel("callee"))
+    original_copy = next(inst for inst in callee.entry.instructions if inst.opcode == "mcopy")
+    original_copy.memory_read_max_size = 64
+
+    analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
+    flags = VenomOptimizationFlags(level=OptimizationLevel.CODESIZE)
+    FunctionInlinerPass(analyses, ctx, flags).run_pass()
+
+    main = ctx.get_function(IRLabel("main"))
+    inlined_copy = next(
+        inst for bb in main.get_basic_blocks() for inst in bb.instructions if inst.opcode == "mcopy"
+    )
+    assert inlined_copy.memory_read_max_size == 64
