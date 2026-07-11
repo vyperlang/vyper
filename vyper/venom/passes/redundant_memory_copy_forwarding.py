@@ -255,6 +255,15 @@ class RedundantMemoryCopyForwardingPass(IRPass):
                     direct_read_rewrites.append((use, pos, read_loc.offset - dst_start))
                     read_sites.add(use)
                     continue
+                if use.get_read_effects() & Effects.MEMORY == EMPTY:
+                    return None
+                if pos != memory_read_ops(use).ofst_index:
+                    # The alloca root is an observable value outside the read
+                    # address slot (for example, a return/log size or topic).
+                    # Removing the staging copy can then change its eventual
+                    # concrete address, so it escapes rather than forwarding.
+                    return None
+
                 read_loc = self.base_ptr.get_read_location(use, addr_space.MEMORY)
                 if self.mem_alias.may_alias(read_loc, dst_loc):
                     return None
@@ -266,9 +275,6 @@ class RedundantMemoryCopyForwardingPass(IRPass):
                     # memory, where a later load could read the now-uncopied
                     # buffer. Bail either way.
                     return None
-                if use.get_read_effects() & Effects.MEMORY == EMPTY:
-                    return None
-
         if any(delta is None for delta in alias_rewrites.values()):
             return None
 

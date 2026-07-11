@@ -197,6 +197,32 @@ def test_keeps_copy_when_destination_escapes():
     _checker(pre, pre)
 
 
+def test_keeps_copy_when_root_is_memory_read_size_operand():
+    # `%tmp` is a return size, not the return's memory-address operand. Its
+    # concrete allocation address is therefore observable even though return
+    # reads a disjoint `%out` buffer.
+    src = """
+    function main {
+    main:
+        %src = alloca 64
+        %tmp = alloca 64
+        %out = alloca 64
+        mcopy %tmp, %src, 64
+        %value = mload %tmp
+        return %out, %tmp
+    }
+    """
+
+    ctx = _run_redundant_forwarding(src)
+    main = ctx.get_function(IRLabel("main"))
+    insts = [inst for bb in main.get_basic_blocks() for inst in bb.instructions]
+    assert any(
+        inst.opcode == "mcopy"
+        and inst.operands == [IRLiteral(64), IRVariable("%src"), IRVariable("%tmp")]
+        for inst in insts
+    )
+
+
 def test_keeps_copy_when_root_derived_read_overlaps_segment():
     pre = """
     main:

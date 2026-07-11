@@ -1,6 +1,7 @@
-from tests.venom_utils import PrePostChecker
+from tests.venom_utils import PrePostChecker, parse_venom
 from vyper.evm.address_space import MEMORY
 from vyper.evm.opcodes import version_check
+from vyper.venom.analysis import MemSSA
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.passes import (
     DeadStoreElimination,
@@ -76,6 +77,26 @@ def test_redundant_copy_elimination():
         stop
     """
     _check_pre_post_with_unused_var_removal(pre, post)
+
+
+def test_memory_copy_elision_invalidates_memory_ssa():
+    ctx = parse_venom("""
+    function main {
+    main:
+        %ptr = alloca 32
+        %value = mload %ptr
+        mstore %ptr, %value
+        stop
+    }
+    """)
+    fn = next(iter(ctx.functions.values()))
+    ac = IRAnalysesCache(fn)
+
+    stale_mem_ssa = ac.request_analysis(MemSSA)
+    MemoryCopyElisionPass(ac, fn).run_pass()
+
+    assert not any(inst.opcode == "mstore" for inst in fn.entry.instructions)
+    assert ac.request_analysis(MemSSA) is not stale_mem_ssa
 
 
 def test_mcopy_chain_optimization():
