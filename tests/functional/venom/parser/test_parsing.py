@@ -394,3 +394,44 @@ def test_multi_output_last_var():
 
     g_fn = parsed_ctx.get_function(IRLabel("g"))
     assert g_fn.last_variable == 0
+
+
+def test_noinline_annotation():
+    source = """
+    function main {
+        main:
+            invoke @f
+            stop
+    }
+
+    function f [noinline] {
+        f:
+            %retpc = param
+            ret %retpc
+    }
+    """
+
+    parsed_ctx = parse_venom(source)
+
+    assert parsed_ctx.get_function(IRLabel("main")).noinline is False
+    assert parsed_ctx.get_function(IRLabel("f")).noinline is True
+
+    # printer/parser round trip preserves the flag
+    assert_ctx_eq(parsed_ctx, parse_venom(str(parsed_ctx)))
+
+
+def test_noinline_annotation_with_fmp_lowered():
+    source = """
+    function main [fmp_lowered, noinline] {
+        main:
+            stop
+    }
+    """
+
+    parsed_ctx = parse_venom(source)
+
+    fn = parsed_ctx.get_function(IRLabel("main"))
+    assert fn.noinline is True
+    assert fn._fmp_signature is not None
+
+    assert_ctx_eq(parsed_ctx, parse_venom(str(parsed_ctx)))

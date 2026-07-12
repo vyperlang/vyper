@@ -95,7 +95,7 @@ def _set_last_label(ctx: IRContext):
 
 # the calling convention is carried only by syntax (opcodes) and the
 # explicit function-header annotation -- there is no shape inference.
-_KNOWN_ANNOTATIONS = frozenset(["fmp_lowered", "fmp_publishes"])
+_KNOWN_ANNOTATIONS = frozenset(["fmp_lowered", "fmp_publishes", "noinline"])
 
 
 def _apply_annotations(fn: IRFunction, annotations: Optional[list[str]]):
@@ -113,10 +113,16 @@ def _apply_annotations(fn: IRFunction, annotations: Optional[list[str]]):
             raise ValueError(f"unknown function annotation `{attr}` on {fn.name}")
     if len(set(annotations)) != len(annotations):
         raise ValueError(f"duplicate function annotation on {fn.name}")
-    if "fmp_lowered" not in annotations:
+
+    fn.noinline = "noinline" in annotations
+
+    fmp_annotations = [attr for attr in annotations if attr != "noinline"]
+    if len(fmp_annotations) == 0:
+        return
+    if "fmp_lowered" not in fmp_annotations:
         raise ValueError(f"`fmp_publishes` requires `fmp_lowered` on {fn.name}")
 
-    publishes = "fmp_publishes" in annotations
+    publishes = "fmp_publishes" in fmp_annotations
     has_fmp_param = any(
         inst.opcode == "fmp_param" for bb in fn.get_basic_blocks() for inst in bb.instructions
     )

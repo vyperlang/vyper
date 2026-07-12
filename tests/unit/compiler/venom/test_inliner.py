@@ -134,3 +134,43 @@ def test_fcg_analysis_remains_requestable_from_function_cache():
     fcg = IRAnalysesCache(ctx.entry_function).force_analysis(FCGGlobalAnalysis)
 
     assert fcg.get_callees(ctx.entry_function).first() == ctx.get_function(IRLabel("callee"))
+
+
+def test_noinline_annotation():
+    src = """
+    function main {
+    main:
+        %1 = invoke @f
+        sink %1
+    }
+
+    function f [noinline] {
+    f:
+        %retpc = param
+        %1 = 42
+        ret %1, %retpc
+    }
+    """
+
+    ctx = parse_venom(src)
+
+    ir_analyses = {}
+    for fn in ctx.functions.values():
+        ir_analyses[fn] = IRAnalysesCache(fn)
+
+    flags = VenomOptimizationFlags(level=OptimizationLevel.CODESIZE)
+    FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
+
+    # a single call site would otherwise always be inlined
+    assert IRLabel("f") in ctx.functions
+
+    # sanity check: without the annotation, the function gets inlined
+    ctx = parse_venom(src.replace(" [noinline]", ""))
+
+    ir_analyses = {}
+    for fn in ctx.functions.values():
+        ir_analyses[fn] = IRAnalysesCache(fn)
+
+    FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
+
+    assert IRLabel("f") not in ctx.functions
