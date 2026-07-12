@@ -21,7 +21,7 @@ from vyper.codegen import jumptable_utils
 from vyper.codegen.function_definitions.common import EntryPointInfo, _FuncIRInfo
 from vyper.codegen_venom.abi.abi_decoder import (
     abi_decode_to_buf,
-    decode_unbounded_dynarray_to_scratch,
+    decode_unbounded_sequence_to_scratch,
 )
 from vyper.codegen_venom.buffer import Ptr
 from vyper.codegen_venom.constants import SELECTOR_BYTES, SELECTOR_SHIFT_BITS
@@ -30,16 +30,9 @@ from vyper.compiler.settings import Settings, _opt_codesize, _opt_none
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types import (
-    TupleT,
-    VyperType,
-    is_unbounded_bytestring_type,
-    is_unbounded_dynarray_type,
-    is_unbounded_sequence_type,
-)
+from vyper.semantics.types import TupleT, VyperType, is_unbounded_sequence_type
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
-from vyper.semantics.types.subscriptable import DArrayT
 from vyper.utils import OrderedSet, method_id_int
 from vyper.venom.basicblock import IRLabel, IRLiteral, IRVariable
 from vyper.venom.builder import VenomBuilder
@@ -1088,60 +1081,11 @@ def _get_abi_arg_ptr(
     return VyperValue.from_ptr(Ptr(operand=static_loc, location=loc), member_typ)
 
 
-def _materialize_unbounded_bytestring_abi_arg(
-    ctx: VenomCodegenContext, name: str, typ: VyperType, src: VyperValue
-) -> VyperValue:
-    assert is_unbounded_bytestring_type(typ)
-    assert src.location is not None, "src must have a location for ABI decoding"
-
-    hi = _abi_arg_hi(ctx, src.location)
-    data_start = None
-    if hi is not None:
-        data_start = ctx.assert_abi_length_word_in_bounds(src.operand, hi)
-
-    length = ctx.builder.load(src.operand, src.location)
-    data_offset = ctx.builder.add(src.operand, IRLiteral(32))
-
-    if src.location == DataLocation.CALLDATA:
-        assert hi is not None
-        ctx.assert_abi_bytes_payload_in_bounds(src.operand, length, hi, data_start=data_start)
-        return ctx.materialize_calldata_bytes(data_offset, length, typ, annotation=name)
-
-    if src.location == DataLocation.CODE:
-        return ctx.materialize_bytes_from_location(
-            data_offset, length, typ, src.location, annotation=name
-        )
-
-    raise CompilerPanic(
-        f"ABI argument source should be CALLDATA or CODE, got {src.location}"
-    )  # pragma: nocover
-
-
-def _materialize_unbounded_dynarray_abi_arg(
-    ctx: VenomCodegenContext, name: str, typ: DArrayT, src: VyperValue
-) -> VyperValue:
-    assert is_unbounded_dynarray_type(typ)
-    assert src.location is not None, "src must have a location for ABI decoding"
-
-    hi = _abi_arg_hi(ctx, src.location)
-    return decode_unbounded_dynarray_to_scratch(ctx, src, typ, hi, name)
-
-
-def _materialize_unbounded_sequence_abi_arg(
-    ctx: VenomCodegenContext, name: str, typ: VyperType, src: VyperValue
-) -> VyperValue:
-    if is_unbounded_bytestring_type(typ):
-        return _materialize_unbounded_bytestring_abi_arg(ctx, name, typ, src)
-
-    if isinstance(typ, DArrayT) and is_unbounded_dynarray_type(typ):
-        return _materialize_unbounded_dynarray_abi_arg(ctx, name, typ, src)
-
-    raise CompilerPanic(f"expected unbounded sequence type, got {typ}")  # pragma: nocover
-
-
 def _register_abi_arg_from_src(ctx: VenomCodegenContext, arg, elem_src: VyperValue) -> None:
     if is_unbounded_sequence_type(arg.typ):
-        val = _materialize_unbounded_sequence_abi_arg(ctx, arg.name, arg.typ, elem_src)
+        assert elem_src.location is not None, "src must have a location for ABI decoding"
+        hi = _abi_arg_hi(ctx, elem_src.location)
+        val = decode_unbounded_sequence_to_scratch(ctx, elem_src, arg.typ, hi, arg.name)
         assert isinstance(val.operand, IRVariable)
         ctx.register_dynamic_variable(arg.name, arg.typ, val.operand, mutable=False)
         return
@@ -1160,7 +1104,9 @@ def _store_abi_arg_to_existing_ptr(
     ctx: VenomCodegenContext, dst: IRVariable, arg, elem_src: VyperValue
 ) -> None:
     if is_unbounded_sequence_type(arg.typ):
-        val = _materialize_unbounded_sequence_abi_arg(ctx, arg.name, arg.typ, elem_src)
+        assert elem_src.location is not None, "src must have a location for ABI decoding"
+        hi = _abi_arg_hi(ctx, elem_src.location)
+        val = decode_unbounded_sequence_to_scratch(ctx, elem_src, arg.typ, hi, arg.name)
         ctx.builder.mstore(dst, val.operand)
         return
 

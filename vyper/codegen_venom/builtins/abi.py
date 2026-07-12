@@ -255,11 +255,13 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             src = b.add(data_ptr, offset)
             no_src_wrap = b.iszero(b.lt(src, data_ptr))
             b.assert_(no_src_wrap)
-            return decode_unbounded_sequence_to_scratch(ctx, src, output_typ, hi, "abi_decode")
+            src_vv = ctx.dynamic_memory_value(src, output_typ, annotation="abi_decode_src")
+            return decode_unbounded_sequence_to_scratch(ctx, src_vv, output_typ, hi, "abi_decode")
 
         ge_length_word = b.iszero(b.lt(data_len, IRLiteral(32)))
         b.assert_(ge_length_word)
-        return decode_unbounded_sequence_to_scratch(ctx, data_ptr, output_typ, hi, "abi_decode")
+        src_vv = ctx.dynamic_memory_value(data_ptr, output_typ, annotation="abi_decode_src")
+        return decode_unbounded_sequence_to_scratch(ctx, src_vv, output_typ, hi, "abi_decode")
 
     # Validate size
     abi_min_size = wrapped_typ.abi_type.static_size()

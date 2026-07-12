@@ -2187,8 +2187,9 @@ class Expr:
         no_src_wrap = b.iszero(b.lt(src, returndata_ptr))
         b.assert_(no_src_wrap)
         assert isinstance(src, IRVariable)
+        src_vv = self._make_ptr_value(src, DataLocation.MEMORY, return_t)
         return decode_unbounded_sequence_to_scratch(
-            self.ctx, src, return_t, hi, "external call return"
+            self.ctx, src_vv, return_t, hi, "external call return"
         )
 
     def _copy_and_decode_dynamic_tuple_external_call_return(
@@ -2233,8 +2234,9 @@ class Expr:
 
             assert isinstance(member_src, IRVariable)
             if is_unbounded_sequence_type(member_t):
+                src_vv = self._make_ptr_value(member_src, DataLocation.MEMORY, member_t)
                 member_vv = decode_unbounded_sequence_to_scratch(
-                    self.ctx, member_src, member_t, hi, "external call return"
+                    self.ctx, src_vv, member_t, hi, "external call return"
                 )
             else:
                 member_vv = self.ctx.new_temporary_value(member_t)
