@@ -312,13 +312,22 @@ class DArrayT(_SequenceT):
     def has_wildcard(self):
         return self.length is WILDCARD or self.value_type.has_wildcard
 
+    @staticmethod
+    def _validate_unbounded_shape(value_type, length, node=None):
+        if type_contains_unbounded_sequence(value_type):
+            raise StructureException(
+                "DynArray element types cannot contain unbounded sequence types", node
+            )
+
+        if length is INF and value_type.abi_type.is_dynamic():
+            raise StructureException(
+                "DynArray[..., INF] is only supported with ABI-static element types", node
+            )
+
     def resolve_wildcard(self):
         resolved_value = self.value_type.resolve_wildcard()
         resolved_length = INF if self.length is WILDCARD else self.length
-        if resolved_length is INF and resolved_value.abi_type.is_dynamic():
-            raise StructureException(
-                "DynArray[..., INF] is only supported with ABI-static element types"
-            )
+        self._validate_unbounded_shape(resolved_value, resolved_length)
         if resolved_value is not self.value_type or resolved_length is not self.length:
             return DArrayT(resolved_value, resolved_length)
         return self
@@ -366,15 +375,7 @@ class DArrayT(_SequenceT):
         if not value_type._as_darray:
             raise StructureException(f"Arrays of {value_type} are not allowed", value_node)
 
-        if type_contains_unbounded_sequence(value_type):
-            raise StructureException(
-                "DynArray element types cannot contain unbounded sequence types", value_node
-            )
-
-        if length is INF and value_type.abi_type.is_dynamic():
-            raise StructureException(
-                "DynArray[..., INF] is only supported with ABI-static element types", value_node
-            )
+        cls._validate_unbounded_shape(value_type, length, value_node)
 
         return cls(value_type, length)
 

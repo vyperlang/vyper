@@ -1026,6 +1026,22 @@ def f(a: address, xs: DynArray[Bytes[10], 5]):
     compiler.compile_code(accepted, settings=Settings(experimental_codegen=True))
 
 
+@pytest.mark.parametrize("element_type", ["Bytes[...]", "DynArray[uint256, ...]"])
+def test_wildcard_arg_rejects_resolved_unbounded_element(element_type):
+    code = f"""
+interface I:
+    def foo(xs: DynArray[{element_type}, 5]): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).foo([])
+    """
+    with pytest.raises(
+        StructureException, match="DynArray element types cannot contain unbounded sequence types"
+    ):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+
+
 @pytest.mark.parametrize("arg_source", ["xs", "[]", "[1, 2]"])
 def test_wildcard_arg_accepts_bounded_values(arg_source):
     # bounded variables and literals passed to a wildcard interface arg
