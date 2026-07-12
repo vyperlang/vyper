@@ -100,10 +100,8 @@ _KNOWN_ANNOTATIONS = frozenset(["fmp_lowered", "fmp_publishes", "noinline"])
 
 def _apply_annotations(fn: IRFunction, annotations: Optional[list[str]]):
     """
-    Reconstruct `fn._fmp_signature` from the function-header annotation and
-    the `fmp_param` opcode. Raw functions carry no annotation and keep
-    `_fmp_signature is None`; the input validator (check_venom) rejects
-    un-annotated functions containing lowered FMP artifacts.
+    Apply function-header annotations and reconstruct the FMP signature from
+    its annotations and the `fmp_param` opcode.
     """
     if annotations is None:
         return
@@ -116,13 +114,12 @@ def _apply_annotations(fn: IRFunction, annotations: Optional[list[str]]):
 
     fn.noinline = "noinline" in annotations
 
-    fmp_annotations = [attr for attr in annotations if attr != "noinline"]
-    if len(fmp_annotations) == 0:
+    if "fmp_lowered" not in annotations:
+        if "fmp_publishes" in annotations:
+            raise ValueError(f"`fmp_publishes` requires `fmp_lowered` on {fn.name}")
         return
-    if "fmp_lowered" not in fmp_annotations:
-        raise ValueError(f"`fmp_publishes` requires `fmp_lowered` on {fn.name}")
 
-    publishes = "fmp_publishes" in fmp_annotations
+    publishes = "fmp_publishes" in annotations
     has_fmp_param = any(
         inst.opcode == "fmp_param" for bb in fn.get_basic_blocks() for inst in bb.instructions
     )

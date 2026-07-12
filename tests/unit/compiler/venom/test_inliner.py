@@ -152,25 +152,16 @@ def test_noinline_annotation():
     }
     """
 
-    ctx = parse_venom(src)
-
-    ir_analyses = {}
-    for fn in ctx.functions.values():
-        ir_analyses[fn] = IRAnalysesCache(fn)
-
     flags = VenomOptimizationFlags(level=OptimizationLevel.CODESIZE)
-    FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
+
+    def run_inliner(source):
+        ctx = parse_venom(source)
+        analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
+        FunctionInlinerPass(analyses, ctx, flags).run_pass()
+        return ctx
 
     # a single call site would otherwise always be inlined
-    assert IRLabel("f") in ctx.functions
+    assert IRLabel("f") in run_inliner(src).functions
 
     # sanity check: without the annotation, the function gets inlined
-    ctx = parse_venom(src.replace(" [noinline]", ""))
-
-    ir_analyses = {}
-    for fn in ctx.functions.values():
-        ir_analyses[fn] = IRAnalysesCache(fn)
-
-    FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
-
-    assert IRLabel("f") not in ctx.functions
+    assert IRLabel("f") not in run_inliner(src.replace(" [noinline]", "")).functions

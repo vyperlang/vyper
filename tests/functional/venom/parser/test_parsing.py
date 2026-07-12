@@ -400,14 +400,17 @@ def test_noinline_annotation():
     source = """
     function main {
         main:
-            invoke @f
             stop
     }
 
     function f [noinline] {
         f:
-            %retpc = param
-            ret %retpc
+            stop
+    }
+
+    function g [fmp_lowered, noinline] {
+        g:
+            stop
     }
     """
 
@@ -415,23 +418,9 @@ def test_noinline_annotation():
 
     assert parsed_ctx.get_function(IRLabel("main")).noinline is False
     assert parsed_ctx.get_function(IRLabel("f")).noinline is True
+    g = parsed_ctx.get_function(IRLabel("g"))
+    assert g.noinline is True
+    assert g._fmp_signature is not None
 
     # printer/parser round trip preserves the flag
-    assert_ctx_eq(parsed_ctx, parse_venom(str(parsed_ctx)))
-
-
-def test_noinline_annotation_with_fmp_lowered():
-    source = """
-    function main [fmp_lowered, noinline] {
-        main:
-            stop
-    }
-    """
-
-    parsed_ctx = parse_venom(source)
-
-    fn = parsed_ctx.get_function(IRLabel("main"))
-    assert fn.noinline is True
-    assert fn._fmp_signature is not None
-
     assert_ctx_eq(parsed_ctx, parse_venom(str(parsed_ctx)))

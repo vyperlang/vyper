@@ -38,6 +38,10 @@ class FmpSignature:
             attrs.append("fmp_publishes")
         return attrs
 
+    @property
+    def annotation(self) -> str:
+        return f"[{', '.join(self.attrs)}]"
+
 
 class IRFunction:
     """
@@ -217,14 +221,10 @@ class IRFunction:
         return "\n".join(ret)
 
     def __repr__(self) -> str:
-        attrs = []
-        if self._fmp_signature is not None:
-            attrs.extend(self._fmp_signature.attrs)
+        attrs = self._fmp_signature.attrs if self._fmp_signature is not None else []
         if self.noinline:
             attrs.append("noinline")
-        annotation = ""
-        if len(attrs) > 0:
-            annotation = f" [{', '.join(attrs)}]"
+        annotation = f" [{', '.join(attrs)}]" if attrs else ""
         ret = f"function {self.name}{annotation} {{\n"
         for bb in self.get_basic_blocks():
             bb_str = textwrap.indent(str(bb), "  ")
