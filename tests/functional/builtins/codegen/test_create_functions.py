@@ -284,15 +284,15 @@ BLUEPRINT: immutable(address)
 
 @deploy
 def __init__(blueprint_address: address):
-    BLUEPRINT = blueprint_address
+    self.BLUEPRINT = blueprint_address
 
 @external
 def test(code_ofst: uint256) -> address:
-    return create_from_blueprint(BLUEPRINT, code_offset=code_ofst)
+    return create_from_blueprint(self.BLUEPRINT, code_offset=code_ofst)
 
 @external
 def test_no_revert(code_ofst: uint256) -> address:
-    return create_from_blueprint(BLUEPRINT, code_offset=code_ofst, revert_on_failure=False)
+    return create_from_blueprint(self.BLUEPRINT, code_offset=code_ofst, revert_on_failure=False)
     """
 
     initcode_len = 100
@@ -360,16 +360,16 @@ BAR: immutable(Bar)
 
 @deploy
 def __init__(foo: String[128], bar: Bar):
-    FOO = foo
-    BAR = bar
+    self.FOO = foo
+    self.BAR = bar
 
 @external
 def foo() -> String[128]:
-    return FOO
+    return self.FOO
 
 @external
 def bar() -> Bar:
-    return BAR
+    return self.BAR
     """
 
     deployer_code = """
