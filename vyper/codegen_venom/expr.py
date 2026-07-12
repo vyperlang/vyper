@@ -1867,6 +1867,10 @@ class Expr:
                     default_return_value = self.ctx.dynamic_tuple_frame_from_value(
                         default_vv, return_t, annotation="external call default_return_value"
                     )
+                elif return_t is not None and is_unbounded_sequence_type(return_t):
+                    default_return_value = self.ctx.copy_sequence_to_scratch(
+                        default_vv, return_t, annotation="external call default_return_value"
+                    )
                 elif self.ctx.is_dynamic_tuple_frame_type(default_vv.typ):
                     default_return_value = default_vv
                 elif is_unbounded_sequence_type(default_vv.typ):
@@ -2277,10 +2281,9 @@ class Expr:
 
         default_vv = call_kwargs.default_return_value
         assert default_vv is not None
-        default_value = self.ctx.copy_sequence_to_scratch(
-            default_vv, return_t, annotation="external call default_return_value"
-        )
-        b.mstore(ret_cell._ptr, default_value.operand)
+        default_ptr = self.ctx.unwrap(default_vv)
+        assert isinstance(default_ptr, IRVariable)
+        b.mstore(ret_cell._ptr, default_ptr)
 
         if not call_kwargs.skip_contract_check:
             codesize = b.extcodesize(contract_address)

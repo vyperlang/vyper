@@ -688,6 +688,30 @@ def get(addr: address) -> DynArray[uint256, INF]:
     assert abi_decode("(uint256[])", ret) == (payload,)
 
 
+def test_inf_dynarray_staticcall_default_return_value_from_inf_local(env):
+    payload = [i * 47 for i in range(2001)]
+    caller_code = """
+interface Source:
+    def data() -> DynArray[uint256, INF]: view
+
+@external
+def get(addr: address, x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
+    fallback: DynArray[uint256, INF] = x
+    return staticcall Source(addr).data(default_return_value=fallback)
+    """
+
+    caller = _deploy_venom(env, caller_code)
+    empty_target = _deploy_raw_returner(env, b"")
+    ret = _call(
+        env,
+        caller,
+        "get(address,uint256[])",
+        "(address,uint256[])",
+        (empty_target.address, payload),
+    )
+    assert abi_decode("(uint256[])", ret) == (payload,)
+
+
 def test_inf_dynarray_staticcall_tuple_return_roundtrip(env):
     payload = [i * 43 for i in range(2001)]
     target_code = """

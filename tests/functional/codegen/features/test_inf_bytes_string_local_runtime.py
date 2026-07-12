@@ -404,6 +404,26 @@ def get(addr: address) -> Bytes[INF]:
     assert abi_decode("(bytes)", ret) == (payload,)
 
 
+def test_inf_bytes_staticcall_default_return_value_from_inf_local(env):
+    payload = bytes((i * 37) % 256 for i in range(2001))
+    caller_code = """
+interface Source:
+    def data() -> Bytes[INF]: view
+
+@external
+def get(addr: address, x: Bytes[INF]) -> Bytes[INF]:
+    fallback: Bytes[INF] = x
+    return staticcall Source(addr).data(default_return_value=fallback)
+    """
+
+    caller = _deploy_venom(env, caller_code)
+    empty_target = _deploy_raw_returner(env, b"")
+    ret = _call(
+        env, caller, "get(address,bytes)", "(address,bytes)", (empty_target.address, payload)
+    )
+    assert abi_decode("(bytes)", ret) == (payload,)
+
+
 def test_inf_bytes_staticcall_tuple_return_roundtrip(env):
     payload = bytes((i * 41) % 256 for i in range(2001))
     target_code = """
