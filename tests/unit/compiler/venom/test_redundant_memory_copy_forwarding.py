@@ -420,6 +420,40 @@ def test_uses_dynamic_read_max_size_metadata(max_size, forwards):
     assert staging_copy_exists is not forwards
 
 
+def test_literal_read_size_takes_precedence_over_max_size_metadata():
+    src = """
+    function main {
+    main:
+        %src = alloca 64
+        %tmp = alloca 64
+        mcopy %tmp, %src, 64
+        %out = alloca 65
+        mcopy %out, %tmp, 65
+        sink
+    }
+    """
+
+    ctx = parse_venom(src)
+    main = ctx.get_function(IRLabel("main"))
+    oversized_copy = next(
+        inst
+        for bb in main.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "mcopy" and inst.operands[0] == IRLiteral(65)
+    )
+    oversized_copy.memory_read_max_size = 64
+
+    analyses = IRAnalysesCache(main)
+    RedundantMemoryCopyForwardingPass(analyses, main).run_pass()
+
+    assert any(
+        inst.opcode == "mcopy"
+        and inst.operands == [IRLiteral(64), IRVariable("%src"), IRVariable("%tmp")]
+        for bb in main.get_basic_blocks()
+        for inst in bb.instructions
+    )
+
+
 def test_keeps_large_aggregate_copy_without_layout_cost_model():
     pre = """
     main:

@@ -39,3 +39,12 @@ def test_memory_read_max_size_metadata_survives_copy():
     assert memory_read_ops(inst).size == size
     assert memory_read_ops(inst).max_size == IRLiteral(64)
     assert inst.copy().memory_read_max_size == 64
+
+
+def test_memory_read_max_size_metadata_is_path_sensitive():
+    size = IRLiteral(2**256 - 1)
+    inst = IRInstruction("mcopy", [size, IRVariable("%src"), IRVariable("%dst")])
+    inst.memory_read_max_size = 64
+
+    assert memory_read_ops(inst).size == size
+    assert memory_read_ops(inst).max_size == IRLiteral(64)
