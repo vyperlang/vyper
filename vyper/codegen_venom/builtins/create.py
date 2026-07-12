@@ -299,7 +299,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     # This is critical when ctor args might modify the storage location that holds
     # the bytecode (cf. test_raw_create_change_initcode_size).
     if bytecode_is_unbounded:
-        bytecode_copy = ctx.copy_bytestring_to_scratch(
+        bytecode_copy = ctx.copy_sequence_to_scratch(
             bytecode_vv, bytecode_typ, annotation="raw_create_initcode"
         )
         bytecode = bytecode_copy.operand

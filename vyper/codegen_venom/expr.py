@@ -720,8 +720,8 @@ class Expr:
         if isinstance(node.value, vy_ast.Name) and node.value.id in ENVIRONMENT_VARIABLES:
             if node.value.id == "msg" and attr == "data":
                 length = self.builder.calldatasize()
-                return self.ctx.materialize_calldata_bytes(
-                    IRLiteral(0), length, typ, annotation="msg.data"
+                return self.ctx.materialize_bytes_from_location(
+                    IRLiteral(0), length, typ, DataLocation.CALLDATA, annotation="msg.data"
                 )
             return VyperValue.from_stack_op(self._lower_environment_attr(), typ)
 

@@ -489,18 +489,6 @@ class VenomCodegenContext:
         last_word = self.builder.add(ptr, self.ceil32(length))
         self.builder.mstore(last_word, IRLiteral(0))
 
-    def materialize_calldata_bytes(
-        self, offset: IROperand, length: IROperand, typ: VyperType, annotation: Optional[str] = None
-    ) -> VyperValue:
-        """Copy calldata bytes into a runtime-sized bytestring memory value."""
-        size = self.bytestring_runtime_size_from_length(length)
-        ptr = self.allocate_scratch(size)
-        self.builder.mstore(ptr, length)
-        self.zero_bytestring_padding(ptr, length)
-        data_ptr = self.builder.add(ptr, IRLiteral(32))
-        self.builder.calldatacopy(data_ptr, offset, length)
-        return self.dynamic_memory_value(ptr, typ, annotation=annotation)
-
     def materialize_code_bytes(
         self,
         offset: IROperand,
@@ -542,47 +530,33 @@ class VenomCodegenContext:
         self.builder.copy_to_memory(data_ptr, offset, length, location)
         return self.dynamic_memory_value(ptr, typ, annotation=annotation)
 
-    def copy_bytestring_to_scratch(
-        self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
-    ) -> VyperValue:
-        """Copy a bytestring value into exact-sized runtime scratch memory."""
-        src = self.unwrap(vv)
-        assert isinstance(src, IRVariable)
-        if is_unbounded_bytestring_type(vv.typ):
-            # INF source length is runtime-controlled, so keep overflow-checked
-            # size arithmetic. Bounded source length is already capped by type.
-            size = self.bytestring_runtime_size(src)
-        else:
-            size = self.unchecked_bytestring_runtime_size(src)
-        dst = self.allocate_scratch(size)
-        self.copy_memory_dynamic(dst, src, size)
-        return self.dynamic_memory_value(dst, typ, annotation=annotation)
-
-    def copy_dynarray_to_scratch(
-        self, vv: VyperValue, typ: DArrayT, annotation: Optional[str] = None
-    ) -> VyperValue:
-        """Copy a DynArray value into exact-sized runtime scratch memory."""
-        src = self.unwrap(vv)
-        assert isinstance(src, IRVariable)
-        if isinstance(vv.typ, DArrayT) and is_bounded_length(vv.typ.length):
-            # Bounded source count is already capped by type; INF count needs
-            # checked runtime size arithmetic.
-            size = self.unchecked_dynarray_runtime_size(src, typ)
-        else:
-            size = self.dynarray_runtime_size(src, typ)
-        dst = self.allocate_scratch(size)
-        self.copy_memory_dynamic(dst, src, size)
-        return self.dynamic_memory_value(dst, typ, annotation=annotation)
-
     def copy_sequence_to_scratch(
         self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
     ) -> VyperValue:
         """Copy an unbounded sequence value into exact-sized runtime scratch memory."""
+        src = self.unwrap(vv)
+        assert isinstance(src, IRVariable)
+
         if is_unbounded_bytestring_type(typ):
-            return self.copy_bytestring_to_scratch(vv, typ, annotation=annotation)
-        if isinstance(typ, DArrayT) and is_unbounded_dynarray_type(typ):
-            return self.copy_dynarray_to_scratch(vv, typ, annotation=annotation)
-        raise CompilerPanic(f"expected unbounded sequence type, got {typ}")  # pragma: nocover
+            # INF source length is runtime-controlled, so keep overflow-checked
+            # size arithmetic. Bounded source length is already capped by type.
+            if is_unbounded_bytestring_type(vv.typ):
+                size = self.bytestring_runtime_size(src)
+            else:
+                size = self.unchecked_bytestring_runtime_size(src)
+        elif isinstance(typ, DArrayT) and is_unbounded_dynarray_type(typ):
+            # Bounded source count is already capped by type; INF count needs
+            # checked runtime size arithmetic.
+            if isinstance(vv.typ, DArrayT) and is_bounded_length(vv.typ.length):
+                size = self.unchecked_dynarray_runtime_size(src, typ)
+            else:
+                size = self.dynarray_runtime_size(src, typ)
+        else:
+            raise CompilerPanic(f"expected unbounded sequence type, got {typ}")  # pragma: nocover
+
+        dst = self.allocate_scratch(size)
+        self.copy_memory_dynamic(dst, src, size)
+        return self.dynamic_memory_value(dst, typ, annotation=annotation)
 
     def materialize_value(
         self, vv: VyperValue, typ: Optional[VyperType] = None, annotation: Optional[str] = None
