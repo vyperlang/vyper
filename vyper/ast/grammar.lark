@@ -16,8 +16,11 @@ module: ( DOCSTRING
         | event_def
         | function_def
         | exports_decl
+        | uses_decl
+        | initializes_decl
         | _NEWLINE )*
 
+ref: NAME ("." NAME)*
 
 // Import statements (Supports all styles of Python imports)
 _AS: "as"
@@ -25,13 +28,10 @@ _FROM: "from"
 _IMPORT: "import"
 DOT: "."
 WILDCARD: "*"
-_import_name: NAME
-// NOTE: Don't use DOT here, just a separator
-_import_path: (_import_name ".")* _import_name
 import_alias: _AS NAME
-?import_list: _import_name [import_alias] ("," _import_name [import_alias] )* [","]
-_import_from: _FROM (DOT* _import_path | DOT+)
-import: _IMPORT DOT* _import_path [import_alias] ("," _import_path [import_alias] )* [","]
+?import_list: NAME [import_alias] ("," NAME [import_alias] )* [","]
+_import_from: _FROM (DOT* ref | DOT+)
+import: _IMPORT DOT* ref [import_alias] ("," ref [import_alias] )* [","]
       | _import_from _IMPORT ( WILDCARD | import_list )
 
 // Constant definitions
@@ -99,8 +99,7 @@ tuple_def: "(" ( NAME | array_def | dyn_array_def | tuple_def ) ( "," ( NAME | a
 // NOTE: Map takes a basic type and maps to another type (can be non-basic, including maps)
 _MAP: "HashMap"
 map_def: _MAP "[" ( NAME | array_def ) "," type "]"
-imported_type: NAME ("." NAME)+
-type: ( NAME | imported_type | array_def | tuple_def | map_def | dyn_array_def )
+type: ( ref | array_def | tuple_def | map_def | dyn_array_def )
 
 // Structs can be composed of 1+ basic types or other custom_types
 _STRUCT_DECL: "struct"
@@ -116,6 +115,15 @@ _IMPLEMENTS_DECL: "implements"
 implements_def: _IMPLEMENTS_DECL ":" NAME
 
 exports_decl: "exports" ":" (attribute | tuple)
+
+// `uses: foo`, `uses: pkg.lib`, or `uses: (foo, pkg.lib [, ...])`.
+uses_decl: "uses" ":" (ref | uses_tuple)
+uses_tuple: "(" ref ("," ref)* [","] ")"
+
+// `initializes: foo` or `initializes: foo[a := a, b := b]`.
+initializes_decl: "initializes" ":" ref [ "[" init_deps "]" ]
+init_deps: init_dep ("," init_dep)* [","]
+init_dep: ref ":=" ref
 
 // Statements
 // If and For blocks create a new block, and thus are complete when de-indented
