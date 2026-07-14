@@ -134,8 +134,8 @@ class StackSpiller:
         """
         Dup operation that handles deep stacks via spilling.
 
-        For stacks deeper than 16, spills the stack segment to memory,
-        then restores it with duplication.
+        For stacks deeper than 16, spills only the inaccessible prefix,
+        duplicates the now-reachable operand, then restores the prefix.
 
         Returns the cost (number of operations emitted).
         """
@@ -145,16 +145,27 @@ class StackSpiller:
             assembly.append(f"DUP{dup_idx}")
             return 1
 
-        # For deep stacks, use spill/restore technique
-        chunk_size = dup_idx
-        spill_ops, offsets, cost = self._spill_stack_segment(assembly, stack, chunk_size, dry_run)
+        # Spill only the inaccessible prefix so the source can be reached with
+        # DUP16. Keep the duplicate at the top while rebuilding that prefix.
+        spill_count = dup_idx - 16
+        spill_ops, offsets, cost = self._spill_stack_segment(assembly, stack, spill_count, dry_run)
 
-        indices = list(range(chunk_size))
-        desired_indices = [indices[-1]] + indices
+        reachable_depth = depth + spill_count
+        assert 1 - reachable_depth == 16
+        stack.dup(reachable_depth)
+        assembly.append("DUP16")
+        cost += 1
 
-        cost += self._restore_spilled_segment(
-            assembly, stack, spill_ops, offsets, desired_indices, dry_run
-        )
+        for idx in reversed(range(spill_count)):
+            assembly.extend(PUSH(offsets[idx]))
+            assembly.append("MLOAD")
+            stack.push(spill_ops[idx])
+            cost += 2
+            cost += self.swap(assembly, stack, -1, dry_run)
+
+        if not dry_run:
+            self._spill_free_slots.extend(offsets)
+
         return cost
 
     def _spill_stack_segment(
