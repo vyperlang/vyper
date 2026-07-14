@@ -114,6 +114,237 @@ _REVERT_POSTAMBLE = [Label("revert"), *PUSH(0), "DUP1", "REVERT"]
 # analysis completes) and resolved at assembly time.
 _INITIAL_FMP_CONST = "__initial_fmp__"
 
+_EVM_STACK_LIMIT = 1024
+
+
+class _DeadStackItem(IROperand):
+    """An intentionally retained physical stack slot with no logical value."""
+
+    def __init__(self):
+        super().__init__(object())
+
+    def __repr__(self) -> str:
+        return "<dead>"
+
+
+class _MustHaltRegions:
+    """
+    Per-function, codegen-lifetime analysis for guaranteed-halting regions.
+
+    Stack growth is deliberately overestimated from all distinct SSA values
+    reachable in the region plus the largest instruction/callee transient.
+    Cycles make the bound unknown.
+    """
+
+    def __init__(self, ctx: IRContext, cfg: CFGAnalysis, liveness: LivenessAnalysis):
+        self.ctx = ctx
+        self.cfg = cfg
+        self.function = cfg.function
+        self._liveness = {self.function: liveness}
+        self._must_halt = {self.function: self._compute_must_halt(self.function, self.cfg)}
+        self.must_halt = self._must_halt[self.function]
+        self._block_summaries: dict[IRBasicBlock, tuple[frozenset[IRVariable], int] | None] = {}
+        self._function_growth: dict[IRFunction, int | None] = {}
+        self._function_frame_growth: dict[IRFunction, int] = {}
+        self._caller_stack_heights: dict[IRFunction, int | None] = {}
+
+        functions = list(ctx.get_functions())
+        self._entry_function = ctx.entry_function
+        if self._entry_function is None and functions:
+            self._entry_function = functions[0]
+
+        self._callers: dict[IRFunction, set[IRFunction]] = {fn: set() for fn in functions}
+        for caller in functions:
+            for bb in caller.get_basic_blocks():
+                for inst in bb.instructions:
+                    if inst.opcode != "invoke":
+                        continue
+                    target = inst.operands[0]
+                    if isinstance(target, IRLabel) and target in ctx.functions:
+                        self._callers[ctx.get_function(target)].add(caller)
+
+        self._caller_stack_height = self._max_caller_stack_height(self.function, set())
+
+    def _compute_must_halt(self, fn: IRFunction, cfg: CFGAnalysis) -> set[IRBasicBlock]:
+        blocks = list(fn.get_basic_blocks())
+        result = {bb for bb in blocks if bb.is_halting}
+
+        changed = True
+        while changed:
+            changed = False
+            for bb in blocks:
+                successors = cfg.cfg_out(bb)
+                if bb not in result and successors and all(succ in result for succ in successors):
+                    result.add(bb)
+                    changed = True
+
+        return result
+
+    def can_skip_cleanup(self, bb: IRBasicBlock, current_height: int) -> bool:
+        if bb not in self.must_halt or self._caller_stack_height is None:
+            return False
+
+        growth = self._max_growth_from_block(bb, set(), {self.function})
+        return (
+            growth is not None
+            and self._caller_stack_height + current_height + growth <= _EVM_STACK_LIMIT
+        )
+
+    def _max_caller_stack_height(
+        self, fn: IRFunction, active_functions: set[IRFunction]
+    ) -> int | None:
+        if fn in self._caller_stack_heights:
+            return self._caller_stack_heights[fn]
+        if fn in active_functions:
+            return None
+
+        active_functions.add(fn)
+        heights = [0] if fn is self._entry_function else []
+        for caller in self._callers.get(fn, set()):
+            caller_height = self._max_caller_stack_height(caller, active_functions)
+            if caller_height is None:
+                active_functions.remove(fn)
+                self._caller_stack_heights[fn] = None
+                return None
+            heights.append(caller_height + self._max_function_frame_growth(caller))
+        active_functions.remove(fn)
+
+        height = max(heights) if heights else None
+        self._caller_stack_heights[fn] = height
+        return height
+
+    def _max_function_frame_growth(self, fn: IRFunction) -> int:
+        if fn in self._function_frame_growth:
+            return self._function_frame_growth[fn]
+
+        liveness = self._get_liveness(fn)
+        must_halt = self._get_must_halt(fn)
+        terminal_variables: set[IRVariable] = set()
+        early_return_outputs: set[IRVariable] = set()
+        max_live = 0
+        max_block_outputs = 0
+        max_operands = 0
+
+        for bb in fn.get_basic_blocks():
+            max_block_outputs = max(
+                max_block_outputs, sum(inst.num_outputs for inst in bb.instructions)
+            )
+            for inst in bb.instructions:
+                live = liveness.live_vars_at(inst)
+                max_live = max(max_live, len(live))
+                max_operands = max(max_operands, len(inst.operands))
+                if inst.opcode in ("offset", "phi"):
+                    early_return_outputs.update(inst.get_outputs())
+                if bb in must_halt:
+                    terminal_variables.update(inst.get_input_variables())
+                    terminal_variables.update(inst.get_outputs())
+                    terminal_variables.update(live)
+
+        # Outside a must-halt region, ordinary cleanup keeps the frame near
+        # the live set. Inside one, every SSA value in the region may coexist
+        # as retained junk. Track outputs from codegen paths which bypass
+        # normal dead-output cleanup (`offset` and `phi`) across blocks too.
+        growth = (
+            max_live
+            + len(terminal_variables)
+            + len(early_return_outputs)
+            + max_block_outputs
+            + max_operands
+            + 2
+        )
+        self._function_frame_growth[fn] = growth
+        return growth
+
+    def _max_growth_from_function(
+        self, fn: IRFunction, active_blocks: set[IRBasicBlock], active_functions: set[IRFunction]
+    ) -> int | None:
+        if fn in self._function_growth:
+            return self._function_growth[fn]
+        if fn in active_functions:
+            return None
+
+        active_functions.add(fn)
+        growth = self._max_growth_from_block(fn.entry, active_blocks, active_functions)
+        active_functions.remove(fn)
+        self._function_growth[fn] = growth
+        return growth
+
+    def _max_growth_from_block(
+        self, bb: IRBasicBlock, active_blocks: set[IRBasicBlock], active_functions: set[IRFunction]
+    ) -> int | None:
+        summary = self._stack_growth_summary(bb, active_blocks, active_functions)
+        if summary is None:
+            return None
+        variables, transient = summary
+        return len(variables) + transient
+
+    def _stack_growth_summary(
+        self, bb: IRBasicBlock, active_blocks: set[IRBasicBlock], active_functions: set[IRFunction]
+    ) -> tuple[frozenset[IRVariable], int] | None:
+        if bb in self._block_summaries:
+            return self._block_summaries[bb]
+        if bb in active_blocks:
+            return None
+
+        active_blocks.add(bb)
+
+        # A distinct SSA value can occupy at most one persistent physical
+        # slot. A consumed copy of each operand can coexist with those slots;
+        # two more cover lowering details such as jump labels, bump's DUP, and
+        # the one-slot transient used by deep stack spilling.
+        variables: set[IRVariable] = set()
+        max_transient = 0
+        liveness = self._get_liveness(bb.parent)
+        for inst in bb.instructions:
+            variables.update(inst.get_input_variables())
+            variables.update(inst.get_outputs())
+            variables.update(liveness.live_vars_at(inst))
+            inst_transient = len(inst.operands) + 2
+
+            if inst.opcode == "invoke":
+                target = inst.operands[0]
+                assert isinstance(target, IRLabel)
+                callee = self.ctx.get_function(target)
+                callee_growth = self._max_growth_from_function(
+                    callee, active_blocks, active_functions
+                )
+                if callee_growth is None:
+                    active_blocks.remove(bb)
+                    self._block_summaries[bb] = None
+                    return None
+                inst_transient += callee_growth
+
+            max_transient = max(max_transient, inst_transient)
+
+        for successor in bb.out_bbs:
+            successor_summary = self._stack_growth_summary(
+                successor, active_blocks, active_functions
+            )
+            if successor_summary is None:
+                active_blocks.remove(bb)
+                self._block_summaries[bb] = None
+                return None
+            successor_variables, successor_transient = successor_summary
+            variables.update(successor_variables)
+            max_transient = max(max_transient, successor_transient)
+
+        active_blocks.remove(bb)
+        summary = (frozenset(variables), max_transient)
+        self._block_summaries[bb] = summary
+        return summary
+
+    def _get_liveness(self, fn: IRFunction) -> LivenessAnalysis:
+        if fn not in self._liveness:
+            ac = IRAnalysesCache(fn)
+            self._liveness[fn] = ac.request_analysis(LivenessAnalysis)
+        return self._liveness[fn]
+
+    def _get_must_halt(self, fn: IRFunction) -> set[IRBasicBlock]:
+        if fn not in self._must_halt:
+            liveness = self._get_liveness(fn)
+            self._must_halt[fn] = self._compute_must_halt(fn, liveness.cfg)
+        return self._must_halt[fn]
+
 
 def apply_line_numbers(inst: IRInstruction, asm) -> list[str]:
     ret = []
@@ -158,6 +389,7 @@ class VenomCompiler:
         self.visited_basicblocks = OrderedSet()
         self.spiller = StackSpiller(ctx)
         self._uses_initial_fmp_const = False
+        self._must_halt_regions: _MustHaltRegions | None = None
 
     def mklabel(self, name: str) -> Label:
         self.label_counter += 1
@@ -168,6 +400,7 @@ class VenomCompiler:
         self.label_counter = 0
         self.spiller.reset_peak_spill_end()
         self._uses_initial_fmp_const = False
+        self._must_halt_regions = None
 
         asm: list[AssemblyInstruction] = []
 
@@ -180,11 +413,15 @@ class VenomCompiler:
 
             assert self.cfg.is_normalized(), "Non-normalized CFG!"
 
+            self._must_halt_regions = _MustHaltRegions(self.ctx, self.cfg, self.liveness)
             self.spiller.set_current_function(fn)
             self.spiller.reset_spill_slots()
 
-            self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), {})
-            self.spiller.set_current_function(None)
+            try:
+                self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), {})
+            finally:
+                self._must_halt_regions = None
+                self.spiller.set_current_function(None)
 
         # Declare the initial-FMP CONST if anything referenced it (the
         # entry function's FMP root is an explicit `initial_fmp`
@@ -501,6 +738,19 @@ class VenomCompiler:
         # bb it jumps into).
         layout = self.liveness.out_vars(in_bb)
         to_pop = list(layout.difference(inputs))
+
+        must_halt_regions = self._must_halt_regions
+        assert must_halt_regions is not None
+        if must_halt_regions.can_skip_cleanup(basicblock, stack.height):
+            # The values stay on the physical EVM stack, but they are dead on
+            # this edge. Forget their logical identities so a later halting
+            # join cannot mistake retained junk for an incoming phi value.
+            for var in to_pop:
+                depth = stack.get_depth(var)
+                if depth is not StackModel.NOT_IN_STACK:
+                    stack.poke(depth, _DeadStackItem())
+            return
+
         self.popmany(asm, to_pop, stack)
 
     def _generate_evm_for_instruction(
