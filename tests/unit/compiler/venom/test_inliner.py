@@ -172,3 +172,34 @@ def test_inliner_preserves_memory_read_max_size():
         inst for bb in main.get_basic_blocks() for inst in bb.instructions if inst.opcode == "mcopy"
     )
     assert inlined_copy.memory_read_max_size == 64
+
+
+def test_noinline_annotation():
+    src = """
+    function main {
+    main:
+        %1 = invoke @f
+        sink %1
+    }
+
+    function f [noinline] {
+    f:
+        %retpc = param
+        %1 = 42
+        ret %1, %retpc
+    }
+    """
+
+    flags = VenomOptimizationFlags(level=OptimizationLevel.CODESIZE)
+
+    def run_inliner(source):
+        ctx = parse_venom(source)
+        analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
+        FunctionInlinerPass(analyses, ctx, flags).run_pass()
+        return ctx
+
+    # a single call site would otherwise always be inlined
+    assert IRLabel("f") in run_inliner(src).functions
+
+    # sanity check: without the annotation, the function gets inlined
+    assert IRLabel("f") not in run_inliner(src.replace(" [noinline]", "")).functions

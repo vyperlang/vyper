@@ -75,6 +75,9 @@ class FunctionInlinerPass(IRGlobalPass):
             if call_count == 0:
                 continue
 
+            if func.noinline:
+                continue
+
             # Always inline if there is only one call site.
             if call_count == 1:
                 return func
