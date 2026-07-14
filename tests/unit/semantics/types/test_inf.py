@@ -1147,6 +1147,93 @@ def emit(x: Bytes[10]):
     )
 
 
+def test_bounded_event_accepts_wildcard_call_return():
+    code = """
+event Foo:
+    x: Bytes[10]
+
+interface I:
+    def foo() -> Bytes[...]: view
+
+@external
+def emit(a: address):
+    log Foo(x=staticcall I(a).foo())
+    """
+    compiler.compile_code(
+        code, output_formats=["bytecode"], settings=Settings(experimental_codegen=True)
+    )
+
+
+@pytest.mark.parametrize(
+    ("abi_item", "statement", "message"),
+    [
+        (
+            {
+                "anonymous": False,
+                "inputs": [{"indexed": False, "name": "x", "type": "bytes"}],
+                "name": "Foo",
+                "type": "event",
+            },
+            "log JSONInterface.Foo(x=staticcall JSONInterface(a).returns_bytes())",
+            "Events cannot contain unbounded sequence types",
+        ),
+        (
+            {"inputs": [{"name": "x", "type": "bytes"}], "name": "Oops", "type": "error"},
+            "raise JSONInterface.Oops(staticcall JSONInterface(a).returns_bytes())",
+            "Custom errors cannot contain unbounded sequence types",
+        ),
+    ],
+)
+def test_imported_wildcard_user_type_rejects_wildcard_call_return(
+    make_input_bundle, abi_item, statement, message
+):
+    function_abi = {
+        "inputs": [],
+        "name": "returns_bytes",
+        "outputs": [{"name": "", "type": "bytes"}],
+        "stateMutability": "view",
+        "type": "function",
+    }
+    code = f"""
+import JSONInterface
+
+@external
+def run(a: address):
+    {statement}
+    """
+    input_bundle = make_input_bundle({"JSONInterface.json": json.dumps([function_abi, abi_item])})
+    with pytest.raises(StructureException, match=message):
+        compiler.compile_code(
+            code, input_bundle=input_bundle, settings=Settings(experimental_codegen=True)
+        )
+
+
+def test_abi_encode_resolves_json_abi_wildcard_call_return(make_input_bundle):
+    abi = [
+        {
+            "inputs": [],
+            "name": "returns_bytes",
+            "outputs": [{"name": "", "type": "bytes"}],
+            "stateMutability": "view",
+            "type": "function",
+        }
+    ]
+    code = """
+import JSONInterface
+
+@external
+def encode(a: JSONInterface) -> Bytes[INF]:
+    return abi_encode(staticcall a.returns_bytes())
+    """
+    input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
+    compiler.compile_code(
+        code,
+        output_formats=["bytecode"],
+        input_bundle=input_bundle,
+        settings=Settings(experimental_codegen=True),
+    )
+
+
 def test_imported_wildcard_error_accepts_bounded_arg(make_input_bundle):
     abi = [{"inputs": [{"name": "x", "type": "bytes"}], "name": "Oops", "type": "error"}]
     code = """

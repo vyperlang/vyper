@@ -2278,6 +2278,10 @@ class ABIEncode(BuiltinFunctionT):
         "method_id": KwargSettings((BYTES4_T, BytesT(4)), None, require_literal=True),
     }
 
+    def infer_arg_types(self, node, expected_return_typ=None):
+        arg_types = super().infer_arg_types(node, expected_return_typ)
+        return [arg_t.resolve_wildcard() for arg_t in arg_types]
+
     def infer_kwarg_types(self, node):
         ret = {}
         for kwarg in node.keywords:

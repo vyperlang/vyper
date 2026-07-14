@@ -23,7 +23,7 @@ from vyper.semantics.analysis.utils import (
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.infinity import type_contains_unbounded_sequence
-from vyper.semantics.types.subscriptable import HashMapT
+from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT, TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import keccak256, method_id_int
 from vyper.warnings import Deprecation, vyper_warn
@@ -113,20 +113,48 @@ def _abi_input_name(item: dict, index: int, members: dict[str, VyperType]) -> st
     return name
 
 
-def _validated_expr_contains_unbounded_sequence(node: vy_ast.ExprNode) -> bool:
-    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return any(_validated_expr_contains_unbounded_sequence(item) for item in node.elements)
+def _validated_expr_contains_unbounded_sequence(
+    node: vy_ast.ExprNode, expected_type: VyperType | None
+) -> bool:
+    if isinstance(node, vy_ast.Tuple):
+        expected_types = (
+            expected_type.member_types
+            if isinstance(expected_type, TupleT)
+            else [None] * len(node.elements)
+        )
+        return any(
+            _validated_expr_contains_unbounded_sequence(item, item_type)
+            for item, item_type in zip(node.elements, expected_types)
+        )
+
+    if isinstance(node, vy_ast.List):
+        item_type = (
+            expected_type.value_type if isinstance(expected_type, (DArrayT, SArrayT)) else None
+        )
+        return any(
+            _validated_expr_contains_unbounded_sequence(item, item_type) for item in node.elements
+        )
 
     from vyper.semantics.analysis.utils import get_exact_type_from_node
 
     try:
-        return type_contains_unbounded_sequence(get_exact_type_from_node(node))
+        typ = get_exact_type_from_node(node)
     except VyperException:
         return False
 
+    if typ.has_wildcard:
+        if expected_type is not None and not expected_type.has_wildcard:
+            typ = expected_type
+        else:
+            typ = typ.resolve_wildcard()
 
-def _reject_unbounded_event_or_error_arg(arg_node: vy_ast.ExprNode, kind: str) -> None:
-    if _validated_expr_contains_unbounded_sequence(arg_node):
+    return type_contains_unbounded_sequence(typ)
+
+
+def _reject_unbounded_event_or_error_arg(
+    arg_node: vy_ast.ExprNode, expected_type: VyperType, kind: str
+) -> None:
+    if _validated_expr_contains_unbounded_sequence(arg_node, expected_type):
         raise StructureException(f"{kind} cannot contain unbounded sequence types", arg_node)
 
 
@@ -366,7 +394,9 @@ class EventT(_UserType):
 
             validate_kwargs(node, self.arguments, self.typeclass)
             for kwarg in node.keywords:
-                _reject_unbounded_event_or_error_arg(kwarg.value, "Events")
+                _reject_unbounded_event_or_error_arg(
+                    kwarg.value, self.arguments[kwarg.arg], "Events"
+                )
             return
 
         # warn about positional argument deprecation
@@ -386,7 +416,7 @@ class EventT(_UserType):
         validate_call_args(node, len(self.arguments))
         for arg, expected in zip(node.args, self.arguments.values()):
             validate_expected_type(arg, expected)
-            _reject_unbounded_event_or_error_arg(arg, "Events")
+            _reject_unbounded_event_or_error_arg(arg, expected, "Events")
 
     def to_toplevel_abi_dict(self) -> list[dict]:
         return [
@@ -462,12 +492,14 @@ class ErrorT(_UserType):
 
             validate_kwargs(node, self.arguments, self.typeclass)
             for kwarg in node.keywords:
-                _reject_unbounded_event_or_error_arg(kwarg.value, "Custom errors")
+                _reject_unbounded_event_or_error_arg(
+                    kwarg.value, self.arguments[kwarg.arg], "Custom errors"
+                )
         else:
             validate_call_args(node, len(self.arguments))
             for arg, expected in zip(node.args, self.arguments.values()):
                 validate_expected_type(arg, expected)
-                _reject_unbounded_event_or_error_arg(arg, "Custom errors")
+                _reject_unbounded_event_or_error_arg(arg, expected, "Custom errors")
 
         return self
 
