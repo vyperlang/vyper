@@ -144,8 +144,8 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         dst_alloca = dst_ptr.base_alloca
         if dst_alloca.is_dynamic:
             return None
-        assert 0 <= dst_ptr.offset
-        assert dst_ptr.offset + copy_size <= dst_alloca.alloca_size
+        if dst_ptr.offset < 0 or dst_ptr.offset + copy_size > dst_alloca.alloca_size:
+            return None
 
         src_loc = self.base_ptr.get_read_location(copy_inst, addr_space.MEMORY)
         dst_loc = self.base_ptr.get_write_location(copy_inst, addr_space.MEMORY)
@@ -163,8 +163,8 @@ class RedundantMemoryCopyForwardingPass(IRPass):
             if src_loc.alloca.alloca_size > _MAX_FORWARD_SOURCE_ALLOCA_SIZE:
                 return None
             assert src_loc.offset is not None  # implied by is_fixed
-            assert 0 <= src_loc.offset
-            assert src_loc.offset + copy_size <= src_loc.alloca.alloca_size
+            if src_loc.offset < 0 or src_loc.offset + copy_size > src_loc.alloca.alloca_size:
+                return None
             if self._allocation_pointer_escapes(src_loc.alloca):
                 return None
         elif not self._source_has_tracked_base(src) and self._source_is_readonly_param(src):

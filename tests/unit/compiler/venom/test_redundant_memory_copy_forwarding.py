@@ -484,6 +484,20 @@ def test_keeps_small_slice_of_large_source_without_layout_cost_model():
     _checker(pre, pre)
 
 
+@pytest.mark.parametrize("src_size,tmp_size", [(32, 64), (64, 32)])
+def test_keeps_copy_when_access_exceeds_alloca(src_size, tmp_size):
+    pre = f"""
+    main:
+        %src = alloca {src_size}
+        %tmp = alloca {tmp_size}
+        mcopy %tmp, %src, 64
+        %val = mload %tmp
+        sink %val
+    """
+
+    _checker(pre, pre)
+
+
 # ---------------------------------------------------------------------------
 # cross-block coverage
 # ---------------------------------------------------------------------------
