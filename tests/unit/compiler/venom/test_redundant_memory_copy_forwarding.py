@@ -421,11 +421,12 @@ def test_uses_dynamic_read_max_size_metadata(max_size, forwards):
 
 
 def test_literal_read_size_takes_precedence_over_max_size_metadata():
+    # The 65-byte read stays within %tmp but exceeds the 64-byte staged segment.
     src = """
     function main {
     main:
         %src = alloca 64
-        %tmp = alloca 64
+        %tmp = alloca 65
         mcopy %tmp, %src, 64
         %out = alloca 65
         mcopy %out, %tmp, 65

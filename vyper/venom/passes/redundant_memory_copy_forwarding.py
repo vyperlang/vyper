@@ -141,20 +141,15 @@ class RedundantMemoryCopyForwardingPass(IRPass):
         if dst_ptr is None or dst_ptr.offset is None:
             return None
 
-        dst_root_inst = dst_ptr.base_alloca.inst
-        if dst_root_inst is None or dst_root_inst.opcode != "alloca":
-            return None
-
-        dst_alloca = Allocation(dst_root_inst)
+        dst_alloca = dst_ptr.base_alloca
         if dst_alloca.is_dynamic:
             return None
-        if dst_ptr.offset < 0 or dst_ptr.offset + copy_size > dst_alloca.alloca_size:
-            return None
+        assert 0 <= dst_ptr.offset
+        assert dst_ptr.offset + copy_size <= dst_alloca.alloca_size
 
         src_loc = self.base_ptr.get_read_location(copy_inst, addr_space.MEMORY)
         dst_loc = self.base_ptr.get_write_location(copy_inst, addr_space.MEMORY)
-        if not dst_loc.is_fixed:
-            return None
+        assert dst_loc.is_fixed  # implied by the fixed destination pointer and copy size
         src_is_readonly_param = False
         if src_loc.is_fixed:
             if self._source_may_include_untracked_root(src):
@@ -168,8 +163,8 @@ class RedundantMemoryCopyForwardingPass(IRPass):
             if src_loc.alloca.alloca_size > _MAX_FORWARD_SOURCE_ALLOCA_SIZE:
                 return None
             assert src_loc.offset is not None  # implied by is_fixed
-            if src_loc.offset < 0 or src_loc.offset + copy_size > src_loc.alloca.alloca_size:
-                return None
+            assert 0 <= src_loc.offset
+            assert src_loc.offset + copy_size <= src_loc.alloca.alloca_size
             if self._allocation_pointer_escapes(src_loc.alloca):
                 return None
         elif not self._source_has_tracked_base(src) and self._source_is_readonly_param(src):
