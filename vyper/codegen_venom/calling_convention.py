@@ -30,10 +30,6 @@ def is_dynamic_tuple_return_type(typ: VyperType | None) -> bool:
     return isinstance(typ, TupleT) and type_contains_unbounded_sequence(typ)
 
 
-def is_dynamic_tuple_dynamic_member_type(typ: VyperType) -> bool:
-    return is_unbounded_sequence_type(typ) or not typ._is_prim_word
-
-
 def validate_dynamic_tuple_return_type(typ: VyperType | None) -> None:
     if not is_dynamic_tuple_return_type(typ):
         return
@@ -65,9 +61,7 @@ def returns_dynamic_count(func_t) -> int:
         return 1
     if is_dynamic_tuple_return_type(ret_t):
         validate_dynamic_tuple_return_type(ret_t)
-        return sum(
-            1 for member_t in ret_t.member_types if is_dynamic_tuple_dynamic_member_type(member_t)
-        )
+        return sum(1 for member_t in ret_t.member_types if not member_t._is_prim_word)
     return 0
 
 
@@ -84,11 +78,7 @@ def returns_stack_count(func_t) -> int:
 
     if is_dynamic_tuple_return_type(ret_t):
         validate_dynamic_tuple_return_type(ret_t)
-        return sum(
-            1
-            for member_t in ret_t.member_types
-            if not is_dynamic_tuple_dynamic_member_type(member_t)
-        )
+        return sum(1 for member_t in ret_t.member_types if member_t._is_prim_word)
 
     if is_tuple_like(ret_t):
         members = ret_t.tuple_items()

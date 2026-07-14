@@ -36,11 +36,7 @@ from vyper.utils import method_id_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .buffer import Ptr
-from .calling_convention import (
-    is_dynamic_tuple_dynamic_member_type,
-    returns_dynamic_count,
-    returns_stack_count,
-)
+from .calling_convention import returns_dynamic_count, returns_stack_count
 from .context import Constancy, LocalVariable, VenomCodegenContext
 from .eval_order import later_expressions_can_mutate_memory_or_storage
 from .expr import Expr
@@ -1186,7 +1182,7 @@ class Stmt:
                 member_ptr = normalized.operand
                 src_member_t = dst_member_t
 
-            if is_dynamic_tuple_dynamic_member_type(dst_member_t):
+            if not dst_member_t._is_prim_word:
                 size = self._dynamic_return_member_size(member_ptr, dst_member_t, src_member_t)
                 dynamic_return_operands.extend([member_ptr, size])
                 continue

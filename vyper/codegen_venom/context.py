@@ -39,11 +39,6 @@ from vyper.utils import IDENTITY_PRECOMPILE
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 
-from .calling_convention import (
-    is_dynamic_tuple_dynamic_member_type as _is_dynamic_tuple_dynamic_member_type,
-)
-
-
 class Constancy(Enum):
     Mutable = 0
     Constant = 1
@@ -254,9 +249,7 @@ class VenomCodegenContext:
         assert self.is_dynamic_tuple_frame_type(typ)
 
         member_types = tuple(typ.member_types)
-        ordinary_count = sum(
-            1 for member_t in member_types if not _is_dynamic_tuple_dynamic_member_type(member_t)
-        )
+        ordinary_count = sum(1 for member_t in member_types if member_t._is_prim_word)
         dynamic_count = len(member_types) - ordinary_count
         assert len(outputs) == ordinary_count + dynamic_count
 
@@ -265,11 +258,9 @@ class VenomCodegenContext:
         dynamic_i = 0
         for i, member_t in enumerate(member_types):
             cell = self.builder.add(frame, IRLiteral(i * 32))
-            if _is_dynamic_tuple_dynamic_member_type(member_t):
+            if not member_t._is_prim_word:
                 value = outputs[ordinary_count + dynamic_i]
                 dynamic_i += 1
-            elif not member_t._is_prim_word:  # pragma: nocover
-                raise CompilerPanic("non-primitive tuple return member must use a copied output")
             else:
                 value = outputs[ordinary_i]
                 ordinary_i += 1

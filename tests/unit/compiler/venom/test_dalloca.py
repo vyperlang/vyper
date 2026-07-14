@@ -1,6 +1,6 @@
 import pytest
-from pyrevm import EVM, AccountInfo
 
+from tests.evm_backends.base_env import BaseEnv
 from tests.venom_utils import assert_ctx_eq, find_inst, parse_from_basic_block, run_ssa
 from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.evm.address_space import MEMORY
@@ -74,16 +74,13 @@ def _apply_loop_lowering(fn):
     SingleUseExpansion(IRAnalysesCache(fn), fn).run_pass()
 
 
-def _execute(bytecode: bytes, calldata: bytes = b"") -> bytes:
-    caller = "0x" + "10" * 20
-    addr = "0x" + "20" * 20
-    evm = EVM()
-    evm.set_balance(caller, 1)
-    evm.insert_account_info(addr, AccountInfo(code=bytecode))
-    return evm.message_call(caller=caller, to=addr, calldata=calldata, gas=1_000_000)
+def _execute(env: BaseEnv, bytecode: bytes, calldata: bytes = b"") -> bytes:
+    initcode = bytes.fromhex(f"61{len(bytecode):04x}3d81600a3d39f3") + bytecode
+    contract = env.deploy([], initcode)
+    return env.message_call(contract.address, data=calldata, gas=1_000_000)
 
 
-def _run_program(src: str, calldata: bytes = b"", *, lower=_apply_lowering) -> bytes:
+def _run_program(env: BaseEnv, src: str, calldata: bytes = b"", *, lower=_apply_lowering) -> bytes:
     ctx = parse_venom(src)
     # lower callees before callers: lowering a caller's invokes writes the
     # hidden operands against the callee's already-sealed fmp signature, and
@@ -93,11 +90,11 @@ def _run_program(src: str, calldata: bytes = b"", *, lower=_apply_lowering) -> b
 
     asm = VenomCompiler(ctx).generate_evm_assembly()
     bytecode, _ = assembly_to_evm(asm)
-    return _execute(bytecode, calldata)
+    return _execute(env, bytecode, calldata)
 
 
 def _run_program_full_pipeline(
-    src: str, calldata: bytes = b"", *, disable_inlining: bool
+    env: BaseEnv, src: str, calldata: bytes = b"", *, disable_inlining: bool
 ) -> tuple[bytes, IRContext]:
     ctx = parse_venom(src)
     flags = VenomOptimizationFlags(level=OptimizationLevel.O2, disable_inlining=disable_inlining)
@@ -105,7 +102,7 @@ def _run_program_full_pipeline(
 
     asm = VenomCompiler(ctx).generate_evm_assembly()
     bytecode, _ = assembly_to_evm(asm)
-    return _execute(bytecode, calldata), ctx
+    return _execute(env, bytecode, calldata), ctx
 
 
 def _word(out: bytes, idx: int = 0) -> int:
@@ -141,8 +138,9 @@ def test_dalloca_does_not_crash_memory_dse():
     ("calldata", "expected_ptr1", "expected_ptr2"),
     [(b"", 0, 0), (b"x", 0, 32), (b"x" * 31, 0, 32), (b"x" * 32, 0, 32), (b"x" * 33, 0, 64)],
 )
-def test_dalloca_handles_small_sizes(calldata, expected_ptr1, expected_ptr2):
+def test_dalloca_handles_small_sizes(env, calldata, expected_ptr1, expected_ptr2):
     out = _run_program(
+        env,
         """
         function main {
             main:
@@ -161,11 +159,13 @@ def test_dalloca_handles_small_sizes(calldata, expected_ptr1, expected_ptr2):
     assert _word(out, 1) == expected_ptr2
 
 
-def test_dalloca_region_word_aligned_after_static_frame():
+def test_dalloca_region_word_aligned_after_static_frame(env):
     # the static frame is ceil32(33) = 64 bytes, so the dynamic region must
     # start word-aligned at 64 (%a is a zero-size allocation and shares the
     # address with %b)
-    out = _run_program("""
+    out = _run_program(
+        env,
+        """
         function main {
             main:
                 %static = alloca 33
@@ -176,7 +176,8 @@ def test_dalloca_region_word_aligned_after_static_frame():
                 mstore 32, %b
                 return 0, 64
         }
-        """)
+        """,
+    )
 
     assert _word(out, 0) == 64
     assert _word(out, 1) == 64
@@ -280,8 +281,10 @@ def test_dret_reaching_codegen_panics():
         VenomCompiler(ctx).generate_evm_assembly()
 
 
-def test_auto_reclaim_before_later_allocation_when_dead():
-    out = _run_program("""
+def test_auto_reclaim_before_later_allocation_when_dead(env):
+    out = _run_program(
+        env,
+        """
         function main {
             main:
                 %p = dalloca 32
@@ -290,12 +293,15 @@ def test_auto_reclaim_before_later_allocation_when_dead():
                 mstore 0, %q
                 return 0, 32
         }
-        """)
+        """,
+    )
     assert _word(out) == 0
 
 
-def test_auto_reclaim_keeps_aliased_live_allocation():
-    out = _run_program("""
+def test_auto_reclaim_keeps_aliased_live_allocation(env):
+    out = _run_program(
+        env,
+        """
         function main {
             main:
                 %p = dalloca 32
@@ -307,13 +313,16 @@ def test_auto_reclaim_keeps_aliased_live_allocation():
                 mstore 32, %v
                 return 0, 64
         }
-        """)
+        """,
+    )
     assert _word(out, 0) == 32
     assert _word(out, 1) == 7
 
 
-def test_auto_reclaim_keeps_pointer_arithmetic_alias_live():
-    out = _run_program("""
+def test_auto_reclaim_keeps_pointer_arithmetic_alias_live(env):
+    out = _run_program(
+        env,
+        """
         function main {
             main:
                 %p = dalloca 64
@@ -327,13 +336,15 @@ def test_auto_reclaim_keeps_pointer_arithmetic_alias_live():
                 mstore 32, %v
                 return 0, 64
         }
-        """)
+        """,
+    )
     assert _word(out, 0) == 64
     assert _word(out, 1) == 7
 
 
-def test_auto_reclaim_pre_ssa_reassigned_pointer_var_is_conservative():
+def test_auto_reclaim_pre_ssa_reassigned_pointer_var_is_conservative(env):
     out = _run_program(
+        env,
         """
         function main {
             main:
@@ -367,8 +378,10 @@ def test_auto_reclaim_pre_ssa_reassigned_pointer_var_is_conservative():
     assert _word(out, 1) == 7
 
 
-def test_auto_reclaim_only_dead_lifo_suffix():
-    out = _run_program("""
+def test_auto_reclaim_only_dead_lifo_suffix(env):
+    out = _run_program(
+        env,
+        """
         function main {
             main:
                 %a = dalloca 32
@@ -379,12 +392,14 @@ def test_auto_reclaim_only_dead_lifo_suffix():
                 mstore 0, %c
                 return 0, 32
         }
-        """)
+        """,
+    )
     assert _word(out) == 64
 
 
-def test_auto_reclaim_across_simple_branches():
+def test_auto_reclaim_across_simple_branches(env):
     out = _run_program(
+        env,
         """
         function main {
             main:
@@ -411,8 +426,9 @@ def test_auto_reclaim_across_simple_branches():
     assert _word(out) == 0
 
 
-def test_loop_carried_dalloca_threads_fmp_conservatively():
+def test_loop_carried_dalloca_threads_fmp_conservatively(env):
     out, _ = _run_program_full_pipeline(
+        env,
         """
         function main {
             main:
@@ -435,8 +451,10 @@ def test_loop_carried_dalloca_threads_fmp_conservatively():
     assert _word(out) == 32
 
 
-def test_hidden_fmp_output_on_dret_invoke_moves_later_dalloca():
-    out = _run_program("""
+def test_hidden_fmp_output_on_dret_invoke_moves_later_dalloca(env):
+    out = _run_program(
+        env,
+        """
         function main {
             main:
                 %returned = invoke @callee
@@ -453,7 +471,8 @@ def test_hidden_fmp_output_on_dret_invoke_moves_later_dalloca():
                 mstore %p, 7
                 dret 1, %p, 32, %retpc
         }
-        """)
+        """,
+    )
     assert _word(out, 0) == 0
     assert _word(out, 1) == 32
 
@@ -643,8 +662,10 @@ def test_get_transitive_uses_handles_multi_output_bump():
     assert any(inst.opcode == "add" for inst in uses)
 
 
-def test_dret_desugar_with_ordinary_return_and_dynamic_buffer():
-    out = _run_program("""
+def test_dret_desugar_with_ordinary_return_and_dynamic_buffer(env):
+    out = _run_program(
+        env,
+        """
         function main {
             main:
                 %ordinary, %ptr = invoke @callee
@@ -661,13 +682,16 @@ def test_dret_desugar_with_ordinary_return_and_dynamic_buffer():
                 mstore %p, 0x1234
                 dret 1, 99, %p, 32, %retpc
         }
-        """)
+        """,
+    )
     assert _word(out, 0) == 99
     assert _word(out, 1) == 0x1234
 
 
-def test_dret_desugar_with_multiple_dynamic_buffers():
-    out = _run_program("""
+def test_dret_desugar_with_multiple_dynamic_buffers(env):
+    out = _run_program(
+        env,
+        """
         function main {
             main:
                 %a, %b = invoke @callee
@@ -689,15 +713,18 @@ def test_dret_desugar_with_multiple_dynamic_buffers():
                 mstore %b, 22
                 dret 2, %a, 32, %b, 32, %retpc
         }
-        """)
+        """,
+    )
     assert _word(out, 0) == 0
     assert _word(out, 1) == 32
     assert _word(out, 2) == 11
     assert _word(out, 3) == 22
 
 
-def test_dret_desugar_handles_swapped_return_sources():
-    out = _run_program("""
+def test_dret_desugar_handles_swapped_return_sources(env):
+    out = _run_program(
+        env,
+        """
         function main {
             main:
                 %a, %b = invoke @callee
@@ -717,14 +744,16 @@ def test_dret_desugar_handles_swapped_return_sources():
                 mstore %b, 22
                 dret 2, %b, 32, %a, 32, %retpc
         }
-    """)
+    """,
+    )
     assert _word(out, 0) == 22
     assert _word(out, 1) == 11
 
 
 @pytest.mark.parametrize(("calldata", "expected_next"), [(b"", 0), (b"x" * 33, 64)])
-def test_dret_supports_zero_and_runtime_sizes(calldata, expected_next):
+def test_dret_supports_zero_and_runtime_sizes(env, calldata, expected_next):
     out = _run_program(
+        env,
         """
         function main {
             main:
@@ -750,7 +779,7 @@ def test_dret_supports_zero_and_runtime_sizes(calldata, expected_next):
     assert _word(out, 1) == expected_next
 
 
-def test_dret_pre_cancun_copy_path(monkeypatch):
+def test_dret_pre_cancun_copy_path(env, monkeypatch):
     monkeypatch.setattr(fmp_lowering, "version_check", lambda **kwargs: False)
     ctx = parse_venom("""
         function callee {
@@ -769,6 +798,7 @@ def test_dret_pre_cancun_copy_path(monkeypatch):
     assert "assert" in opcodes
 
     out = _run_program(
+        env,
         """
         function main {
             main:
@@ -792,7 +822,7 @@ def test_dret_pre_cancun_copy_path(monkeypatch):
     assert _word(out) == 7
 
 
-def test_dret_full_pipeline_with_and_without_inlining():
+def test_dret_full_pipeline_with_and_without_inlining(env):
     src = """
     function main {
         main:
@@ -811,16 +841,17 @@ def test_dret_full_pipeline_with_and_without_inlining():
     }
     """
 
-    out_inlined, ctx_inlined = _run_program_full_pipeline(src, disable_inlining=False)
-    out_no_inline, _ = _run_program_full_pipeline(src, disable_inlining=True)
+    out_inlined, ctx_inlined = _run_program_full_pipeline(env, src, disable_inlining=False)
+    out_no_inline, _ = _run_program_full_pipeline(env, src, disable_inlining=True)
 
     assert _word(out_inlined) == 123
     assert out_inlined == out_no_inline
     assert IRLabel("callee") not in ctx_inlined.functions
 
 
-def test_dret_adopted_fmp_flows_to_later_non_inlined_callee():
+def test_dret_adopted_fmp_flows_to_later_non_inlined_callee(env):
     out, _ = _run_program_full_pipeline(
+        env,
         """
         function main {
             main:
@@ -905,27 +936,27 @@ function dret_callee {
 """
 
 
-def test_invoke_hidden_fmp_operand_rewritten_after_caller_dalloca():
-    out = _run_program(_STALE_INVOKE_FMP_SRC)
+def test_invoke_hidden_fmp_operand_rewritten_after_caller_dalloca(env):
+    out = _run_program(env, _STALE_INVOKE_FMP_SRC)
     assert _word(out, 0) == 5
     assert _word(out, 1) == 7
 
-    out, _ = _run_program_full_pipeline(_STALE_INVOKE_FMP_SRC, disable_inlining=True)
+    out, _ = _run_program_full_pipeline(env, _STALE_INVOKE_FMP_SRC, disable_inlining=True)
     assert _word(out, 0) == 5
     assert _word(out, 1) == 7
 
 
-def test_invoke_hidden_fmp_operand_rewritten_after_caller_dalloca_inlined():
+def test_invoke_hidden_fmp_operand_rewritten_after_caller_dalloca_inlined(env):
     # structural property: DretDesugarPass roots the inlined callee's pack
     # addresses at a cloned `getfmp`, which FmpLoweringPass threads to the
     # host's post-bump FMP -- there is no stale entry-FMP operand left to
     # consume.
-    out, _ = _run_program_full_pipeline(_STALE_INVOKE_FMP_SRC, disable_inlining=False)
+    out, _ = _run_program_full_pipeline(env, _STALE_INVOKE_FMP_SRC, disable_inlining=False)
     assert _word(out, 0) == 5
     assert _word(out, 1) == 7
 
 
-def test_auto_reclaim_suppressed_for_live_allocation_dropped_at_merge():
+def test_auto_reclaim_suppressed_for_live_allocation_dropped_at_merge(env):
     # One arm of the branch allocates %p2 on top of %p1; the join's meet
     # drops %p2 from the allocation stack (divergent stacks), but %p2 stays
     # live through the phi %p3. Reclaiming %p1's (dead) mark at %p4 would
@@ -958,19 +989,20 @@ def test_auto_reclaim_suppressed_for_live_allocation_dropped_at_merge():
             return 0, 32
     }
     """
-    out = _run_program(src, b"x")
+    out = _run_program(env, src, b"x")
     assert _word(out) == 777
 
-    out, _ = _run_program_full_pipeline(src, calldata=b"x", disable_inlining=True)
+    out, _ = _run_program_full_pipeline(env, src, calldata=b"x", disable_inlining=True)
     assert _word(out) == 777
 
 
-def test_no_reclaim_for_pointer_escaping_through_memory():
+def test_no_reclaim_for_pointer_escaping_through_memory(env):
     # %x's pointer escapes SSA tracking by being stored (as a value) into a
     # static slot, then is reloaded through an optimizer-opaque address.
     # Reclaiming %x at %q's allocation would let %q overwrite memory that is
     # still reachable through the slot.
     out = _run_program(
+        env,
         """
         function main {
             main:
@@ -1076,7 +1108,7 @@ def test_dret_desugar_shape_is_purely_local():
     check_calling_convention(ctx)
 
 
-def test_inlined_publishing_callee_host_does_not_publish():
+def test_inlined_publishing_callee_host_does_not_publish(env):
     # `retfmp` maps like `ret` in the inliner: values assigned to the
     # call-site outputs, jmp to the continuation, no FMP restore. The host's
     # publish status is determined by the HOST's own terminators: after
@@ -1134,8 +1166,8 @@ def test_inlined_publishing_callee_host_does_not_publish():
     assert info.needs_fmp is True
 
     # end-to-end execution equivalence, inlined and not
-    out_inlined, _ = _run_program_full_pipeline(src, disable_inlining=False)
-    out_no_inline, _ = _run_program_full_pipeline(src, disable_inlining=True)
+    out_inlined, _ = _run_program_full_pipeline(env, src, disable_inlining=False)
+    out_no_inline, _ = _run_program_full_pipeline(env, src, disable_inlining=True)
     assert _word(out_inlined, 0) == 123
     assert _word(out_inlined, 1) == 123
     assert out_inlined == out_no_inline
@@ -1277,7 +1309,7 @@ def test_fmp_param_retpc_param_round_trip():
     assert_ctx_eq(ctx, parse_venom(str(ctx)))
 
 
-def test_entry_function_seeds_initial_fmp_no_prelude():
+def test_entry_function_seeds_initial_fmp_no_prelude(env):
     # the entry function's FMP root is an explicit `initial_fmp` instruction
     # (lowered to the deferred __initial_fmp__ CONST); the assembler entry
     # prelude special case is gone, so the assembly starts with the CONST
@@ -1310,15 +1342,16 @@ def test_entry_function_seeds_initial_fmp_no_prelude():
     assert isinstance(asm[1], Label)
 
     bytecode, _ = assembly_to_evm(asm)
-    out = _execute(bytecode)
+    out = _execute(env, bytecode)
     assert _word(out) == 7
 
 
-def test_fmp_prune_seals_signature_and_callers_see_final_shape():
+def test_fmp_prune_seals_signature_and_callers_see_final_shape(env):
     # callee's dalloca dies in the optimization tail; FmpPrunePass deletes
     # the fmp_param chain and seals the signature BEFORE main is lowered, so
     # main's invoke is never augmented with a (stale) hidden FMP operand.
     out, ctx = _run_program_full_pipeline(
+        env,
         """
         function main {
             main:
@@ -1390,7 +1423,7 @@ def _assert_single_fmp_param_layout(fwd):
     assert [inst.opcode for inst in params] == ["param", "fmp_param", "retpc_param"]
 
 
-def test_never_returning_forwarder_gets_single_fmp_param():
+def test_never_returning_forwarder_gets_single_fmp_param(env):
     # a never-returning forwarder (no `ret` to anchor the return-PC param)
     # must end up with exactly ONE hidden FMP param. FmpLoweringPass runs
     # once and the slot is named by the syntactic `fmp_param` opcode (the
@@ -1412,7 +1445,7 @@ def test_never_returning_forwarder_gets_single_fmp_param():
 
     asm = VenomCompiler(ctx).generate_evm_assembly()
     bytecode, _ = assembly_to_evm(asm)
-    out = _execute(bytecode)
+    out = _execute(env, bytecode)
     assert _word(out) == 7
 
     # variant 2: full O2 pipeline on frontend-realistic raw IR -- the
@@ -1428,7 +1461,7 @@ def test_never_returning_forwarder_gets_single_fmp_param():
 
     asm = VenomCompiler(ctx).generate_evm_assembly()
     bytecode, _ = assembly_to_evm(asm)
-    out = _execute(bytecode)
+    out = _execute(env, bytecode)
     assert _word(out) == 7
 
 
@@ -1492,7 +1525,7 @@ def test_post_lowering_check_fires_on_corrupted_shape():
 # ---------------------------------------------------------------------------
 
 
-def test_loop_dalloca_reclaimed_each_iteration():
+def test_loop_dalloca_reclaimed_each_iteration(env):
     # a dalloca that dies within the loop body is reclaimed at the back
     # edge every iteration: the FMP does not grow with the trip count, and
     # the post-loop allocation lands back at the base address.
@@ -1515,10 +1548,10 @@ def test_loop_dalloca_reclaimed_each_iteration():
             return 0, 32
     }
     """
-    out = _run_program(src, lower=_apply_loop_lowering)
+    out = _run_program(env, src, lower=_apply_loop_lowering)
     assert _word(out) == 0  # 64 if the loop leaked one buffer per iteration
 
-    out, _ = _run_program_full_pipeline(src, disable_inlining=True)
+    out, _ = _run_program_full_pipeline(env, src, disable_inlining=True)
     assert _word(out) == 0
 
     # IR-level: the back-edge reclaim is a restore of %p's mark in the loop
@@ -1536,13 +1569,14 @@ def test_loop_dalloca_reclaimed_each_iteration():
     assert len(restores) == 1
 
 
-def test_loop_carried_live_dalloca_not_reclaimed():
+def test_loop_carried_live_dalloca_not_reclaimed(env):
     # negative: a loop-carried live pointer (previous iteration's buffer
     # read by the next iteration) blocks per-iteration reclaim. The meet at
     # the loop header drops the live mark (sound: untracked allocations are
     # never reclaimed), so each iteration's buffer stays intact and the FMP
     # grows monotonically.
     out = _run_program(
+        env,
         """
         function main {
             main:
@@ -1577,12 +1611,15 @@ def test_loop_carried_live_dalloca_not_reclaimed():
 
 
 @pytest.mark.parametrize(("calldata", "expected_q", "expected_vx"), [(b"x", 0, 9), (b"", 0, 0)])
-def test_reclaim_fires_across_join_with_agreeing_top_segment(calldata, expected_q, expected_vx):
+def test_reclaim_fires_across_join_with_agreeing_top_segment(
+    env, calldata, expected_q, expected_vx
+):
     # precision: one arm allocates a scratch buffer that dies before the
     # join (popped at the arm's terminator), so all predecessors agree on
     # the surviving top segment [%m]. The meet keeps %m and the reclaim
     # fires after the join -- the engine is not all-or-nothing at merges.
     out = _run_program(
+        env,
         """
         function main {
             main:
@@ -1617,11 +1654,13 @@ def test_reclaim_fires_across_join_with_agreeing_top_segment(calldata, expected_
     assert _word(out, 2) == expected_vx
 
 
-def test_getfmp_capture_blocks_reclaim_while_live():
+def test_getfmp_capture_blocks_reclaim_while_live(env):
     # %e captures the FMP at 0 (where %p is then allocated). While %e is
     # live, popping %p would let %q reuse address 0 and clobber the memory
     # %e still addresses -- the capture vetoes the reclaim.
-    out = _run_program("""
+    out = _run_program(
+        env,
+        """
         function main {
             main:
                 %e = getfmp
@@ -1636,16 +1675,19 @@ def test_getfmp_capture_blocks_reclaim_while_live():
                 mstore 64, %v
                 return 0, 96
         }
-        """)
+        """,
+    )
     assert _word(out, 0) == 32  # %q did not reuse %p's address
     assert _word(out, 1) == 5  # the capture still sees %p's data
     assert _word(out, 2) == 5
 
 
-def test_getfmp_capture_allows_reclaim_after_death():
+def test_getfmp_capture_allows_reclaim_after_death(env):
     # once the capture (and everything derived from it) is dead, it no
     # longer vetoes: the dead %p is reclaimed and %q reuses its address.
-    out = _run_program("""
+    out = _run_program(
+        env,
+        """
         function main {
             main:
                 %e = getfmp
@@ -1658,16 +1700,19 @@ def test_getfmp_capture_allows_reclaim_after_death():
                 mstore 32, %v
                 return 0, 64
         }
-        """)
+        """,
+    )
     assert _word(out, 0) == 0  # %p reclaimed; %q reuses the base address
     assert _word(out, 1) == 5
 
 
-def test_escaped_getfmp_capture_pins_reclaim():
+def test_escaped_getfmp_capture_pins_reclaim(env):
     # the capture escapes SSA tracking (stored to memory as a value), so
     # derived pointers can re-enter where liveness cannot see them: the
     # capture vetoes reclaim for the rest of the function (fail closed).
-    out = _run_program("""
+    out = _run_program(
+        env,
+        """
         function main {
             main:
                 %slot = alloca 32
@@ -1681,7 +1726,8 @@ def test_escaped_getfmp_capture_pins_reclaim():
                 mstore 32, %v
                 return 0, 64
         }
-        """)
+        """,
+    )
     assert _word(out, 0) == 64  # %p not reclaimed (static frame is 32 bytes)
     assert _word(out, 1) == 5
 
@@ -1722,9 +1768,9 @@ function callee {
 """
 
 
-def test_inlined_dret_pack_anchor_reclaim_bait():
-    out_inlined, _ = _run_program_full_pipeline(_PACK_ANCHOR_SRC, disable_inlining=False)
-    out_no_inline, _ = _run_program_full_pipeline(_PACK_ANCHOR_SRC, disable_inlining=True)
+def test_inlined_dret_pack_anchor_reclaim_bait(env):
+    out_inlined, _ = _run_program_full_pipeline(env, _PACK_ANCHOR_SRC, disable_inlining=False)
+    out_no_inline, _ = _run_program_full_pipeline(env, _PACK_ANCHOR_SRC, disable_inlining=True)
 
     assert _word(out_inlined, 0) == 11
     assert _word(out_inlined, 1) == 22
@@ -1734,13 +1780,14 @@ def test_inlined_dret_pack_anchor_reclaim_bait():
 
 
 @pytest.mark.parametrize(("calldata", "expected_q", "expected_vx"), [(b"x", 64, 9), (b"", 32, 7)])
-def test_meet_over_three_predecessors_drops_divergent_mark(calldata, expected_q, expected_vx):
+def test_meet_over_three_predecessors_drops_divergent_mark(env, calldata, expected_q, expected_vx):
     # three predecessors: one carries a live divergent allocation on top of
     # %m, the other two only %m. The top segments disagree, so the meet
     # drops everything: %m is intentionally NOT reclaimed at the join (a
     # restore to it would free the live %x above it), and %q allocates
     # above the leak.
     out = _run_program(
+        env,
         """
         function main {
             main:
