@@ -95,16 +95,152 @@ def test_dup_spills_deep_stack() -> None:
     assert isinstance(depth, int) and depth < -16
     dup_idx = 1 - depth
 
-    compiler.spiller.dup(assembly, stack, depth)
+    cost = compiler.spiller.dup(assembly, stack, depth)
 
     expected = before.copy()
     expected.append(target)
     assert stack._stack == expected
 
     ops_str = _ops_only_strings(assembly)
-    assert ops_str.count("MSTORE") == dup_idx
-    assert ops_str.count("MLOAD") == dup_idx + 1
-    assert all(int(op[3:]) <= 16 for op in ops_str if op.startswith("DUP"))
+    spill_count = dup_idx - 16
+    assert ops_str.count("MSTORE") == spill_count
+    assert ops_str.count("MLOAD") == spill_count
+    assert [op for op in ops_str if op.startswith("SWAP")] == [f"SWAP{spill_count}"]
+    assert [op for op in ops_str if op.startswith("DUP")] == ["DUP16"]
+    assert cost == 2 + 4 * spill_count
+
+
+@pytest.mark.parametrize("dup_idx", range(16, 65))
+def test_dup_stack_model(dup_idx: int) -> None:
+    compiler = VenomCompiler(IRContext())
+    compiler.spiller._next_spill_offset = 0x10000
+    stack, ops = _build_stack(64)
+    assembly: list = []
+
+    target = ops[-dup_idx]
+    before = stack._stack.copy()
+    depth = stack.get_depth(target)
+    assert depth == 1 - dup_idx
+
+    cost = compiler.spiller.dup(assembly, stack, depth)
+
+    assert stack._stack == before + [target]
+
+    spill_count = max(0, dup_idx - 16)
+    ops_str = _ops_only_strings(assembly)
+    assert ops_str.count("MSTORE") == spill_count
+    assert ops_str.count("MLOAD") == spill_count
+    assert [op for op in ops_str if op.startswith("DUP")] == [f"DUP{min(dup_idx, 16)}"]
+
+    expected_swaps: list[str] = []
+    if 0 < spill_count <= 16:
+        expected_swaps = [f"SWAP{spill_count}"]
+    elif spill_count > 16:
+        expected_swaps = ["SWAP1"] * spill_count
+    assert [op for op in ops_str if op.startswith("SWAP")] == expected_swaps
+    assert cost == 1 + 4 * spill_count + len(expected_swaps)
+
+
+def test_deep_dup_reuses_spill_slots() -> None:
+    compiler = VenomCompiler(IRContext())
+    spiller = compiler.spiller
+    first_slot = 0x10000
+    spiller._spill_free_slots = [first_slot]
+    spiller._next_spill_offset = first_slot + 32
+    spiller.peak_spill_end = first_slot + 32
+
+    for _ in range(2):
+        stack, ops = _build_stack(18)
+        before = stack._stack.copy()
+        assembly: list = []
+
+        spiller.dup(assembly, stack, stack.get_depth(ops[0]))
+
+        assert stack._stack == before + [ops[0]]
+        assert sorted(spiller._spill_free_slots) == [first_slot, first_slot + 32]
+        assert spiller._next_spill_offset == first_slot + 64
+        assert spiller.peak_spill_end == first_slot + 64
+
+
+def test_deep_dup_dry_run_cost_matches_and_preserves_state() -> None:
+    compiler = VenomCompiler(IRContext())
+    spiller = compiler.spiller
+    first_slot = 0x10000
+    spiller._spill_free_slots = [first_slot]
+    spiller._next_spill_offset = first_slot + 32
+    spiller.peak_spill_end = first_slot + 32
+    snap = spiller.snapshot()
+
+    dry_stack, dry_ops = _build_stack(20)
+    dry_before = dry_stack._stack.copy()
+    dry_assembly: list = []
+    dry_cost = spiller.dup(dry_assembly, dry_stack, dry_stack.get_depth(dry_ops[0]), dry_run=True)
+
+    assert dry_stack._stack == dry_before + [dry_ops[0]]
+    assert spiller.snapshot() == snap
+    assert spiller.peak_spill_end == first_slot + 32
+
+    stack, ops = _build_stack(20)
+    before = stack._stack.copy()
+    assembly: list = []
+    cost = spiller.dup(assembly, stack, stack.get_depth(ops[0]))
+
+    assert stack._stack == before + [ops[0]]
+    assert cost == dry_cost == 18
+    assert _ops_only_strings(assembly) == _ops_only_strings(dry_assembly)
+    assert spiller._next_spill_offset == first_slot + 128
+    assert spiller.peak_spill_end == first_slot + 128
+
+
+def test_deep_dup_peak_spill_end_tracks_partial_prefix() -> None:
+    compiler = VenomCompiler(IRContext())
+    spiller = compiler.spiller
+    first_slot = 0x10000
+    spiller._next_spill_offset = first_slot
+    stack, ops = _build_stack(64)
+
+    spiller.dup([], stack, stack.get_depth(ops[0]))
+
+    spill_count = 64 - 16
+    expected_end = first_slot + spill_count * 32
+    assert spiller._next_spill_offset == expected_end
+    assert spiller.peak_spill_end == expected_end
+    assert len(spiller._spill_free_slots) == spill_count
+
+
+def test_partial_deep_dup_integration() -> None:
+    ctx = IRContext()
+    fn = ctx.create_function("deep_dup")
+    bb = fn.get_basic_block()
+    target = bb.append_instruction("calldataload", 0)
+    values = [bb.append_instruction("calldataload", i) for i in range(1, 17)]
+
+    # Keep the target and all intervening values live so copying target enters
+    # the deep-DUP path at DUP17.
+    acc = bb.append_instruction("add", target, 1)
+    for value in values:
+        acc = bb.append_instruction("add", acc, value)
+    bb.append_instruction("add", acc, target)
+    bb.append_instruction("stop")
+
+    ctx.mem_allocator.fn_eom[fn] = 0x10000
+    compiler = VenomCompiler(ctx)
+    asm = compiler.generate_evm_assembly(no_optimize=True)
+    opcodes = _ops_only_strings(asm)
+
+    assert opcodes.count("MSTORE") == 1
+    assert opcodes.count("MLOAD") == 1
+    assert opcodes.count("DUP16") == 1
+    store_idx = opcodes.index("MSTORE")
+    assert opcodes[store_idx - 1 : store_idx + 5] == [
+        "PUSH3",
+        "MSTORE",
+        "DUP16",
+        "PUSH3",
+        "MLOAD",
+        "SWAP1",
+    ]
+    assert compiler.spiller.peak_spill_end == 0x10020
 
 
 def test_stack_reorder_spills_before_swap() -> None:
