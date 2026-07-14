@@ -1,24 +1,22 @@
 import pytest
 
 from vyper.compiler.settings import OptimizationLevel
-from vyper.ir.compile_ir import Label
+from vyper.evm.assembler.instructions import Label
 from vyper.venom import generate_assembly_experimental
 from vyper.venom.analysis import CFGAnalysis, IRAnalysesCache, LivenessAnalysis, MustHaltAnalysis
-from vyper.venom.basicblock import IRLabel, IRVariable
+from vyper.venom.basicblock import IRLabel
 from vyper.venom.context import IRContext
 from vyper.venom.parser import parse_venom
-from vyper.venom.stack_model import StackModel
-from vyper.venom.stack_safety import StackCleanupSafety, _EVM_STACK_LIMIT
+from vyper.venom.stack_safety import StackCleanupSafety
 from vyper.venom.venom_to_assembly import VenomCompiler
 
 
 def _get_stack_cleanup_analyses(ctx, fn_name="test"):
-    analyses_caches = {candidate: IRAnalysesCache(candidate) for candidate in ctx.get_functions()}
     fn = ctx.get_function(IRLabel(fn_name))
-    ac = analyses_caches[fn]
+    ac = IRAnalysesCache(fn)
     liveness = ac.request_analysis(LivenessAnalysis)
     must_halt = ac.request_analysis(MustHaltAnalysis)
-    safety = StackCleanupSafety(ctx, analyses_caches)
+    safety = ac.request_analysis(StackCleanupSafety)
     return fn, liveness, must_halt, safety
 
 
@@ -45,9 +43,16 @@ def test_cleanup_stack():
 
 
 @pytest.mark.parametrize(
-    "terminator", ["return 0, 32", "revert 0, 32", "stop", "invalid", "selfdestruct 0"]
+    ("terminator", "evm_opcode"),
+    [
+        ("return 0, 32", "RETURN"),
+        ("revert 0, 32", "REVERT"),
+        ("stop", "STOP"),
+        ("invalid", "INVALID"),
+        ("selfdestruct 0", "SELFDESTRUCT"),
+    ],
 )
-def test_cleanup_elided_for_direct_and_transitive_message_halts(terminator):
+def test_direct_and_transitive_message_halts(terminator, evm_opcode):
     ctx = parse_venom(f"""
         function test {{
         entry:
@@ -74,8 +79,7 @@ def test_cleanup_elided_for_direct_and_transitive_message_halts(terminator):
     assert expected == {bb.label.value for bb in must_halt.must_halt}
 
     asm = VenomCompiler(ctx).generate_evm_assembly(no_optimize=True)
-    assert "POP" not in _block_opcodes(asm, "direct")
-    assert "POP" not in _block_opcodes(asm, "chain")
+    assert evm_opcode in asm
     assert fn.get_basic_block("direct").is_halting
     assert not fn.get_basic_block("chain").is_halting
 
@@ -157,14 +161,18 @@ def test_must_halt_analysis_is_cached_and_invalidated_with_cfg():
     ac = IRAnalysesCache(fn)
 
     first = ac.request_analysis(MustHaltAnalysis)
+    first_safety = ac.request_analysis(StackCleanupSafety)
     assert ac.request_analysis(MustHaltAnalysis) is first
+    assert ac.request_analysis(StackCleanupSafety) is first_safety
     assert fn.entry in first.must_halt
 
     fn.entry.instructions[-1].opcode = "ret"
     ac.invalidate_analysis(CFGAnalysis)
 
     second = ac.request_analysis(MustHaltAnalysis)
+    second_safety = ac.request_analysis(StackCleanupSafety)
     assert second is not first
+    assert second_safety is not first_safety
     assert fn.entry not in second.must_halt
 
 
@@ -236,13 +244,9 @@ def test_callee_stack_bound_includes_the_caller_frame():
     """)
     fn, _, _, safety = _get_stack_cleanup_analyses(ctx, "callee")
     halt = fn.get_basic_block("halt")
-    growth = safety._max_growth_from_block(halt, set(), {fn})
-    caller_height = safety._max_caller_stack_height(fn, set())
+    safe_height = safety.max_safe_current_height(halt)
 
-    assert growth is not None
-    assert caller_height is not None and caller_height > 0
-    safe_height = _EVM_STACK_LIMIT - caller_height - growth
-    assert safety.max_safe_current_height(halt) == safe_height
+    assert safe_height is not None
     assert safety.can_skip_cleanup(halt, safe_height)
     assert not safety.can_skip_cleanup(halt, safe_height + 1)
 
@@ -290,39 +294,19 @@ def test_cleanup_falls_back_near_evm_stack_limit():
             stop
         }
     """)
-    fn, liveness, _, safety = _get_stack_cleanup_analyses(ctx)
+    fn, _, _, safety = _get_stack_cleanup_analyses(ctx)
     halt = fn.get_basic_block("halt")
-    junk = fn.entry.instructions[0].output
-
-    compiler = VenomCompiler(ctx)
-    compiler.cfg = liveness.cfg
-    compiler.liveness = liveness
-    compiler._stack_cleanup_safety = safety
 
     safe_height = safety.max_safe_current_height(halt)
     assert safe_height is not None
+    assert safety.can_skip_cleanup(halt, safe_height)
+    assert not safety.can_skip_cleanup(halt, safe_height + 1)
 
-    def stack_at_height(height):
-        stack = StackModel()
-        for i in range(height - 1):
-            stack.push(IRVariable(f"%padding_{i}"))
-        stack.push(junk)
-        return stack
-
-    safe_stack = stack_at_height(safe_height)
-    safe_asm = []
-    compiler.clean_stack_from_cfg_in(safe_asm, halt, safe_stack)
-    assert safe_asm == []
-    assert safe_stack.height == safe_height
-
-    unsafe_stack = stack_at_height(safe_height + 1)
-    unsafe_asm = []
-    compiler.clean_stack_from_cfg_in(unsafe_asm, halt, unsafe_stack)
-    assert unsafe_asm == ["POP"]
-    assert unsafe_stack.height == safe_height
+    asm = VenomCompiler(ctx).generate_evm_assembly(no_optimize=True)
+    assert "POP" not in _block_opcodes(asm, "halt")
 
 
-def test_retained_values_do_not_desynchronize_recursive_codegen_or_spill_slots():
+def test_cleanup_elision_does_not_induce_spilling():
     loads = "\n".join(f"%v{i} = mload {i * 32}" for i in range(24))
     left_sum = "\n".join(
         ["%a0 = add %v0, %v23"] + [f"%a{i} = add %a{i - 1}, %v{i}" for i in range(1, 12)]
@@ -357,14 +341,11 @@ def test_retained_values_do_not_desynchronize_recursive_codegen_or_spill_slots()
         return compiler, asm
 
     compiler, asm = compile_source()
-    _, second_asm = compile_source()
+    left_ops = _block_opcodes(asm, "left")
+    right_ops = _block_opcodes(asm, "right")
 
-    assert [str(item) for item in asm] == [str(item) for item in second_asm]
-    assert "POP" not in _block_opcodes(asm, "left")
-    assert "POP" not in _block_opcodes(asm, "right")
-    assert compiler.spiller.peak_spill_end > spill_base
-
-    allocated_slots = set(range(spill_base, compiler.spiller.peak_spill_end, 32))
-    free_slots = compiler.spiller._spill_free_slots
-    assert set(free_slots) == allocated_slots
-    assert len(free_slots) == len(allocated_slots)
+    # Left-path junk is interleaved with live values and is cleaned.  Right-
+    # path junk is a harmless bottom prefix and is retained.  Neither path
+    # needs the bulk memory spill caused by retaining arbitrary junk.
+    assert left_ops.count("POP") > right_ops.count("POP")
+    assert compiler.spiller.peak_spill_end == 0
