@@ -456,6 +456,12 @@ class ConstructorValidator(VyperNodeVisitorBase):
         ret: dict[ModuleInfo, list[vy_ast.VyperNode]] = {}
 
         for call in node.get_descendants(vy_ast.Call):
+
+            reverting_builtins = ("raw_revert", "selfdestruct")
+
+            if isinstance(call.func, vy_ast.Name) and call.func.id in reverting_builtins:
+                return None
+
             initialized_module_info = self._validate_call(call, init_calls)
             if initialized_module_info is not None:
 
