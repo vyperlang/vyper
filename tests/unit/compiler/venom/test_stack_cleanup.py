@@ -3,19 +3,23 @@ import pytest
 from vyper.compiler.settings import OptimizationLevel
 from vyper.ir.compile_ir import Label
 from vyper.venom import generate_assembly_experimental
-from vyper.venom.analysis import IRAnalysesCache, LivenessAnalysis
+from vyper.venom.analysis import CFGAnalysis, IRAnalysesCache, LivenessAnalysis, MustHaltAnalysis
 from vyper.venom.basicblock import IRLabel, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.parser import parse_venom
 from vyper.venom.stack_model import StackModel
-from vyper.venom.venom_to_assembly import VenomCompiler, _EVM_STACK_LIMIT, _MustHaltRegions
+from vyper.venom.stack_safety import StackCleanupSafety, _EVM_STACK_LIMIT
+from vyper.venom.venom_to_assembly import VenomCompiler
 
 
-def _get_must_halt_regions(ctx, fn_name="test"):
+def _get_stack_cleanup_analyses(ctx, fn_name="test"):
+    analyses_caches = {candidate: IRAnalysesCache(candidate) for candidate in ctx.get_functions()}
     fn = ctx.get_function(IRLabel(fn_name))
-    ac = IRAnalysesCache(fn)
+    ac = analyses_caches[fn]
     liveness = ac.request_analysis(LivenessAnalysis)
-    return fn, liveness, _MustHaltRegions(ctx, liveness.cfg, liveness)
+    must_halt = ac.request_analysis(MustHaltAnalysis)
+    safety = StackCleanupSafety(ctx, analyses_caches)
+    return fn, liveness, must_halt, safety
 
 
 def _block_opcodes(asm, label):
@@ -65,9 +69,9 @@ def test_cleanup_elided_for_direct_and_transitive_message_halts(terminator):
         }}
     """)
 
-    fn, _, regions = _get_must_halt_regions(ctx)
+    fn, _, must_halt, _ = _get_stack_cleanup_analyses(ctx)
     expected = {"entry", "direct", "chain", "terminal_a", "terminal_b"}
-    assert expected == {bb.label.value for bb in regions.must_halt}
+    assert expected == {bb.label.value for bb in must_halt.must_halt}
 
     asm = VenomCompiler(ctx).generate_evm_assembly(no_optimize=True)
     assert "POP" not in _block_opcodes(asm, "direct")
@@ -97,9 +101,9 @@ def test_only_guaranteed_halting_branch_region_retains_junk():
                 stop
             }}
         """)
-        fn, _, regions = _get_must_halt_regions(ctx)
+        fn, _, must_halt, _ = _get_stack_cleanup_analyses(ctx)
         asm = VenomCompiler(ctx).generate_evm_assembly(no_optimize=True)
-        return fn, regions, _block_opcodes(asm, "candidate")
+        return fn, must_halt, _block_opcodes(asm, "candidate")
 
     all_halt_fn, all_halt_regions, all_halt_ops = compile_candidate("stop")
     mixed_fn, mixed_regions, mixed_ops = compile_candidate("ret %retpc")
@@ -119,8 +123,8 @@ def test_internal_returns_are_not_message_halts(terminator):
         }}
     """)
 
-    fn, _, regions = _get_must_halt_regions(ctx)
-    assert fn.entry not in regions.must_halt
+    fn, _, must_halt, _ = _get_stack_cleanup_analyses(ctx)
+    assert fn.entry not in must_halt.must_halt
 
 
 def test_loop_with_halting_exit_is_not_must_halt():
@@ -135,10 +139,52 @@ def test_loop_with_halting_exit_is_not_must_halt():
         }
     """)
 
-    fn, _, regions = _get_must_halt_regions(ctx)
-    assert fn.get_basic_block("halt") in regions.must_halt
-    assert fn.get_basic_block("loop") not in regions.must_halt
-    assert fn.get_basic_block("entry") not in regions.must_halt
+    fn, _, must_halt, _ = _get_stack_cleanup_analyses(ctx)
+    assert fn.get_basic_block("halt") in must_halt.must_halt
+    assert fn.get_basic_block("loop") not in must_halt.must_halt
+    assert fn.get_basic_block("entry") not in must_halt.must_halt
+
+
+def test_must_halt_analysis_is_cached_and_invalidated_with_cfg():
+    ctx = parse_venom("""
+        function test {
+        entry:
+            stop
+        }
+    """)
+    fn = ctx.entry_function
+    assert fn is not None
+    ac = IRAnalysesCache(fn)
+
+    first = ac.request_analysis(MustHaltAnalysis)
+    assert ac.request_analysis(MustHaltAnalysis) is first
+    assert fn.entry in first.must_halt
+
+    fn.entry.instructions[-1].opcode = "ret"
+    ac.invalidate_analysis(CFGAnalysis)
+
+    second = ac.request_analysis(MustHaltAnalysis)
+    assert second is not first
+    assert fn.entry not in second.must_halt
+
+
+def test_stack_cleanup_elision_requires_a_known_entry_function():
+    ctx = parse_venom("""
+        function test {
+        entry:
+            jnz 1, @halt, @other_halt
+        halt:
+            stop
+        other_halt:
+            stop
+        }
+    """)
+    ctx.entry_function = None
+
+    fn, _, must_halt, safety = _get_stack_cleanup_analyses(ctx)
+    halt = fn.get_basic_block("halt")
+    assert halt in must_halt
+    assert not safety.can_skip_cleanup(halt, 0)
 
 
 def test_stack_bound_rejects_recursive_internal_calls():
@@ -161,10 +207,10 @@ def test_stack_bound_rejects_recursive_internal_calls():
                 ret %retpc
             }}
         """)
-        fn, _, regions = _get_must_halt_regions(ctx)
+        fn, _, must_halt, safety = _get_stack_cleanup_analyses(ctx)
         candidate = fn.get_basic_block("candidate")
-        assert candidate in regions.must_halt
-        return regions.can_skip_cleanup(candidate, 0)
+        assert candidate in must_halt.must_halt
+        return safety.can_skip_cleanup(candidate, 0)
 
     assert candidate_is_safe("nop")
     assert not candidate_is_safe("invoke @callee")
@@ -188,16 +234,17 @@ def test_callee_stack_bound_includes_the_caller_frame():
             stop
         }
     """)
-    fn, _, regions = _get_must_halt_regions(ctx, "callee")
+    fn, _, _, safety = _get_stack_cleanup_analyses(ctx, "callee")
     halt = fn.get_basic_block("halt")
-    growth = regions._max_growth_from_block(halt, set(), {fn})
-    caller_height = regions._caller_stack_height
+    growth = safety._max_growth_from_block(halt, set(), {fn})
+    caller_height = safety._max_caller_stack_height(fn, set())
 
     assert growth is not None
     assert caller_height is not None and caller_height > 0
     safe_height = _EVM_STACK_LIMIT - caller_height - growth
-    assert regions.can_skip_cleanup(halt, safe_height)
-    assert not regions.can_skip_cleanup(halt, safe_height + 1)
+    assert safety.max_safe_current_height(halt) == safe_height
+    assert safety.can_skip_cleanup(halt, safe_height)
+    assert not safety.can_skip_cleanup(halt, safe_height + 1)
 
 
 def test_retained_junk_loses_its_identity_before_a_halting_phi_join():
@@ -222,8 +269,8 @@ def test_retained_junk_loses_its_identity_before_a_halting_phi_join():
         }
     """)
 
-    _, _, regions = _get_must_halt_regions(ctx)
-    assert {"entry", "p1", "p2", "join"} == {bb.label.value for bb in regions.must_halt}
+    _, _, must_halt, _ = _get_stack_cleanup_analyses(ctx)
+    assert {"entry", "p1", "p2", "join"} == {bb.label.value for bb in must_halt.must_halt}
 
     asm = VenomCompiler(ctx).generate_evm_assembly(no_optimize=True)
     assert "RETURN" in asm
@@ -243,18 +290,17 @@ def test_cleanup_falls_back_near_evm_stack_limit():
             stop
         }
     """)
-    fn, liveness, regions = _get_must_halt_regions(ctx)
+    fn, liveness, _, safety = _get_stack_cleanup_analyses(ctx)
     halt = fn.get_basic_block("halt")
     junk = fn.entry.instructions[0].output
 
     compiler = VenomCompiler(ctx)
     compiler.cfg = liveness.cfg
     compiler.liveness = liveness
-    compiler._must_halt_regions = regions
+    compiler._stack_cleanup_safety = safety
 
-    growth = regions._max_growth_from_block(halt, set(), {fn})
-    assert growth is not None
-    safe_height = _EVM_STACK_LIMIT - growth
+    safe_height = safety.max_safe_current_height(halt)
+    assert safe_height is not None
 
     def stack_at_height(height):
         stack = StackModel()

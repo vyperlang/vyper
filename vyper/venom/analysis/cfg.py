@@ -118,6 +118,7 @@ class CFGAnalysis(IRAnalysis):
             DFGAnalysis,
             DominatorTreeAnalysis,
             LivenessAnalysis,
+            MustHaltAnalysis,
             ReachableAnalysis,
         )
 
@@ -132,4 +133,5 @@ class CFGAnalysis(IRAnalysis):
 
         self.analyses_cache.invalidate_analysis(DominatorTreeAnalysis)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        self.analyses_cache.invalidate_analysis(MustHaltAnalysis)
         self.analyses_cache.invalidate_analysis(ReachableAnalysis)
