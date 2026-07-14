@@ -39,6 +39,7 @@ from vyper.utils import IDENTITY_PRECOMPILE
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 
+
 class Constancy(Enum):
     Mutable = 0
     Constant = 1
