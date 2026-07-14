@@ -1068,6 +1068,53 @@ initializes: lib1
     assert e.value._message == "ownership already set to `uses`"
 
 
+def test_root_uses_forbidden(make_input_bundle):
+    lib1 = """
+counter: uint256
+    """
+    main = """
+import lib1
+
+uses: lib1
+
+@external
+def foo():
+    lib1.counter += 1
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    with pytest.raises(StructureException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "the top-level module cannot `uses:` another module"
+    assert e.value._hint == "replace `uses: lib1` with `initializes: lib1`"
+
+
+def test_root_uses_forbidden_tuple(make_input_bundle):
+    lib1 = """
+counter: uint256
+    """
+    lib2 = """
+counter: uint256
+    """
+    main = """
+import lib1
+import lib2
+
+uses: (lib1, lib2)
+
+@external
+def foo():
+    lib1.counter += 1
+    lib2.counter += 1
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+
+    with pytest.raises(StructureException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == "the top-level module cannot `uses:` another module"
+    assert e.value._hint == "replace `uses: lib1` with `initializes: lib1`"
+
+
 def test_uses_twice(make_input_bundle):
     lib1 = """
 counter: uint256
@@ -1549,14 +1596,11 @@ def bar() -> uint256:
     """
     input_bundle = make_input_bundle({"abstract_m.vy": abstract_m, "override_m.vy": override_m})
 
-    with pytest.raises(InitializerException) as e:
+    with pytest.raises(StructureException) as e:
         compile_code(contract, input_bundle=input_bundle)
 
-    # Verify the error message is helpful
-    expected_msg = "abstract_m.vy` is used but never initialized!"
-    assert expected_msg in e.value._message
-    expected_hint = "add `initializes: abstract_m`"
-    assert expected_hint in e.value._hint
+    assert e.value._message == "the top-level module cannot `uses:` another module"
+    assert e.value._hint == "replace `uses: abstract_m` with `initializes: abstract_m`"
 
 
 def test_call_to_abstract_without_uses(make_input_bundle):
@@ -1754,11 +1798,11 @@ def test_foo() -> uint256:
         {"abstract_module.vy": abstract_module, "override_module.vy": override_module}
     )
 
-    with pytest.raises(InitializerException) as e:
+    with pytest.raises(StructureException) as e:
         compile_code(contract, input_bundle=input_bundle)
 
-    assert "abstract_module.vy` is used but never initialized!" in e.value._message
-    assert "add `initializes: abstract_module`" in e.value._hint
+    assert e.value._message == "the top-level module cannot `uses:` another module"
+    assert e.value._hint == "replace `uses: abstract_module` with `initializes: abstract_module`"
 
 
 def test_at_call_does_not_propagate_writes(make_input_bundle):
