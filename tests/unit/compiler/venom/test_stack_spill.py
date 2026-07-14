@@ -105,9 +105,9 @@ def test_dup_spills_deep_stack() -> None:
     spill_count = dup_idx - 16
     assert ops_str.count("MSTORE") == spill_count
     assert ops_str.count("MLOAD") == spill_count
-    assert ops_str.count("SWAP1") == spill_count
+    assert [op for op in ops_str if op.startswith("SWAP")] == [f"SWAP{spill_count}"]
     assert [op for op in ops_str if op.startswith("DUP")] == ["DUP16"]
-    assert cost == 1 + 5 * spill_count
+    assert cost == 2 + 4 * spill_count
 
 
 @pytest.mark.parametrize("dup_idx", range(16, 65))
@@ -130,9 +130,15 @@ def test_dup_stack_model(dup_idx: int) -> None:
     ops_str = _ops_only_strings(assembly)
     assert ops_str.count("MSTORE") == spill_count
     assert ops_str.count("MLOAD") == spill_count
-    assert ops_str.count("SWAP1") == spill_count
     assert [op for op in ops_str if op.startswith("DUP")] == [f"DUP{min(dup_idx, 16)}"]
-    assert cost == 1 + 5 * spill_count
+
+    expected_swaps: list[str] = []
+    if 0 < spill_count <= 16:
+        expected_swaps = [f"SWAP{spill_count}"]
+    elif spill_count > 16:
+        expected_swaps = ["SWAP1"] * spill_count
+    assert [op for op in ops_str if op.startswith("SWAP")] == expected_swaps
+    assert cost == 1 + 4 * spill_count + len(expected_swaps)
 
 
 def test_deep_dup_reuses_spill_slots() -> None:
@@ -180,7 +186,7 @@ def test_deep_dup_dry_run_cost_matches_and_preserves_state() -> None:
     cost = spiller.dup(assembly, stack, stack.get_depth(ops[0]))
 
     assert stack._stack == before + [ops[0]]
-    assert cost == dry_cost == 21
+    assert cost == dry_cost == 18
     assert _ops_only_strings(assembly) == _ops_only_strings(dry_assembly)
     assert spiller._next_spill_offset == first_slot + 128
     assert spiller.peak_spill_end == first_slot + 128
