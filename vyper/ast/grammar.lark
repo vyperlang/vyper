@@ -123,7 +123,7 @@ uses_tuple: "(" ref ("," ref)* [","] ")"
 // `initializes: foo` or `initializes: foo[a := a, b := b]`.
 initializes_decl: "initializes" ":" ref [ "[" init_deps "]" ]
 init_deps: init_dep ("," init_dep)* [","]
-init_dep: ref ":=" ref
+init_dep: NAME ":=" NAME
 
 // Statements
 // If and For blocks create a new block, and thus are complete when de-indented
