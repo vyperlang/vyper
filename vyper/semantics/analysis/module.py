@@ -175,6 +175,11 @@ def _validate_used_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None
         info = decl._metadata["exports_info"]
         all_used_modules.update([u.module_t for u in info.used_modules])
 
+    for init_info in module_t.initialized_modules:
+        dependencies = init_info.module_info.module_t.used_modules
+        for dep in dependencies:
+            all_used_modules.add(dep.module_t)
+
     for used_module in all_used_modules:
         if used_module in initialized_modules:
             continue

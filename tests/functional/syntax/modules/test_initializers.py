@@ -18,6 +18,7 @@ from vyper.exceptions import (
     InitializerException,
     StructureException,
     UndeclaredDefinition,
+    VyperException,
 )
 
 from .helpers import NONREENTRANT_NOTE
@@ -2475,6 +2476,126 @@ def __init__():
 """
     input_bundle = make_input_bundle({"lib1.vy": _LIB1, "b.vy": b, "x.vy": x, "a.vy": a})
     assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_forwarded_init_dep_satisfies_uses(make_input_bundle):
+    # forwarder borrows lib1 solely to forward it into child's initializer.
+    # It never touches lib1's state directly, but the `uses: lib1` declaration
+    # must still be accepted so callers of forwarder are required to init lib1
+    # before forwarder.
+    forwarder = """
+import lib1
+import child
+
+uses: lib1
+initializes: child[lib1 := lib1]
+
+@deploy
+def __init__():
+    child.__init__()
+"""
+    main = """
+import lib1
+import child
+import forwarder
+
+initializes: lib1
+initializes: forwarder[lib1 := lib1]
+
+@deploy
+def __init__():
+    lib1.__init__()
+    forwarder.__init__()
+"""
+    input_bundle = make_input_bundle(
+        {"lib1.vy": _LIB1, "child.vy": _LIB2_USES_LIB1, "forwarder.vy": forwarder}
+    )
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_forwarded_init_dep_partial_still_errors(make_input_bundle, chdir_tmp_path):
+    # forwarder declares `uses: (lib1, lib2)` but only forwards lib1 into
+    # child. lib2 is genuinely unused and must still trigger BorrowException.
+    lib2 = """
+counter: uint256
+
+@deploy
+def __init__():
+    pass
+"""
+    forwarder = """
+import lib1
+import lib2
+import child
+
+uses: lib1
+uses: lib2
+initializes: child[lib1 := lib1]
+
+@deploy
+def __init__():
+    child.__init__()
+"""
+    main = """
+import lib1
+import lib2
+import child
+import forwarder
+
+initializes: lib1
+initializes: lib2
+initializes: forwarder[lib1 := lib1, lib2 := lib2]
+
+@deploy
+def __init__():
+    lib1.__init__()
+    lib2.__init__()
+    forwarder.__init__()
+"""
+    input_bundle = make_input_bundle(
+        {"lib1.vy": _LIB1, "lib2.vy": lib2, "child.vy": _LIB2_USES_LIB1, "forwarder.vy": forwarder}
+    )
+    with pytest.raises(BorrowException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value._message == (
+        "`lib2` is declared as used, but its state is not actually used in forwarder.vy!"
+    )
+    assert e.value._hint == "delete `uses: lib2`"
+
+
+def test_forward_without_uses_still_errors(make_input_bundle):
+    # forwarder tries to forward lib1 into child but neither `uses:` nor
+    # `initializes:` lib1 itself. The compiler must still reject this — the
+    # forwarded-deps-count-as-uses relaxation should not paper over the
+    # missing ownership token.
+    forwarder = """
+import lib1
+import child
+
+initializes: child[lib1 := lib1]
+
+@deploy
+def __init__():
+    child.__init__()
+"""
+    main = """
+import lib1
+import child
+import forwarder
+
+initializes: lib1
+initializes: forwarder
+
+@deploy
+def __init__():
+    lib1.__init__()
+    forwarder.__init__()
+"""
+    input_bundle = make_input_bundle(
+        {"lib1.vy": _LIB1, "child.vy": _LIB2_USES_LIB1, "forwarder.vy": forwarder}
+    )
+    with pytest.raises(VyperException):
+        compile_code(main, input_bundle=input_bundle)
 
 
 def test_dep_initialized_by_prior_module_constructor(make_input_bundle):
