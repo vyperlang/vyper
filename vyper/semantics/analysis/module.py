@@ -418,14 +418,24 @@ class ConstructorValidator(VyperNodeVisitorBase):
 
         # If A uses B, make sure B.__init__ is called before A.__init__
 
+        depends_on = other_module_info.module_t.used_modules
+        """
+        Modules which this module depends on, including transitively (done through mutation).
+        """
+
         uninitialized_dependents: list[str] = []
         """
         Modules which the other module initializes, but whose init are not called beforehand
         """
 
-        for dependent in other_module_info.module_t.used_modules:
+
+        while depends_on:
+            # Pop from front, makes more relevant modules appear first
+            dependent = depends_on.pop(0)
             if dependent.module_t.init_function is None:
-                # no constructor to check
+                # init-less modules are initialized implicitly when all their dependencies are
+                # initialized. this implies we need to check all their dependencies manually.
+                depends_on.extend(dependent.module_t.used_modules)
                 continue
 
             dependent_init_calls = init_calls[dependent]

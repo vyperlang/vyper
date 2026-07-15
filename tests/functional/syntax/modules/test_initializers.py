@@ -2433,6 +2433,51 @@ def __init__():
     assert e.value._message == msg
 
 
+def test_init_before_no_constructor_wrapper_dependency(make_input_bundle):
+    wrapper = """
+import lib
+
+uses: lib
+
+@internal
+def read_lib() -> uint256:
+    return lib.counter
+"""
+    user = """
+import wrapper
+
+uses: wrapper
+
+@deploy
+def __init__():
+    x: uint256 = wrapper.read_lib()
+"""
+    main = """
+import lib
+import wrapper
+import user
+
+initializes: lib
+initializes: wrapper[lib := lib]
+initializes: user[wrapper := wrapper]
+
+@deploy
+def __init__():
+    user.__init__() # depends on lib through init-less `wrapper`
+    lib.__init__()
+    """
+    input_bundle = make_input_bundle(
+        {"lib.vy": _LIB1, "wrapper.vy": wrapper, "user.vy": user}
+    )
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    msg = (
+        "tried to initialize `user`, but it depends on the following modules "
+        "which have not been initialized: lib"
+    )
+    assert e.value._message == msg
+
+
 @pytest.mark.parametrize(
     "init_body,expected_msg",
     [
