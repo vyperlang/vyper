@@ -352,12 +352,6 @@ class ConstructorValidator(VyperNodeVisitorBase):
                 msg += "present only in a single branch of an if"
                 raise InitializerException(msg, node)
 
-            # If the context and the branches had init calls,
-            # then we would already have errored: "__init__() function was already called!"
-            assert init_calls[module_info] == [] or (
-                then_nodes[module_info] == [] and else_nodes[module_info] == []
-            )
-
         merged: dict[ModuleInfo, list[vy_ast.VyperNode]] = defaultdict(list)
         for module_info, calls in chain(then_nodes.items(), else_nodes.items()):
             merged[module_info] += calls
