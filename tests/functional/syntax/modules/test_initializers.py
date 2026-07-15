@@ -2410,6 +2410,73 @@ def __init__():
     assert compile_code(main, input_bundle=input_bundle) is not None
 
 
+def test_used_module_adds_its_used_modules_to_context(make_input_bundle):
+    # b uses lib1; a uses b (so lib1 is transitively used by a);
+    # a initializes x[lib1 := lib1] where x also uses lib1.
+    # Any caller of a must init lib1 -> b -> a, so lib1 is guaranteed
+    # initialized when a.__init__ runs, and a should be allowed to call
+    # x.__init__() without re-initializing lib1.
+    b = """
+import lib1
+
+uses: lib1
+
+@deploy
+def __init__():
+    pass
+
+@internal
+def touch():
+    lib1.counter += 1
+"""
+    x = """
+import lib1
+
+uses: lib1
+
+@deploy
+def __init__():
+    pass
+
+@internal
+def touch():
+    lib1.counter += 1
+"""
+    a = """
+import lib1
+import b
+import x
+
+uses: b
+initializes: x[lib1 := lib1]
+
+@deploy
+def __init__():
+    x.__init__()
+
+@internal
+def touch():
+    b.touch()
+"""
+    main = """
+import lib1
+import b
+import a
+
+initializes: lib1
+initializes: b[lib1 := lib1]
+initializes: a[b := b]
+
+@deploy
+def __init__():
+    lib1.__init__()
+    b.__init__()
+    a.__init__()
+"""
+    input_bundle = make_input_bundle({"lib1.vy": _LIB1, "b.vy": b, "x.vy": x, "a.vy": a})
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
 def test_dep_initialized_by_prior_module_constructor(make_input_bundle):
     owner = """
 import lib1

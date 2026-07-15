@@ -224,7 +224,10 @@ class ConstructorValidator(VyperNodeVisitorBase):
         for other_module_info in module_t.used_modules:
             assert other_module_info.ownership_decl is not None
             self.update_init_calls_transitive(
-                self.ambient_init_calls, other_module_info, other_module_info.ownership_decl
+                self.ambient_init_calls,
+                other_module_info,
+                other_module_info.ownership_decl,
+                include_used=True,  # the uses's uses are also initialized, by transitivity
             )
 
         self.modules_to_initialize = [
@@ -246,9 +249,11 @@ class ConstructorValidator(VyperNodeVisitorBase):
         init_calls_by_module: dict[ModuleInfo, list[vy_ast.VyperNode]],
         other_module_info: ModuleInfo,
         source_node: vy_ast.VyperNode,
+        include_used: bool = False,
     ) -> None:
         """
         Mark `other_module_info` and every module it transitively initializes as initialized.
+        When `include_used=True`, also mark every module it transitively `uses:`
         Source location is written as `source_node`, which is used for error messages.
 
         Mutates `init_calls_by_module` param !
@@ -268,6 +273,10 @@ class ConstructorValidator(VyperNodeVisitorBase):
 
             for indirect in m_info.module_t.initialized_modules:
                 worklist.append(indirect.module_info)
+
+            if include_used:
+                for indirect_used in m_info.module_t.used_modules:
+                    worklist.append(indirect_used)
 
     def validate(self):
         if self.constructor is not None:
