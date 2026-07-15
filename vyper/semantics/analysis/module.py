@@ -330,7 +330,6 @@ class ConstructorValidator(VyperNodeVisitorBase):
 
     def visit_Return(self, _: vy_ast.Return, init_calls: dict[ModuleInfo, list[vy_ast.VyperNode]]):
         # If we return, return wildcard
-        # Instead, move _validate_init_return inside ConstructorValidator
         self._validate_init_return(init_calls)
         return None
 
