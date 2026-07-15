@@ -417,7 +417,7 @@ class ConstructorValidator(VyperNodeVisitorBase):
 
         # If A uses B, make sure B.__init__ is called before A.__init__
 
-        depends_on = other_module_info.module_t.used_modules
+        depends_on = [module_info for module_info in other_module_info.module_t.used_modules]
         """
         Modules which this module depends on, including transitively (done through mutation).
         """
