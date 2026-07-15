@@ -2466,9 +2466,7 @@ def __init__():
     user.__init__() # depends on lib through init-less `wrapper`
     lib.__init__()
     """
-    input_bundle = make_input_bundle(
-        {"lib.vy": _LIB1, "wrapper.vy": wrapper, "user.vy": user}
-    )
+    input_bundle = make_input_bundle({"lib.vy": _LIB1, "wrapper.vy": wrapper, "user.vy": user})
     with pytest.raises(InitializerException) as e:
         compile_code(main, input_bundle=input_bundle)
     msg = (

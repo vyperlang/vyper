@@ -428,7 +428,6 @@ class ConstructorValidator(VyperNodeVisitorBase):
         Modules which the other module initializes, but whose init are not called beforehand
         """
 
-
         while depends_on:
             # Pop from front, makes more relevant modules appear first
             dependent = depends_on.pop(0)
