@@ -1569,13 +1569,14 @@ def test_stateful_override_without_initializes(make_input_bundle):
     contract = """
 import abstract_m
 import override_m
+import caller_m
 
-uses: abstract_m
+initializes: caller_m[abstract_m := abstract_m]
 # initializes: override_m # should fail gracefully without this
 
 @external
 def my_method() -> uint256:
-    return abstract_m.bar()
+    return caller_m.call_bar()
     """
 
     abstract_m = """
@@ -1594,13 +1595,27 @@ def bar() -> uint256:
     self.counter += 1
     return 101
     """
-    input_bundle = make_input_bundle({"abstract_m.vy": abstract_m, "override_m.vy": override_m})
 
-    with pytest.raises(StructureException) as e:
+    caller_m = """
+import abstract_m
+
+uses: abstract_m
+
+def call_bar() -> uint256:
+    return abstract_m.bar()
+    """
+    input_bundle = make_input_bundle(
+        {"abstract_m.vy": abstract_m, "override_m.vy": override_m, "caller_m.vy": caller_m}
+    )
+
+    with pytest.raises(InitializerException) as e:
         compile_code(contract, input_bundle=input_bundle)
 
-    assert e.value._message == "the top-level module cannot `uses:` another module"
-    assert e.value._hint == "replace `uses: abstract_m` with `initializes: abstract_m`"
+    # Verify the error message is helpful
+    expected_msg = "abstract_m.vy` is used but never initialized!"
+    assert expected_msg in e.value._message
+    expected_hint = "add `initializes: abstract_m`"
+    assert expected_hint in e.value._hint
 
 
 def test_call_to_abstract_without_uses(make_input_bundle):
@@ -1782,27 +1797,41 @@ def foo() -> uint256:
     return 42
     """
 
-    contract = """
-import override_module
+    caller_module = """
 import abstract_module
 
 uses: abstract_module
+
+def call_foo() -> uint256:
+    return abstract_module.foo()
+    """
+
+    contract = """
+import override_module
+import abstract_module
+import caller_module
+
+initializes: caller_module[abstract_module := abstract_module]
 # initializes: override_module # Without this, we have no way of knowing which override to pick
 
 @external
 def test_foo() -> uint256:
-    return abstract_module.foo()
+    return caller_module.call_foo()
     """
 
     input_bundle = make_input_bundle(
-        {"abstract_module.vy": abstract_module, "override_module.vy": override_module}
+        {
+            "abstract_module.vy": abstract_module,
+            "override_module.vy": override_module,
+            "caller_module.vy": caller_module,
+        }
     )
 
-    with pytest.raises(StructureException) as e:
+    with pytest.raises(InitializerException) as e:
         compile_code(contract, input_bundle=input_bundle)
 
-    assert e.value._message == "the top-level module cannot `uses:` another module"
-    assert e.value._hint == "replace `uses: abstract_module` with `initializes: abstract_module`"
+    assert "abstract_module.vy` is used but never initialized!" in e.value._message
+    assert "add `initializes: abstract_module`" in e.value._hint
 
 
 def test_at_call_does_not_propagate_writes(make_input_bundle):
