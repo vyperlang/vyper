@@ -211,3 +211,13 @@ def foo():
     assert excinfo.value.message == "unindent does not match any outer indentation level"
     annotation = excinfo.value.annotations[0]
     assert (annotation.lineno, annotation.col_offset) == (5, 2)
+
+
+def test_unpaired_surrogate_raises_syntax_exception():
+    code = "x: uint256 = 5  # \ud800"
+
+    with pytest.raises(SyntaxException) as excinfo:
+        compile_code(code)
+    assert excinfo.value.message == "character cannot be unicode encoded: surrogates not allowed"
+    annotation = excinfo.value.annotations[0]
+    assert (annotation.lineno, annotation.col_offset) == (1, 18)

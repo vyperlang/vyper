@@ -274,6 +274,13 @@ class PreParser:
             if offset is not None:
                 offset -= 1
             raise SyntaxException(e.msg, code, e.lineno, offset) from e
+        except UnicodeEncodeError as e:
+            prefix = code[: e.start]
+            lineno = prefix.count("\n") + 1
+            col_offset = e.start - (prefix.rfind("\n") + 1)
+            raise SyntaxException(
+                f"character cannot be unicode encoded: {e.reason}", code, lineno, col_offset
+            ) from e
 
     def _parse(self, code: str):
         adjustments: dict = {}
