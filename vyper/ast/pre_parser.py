@@ -267,6 +267,13 @@ class PreParser:
             self._parse(code)
         except TokenError as e:
             raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
+        except SyntaxError as e:
+            # SyntaxError offset is 1-based, not 0-based (see:
+            # https://docs.python.org/3/library/exceptions.html#SyntaxError.offset)
+            offset = e.offset
+            if offset is not None:
+                offset -= 1
+            raise SyntaxException(e.msg, code, e.lineno, offset) from e
 
     def _parse(self, code: str):
         adjustments: dict = {}

@@ -181,3 +181,33 @@ def foo():
 
     with pytest.raises(SyntaxException):
         get_contract(code)
+
+
+def test_mixed_tabs_and_spaces_raises_syntax_exception():
+    code = """
+@external
+def foo():
+\tx: uint256 = 1
+    y: uint256 = 2
+    """
+
+    with pytest.raises(SyntaxException) as excinfo:
+        compile_code(code)
+    assert excinfo.value.message == "unindent does not match any outer indentation level"
+    annotation = excinfo.value.annotations[0]
+    assert (annotation.lineno, annotation.col_offset) == (5, 3)
+
+
+def test_inconsistent_indentation_raises_syntax_exception():
+    code = """
+@external
+def foo():
+    x: uint256 = 1
+   return
+"""
+
+    with pytest.raises(SyntaxException) as excinfo:
+        compile_code(code)
+    assert excinfo.value.message == "unindent does not match any outer indentation level"
+    annotation = excinfo.value.annotations[0]
+    assert (annotation.lineno, annotation.col_offset) == (5, 2)
