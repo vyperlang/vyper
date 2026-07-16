@@ -4,7 +4,7 @@ import pytest
 
 from tests.ast_utils import deepequals
 from vyper.ast.parse import parse_to_ast
-from vyper.exceptions import CompilerPanic, SyntaxException
+from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
 
 
 def test_ast_equal():
@@ -55,6 +55,13 @@ def f():
     annotation = exc.annotations[0]
     assert (annotation.lineno, annotation.col_offset) == (3, 4)
     assert annotation.full_source_code == code
+
+
+def test_null_byte_raises_parser_exception():
+    code = "x: uint256 = 5\n\x00"
+    with pytest.raises(ParserException) as excinfo:
+        parse_to_ast(code)
+    assert str(excinfo.value) == "No null bytes (\\x00) allowed in the source code."
 
 
 @pytest.mark.parametrize(
