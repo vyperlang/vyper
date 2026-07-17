@@ -431,6 +431,19 @@ class ErrorT(_UserType):
 
             validate_kwargs(node, self.arguments, self.typeclass)
         else:
+            if len(node.args) != 0:
+                rec0 = ", ".join(
+                    f"{argname}={val.node_source_code}"
+                    for argname, val in zip(self.arguments.keys(), node.args)
+                )
+                recommendation = f"{node.func.node_source_code}({rec0})"
+                msg = "Instantiating errors with positional arguments is"
+                msg += " deprecated and will be disallowed"
+                msg += " in a future release. Use kwargs instead e.g.:"
+                msg += f"\n```\n{recommendation}\n```"
+
+                vyper_warn(Deprecation(msg, node))
+
             validate_call_args(node, len(self.arguments))
             for arg, expected in zip(node.args, self.arguments.values()):
                 validate_expected_type(arg, expected)
