@@ -6,7 +6,6 @@ from eth_utils import to_wei
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code, compile_from_file_input
 from vyper.exceptions import (
-    CodegenPanic,
     DuplicateImport,
     InterfaceViolation,
     NamespaceCollision,
@@ -553,12 +552,7 @@ def foo(x: JSONInterface) -> Bytes[2]:
             get_contract(contract, input_bundle=input_bundle)
         return
 
-    try:
-        c = get_contract(contract, input_bundle=input_bundle)
-    except CodegenPanic:
-        # TODO: remove once `ir_dict` output works for unbounded extcall
-        # return values
-        pytest.xfail("ir_dict output does not support unbounded extcall returns")
+    c = get_contract(contract, input_bundle=input_bundle)
 
     assert ext_c.returns_Bytes3() == b"123"
     assert c.foo(ext_c.address) == b"12"  # slice takes first 2 elements

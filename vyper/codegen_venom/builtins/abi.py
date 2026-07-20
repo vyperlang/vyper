@@ -169,7 +169,9 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         encoded_size = runtime_abi_size_for_encode(ctx, arg_vals, encode_type)
         alloc_size = encoded_size
         if method_id is not None:
-            alloc_size = ctx.checked_add(alloc_size, IRLiteral(4))
+            # ABI encodings are word-aligned. The 4-byte method ID therefore
+            # occupies another full word in the bytestring payload allocation.
+            alloc_size = ctx.checked_add(alloc_size, IRLiteral(32))
 
         buf_ptr = ctx.allocate_scratch(ctx.checked_add(alloc_size, IRLiteral(32)))
         if method_id is None:

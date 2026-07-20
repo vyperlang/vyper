@@ -378,6 +378,26 @@ def join(x: Bytes[INF]) -> Bytes[INF]:
     assert sum(bytesm_depths) == sum(control_depths) + 1
 
 
+def test_inf_abi_encode_method_id_reserves_padding_word():
+    with_method_id = """
+@external
+def enc(x: Bytes[INF]) -> Bytes[INF]:
+    return abi_encode(x, method_id=0xa1b2c3d4)
+    """
+    without_method_id = """
+@external
+def enc(x: Bytes[INF]) -> Bytes[INF]:
+    return abi_encode(x)
+    """
+
+    with_method_id_depths = _dalloca_size_add32_depths(_compile_frontend_ir(with_method_id))
+    without_method_id_depths = _dalloca_size_add32_depths(
+        _compile_frontend_ir(without_method_id)
+    )
+    assert len(with_method_id_depths) == len(without_method_id_depths)
+    assert sum(with_method_id_depths) == sum(without_method_id_depths) + 1
+
+
 def _has_tail_padding_mask_store(ctx):
     """Find mstore(ptr, and(mload(ptr), 0xffffffff << 224)).
 
