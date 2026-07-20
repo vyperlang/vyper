@@ -117,6 +117,9 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     """
     from vyper.codegen_venom.expr import Expr
 
+    if len(node.args) < 1:
+        raise StructureException("abi_encode expects at least one argument", node)
+
     b = ctx.builder
 
     # Parse kwargs
