@@ -391,9 +391,7 @@ def enc(x: Bytes[INF]) -> Bytes[INF]:
     """
 
     with_method_id_depths = _dalloca_size_add32_depths(_compile_frontend_ir(with_method_id))
-    without_method_id_depths = _dalloca_size_add32_depths(
-        _compile_frontend_ir(without_method_id)
-    )
+    without_method_id_depths = _dalloca_size_add32_depths(_compile_frontend_ir(without_method_id))
     assert len(with_method_id_depths) == len(without_method_id_depths)
     assert sum(with_method_id_depths) == sum(without_method_id_depths) + 1
 
