@@ -235,7 +235,7 @@ def _signextend(expr, val, arg_typ, out_size):
         assert len(expr.value[2:]) // 2 == arg_typ.m
         n_bits = arg_typ.m_bits
     else:
-        assert len(expr.value) <= arg_typ.maxlen
+        assert len(expr.value) == arg_typ.maxlen
         n_bits = arg_typ.maxlen * 8
 
     if n_bits < out_size:
