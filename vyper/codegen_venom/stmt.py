@@ -19,6 +19,7 @@ from vyper.codegen_venom.abi import (
 )
 from vyper.codegen_venom.arithmetic import apply_binop
 from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
+from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     VyperType,
@@ -29,18 +30,68 @@ from vyper.semantics.types import (
     is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
 )
-from vyper.semantics.types.function import ContractFunctionT
+from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.types.user import ErrorT, EventT, StructT
 from vyper.utils import method_id_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .buffer import Ptr
+from .builtins.simple import _get_empty_type
 from .calling_convention import returns_dynamic_count, returns_stack_count
 from .context import Constancy, LocalVariable, VenomCodegenContext
 from .eval_order import later_expressions_can_mutate_memory_or_storage
 from .expr import Expr
 from .value import VyperValue
+
+
+def _referenced_variables(node: vy_ast.VyperNode) -> set:
+    """Return variables read while evaluating an expression."""
+    node = node.reduced()
+    ret: set = set()
+    if isinstance(node, vy_ast.ExprNode) and node._expr_info is not None:
+        ret.update(access.variable for access in node._expr_info._reads)
+    for child in node._children:
+        ret |= _referenced_variables(child)
+    return ret
+
+
+def _contains_writeable_call(node: vy_ast.VyperNode) -> bool:
+    if _emits_writeable_call(node):
+        return True
+
+    functions = set()
+    for func_t in _called_internal_functions(node):
+        functions.add(func_t)
+        functions.update(func_t.reachable_internal_functions)
+    return any(_emits_writeable_call(func_t.decl_node) for func_t in functions)
+
+
+def _called_internal_functions(node: vy_ast.VyperNode) -> set:
+    ret = set()
+    for call in node.get_descendants(vy_ast.Call, include_self=True):
+        func_t = call.func._metadata.get("type")
+        if isinstance(func_t, ContractFunctionT) and (func_t.is_internal or func_t.is_constructor):
+            ret.add(func_t.get_concrete_override())
+    return ret
+
+
+def _emits_writeable_call(node: vy_ast.VyperNode) -> bool:
+    # Delayed import avoids a cycle through the builtin registry.
+    from vyper.builtins.functions import RawCall, Send, _CreateBase
+
+    if node.get_descendants(vy_ast.ExtCall, include_self=True):
+        return True
+
+    for call in node.get_descendants(vy_ast.Call, include_self=True):
+        func_t = call.func._metadata.get("type")
+        if isinstance(func_t, RawCall):
+            if func_t.get_mutability_at_call_site(call) > StateMutability.VIEW:
+                return True
+        elif isinstance(func_t, (Send, _CreateBase)):
+            return True
+
+    return False
 
 
 class Stmt:
@@ -365,6 +416,18 @@ class Stmt:
         if not target_typ._is_prim_word:  # pragma: nocover
             raise TypeCheckFailure("AugAssign only valid for primitive types")
 
+        # GHSA-4w26-8p97-f4jp: the target is computed and bounds-checked
+        # before the RHS. Reject an RHS which could invalidate a complex
+        # variable used to derive that target.
+        rhs_writes = {access.variable for access in get_expr_writes(right_node)}
+        for var in _referenced_variables(target):
+            if var.typ._is_prim_word:
+                continue
+            if var in rhs_writes or (
+                var.is_state_variable() and _contains_writeable_call(right_node)
+            ):
+                raise CodegenPanic("unreachable")
+
         # Get target pointer (with location info)
         dst_ptr = self._get_target_ptr(target)
 
@@ -493,6 +556,7 @@ class Stmt:
         # empty() builtin call
         if isinstance(node, vy_ast.Call):
             if isinstance(node.func, vy_ast.Name) and node.func.id == "empty":
+                _get_empty_type(node)
                 return True
 
         return False
@@ -546,14 +610,14 @@ class Stmt:
             sub_typ = target.value._metadata.get("type")
             if isinstance(sub_typ, StructT) and target.attr in sub_typ.member_types:
                 # Use Expr to compute the field pointer
-                return Expr(target, self.ctx).lower().ptr()
+                return Expr(target, self.ctx, as_ptr=True).lower().ptr()
 
             raise CompilerPanic(f"Unsupported attribute target: {target.attr}")  # pragma: nocover
 
         elif isinstance(target, vy_ast.Subscript):
             # x[i] = ... or self.arr[i] = ... or self.map[key] = ...
             # Use Expr to compute the element pointer/slot
-            return Expr(target, self.ctx).lower().ptr()
+            return Expr(target, self.ctx, as_ptr=True).lower().ptr()
 
         raise CompilerPanic(f"Unsupported assignment target: {type(target)}")  # pragma: nocover
 

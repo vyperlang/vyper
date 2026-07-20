@@ -27,6 +27,7 @@ from vyper.semantics.types import (
     BytesT,
     TupleT,
     VyperType,
+    is_bounded_length,
     is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
 )
@@ -235,6 +236,21 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     wrapped_typ = output_typ
     if unwrap_tuple:
         wrapped_typ = calculate_type_for_external_return(output_typ)
+
+    # Reject bounded input buffers which cannot fit the decoded value. An
+    # unbounded input is checked against its runtime length below.
+    if not is_unbounded_sequence_type(output_typ):
+        abi_size_bound = wrapped_typ.abi_type.size_bound()
+        input_max_len = data_node._metadata["type"].maxlen
+        if is_bounded_length(input_max_len) and input_max_len < abi_size_bound:
+            raise StructureException(
+                (
+                    "Mismatch between size of input and size of decoded types. "
+                    f"length of ABI-encoded {wrapped_typ} must be equal to or greater "
+                    f"than {abi_size_bound}"
+                ),
+                data_node,
+            )
 
     # Get data pointer and length
     data_vv = Expr(data_node, ctx).lower()

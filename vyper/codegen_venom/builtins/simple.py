@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Union
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.value import VyperValue
-from vyper.exceptions import StructureException
+from vyper.exceptions import StructureException, TypeMismatch
 from vyper.semantics.types import (
     _BytestringT,
     is_unbounded_sequence_type,
@@ -57,7 +57,7 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
     sufficient since length=0 means no valid data. For other complex types,
     we zero the entire buffer.
     """
-    typ = node._metadata["type"]
+    typ = _get_empty_type(node)
 
     if typ._is_prim_word:
         return IRLiteral(0)
@@ -77,6 +77,23 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
             "empty() does not support unbounded sequence types inside aggregate types", node
         )
     return _empty_memory_value(ctx, typ)
+
+
+def _get_empty_type(node: vy_ast.Call):
+    typ = node.args[0]._metadata["type"].typedef
+    expected_typ = node._metadata["type"]
+
+    # Assignment normally permits widening a bytestring. The empty intrinsic
+    # deliberately requires an exact nonzero bound, matching legacy codegen.
+    if (
+        isinstance(typ, _BytestringT)
+        and isinstance(expected_typ, _BytestringT)
+        and typ.maxlen != 0
+        and typ.maxlen != expected_typ.maxlen
+    ):
+        raise TypeMismatch(f"Cannot cast from empty({typ}) to {expected_typ}", node)
+
+    return typ
 
 
 def _empty_memory_value(ctx: VenomCodegenContext, typ) -> VyperValue:

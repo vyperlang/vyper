@@ -103,6 +103,7 @@ from vyper.utils import (
 from vyper.warnings import vyper_warn
 
 from ._convert import convert
+from ._convert_rules import validate_convertibility
 from ._signatures import BuiltinFunctionT, process_inputs
 
 SHA256_ADDRESS = 2
@@ -231,6 +232,8 @@ class Convert(BuiltinFunctionT):
 
         if isinstance(value_type, DArrayT) or isinstance(target_type, DArrayT):
             raise TypeMismatch(f"Can't convert {value_type} to {target_type}", node.args[0])
+
+        validate_convertibility(value_type, target_type, node.args[0])
 
         return [value_type, TYPE_T(target_type)]
 

@@ -92,11 +92,9 @@ def poc():
 )
 @pytest.mark.xfail(strict=True, raises=CodegenPanic)
 def test_augassign_oob(get_contract, tx_failed, source):
-    # xfail here (with panic):
     c = get_contract(source)
 
-    # not reached until the panic is fixed
-    with tx_failed(c):
+    with tx_failed():
         c.poc()
 
 
@@ -247,11 +245,9 @@ def test_augassign_rhs_references_lhs_transient2(get_contract, tx_failed, source
         # no transient available before cancun
         pytest.skip()
 
-    # xfail here (with panic):
     c = get_contract(source)
 
-    # not reached until the panic is fixed
-    with tx_failed(c):
+    with tx_failed():
         c.entry()
 
 

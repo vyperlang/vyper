@@ -2,8 +2,6 @@
 
 import pytest
 
-from vyper.exceptions import CompilerPanic
-
 
 def test_negative_ix_access(get_contract, tx_failed):
     # Arrays can't be accessed with negative indices
@@ -136,9 +134,10 @@ def foo():
         assert c.arr(i) == i
 
 
-# to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
-def test_array_index_overlap(get_contract):
+def test_array_index_overlap(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen still rejects risky subscript overlap")
+
     code = """
 a: public(DynArray[DynArray[Bytes[96], 5], 5])
 
@@ -155,13 +154,13 @@ def bar() -> uint256:
     return 0
     """
     c = get_contract(code)
-    # tricky to get this right, for now we just panic instead of generating code
     assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
-# to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
-def test_array_index_overlap_extcall(get_contract):
+def test_array_index_overlap_extcall(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen still rejects risky subscript overlap")
+
     code = """
 
 interface Bar:
@@ -185,9 +184,10 @@ def bar() -> uint256:
     assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
-# to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
-def test_array_index_overlap_extcall2(get_contract):
+def test_array_index_overlap_extcall2(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen still rejects risky subscript overlap")
+
     code = """
 interface B:
     def calculate_index() -> uint256: nonpayable
