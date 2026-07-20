@@ -744,7 +744,9 @@ def foo() -> int16:
 
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_reverting_cases())
 @pytest.mark.fuzzing
-def test_conversion_failures(get_contract, assert_compile_failed, tx_failed, compiler_settings, i_typ, o_typ, val):
+def test_conversion_failures(
+    get_contract, assert_compile_failed, tx_failed, compiler_settings, i_typ, o_typ, val
+):
     """
     Test multiple contracts and check for a specific exception.
     If no exception is provided, a runtime revert is expected (e.g. clamping).
@@ -784,7 +786,9 @@ def foo():
     foobar: {o_typ} = convert(bar, {o_typ})
     """
 
-    compiler_settings_no_static = dataclasses.replace(compiler_settings, disable_static_exceptions=True)
+    compiler_settings_no_static = dataclasses.replace(
+        compiler_settings, disable_static_exceptions=True
+    )
     c2 = get_contract(contract_2, compiler_settings=compiler_settings_no_static)
     with tx_failed():
         c2.foo()
