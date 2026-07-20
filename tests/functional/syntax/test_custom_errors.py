@@ -56,6 +56,24 @@ def foo():
     assert excinfo.value.hint == "use kwargs instead: `MyError(a=1, b=2)`"
 
 
+def test_error_mixed_args_hint():
+    code = """
+error MyError:
+    a: uint256
+    b: uint256
+
+@external
+def foo():
+    raise MyError(1, b=2)
+    """
+
+    with pytest.raises(InstantiationException) as excinfo:
+        compile_code(code)
+
+    assert excinfo.value.message == "Instantiating errors with positional arguments is not allowed"
+    assert excinfo.value.hint == "use kwargs instead: `MyError(a=1, b=2)`"
+
+
 def test_error_hint_from_assert():
     code = """
 error MyError:

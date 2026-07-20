@@ -422,7 +422,9 @@ class ErrorT(_UserType):
 
     def _ctor_call_return(self, node: vy_ast.Call) -> "ErrorT":
         if len(node.args) > 0:
-            correct_kwargs = list(zip(self.arguments.keys(), node.args)) + node.keywords
+            positional = list(zip(self.arguments.keys(), node.args))
+            keywords = [(kw.arg, kw.value) for kw in node.keywords]
+            correct_kwargs = positional + keywords
             correct_kwargs_string = ", ".join(
                 f"{argname}={val.node_source_code}" for argname, val in correct_kwargs
             )
