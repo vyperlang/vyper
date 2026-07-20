@@ -421,32 +421,17 @@ class ErrorT(_UserType):
         return cls(base_node.name, members, base_node)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> "ErrorT":
-        if len(node.keywords) > 0:
-            if len(node.args) > 0:
-                raise InstantiationException(
-                    "Error instantiation requires either all keyword arguments "
-                    "or all positional arguments",
-                    node,
-                )
+        if len(node.args) > 0:
+            correct_kwargs = list(zip(self.arguments.keys(), node.args)) + node.keywords
+            correct_kwargs_string = ", ".join(
+                f"{argname}={val.node_source_code}" for argname, val in correct_kwargs
+            )
+            msg = "Instantiating errors with positional arguments is not allowed"
+            hint = f"use kwargs instead: `{node.func.node_source_code}({correct_kwargs_string})`"
 
-            validate_kwargs(node, self.arguments, self.typeclass)
-        else:
-            if len(node.args) != 0:
-                rec0 = ", ".join(
-                    f"{argname}={val.node_source_code}"
-                    for argname, val in zip(self.arguments.keys(), node.args)
-                )
-                recommendation = f"{node.func.node_source_code}({rec0})"
-                msg = "Instantiating errors with positional arguments is"
-                msg += " deprecated and will be disallowed"
-                msg += " in a future release. Use kwargs instead e.g.:"
-                msg += f"\n```\n{recommendation}\n```"
+            raise InstantiationException(msg, node, hint=hint)
 
-                vyper_warn(Deprecation(msg, node))
-
-            validate_call_args(node, len(self.arguments))
-            for arg, expected in zip(node.args, self.arguments.values()):
-                validate_expected_type(arg, expected)
+        validate_kwargs(node, self.arguments, self.typeclass)
 
         return self
 

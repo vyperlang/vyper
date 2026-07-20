@@ -3,7 +3,7 @@ import warnings
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import StructureException
+from vyper.exceptions import InstantiationException, StructureException
 
 
 @pytest.mark.parametrize(
@@ -49,16 +49,11 @@ def foo():
     raise MyError(1, 2)
     """
 
-    with warnings.catch_warnings(record=True) as w:
-        assert compile_code(code) is not None
+    with pytest.raises(InstantiationException) as excinfo:
+        compile_code(code)
 
-    expected = "Instantiating errors with positional arguments is deprecated "
-    expected += "and will be disallowed in a future release. "
-    expected += "Use kwargs instead e.g.:\n"
-    expected += "```\nMyError(a=1, b=2)\n```"
-
-    assert len(w) == 1, [s.message for s in w]
-    assert str(w[0].message).startswith(expected)
+    assert excinfo.value.message == "Instantiating errors with positional arguments is not allowed"
+    assert excinfo.value.hint == "use kwargs instead: `MyError(a=1, b=2)`"
 
 
 def test_error_hint_from_assert():
@@ -71,16 +66,11 @@ def foo(x: bool):
     assert x, MyError(1)
     """
 
-    with warnings.catch_warnings(record=True) as w:
-        assert compile_code(code) is not None
+    with pytest.raises(InstantiationException) as excinfo:
+        compile_code(code)
 
-    expected = "Instantiating errors with positional arguments is deprecated "
-    expected += "and will be disallowed in a future release. "
-    expected += "Use kwargs instead e.g.:\n"
-    expected += "```\nMyError(a=1)\n```"
-
-    assert len(w) == 1, [s.message for s in w]
-    assert str(w[0].message).startswith(expected)
+    assert excinfo.value.message == "Instantiating errors with positional arguments is not allowed"
+    assert excinfo.value.hint == "use kwargs instead: `MyError(a=1)`"
 
 
 def test_no_arg_no_hint():
