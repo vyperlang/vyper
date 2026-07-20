@@ -11,7 +11,7 @@ import pytest
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings
-from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
+from vyper.exceptions import InvalidLiteral, InvalidType, StaticAssertionException, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.shortcuts import BYTES20_T, BYTES32_T, UINT, UINT160_T, UINT256_T
 from vyper.utils import (
@@ -784,10 +784,13 @@ def foo():
     foobar: {o_typ} = convert(bar, {o_typ})
     """
 
-    compiler_settings = dataclasses.replace(compiler_settings, disable_static_exceptions=True)
-    c2 = get_contract(contract_2, compiler_settings=compiler_settings)
+    compiler_settings_no_static = dataclasses.replace(compiler_settings, disable_static_exceptions=True)
+    c2 = get_contract(contract_2, compiler_settings=compiler_settings_no_static)
     with tx_failed():
         c2.foo()
+
+    if compiler_settings.experimental_codegen:
+        assert_compile_failed(lambda: get_contract(contract_2), StaticAssertionException)
 
     contract_3 = f"""
 @external
@@ -795,8 +798,7 @@ def foo(bar: {i_typ}) -> {o_typ}:
     return convert(bar, {o_typ})
     """
 
-    compiler_settings = dataclasses.replace(compiler_settings, disable_static_exceptions=True)
-    c3 = get_contract(contract_3, compiler_settings=compiler_settings)
+    c3 = get_contract(contract_3, compiler_settings=compiler_settings_no_static)
     input_val = val
     if isinstance(i_typ, DecimalT):
         input_val = decimal_to_int(input_val)
