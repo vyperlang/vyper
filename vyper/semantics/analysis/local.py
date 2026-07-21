@@ -535,6 +535,15 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         func_t = self.func
         info = get_expr_info(target)
 
+        # a builtin (e.g. `convert`) is callable, not an assignable location.
+        # without this, `convert = convert` slipped past the typechecker (the
+        # right-hand side matched the target's builtin type) and panicked in
+        # codegen (GH issue #3933). lazy import avoids a builtins<->semantics cycle.
+        from vyper.builtins._signatures import BuiltinFunctionT
+
+        if isinstance(info.typ, BuiltinFunctionT):
+            raise StructureException(f"Cannot assign to '{info.typ}'", target)
+
         if isinstance(info.typ, HashMapT):
             raise StructureException(
                 "Left-hand side of assignment cannot be a HashMap without a key"
