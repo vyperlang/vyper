@@ -4,9 +4,9 @@ Abstract Modules
 ################
 
 .. note::
-    Abstract modules are a recent feature. If ``@abstract`` raises
-    ``Unknown decorator: abstract``, your compiler predates the feature — use a compiler
-    that includes it (e.g. built from ``master``).
+    Abstract modules are available in Vyper ``0.5.0`` and up. If ``@abstract`` raises
+    ``Unknown decorator: abstract``, your compiler predates the feature — upgrade to
+    ``0.5.0`` or later.
 
 An abstract module is a special kind of :ref:`module <modules>` which offers points at which its logic can be customized.
 This takes the form of **abstract methods**, :ref:`internal <structure-functions-internal>` methods decorated with ``@abstract``.
