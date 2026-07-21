@@ -67,13 +67,6 @@ def needs_clamp(typ: VyperType) -> bool:
     raise CompilerPanic(f"needs_clamp: unhandled type {typ}")  # pragma: nocover
 
 
-def _guard_dynamic_offset(loc: DataLocation, hi: IROperand | None) -> bool:
-    # Calldata and explicit hi-bounded buffers are untrusted. Constructor CODE
-    # args intentionally keep legacy's lenient decode behavior by passing
-    # hi=None at their call sites.
-    return loc == DataLocation.CALLDATA or hi is not None
-
-
 def int_clamp(ctx: VenomCodegenContext, val: IROperand, bits: int, signed: bool) -> IROperand:
     """
     Validate integer is in range.
@@ -274,11 +267,15 @@ def _getelemptr_abi(
         # Double dereference: read offset, add to parent base
         offset_val = b.load(static_loc, loc)
         actual_ptr = b.add(parent.operand, offset_val)
-        if _guard_dynamic_offset(loc, hi):
-            # Dynamic offsets must not wrap below their ABI parent before later
-            # payload bounds are evaluated.
+        if hi is not None:
+            # Only hi-bounded (MEMORY) decodes need the no-wrap guard, mirroring
+            # legacy's _dirty_read_risk (MEMORY-only). In calldata/code, wrapping
+            # can alias an earlier byte in the same immutable region. Bounded type
+            # clamps still cap decoder work and destination writes; out-of-range
+            # portions of the resulting loads/copies are zero-filled.
+            # assert actual_ptr >= parent
             b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
-            if hi is not None and type_contains_unbounded_sequence(member_typ):
+            if type_contains_unbounded_sequence(member_typ):
                 # Defense in depth for the wrap-safe INF decode path (the
                 # duplicate is CSE'd). Bounded members rely on their clamps'
                 # payload checks alone, matching the legacy emission.
@@ -466,10 +463,11 @@ def _decode_dyn_array(
         static_loc = b.add(src_data, b.mul(i, IRLiteral(elem_static_size)))
         offset_val = b.load(static_loc, loc)
         elem_src_ptr = b.add(src_data, offset_val)
-        if _guard_dynamic_offset(loc, hi):
-            # Dynamic element offsets must not wrap below the DynArray payload.
+        if hi is not None:
+            # Only hi-bounded (MEMORY) decodes need the no-wrap guard (see
+            # _getelemptr_abi); calldata/code may alias earlier immutable data.
             b.assert_(b.iszero(b.lt(elem_src_ptr, src_data)))
-            if hi is not None and type_contains_unbounded_sequence(elem_typ):
+            if type_contains_unbounded_sequence(elem_typ):
                 # See _getelemptr_abi: only INF elements keep the extra probe.
                 ctx.assert_abi_head_word_in_bounds(elem_src_ptr, hi)
     else:
