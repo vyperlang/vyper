@@ -409,6 +409,13 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
     def visit_Await(self, node):
         start_pos = node.lineno, node.col_offset
         self.generic_visit(node)
+        if start_pos not in self._pre_parser.keyword_translations:
+            raise SyntaxException(
+                "The `await` keyword is not allowed.",
+                self._source_code,
+                node.lineno,
+                node.col_offset,
+            )
         node.ast_type = self._pre_parser.keyword_translations[start_pos]
         return node
 
