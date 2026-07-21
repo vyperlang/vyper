@@ -52,16 +52,8 @@ def validate_convertibility(input_type, output_type, node=None):
         if is_bounded_length(input_type.maxlen) and input_type.maxlen > max_bytes:
             _fail(input_type, output_type, node)
 
-    if isinstance(output_type, _BytestringT):
-        # Widening within the same bytestring class is already an assignment,
-        # not a conversion. The generic subtype check handles INF targets.
-        if (
-            isinstance(input_type, type(output_type))
-            and is_bounded_length(input_type.maxlen)
-            and is_bounded_length(output_type.maxlen)
-            and input_type.maxlen <= output_type.maxlen
-        ):
-            _fail(input_type, output_type, node)
+    # Same-class identity/widening bytestring conversions are already
+    # rejected by the subtype check in Convert.infer_arg_types.
 
     # Flags convert to uint256 and bytes32, and only uint256 converts to a flag.
     if isinstance(input_type, FlagT):

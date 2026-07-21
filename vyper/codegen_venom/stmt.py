@@ -37,23 +37,12 @@ from vyper.utils import method_id_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .buffer import Ptr
-from .builtins.simple import _get_empty_type
+from .builtins.simple import get_empty_type
 from .calling_convention import returns_dynamic_count, returns_stack_count
 from .context import Constancy, LocalVariable, VenomCodegenContext
 from .eval_order import later_expressions_can_mutate_memory_or_storage
-from .expr import Expr
+from .expr import Expr, get_referenced_variables
 from .value import VyperValue
-
-
-def _referenced_variables(node: vy_ast.VyperNode) -> set:
-    """Return variables read while evaluating an expression."""
-    node = node.reduced()
-    ret: set = set()
-    if isinstance(node, vy_ast.ExprNode) and node._expr_info is not None:
-        ret.update(access.variable for access in node._expr_info._reads)
-    for child in node._children:
-        ret |= _referenced_variables(child)
-    return ret
 
 
 def _contains_writeable_call(node: vy_ast.VyperNode) -> bool:
@@ -71,7 +60,7 @@ def _called_internal_functions(node: vy_ast.VyperNode) -> set:
     ret = set()
     for call in node.get_descendants(vy_ast.Call, include_self=True):
         func_t = call.func._metadata.get("type")
-        if isinstance(func_t, ContractFunctionT) and (func_t.is_internal or func_t.is_constructor):
+        if isinstance(func_t, ContractFunctionT) and func_t.is_internal:
             ret.add(func_t.get_concrete_override())
     return ret
 
@@ -420,7 +409,7 @@ class Stmt:
         # before the RHS. Reject an RHS which could invalidate a complex
         # variable used to derive that target.
         rhs_writes = {access.variable for access in get_expr_writes(right_node)}
-        for var in _referenced_variables(target):
+        for var in get_referenced_variables(target):
             if var.typ._is_prim_word:
                 continue
             if var in rhs_writes or (
@@ -553,10 +542,11 @@ class Stmt:
         if isinstance(node, vy_ast.Bytes) and len(node.value) == 0:
             return True
 
-        # empty() builtin call
+        # empty() builtin call. This fast path never reaches lower_empty, so
+        # validate the exact-maxlen rule for bytestrings here.
         if isinstance(node, vy_ast.Call):
             if isinstance(node.func, vy_ast.Name) and node.func.id == "empty":
-                _get_empty_type(node)
+                get_empty_type(node)
                 return True
 
         return False

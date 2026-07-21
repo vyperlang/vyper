@@ -57,7 +57,7 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
     sufficient since length=0 means no valid data. For other complex types,
     we zero the entire buffer.
     """
-    typ = _get_empty_type(node)
+    typ = get_empty_type(node)
 
     if typ._is_prim_word:
         return IRLiteral(0)
@@ -79,7 +79,7 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
     return _empty_memory_value(ctx, typ)
 
 
-def _get_empty_type(node: vy_ast.Call):
+def get_empty_type(node: vy_ast.Call):
     typ = node.args[0]._metadata["type"].typedef
     expected_typ = node._metadata["type"]
 
