@@ -17,10 +17,11 @@ class StackCleanupSafety(IRGlobalAnalysis):
     therefore also covers later elisions, whose codegen model height may depend
     on which predecessor was visited first.
 
-    CFG or function-call cycles make the regional bound unknown and disable the
-    elision.  Codegen verifies the predicted heights against the EVM operations
-    it emits; an underestimated lowering bound is a compile-time failure rather
-    than a possible runtime stack overflow.
+    CFG cycles make the regional bound unknown and disable the elision.
+    Recursive function calls are invalid Venom.  Codegen verifies the predicted
+    heights against the EVM operations it emits; an underestimated lowering
+    bound is a compile-time failure rather than a possible runtime stack
+    overflow.
     """
 
     def analyze(self) -> None:
@@ -94,8 +95,7 @@ class StackCleanupSafety(IRGlobalAnalysis):
     ) -> int | None:
         if fn in self._caller_stack_heights:
             return self._caller_stack_heights[fn]
-        if fn in active_functions:
-            return None
+        assert fn not in active_functions, "recursive function call"
 
         active_functions.add(fn)
         heights = [0] if fn is self._entry_function else []
@@ -137,8 +137,7 @@ class StackCleanupSafety(IRGlobalAnalysis):
     ) -> int | None:
         if fn in self._function_growth:
             return self._function_growth[fn]
-        if fn in active_functions:
-            return None
+        assert fn not in active_functions, "recursive function call"
 
         active_functions.add(fn)
         try:

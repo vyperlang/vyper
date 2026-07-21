@@ -195,33 +195,30 @@ def test_stack_cleanup_elision_requires_a_known_entry_function():
     assert not safety.can_skip_cleanup(halt, 0)
 
 
-def test_stack_bound_rejects_recursive_internal_calls():
-    def candidate_is_safe(callee_body):
-        ctx = parse_venom(f"""
-            function test {{
-            entry:
-                jnz 1, @candidate, @other
-            candidate:
-                invoke @callee
-                stop
-            other:
-                stop
-            }}
+def test_stack_bound_allows_internal_calls():
+    ctx = parse_venom("""
+        function test {
+        entry:
+            jnz 1, @candidate, @other
+        candidate:
+            invoke @callee
+            stop
+        other:
+            stop
+        }
 
-            function callee {{
-            callee:
-                %retpc = param
-                {callee_body}
-                ret %retpc
-            }}
-        """)
-        fn, _, must_halt, safety = _get_stack_cleanup_analyses(ctx)
-        candidate = fn.get_basic_block("candidate")
-        assert candidate in must_halt.must_halt
-        return safety.can_skip_cleanup(candidate, 0)
+        function callee {
+        callee:
+            %retpc = param
+            nop
+            ret %retpc
+        }
+    """)
+    fn, _, must_halt, safety = _get_stack_cleanup_analyses(ctx)
+    candidate = fn.get_basic_block("candidate")
 
-    assert candidate_is_safe("nop")
-    assert not candidate_is_safe("invoke @callee")
+    assert candidate in must_halt.must_halt
+    assert safety.can_skip_cleanup(candidate, 0)
 
 
 def test_callee_stack_bound_includes_the_caller_frame():
