@@ -99,12 +99,16 @@ _RISKY_BUILTINS = {
 }
 
 
-def _expr_reads(node: vy_ast.VyperNode) -> set:
-    ret = set()
+def get_referenced_variables(node: vy_ast.VyperNode) -> set:
+    """Return variables read while evaluating an expression."""
+    if isinstance(node, vy_ast.ExprNode):
+        # Ignore reads which were folded away at compile time.
+        node = node.reduced()
+    ret: set = set()
     if isinstance(node, vy_ast.ExprNode) and node._expr_info is not None:
-        ret = {access.variable for access in node._expr_info._reads}
+        ret.update(access.variable for access in node._expr_info._reads)
     for child in node._children:
-        ret |= _expr_reads(child)
+        ret |= get_referenced_variables(child)
     return ret
 
 
@@ -145,7 +149,7 @@ def _subscript_read_write_overlap(
     # which can mutate variables used to derive that base.
     base_reads = {
         var
-        for var in _expr_reads(base_node)
+        for var in get_referenced_variables(base_node)
         if var.decl_node is not None and var.modifiability != Modifiability.CONSTANT
     }
     if not base_reads:
@@ -159,11 +163,16 @@ def _subscript_read_write_overlap(
 
 
 def _subscript_base_length_can_stale(base_node: vy_ast.VyperNode) -> bool:
-    if not isinstance(base_node, vy_ast.Subscript):
-        return False
-
-    parent_typ = base_node.value._metadata["type"]
-    return isinstance(parent_typ, DArrayT)
+    # A pointer which passes through a dynamic array element anywhere in its
+    # derivation chain can be invalidated by resizing the enclosing array.
+    node = base_node
+    while isinstance(node, (vy_ast.Subscript, vy_ast.Attribute)):
+        if isinstance(node, vy_ast.Subscript):
+            parent_typ = node.value._metadata["type"]
+            if isinstance(parent_typ, DArrayT):
+                return True
+        node = node.value
+    return False
 
 
 class Expr:
@@ -980,17 +989,20 @@ class Expr:
         """
         node = self.node
         assert isinstance(node, vy_ast.Subscript)
-        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
         base_typ = node.value._metadata["type"]
 
         # A nested dynamic-array base can be invalidated while its index is
-        # evaluated. Snapshot rvalues before that happens; lvalues must retain
-        # the real pointer so assignments still update their target.
-        if (
-            not self.as_ptr
-            and _subscript_base_length_can_stale(node.value)
-            and _subscript_read_write_overlap(node.value, node.slice)
-        ):
+        # evaluated. Snapshot rvalues before that happens; assignment targets
+        # cannot be snapshotted (the write must reach the real pointer), so
+        # reject them like legacy codegen does.
+        overlap = _subscript_base_length_can_stale(node.value) and _subscript_read_write_overlap(
+            node.value, node.slice
+        )
+        if overlap and self.as_ptr:
+            raise CompilerPanic("risky overlap")
+
+        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
+        if overlap:
             base_vv = self.ctx.materialize_value(base_vv, base_typ)
 
         base = base_vv.operand  # Extract pointer for address math
@@ -1152,7 +1164,7 @@ class Expr:
         """
         node = self.node
         assert isinstance(node, vy_ast.Subscript)
-        base_vv = Expr(node.value, self.ctx).lower()
+        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
         base = base_vv.operand  # Extract pointer for address math
         base_typ = base_vv.typ
 
@@ -1194,7 +1206,7 @@ class Expr:
         """
         node = self.node
         assert isinstance(node, vy_ast.Attribute)
-        base_vv = Expr(node.value, self.ctx).lower()
+        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
         base = base_vv.operand  # Extract pointer for address math
         base_typ = node.value._metadata["type"]
         attr = node.attr

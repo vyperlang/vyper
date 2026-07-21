@@ -2,6 +2,8 @@
 
 import pytest
 
+from vyper.exceptions import CompilerPanic
+
 
 def test_negative_ix_access(get_contract, tx_failed):
     # Arrays can't be accessed with negative indices
@@ -207,3 +209,100 @@ def calculate_index() -> uint256:
     c = get_contract(code)
 
     assert c.bar() == 1
+
+
+def test_array_index_overlap_attribute(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen still rejects risky subscript overlap")
+
+    code = """
+struct Foo:
+    b: DynArray[uint256, 4]
+
+a: DynArray[Foo, 5]
+
+@external
+def foo() -> uint256:
+    self.a.append(Foo(b=[1, 1, 1, 1]))
+    return self.a[0].b[self.bar()]
+
+@internal
+def bar() -> uint256:
+    self.a[0] = Foo(b=[100, 100, 100, 100])
+    self.a.pop()
+    return 0
+    """
+    c = get_contract(code)
+    assert c.foo() == 1
+
+
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+def test_array_index_overlap_store(get_contract):
+    code = """
+a: DynArray[DynArray[uint256, 5], 5]
+
+@external
+def foo() -> uint256:
+    self.a.append([1])
+    self.a[0][self.bar()] = 7
+    return self.a[0][0]
+
+@internal
+def bar() -> uint256:
+    self.a.pop()
+    self.a.append([2])
+    return 0
+    """
+    c = get_contract(code)
+    assert c.foo() == 7
+
+
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+def test_array_index_overlap_store_attribute(get_contract):
+    code = """
+struct Foo:
+    b: DynArray[uint256, 4]
+
+a: DynArray[Foo, 5]
+
+@external
+def foo() -> uint256:
+    self.a.append(Foo(b=[1, 1, 1, 1]))
+    self.a[0].b[self.bar()] = 7
+    return self.a[0].b[0]
+
+@internal
+def bar() -> uint256:
+    self.a.pop()
+    self.a.append(Foo(b=[2, 2, 2, 2]))
+    return 0
+    """
+    c = get_contract(code)
+    assert c.foo() == 7
+
+
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+def test_array_index_overlap_store_attribute_target(get_contract):
+    code = """
+struct Foo:
+    b: uint256
+
+a: DynArray[DynArray[Foo, 4], 5]
+
+@external
+def foo() -> uint256:
+    self.a.append([Foo(b=1)])
+    self.a[0][self.bar()].b = 7
+    return self.a[0][0].b
+
+@internal
+def bar() -> uint256:
+    self.a.pop()
+    self.a.append([Foo(b=2)])
+    return 0
+    """
+    c = get_contract(code)
+    assert c.foo() == 7
