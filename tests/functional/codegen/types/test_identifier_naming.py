@@ -3,6 +3,7 @@ import pytest
 from vyper.ast.identifiers import RESERVED_KEYWORDS
 from vyper.builtins.functions import BUILTIN_FUNCTIONS
 from vyper.codegen.expr import ENVIRONMENT_VARIABLES
+from vyper.compiler import compile_code
 from vyper.exceptions import NamespaceCollision, StructureException, SyntaxException
 from vyper.semantics.types.primitives import AddressT
 
@@ -66,3 +67,14 @@ def {constant}(var: int128):
     assert_compile_failed(
         lambda: get_contract(code), (SyntaxException, StructureException, NamespaceCollision)
     )
+
+
+def test_function_named_address_collides():
+    code = """
+@external
+def address() -> uint256:
+    return 1
+    """
+    with pytest.raises(NamespaceCollision) as excinfo:
+        compile_code(code, contract_path="foo.vy")
+    assert excinfo.value.message == "Member 'address' already exists in foo.vy"
