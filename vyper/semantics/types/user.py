@@ -421,19 +421,19 @@ class ErrorT(_UserType):
         return cls(base_node.name, members, base_node)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> "ErrorT":
-        if len(node.keywords) > 0:
-            if len(node.args) > 0:
-                raise InstantiationException(
-                    "Error instantiation requires either all keyword arguments "
-                    "or all positional arguments",
-                    node,
-                )
+        if len(node.args) > 0:
+            positional = list(zip(self.arguments.keys(), node.args))
+            keywords = [(kw.arg, kw.value) for kw in node.keywords]
+            correct_kwargs = positional + keywords
+            correct_kwargs_string = ", ".join(
+                f"{argname}={val.node_source_code}" for argname, val in correct_kwargs
+            )
+            msg = "Instantiating errors with positional arguments is not allowed"
+            hint = f"use kwargs instead: `{node.func.node_source_code}({correct_kwargs_string})`"
 
-            validate_kwargs(node, self.arguments, self.typeclass)
-        else:
-            validate_call_args(node, len(self.arguments))
-            for arg, expected in zip(node.args, self.arguments.values()):
-                validate_expected_type(arg, expected)
+            raise InstantiationException(msg, node, hint=hint)
+
+        validate_kwargs(node, self.arguments, self.typeclass)
 
         return self
 

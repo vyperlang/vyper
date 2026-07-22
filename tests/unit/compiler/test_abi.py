@@ -125,7 +125,7 @@ error LibError:
 
 @external
 def fail():
-    raise LibError(1)
+    raise LibError(code=1)
     """
     main = """
 import lib
