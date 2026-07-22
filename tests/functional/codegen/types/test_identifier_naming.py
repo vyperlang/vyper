@@ -76,5 +76,7 @@ def address() -> uint256:
     return 1
     """
     with pytest.raises(NamespaceCollision) as excinfo:
-        compile_code(code)
-    assert excinfo.value.message == "Member 'address' already exists in <unknown>"
+        compile_code(code, contract_path="foo.vy")
+    assert excinfo.value.message == (
+        "Member 'address' already exists in foo.vy"
+    )
