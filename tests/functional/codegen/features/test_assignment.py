@@ -1,7 +1,13 @@
 import pytest
 
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import CodegenPanic, ImmutableViolation, InvalidType, TypeMismatch
+from vyper.exceptions import (
+    CodegenPanic,
+    ImmutableViolation,
+    InvalidType,
+    StructureException,
+    TypeMismatch,
+)
 
 
 def test_augassign(get_contract):
@@ -382,6 +388,91 @@ def foo(x: int128):
     x += 5
 """
     assert_compile_failed(lambda: get_contract(code), ImmutableViolation)
+
+
+def test_invalid_assign_to_call_return(assert_compile_failed, get_contract):
+    code = """
+@internal
+def g() -> uint256[3]:
+    return [1, 2, 3]
+
+@external
+def f():
+    self.g()[0] = 5
+"""
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+
+    assert e.value.message == "`self.g()[0]` is not a valid assignment target"
+
+
+def test_invalid_assign_to_self_balance(assert_compile_failed, get_contract):
+    code = """
+@external
+def f():
+    self.balance = 100
+"""
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+
+    assert e.value.message == "`self.balance` is not a valid assignment target"
+
+
+def test_invalid_assign_to_storage_addr_balance(assert_compile_failed, get_contract):
+    code = """
+addr: address
+
+@external
+def f():
+    self.addr.balance = 1
+"""
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+
+    assert e.value.message == "`self.addr.balance` is not a valid assignment target"
+
+
+def test_invalid_assign_to_storage_addr_codehash(assert_compile_failed, get_contract):
+    code = """
+addr: address
+
+@external
+def f():
+    self.addr.codehash = empty(bytes32)
+"""
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+
+    assert e.value.message == "`self.addr.codehash` is not a valid assignment target"
+
+
+def test_invalid_assign_to_iface_address(assert_compile_failed, get_contract):
+    code = """
+interface IFoo:
+    def foo() -> uint256: nonpayable
+
+f: IFoo
+
+@external
+def g():
+    self.f.address = empty(address)
+"""
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+
+    assert e.value.message == "`self.f.address` is not a valid assignment target"
+
+
+def test_read_addr_balance_still_works(get_contract):
+    code = """
+addr: address
+
+@external
+def f() -> uint256:
+    return self.addr.balance
+"""
+    c = get_contract(code)
+    assert c.f() == 0
 
 
 def test_valid_literal_increment(get_contract):
