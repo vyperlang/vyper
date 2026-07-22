@@ -95,15 +95,13 @@ def _set_last_label(ctx: IRContext):
 
 # the calling convention is carried only by syntax (opcodes) and the
 # explicit function-header annotation -- there is no shape inference.
-_KNOWN_ANNOTATIONS = frozenset(["fmp_lowered", "fmp_publishes"])
+_KNOWN_ANNOTATIONS = frozenset(["fmp_lowered", "fmp_publishes", "noinline"])
 
 
 def _apply_annotations(fn: IRFunction, annotations: Optional[list[str]]):
     """
-    Reconstruct `fn._fmp_signature` from the function-header annotation and
-    the `fmp_param` opcode. Raw functions carry no annotation and keep
-    `_fmp_signature is None`; the input validator (check_venom) rejects
-    un-annotated functions containing lowered FMP artifacts.
+    Apply function-header annotations and reconstruct the FMP signature from
+    its annotations and the `fmp_param` opcode.
     """
     if annotations is None:
         return
@@ -113,8 +111,13 @@ def _apply_annotations(fn: IRFunction, annotations: Optional[list[str]]):
             raise ValueError(f"unknown function annotation `{attr}` on {fn.name}")
     if len(set(annotations)) != len(annotations):
         raise ValueError(f"duplicate function annotation on {fn.name}")
+
+    fn.noinline = "noinline" in annotations
+
     if "fmp_lowered" not in annotations:
-        raise ValueError(f"`fmp_publishes` requires `fmp_lowered` on {fn.name}")
+        if "fmp_publishes" in annotations:
+            raise ValueError(f"`fmp_publishes` requires `fmp_lowered` on {fn.name}")
+        return
 
     publishes = "fmp_publishes" in annotations
     has_fmp_param = any(
