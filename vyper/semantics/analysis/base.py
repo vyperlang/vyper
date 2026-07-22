@@ -95,7 +95,7 @@ class AnalysisResult:
 class ModuleInfo(AnalysisResult):
     module_t: "ModuleT"
     alias: str
-    # import_node: vy_ast._ImportStmt # maybe could be useful
+    decl_node: vy_ast.alias
     ownership: ModuleOwnership = ModuleOwnership.NO_OWNERSHIP
     ownership_decl: Optional[vy_ast.VyperNode] = None
 
