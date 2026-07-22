@@ -29,14 +29,18 @@ class FmpSignature:
     publishes: bool
 
     @property
-    def annotation(self) -> str:
-        # the function-header annotation in the Venom text format.
+    def attrs(self) -> list[str]:
+        # the function-header annotation attributes in the Venom text format.
         # `has_fmp_param` is not part of the annotation: it is carried
         # syntactically by the `fmp_param` opcode.
         attrs = ["fmp_lowered"]
         if self.publishes:
             attrs.append("fmp_publishes")
-        return f"[{', '.join(attrs)}]"
+        return attrs
+
+    @property
+    def annotation(self) -> str:
+        return f"[{', '.join(self.attrs)}]"
 
 
 class IRFunction:
@@ -61,6 +65,10 @@ class IRFunction:
     # Frozen FMP convention shape; None until FmpLoweringPass runs.
     _fmp_signature: Optional[FmpSignature]
 
+    # Opt-out flag for FunctionInlinerPass; set via the `[noinline]`
+    # function-header annotation.
+    noinline: bool
+
     # Used during code generation
     _ast_source_stack: list[IRnode]
     _error_msg_stack: list[Optional[str]]
@@ -75,6 +83,7 @@ class IRFunction:
         self._has_memory_return_buffer_param = None
         self._return_value_count = None
         self._fmp_signature = None
+        self.noinline = False
 
         self._ast_source_stack = []
         self._error_msg_stack = []
@@ -167,6 +176,7 @@ class IRFunction:
         new._has_memory_return_buffer_param = self._has_memory_return_buffer_param
         new._return_value_count = self._return_value_count
         new._fmp_signature = self._fmp_signature
+        new.noinline = self.noinline
         for bb in self.get_basic_blocks():
             new_bb = bb.copy()
             new.append_basic_block(new_bb)
@@ -211,9 +221,10 @@ class IRFunction:
         return "\n".join(ret)
 
     def __repr__(self) -> str:
-        annotation = ""
-        if self._fmp_signature is not None:
-            annotation = f" {self._fmp_signature.annotation}"
+        attrs = self._fmp_signature.attrs if self._fmp_signature is not None else []
+        if self.noinline:
+            attrs.append("noinline")
+        annotation = f" [{', '.join(attrs)}]" if attrs else ""
         ret = f"function {self.name}{annotation} {{\n"
         for bb in self.get_basic_blocks():
             bb_str = textwrap.indent(str(bb), "  ")
