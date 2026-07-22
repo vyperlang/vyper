@@ -182,6 +182,20 @@ a: constant(uint256) = 1
 flag A:
     a
     """,
+    """
+flag F:
+    address
+    other
+    """,
+    """
+flag F:
+    address
+    other
+
+@external
+def run() -> F:
+    return F.address
+    """,
 ]
 
 
