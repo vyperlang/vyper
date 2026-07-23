@@ -330,7 +330,7 @@ def _abi_encode_to_buf(
 
         # Copy length word + data (32 + length bytes)
         copy_len = b.add(IRLiteral(32), length)
-        ctx.copy_memory_dynamic(dst, src, copy_len)
+        ctx.copy_memory_dynamic(dst, src, copy_len, src_typ.memory_bytes_required)
 
         # Return total encoded size = ceil32(32 + length) = 32 + ceil32(length)
         inv_31 = (~31) & (2**256 - 1)

@@ -53,14 +53,7 @@ class InvokeCopyForwardingBase(IRPass):
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _is_after(self, copy_inst: IRInstruction, use_inst: IRInstruction) -> bool:
-        copy_bb = copy_inst.parent
-        use_bb = use_inst.parent
-
-        if use_bb is copy_bb:
-            bb_insts = copy_bb.instructions
-            return bb_insts.index(use_inst) > bb_insts.index(copy_inst)
-
-        return self.domtree.dominates(copy_bb, use_bb)
+        return self.domtree.is_after(use_inst, copy_inst)
 
     def _invoke_user_arg_index(self, invoke_inst: IRInstruction, operand_idx: int) -> int | None:
         return self._invoke_layout(invoke_inst).user_arg_index(operand_idx)

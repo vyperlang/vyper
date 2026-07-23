@@ -1,6 +1,8 @@
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
+from vyper.evm.address_space import MEMORY
+from vyper.venom.analysis import MemSSA
 from vyper.venom.analysis.analysis import IRAnalysesCache
-from vyper.venom.passes import RemoveUnusedVariablesPass
+from vyper.venom.passes import DeadStoreElimination, RemoveUnusedVariablesPass
 
 
 def _check_pre_post(pre, post):
@@ -83,3 +85,30 @@ def test_removeunused_loop():
         jmp @after
     """
     _check_pre_post(pre, post)
+
+
+def test_removeunused_invalidates_memory_ssa():
+    """
+    Removing a memory use must not leave stale MemorySSA for later DSE.
+    """
+    ctx = parse_from_basic_block("""
+    main:
+        %ptr = alloca 32
+        %unused = mload %ptr
+        mstore %ptr, 1
+        stop
+    """)
+    fn = next(iter(ctx.functions.values()))
+    ac = IRAnalysesCache(fn)
+
+    stale_mem_ssa = ac.request_analysis(MemSSA)
+    RemoveUnusedVariablesPass(ac, fn).run_pass()
+
+    assert not any(inst.opcode == "mload" for inst in fn.entry.instructions)
+    # the cached MemorySSA still references the removed mload; it must
+    # have been invalidated by the pass
+    assert ac.request_analysis(MemSSA) is not stale_mem_ssa
+
+    # with fresh MemorySSA the store has no reader left, so DSE removes it
+    DeadStoreElimination(ac, fn).run_pass(MEMORY)
+    assert not any(inst.opcode == "mstore" for inst in fn.entry.instructions)

@@ -2,7 +2,7 @@ import pytest
 
 from tests.venom_utils import parse_venom
 from vyper.evm.address_space import MEMORY, STORAGE, AddrSpace
-from vyper.venom.analysis import IRAnalysesCache, MemSSA
+from vyper.venom.analysis import BasePtrAnalysis, IRAnalysesCache, MemSSA
 from vyper.venom.analysis.mem_ssa import (
     MemoryAccess,
     MemoryDef,
@@ -1145,3 +1145,51 @@ def test_small_write_large_read_no_clobber():
     assert (
         clobber.is_live_on_entry
     ), "No complete clobber should be found - mstore only partially covers the read"
+
+
+def test_is_clobbered_between():
+    # %p is written between its two reads; %q is never written.
+    code = """
+    function _global {
+        main:
+            %p = alloca 64
+            %q = alloca 64
+            %vp0 = mload %p
+            %vq0 = mload %q
+            mstore %p, 1
+            %vp1 = mload %p
+            %vq1 = mload %q
+            sink %vp0, %vq0, %vp1, %vq1
+    }
+    """
+    ctx = parse_venom(code)
+    fn = ctx.functions[IRLabel("_global")]
+    ac = IRAnalysesCache(fn)
+    base_ptr = ac.request_analysis(BasePtrAnalysis)
+    mem_ssa = ac.request_analysis(MemSSA)
+
+    by_output = {
+        str(inst.output): inst
+        for bb in fn.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.has_outputs
+    }
+    read_p_first, read_p_last = by_output["%vp0"], by_output["%vp1"]
+    read_q_first, read_q_last = by_output["%vq0"], by_output["%vq1"]
+    store = next(
+        inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == "mstore"
+    )
+
+    loc_p = base_ptr.get_read_location(read_p_first, MEMORY)
+    loc_q = base_ptr.get_read_location(read_q_first, MEMORY)
+
+    # the write to %p lies on the path between its two reads
+    assert mem_ssa.is_clobbered_between(read_p_first, [read_p_last], loc_p) is True
+    # the same write does not touch %q
+    assert mem_ssa.is_clobbered_between(read_q_first, [read_q_last], loc_q) is False
+    # ignoring the only clobbering write makes the path clean
+    assert (
+        mem_ssa.is_clobbered_between(read_p_first, [read_p_last], loc_p, ignore=(store,)) is False
+    )
+    # an empty location is never clobbered
+    assert mem_ssa.is_clobbered_between(read_p_first, [read_p_last], MemoryLocation.EMPTY) is False

@@ -7,6 +7,7 @@ from vyper.venom.analysis import (
     DFGAnalysis,
     LivenessAnalysis,
     MemoryAliasAnalysis,
+    MemSSA,
 )
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.effects import Effects, to_addr_space
@@ -56,9 +57,16 @@ class MemoryCopyElisionPass(IRPass):
                     if succ not in worklist:
                         worklist.append(succ)
 
-        # Invalidate analyses that may be affected by IR modifications
+        # Invalidate analyses that may be affected by IR modifications.
+        # MemoryAliasAnalysis captures the DFG instance it was built with, so
+        # it must not outlive the DFG invalidation below.
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
+        # MemSSA keeps per-instruction memory defs/uses, so it is stale after
+        # an elided or rewritten copy. Its invalidation also cascades to the
+        # alias analysis when MemSSA was cached.
+        self.analyses_cache.invalidate_analysis(MemSSA)
+        self.analyses_cache.invalidate_analysis(MemoryAliasAnalysis)
 
     def _merge_copies(self, bb: IRBasicBlock) -> CopyMap:
         """Merge copy info from all predecessors using intersection semantics."""
