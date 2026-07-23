@@ -1,6 +1,6 @@
 ---
 name: vyper-compiler
-description: Vyper smart contract compiler internals. Use when working on the Vyper compiler codebase — compilation pipeline, Venom IR, semantic analysis, code generation, testing, or contributing. Triggers on vyper compiler development, Venom passes, AST/semantics changes, codegen work, or test writing.
+description: Vyper smart contract compiler internals. Use when working on the Vyper compiler codebase — compilation pipeline, Venom IR, semantic analysis, code generation, or testing. Triggers on vyper compiler development, Venom passes, AST/semantics changes, codegen work, or test writing.
 ---
 
 # Vyper Compiler
@@ -46,13 +46,13 @@ Orchestrated by `vyper/compiler/phases.py` (`CompilerData`). Each phase is lazy.
 
 | Directory | Purpose |
 |-----------|---------|
-| `vyper/ast/` | Parsing, AST nodes, pre-parser. See [AST README](../vyper/ast/README.md) |
-| `vyper/semantics/` | Type system, analysis, validation. See [Semantics README](../vyper/semantics/README.md) |
+| `vyper/ast/` | Parsing, AST nodes, pre-parser. See [AST README](../../../vyper/ast/README.md) |
+| `vyper/semantics/` | Type system, analysis, validation. See [Semantics README](../../../vyper/semantics/README.md) |
 | `vyper/codegen/` | AST → s-expr IR (default production pipeline) |
-| `vyper/ir/` | s-expr IR → assembly → bytecode. See [IR README](../vyper/ir/README.md) |
+| `vyper/ir/` | s-expr IR → assembly → bytecode. See [IR README](../../../vyper/ir/README.md) |
 | `vyper/codegen_venom/` | AST → Venom IR (experimental, `--experimental-codegen`) |
-| `vyper/venom/` | Venom SSA IR: passes, analysis, assembly emission. See [Venom README](../vyper/venom/README.md) |
-| `vyper/compiler/` | Pipeline orchestration, settings, output formats. See [Compiler README](../vyper/compiler/README.md) |
+| `vyper/venom/` | Venom SSA IR: passes, analysis, assembly emission. See [Venom README](../../../vyper/venom/README.md) |
+| `vyper/compiler/` | Pipeline orchestration, settings, output formats. See [Compiler README](../../../vyper/compiler/README.md) |
 | `vyper/builtins/` | Built-in functions and interfaces |
 | `vyper/evm/` | EVM opcodes, assembler |
 | `vyper/cli/` | CLI entry points (`vyper`, `vyper-ir`, `venom`) |
@@ -65,7 +65,7 @@ Orchestrated by `vyper/compiler/phases.py` (`CompilerData`). Each phase is lazy.
 - **[Semantics & Frontend](semantics.md)** — Type system, analysis phases, namespace, validation
 - **[Code Generation](codegen.md)** — Legacy IR, Venom codegen, the two pipelines
 - **[Testing](testing.md)** — Test structure, fixtures, running tests, writing new tests
-- **[Contributing](contributing.md)** — Commit message standards, PR workflow, code style summary
+- **[Contributing](../vyper-review-contributing/SKILL.md)** — Commit message standards, PR workflow, code style summary
 
 ## Code Style
 
