@@ -103,15 +103,110 @@ def test_dynarray_wildcard_from_annotation(build_node):
 def test_wildcard_rejected_outside_interface(build_node):
     with pytest.raises(InvalidType) as e:
         type_from_annotation(build_node("Bytes[...]"))
-    assert e.value.message == "Wildcard length is only allowed in interfaces"
+    assert e.value.message == "Wildcard length is only allowed in interfaces and events"
 
     with pytest.raises(InvalidType) as e:
         type_from_annotation(build_node("String[...]"))
-    assert e.value.message == "Wildcard length is only allowed in interfaces"
+    assert e.value.message == "Wildcard length is only allowed in interfaces and events"
 
     with pytest.raises(InvalidType) as e:
         type_from_annotation(build_node("DynArray[uint256, ...]"))
-    assert e.value.message == "Wildcard length is only allowed in interfaces"
+    assert e.value.message == "Wildcard length is only allowed in interfaces and events"
+
+
+@pytest.mark.parametrize(
+    "source,expected,panics_in_legacy",
+    [
+        (
+            """
+event Foo:
+    x: Bytes[...]
+
+@external
+def go():
+    log Foo(x=b"abc")
+""",
+            b"abc",
+            False,
+        ),
+        (
+            """
+event Foo:
+    x: String[...]
+
+@external
+def go():
+    log Foo(x="abc")
+""",
+            "abc",
+            False,
+        ),
+        (
+            """
+event Foo:
+    x: DynArray[uint256, ...]
+
+@external
+def go():
+    log Foo(x=[1, 2, 3])
+""",
+            [1, 2, 3],
+            True,
+        ),
+    ],
+)
+def test_event_wildcard_emits(
+    get_contract, get_logs, source, expected, panics_in_legacy, experimental_codegen, request
+):
+    if experimental_codegen or panics_in_legacy:
+        request.node.add_marker(pytest.mark.xfail(raises=CodegenPanic, strict=True))
+    c = get_contract(source)
+    c.go()
+    (log,) = get_logs(c, "Foo")
+    assert log.args.x == expected
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """
+event Foo:
+    x: indexed(Bytes[...])
+
+@external
+def go():
+    log Foo(x=b"abc")
+""",
+        """
+event Foo:
+    x: indexed(String[...])
+
+@external
+def go():
+    log Foo(x="abc")
+""",
+    ],
+)
+def test_event_wildcard_indexed_emits(get_contract, get_logs, keccak, source):
+    c = get_contract(source)
+    c.go()
+    (log,) = get_logs(c, "Foo")
+    assert log.topics[1] == keccak(b"abc")
+
+
+def test_event_wildcard_abi_signature():
+    # wildcard event fields collapse to the canonical unbounded ABI type
+    out = compiler.compile_code(
+        """
+event Foo:
+    x: Bytes[...]
+    y: String[...]
+    z: DynArray[uint256, ...]
+""",
+        output_formats=["abi"],
+    )
+    foo_abi = next(item for item in out["abi"] if item.get("name") == "Foo")
+    assert [i["type"] for i in foo_abi["inputs"]] == ["bytes", "string", "uint256[]"]
 
 
 def test_wildcard_subtyping():
@@ -282,6 +377,38 @@ def foo() -> Bytes[...]:
     (
         """
 x: Bytes[...]
+    """,
+        InvalidType,
+    ),
+    # INF rejected as event field (Bytes)
+    (
+        """
+event Foo:
+    x: Bytes[INF]
+    """,
+        InvalidType,
+    ),
+    # INF rejected as event field (String)
+    (
+        """
+event Foo:
+    x: String[INF]
+    """,
+        InvalidType,
+    ),
+    # INF rejected as event field (DynArray)
+    (
+        """
+event Foo:
+    x: DynArray[uint256, INF]
+    """,
+        InvalidType,
+    ),
+    # INF rejected even when indexed-wrapped
+    (
+        """
+event Foo:
+    x: indexed(Bytes[INF])
     """,
         InvalidType,
     ),
