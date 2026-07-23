@@ -218,7 +218,7 @@ def get_storage_layout_overrides(input_dict: dict) -> dict[PurePath, JSONInput]:
         if path not in input_dict["sources"]:
             raise JSONError(f"unknown target for storage layout override: {path}")
 
-        if not isinstance(value, dict) and len(value.items()) != 1:
+        if not isinstance(value, dict) or len(value) != 1:
             raise JSONError(f"invalid storage layout override: {value}")
         override_path, override_data = next(iter(value.items()))
         override_path = _normpath(override_path)
