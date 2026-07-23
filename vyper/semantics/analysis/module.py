@@ -919,7 +919,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             module_ast = import_info.parsed
             with override_global_namespace(Namespace()):
                 module_t = _compute_module_type_r(module_ast)
-                return ModuleInfo(module_t, import_info.alias, decl_node=alias_node)
+                return ModuleInfo(module_t, alias_node)
 
         if path.suffix == ".vyi":
             module_ast = import_info.parsed

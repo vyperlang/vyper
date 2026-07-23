@@ -94,10 +94,13 @@ class AnalysisResult:
 @dataclass
 class ModuleInfo(AnalysisResult):
     module_t: "ModuleT"
-    alias: str
     decl_node: vy_ast.alias
     ownership: ModuleOwnership = ModuleOwnership.NO_OWNERSHIP
     ownership_decl: Optional[vy_ast.VyperNode] = None
+
+    @property
+    def alias(self) -> str:
+        return self.decl_node.asname or self.decl_node.name
 
     @property
     def module_node(self):
