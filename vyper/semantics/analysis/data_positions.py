@@ -64,10 +64,12 @@ class SimpleAllocator:
 
     def allocate_slot(self, n, node=None):
         ret = self._slot
-        if self._slot + n >= self._max_slot:
+        # valid slots are [_starting_slot, _max_slot); this allocation
+        # uses slots [_slot, _slot + n)
+        if self._slot + n > self._max_slot:
             raise StorageLayoutException(
                 f"Invalid storage slot, tried to allocate"
-                f" slots {self._slot} through {self._slot + n}",
+                f" slots {self._slot} through {self._slot + n - 1}",
                 node,
             )
         self._slot += n
