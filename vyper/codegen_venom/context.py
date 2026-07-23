@@ -16,7 +16,7 @@ from enum import Enum
 from typing import Optional
 
 from vyper.codegen_venom.buffer import Buffer, Ptr
-from vyper.codegen_venom.value import VyperValue
+from vyper.codegen_venom.value import PreparedValue, VyperValue
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CodegenPanic,
@@ -159,7 +159,92 @@ class VenomCodegenContext:
 
     def store_vyper_value(self, vv: VyperValue, ptr: IRVariable, typ: VyperType) -> None:
         """Store a VyperValue into memory, preserving its source layout."""
-        self.store_memory(self.unwrap(vv), ptr, typ, src_typ=vv.typ)
+        self.copy_vyper_value_to_memory(ptr, vv, typ)
+
+    def copy_vyper_value_to_memory(
+        self, dst: IRVariable, src: VyperValue, typ: Optional[VyperType] = None
+    ) -> None:
+        """Copy ``src`` directly into an existing memory destination.
+
+        This is the destination-oriented counterpart to ``unwrap()``.  In
+        particular, storage, transient, and immutable composites are copied
+        directly into ``dst`` instead of first being materialized into an
+        intermediate memory buffer and then copied again.
+
+        When source and destination layouts differ, normalization still goes
+        through the existing typed memory-copy path.
+        """
+        if typ is None:
+            typ = src.typ
+
+        if typ._is_prim_word:
+            self.builder.mstore(dst, self.unwrap(src))
+            return
+
+        location = src.location
+        if location is None:  # pragma: nocover
+            raise CompilerPanic("composite stack value cannot be copied to memory")
+
+        if location is DataLocation.MEMORY:
+            self.store_memory(src.operand, dst, typ, src_typ=src.typ)
+            return
+
+        # Layout conversion is defined by the memory-to-memory typed copier.
+        # Preserve that behavior for the uncommon cross-layout case.
+        if src.typ != typ:
+            self.store_memory(self.unwrap(src), dst, typ, src_typ=src.typ)
+            return
+
+        if location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+            self.slot_to_memory(src.operand, dst, typ.storage_size_in_words, location)
+            return
+
+        if location is DataLocation.IMMUTABLES:
+            self.copy_to_memory(dst, src.operand, typ.memory_bytes_required, location)
+            return
+
+        if location in (DataLocation.CALLDATA, DataLocation.CODE):  # pragma: nocover
+            raise CompilerPanic(
+                f"cannot flat-copy ABI-layout value from {location}; decode it first"
+            )
+
+        raise CompilerPanic(f"cannot copy value from {location} to memory")  # pragma: nocover
+
+    def prepare_word(self, vv: VyperValue) -> PreparedValue:
+        """Eagerly load a primitive value into emission-free word form."""
+        if not vv.typ._is_prim_word:  # pragma: nocover
+            raise CompilerPanic("prepare_word expects a primitive word")
+        return PreparedValue.from_word(self.unwrap(vv), vv.typ)
+
+    def prepare_memory(
+        self, vv: VyperValue, *, snapshot: bool = False, annotation: Optional[str] = None
+    ) -> PreparedValue:
+        """Prepare a composite value as stable, memory-backed data.
+
+        Existing memory is reused when ``snapshot`` is false.  All other
+        locations, and explicitly requested snapshots, are copied directly
+        into one fresh allocation.  The caller is responsible for requesting
+        a snapshot when later lowering may write through an alias of an
+        existing memory value.
+        """
+        if vv.typ._is_prim_word:  # pragma: nocover
+            raise CompilerPanic("prepare_memory expects a composite value")
+
+        if vv.location is DataLocation.MEMORY and not snapshot:
+            return PreparedValue.from_memory(vv.ptr(), vv.typ)
+
+        ret = self.new_temporary_value(vv.typ, annotation=annotation)
+        assert isinstance(ret.operand, IRVariable)
+        self.copy_vyper_value_to_memory(ret.operand, vv)
+        return PreparedValue.from_memory(ret.ptr(), vv.typ)
+
+    def prepare_value(
+        self, vv: VyperValue, *, snapshot_memory: bool = False, annotation: Optional[str] = None
+    ) -> PreparedValue:
+        """Normalize a location-aware value for emission-free consumption."""
+        if vv.typ._is_prim_word:
+            return self.prepare_word(vv)
+        return self.prepare_memory(vv, snapshot=snapshot_memory, annotation=annotation)
 
     def materialize_value(
         self, vv: VyperValue, typ: Optional[VyperType] = None, annotation: Optional[str] = None
@@ -170,7 +255,7 @@ class VenomCodegenContext:
 
         ret = self.new_temporary_value(typ, annotation=annotation)
         assert isinstance(ret.operand, IRVariable)
-        self.store_vyper_value(vv, ret.operand, typ)
+        self.copy_vyper_value_to_memory(ret.operand, vv, typ)
         return ret
 
     def bytes_data_ptr(self, vv: VyperValue) -> IROperand:

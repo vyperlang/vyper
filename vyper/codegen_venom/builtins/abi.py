@@ -8,14 +8,14 @@ ABI encoding/decoding built-in functions.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Union
 
-from vyper import ast as vy_ast
 from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import abi_decode_to_buf, abi_encode_to_buf
 from vyper.codegen_venom.buffer import Buffer, Ptr
+from vyper.codegen_venom.builtins._call import BuiltinLowerer, PreparedBuiltinCall
 from vyper.codegen_venom.value import VyperValue
-from vyper.exceptions import CompilerPanic, StructureException
+from vyper.exceptions import StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import BytesT, TupleT
 from vyper.utils import fourbytes_to_int
@@ -25,62 +25,15 @@ if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def _get_kwarg_value(node: vy_ast.Call, kwarg_name: str, default=None):
-    """Extract a keyword argument value from a Call node."""
-    for kw in node.keywords:
-        if kw.arg == kwarg_name:
-            return kw.value
-    return default
-
-
-def _get_bool_kwarg(node: vy_ast.Call, kwarg_name: str, default: bool) -> bool:
-    """Extract a boolean keyword argument (must be literal)."""
-    kw_node = _get_kwarg_value(node, kwarg_name)
-    if kw_node is None:
-        return default
-    kw_node = kw_node.reduced()
-    # The value should be a NameConstant (True/False)
-    if isinstance(kw_node, vy_ast.NameConstant):
-        return kw_node.value
-    # Could also be an Int with constant value
-    if isinstance(kw_node, vy_ast.Int):
-        return bool(kw_node.value)
-    raise CompilerPanic(f"unfoldable boolean kwarg: {kwarg_name}", kw_node)
-
-
-def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
-    """Parse method_id kwarg to integer."""
-    if method_id_node is None:
+def _parse_method_id(method_id: Union[str, bytes, None]) -> Optional[int]:
+    """Parse the method_id kwarg constant: a bytes4 hex literal (folded to
+    its source string, e.g. "0xa9059cbb") or a 4-byte bytes literal."""
+    if method_id is None:
         return None
-
-    # Handle bytes literal: method_id=0xaabbccdd
-    if isinstance(method_id_node, vy_ast.Hex):
-        hex_val = method_id_node.value
-        if isinstance(hex_val, str):
-            hex_str = hex_val[2:] if hex_val.startswith("0x") else hex_val
-            return fourbytes_to_int(bytes.fromhex(hex_str))
-        return fourbytes_to_int(hex_val)
-
-    # Handle bytes constant: method_id=b"\xaa\xbb\xcc\xdd"
-    if isinstance(method_id_node, vy_ast.Bytes):
-        return fourbytes_to_int(method_id_node.value)
-
-    # Handle Int literal
-    if isinstance(method_id_node, vy_ast.Int):
-        return method_id_node.value
-
-    # If it has a folded value (constant expression)
-    if hasattr(method_id_node, "_metadata") and "folded_value" in method_id_node._metadata:
-        folded = method_id_node._metadata["folded_value"]
-        if isinstance(folded, vy_ast.Bytes):
-            return fourbytes_to_int(folded.value)
-        if isinstance(folded, vy_ast.Hex):
-            hex_val = folded.value
-            if isinstance(hex_val, str):
-                hex_str = hex_val[2:] if hex_val.startswith("0x") else hex_val
-                return fourbytes_to_int(bytes.fromhex(hex_str))
-
-    return None
+    if isinstance(method_id, str):
+        return fourbytes_to_int(bytes.fromhex(method_id.removeprefix("0x")))
+    assert isinstance(method_id, bytes)
+    return fourbytes_to_int(method_id)
 
 
 def _create_tuple_in_memory(
@@ -106,7 +59,7 @@ def _create_tuple_in_memory(
     return val.operand, tuple_t
 
 
-def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+def lower_abi_encode(call: PreparedBuiltinCall) -> VyperValue:
     """
     abi_encode(*args, ensure_tuple=True, method_id=None) -> Bytes[N]
 
@@ -115,28 +68,19 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     - ensure_tuple: If True (default), wrap single arg in tuple for ABI conformance
     - method_id: Optional 4-byte prefix (function selector)
     """
-    from vyper.codegen_venom.expr import Expr
+    node = call.node
+    ctx = call.ctx
 
     if len(node.args) < 1:
         raise StructureException("abi_encode expects at least one argument", node)
-
     b = ctx.builder
 
-    # Parse kwargs
-    ensure_tuple = _get_bool_kwarg(node, "ensure_tuple", default=True)
-    method_id_node = _get_kwarg_value(node, "method_id")
-    method_id = _parse_method_id(method_id_node)
+    ensure_tuple = call.literal("ensure_tuple")
+    method_id = _parse_method_id(call.literal("method_id"))
 
-    # Evaluate all args - primitives get values, complex types get pointers
-    args = []
-    for arg in node.args:
-        arg_t = arg._metadata["type"]
-        if arg_t._is_prim_word:
-            args.append(Expr(arg, ctx).lower_value())
-        else:
-            arg_vv = Expr(arg, ctx).lower()
-            args.append(ctx.unwrap(arg_vv))  # Copies storage/transient to memory
-    arg_types = [arg._metadata["type"] for arg in node.args]
+    # Primitives are words; composite arguments are stable memory pointers.
+    args = call.arg_operands()
+    arg_types = [call.arg_type(index) for index in range(call.arg_count)]
 
     # Build input to encode
     if len(args) == 1 and not ensure_tuple:
@@ -155,13 +99,9 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         # Create tuple from args
         encode_input, encode_type = _create_tuple_in_memory(ctx, args, arg_types)
 
-    # Calculate buffer size
-    maxlen = encode_type.abi_type.size_bound()
-    if method_id is not None:
-        maxlen += 4
-
     # Allocate output buffer: [32-byte length] | [optional 4-byte method_id] | [data]
-    buf_t = BytesT(maxlen)
+    buf_t = call.return_type
+    assert isinstance(buf_t, BytesT)
     buf_val = ctx.new_temporary_value(buf_t)
     assert isinstance(buf_val.operand, IRVariable)
 
@@ -189,7 +129,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     return buf_val
 
 
-def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+def lower_abi_decode(call: PreparedBuiltinCall) -> VyperValue:
     """
     abi_decode(data, output_type, unwrap_tuple=True) -> output_type
 
@@ -197,17 +137,12 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     - unwrap_tuple: If True (default), single-element tuples are unwrapped
     """
-    from vyper.codegen_venom.expr import Expr
-
+    ctx = call.ctx
     b = ctx.builder
 
-    # Parse args
-    data_node = node.args[0]
-    output_type_node = node.args[1]
-    unwrap_tuple = _get_bool_kwarg(node, "unwrap_tuple", default=True)
+    unwrap_tuple = call.literal("unwrap_tuple")
 
-    # Get output type from type annotation
-    output_typ = output_type_node._metadata["type"].typedef
+    output_typ = call.type_arg("output_type")
 
     # Apply tuple wrapping if needed (for ABI conformance)
     wrapped_typ = output_typ
@@ -215,9 +150,7 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         wrapped_typ = calculate_type_for_external_return(output_typ)
 
     # Get data pointer and length
-    data_vv = Expr(data_node, ctx).lower()
-    data = ctx.unwrap(data_vv)  # Copies storage/transient to memory
-    assert isinstance(data, IRVariable)
+    data = call.memory("data")
     data_len = b.mload(data)  # Length word at start of Bytes
     data_ptr = b.add(data, IRLiteral(32))  # Data starts after length word
 
@@ -255,8 +188,8 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
 
 HANDLERS = {
-    "abi_encode": lower_abi_encode,
-    "abi_decode": lower_abi_decode,
-    "_abi_encode": lower_abi_encode,  # deprecated alias
-    "_abi_decode": lower_abi_decode,  # deprecated alias
+    "abi_encode": BuiltinLowerer(lower_abi_encode),
+    "abi_decode": BuiltinLowerer(lower_abi_decode),
+    "_abi_encode": BuiltinLowerer(lower_abi_encode),  # deprecated alias
+    "_abi_decode": BuiltinLowerer(lower_abi_decode),  # deprecated alias
 }
