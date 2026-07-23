@@ -19,7 +19,10 @@ from typing import Optional
 import vyper.ast as vy_ast
 from vyper.codegen import jumptable_utils
 from vyper.codegen.function_definitions.common import EntryPointInfo, _FuncIRInfo
-from vyper.codegen_venom.abi.abi_decoder import _getelemptr_abi, abi_decode_to_buf
+from vyper.codegen_venom.abi.abi_decoder import (
+    abi_decode_to_buf,
+    decode_unbounded_sequence_to_scratch,
+)
 from vyper.codegen_venom.buffer import Ptr
 from vyper.codegen_venom.constants import SELECTOR_BYTES, SELECTOR_SHIFT_BITS
 from vyper.codegen_venom.value import VyperValue
@@ -27,7 +30,7 @@ from vyper.compiler.settings import Settings, _opt_codesize, _opt_none
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types import TupleT, VyperType
+from vyper.semantics.types import TupleT, VyperType, is_unbounded_sequence_type
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import OrderedSet, method_id_int
@@ -36,7 +39,7 @@ from vyper.venom.builder import VenomBuilder
 from vyper.venom.context import IRContext
 from vyper.venom.memory_location import Allocation
 
-from .calling_convention import pass_via_stack, returns_stack_count
+from .calling_convention import pass_via_stack, returns_dynamic_count, returns_stack_count
 from .context import Constancy, VenomCodegenContext
 from .expr import Expr
 from .stmt import Stmt
@@ -50,15 +53,26 @@ def _get_constancy(func_t: ContractFunctionT) -> Constancy:
 
 
 class IDGenerator:
-    """Assign unique IDs to functions."""
+    """
+    Assign unique IDs to functions.
 
-    def __init__(self):
-        self._id = 0
+    Semantic analysis can assign IDs before deploy/runtime lowering. Preserve
+    existing IDs so metadata and cross-pass function references remain stable.
+    """
+
+    def __init__(self, module_t: ModuleT | None = None):
+        ids = []
+        if module_t is not None:
+            ids = [fn_t._function_id for fn_t in module_t.reachable_functions]
+            ids = [fn_id for fn_id in ids if fn_id is not None]
+        self._id = max(ids, default=-1) + 1
 
     def ensure_id(self, fn_t: ContractFunctionT) -> None:
         if fn_t._function_id is None:
             fn_t._function_id = self._id
             self._id += 1
+        else:
+            self._id = max(self._id, fn_t._function_id + 1)
 
 
 def _is_constructor(func_ast) -> bool:
@@ -107,7 +121,7 @@ def generate_runtime_venom(module_t: ModuleT, settings: Settings) -> IRContext:
     IRContext must be compiled to bytecode before generating
     deploy code.
     """
-    id_generator = IDGenerator()
+    id_generator = IDGenerator(module_t)
 
     # Find all reachable functions
     reachable = _runtime_reachable_functions(module_t, id_generator)
@@ -177,7 +191,7 @@ def generate_deploy_venom(
         immutables_len: Size of immutables section in bytes
         cbor_metadata: Optional CBOR-encoded metadata to append to bytecode
     """
-    id_generator = IDGenerator()
+    id_generator = IDGenerator(module_t)
 
     # Create deploy IR context
     deploy_ctx = IRContext()
@@ -1023,16 +1037,117 @@ def _register_positional_args(ctx: VenomCodegenContext, func_t: ContractFunction
             func_t.positional_args[j].typ.abi_type.embedded_static_size() for j in range(i)
         )
 
-        # Allocate memory for the arg
-        var = ctx.new_variable(arg.name, arg.typ, mutable=False)
-        assert isinstance(var.value.operand, IRVariable)
-
         # Get the element location in calldata (handles ABI offset indirection for dynamic types)
-        elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
+        elem_src = _get_abi_arg_ptr(ctx, calldata_tuple, arg.typ, static_offset)
 
-        # Decode from calldata to memory
-        # Note: No hi bound needed - calldata size already validated in dispatcher
-        abi_decode_to_buf(ctx, var.value.operand, elem_src)
+        _register_abi_arg_from_src(ctx, arg, elem_src)
+
+
+def _abi_arg_hi(ctx: VenomCodegenContext, location: DataLocation):
+    # External calldata is caller-controlled and INF has no type cap, so INF
+    # args need a payload bound. Constructor CODE args keep legacy leniency.
+    if location == DataLocation.CALLDATA:
+        return ctx.builder.calldatasize()
+
+    return None
+
+
+def _get_abi_arg_ptr(
+    ctx: VenomCodegenContext, parent: VyperValue, member_typ: VyperType, static_offset: int
+) -> VyperValue:
+    """
+    Navigate to a top-level external/constructor ABI argument.
+
+    This intentionally stays separate from recursive ABI element addressing:
+    arguments live in a flat frame, and only calldata needs the top-level
+    underflow guard. Constructor CODE args keep legacy's lenient behavior.
+    """
+    loc = parent.location
+    assert loc is not None, "parent must have a location for ABI arg access"
+    assert loc in (DataLocation.CALLDATA, DataLocation.CODE), "ABI args live in calldata or code"
+
+    b = ctx.builder
+    static_loc = b.add(parent.operand, IRLiteral(static_offset))
+
+    if member_typ.abi_type.is_dynamic():
+        offset_val = b.load(static_loc, loc)
+        actual_ptr = b.add(parent.operand, offset_val)
+        # Calldata is caller-controlled. Constructor CODE args intentionally
+        # keep legacy's lenient decode behavior.
+        if loc == DataLocation.CALLDATA:
+            b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
+        return VyperValue.from_ptr(Ptr(operand=actual_ptr, location=loc), member_typ)
+
+    return VyperValue.from_ptr(Ptr(operand=static_loc, location=loc), member_typ)
+
+
+def _register_abi_arg_from_src(ctx: VenomCodegenContext, arg, elem_src: VyperValue) -> None:
+    if is_unbounded_sequence_type(arg.typ):
+        assert elem_src.location is not None, "src must have a location for ABI decoding"
+        hi = _abi_arg_hi(ctx, elem_src.location)
+        val = decode_unbounded_sequence_to_scratch(ctx, elem_src, arg.typ, hi, arg.name)
+        assert isinstance(val.operand, IRVariable)
+        ctx.register_dynamic_variable(arg.name, arg.typ, val.operand, mutable=False)
+        return
+
+    # Allocate memory for the arg
+    var = ctx.new_variable(arg.name, arg.typ, mutable=False)
+    assert isinstance(var.value.operand, IRVariable)
+
+    # Bounded args are capped by the length<=maxlen / count<=max clamp, and
+    # calldata/code overreads zero-fill, so (like legacy) no hi bound is needed.
+    # Unbounded (INF) args get their payload bound in the early-return path above.
+    abi_decode_to_buf(ctx, var.value.operand, elem_src, hi=None)
+
+
+def _store_abi_arg_to_existing_ptr(
+    ctx: VenomCodegenContext, dst: IRVariable, arg, elem_src: VyperValue
+) -> None:
+    if is_unbounded_sequence_type(arg.typ):
+        assert elem_src.location is not None, "src must have a location for ABI decoding"
+        hi = _abi_arg_hi(ctx, elem_src.location)
+        val = decode_unbounded_sequence_to_scratch(ctx, elem_src, arg.typ, hi, arg.name)
+        ctx.builder.mstore(dst, val.operand)
+        return
+
+    # Bounded args are capped by the type clamp; no hi bound needed (see above).
+    abi_decode_to_buf(ctx, dst, elem_src, hi=None)
+
+
+def _register_default_arg(ctx: VenomCodegenContext, arg, default_node: vy_ast.VyperNode) -> None:
+    if is_unbounded_sequence_type(arg.typ):
+        default_vv = Expr(default_node, ctx).lower()
+        val = ctx.copy_sequence_to_scratch(default_vv, arg.typ, annotation=arg.name)
+        assert isinstance(val.operand, IRVariable)
+        ctx.register_dynamic_variable(arg.name, arg.typ, val.operand, mutable=False)
+        return
+
+    var = ctx.new_variable(arg.name, arg.typ, mutable=False)
+    assert isinstance(var.value.operand, IRVariable)
+
+    if arg.typ._is_prim_word:
+        default_val = Expr(default_node, ctx).lower_value()
+        ctx.ptr_store(var.value.ptr(), default_val)
+    else:
+        default_vv = Expr(default_node, ctx).lower()
+        ctx.store_vyper_value(default_vv, var.value.operand, arg.typ)
+
+
+def _store_default_arg_to_existing_ptr(
+    ctx: VenomCodegenContext, dst: IRVariable, arg, default_node: vy_ast.VyperNode
+) -> None:
+    if is_unbounded_sequence_type(arg.typ):
+        default_vv = Expr(default_node, ctx).lower()
+        val = ctx.copy_sequence_to_scratch(default_vv, arg.typ, annotation=arg.name)
+        ctx.builder.mstore(dst, val.operand)
+        return
+
+    if arg.typ._is_prim_word:
+        default_val = Expr(default_node, ctx).lower_value()
+        ctx.builder.mstore(dst, default_val)
+    else:
+        default_vv = Expr(default_node, ctx).lower()
+        ctx.store_vyper_value(default_vv, dst, arg.typ)
 
 
 def _handle_kwargs(
@@ -1071,9 +1186,6 @@ def _handle_kwargs(
         calldata_tuple = VyperValue.from_ptr(ptr, calldata_tuple_t)
 
     for i, arg in enumerate(func_t.keyword_args):
-        var = ctx.new_variable(arg.name, arg.typ, mutable=False)
-        assert isinstance(var.value.operand, IRVariable)
-
         if i < kwargs_from_calldata:
             # Copy from calldata using ABI decoder
             # This kwarg's index in the full calldata tuple
@@ -1081,17 +1193,12 @@ def _handle_kwargs(
             static_offset = sum(
                 calldata_arg_types[j].abi_type.embedded_static_size() for j in range(tuple_index)
             )
-            elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
-            abi_decode_to_buf(ctx, var.value.operand, elem_src)
+            elem_src = _get_abi_arg_ptr(ctx, calldata_tuple, arg.typ, static_offset)
+            _register_abi_arg_from_src(ctx, arg, elem_src)
         else:
             # Use default value
             default_node = func_t.default_values[arg.name]
-            if arg.typ._is_prim_word:
-                default_val = Expr(default_node, ctx).lower_value()
-                ctx.ptr_store(var.value.ptr(), default_val)
-            else:
-                default_vv = Expr(default_node, ctx).lower()
-                ctx.store_vyper_value(default_vv, var.value.operand, arg.typ)
+            _register_default_arg(ctx, arg, default_node)
 
 
 def _create_kwarg_allocas(
@@ -1110,7 +1217,10 @@ def _create_kwarg_allocas(
 
     kwarg_vars: dict[str, IRVariable] = {}
     for arg in func_t.keyword_args:
-        size = arg.typ.memory_bytes_required
+        if is_unbounded_sequence_type(arg.typ):
+            size = 32
+        else:
+            size = arg.typ.memory_bytes_required
         ptr = builder.alloca(size)
         kwarg_vars[arg.name] = ptr
 
@@ -1165,17 +1275,12 @@ def _init_kwargs_in_entry_point(
             static_offset = sum(
                 calldata_arg_types[j].abi_type.embedded_static_size() for j in range(tuple_index)
             )
-            elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
-            abi_decode_to_buf(ctx, alloca_ptr, elem_src)
+            elem_src = _get_abi_arg_ptr(ctx, calldata_tuple, arg.typ, static_offset)
+            _store_abi_arg_to_existing_ptr(ctx, alloca_ptr, arg, elem_src)
         else:
             # Use default value
             default_node = func_t.default_values[arg.name]
-            if arg.typ._is_prim_word:
-                default_val = Expr(default_node, ctx).lower_value()
-                ctx.builder.mstore(alloca_ptr, default_val)
-            else:
-                default_vv = Expr(default_node, ctx).lower()
-                ctx.store_vyper_value(default_vv, alloca_ptr, arg.typ)
+            _store_default_arg_to_existing_ptr(ctx, alloca_ptr, arg, default_node)
 
 
 def _register_kwarg_variables(ctx: VenomCodegenContext, func_t: ContractFunctionT) -> None:
@@ -1196,7 +1301,10 @@ def _register_kwarg_variables(ctx: VenomCodegenContext, func_t: ContractFunction
         alloca_ptr = kwarg_vars[arg.name]
 
         # Register as a variable pointing to the existing alloca (no new allocation)
-        ctx.register_variable(arg.name, arg.typ, alloca_ptr, mutable=False)
+        if is_unbounded_sequence_type(arg.typ):
+            ctx.register_pointer_cell_variable(arg.name, arg.typ, alloca_ptr, mutable=False)
+        else:
+            ctx.register_variable(arg.name, arg.typ, alloca_ptr, mutable=False)
 
 
 def _generate_fallback_body(
@@ -1277,14 +1385,17 @@ def _generate_internal_function(
     # Set up return handling
     pass_via_stack_dict = pass_via_stack(func_t)
     returns_count = returns_stack_count(func_t)
-    has_memory_return_buffer = func_t.return_type is not None and returns_count == 0
+    dynamic_returns_count = returns_dynamic_count(func_t)
+    has_memory_return_buffer = (
+        func_t.return_type is not None and returns_count == 0 and dynamic_returns_count == 0
+    )
 
     # Structured invoke metadata used by backend passes. _invoke_param_count
     # is gone: the user-arg count is now syntactic (FunctionCallLayout counts
     # plain `param` opcodes). _return_value_count feeds the post-lowering
     # invoke output-count check (find_post_lowering_errors).
     fn._has_memory_return_buffer_param = has_memory_return_buffer
-    fn._return_value_count = returns_count
+    fn._return_value_count = returns_count + dynamic_returns_count
 
     # Handle parameters
     # First: return buffer pointer if memory return
@@ -1301,7 +1412,11 @@ def _generate_internal_function(
         else:
             # Memory-passed: receive pointer, register directly (no allocation)
             ptr = builder.param()
-            codegen_ctx.register_variable(arg.name, arg.typ, ptr, mutable=True)
+            if is_unbounded_sequence_type(arg.typ):
+                var = codegen_ctx.new_pointer_cell_variable(arg.name, arg.typ, mutable=True)
+                codegen_ctx.ptr_store(var.value.ptr(), ptr)
+            else:
+                codegen_ctx.register_variable(arg.name, arg.typ, ptr, mutable=True)
 
     # Return PC is the last param, named by its dedicated opcode so the
     # raw IR is self-describing even for functions with no `ret` to anchor it
@@ -1309,7 +1424,7 @@ def _generate_internal_function(
 
     # Allocate return buffer if needed
     if func_t.return_type is not None:
-        if returns_count > 0:
+        if returns_count > 0 and dynamic_returns_count == 0:
             ret_buf = codegen_ctx.new_temporary_value(func_t.return_type).operand
             assert isinstance(ret_buf, IRVariable)
             codegen_ctx.return_buffer = ret_buf
@@ -1420,16 +1535,10 @@ def _register_constructor_args(ctx: VenomCodegenContext, func_t: ContractFunctio
             func_t.positional_args[j].typ.abi_type.embedded_static_size() for j in range(i)
         )
 
-        # Allocate memory for the arg
-        var = ctx.new_variable(arg.name, arg.typ, mutable=False)
-        assert isinstance(var.value.operand, IRVariable)
-
         # Get element location in data section (handles ABI offset for dynamic types)
-        elem_src = _getelemptr_abi(ctx, data_tuple, arg.typ, static_offset)
+        elem_src = _get_abi_arg_ptr(ctx, data_tuple, arg.typ, static_offset)
 
-        # Decode from data section to memory
-        # Note: No hi bound needed for constructor args from trusted bytecode
-        abi_decode_to_buf(ctx, var.value.operand, elem_src)
+        _register_abi_arg_from_src(ctx, arg, elem_src)
 
 
 def _generate_simple_deploy(

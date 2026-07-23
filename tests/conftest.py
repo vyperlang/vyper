@@ -63,10 +63,15 @@ def pytest_addoption(parser):
 
 
 @pytest.fixture(scope="module")
-def output_formats():
+def output_formats(experimental_codegen):
     output_formats = compiler.OUTPUT_FORMATS.copy()
 
     to_drop = ("cfg", "cfg_runtime", "archive", "archive_b64", "solc_json")
+    if experimental_codegen:
+        # These formats require legacy IR, which is not available for
+        # Venom-only language features such as unbounded sequence types.
+        to_drop += ("ir_dict", "ir_runtime_dict")
+
     for s in to_drop:
         del output_formats[s]
 

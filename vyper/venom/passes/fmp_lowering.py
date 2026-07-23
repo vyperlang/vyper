@@ -800,9 +800,9 @@ class DretDesugarPass(IRPass):
     Desugar `dret` into FMP virtual-register IR before inlining.
 
     Purely local: a function containing `dret` gets `%e = getfmp` at entry,
-    and each `dret` becomes the dst-chain arithmetic rooted at `%e`, the
-    pack-by-copy memory copies, `setfmp %new_fmp` (an *advance* over the
-    packed data, never a rewind) and a `retfmp` publishing terminator.
+    and each `dret` becomes optional source staging, the dst-chain arithmetic
+    rooted at `%e`, the pack-by-copy memory copies, `setfmp %new_fmp` to
+    publish the compacted return frame, and a `retfmp` publishing terminator.
     Functions without `dret` are untouched; no params and no invokes are
     modified anywhere -- the calling convention is materialized later by
     FmpLoweringPass.
@@ -853,11 +853,22 @@ class DretDesugarPass(IRPass):
         pairs = [(pair_ops[i], pair_ops[i + 1]) for i in range(0, len(pair_ops), 2)]
 
         lowered: list[IRInstruction] = []
+        pack_pairs = pairs
+        if len(pairs) > 1:
+            pack_pairs = []
+            for src, size in pairs:
+                tmp = self.function.get_next_variable()
+                dalloca_inst = IRInstruction("dalloca", [size], [tmp])
+                _copy_metadata(inst, dalloca_inst)
+                lowered.append(dalloca_inst)
+                lowered.extend(_copy_memory(self.function, tmp, src, size, inst))
+                pack_pairs.append((tmp, size))
+
         dsts: list[IRVariable] = []
         prev_dst: IROperand = entry_fmp_var
         prev_aligned: IRVariable | None = None
 
-        for idx, (_, size) in enumerate(pairs):
+        for idx, (_, size) in enumerate(pack_pairs):
             if idx == 0:
                 dst = entry_fmp_var
             else:
@@ -879,7 +890,10 @@ class DretDesugarPass(IRPass):
         _copy_metadata(inst, new_fmp_inst)
         lowered.append(new_fmp_inst)
 
-        for dst_op, (src, size) in zip(dsts, pairs, strict=True):
+        # Pack staged sources from low to high. The pack region starts at the
+        # callee entry FMP, so arbitrary original source order can form a swap
+        # over live sources; staging breaks that aliasing before compaction.
+        for dst_op, (src, size) in zip(dsts, pack_pairs, strict=True):
             lowered.extend(_copy_memory(self.function, dst_op, src, size, inst))
 
         setfmp_inst = IRInstruction("setfmp", [new_fmp], [])

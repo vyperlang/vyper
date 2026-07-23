@@ -1,12 +1,145 @@
 from collections import defaultdict
 
-from vyper.exceptions import ExceptionList, InitializerException
+from vyper import ast as vy_ast
+from vyper.exceptions import CompilerPanic, ExceptionList, InitializerException, StructureException
 from vyper.semantics.analysis.base import InitializesInfo, UsesInfo
+from vyper.semantics.types.base import TYPE_T, VyperType
+from vyper.semantics.types.infinity import type_contains_unbounded_sequence
 from vyper.semantics.types.module import ModuleT
+from vyper.semantics.types.primitives import AddressT
 
 
-def validate_compilation_target(module_t: ModuleT):
+def validate_compilation_target(module_t: ModuleT, experimental_codegen: bool = False) -> None:
     _validate_global_initializes_constraint(module_t)
+    if not experimental_codegen:
+        _validate_legacy_codegen_no_unbounded_sequences(module_t)
+
+
+def _reject_legacy_unbounded_sequence(typ: VyperType, node: vy_ast.VyperNode) -> None:
+    if type_contains_unbounded_sequence(typ):
+        raise StructureException("unbounded sequence types require --experimental-codegen", node)
+
+
+def _legacy_type_expression_from_node(node: vy_ast.VyperNode) -> VyperType | None:
+    typ = getattr(node, "_metadata", {}).get("type")
+    if isinstance(typ, TYPE_T):
+        return typ.typedef
+
+    expr_info = getattr(node, "_expr_info", None)
+    typ = getattr(expr_info, "typ", None)
+    if isinstance(typ, TYPE_T):
+        return typ.typedef
+
+    return None
+
+
+def _legacy_value_type_from_node(node: vy_ast.VyperNode) -> VyperType | None:
+    typ = getattr(node, "_metadata", {}).get("type")
+    if isinstance(typ, VyperType) and not isinstance(typ, TYPE_T):
+        return typ
+
+    return None
+
+
+def _is_adhoc_bytes_source(node: vy_ast.VyperNode) -> bool:
+    """Check if node represents msg.data, self.code, or <addr>.code."""
+    if not isinstance(node, vy_ast.Attribute):
+        return False
+
+    if _is_msg_data(node):
+        return True
+
+    if node.attr == "code":
+        value_typ = node.value._metadata.get("type")
+        # note: SelfT (for `self.code`) is a subclass of AddressT
+        return isinstance(value_typ, AddressT)
+
+    return False
+
+
+def _is_msg_data(node: vy_ast.VyperNode) -> bool:
+    return (
+        isinstance(node, vy_ast.Attribute)
+        and node.attr == "data"
+        and isinstance(node.value, vy_ast.Name)
+        and node.value.id == "msg"
+    )
+
+
+# legacy codegen has adhoc lowerings for msg.data, self.code and <address>.code
+# which never materialize an unbounded sequence value: `slice()` of any of them,
+# plus `len()` and `raw_call()`'s data argument for msg.data. exempt exactly
+# those forms from the unbounded sequence check. every other consumer of an
+# INF-valued expression (including these sources in other contexts, and
+# extcall/staticcall returns of unbounded interface types) has no legacy
+# lowering and would panic in legacy codegen.
+def _is_legacy_blessed_unbounded_expr(node: vy_ast.VyperNode) -> bool:
+    if not _is_adhoc_bytes_source(node):
+        return False
+
+    parent = node.get_ancestor()
+    if not isinstance(parent, vy_ast.Call) or not isinstance(parent.func, vy_ast.Name):
+        return False
+
+    func_id = parent.func.id
+    args = parent.args
+    if func_id == "slice":
+        return len(args) > 0 and args[0] is node
+    if func_id == "len":
+        return len(args) > 0 and args[0] is node and _is_msg_data(node)
+    if func_id == "raw_call":
+        return len(args) > 1 and args[1] is node and _is_msg_data(node)
+
+    return False
+
+
+def _validate_legacy_function_body_no_unbounded_sequences(func_t) -> None:
+    assert func_t.ast_def is not None
+
+    for stmt in func_t.ast_def.body:
+        for node in stmt.get_descendants(vy_ast.ExprNode):
+            typ = _legacy_type_expression_from_node(node)
+            if typ is not None:
+                _reject_legacy_unbounded_sequence(typ, node)
+
+            typ = _legacy_value_type_from_node(node)
+            if typ is not None and not _is_legacy_blessed_unbounded_expr(node):
+                _reject_legacy_unbounded_sequence(typ, node)
+
+
+def _validate_legacy_codegen_no_unbounded_sequences(module_t: ModuleT) -> None:
+    for var_info in module_t.variables.values():
+        if var_info.is_constant:
+            if var_info.decl_node is None:  # pragma: nocover
+                raise CompilerPanic("constant missing declaration node")
+            _reject_legacy_unbounded_sequence(var_info.typ, var_info.decl_node.annotation)
+
+    # legacy codegen compiles all functions reachable from the compilation
+    # target's entry points, including functions defined in imported modules;
+    # validate that same set (plus the target module's own functions).
+    functions = list(module_t.functions.values())
+    functions.extend(f for f in module_t.reachable_functions if f not in functions)
+
+    for func_t in functions:
+        for arg in func_t.arguments:
+            if arg.ast_source is None:  # pragma: nocover
+                raise CompilerPanic("function argument missing declaration node")
+            _reject_legacy_unbounded_sequence(arg.typ, arg.ast_source.annotation)
+
+        if func_t.return_type is not None:
+            if func_t.ast_def is None:  # pragma: nocover
+                raise CompilerPanic("function return type missing declaration node")
+            _reject_legacy_unbounded_sequence(func_t.return_type, func_t.ast_def.returns)
+
+        if func_t.ast_def is None:  # pragma: nocover
+            raise CompilerPanic("function missing declaration node")
+        for node in func_t.ast_def.get_descendants(vy_ast.AnnAssign):
+            typ = node.target._metadata.get("type")
+            if typ is None:  # pragma: nocover
+                raise CompilerPanic("local variable missing analysis metadata")
+            _reject_legacy_unbounded_sequence(typ, node.annotation)
+
+        _validate_legacy_function_body_no_unbounded_sequences(func_t)
 
 
 def _collect_used_modules_r(module_t):

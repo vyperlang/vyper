@@ -11,7 +11,6 @@ from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
     ArrayIndexException,
-    CompilerPanic,
     ImmutableViolation,
     OverflowException,
     StateAccessViolation,
@@ -1690,8 +1689,8 @@ def __init__():
     """
     c = get_contract(code)
 
-    for i, l in enumerate([[1, 2, 3]]):
-        for j, t in enumerate(l):
+    for i, row in enumerate([[1, 2, 3]]):
+        for j, t in enumerate(row):
             assert c.my_list(i, j) == t
 
 
@@ -1892,8 +1891,7 @@ def boo() -> uint256:
     assert c.foo() == [1, 2, 3, 4]
 
 
-@pytest.mark.xfail(raises=CompilerPanic)
-def test_dangling_reference(get_contract, tx_failed):
+def test_dangling_reference(get_contract, assert_compile_failed):
     code = """
 a: DynArray[DynArray[uint256, 5], 5]
 
@@ -1902,9 +1900,7 @@ def foo():
     self.a = [[1]]
     self.a.pop().append(2)
     """
-    c = get_contract(code)
-    with tx_failed():
-        c.foo()
+    assert_compile_failed(lambda: get_contract(code), ImmutableViolation)
 
 
 def test_dynarray_append_single_field_struct_storage(get_contract):
