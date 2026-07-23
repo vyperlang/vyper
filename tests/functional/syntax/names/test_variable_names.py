@@ -23,6 +23,18 @@ def foo(i: int128) -> int128:
     false : int128 = i
     return false
     """,
+    # a builtin cannot be an assignment target; assigning one to itself used to
+    # slip past the typechecker and panic in codegen (GH issue #3933).
+    """
+@external
+def foo():
+    convert = convert
+    """,
+    """
+@external
+def foo():
+    as_wei_value = as_wei_value
+    """,
 ]
 
 
