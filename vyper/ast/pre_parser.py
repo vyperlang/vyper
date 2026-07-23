@@ -283,6 +283,8 @@ class PreParser:
                     offset -= 1
             raise SyntaxException(e.msg, code, e.lineno, offset) from e
         except UnicodeEncodeError as e:
+            # Report invalid unicode sequences
+            # We have to fully compute the source location manually here
             prefix = code[: e.start]
             lineno = prefix.count("\n") + 1
             col_offset = e.start - (prefix.rfind("\n") + 1)
