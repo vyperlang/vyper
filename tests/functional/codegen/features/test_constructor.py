@@ -319,3 +319,35 @@ def __init__():
 
     with ctx():
         _ = get_contract(code, value=10)
+
+
+def test_constructor_explicit_return(get_contract):
+    # explicit `return` in __init__ must still deploy the runtime code
+    code = """
+x: public(uint256)
+
+@deploy
+def __init__():
+    self.x = 42
+    return
+    """
+    c = get_contract(code)
+    assert c.x() == 42
+
+
+def test_constructor_conditional_return(get_contract):
+    code = """
+x: public(uint256)
+
+@deploy
+def __init__(a: uint256):
+    if a > 5:
+        self.x = a
+        return
+    self.x = 42
+    """
+    c = get_contract(code, 10)
+    assert c.x() == 10
+
+    c = get_contract(code, 1)
+    assert c.x() == 42

@@ -33,7 +33,7 @@ from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
 from vyper.utils import IDENTITY_PRECOMPILE
-from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 
 
@@ -95,6 +95,11 @@ class VenomCodegenContext:
     # Reserves memory at position 0 for immutables staging;
     # used by deploy epilogue to copy staging area into bytecode.
     immutables_alloca: Optional[IRVariable] = None
+
+    # Shared exit block holding the deploy epilogue (for constructor context).
+    # Explicit `return` in __init__ must jump here instead of halting,
+    # otherwise the runtime code would never be returned.
+    ctor_exit_block: Optional[IRBasicBlock] = None
 
     def new_variable(self, name: str, typ: VyperType, mutable: bool = True) -> LocalVariable:
         """Allocate memory for a named variable, register it, return the variable."""
