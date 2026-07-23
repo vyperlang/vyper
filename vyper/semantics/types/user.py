@@ -3,6 +3,7 @@ from typing import Iterator, Optional
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_GIntM, ABI_Tuple, ABIType
+from vyper.ast.identifiers import validate_identifier
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     EventDeclarationException,
@@ -31,6 +32,7 @@ from vyper.warnings import Deprecation, vyper_warn
 class _UserType(VyperType):
     def __init__(self, members=None):
         super().__init__(members=members)
+
         if members is not None:
             for mt in members.values():
                 if not mt.is_valid_member_type:
@@ -100,6 +102,11 @@ def _get_user_type_member_name(node: vy_ast.AnnAssign, seen: set[str], type_labe
 
 def _abi_input_name(item: dict, index: int, members: dict[str, VyperType]) -> str:
     name = item.get("name") or f"_arg{index}"
+    try:
+        validate_identifier(name)
+    except StructureException:
+        name = f"_arg{index}"
+
     if name not in members:
         return name
 
@@ -292,9 +299,10 @@ class EventT(_UserType):
         Event object.
         """
         members: dict = {}
-        indexed: list = [i["indexed"] for i in abi["inputs"]]
-        for item in abi["inputs"]:
-            members[item["name"]] = type_from_abi(item)
+        indexed: list = [i.get("indexed", False) for i in abi["inputs"]]
+        for i, item in enumerate(abi["inputs"]):
+            name = _abi_input_name(item, i, members)
+            members[name] = type_from_abi(item)
         return cls(abi["name"], members, indexed)
 
     @classmethod
