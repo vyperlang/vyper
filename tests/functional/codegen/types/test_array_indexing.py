@@ -2,6 +2,7 @@
 
 import pytest
 
+from vyper.compiler import compile_code
 from vyper.exceptions import CompilerPanic
 
 
@@ -207,3 +208,67 @@ def calculate_index() -> uint256:
     c = get_contract(code)
 
     assert c.bar() == 1
+
+
+# sources rejected by the read/write overlap guard in subscript lowering:
+# the base pointer is evaluated before the index expression, so an index
+# expression which can mutate the base could stale the base pointer.
+# see test_array_index_overlap* above for the runtime behavior.
+overlap_codes = [
+    # index (internal call) writes to the array being indexed
+    """
+a: public(DynArray[DynArray[Bytes[96], 5], 5])
+
+@external
+def foo() -> Bytes[96]:
+    self.a.append([b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'])
+    return self.a[0][self.bar()]
+
+@internal
+def bar() -> uint256:
+    self.a[0] = [b'yyy']
+    self.a.pop()
+    return 0
+    """,
+    # index expression contains a risky (external) call
+    """
+interface Bar:
+    def bar() -> uint256: payable
+
+a: public(DynArray[DynArray[Bytes[96], 5], 5])
+
+@external
+def foo() -> Bytes[96]:
+    self.a.append([b'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'])
+    return self.a[0][extcall Bar(self).bar()]
+    """,
+    # risky call routed through an internal function
+    """
+interface Bar:
+    def bar() -> uint256: payable
+
+a: uint256[5]
+
+@external
+def foo() -> uint256:
+    return self.a[self.ix()]
+
+@internal
+def ix() -> uint256:
+    return extcall Bar(self).bar()
+    """,
+    # index expression (pop()) writes to the array being indexed
+    """
+a: DynArray[uint256, 5]
+
+@external
+def foo() -> uint256:
+    return self.a[self.a.pop()]
+    """,
+]
+
+
+@pytest.mark.parametrize("code", overlap_codes)
+def test_array_index_rw_overlap_rejected(code):
+    with pytest.raises(CompilerPanic, match="risky overlap"):
+        compile_code(code)
