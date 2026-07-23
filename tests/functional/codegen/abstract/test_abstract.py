@@ -44,13 +44,14 @@ def test_stateful_override_with_initializes(get_contract, make_input_bundle):
     contract = """
 import abstract_m
 import override_m
+import caller_m
 
-uses: abstract_m
 initializes: override_m  # Now properly initialized
+initializes: caller_m[abstract_m := abstract_m]
 
 @external
 def my_method() -> uint256:
-    return abstract_m.bar()
+    return caller_m.call_bar()
     """
 
     abstract_m = """
@@ -69,7 +70,18 @@ def bar() -> uint256:
     self.counter += 1
     return 101
     """
-    input_bundle = make_input_bundle({"abstract_m.vy": abstract_m, "override_m.vy": override_m})
+
+    caller_m = """
+import abstract_m
+
+uses: abstract_m
+
+def call_bar() -> uint256:
+    return abstract_m.bar()
+    """
+    input_bundle = make_input_bundle(
+        {"abstract_m.vy": abstract_m, "override_m.vy": override_m, "caller_m.vy": caller_m}
+    )
 
     c = get_contract(contract, input_bundle=input_bundle)
 
@@ -432,22 +444,39 @@ def common_method() -> uint256:
     return 100
     """
 
+    caller_module = """
+import abstract_module_a
+import abstract_module_b
+
+uses: abstract_module_a
+uses: abstract_module_b
+
+def call_a() -> uint256:
+    return abstract_module_a.common_method()
+
+def call_b() -> uint256:
+    return abstract_module_b.common_method()
+    """
+
     contract = """
 import abstract_module_a
 import abstract_module_b
 import override_module
+import caller_module
 
-uses: abstract_module_a
-uses: abstract_module_b
 initializes: override_module
+initializes: caller_module[
+    abstract_module_a := abstract_module_a,
+    abstract_module_b := abstract_module_b
+]
 
 @external
 def test_a() -> uint256:
-    return abstract_module_a.common_method()
+    return caller_module.call_a()
 
 @external
 def test_b() -> uint256:
-    return abstract_module_b.common_method()
+    return caller_module.call_b()
     """
 
     input_bundle = make_input_bundle(
@@ -455,6 +484,7 @@ def test_b() -> uint256:
             "abstract_module_a.vy": abstract_module_a,
             "abstract_module_b.vy": abstract_module_b,
             "override_module.vy": override_module,
+            "caller_module.vy": caller_module,
         }
     )
 
@@ -489,22 +519,39 @@ def common_method(x: uint256 = 100) -> uint256:
     return x
     """
 
+    caller_module = """
+import abstract_module_a
+import abstract_module_b
+
+uses: abstract_module_a
+uses: abstract_module_b
+
+def call_a() -> uint256:
+    return abstract_module_a.common_method()
+
+def call_b(x: uint256) -> uint256:
+    return abstract_module_b.common_method(x)
+    """
+
     contract = """
 import abstract_module_a
 import abstract_module_b
 import override_module
+import caller_module
 
-uses: abstract_module_a
-uses: abstract_module_b
 initializes: override_module
+initializes: caller_module[
+    abstract_module_a := abstract_module_a,
+    abstract_module_b := abstract_module_b
+]
 
 @external
 def test1() -> uint256:
-    return abstract_module_a.common_method()
+    return caller_module.call_a()
 
 @external
 def test2(x: uint256) -> uint256:
-    return abstract_module_b.common_method(x)
+    return caller_module.call_b(x)
     """
 
     input_bundle = make_input_bundle(
@@ -512,6 +559,7 @@ def test2(x: uint256) -> uint256:
             "abstract_module_a.vy": abstract_module_a,
             "abstract_module_b.vy": abstract_module_b,
             "override_module.vy": override_module,
+            "caller_module.vy": caller_module,
         }
     )
 
@@ -558,23 +606,38 @@ def process() -> uint256:
     return stateful.get_counter()
     """
 
+    caller_m = """
+import b_module
+
+uses: b_module
+
+def call_process() -> uint256:
+    return b_module.process()
+    """
+
     contract = """
 import stateful
 import a_module
 import b_module
+import caller_m
 
-uses: b_module
 initializes: a_module[stateful := stateful]
+initializes: caller_m[b_module := b_module]
 
 @external
 def test_multiple_calls() -> uint256:
-    b_module.process()
-    b_module.process()
-    return b_module.process()
+    caller_m.call_process()
+    caller_m.call_process()
+    return caller_m.call_process()
     """
 
     input_bundle = make_input_bundle(
-        {"stateful.vy": stateful, "b_module.vy": b_module, "a_module.vy": a_module}
+        {
+            "stateful.vy": stateful,
+            "b_module.vy": b_module,
+            "a_module.vy": a_module,
+            "caller_m.vy": caller_m,
+        }
     )
 
     c = get_contract(contract, input_bundle=input_bundle)
@@ -614,23 +677,37 @@ def process() -> uint256:
     return stateful.get_counter()
     """
 
-    contract = """
-import stateful
-import a_module
+    caller_m = """
 import b_module
 
 uses: b_module
-initializes: a_module
 
-@external
-def test_multiple_calls() -> uint256:
-    b_module.process()
-    b_module.process()
+def call_process() -> uint256:
     return b_module.process()
     """
 
+    contract = """
+import a_module
+import b_module
+import caller_m
+
+initializes: a_module
+initializes: caller_m[b_module := b_module]
+
+@external
+def test_multiple_calls() -> uint256:
+    caller_m.call_process()
+    caller_m.call_process()
+    return caller_m.call_process()
+    """
+
     input_bundle = make_input_bundle(
-        {"stateful.vy": stateful, "b_module.vy": b_module, "a_module.vy": a_module}
+        {
+            "stateful.vy": stateful,
+            "b_module.vy": b_module,
+            "a_module.vy": a_module,
+            "caller_m.vy": caller_m,
+        }
     )
 
     c = get_contract(contract, input_bundle=input_bundle)
@@ -717,20 +794,34 @@ def foo() -> uint256:
     return 42
     """
 
-    contract = """
+    caller_module = """
 import abstract_module
-import override_module
 
 uses: abstract_module
-initializes: override_module
 
-@external
-def test() -> uint256:
+def call_foo() -> uint256:
     return abstract_module.foo()
     """
 
+    contract = """
+import abstract_module
+import override_module
+import caller_module
+
+initializes: override_module
+initializes: caller_module[abstract_module := abstract_module]
+
+@external
+def test() -> uint256:
+    return caller_module.call_foo()
+    """
+
     input_bundle = make_input_bundle(
-        {"abstract_module.vy": abstract_module, "override_module.vy": override_module}
+        {
+            "abstract_module.vy": abstract_module,
+            "override_module.vy": override_module,
+            "caller_module.vy": caller_module,
+        }
     )
 
     # Should compile successfully
@@ -1037,20 +1128,36 @@ initializes: override
 initializes: a[b := b]
     """
 
-    contract = """
+    caller_m = """
 import a
-import initializer
 
 uses: a
-initializes: initializer
 
-@external
 def call_chained() -> uint256:
     return a.b.foo()  # chained abstract method call through a's view of b
     """
 
+    contract = """
+import a
+import initializer
+import caller_m
+
+initializes: initializer
+initializes: caller_m[a := a]
+
+@external
+def call_chained() -> uint256:
+    return caller_m.call_chained()
+    """
+
     input_bundle = make_input_bundle(
-        {"b.vy": b, "a.vy": a, "override.vy": override, "initializer.vy": initializer}
+        {
+            "b.vy": b,
+            "a.vy": a,
+            "override.vy": override,
+            "initializer.vy": initializer,
+            "caller_m.vy": caller_m,
+        }
     )
 
     c = get_contract(contract, input_bundle=input_bundle)
@@ -1127,7 +1234,12 @@ def _generate_modules(relationships: dict[str, list[(str, str)]]):
 
         for rel, child in children:
             if rel in ("initializes", "overrides"):
-                code += f"initializes: {child}\n"
+                child_uses = [t for r, t in relationships.get(child, []) if r == "uses"]
+                if child_uses:
+                    params = ", ".join(f"{t} := {t}" for t in child_uses)
+                    code += f"initializes: {child}[{params}]\n"
+                else:
+                    code += f"initializes: {child}\n"
             elif rel in ("uses",):
                 code += f"uses: {child}\n"
             elif rel in ("imports",):
@@ -1186,10 +1298,11 @@ CHAIN_CALL_TESTS = [
     ("self -initializes-> a -initializes-> b", "a.b.foo", None),
     (  # Can call through c and get a's implementation
         """
-        self -initializes-> initializer -initializes-> a -overrides-> b -overrides-> c
-        self -uses-> c
+        self -initializes-> a -overrides-> b -overrides-> c
+        self -initializes-> other -uses-> c
+        self -imports-> c
         """,
-        "c.foo",
+        "other.c.foo",
         None,
     ),
     # === ERROR CASES ===

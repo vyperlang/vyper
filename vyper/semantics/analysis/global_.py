@@ -1,12 +1,27 @@
 from collections import defaultdict
 
-from vyper.exceptions import ExceptionList, InitializerException
+from vyper.exceptions import ExceptionList, InitializerException, StructureException
 from vyper.semantics.analysis.base import InitializesInfo, UsesInfo
 from vyper.semantics.types.module import ModuleT
 
 
 def validate_compilation_target(module_t: ModuleT):
+    _validate_root_no_uses(module_t)
     _validate_global_initializes_constraint(module_t)
+
+
+def _validate_root_no_uses(module_t: ModuleT):
+    # `uses:` on the root module breaks the invariant that all used modules are initialized before
+    # the module which uses them, and so is forbidden.
+    err_list = ExceptionList()
+    for uses_decl in module_t.uses_decls:
+        info = uses_decl._metadata["uses_info"]
+        # initializes: only accepts a single alias
+        alias = info.used_modules[0].alias
+        msg = "the top-level module cannot `uses:` another module"
+        hint = f"replace `uses: {alias}` with `initializes: {alias}`"
+        err_list.append(StructureException(msg, uses_decl, hint=hint))
+    err_list.raise_if_not_empty()
 
 
 def _collect_used_modules_r(module_t):
