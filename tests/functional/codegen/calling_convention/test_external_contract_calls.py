@@ -2705,3 +2705,31 @@ def boo() -> uint256:
 
     assert c.foo() == [1, 2, 3, 4]
     assert c.bar() == [1, 2, 3, 4]
+
+
+def test_external_call_arg_evaluation_order(get_contract):
+    # the first argument must be read before the second argument's
+    # side effects execute
+    code = """
+interface Bar:
+    def get_a_b(a: uint256, b: uint256) -> uint256: nonpayable
+
+x: public(uint256)
+
+@internal
+def mutate() -> uint256:
+    self.x = 999
+    return 0
+
+@external
+def get_a_b(a: uint256, b: uint256) -> uint256:
+    return a * 10 + b
+
+@external
+def bar() -> uint256:
+    self.x = 1
+    return extcall Bar(self).get_a_b(self.x, self.mutate())
+    """
+    c = get_contract(code)
+    assert c.bar() == 10
+    assert c.x() == 999

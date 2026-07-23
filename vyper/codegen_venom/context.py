@@ -173,6 +173,16 @@ class VenomCodegenContext:
         self.store_vyper_value(vv, ret.operand, typ)
         return ret
 
+    def freeze_value(self, vv: VyperValue, annotation: Optional[str] = None) -> VyperValue:
+        """Snapshot a value so later side effects cannot change it.
+
+        Primitive words are loaded onto the stack; composite values are
+        copied into a fresh memory temporary.
+        """
+        if vv.typ._is_prim_word:
+            return VyperValue.from_stack_op(self.unwrap(vv), vv.typ)
+        return self.materialize_value(vv, annotation=annotation)
+
     def bytes_data_ptr(self, vv: VyperValue) -> IROperand:
         """Get pointer to bytestring data (skipping length word).
 
