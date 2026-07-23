@@ -3,6 +3,7 @@ import io
 import re
 from collections import defaultdict
 from tokenize import COMMENT, NAME, OP, STRING, TokenError, TokenInfo, tokenize, untokenize
+from typing import Optional
 
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
@@ -267,6 +268,29 @@ class PreParser:
             self._parse(code)
         except TokenError as e:
             raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
+        except SyntaxError as e:
+            offset: Optional[int]
+            if isinstance(e, IndentationError) and e.text is not None:
+                # Compensate for the python 3.12 regression
+                # see https://github.com/python/cpython/issues/153837
+                indent = len(e.text) - len(e.text.lstrip())
+                offset = max(indent - 1, 0)
+            else:
+                # SyntaxError offset is 1-based, not 0-based (see:
+                # https://docs.python.org/3/library/exceptions.html#SyntaxError.offset)
+                offset = e.offset
+                if offset is not None:
+                    offset -= 1
+            raise SyntaxException(e.msg, code, e.lineno, offset) from e
+        except UnicodeEncodeError as e:
+            # Report invalid unicode sequences
+            # We have to fully compute the source location manually here
+            prefix = code[: e.start]
+            lineno = prefix.count("\n") + 1
+            col_offset = e.start - (prefix.rfind("\n") + 1)
+            raise SyntaxException(
+                f"character cannot be unicode encoded: {e.reason}", code, lineno, col_offset
+            ) from e
 
     def _parse(self, code: str):
         adjustments: dict = {}

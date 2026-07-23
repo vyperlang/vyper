@@ -8,7 +8,7 @@ from typing import Optional
 
 from vyper.ast import nodes as vy_ast
 from vyper.ast.pre_parser import PreParser
-from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
+from vyper.exceptions import CompilerPanic, ParserException, SyntaxException, _BaseVyperException
 from vyper.utils import sha256sum
 from vyper.warnings import Deprecation, vyper_warn
 
@@ -33,6 +33,10 @@ def parse_to_ast(
     except SyntaxException as e:
         e.resolved_path = resolved_path
         raise e
+    except _BaseVyperException:
+        raise
+    except Exception as e:
+        raise CompilerPanic(f"unhandled exception during parsing: {type(e).__name__}: {e}") from e
 
 
 def _parse_to_ast(
@@ -89,7 +93,7 @@ def _parse_to_ast(
             if e.lineno is not None:  # help mypy
                 offset += pre_parser.adjustments.get((e.lineno, offset), 0)
 
-        new_e = SyntaxException(str(e), vyper_source, e.lineno, offset)
+        new_e = SyntaxException(e.msg, vyper_source, e.lineno, offset)
 
         likely_errors = ("staticall", "staticcal")
         tmp = str(new_e)

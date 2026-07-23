@@ -163,6 +163,8 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
             raise JSONError(f"{path} - 'urls' is not a supported field, use 'content' instead")
         if "content" not in value:
             raise JSONError(f"{path} missing required field - 'content'")
+        if not isinstance(value["content"], str):
+            raise JSONError(f"invalid 'content' for {path} (expected string)")
         if "keccak256" in value:
             hash_ = value["keccak256"].lower().removeprefix("0x")
             if hash_ != keccak256(value["content"].encode("utf-8")).hex():

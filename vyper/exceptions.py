@@ -356,7 +356,7 @@ class MemoryAllocationException(VyperException):
     """Tried to allocate too much memory"""
 
 
-class JSONError(Exception):
+class JSONError(VyperException):
     """Invalid compiler input JSON."""
 
     def __init__(self, msg, lineno=None, col_offset=None):
@@ -365,7 +365,7 @@ class JSONError(Exception):
         self.col_offset = col_offset
 
 
-class ParserException(Exception):
+class ParserException(VyperException):
     """Contract source cannot be parsed."""
 
 
