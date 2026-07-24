@@ -495,6 +495,7 @@ class BottomT(VyperType):
     """
 
     _id = "Never"  # see python's typing.Never
+    _equality_attrs = ()
 
     @property
     def abi_type(self) -> ABIType:
