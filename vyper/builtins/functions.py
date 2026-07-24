@@ -2159,6 +2159,11 @@ class Print(BuiltinFunctionT):
             vyper_warn("`print` should only be used for debugging!", node)
             self._warned = True
 
+        self._validate_arg_types(node)
+        for arg_t in self.infer_arg_types(node):
+            # touch abi_type to reject non-encodable argument types
+            _ = arg_t.abi_type
+
         return None
 
     @process_inputs
