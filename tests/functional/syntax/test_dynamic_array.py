@@ -70,6 +70,14 @@ def foo(x: DynArray[uint256, INF]) -> DynArray[uint256, 5]:
     """,
         TypeMismatch,
     ),
+    (
+        """
+@external
+def foo():
+    [].append(1)
+    """,
+        TypeMismatch,
+    ),
     pytest.param(
         """
 @external
