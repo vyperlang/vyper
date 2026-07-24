@@ -1,5 +1,5 @@
 from . import primitives, subscriptable, user
-from .base import TYPE_T, VOID_TYPE, KwargSettings, VyperType, is_type_t, map_void
+from .base import TYPE_T, VOID_TYPE, BottomT, KwargSettings, VyperType, is_type_t, map_void
 from .bytestrings import BytesT, StringT, _BytestringT
 from .function import ContractFunctionT, MemberFunctionT
 from .infinity import INF, WILDCARD, LengthUpperBound, is_bounded_length
@@ -10,7 +10,7 @@ from .user import ErrorT, EventT, FlagT, StructT
 
 
 def _get_primitive_types():
-    res = [BoolT(), DecimalT()]
+    res = [BoolT(), DecimalT(), BottomT()]
 
     res.extend(IntegerT.all())
     res.extend(BytesM_T.all())
@@ -48,5 +48,6 @@ def _get_sequence_types():
     return ret
 
 
+# TODO: Rename this, since it also contains sequence types, so smth like "BUILTIN_TYPES"
 # note: it might be good to make this a frozen dict of some sort
 PRIMITIVE_TYPES = _get_primitive_types()

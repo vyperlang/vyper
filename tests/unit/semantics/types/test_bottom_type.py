@@ -1,5 +1,7 @@
 import pytest
 
+from vyper import compiler
+from vyper.exceptions import InvalidType
 from vyper.semantics.types import (
     INF,
     PRIMITIVE_TYPES,
@@ -32,20 +34,50 @@ REPRESENTATIVE_TYPES = [t for t in PRIMITIVE_TYPES.values() if isinstance(t, Vyp
 ]
 
 
+def test_bottom_is_primitive_type():
+    assert BottomT() in PRIMITIVE_TYPES.values()
+
+
 @pytest.mark.parametrize("typ", REPRESENTATIVE_TYPES, ids=repr)
 def test_bottom_is_subtype_of_every_type(typ):
     assert BottomT().is_subtype_of(typ)
     assert typ.is_supertype_of(BottomT())
 
 
-def test_bottom_reflexive():
-    assert BottomT().is_subtype_of(BottomT())
-    assert BottomT().is_supertype_of(BottomT())
-
-
 @pytest.mark.parametrize("typ", REPRESENTATIVE_TYPES, ids=repr)
 def test_bottom_is_strict_subtype(typ):
-    # Bottom is the *sub*type, not the top type: it must NOT be a supertype
-    # of any other type, else Bottom would be bidirectionally assignable.
-    assert not BottomT().is_supertype_of(typ)
-    assert not typ.is_subtype_of(BottomT())
+    # While Never is the universal subtype, it should only be a supertype of itself
+    if typ == BottomT():
+        assert BottomT().is_supertype_of(typ)
+        assert typ.is_subtype_of(BottomT())
+    else:
+        assert not BottomT().is_supertype_of(typ)
+        assert not typ.is_subtype_of(BottomT())
+
+
+NEVER_IN_USER_PROGRAM_SOURCES = [
+    "x: Never",
+    """
+def foo() -> Never:
+    pass
+""",
+    """
+def foo(x: Never):
+    pass
+""",
+    """
+def foo():
+    x: Never = empty(uint256)
+""",
+    """
+def foo() -> DynArray[Never, 5]:
+    return []
+""",
+]
+
+
+@pytest.mark.parametrize("code", NEVER_IN_USER_PROGRAM_SOURCES)
+def test_never_rejected_in_user_program(code):
+    with pytest.raises(InvalidType) as excinfo:
+        compiler.compile_code(code)
+    assert excinfo.value.message == "`Never` is not allowed in user programs."
