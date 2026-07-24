@@ -4,7 +4,7 @@ from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
 from vyper.exceptions import ArrayIndexException, CodegenPanic, InvalidType, StructureException
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.base import BottomT, VyperType
 from vyper.semantics.types.infinity import (
     INF,
     WILDCARD,
@@ -66,6 +66,8 @@ class HashMapT(_SubscriptableT):
 
     # TODO not sure this is used?
     def compare_type(self, other):
+        if isinstance(other, BottomT):
+            return True
         return (
             super().compare_type(other)
             and self.key_type == other.key_type
@@ -215,6 +217,9 @@ class SArrayT(_SequenceT):
         return self
 
     def compare_type(self, other):
+        if isinstance(other, BottomT):
+            return True
+
         if not isinstance(self, type(other)):
             return False
         if self.length != other.length:
@@ -331,6 +336,8 @@ class DArrayT(_SequenceT):
         return self.length >= other.length
 
     def compare_type(self, other):
+        if isinstance(other, BottomT):
+            return True
         # TODO allow static array to be assigned to dyn array?
         # if not isinstance(other, (DArrayT, SArrayT)):
         if not isinstance(self, type(other)):
@@ -455,6 +462,8 @@ class TupleT(VyperType):
         return self.member_types[node.value]
 
     def compare_type(self, other):
+        if isinstance(other, BottomT):
+            return True
         if not isinstance(self, type(other)):
             return False
         if self.length != other.length:
