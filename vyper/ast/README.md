@@ -10,7 +10,7 @@ and parsing NatSpec docstrings.
 
 `vyper.ast` has the following structure:
 
-* [`annotation.py`](annotation.py): Contains the `AnnotatingVisitor` class, used to
+* [`parse.py`](parse.py): Contains the `AnnotatingVisitor` class, used to
 annotate and modify the Python AST prior to converting it to a Vyper AST.
 * [`natspec.py`](natspec.py): Functions for parsing NatSpec docstrings within the
 source.
@@ -32,7 +32,7 @@ from a source string. The process is as follows:
 Python. This primarily involves substituting out `contract` and `struct` statements
 for `class`.
 2. A Python AST is generated from the modified source.
-3. In [`annotation.py`](annotation.py), additional information is added to the
+3. In [`parse.py`](parse.py), additional information is added to the
 Python AST, and some nodes are modified to aid conversion to the Vyper AST.
 4. In [`nodes.py`](nodes.py), the modified Python AST nodes are converted to Vyper
 AST nodes.
