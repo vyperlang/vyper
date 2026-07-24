@@ -619,6 +619,44 @@ def test_signextend_range_no_elimination():
     _check_pre_post(pre, post)
 
 
+def test_signextend_unwrapped_zero_byte_index_not_eliminated():
+    # 2**256 wraps to byte index 0. It must not take the raw n >= 31 no-op path.
+    zero_mod_uint256 = 2**256
+    pre = f"""
+    _global:
+        %x = source
+        %y = signextend {zero_mod_uint256}, %x
+        sink %y
+    """
+    post = f"""
+    _global:
+        %x = source
+        %y = signextend {zero_mod_uint256}, %x
+        sink %y
+    """
+    _check_pre_post(pre, post, hevm=False)
+
+
+def test_signextend_chain_uses_wrapped_byte_indexes():
+    # The outer index wraps to 0, so it is not wider than the inner index 1.
+    zero_mod_uint256 = 2**256
+    pre = f"""
+    _global:
+        %x = source
+        %inner = signextend 1, %x
+        %outer = signextend {zero_mod_uint256}, %inner
+        sink %outer
+    """
+    post = f"""
+    _global:
+        %x = source
+        %inner = signextend 1, %x
+        %outer = signextend {zero_mod_uint256}, %inner
+        sink %outer
+    """
+    _check_pre_post(pre, post, hevm=False)
+
+
 @pytest.mark.skip(reason="Range-based comparison needs investigation - flip timing issue")
 def test_comparison_range_always_true():
     # When range proves comparison is always true

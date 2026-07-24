@@ -540,6 +540,36 @@ def foo(a: {typ}) -> Status:
         assert_compile_failed(lambda: get_contract(contract), TypeMismatch)
 
 
+def test_first_flag_member_to_bytes32(get_contract):
+    contract = """
+flag MyFlag:
+    MEMBER1
+    MEMBER2
+
+@external
+@pure
+def foo() -> bytes32:
+    return convert(MyFlag.MEMBER1, bytes32)
+    """
+    c = get_contract(contract)
+    assert c.foo() == (1).to_bytes(32, "big")
+
+
+def test_second_flag_member_to_bytes32(get_contract):
+    contract = """
+flag MyFlag:
+    MEMBER1
+    MEMBER2
+
+@external
+@pure
+def foo() -> bytes32:
+    return convert(MyFlag.MEMBER2, bytes32)
+    """
+    c = get_contract(contract)
+    assert c.foo() == (2).to_bytes(32, "big")
+
+
 # uint256 conversion is currently valid due to type inference on literals
 # not quite working yet
 same_type_conversion_blocked = sorted(TEST_TYPES - {UINT256_T})

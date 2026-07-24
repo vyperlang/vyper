@@ -211,7 +211,7 @@ def test_ternary_immutable(get_contract, test):
 IMM: public(immutable(uint256))
 @deploy
 def __init__(test: bool):
-    IMM = 1 if test else 2
+    self.IMM = 1 if test else 2
     """
     c = get_contract(code, test)
 

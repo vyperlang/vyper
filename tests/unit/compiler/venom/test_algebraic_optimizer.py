@@ -431,6 +431,33 @@ def test_assert_unreachable_iszero_chain(iszero_count):
     _check_pre_post(pre, post)
 
 
+# Test the case of https://github.com/vyperlang/vyper/issues/5072
+def test_or_truthy_unwrapped_zero_literal():
+    """
+    A literal equal to 2**256 wraps to 0 as an EVM word, so
+    `or 2**256, %x` in a truthy position must not be folded to 1 --
+    it still depends on %x.
+    """
+    pre = f"""
+    main:
+        %x = source
+        %y = or {2**256}, %x
+        assert %y
+        sink %x
+    """
+
+    # the literal wraps to 0, so the `or` reduces to %x
+    post = """
+    main:
+        %x = source
+        %y = %x
+        assert %y
+        sink %x
+    """
+
+    _check_pre_post(pre, post, hevm=False)
+
+
 # Test the case of https://github.com/vyperlang/vyper/issues/4288
 def test_ssa_after_algebraic_optimization():
     code = """

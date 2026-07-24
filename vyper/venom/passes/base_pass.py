@@ -9,6 +9,24 @@ from vyper.venom.passes.machinery.inst_updater import InstUpdater
 PassRef: TypeAlias = Union[str, type["IRPass"]]
 
 
+def _resolve_label_chains(label_map: dict[IRLabel, IRLabel]) -> dict[IRLabel, IRLabel]:
+    """
+    Path-compress chained replacements, e.g. {a: b, b: c} -> {a: c, b: c},
+    so that each label resolves to its final target in a single application
+    of the map.
+    """
+
+    def _resolve(label: IRLabel) -> IRLabel:
+        seen = set()
+        while label in label_map:
+            assert label not in seen, f"cycle in label map at {label}"
+            seen.add(label)
+            label = label_map[label]
+        return label
+
+    return {original: _resolve(replacement) for original, replacement in label_map.items()}
+
+
 class IRPass:
     """
     Base class for all Venom IR passes.
@@ -33,6 +51,11 @@ class IRPass:
         self.analyses_cache = analyses_cache
 
     def _replace_all_labels(self, label_map: dict[IRLabel, IRLabel]) -> None:
+        # the map may contain chains (e.g. {a: b, b: c}) when several
+        # replacements are scheduled in one pass epoch; resolve them so a
+        # single application of the map cannot leave dangling labels.
+        label_map = _resolve_label_chains(label_map)
+
         for bb in self.function.get_basic_blocks():
             bb.replace_operands(label_map)
 

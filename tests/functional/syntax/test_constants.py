@@ -96,7 +96,7 @@ VAL: uint256
 
 @deploy
 def __init__():
-    VAL = 1
+    self.VAL = 1
     """,
         NamespaceCollision,
     ),
@@ -108,7 +108,7 @@ VAL: immutable(uint256)
 
 @deploy
 def __init__():
-    VAL = 1
+    self.VAL = 1
     """,
         NamespaceCollision,
     ),

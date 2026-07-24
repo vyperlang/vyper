@@ -533,7 +533,7 @@ MY_IMMUTABLE: immutable(uint256)
 
 @deploy
 def __init__():
-    MY_IMMUTABLE = 7
+    self.MY_IMMUTABLE = 7
     """
     lib2 = """
 import lib1
@@ -574,11 +574,11 @@ MY_IMMUTABLE: immutable(uint256)
 
 @deploy
 def __init__():
-    MY_IMMUTABLE = 9
+    self.MY_IMMUTABLE = 9
 
 @internal
 def get_counter() -> uint256:
-    return MY_IMMUTABLE
+    return self.MY_IMMUTABLE
     """
     lib2 = """
 import lib1

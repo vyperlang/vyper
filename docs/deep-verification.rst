@@ -25,21 +25,11 @@ Every verification effort has some gap. Deep verification is the discipline of r
 The Layers
 ==========
 
-::
-
-        High-level properties
-                │
-                ▼
-          Source semantics
-                │
-                ▼
-         Compiler correctness
-                │
-                ▼
-           EVM semantics
-                │
-                ▼
-          Deployed bytecode
+.. image:: /_static/deep-verification-layers.svg
+   :align: center
+   :width: 440px
+   :alt: The verification stack, from high-level properties down through source
+         semantics, compiler correctness, and EVM semantics to deployed bytecode.
 
 A source-level proof establishes a property under the language’s formal semantics. A bytecode-level proof establishes the analogous statement against a formal EVM model. A verified compiler connects the two. The fewer layers a guarantee skips by assumption, the smaller the verification gap.
 

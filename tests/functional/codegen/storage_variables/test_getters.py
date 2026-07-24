@@ -60,8 +60,8 @@ def __init__():
     self.w[3].g = 751
     self.a[1][4] = 666
     self.b[42][self] = [5,6,7,8]
-    d = 1729
-    e = [2, 3]
+    self.d = 1729
+    self.e = [2, 3]
     """
 
     c = get_contract(getter_code)
@@ -95,7 +95,7 @@ kune: public(immutable(uint256))
 
 @deploy
 def __init__():
-    kune = 2
+    self.kune = 2
 """
 
     contract = get_contract(code)

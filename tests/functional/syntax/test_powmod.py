@@ -11,7 +11,15 @@ def foo():
     a: uint256 = pow_mod256(-1, -1)
     """,
         TypeMismatch,
-    )
+    ),
+    (
+        """
+@external
+def foo():
+    a: uint256 = pow_mod256(2, -1)
+    """,
+        TypeMismatch,
+    ),
 ]
 
 

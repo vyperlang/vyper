@@ -37,7 +37,7 @@ class SingleUseExpansion(IRPass):
                 self._process_phi(inst)
                 i += 1
                 continue
-            if inst.opcode in ("assign", "offset", "param"):
+            if inst.opcode in ("assign", "offset") or inst.is_param:
                 i += 1
                 continue
 

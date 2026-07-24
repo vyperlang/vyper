@@ -1,0 +1,82 @@
+name: Bytecode Size PR Comment
+
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] Comment-only follow-up; never checks out or executes PR code.
+    workflows: ["Bytecode Size Report"]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  comment:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      # Download the report artifact from the completed measurement run.
+      actions: read
+      # Required by artifact download and workflow run metadata reads.
+      contents: read
+      # Update only the benchmark report comment on the pull request.
+      pull-requests: write
+    steps:
+      - name: Download report
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: bytecode-size-report
+          path: report
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Post or update PR comment
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- bytecode-size-report -->';
+            const report = fs.readFileSync('report/report.md', 'utf8');
+            const body = marker + '\n\n' + report;
+            const workflowRun = context.payload.workflow_run;
+            let issue_number = (workflowRun.pull_requests || []).find(pr => pr.number)?.number;
+            if (!issue_number) {
+              const headOwner = workflowRun.head_repository?.owner?.login;
+              const headBranch = workflowRun.head_branch;
+              if (!headOwner || !headBranch) {
+                core.info('Could not resolve pull request for workflow run.');
+                return;
+              }
+              const { data: pulls } = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                head: `${headOwner}:${headBranch}`
+              });
+              const pull = pulls.find(pr => pr.head.sha === workflowRun.head_sha) || pulls[0];
+              if (!pull) {
+                core.info(`No open pull request found for ${headOwner}:${headBranch}.`);
+                return;
+              }
+              issue_number = pull.number;
+            }
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number
+            });
+            const existing = comments.find(c => c.body.includes(marker));
+            if (existing) {
+              return github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body
+              });
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              body
+            });

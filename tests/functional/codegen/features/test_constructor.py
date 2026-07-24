@@ -254,7 +254,7 @@ x: public(immutable(uint256))
 
 @deploy
 def __init__(i: uint256):
-    x = self.foo0(i)
+    self.x = self.foo0(i)
 """
     for i in range(16):
         code += f"""
@@ -291,9 +291,9 @@ I_BYTES32: public(immutable(bytes32))
 
 @deploy
 def __init__():
-    I_UINT = CONST_UINT
-    I_ADDR = CONST_ADDR
-    I_BYTES32 = CONST_BYTES32
+    self.I_UINT = CONST_UINT
+    self.I_ADDR = CONST_ADDR
+    self.I_BYTES32 = CONST_BYTES32
     """
     print(code)
     c = get_contract(code)

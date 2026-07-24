@@ -46,13 +46,13 @@ def __init__(_agent_blueprint: address, _messenger: address):
     self.messenger = _messenger
     log SetMessenger(messenger=_messenger)
 
-    OWNERSHIP_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
-    PARAMETER_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
-    EMERGENCY_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
+    self.OWNERSHIP_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
+    self.PARAMETER_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
+    self.EMERGENCY_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
 
-    self.agent[Agent.OWNERSHIP] = OWNERSHIP_AGENT
-    self.agent[Agent.PARAMETER] = PARAMETER_AGENT
-    self.agent[Agent.EMERGENCY] = EMERGENCY_AGENT
+    self.agent[Agent.OWNERSHIP] = self.OWNERSHIP_AGENT
+    self.agent[Agent.PARAMETER] = self.PARAMETER_AGENT
+    self.agent[Agent.EMERGENCY] = self.EMERGENCY_AGENT
 
 
 @external
@@ -73,7 +73,7 @@ def set_messenger(_messenger: address):
     @notice Set the messenger which verifies messages and is permitted to call `relay`.
     @dev Only callable by the OWNERSHIP_AGENT.
     """
-    assert msg.sender == OWNERSHIP_AGENT
+    assert msg.sender == self.OWNERSHIP_AGENT
 
     self.messenger = _messenger
     log SetMessenger(messenger=_messenger)

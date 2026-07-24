@@ -559,7 +559,11 @@ class MemMergePass(IRPass):
                 mstore: IRInstruction = uses.first()
                 if mstore.opcode != "mstore":
                     continue
-                _, dst = mstore.operands
+                var, dst = mstore.operands
+                # the dload output must be the stored value, and must not
+                # be used as the destination pointer
+                if var != dload_out or dst == dload_out:
+                    continue
                 # merge simple
                 self.updater.update(mstore, "dloadbytes", [IRLiteral(32), src, dst])
                 self.updater.nop(dload)
@@ -582,7 +586,9 @@ class MemMergePass(IRPass):
 
             var, dst = mstore.operands
 
-            if var != dload_out:
+            # the dload output must be the stored value, and must not
+            # be used as the destination pointer
+            if var != dload_out or dst == dload_out:
                 continue
             new_var = bb.parent.get_next_variable()
 

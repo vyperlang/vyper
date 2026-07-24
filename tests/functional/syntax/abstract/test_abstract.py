@@ -1216,10 +1216,10 @@ FOO: immutable(uint256)
 
 @deploy
 def __init__():
-    FOO = 42
+    self.FOO = 42
 
 @abstract
-def bar(x: uint256 = FOO) -> uint256: ...
+def bar(x: uint256 = self.FOO) -> uint256: ...
     """
 
     # Override module has its own FOO immutable - should NOT match
@@ -1232,11 +1232,11 @@ FOO: immutable(uint256)
 
 @deploy
 def __init__():
-    FOO = 100
+    self.FOO = 100
     abstract_module.__init__()
 
 @override(abstract_module)
-def bar(x: uint256 = FOO) -> uint256:
+def bar(x: uint256 = self.FOO) -> uint256:
     return x
     """
 

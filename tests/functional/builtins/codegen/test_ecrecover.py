@@ -74,11 +74,11 @@ owner: immutable(address)
 
 @deploy
 def __init__():
-    owner = 0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf
+    self.owner = 0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf
 
 @internal
 def get_v() -> uint256:
-    assert owner == owner # force a dload to write at index 0 of memory
+    assert self.owner == self.owner # force a dload to write at index 0 of memory
     return 21
 
 @payable

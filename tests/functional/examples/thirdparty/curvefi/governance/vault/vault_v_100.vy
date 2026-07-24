@@ -35,15 +35,15 @@ def __init__(_owner: address):
 
     log ApplyOwnership(owner=_owner)
 
-    deployer = msg.sender
+    self.deployer = msg.sender
 
 
 @external
 def set_owner(_owner: address):
 
-    assert msg.sender == deployer
-    assert self.owner == deployer
-    assert _owner != deployer
+    assert msg.sender == self.deployer
+    assert self.owner == self.deployer
+    assert _owner != self.deployer
 
     self.owner = _owner
     log CommitOwnership(future_owner=_owner)

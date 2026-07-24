@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 552" font-family="'DejaVu Sans Mono','Liberation Mono',Menlo,Consolas,monospace">
+  <defs>
+    <marker id="dv-arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9d4edd"/>
+    </marker>
+  </defs>
+
+  <!-- arrows -->
+  <g stroke="#9d4edd" stroke-width="3" marker-end="url(#dv-arrow)">
+    <line x1="300" y1="84"  x2="300" y2="126"/>
+    <line x1="300" y1="196" x2="300" y2="238"/>
+    <line x1="300" y1="308" x2="300" y2="350"/>
+    <line x1="300" y1="420" x2="300" y2="462"/>
+  </g>
+
+  <!-- boxes -->
+  <g fill="#ece6d4" stroke="#9d4edd" stroke-width="3" rx="10">
+    <rect x="40" y="20"  width="520" height="64" rx="10"/>
+    <rect x="40" y="132" width="520" height="64" rx="10"/>
+    <rect x="40" y="244" width="520" height="64" rx="10"/>
+    <rect x="40" y="356" width="520" height="64" rx="10"/>
+    <rect x="40" y="468" width="520" height="64" rx="10"/>
+  </g>
+
+  <!-- labels -->
+  <g fill="#1a1a1a" font-size="22" text-anchor="middle">
+    <text x="300" y="60">High-level properties</text>
+    <text x="300" y="172">Source semantics</text>
+    <text x="300" y="284">Compiler correctness</text>
+    <text x="300" y="396">EVM semantics</text>
+    <text x="300" y="508">Deployed bytecode</text>
+  </g>
+</svg>
