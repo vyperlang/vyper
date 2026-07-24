@@ -8,7 +8,7 @@ Control Structures
 Functions
 =========
 
-Functions are executable units of code within a contract. Functions may only be declared within a contract's :ref:`module scope <scoping-module>`.
+Functions are executable units of code within a module. Functions may only be declared within a module's :ref:`module scope <scoping-module>`.
 
 .. code-block:: vyper
 

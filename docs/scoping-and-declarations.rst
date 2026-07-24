@@ -176,7 +176,7 @@ It is not permitted for a memory or calldata variable to shadow the name of an i
 Function Scope
 --------------
 
-Variables that are declared within a function, or given as function input arguments, are visible within the body of that function. For example, the following contract is valid because each declaration of ``a`` only exists within one function's body.
+Variables that are declared within a function, or given as function input arguments, are visible within the body of that function. For example, the following module is valid because each declaration of ``a`` only exists within one function's body.
 
 .. code-block:: vyper
 
@@ -217,7 +217,7 @@ The following examples will not compile:
 Block Scopes
 ------------
 
-Logical blocks created by ``for`` and ``if`` statements have their own scope. For example, the following contract is valid because ``x`` only exists within the block scopes for each branch of the ``if`` statement:
+Logical blocks created by ``for`` and ``if`` statements have their own scope. For example, the following module is valid because ``x`` only exists within the block scopes for each branch of the ``if`` statement:
 
 .. code-block:: vyper
 
@@ -228,7 +228,7 @@ Logical blocks created by ``for`` and ``if`` statements have their own scope. Fo
         else:
             x: bool = False
 
-In a ``for`` statement, the target variable exists within the scope of the loop. For example, the following contract is valid because ``i`` is no longer available upon exiting the loop:
+In a ``for`` statement, the target variable exists within the scope of the loop. For example, the following module is valid because ``i`` is no longer available upon exiting the loop:
 
 .. code-block:: vyper
 
@@ -238,7 +238,7 @@ In a ``for`` statement, the target variable exists within the scope of the loop.
             pass
         i: bool = False
 
-The following contract fails to compile because ``a`` has not been declared outside of the loop.
+The following module fails to compile because ``a`` has not been declared outside of the loop.
 
 .. code-block:: vyper
 

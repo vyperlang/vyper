@@ -97,7 +97,7 @@ In Vyper 0.4.0, a module system was introduced for powerful code reuse:
     def __init__():
         ownable.__init__()
 
-Three declarations manage module relationships: ``initializes`` (this contract manages the module's storage), ``uses`` (this contract reads module state without initializing), and ``exports`` (expose module functions in the ABI). See :doc:`using-modules` for details.
+Three declarations manage module relationships: ``initializes`` (this module manages another module's storage), ``uses`` (this module reads another module's state without initializing), and ``exports`` (expose module functions in the ABI). See :doc:`using-modules` for details.
 
 Where Solidity uses ``abstract contract`` with ``virtual`` / ``override`` for polymorphism, Vyper uses ``@abstract`` and ``@override`` decorators on internal module functions. An abstract module declares methods with no implementation; the module that ``initializes`` it supplies the concrete ``@override``. Each abstract module has exactly one initializer, so there is no ambiguity about which override is chosen. All overrides are resolved at compile time — there is no virtual dispatch and no method-resolution order. See :ref:`abstract-modules` for details.
 
