@@ -495,8 +495,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if isinstance(msg_node, vy_ast.Str):
             if not msg_node.value.strip():
                 raise StructureException("Reason string cannot be empty", msg_node)
-            self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
-            return
+            # fall through to the `String[1024]` length check below, so that an
+            # over-long string literal is rejected just like a variable would be
 
         try:
             validate_expected_type(msg_node, StringT(1024))
