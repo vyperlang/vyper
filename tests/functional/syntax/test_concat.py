@@ -117,6 +117,24 @@ def test_block_fail(assert_compile_failed, get_contract, bad_code, exc):
     assert_compile_failed(lambda: get_contract(bad_code), exc)
 
 
+def test_concat_type_mismatch_message_uses_readable_type_names():
+    # `concat`'s accepted `bytesM` type must be shown by its user-facing name,
+    # not the internal `bytes_m` typeclass (nor a `GenericTypeAcceptor` repr).
+    # See issue #4955.
+    code = """
+@external
+def foo() -> Bytes[64]:
+    return concat(123, b"x")
+    """
+    with pytest.raises(TypeMismatch) as exc_info:
+        compiler.compile_code(code)
+
+    message = str(exc_info.value)
+    assert "GenericTypeAcceptor" not in message
+    assert "bytes_m" not in message
+    assert "bytesM" in message
+
+
 valid_list = [
     """
 @external

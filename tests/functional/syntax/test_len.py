@@ -53,3 +53,38 @@ def foo() -> uint256:
 @pytest.mark.parametrize("good_code", valid_list)
 def test_list_success(good_code):
     assert compile_code(good_code) is not None
+
+
+def test_len_type_mismatch_message_uses_readable_type_names():
+    # `len()`'s accepted types must be shown as `String`, `Bytes`, `DynArray`,
+    # not internal `GenericTypeAcceptor(<class ...>)` reprs. See issue #4955.
+    code = """
+@external
+def foo(inp: int128) -> uint256:
+    return len(inp)
+    """
+    with pytest.raises(TypeMismatch) as exc_info:
+        compile_code(code)
+
+    message = str(exc_info.value)
+    assert "GenericTypeAcceptor" not in message
+    assert "String" in message
+    assert "Bytes" in message
+    assert "DynArray" in message
+
+
+def test_index_type_mismatch_message_uses_readable_type_names():
+    # Exercises the `typeclass` fallback of the type-name formatting: `IntegerT`
+    # is parametric so its `_id` is a property, falling back to `typeclass`
+    # ("integer"). The message must not leak `GenericTypeAcceptor(...)`.
+    code = """
+@external
+def foo(x: DynArray[uint256, 3]) -> uint256:
+    return x[b"ab"]
+    """
+    with pytest.raises(TypeMismatch) as exc_info:
+        compile_code(code)
+
+    message = str(exc_info.value)
+    assert "GenericTypeAcceptor" not in message
+    assert "integer" in message
