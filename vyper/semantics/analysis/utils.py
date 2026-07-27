@@ -26,7 +26,6 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, BottomT, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
-from vyper.semantics.types.infinity import is_bounded_length
 
 if TYPE_CHECKING:
     from vyper.semantics.types.module import ModuleT
@@ -520,25 +519,6 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
         common_types = [i for i in common_types if filter_fn(i)]
 
     return common_types
-
-
-# TODO push this into `ArrayT.validate_literal()`
-def _validate_literal_array(node, expected):
-    # validate that every item within an array has the same type
-    if isinstance(expected, SArrayT):
-        if len(node.elements) != expected.length:
-            return False
-    if isinstance(expected, DArrayT):
-        if is_bounded_length(expected.length) and len(node.elements) > expected.length:
-            return False
-
-    for item in node.elements:
-        try:
-            validate_expected_type(item, expected.value_type)
-        except (InvalidType, TypeMismatch):
-            return False
-
-    return True
 
 
 def validate_expected_type(node, expected_type):
