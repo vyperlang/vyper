@@ -489,7 +489,7 @@ class KwargSettings:
 class BottomT(VyperType):
     """
     Bottom type, the ultimate subtype: is a subtype of every other type.
-    It is unhabited: no value has this type.
+    It is uninhabited: no value has this type.
 
     It is for example the element type for empty lists: `[]: DynArray[Never, 1]`
     """
