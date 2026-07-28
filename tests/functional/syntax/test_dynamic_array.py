@@ -1,8 +1,8 @@
 import pytest
 
 from vyper import compile_code
-from vyper.compiler.settings import Settings
 from vyper.exceptions import (
+    ArrayIndexException,
     CodegenPanic,
     CompilerPanic,
     StructureException,
@@ -87,6 +87,14 @@ def foo():
     """,
         StructureException,
         marks=pytest.mark.xfail(raises=CompilerPanic),
+    ),
+    (
+        """
+@external
+def foo() -> uint256:
+    return [][0]
+    """,
+        ArrayIndexException,
     ),
 ]
 
@@ -178,7 +186,7 @@ def test_len_of_singleton_list_literal(request, experimental_codegen):
 def foo():
     x: uint256 = len([1])
     """
-    compile_code(code, settings=Settings(experimental_codegen=experimental_codegen))
+    compile_code(code)
 
 
 @pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
