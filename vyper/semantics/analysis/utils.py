@@ -77,7 +77,7 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
     def __init__(self):
         self.namespace = get_namespace()
 
-    def visit(self, node) -> list[VyperType]:
+    def visit(self, node, allow_type_exprs: bool = False) -> list[VyperType]:
         # Early termination if typedef is propagated in metadata
         if "type" in node._metadata:
             return [node._metadata["type"]]
@@ -86,20 +86,28 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
         # try to return it if found.
         k = "possible_types_from_node"
         if k not in node._metadata:
-            ret = super().visit(node)
+            # we don't pass `allow_type_exprs` to the `visit_...` nodes, as they shouldn't handle it
+            possible_types = super().visit(node)
 
-            if all(isinstance(t, IntegerT) for t in ret):
+            if all(isinstance(t, IntegerT) for t in possible_types):
                 # for numeric types, sort according to number of bits descending
                 # this ensures literals are cast with the largest possible type
                 def sorting_function(t: VyperType):
                     assert isinstance(t, IntegerT)
                     return (t.bits, not t.is_signed)
 
-                ret.sort(key=sorting_function, reverse=True)
+                possible_types.sort(key=sorting_function, reverse=True)
 
-            node._metadata[k] = ret
+            node._metadata[k] = possible_types
 
-        return node._metadata[k].copy()
+        ret = node._metadata[k].copy()
+
+        if not allow_type_exprs:
+            invalid = next((i for i in ret if isinstance(i, TYPE_T)), None)
+            if invalid is not None:
+                raise InvalidReference(f"not a variable or literal: '{invalid.typedef}'", node)
+
+        return ret
 
     def visit_Attribute(self, node):
         is_self_reference = node.get("value.id") == "self"
@@ -170,8 +178,8 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
 
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             # x in y
-            left = get_possible_types_from_node(node.left)
-            right = get_possible_types_from_node(node.right)
+            left = self.visit(node.left)
+            right = self.visit(node.right)
             if any(isinstance(t, FlagT) for t in left):
                 types_list = get_common_types(node.left, node.right)
                 _validate_op(node, types_list, "validate_comparator")
@@ -263,7 +271,7 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
 
             if len(node.elements) > 0:
                 # empty nested list literals `[[], []]`
-                subtypes = get_possible_types_from_node(node.elements[0])
+                subtypes = self.visit(node.elements[0])
             else:
                 # empty list literal `[]`
                 # subtype can be anything
@@ -327,7 +335,7 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
     def visit_Subscript(self, node):
         # index access, e.g. `foo[1]`
         if isinstance(node.value, (vy_ast.List, vy_ast.Subscript)):
-            types_list = get_possible_types_from_node(node.value)
+            types_list = self.visit(node.value)
             ret = []
             for t in types_list:
                 t.validate_index_type(node.slice)
@@ -344,7 +352,7 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
 
     def visit_UnaryOp(self, node):
         # unary operation: `-foo`
-        types_list = get_possible_types_from_node(node.operand)
+        types_list = self.visit(node.operand)
         return _validate_op(node, types_list, "validate_numeric_op")
 
 
@@ -392,14 +400,7 @@ def get_possible_types_from_node(node, allow_type_exprs: bool = False) -> list[V
         List of one or more VyperType objects.
     """
 
-    ret = _TypeSynthesizer().visit(node)
-
-    if not allow_type_exprs:
-        invalid = next((i for i in ret if isinstance(i, TYPE_T)), None)
-        if invalid is not None:
-            raise InvalidReference(f"not a variable or literal: '{invalid.typedef}'", node)
-
-    return ret
+    return _TypeSynthesizer().visit(node, allow_type_exprs=allow_type_exprs)
 
 
 def get_exact_type_from_node(node: vy_ast.VyperNode, allow_type_exprs: bool = False) -> VyperType:
