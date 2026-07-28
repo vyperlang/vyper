@@ -358,6 +358,12 @@ def eval_sdiv(dividend: ValueRange, divisor: ValueRange) -> ValueRange:
         result = sign * (abs(dv) // abs(d))
         return ValueRange.constant(result)
 
+    # Ranges extending above SIGNED_MAX contain values that are negative
+    # words in the signed interpretation, so the sign reasoning on raw
+    # lo/hi below would be unsound.
+    if dividend.hi > SIGNED_MAX:
+        return ValueRange.top()
+
     # For ranges, compute bounds
     # Division by positive divisor preserves order: lo/d <= x/d <= hi/d
     # Division by negative divisor reverses order: hi/d <= x/d <= lo/d
@@ -399,6 +405,13 @@ def eval_smod(dividend: ValueRange, divisor: ValueRange) -> ValueRange:
     if d == 0:
         return ValueRange.constant(0)
     limit = abs(d) - 1
+
+    # Ranges extending above SIGNED_MAX contain values that are negative
+    # words in the signed interpretation, so the sign-based narrowing
+    # below would be unsound. The magnitude bound still holds for any
+    # dividend.
+    if dividend.hi > SIGNED_MAX:
+        return ValueRange.iv(-limit, limit)
 
     # Result sign follows dividend sign, so we can narrow based on dividend range
     if dividend.lo >= 0:

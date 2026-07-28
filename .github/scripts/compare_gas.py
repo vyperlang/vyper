@@ -5,6 +5,12 @@ import json
 import sys
 
 
+def fmt_percent(delta, base_gas):
+    if base_gas == 0:
+        return "-"
+    return f"{delta / base_gas:+.2%}"
+
+
 def fmt_row(test, base_entry, head_entry):
     # returns (display_row, delta_for_sorting, kind) where kind in
     # {"new", "deleted", "broke", "fixed", "regression", "improvement", "unchanged"}
@@ -17,15 +23,15 @@ def fmt_row(test, base_entry, head_entry):
     # otherwise the "Newly failing" summary count under-reports regressions
     if base_entry is None and head_entry is not None:
         if head_status != "Success":
-            return f"| {test} | - | 💥 | new failing ({head_status}) |", 0, "broke"
-        return f"| {test} | - | ➕ **{head_gas}** | new |", 0, "new"
+            return f"| new failing ({head_status}) | - | - | 💥 | {test} |", 0, "broke"
+        return f"| new | - | - | ➕ **{head_gas}** | {test} |", 0, "new"
     if base_entry is not None and head_entry is None:
-        return f"| {test} | **{base_gas}** | - | 🗑️ |", 0, "deleted"
+        return f"| deleted | - | **{base_gas}** | - | {test} |", 0, "deleted"
     # status flips: forge marks suite-level breakage at the test level too
     if base_status == "Success" and head_status != "Success":
-        return f"| {test} | **{base_gas}** | 💥 | failing ({head_status}) |", 0, "broke"
+        return f"| failing ({head_status}) | - | **{base_gas}** | 💥 | {test} |", 0, "broke"
     if base_status != "Success" and head_status == "Success":
-        return f"| {test} | ❌ | 🔧 **{head_gas}** | fixed |", 0, "fixed"
+        return f"| fixed | - | ❌ | 🔧 **{head_gas}** | {test} |", 0, "fixed"
     if base_gas is None or head_gas is None:
         return None
     if base_gas == head_gas:
@@ -34,7 +40,8 @@ def fmt_row(test, base_entry, head_entry):
     sign = "+" if delta > 0 else ""
     icon = "🔴" if delta > 0 else "🟢"
     return (
-        f"| {test} | **{base_gas}** | **{head_gas}** | {icon}{sign}{delta} |",
+        f"| {icon}{sign}{delta} | {fmt_percent(delta, base_gas)} | "
+        f"**{base_gas}** | **{head_gas}** | {test} |",
         delta,
         ("regression" if delta > 0 else "improvement"),
     )
@@ -76,8 +83,8 @@ def generate_report(base_path, head_path):
 
     rows.sort(key=lambda r: abs(r[1]), reverse=True)
 
-    header = "| Test | Base Gas | Head Gas | Delta |"
-    sep = "|---|---|---|---|"
+    header = "| Delta | Delta % | Base Gas | Head Gas | Test |"
+    sep = "|---|---|---|---|---|"
 
     if rows:
         body = "## Gas Changes\n\n" + header + "\n" + sep + "\n" + "\n".join(r[0] for r in rows)

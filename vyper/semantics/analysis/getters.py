@@ -31,8 +31,6 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         # constants just return a value
         if node.is_constant:
             return_expr = node.value
-        elif node.is_immutable:
-            return_expr = vy_ast.Name(id=funcname)  # type: ignore
         else:
             # the base return statement is an `Attribute` node, e.g.
             # `self.<var_name>`. for each input type we wrap it in a

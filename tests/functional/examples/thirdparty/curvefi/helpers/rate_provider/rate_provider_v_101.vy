@@ -44,7 +44,7 @@ CRYPTOSWAP_ABI: constant(String[64]) = "get_dy(uint256,uint256,uint256)"
 
 @deploy
 def __init__(address_provider: address):
-    ADDRESS_PROVIDER = AddressProvider(address_provider)
+    self.ADDRESS_PROVIDER = AddressProvider(address_provider)
 
 
 @external
@@ -102,7 +102,7 @@ def weighted_average_quote(
 def _get_quotes(source_token: address, destination_token: address, amount_in: uint256) -> DynArray[Quote, MAX_QUOTES]:
 
     quotes: DynArray[Quote, MAX_QUOTES] = []
-    metaregistry: Metaregistry = Metaregistry(staticcall ADDRESS_PROVIDER.get_address(METAREGISTRY_ID))
+    metaregistry: Metaregistry = Metaregistry(staticcall self.ADDRESS_PROVIDER.get_address(METAREGISTRY_ID))
     pools: DynArray[address, 1000] = staticcall metaregistry.find_pools_for_coins(source_token, destination_token)
 
     if len(pools) == 0:

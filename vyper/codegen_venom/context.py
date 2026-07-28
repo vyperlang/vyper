@@ -16,17 +16,23 @@ from enum import Enum
 from typing import Optional
 
 from vyper.codegen_venom.buffer import Buffer, Ptr
-from vyper.codegen_venom.constants import IDENTITY_PRECOMPILE
 from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import CompilerPanic, MemoryAllocationException, StateAccessViolation
+from vyper.exceptions import (
+    CodegenPanic,
+    CompilerPanic,
+    MemoryAllocationException,
+    StateAccessViolation,
+)
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import TupleT, VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
+from vyper.semantics.types.infinity import is_bounded_length
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
+from vyper.utils import IDENTITY_PRECOMPILE
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 
@@ -154,6 +160,18 @@ class VenomCodegenContext:
     def store_vyper_value(self, vv: VyperValue, ptr: IRVariable, typ: VyperType) -> None:
         """Store a VyperValue into memory, preserving its source layout."""
         self.store_memory(self.unwrap(vv), ptr, typ, src_typ=vv.typ)
+
+    def materialize_value(
+        self, vv: VyperValue, typ: Optional[VyperType] = None, annotation: Optional[str] = None
+    ) -> VyperValue:
+        """Copy a VyperValue into a fresh memory temporary."""
+        if typ is None:
+            typ = vv.typ
+
+        ret = self.new_temporary_value(typ, annotation=annotation)
+        assert isinstance(ret.operand, IRVariable)
+        self.store_vyper_value(vv, ret.operand, typ)
+        return ret
 
     def bytes_data_ptr(self, vv: VyperValue) -> IROperand:
         """Get pointer to bytestring data (skipping length word).
@@ -496,6 +514,8 @@ class VenomCodegenContext:
         self, dst: IRVariable, dst_typ: DArrayT, src: IROperand, src_typ: DArrayT
     ) -> None:
         """Copy DynArray in memory when source and destination element layouts may differ."""
+        if not is_bounded_length(dst_typ.length):
+            raise CodegenPanic("Not yet implemented for Unbounded Sequence Types")
         b = self.builder
         assert isinstance(src, IRVariable)
         length = b.mload(src)
@@ -623,17 +643,13 @@ class VenomCodegenContext:
         ptr = self.builder.alloca(size)
         return Buffer(_ptr=ptr, size=size, annotation=annotation)
 
-    def allocate_dyn(self) -> "IRVariable":
-        """Get a pointer to scratch memory for runtime-sized data.
+    def allocate_scratch(self, size: "IROperand") -> "IRVariable":
+        """Allocate a scoped, runtime-sized scratch buffer.
 
-        Returns an address past all static allocations and any prior memory
-        use. The caller may write arbitrary data at this address; the region
-        is untracked and must be consumed (e.g. by CALL/CREATE) before any
-        other code that could also call allocate_dyn().
-
-        Lowers to EVM MSIZE at assembly time.
+        Returns a pointer to `ceil32(size)` bytes of scratch space above all
+        static allocations and spill slots.
         """
-        return self.builder.memtop()
+        return self.builder.dalloca(size)
 
     # === Storage Operations ===
 

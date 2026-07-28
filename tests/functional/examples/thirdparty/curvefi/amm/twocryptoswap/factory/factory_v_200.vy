@@ -102,7 +102,7 @@ deployer: immutable(address)
 
 @deploy
 def __init__(_fee_receiver: address):
-    deployer = msg.sender
+    self.deployer = msg.sender
     self.admin = msg.sender
     self.fee_receiver = _fee_receiver
 
@@ -110,9 +110,9 @@ def __init__(_fee_receiver: address):
 @external
 def set_owner(_owner: address):
     
-    assert msg.sender == deployer
-    assert self.admin == deployer
-    assert _owner != deployer
+    assert msg.sender == self.deployer
+    assert self.admin == self.deployer
+    assert _owner != self.deployer
 
     self.admin = _owner
 

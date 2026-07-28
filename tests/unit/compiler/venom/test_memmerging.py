@@ -1687,3 +1687,54 @@ def test_merge_mstore_dload_disallowed():
     """
 
     _check_no_change(pre)
+
+
+def test_merge_mstore_dload_dst_disallowed():
+    """
+    Test that the dload/mstore merge does not fire when the only use of
+    the dload output is as the *destination* pointer of the mstore
+    (rather than the stored value).
+    """
+    pre = """
+    _global:
+        %par = source
+        %d = dload %par
+        mstore %d, 42
+        stop
+    """
+
+    _check_no_change(pre)
+
+
+def test_merge_mstore_dload_self_dst_disallowed():
+    """
+    Test that the dload/mstore merge does not fire when the dload output
+    is used both as the stored value and as the destination pointer of
+    the mstore (single-use path).
+    """
+    pre = """
+    _global:
+        %par = source
+        %d = dload %par
+        mstore %d, %d
+        stop
+    """
+
+    _check_no_change(pre)
+
+
+def test_merge_mstore_dload_self_dst_more_uses_disallowed():
+    """
+    Test that the dload/mstore merge does not fire when the dload output
+    is used both as the stored value and as the destination pointer of
+    the mstore (multi-use path).
+    """
+    pre = """
+    _global:
+        %par = source
+        %d = dload %par
+        mstore %d, %d
+        sink %d
+    """
+
+    _check_no_change(pre)

@@ -69,6 +69,26 @@ def foo(a: address):
 def foo(inp: Bytes[5], start: uint256) -> Bytes[3]:
     return slice(inp, 0, 1 + 1)
     """,
+    """
+@external
+def foo() -> Bytes[10]:
+    return slice(msg.data, 1000, 10)
+    """,
+    """
+@external
+def foo() -> Bytes[10]:
+    return slice(msg.data, 1000000, 10)
+    """,
+    """
+@external
+def foo(a: address) -> Bytes[20]:
+    return slice(a.code, 999999, 20)
+    """,
+    """
+@external
+def foo() -> Bytes[1024]:
+    return slice(msg.data, 0, 1024)
+    """,
 ]
 
 

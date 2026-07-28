@@ -3,6 +3,7 @@ from .base_ptr_analysis import BasePtrAnalysis
 from .cfg import CFGAnalysis
 from .dfg import DFGAnalysis
 from .dominators import DominatorTreeAnalysis
+from .dynamic_memory import DynamicMemoryAnalysis, DynamicMemoryInfo
 from .fcg import FCGGlobalAnalysis
 from .liveness import LivenessAnalysis
 from .load_analysis import LoadAnalysis

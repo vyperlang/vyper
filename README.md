@@ -1,4 +1,8 @@
-<img src="https://raw.githubusercontent.com/vyperlang/vyper/master/docs/logo.svg?sanitize=true" alt="" width="110">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/_static/logo-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/_static/logo-light.svg">
+  <img height="100" src="docs/_static/logo-light.svg">
+</picture>
 
 [![Build Status](https://github.com/vyperlang/vyper/actions/workflows/test.yml/badge.svg)](https://github.com/vyperlang/vyper/actions/workflows/test.yml)
 [![Documentation Status](https://readthedocs.org/projects/vyper/badge/?version=latest)](http://docs.vyperlang.org/en/latest/?badge=latest "ReadTheDocs")

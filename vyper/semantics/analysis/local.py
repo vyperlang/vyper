@@ -49,6 +49,7 @@ from vyper.semantics.types import (
     AddressT,
     BoolT,
     DArrayT,
+    ErrorT,
     EventT,
     FlagT,
     HashMapT,
@@ -134,34 +135,18 @@ def is_terminated(block: list[vy_ast.VyperNode]) -> bool:
 
 # helpers
 def _validate_address_code(node: vy_ast.Attribute, value_type: VyperType) -> None:
+    # Error on `len(<address>.code)`
     if isinstance(value_type, AddressT) and node.attr == "code":
-        # Validate `slice(<address>.code, start, length)` where `length` is constant
         parent = node.get_ancestor()
-        if isinstance(parent, vy_ast.Call):
-            ok_func = isinstance(parent.func, vy_ast.Name) and parent.func.id == "slice"
-            ok_args = len(parent.args) == 3 and isinstance(parent.args[2].reduced(), vy_ast.Int)
-            if ok_func and ok_args:
-                return
-
-        raise StructureException(
-            "(address).code is only allowed inside of a slice function with a constant length", node
-        )
-
-
-def _validate_msg_data_attribute(node: vy_ast.Attribute) -> None:
-    if isinstance(node.value, vy_ast.Name) and node.value.id == "msg" and node.attr == "data":
-        parent = node.get_ancestor()
-        allowed_builtins = ("slice", "len", "raw_call")
-        if not isinstance(parent, vy_ast.Call) or parent.get("func.id") not in allowed_builtins:
+        if (
+            isinstance(parent, vy_ast.Call)
+            and isinstance(parent.func, vy_ast.Name)
+            and parent.func.id == "len"
+        ):
+            base = node.value.node_source_code
             raise StructureException(
-                "msg.data is only allowed inside of the slice, len or raw_call functions", node
+                f"`len({base}.code)` is inefficient: use `{base}.codesize` instead", node
             )
-        if parent.get("func.id") == "slice":
-            ok_args = len(parent.args) == 3 and isinstance(parent.args[2].reduced(), vy_ast.Int)
-            if not ok_args:
-                raise StructureException(
-                    "slice(msg.data) must use a compile-time constant for length argument", parent
-                )
 
 
 def _validate_msg_value_access(node: vy_ast.Attribute) -> None:
@@ -497,16 +482,27 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         self.expr_visitor.visit(node.target, typ)
 
     def _validate_revert_reason(self, msg_node: vy_ast.VyperNode) -> None:
+        if isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE":
+            return
+
+        if isinstance(msg_node, vy_ast.Call):
+            call_type = get_exact_type_from_node(msg_node.func)
+            if is_type_t(call_type, ErrorT):
+                self.expr_visitor.visit(msg_node, call_type.typedef)
+                self.func.mark_raised_error(call_type.typedef)
+                return
+
         if isinstance(msg_node, vy_ast.Str):
             if not msg_node.value.strip():
                 raise StructureException("Reason string cannot be empty", msg_node)
-            self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
-        elif not (isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE"):
-            try:
-                validate_expected_type(msg_node, StringT(1024))
-            except TypeMismatch as e:
-                raise InvalidType("revert reason must fit within String[1024]") from e
-            self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
+            # fall through to the `String[1024]` length check below, so that an
+            # over-long string literal is rejected just like a variable would be
+
+        try:
+            validate_expected_type(msg_node, StringT(1024))
+        except TypeMismatch as e:
+            raise InvalidType("revert reason must fit within String[1024]") from e
+        self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
         # CMC 2023-10-19 nice to have: tag UNREACHABLE nodes with a special type
 
     def visit_Assert(self, node):
@@ -635,6 +631,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if is_type_t(fn_type, EventT):
             raise StructureException("To call an event you must use the `log` statement", node)
 
+        if is_type_t(fn_type, ErrorT):
+            raise StructureException(
+                "To raise a custom error you must use `raise` or `assert`", node
+            )
+
         if is_type_t(fn_type, StructT):
             raise StructureException("Struct creation without assignment is disallowed", node)
 
@@ -762,6 +763,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         assert isinstance(node.value, vy_ast.Call)
 
         f = get_exact_type_from_node(node.value.func)
+        if is_type_t(f, ErrorT):
+            raise StructureException(
+                "To raise a custom error you must use `raise` or `assert`", node
+            )
         if not is_type_t(f, EventT):
             raise StructureException("Value is not an event", node.value)
         if self.func.mutability <= StateMutability.VIEW:
@@ -866,8 +871,6 @@ class ExprVisitor(VyperNodeVisitorBase):
             self.visit(folded_node, typ)
 
     def visit_Attribute(self, node: vy_ast.Attribute, typ: VyperType) -> None:
-        _validate_msg_data_attribute(node)
-
         # CMC 2023-10-19 TODO generalize this to mutability check on every node.
         # something like,
         # if self.func.mutability < expr_info.mutability:
@@ -952,7 +955,10 @@ class ExprVisitor(VyperNodeVisitorBase):
                     hint = f"remove the `{kind}` keyword"
                     raise CallViolation(msg, node.parent, hint=hint)
 
-            if not func_type.from_interface:
+            # methods from other contracts should not have their variable accesses added
+            # note that this logic will be insufficient if we add a way to
+            # internally call external methods
+            if func_type.is_internal:
                 for s in func_type.get_variable_writes():
                     if s.variable.is_state_variable():
                         func_info._writes.add(s)
@@ -988,12 +994,27 @@ class ExprVisitor(VyperNodeVisitorBase):
                         node,
                     )
 
-            for arg, typ in zip(node.args, func_type.argument_types):
-                self.visit(arg, typ)
+            for arg, arg_typ in zip(node.args, func_type.argument_types):
+                self.visit(arg, arg_typ)
             for kwarg in node.keywords:
                 # We should only see special kwargs
-                typ = func_type.call_site_kwargs[kwarg.arg].typ
-                self.visit(kwarg.value, typ)
+                kwarg_typ = func_type.call_site_kwargs[kwarg.arg].typ
+                self.visit(kwarg.value, kwarg_typ)
+
+            if func_type.is_external:
+                return_t = func_type.return_type
+                if return_t is not None and return_t.has_wildcard:
+                    if not typ.has_wildcard and typ is not VOID_TYPE:
+                        # Replace wildcard-containing type by the concrete expected type
+                        return_t = typ
+                    else:
+                        # Replace wildcards in the type by INF, since there is no expected type
+                        return_t = return_t.resolve_wildcard()
+                    # Sanity check
+                    assert func_type.return_type is not None
+                    assert return_t.is_subtype_of(func_type.return_type)
+                # TODO: Instead overwrite the normal type metadata ?
+                node._metadata["call_return_type"] = return_t
 
         elif is_type_t(func_type, EventT):
             # event ctors

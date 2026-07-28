@@ -21,7 +21,7 @@ SOME_IMMUTABLE: immutable(uint256)
 
 @deploy
 def __init__():
-    SOME_IMMUTABLE = 5
+    self.SOME_IMMUTABLE = 5
     self.counter = 1
     """,
 ]

@@ -42,8 +42,8 @@ class DFGAnalysis(IRAnalysis):
             if curr in result:
                 continue
             result.add(curr)
-            if curr.has_outputs:
-                worklist.extend(self.get_uses(curr.output))
+            for output in curr.get_outputs():
+                worklist.extend(self.get_uses(output))
         return result
 
     # the instruction which produces this variable.

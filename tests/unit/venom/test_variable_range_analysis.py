@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.variable_range import VariableRangeAnalysis
-from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX, SIGNED_MIN
+from vyper.venom.analysis.variable_range.evaluators import eval_sdiv, eval_smod
+from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX, SIGNED_MIN, ValueRange
 from vyper.venom.parser import parse_venom
 
 
@@ -2248,3 +2249,44 @@ def test_smod_by_zero():
     smod_inst = next(inst for inst in entry.instructions if inst.opcode == "smod")
     rng = analysis.get_range(smod_inst.output, entry.instructions[-1])
     assert rng.lo == 0 and rng.hi == 0
+
+
+def test_smod_dividend_spanning_sign_boundary():
+    """
+    Bug: smod narrowed based on raw lo/hi signs for ranges crossing the
+    signed boundary. [0, 2**256 - 32] contains the word 2**256 - 32, which
+    is -32 in signed interpretation. smod(-32, 10) = -2 (the word
+    2**256 - 2), which the old result [0, 9] excluded.
+    """
+    dividend = ValueRange.iv(0, 2**256 - 32)
+    rng = eval_smod(dividend, ValueRange.constant(10))
+    # the result must include -2 (the word 2**256 - 2)
+    assert rng.is_top or rng.lo <= -2 <= rng.hi, f"-2 excluded from {rng}"
+    assert rng.lo == -9 and rng.hi == 9
+
+
+def test_sdiv_dividend_spanning_sign_boundary_is_top():
+    """
+    Bug: sdiv narrowed based on raw lo/hi signs for ranges crossing the
+    signed boundary. [0, 2**256 - 32] contains the word 2**256 - 32, which
+    is -32 in signed interpretation. sdiv(-32, 10) = -3 (the word
+    2**256 - 3), which the old result [0, (2**256 - 32) // 10] excluded.
+    """
+    dividend = ValueRange.iv(0, 2**256 - 32)
+    rng = eval_sdiv(dividend, ValueRange.constant(10))
+    assert rng.is_top
+
+
+def test_smod_dividend_above_signed_max():
+    """A dividend range entirely above SIGNED_MAX is all negative words."""
+    dividend = ValueRange.iv(SIGNED_MAX + 1, 2**256 - 32)
+    rng = eval_smod(dividend, ValueRange.constant(10))
+    # all dividend words are negative; -2 must be included
+    assert rng.lo <= -2 <= rng.hi, f"-2 excluded from {rng}"
+
+
+def test_sdiv_dividend_above_signed_max_is_top():
+    """A dividend range entirely above SIGNED_MAX is all negative words."""
+    dividend = ValueRange.iv(SIGNED_MAX + 1, 2**256 - 32)
+    rng = eval_sdiv(dividend, ValueRange.constant(10))
+    assert rng.is_top

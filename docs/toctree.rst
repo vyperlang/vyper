@@ -48,6 +48,7 @@ Vyper
     :maxdepth: 2
 
     resources
+    deep-verification.rst
     release-notes.rst
     contributing.rst
     style-guide.rst

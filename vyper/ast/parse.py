@@ -324,6 +324,14 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         annotation_tokens = self._pre_parser.for_loop_annotations.pop(key)
 
         if not annotation_tokens:
+            if not isinstance(node.target, python_ast.Name):
+                raise SyntaxException(
+                    "invalid for loop syntax: not a name",
+                    self._source_code,
+                    node.target.lineno,
+                    node.target.col_offset,
+                )
+
             # a common case for people migrating to 0.4.0, provide a more
             # specific error message than "invalid type annotation"
             raise SyntaxException(
@@ -401,6 +409,13 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
     def visit_Await(self, node):
         start_pos = node.lineno, node.col_offset
         self.generic_visit(node)
+        if start_pos not in self._pre_parser.keyword_translations:
+            raise SyntaxException(
+                "The `await` keyword is not allowed.",
+                self._source_code,
+                node.lineno,
+                node.col_offset,
+            )
         node.ast_type = self._pre_parser.keyword_translations[start_pos]
         return node
 

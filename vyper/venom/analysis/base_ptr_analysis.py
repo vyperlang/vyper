@@ -51,8 +51,9 @@ class Ptr:
 class BasePtrAnalysis(IRAnalysis):
     """
     Analysis to get every possible base pointer for variables.
-    The alloca is the source of base pointer and other instructions
-    (add/assign) are used to manipulate these base pointers
+    The allocation instruction is the source of base pointer and other
+    instructions (add/sub/assign/phi) are used to manipulate these base
+    pointers.
     """
 
     var_to_mem: dict[IRVariable, set[Ptr]]
@@ -75,14 +76,30 @@ class BasePtrAnalysis(IRAnalysis):
                     worklist.append(succ)
 
     def _handle_inst(self, inst: IRInstruction) -> bool:
+        opcode = inst.opcode
+
+        # `bump` is dual-output (a_out, sum). Semantically a_out == a
+        # (its first input), but we treat a_out as a *fresh* base pointer
+        # marker for the allocated region so that successive bumps in the
+        # FMP chain (each marking a distinct allocation) do not appear to
+        # alias each other through the shared FMP dataflow. The second
+        # output (advanced fmp) is a fresh SSA var used only to sequence
+        # subsequent bumps/invokes and does not alias any known region.
+        if opcode == "bump":
+            ptr_out = inst.get_outputs()[0]
+            return self._add_possible_ptrs(ptr_out, {Ptr.from_alloca(inst)})
+
+        # `getfmp` (a read of the FMP virtual register) intentionally gets no
+        # pointer facts: its output is an *untracked* base, so anything rooted
+        # at it (e.g. DretDesugarPass's pack destinations) resolves to an
+        # unknown-offset location and aliases conservatively -- the same
+        # protection the entry-FMP param copy gives lowered IR.
+
         if inst.num_outputs != 1:
             return False
 
-        original = self.var_to_mem.get(inst.output, set())
-
-        opcode = inst.opcode
-        if opcode == "alloca":
-            self.var_to_mem[inst.output] = set([Ptr.from_alloca(inst)])
+        if opcode in ("alloca", "dalloca"):
+            return self._add_possible_ptrs(inst.output, {Ptr.from_alloca(inst)})
 
         elif opcode in ("add", "sub"):
             rhs, lhs = inst.operands
@@ -108,7 +125,7 @@ class BasePtrAnalysis(IRAnalysis):
                     out_ptrs.update(ptr.offset_by(None) for ptr in rhs_ptrs)
 
             if out_ptrs:
-                self.var_to_mem[inst.output] = out_ptrs
+                return self._add_possible_ptrs(inst.output, out_ptrs)
 
         elif opcode == "phi":
             phi_sources = set()
@@ -116,12 +133,44 @@ class BasePtrAnalysis(IRAnalysis):
                 assert isinstance(var, IRVariable)  # mypy help
                 var_sources = self.get_possible_ptrs(var)
                 phi_sources.update(var_sources)
-            self.var_to_mem[inst.output] = phi_sources
+            return self._add_possible_ptrs(inst.output, phi_sources)
 
         elif opcode == "assign" and isinstance(inst.operands[0], IRVariable):
-            self.var_to_mem[inst.output] = self.get_possible_ptrs(inst.operands[0])
+            return self._add_possible_ptrs(inst.output, self.get_possible_ptrs(inst.operands[0]))
 
-        return original != self.var_to_mem.get(inst.output, set())
+        return False
+
+    def _add_possible_ptrs(self, var: IRVariable, ptrs: set[Ptr]) -> bool:
+        if len(ptrs) == 0:
+            return False
+
+        # BasePtrAnalysis is normally queried after MakeSSA, where each
+        # variable has one definition. Some early global passes still query
+        # it before MakeSSA, where the same variable can be assigned different
+        # values on different paths. Keep facts monotonic so a later
+        # non-pointer assignment cannot erase a base pointer that may still
+        # reach a use through another path.
+        original = self.var_to_mem.get(var, set())
+        new_ptrs = self._normalize_ptrs(original | ptrs)
+        if new_ptrs == original:
+            return False
+
+        self.var_to_mem[var] = new_ptrs
+        return True
+
+    def _normalize_ptrs(self, ptrs: set[Ptr]) -> set[Ptr]:
+        offsets_by_base: dict[Allocation, set[int | None]] = {}
+        for ptr in ptrs:
+            offsets_by_base.setdefault(ptr.base_alloca, set()).add(ptr.offset)
+
+        ret: set[Ptr] = set()
+        for base_alloca, offsets in offsets_by_base.items():
+            if len(offsets) == 1:
+                ret.add(Ptr(base_alloca, next(iter(offsets))))
+            else:
+                ret.add(Ptr(base_alloca, None))
+
+        return ret
 
     # return Ptr if there is exactly one known source for the op
     # otherwise (e.g. could return multiple sources), return None
@@ -197,8 +246,6 @@ class BasePtrAnalysis(IRAnalysis):
             return MemoryLocation.UNDEFINED
         if inst.opcode == "ret":
             return MemoryLocation.UNDEFINED
-        if inst.opcode == "memtop":
-            return MemoryLocation.UNDEFINED
 
         if inst.get_read_effects() & effects.MEMORY == effects.EMPTY:
             return MemoryLocation.EMPTY
@@ -236,7 +283,7 @@ class BasePtrAnalysis(IRAnalysis):
             return MemoryLocation.UNDEFINED
         elif opcode in ("create", "create2"):
             return MemoryLocation.UNDEFINED
-        elif opcode in ("return", "stop", "sink"):
+        elif opcode in ("return", "stop", "sink", "selfdestruct"):
             # these opcodes terminate execution and commit to (persistent)
             # storage, resulting in storage writes escaping our control.
             # returning `MemoryLocation.UNDEFINED` represents "future" reads

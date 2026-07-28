@@ -30,7 +30,7 @@ class Namespace(dict):
         from vyper.semantics.types import PRIMITIVE_TYPES
 
         self.update(PRIMITIVE_TYPES)
-        self.update(environment.get_constant_vars())
+        self.update(environment.CONSTANT_ENVIRONMENT_VARS)
         self.update({k: VarInfo(b) for (k, b) in get_builtin_functions().items()})
 
     def __eq__(self, other):
@@ -70,12 +70,6 @@ class Namespace(dict):
         from vyper.semantics import environment
 
         self._scopes.append(set())
-
-        # refresh constant env vars with fresh instances — compare_type()
-        # mutates BytesT._length, so they must not be shared across
-        # function analyses.
-        # TODO: remove once compare_type no longer mutates types.
-        dict.update(self, environment.get_constant_vars())
 
         if len(self._scopes) == 1:
             # add mutable vars (`self`) to the initial scope

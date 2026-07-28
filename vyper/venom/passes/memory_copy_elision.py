@@ -132,11 +132,18 @@ class MemoryCopyElisionPass(IRPass):
                 self._try_elide_copy(inst)
 
                 write_loc = self.base_ptr.get_write_location(inst, addr_space.MEMORY)
+                read_loc = self.base_ptr.get_read_location(inst, addr_space.MEMORY)
                 self._invalidate(write_loc, Effects.MEMORY)
-                if write_loc.is_fixed:
+                # mcopy has memmove semantics: a self-overlapping copy can
+                # clobber its own source bytes, so it is not idempotent and
+                # cannot be recorded as a reusable copy fact. (unknown
+                # offsets conservatively count as overlapping.)
+                if write_loc.is_fixed and not MemoryLocation.may_overlap(read_loc, write_loc):
                     self.copies[write_loc] = inst
 
             else:
+                if Effects.RETURNDATA in inst.get_write_effects():
+                    self._invalidate_returndata_copies()
                 if Effects.MEMORY in inst.get_write_effects():
                     self.copies.clear()
                     self.loads[Effects.MEMORY].clear()
@@ -151,6 +158,15 @@ class MemoryCopyElisionPass(IRPass):
             self.bb_copies[bb] = self.copies.copy()
             return True
         return False
+
+    def _invalidate_returndata_copies(self):
+        to_remove = [
+            mem_loc
+            for mem_loc, copy_inst in self.copies.items()
+            if Effects.RETURNDATA in copy_inst.get_read_effects()
+        ]
+        for mem_loc in to_remove:
+            del self.copies[mem_loc]
 
     def _invalidate(self, write_loc: MemoryLocation, eff: Effects):
         if not write_loc.is_fixed and Effects.MEMORY in eff:

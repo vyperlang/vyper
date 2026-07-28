@@ -92,14 +92,24 @@ class MemLivenessAnalysis(IRAnalysis):
 
             self.liveat[inst] = live.copy()
 
-            for write_ptr in write_ptrs:
-                size = get_write_size(inst)
-                if not isinstance(size, IRLiteral):
-                    continue
+            # BasePtrAnalysis is a may-analysis: a pointer (e.g. derived
+            # through a phi) can resolve to multiple candidate allocas, and
+            # an unrecognized derivation resolves to the empty set. killing
+            # liveness is only sound for a must-write, i.e. when the pointer
+            # resolves to exactly one base alloca and the store overwrites
+            # the whole allocation. for multi-candidate or empty/unknown
+            # resolutions, skip the kill.
+            size = get_write_size(inst)
+            if len(write_ptrs) == 1 and isinstance(size, IRLiteral):
+                (write_ptr,) = write_ptrs
                 alloca = write_ptr.base_alloca
                 if alloca in live and size.value == alloca.alloca_size:
                     live.remove(alloca)
-                if alloca in (ptr.base_alloca for ptr in read_ptrs):
+
+            read_allocas = set(ptr.base_alloca for ptr in read_ptrs)
+            for write_ptr in write_ptrs:
+                alloca = write_ptr.base_alloca
+                if alloca in read_allocas:
                     live.add(alloca)
 
         return before != self.liveat[bb.instructions[0]]
@@ -126,7 +136,9 @@ class MemLivenessAnalysis(IRAnalysis):
     def _find_base_ptrs(self, op: Optional[IROperand]) -> set[Ptr]:
         if op is None or not isinstance(op, IRVariable):
             return set()
-        return self.base_ptrs.get_possible_ptrs(op)
+        # only static allocas need concretization; dalloca regions live
+        # above the static frame and are not tracked by the allocator.
+        return {p for p in self.base_ptrs.get_possible_ptrs(op) if not p.base_alloca.is_dynamic}
 
     def _mark_store_locations_live(self):
         # DSE may preserve stores whose liveness it can't disprove (e.g.,
