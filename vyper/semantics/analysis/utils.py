@@ -105,7 +105,7 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
         is_self_reference = node.get("value.id") == "self"
 
         # variable attribute, e.g. `foo.bar`
-        t = get_exact_type_from_node(node.value)
+        t = get_exact_type_from_node(node.value, allow_type_exprs=True)
         name = node.attr
 
         def _raise_invalid_reference(name, node):
@@ -170,8 +170,8 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
 
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             # x in y
-            left = self.visit(node.left)
-            right = self.visit(node.right)
+            left = get_possible_types_from_node(node.left)
+            right = get_possible_types_from_node(node.right)
             if any(isinstance(t, FlagT) for t in left):
                 types_list = get_common_types(node.left, node.right)
                 _validate_op(node, types_list, "validate_comparator")
@@ -205,7 +205,7 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
 
     def visit_Call(self, node):
         # function calls, e.g. `foo()` or `MyStruct()`
-        var = get_exact_type_from_node(node.func)
+        var = get_exact_type_from_node(node.func, allow_type_exprs=True)
         return_value = var.fetch_call_return(node)
         if return_value:
             if isinstance(return_value, list):
@@ -263,7 +263,7 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
 
             if len(node.elements) > 0:
                 # empty nested list literals `[[], []]`
-                subtypes = self.visit(node.elements[0])
+                subtypes = get_possible_types_from_node(node.elements[0])
             else:
                 # empty list literal `[]`
                 # subtype can be anything
@@ -327,7 +327,7 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
     def visit_Subscript(self, node):
         # index access, e.g. `foo[1]`
         if isinstance(node.value, (vy_ast.List, vy_ast.Subscript)):
-            types_list = self.visit(node.value)
+            types_list = get_possible_types_from_node(node.value)
             ret = []
             for t in types_list:
                 t.validate_index_type(node.slice)
@@ -344,7 +344,7 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
 
     def visit_UnaryOp(self, node):
         # unary operation: `-foo`
-        types_list = self.visit(node.operand)
+        types_list = get_possible_types_from_node(node.operand)
         return _validate_op(node, types_list, "validate_numeric_op")
 
 
@@ -375,7 +375,7 @@ def _filter(type_, fn_name, node):
         return False
 
 
-def get_possible_types_from_node(node, allow_type_exprs=True) -> list[VyperType]:
+def get_possible_types_from_node(node, allow_type_exprs: bool = False) -> list[VyperType]:
     """
     Return a list of possible types for the given node.
 
@@ -402,7 +402,7 @@ def get_possible_types_from_node(node, allow_type_exprs=True) -> list[VyperType]
     return ret
 
 
-def get_exact_type_from_node(node: vy_ast.VyperNode, allow_type_exprs=True) -> VyperType:
+def get_exact_type_from_node(node: vy_ast.VyperNode, allow_type_exprs: bool = False) -> VyperType:
     """
     Return *the* type of a given node.
 
@@ -575,7 +575,7 @@ def validate_expected_type(node, expected_type):
             # fail block
             pass
 
-    given_types = get_possible_types_from_node(node, allow_type_exprs=False)
+    given_types = get_possible_types_from_node(node)
 
     if isinstance(node, vy_ast.List):
         # special case - for literal arrays we individually validate each item
@@ -679,7 +679,7 @@ def check_modifiability(node: vy_ast.ExprNode, modifiability: Modifiability) -> 
         return all(check_modifiability(item, modifiability) for item in node.elements)
 
     if isinstance(node, vy_ast.Call):
-        call_type = get_exact_type_from_node(node.func)
+        call_type = get_exact_type_from_node(node.func, allow_type_exprs=True)
 
         # structs and interfaces
         if hasattr(call_type, "check_modifiability_for_call"):

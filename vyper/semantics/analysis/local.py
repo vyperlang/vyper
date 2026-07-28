@@ -488,7 +488,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
             return
 
         if isinstance(msg_node, vy_ast.Call):
-            call_type = get_exact_type_from_node(msg_node.func)
+            call_type = get_exact_type_from_node(msg_node.func, allow_type_exprs=True)
             if is_type_t(call_type, ErrorT):
                 self.expr_visitor.visit(msg_node, call_type.typedef)
                 self.func.mark_raised_error(call_type.typedef)
@@ -635,7 +635,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
 
         func = call_node.func
 
-        fn_type = get_exact_type_from_node(func)
+        fn_type = get_exact_type_from_node(func, allow_type_exprs=True)
 
         if is_type_t(fn_type, EventT):
             raise StructureException("To call an event you must use the `log` statement", node)
@@ -771,7 +771,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
         # postcondition of Log.validate()
         assert isinstance(node.value, vy_ast.Call)
 
-        f = get_exact_type_from_node(node.value.func)
+        f = get_exact_type_from_node(node.value.func, allow_type_exprs=True)
         if is_type_t(f, ErrorT):
             raise StructureException(
                 "To raise a custom error you must use `raise` or `assert`", node
@@ -894,7 +894,7 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
         if self.func and self.func.mutability == StateMutability.PURE:
             _validate_pure_access(node, typ)
 
-        value_type = get_exact_type_from_node(node.value)
+        value_type = get_exact_type_from_node(node.value, allow_type_exprs=True)
 
         _validate_address_code(node, value_type)
 
