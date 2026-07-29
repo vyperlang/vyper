@@ -9,6 +9,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     UnknownAttribute,
+    ImmutableViolation
 )
 
 fail_list = [
@@ -134,7 +135,7 @@ flag Status:
 def test_assign_to_flag():
   Status.ACTIVE = 2
         """,
-        InvalidReference,
+        ImmutableViolation,
     ),
 ]
 

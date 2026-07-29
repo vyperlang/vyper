@@ -211,8 +211,6 @@ def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
         assert isinstance(node, (vy_ast.Subscript, vy_ast.Attribute))  # help mypy
         node = node.value
         info = get_expr_info(node, allow_type_exprs=True)
-        if isinstance(info.typ, TYPE_T):
-            return None
 
     # ignore `self.` as it interferes with VarAccess comparison across modules
     if len(path) > 0 and path[-1] == "self":
@@ -542,17 +540,6 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
                 "Left-hand side of assignment cannot be a HashMap without a key"
             )
 
-        # Run this first so that "not a variable" errors have priority over
-        # "assigning to a constant" errors
-        var_access = _get_variable_access(target)
-        if var_access is None and isinstance(target, vy_ast.Attribute):
-            # raises for type expressions (e.g. Flag.MEMBER = x)
-            raise InvalidReference(
-                f"not a variable or literal: '{target.value._expr_info.typ.typedef}'", target.value
-            )
-        assert var_access is not None
-
-        info._writes.add(var_access)
 
         if (
             info.location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
@@ -584,6 +571,12 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
 
         if info.modifiability == Modifiability.CONSTANT:
             raise ImmutableViolation("Constant value cannot be written to.")
+
+
+        var_access = _get_variable_access(target)
+        assert var_access is not None
+
+        info._writes.add(var_access)
 
     def _handle_module_access(self, target: vy_ast.ExprNode):
         root_module_info = check_module_uses(target)
