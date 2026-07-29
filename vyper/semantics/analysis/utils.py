@@ -176,12 +176,13 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
         # TODO fixme circular import
         from vyper.semantics.types.user import FlagT
 
+        left = self.visit(node.left)
+        right = self.visit(node.right)
+
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             # x in y
-            left = self.visit(node.left)
-            right = self.visit(node.right)
             if any(isinstance(t, FlagT) for t in left):
-                types_list = get_common_types(node.left, node.right)
+                types_list = supremum(left, right)
                 _validate_op(node, types_list, "validate_comparator")
                 return [BoolT()]
 
@@ -193,13 +194,13 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
                 raise InvalidOperation(
                     "Right operand must be Array for membership comparison", node.right
                 )
-            types_list = [i for i in left if _is_type_in_list(i, [i.value_type for i in right])]
+            types_list = supremum(left, [t.value_type for t in right])
             if not types_list:
                 raise TypeMismatch(
                     "Cannot perform membership comparison between dislike types", node
                 )
         else:
-            types_list = get_common_types(node.left, node.right)
+            types_list = supremum(left, right)
             _validate_op(node, types_list, "validate_comparator")
         return [BoolT()]
 
@@ -255,12 +256,13 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
 
     def visit_IfExp(self, node):
         validate_expected_type(node.test, BoolT())
-        types_list = get_common_types(node.body, node.orelse)
+
+        then_t = self.visit(node.body)
+        else_t = self.visit(node.orelse)
+        types_list = supremum(then_t, else_t)
 
         if not types_list:
-            a = self.visit(node.body)[0]
-            b = self.visit(node.orelse)[0]
-            raise TypeMismatch(f"Dislike types: {a} and {b}", node)
+            raise TypeMismatch(f"Dislike types: {then_t[0]} and {else_t[0]}", node)
 
         return types_list
 
@@ -483,7 +485,26 @@ def get_expr_info(node: vy_ast.ExprNode, allow_type_exprs: bool = False) -> Expr
     return node._expr_info
 
 
-def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> List:
+def supremum(*branches: List[VyperType]) -> List[VyperType]:
+    assert len(branches) >= 1
+
+    common_types = branches[0]
+    for branch in branches[1:]:
+        tmp = []
+        for c in common_types:
+            for t in branch:
+                # TODO: This can add either the supertype or the subtype to tmp depending on
+                # the order
+                if t.compare_type(c) or c.compare_type(t):
+                    tmp.append(c)
+                    break
+
+        common_types = tmp
+
+    return common_types
+
+
+def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> List[VyperType]:
     # this function is a performance hotspot
     """
     Return a list of common possible types between one or more nodes.
@@ -500,21 +521,8 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
     list
         List of zero or more `BaseType` objects.
     """
-    common_types = get_possible_types_from_node(nodes[0])
 
-    for item in nodes[1:]:
-        new_types = get_possible_types_from_node(item)
-
-        tmp = []
-        for c in common_types:
-            for t in new_types:
-                # TODO: This can add either the supertype or the subtype to tmp depending on
-                # the order
-                if t.compare_type(c) or c.compare_type(t):
-                    tmp.append(c)
-                    break
-
-        common_types = tmp
+    common_types = supremum(*(get_possible_types_from_node(node) for node in nodes))
 
     if filter_fn is not None:
         common_types = [i for i in common_types if filter_fn(i)]
