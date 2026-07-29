@@ -74,9 +74,10 @@ def foo(inp: int128) -> uint256:
 
 
 def test_index_type_mismatch_message_uses_readable_type_names():
-    # Exercises the `typeclass` fallback of the type-name formatting: `IntegerT`
-    # is parametric so its `_id` is a property, falling back to `typeclass`
-    # ("integer"). The message must not leak `GenericTypeAcceptor(...)`.
+    # Exercises the `_generic_id` fallback of the type-name formatting:
+    # `IntegerT` is parametric so its `_id` is a property with no class-level
+    # value, falling back to `_generic_id` ("integer"). The message must not
+    # leak `GenericTypeAcceptor(...)`.
     code = """
 @external
 def foo(x: DynArray[uint256, 3]) -> uint256:

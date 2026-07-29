@@ -17,10 +17,6 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.data_locations import DataLocation
 
-# user-facing spelling for internal `typeclass` identifiers that differ from
-# the syntax users write (e.g. the `bytesM` family: `bytes1`..`bytes32`)
-_TYPECLASS_DISPLAY_NAMES = {"bytes_m": "bytesM"}
-
 
 # Some fake type with an overridden `compare_type` which accepts any RHS
 # type of type `type_`
@@ -30,17 +26,15 @@ class _GenericTypeAcceptor:
 
     def __str__(self):
         # User-facing type name (e.g. `String`, `Bytes`, `DynArray`) used in
-        # error messages, instead of the internal Python class repr. `_id` is a
-        # plain class attribute on most types, but a property on parametric
-        # types (e.g. `IntegerT`, `BytesM_T`), so fall back to `typeclass`
-        # (mapped to its user-facing spelling), then the class name, keeping
-        # this total (never returns a non-string).
+        # error messages, instead of the internal Python class repr. Prefer the
+        # class-level `_id`; parametric types (e.g. `IntegerT`, `BytesM_T`)
+        # define `_id` as a property, so it has no value at the class level that
+        # `.any()` hands us -- fall back to their `_generic_id`.
         name = getattr(self.type_, "_id", None)
         if not isinstance(name, str):
-            typeclass = getattr(self.type_, "typeclass", None)
-            name = _TYPECLASS_DISPLAY_NAMES.get(typeclass, typeclass)
+            name = self.type_._generic_id
         if not isinstance(name, str):
-            name = self.type_.__name__
+            raise CompilerPanic(f"{self.type_.__name__} has no user-facing name")
         return name
 
     def __init__(self, type_):
@@ -102,6 +96,10 @@ class VyperType:
     typeclass: str = None  # type: ignore
 
     _id: str  # rename to `_name`
+    # user-facing name for parametric types whose `_id` is an instance
+    # property (e.g. `bytesM`, `integer`), so it has no value at the class
+    # level. see `_GenericTypeAcceptor.__str__`.
+    _generic_id: str = None  # type: ignore
     _type_members: Optional[Dict] = None
     _valid_literal: Tuple = ()
     _invalid_locations: Tuple = ()
@@ -517,6 +515,8 @@ def map_void(typ: Optional[VyperType]) -> VyperType:
 # position, ex. constructors (events, interfaces and structs), and also
 # certain builtins which take types as parameters
 class TYPE_T(VyperType):
+    _generic_id = "type"
+
     def __init__(self, typedef):
         super().__init__()
 
