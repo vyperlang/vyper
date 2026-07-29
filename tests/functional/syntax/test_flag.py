@@ -3,13 +3,12 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     FlagDeclarationException,
+    ImmutableViolation,
     InvalidOperation,
-    InvalidReference,
     NamespaceCollision,
     StructureException,
     TypeMismatch,
     UnknownAttribute,
-    ImmutableViolation
 )
 
 fail_list = [

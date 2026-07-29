@@ -12,7 +12,6 @@ from vyper.exceptions import (
     ExceptionList,
     FunctionDeclarationException,
     ImmutableViolation,
-    InvalidReference,
     InvalidType,
     IteratorException,
     NonPayableViolation,
@@ -540,7 +539,6 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
                 "Left-hand side of assignment cannot be a HashMap without a key"
             )
 
-
         if (
             info.location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
             and func_t.mutability <= StateMutability.VIEW
@@ -571,7 +569,6 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
 
         if info.modifiability == Modifiability.CONSTANT:
             raise ImmutableViolation("Constant value cannot be written to.")
-
 
         var_access = _get_variable_access(target)
         assert var_access is not None
