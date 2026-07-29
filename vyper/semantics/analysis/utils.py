@@ -66,10 +66,9 @@ def uses_state(var_accesses: Iterable[VarAccess]) -> bool:
 class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
     """
     Returns all types an expression can have.
-    (Or its type if it has already been computed.)
 
-    Do not call directly, instead go through `get_exact_type_from_node` or
-    `get_possible_types_from_node`.
+    Do not call directly, instead go through `get_possible_types_from_node`
+    (or `get_exact_type_from_node`).
     """
 
     scope_name = "expression"
@@ -78,9 +77,6 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
         self.namespace = get_namespace()
 
     def visit(self, node, allow_type_exprs: bool = False) -> list[VyperType]:
-        # Early termination if typedef is propagated in metadata
-        if "type" in node._metadata:
-            return [node._metadata["type"]]
 
         # this method is a perf hotspot, so we cache the result and
         # try to return it if found.
@@ -421,6 +417,10 @@ def get_exact_type_from_node(node: vy_ast.VyperNode, allow_type_exprs: bool = Fa
     VyperType
         The type of `node`
     """
+
+    if "type" in node._metadata:
+        return node._metadata["type"]
+
     types_list = get_possible_types_from_node(node, allow_type_exprs=allow_type_exprs)
 
     if len(types_list) > 1:
