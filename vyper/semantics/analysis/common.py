@@ -8,7 +8,7 @@ Result = TypeVar("Result")
 class VyperNodeVisitorBase(Generic[Result]):
     scope_name = ""
 
-    def visit(self, node, *args) -> Result:
+    def visit(self, node, *args, **kwargs) -> Result:
         # iterate over the MRO until we find a matching visitor function
         # this lets us use a single function to broadly target several
         # node types with a shared parent
@@ -18,7 +18,7 @@ class VyperNodeVisitorBase(Generic[Result]):
             with tag_exceptions(node):
                 visitor_fn = getattr(self, f"visit_{ast_type}", None)
                 if visitor_fn:
-                    return visitor_fn(node, *args)
+                    return visitor_fn(node, *args, **kwargs)
 
         node_type = type(node).__name__
         raise StructureException(
