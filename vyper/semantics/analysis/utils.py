@@ -479,6 +479,7 @@ def get_expr_info(node: vy_ast.ExprNode, allow_type_exprs: bool = False) -> Expr
     if node._expr_info is None:
         node._expr_info = _get_expr_info_helper(node, allow_type_exprs=allow_type_exprs)
 
+    # in case we cached a value when `allow_type_exprs` was True
     if not allow_type_exprs and isinstance(node._expr_info.typ, TYPE_T):
         raise InvalidReference(f"not a variable or literal: '{node._expr_info.typ.typedef}'", node)
 
