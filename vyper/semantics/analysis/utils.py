@@ -63,6 +63,11 @@ def uses_state(var_accesses: Iterable[VarAccess]) -> bool:
     return any(s.variable.is_state_variable() for s in var_accesses)
 
 
+def _raise_if_type(t: VyperType, node: vy_ast.VyperNode):
+    if isinstance(t, TYPE_T):
+        raise InvalidReference(f"not a variable or literal: '{t.typedef}'", node)
+
+
 class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
     """
     Returns all types an expression can have.
@@ -99,9 +104,8 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
         ret = node._metadata[k].copy()
 
         if not allow_type_exprs:
-            invalid = next((i for i in ret if isinstance(i, TYPE_T)), None)
-            if invalid is not None:
-                raise InvalidReference(f"not a variable or literal: '{invalid.typedef}'", node)
+            for t in ret:
+                _raise_if_type(t, node)
 
         return ret
 
@@ -366,21 +370,6 @@ def _is_empty_list(node):
     return all(_is_empty_list(t) for t in node.elements)
 
 
-def _is_type_in_list(obj, types_list):
-    # check if a type object is in a list of types
-    return any(i.is_equivalent_to(obj) for i in types_list)
-
-
-# NOTE: dead fn
-def _filter(type_, fn_name, node):
-    # filter function used when evaluating boolean ops and comparators
-    try:
-        getattr(type_, fn_name)(node)
-        return True
-    except InvalidOperation:
-        return False
-
-
 def get_possible_types_from_node(node, allow_type_exprs: bool = False) -> list[VyperType]:
     """
     Return a list of possible types for the given node.
@@ -418,8 +407,13 @@ def get_exact_type_from_node(node: vy_ast.VyperNode, allow_type_exprs: bool = Fa
         The type of `node`
     """
 
-    if "type" in node._metadata:
-        return node._metadata["type"]
+    # Return cached value if available
+    typ = node._metadata.get("type")
+    if typ is not None:
+        if not allow_type_exprs:
+            # Cache might have been filled when `allow_type_expr` was `True`
+            _raise_if_type(typ, node)
+        return typ
 
     types_list = get_possible_types_from_node(node, allow_type_exprs=allow_type_exprs)
 
@@ -480,8 +474,8 @@ def get_expr_info(node: vy_ast.ExprNode, allow_type_exprs: bool = False) -> Expr
         node._expr_info = _get_expr_info_helper(node, allow_type_exprs=allow_type_exprs)
 
     # in case we cached a value when `allow_type_exprs` was True
-    if not allow_type_exprs and isinstance(node._expr_info.typ, TYPE_T):
-        raise InvalidReference(f"not a variable or literal: '{node._expr_info.typ.typedef}'", node)
+    if not allow_type_exprs:
+        _raise_if_type(node._expr_info.typ, node)
 
     return node._expr_info
 
