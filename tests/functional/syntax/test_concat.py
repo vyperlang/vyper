@@ -126,13 +126,12 @@ def test_concat_type_mismatch_message_uses_readable_type_names():
 def foo() -> Bytes[64]:
     return concat(123, b"x")
     """
-    with pytest.raises(TypeMismatch) as exc_info:
+    with pytest.raises(TypeMismatch) as e:
         compiler.compile_code(code)
 
-    message = str(exc_info.value)
-    assert "GenericTypeAcceptor" not in message
-    assert "bytes_m" not in message
-    assert "bytesM" in message
+    assert e.value.message == (
+        "Expected one of Bytes, String, bytesM but literal can only be cast as int104 or uint96."
+    )
 
 
 valid_list = [
