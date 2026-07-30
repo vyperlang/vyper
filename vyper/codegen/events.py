@@ -2,7 +2,7 @@ from vyper.codegen.abi_encoder import abi_encode
 from vyper.codegen.core import get_type_for_exact_size, ir_tuple_from_args, unwrap_location
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.keccak256_helper import keccak256_helper
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import CodegenPanic
 from vyper.semantics.types.bytestrings import _BytestringT
 
 
@@ -18,7 +18,7 @@ def _encode_log_topics(expr, event_id, arg_nodes, context):
             value = keccak256_helper(arg, context=context)
         else:
             # TODO block at higher level
-            raise TypeMismatch("Event indexes may only be value types", expr)
+            raise CodegenPanic("Event indexes may only be value types", expr)
 
         topics.append(value)
 

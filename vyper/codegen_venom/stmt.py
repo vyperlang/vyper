@@ -1098,7 +1098,7 @@ class Stmt:
             return self.builder.sha3(data_ptr, length)
 
         else:  # pragma: nocover
-            raise CompilerPanic(f"Event indexes may only be value types, got {typ}")
+            raise CodegenPanic(f"Event indexes may only be value types, got {typ}")
 
     # === Error Handling (Assert/Raise) ===
 
