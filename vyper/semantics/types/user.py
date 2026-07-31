@@ -10,6 +10,7 @@ from vyper.exceptions import (
     InstantiationException,
     NamespaceCollision,
     StructureException,
+    TypeMismatch,
     UnfoldableNode,
     VariableDeclarationException,
 )
@@ -317,6 +318,12 @@ class EventT(_UserType):
             annotation = node.annotation
             if isinstance(annotation, vy_ast.Call) and annotation.get("func.id") == "indexed":
                 validate_call_args(annotation, 1)
+
+                typ = type_from_annotation(annotation.args[0])
+                can_be_indexed = typ._is_prim_word or typ._is_bytestring
+                if not can_be_indexed:
+                    raise TypeMismatch("Event indexes may only be value types", annotation)
+
                 if indexed.count(True) == 3:
                     raise EventDeclarationException(
                         "Event cannot have more than three indexed arguments", annotation
