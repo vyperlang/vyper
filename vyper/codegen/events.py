@@ -17,7 +17,6 @@ def _encode_log_topics(expr, event_id, arg_nodes, context):
         elif isinstance(arg.typ, _BytestringT):
             value = keccak256_helper(arg, context=context)
         else:
-            # TODO block at higher level
             raise CodegenPanic("Event indexes may only be value types", expr)
 
         topics.append(value)
