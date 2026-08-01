@@ -118,9 +118,6 @@ def test_block_fail(assert_compile_failed, get_contract, bad_code, exc):
 
 
 def test_concat_type_mismatch_message_uses_readable_type_names():
-    # `concat`'s accepted `bytesM` type must be shown by its user-facing name,
-    # not the internal `bytes_m` typeclass (nor a `GenericTypeAcceptor` repr).
-    # See issue #4955.
     code = """
 @external
 def foo() -> Bytes[64]:

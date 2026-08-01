@@ -56,8 +56,6 @@ def test_list_success(good_code):
 
 
 def test_len_type_mismatch_message_uses_readable_type_names():
-    # `len()`'s accepted types must be shown by their user-facing names, not as
-    # internal `GenericTypeAcceptor(<class ...>)` reprs. See issue #4955.
     code = """
 @external
 def foo(inp: int128) -> uint256:
@@ -72,9 +70,7 @@ def foo(inp: int128) -> uint256:
 
 
 def test_index_type_mismatch_message_uses_readable_type_names():
-    # Exercises the `_generic_id` fallback: `IntegerT` is parametric, so its
-    # `_id` is a property with no value at the class level and the name comes
-    # from `_generic_id` ("integer") instead.
+    # exercises the `_generic_id` fallback (`IntegerT._id` is per-instance)
     code = """
 @external
 def foo(x: DynArray[uint256, 3]) -> uint256:
