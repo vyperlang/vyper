@@ -87,7 +87,7 @@ def _parse_to_ast(
 
             # adjust the column of the error if it was modified by the pre-parser
             if e.lineno is not None:  # help mypy
-                offset += pre_parser.adjustments.get((e.lineno, offset), 0)
+                offset += pre_parser.shift_for(e.lineno, offset)
 
         new_e = SyntaxException(str(e), vyper_source, e.lineno, offset)
 
@@ -238,13 +238,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self.counter += 1
         node.ast_type = node.__class__.__name__
 
-        adjustments = self._pre_parser.adjustments
-
-        adj = adjustments.get((node.lineno, node.col_offset), 0)
-        node.col_offset += adj
-
-        adj = adjustments.get((node.end_lineno, node.end_col_offset), 0)
-        node.end_col_offset += adj
+        node.col_offset += self._pre_parser.shift_for(node.lineno, node.col_offset)
+        node.end_col_offset += self._pre_parser.shift_for(node.end_lineno, node.end_col_offset)
 
         start_pos = self.line_offsets[node.lineno] + node.col_offset
         end_pos = self.line_offsets[node.end_lineno] + node.end_col_offset

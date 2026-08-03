@@ -182,6 +182,50 @@ def test_expand_source_map():
     assert expand_source_map(compressed) == expanded
 
 
+def test_source_map_no_negative_length_after_keyword_rewrite():
+    single_rewrite = """
+interface Vault:
+    def convertToAssets(shares: uint256) -> uint256: view
+
+d: immutable(uint256)
+
+@deploy
+def __init__():
+    d = 18
+
+@external
+@view
+def get(v: address) -> uint256:
+    return staticcall Vault(v).convertToAssets(10 ** d)
+    """
+    nested_rewrite = """
+interface Outer:
+    def call(x: uint256) -> uint256: nonpayable
+
+interface Inner:
+    def get() -> uint256: nonpayable
+
+o: address
+i: address
+
+@external
+def foo() -> uint256:
+    return extcall Outer(self.o).call(extcall Inner(self.i).get())
+    """
+    for code in (single_rewrite, nested_rewrite):
+        for fmt in ("source_map", "source_map_runtime"):
+            out = compile_code(code, output_formats=[fmt])[fmt]
+            for pc, (lineno, col, end_lineno, end_col) in out["pc_pos_map"].items():
+                assert (end_lineno, end_col) >= (
+                    lineno,
+                    col,
+                ), f"reversed span at pc={pc}: {(lineno, col, end_lineno, end_col)}"
+            for entry in out["pc_pos_map_compressed"].split(";"):
+                parts = entry.split(":")
+                if len(parts) >= 2 and parts[1] and parts[1] != "-1":
+                    assert int(parts[1]) >= 0, f"negative length in {entry!r}"
+
+
 def _construct_node_id_map(ast_struct):
     if isinstance(ast_struct, dict):
         ret = {}
