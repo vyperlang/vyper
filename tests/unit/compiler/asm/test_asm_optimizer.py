@@ -3,8 +3,8 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.evm.assembler.instructions import PUSHLABEL, Label
-from vyper.evm.assembler.optimizer import _merge_jumpdests
+from vyper.evm.assembler.instructions import CONST, PUSHLABEL, Label
+from vyper.evm.assembler.optimizer import _merge_jumpdests, _prune_unreachable_code
 
 codes = [
     """
@@ -133,3 +133,14 @@ def test_merge_jumpdests():
     asm = [PUSHLABEL(Label("label_0")), "JUMP", "PUSH0", Label("label_0"), Label("_label_0")]
 
     assert _merge_jumpdests(asm) is False, "should not return True as no changes were made"
+
+
+def test_prune_unreachable_code_keeps_consts():
+    # CONST declarations produce no bytecode and can be referenced from
+    # reachable code, so they must not be pruned along with dead code
+    asm = ["REVERT", "PUSH0", CONST("some_const", 5), "PUSH0", Label("label_0")]
+
+    assert _prune_unreachable_code(asm) is True
+    assert asm == ["REVERT", CONST("some_const", 5), Label("label_0")]
+
+    assert _prune_unreachable_code(asm) is False, "should not return True as no changes were made"

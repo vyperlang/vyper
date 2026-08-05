@@ -1,4 +1,5 @@
 from vyper.evm.assembler.instructions import (
+    CONST,
     DATA_ITEM,
     PUSH_OFST,
     PUSHLABEL,
@@ -28,8 +29,17 @@ def _prune_unreachable_code(assembly):
                 # fixup an off-by-one if we made it to the end of the assembly
                 # without finding an jumpdest or sublist
                 j = len(assembly)
-            changed |= j > i + 1
-            del assembly[i + 1 : j]
+
+            # CONST items are declarations, not code -- they contribute no
+            # bytes to the bytecode, and can be referenced (via CONSTREF)
+            # from code which *is* reachable. deleting them would leave a
+            # dangling CONSTREF at symbol resolution time. (this happens with
+            # `mem_deploy_end`, which is declared by the `deploy` fragment --
+            # unreachable when the constructor always reverts -- but
+            # referenced by `iload`/`istore` in the constructor body.)
+            consts = [item for item in assembly[i + 1 : j] if isinstance(item, CONST)]
+            changed |= len(consts) < j - (i + 1)
+            assembly[i + 1 : j] = consts
 
         i += 1
 
