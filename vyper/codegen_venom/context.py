@@ -769,11 +769,11 @@ class VenomCodegenContext:
     def load_memory(self, ptr: IROperand, typ: VyperType) -> IROperand:
         """Load value from memory pointer.
 
-        For primitive types (<=32 bytes), returns the loaded value.
-        For complex types (>32 bytes), returns the pointer itself
-        since caller will work with the pointer.
+        For primitive word types, returns the loaded value.
+        For complex types (including single-word structs and arrays),
+        returns the pointer itself since caller will work with the pointer.
         """
-        if typ.memory_bytes_required <= 32:
+        if typ._is_prim_word:
             assert isinstance(ptr, IRVariable)
             return self.builder.mload(ptr)
         else:
