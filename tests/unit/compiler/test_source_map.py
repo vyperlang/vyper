@@ -2,7 +2,6 @@ from collections import namedtuple
 
 from vyper.compiler import compile_code
 from vyper.compiler.output import _compress_source_map
-from vyper.compiler.settings import OptimizationLevel
 from vyper.compiler.utils import expand_source_map
 
 TEST_CODE = """
@@ -38,12 +37,13 @@ def test_jump_map(optimize, experimental_codegen):
     pos_map = source_map["pc_pos_map"]
     jump_map = source_map["pc_jump_map"]
 
-    if optimize == OptimizationLevel.NONE:
+    if optimize.is_minimal():
         # some jumps which don't get optimized out when optimizer is off
         # (slightly different behavior depending if venom pipeline is enabled):
         if experimental_codegen:
             expected_jumps = 0
-            expected_internals = 0
+            # the internal call survives because inlining is off at these levels
+            expected_internals = 2
         else:
             expected_jumps = 3
             expected_internals = 2
@@ -61,7 +61,7 @@ def test_jump_map(optimize, experimental_codegen):
     code_lines = [i + "\n" for i in TEST_CODE.split("\n")]
     for pc in [k for k, v in jump_map.items() if v == "o"]:
         if pc not in pos_map:
-            assert optimize == OptimizationLevel.NONE
+            assert optimize.is_minimal()
             continue  # some jump is not being optimized out
 
         lineno, col_offset, _, end_col_offset = pos_map[pc]
@@ -69,7 +69,7 @@ def test_jump_map(optimize, experimental_codegen):
 
     for pc in [k for k, v in jump_map.items() if v == "i"]:
         if pc not in pos_map:
-            assert optimize == OptimizationLevel.NONE
+            assert optimize.is_minimal()
             continue  # some jump is not being optimized out
         lineno, col_offset, _, end_col_offset = pos_map[pc]
         assert code_lines[lineno - 1][col_offset:end_col_offset].startswith("self.")

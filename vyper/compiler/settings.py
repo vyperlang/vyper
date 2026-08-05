@@ -28,30 +28,39 @@ class OptimizationLevel(Enum):
     NONE = 1
     GAS = 2
     CODESIZE = 3
-    # TODO: O1 (minimal passes) is currently disabled because it can cause
-    # "stack too deep" errors. Re-enable once stack spilling machinery is
-    # implemented to allow compilation with minimal optimization passes.
+    O1 = 5  # Minimal passes -- lowering only, used as the formal verification input
     O2 = 6  # Standard "stable" optimizations (default)
     O3 = 7  # Aggressive optimizations -- experimental possibly unsafe
     Os = 8  # Optimize for size
 
     @classmethod
     def from_string(cls, val):
-        match val:
+        # case-insensitive: `-O O1` reaches here lowercased by the CLI
+        match val.lower():
             case "none":
                 return cls.NONE
-            # O1 maps to O2 for now until stack spilling is implemented
-            case "O1" | "O2" | "gas":
+            case "o1":
+                return cls.O1
+            case "o2" | "gas":
                 return cls.GAS
-            case "codesize" | "Os":
+            case "codesize" | "os":
                 return cls.CODESIZE
-            case "O3" | "o3":
+            case "o3":
                 return cls.O3
         raise ValueError(f"unrecognized optimization level: {val}")
 
     @classmethod
     def default(cls):
         return cls.GAS
+
+    def is_minimal(self) -> bool:
+        """
+        The minimal-transformation levels: only what is needed to lower to
+        legal bytecode, no optimization anywhere in the pipeline (venom
+        passes, legacy IR optimizer, or assembly peephole). O1 is the level
+        formal verification consumes; `none` is an alias for it.
+        """
+        return self in (OptimizationLevel.NONE, OptimizationLevel.O1)
 
     def __str__(self):
         return self._name_ if self._name_.startswith("O") else self._name_.lower()
@@ -217,7 +226,7 @@ class Settings:
 
 
 def should_run_legacy_optimizer(settings: Settings):
-    if settings.optimize == OptimizationLevel.NONE:
+    if settings.optimize is not None and settings.optimize.is_minimal():
         return False
     if settings.experimental_codegen and not VENOM_ENABLE_LEGACY_OPTIMIZER:
         return False
@@ -299,16 +308,27 @@ def anchor_settings(new_settings: Settings) -> Generator:
         set_global_settings(tmp)
 
 
+# These three partition OptimizationLevel: codegen dispatches on them with
+# `if/elif/else assert _opt_none()`, so a level which matches none of them is
+# a CodegenPanic. Keep them exhaustive when adding a level.
+_OPT_CODESIZE_LEVELS = (OptimizationLevel.CODESIZE, OptimizationLevel.Os)
+_OPT_GAS_LEVELS = (OptimizationLevel.GAS, OptimizationLevel.O2, OptimizationLevel.O3)
+# the minimal levels also get the frontend's simplest codegen shapes
+_OPT_NONE_LEVELS = tuple(level for level in OptimizationLevel if level.is_minimal())
+
+assert set(_OPT_CODESIZE_LEVELS + _OPT_GAS_LEVELS + _OPT_NONE_LEVELS) == set(OptimizationLevel)
+
+
 def _opt_codesize():
-    return _settings.optimize == OptimizationLevel.CODESIZE
+    return _settings.optimize in _OPT_CODESIZE_LEVELS
 
 
 def _opt_gas():
-    return _settings.optimize == OptimizationLevel.GAS or _settings.optimize == OptimizationLevel.O3
+    return _settings.optimize in _OPT_GAS_LEVELS
 
 
 def _opt_none():
-    return _settings.optimize == OptimizationLevel.NONE
+    return _settings.optimize in _OPT_NONE_LEVELS
 
 
 def _is_debug_mode():
