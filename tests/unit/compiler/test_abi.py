@@ -115,6 +115,34 @@ def echo(x: Bytes[INF]) -> Bytes[INF]:
     assert abi_with_gas[0]["gas"] is None
 
 
+def test_interface_abi_gas_estimates_with_experimental_codegen():
+    code = """
+@external
+@view
+def foo() -> uint256:
+    ...
+    """
+
+    abi = compile_code(
+        code,
+        contract_path="foo.vyi",
+        output_formats=["abi"],
+        settings=Settings(experimental_codegen=True),
+        show_gas_estimates=True,
+    )["abi"]
+
+    assert abi == [
+        {
+            "stateMutability": "view",
+            "type": "function",
+            "name": "foo",
+            "inputs": [],
+            "outputs": [{"name": "", "type": "uint256"}],
+            "gas": None,
+        }
+    ]
+
+
 def test_custom_error_abi():
     code = """
 error Unauthorized:
