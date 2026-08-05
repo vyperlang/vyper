@@ -70,7 +70,7 @@ EVENT_ID_TESTS = [
         """event Nonsense:
     a: Bytes[666]
     b: int128[4][38]
-    c: indexed(address[3])
+    c: address[3]
     d: uint256
     e: String[1]""",
         # Nonsense(bytes,int128[4][38],address[3],uint256,string)
