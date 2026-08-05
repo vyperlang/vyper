@@ -860,11 +860,27 @@ class Stmt:
             ret_val = self.ctx.unwrap(ret_vv)
             ret_src_typ = ret_vv.typ
 
-        # Dispatch: internal vs external
+        # Dispatch: internal vs constructor vs external
         if self.ctx.return_pc is not None:
             self._lower_internal_return(ret_val, func_t, ret_src_typ)
+        elif self.ctx.ctor_exit_label is not None:
+            self._lower_ctor_return(ret_val)
         else:
             self._lower_external_return(ret_val, func_t, ret_src_typ)
+
+    def _lower_ctor_return(self, ret_val: Optional[IROperand]) -> None:
+        """Lower `return` in `@deploy def __init__`.
+
+        The constructor must not halt on its own: the deploy epilogue (which
+        returns the runtime code and immutables) is its only valid terminator.
+        Halting here would create an account with empty code, so jump to the
+        single exit block which emits the epilogue instead.
+        """
+        # `__init__` cannot declare a return type, so it never returns a value
+        assert ret_val is None  # guaranteed by semantic analysis
+        exit_label = self.ctx.ctor_exit_label
+        assert exit_label is not None
+        self.builder.jmp(exit_label)
 
     def _lower_internal_return(
         self, ret_val: Optional[IROperand], func_t: ContractFunctionT, ret_src_typ=None

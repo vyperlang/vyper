@@ -84,6 +84,10 @@ class VenomCodegenContext:
     # Return handling
     return_buffer: Optional[IRVariable] = None
     return_pc: Optional[IRVariable] = None  # For internal function returns
+    # Exit block of `__init__` itself (not of internal functions inlined into
+    # the deploy code, which return normally). Set only while lowering the
+    # constructor body; `return` jumps here instead of halting.
+    ctor_exit_label: Optional[IRLabel] = None
 
     # Loop variable tracking (prevents assignment to loop variables)
     forvars: dict[str, bool] = field(default_factory=dict)

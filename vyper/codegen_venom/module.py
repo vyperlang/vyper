@@ -1383,18 +1383,28 @@ def _generate_constructor(
     # Nonreentrant lock
     codegen_ctx.emit_nonreentrant_lock(func_t)
 
+    # Single exit block, so that the deploy epilogue is the constructor's only
+    # terminator (cf. legacy codegen, where the `deploy` fragment positionally
+    # follows the ctor exit sequence). `return` in the body jumps here; halting
+    # instead would deploy a contract with empty runtime code.
+    exit_block = builder.create_block("ctor_exit")
+    codegen_ctx.ctor_exit_label = exit_block.label
+
     # Constructor body
     for stmt in func_ast.body:
         Stmt(stmt, codegen_ctx).lower()
 
-    # Unlock
     if not builder.is_terminated():
-        codegen_ctx.emit_nonreentrant_unlock(func_t)
+        builder.jmp(exit_block.label)
 
-        # Deploy epilogue: copy runtime code to memory and return
-        _emit_deploy_epilogue(
-            builder, runtime_codesize, immutables_len, codegen_ctx.immutables_alloca
-        )
+    builder.append_block(exit_block)
+    builder.set_block(exit_block)
+
+    # Unlock
+    codegen_ctx.emit_nonreentrant_unlock(func_t)
+
+    # Deploy epilogue: copy runtime code to memory and return
+    _emit_deploy_epilogue(builder, runtime_codesize, immutables_len, codegen_ctx.immutables_alloca)
 
 
 def _register_constructor_args(ctx: VenomCodegenContext, func_t: ContractFunctionT) -> None:
