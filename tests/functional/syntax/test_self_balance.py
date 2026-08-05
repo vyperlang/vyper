@@ -1,6 +1,9 @@
+import pytest
+
 from vyper import compiler
 
 
+@pytest.mark.requires_optimization("the selfbalance peephole rewrite")
 def test_self_balance(env, get_contract):
     code = """
 @external

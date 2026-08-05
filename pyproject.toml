@@ -71,6 +71,7 @@ xfail_strict = true
 markers = [
     "fuzzing: Run Hypothesis fuzz test suite (deselect with '-m \"not fuzzing\"')",
     "requires_evm_version(version): Mark tests that require at least a specific EVM version and would throw EvmVersionException otherwise",
+    "requires_optimization(what): Mark tests whose expectation is produced by an optimization, so they cannot hold at the minimal levels (--optimize O1/none)",
     "venom_xfail: mark a test case as a regression (expected to fail) under the venom pipeline",
     "hevm: run tests marked for symbolic execution",
 ]

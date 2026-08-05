@@ -88,6 +88,7 @@ def bar(negative:int16) -> int16:
         c.bar(-2)
 
 
+@pytest.mark.requires_optimization("constant folding")
 @pytest.mark.parametrize("base", (0, 1))
 def test_exponent_negative_power_compile_time_check(
     get_contract, tx_failed, base, experimental_codegen

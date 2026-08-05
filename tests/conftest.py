@@ -404,6 +404,15 @@ def pytest_fixture_setup(fixturedef: pytest.FixtureDef, request):
     exporter.finalize_item(fixturedef)
 
 
+def pytest_runtest_setup(item):
+    marker = item.get_closest_marker("requires_optimization")
+    if marker:
+        assert len(marker.args) == 1
+        level = OptimizationLevel.from_string(item.config.getoption("optimize"))
+        if level.is_minimal():
+            pytest.skip(f"requires {marker.args[0]}, which does not run at --optimize {level}")
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_call(item) -> Generator:
     marker = item.get_closest_marker("requires_evm_version")

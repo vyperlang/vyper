@@ -273,6 +273,7 @@ def test():
     c.test()
 
 
+@pytest.mark.requires_optimization("constant folding")
 @pytest.mark.parametrize("typ", ["uint8", "int128", "uint256"])
 def test_for_range_oob_compile_time_check(get_contract, tx_failed, typ, experimental_codegen):
     code = f"""
@@ -456,6 +457,7 @@ def foo(_min:int256, _max: int256) -> DynArray[int256, 10]:
         c.foo(SizeLimits.MIN_INT256, SizeLimits.MAX_INT256)
 
 
+@pytest.mark.requires_optimization("constant folding")
 def test_for_range_signed_int_overflow_compile_time_check(
     get_contract, tx_failed, experimental_codegen
 ):
