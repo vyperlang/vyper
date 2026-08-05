@@ -405,12 +405,19 @@ def pytest_fixture_setup(fixturedef: pytest.FixtureDef, request):
 
 
 def pytest_runtest_setup(item):
-    marker = item.get_closest_marker("requires_optimization")
-    if marker:
-        assert len(marker.args) == 1
-        level = OptimizationLevel.from_string(item.config.getoption("optimize"))
-        if level.is_minimal():
-            pytest.skip(f"requires {marker.args[0]}, which does not run at --optimize {level}")
+    marker = item.get_closest_marker("skip_at_optimization")
+    if marker is None:
+        return
+
+    assert marker.args, "skip_at_optimization requires at least one optimization level"
+    assert all(isinstance(level, OptimizationLevel) for level in marker.args)
+    assert set(marker.kwargs) == {"reason"}
+    reason = marker.kwargs["reason"]
+    assert isinstance(reason, str) and reason
+
+    level = OptimizationLevel.from_string(item.config.getoption("optimize"))
+    if level in marker.args:
+        pytest.skip(f"{reason}; skipped at --optimize {level}")
 
 
 @pytest.hookimpl(hookwrapper=True)

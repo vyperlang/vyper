@@ -7,6 +7,7 @@ import pytest
 
 from tests.utils import check_precompile_asserts, decimal_to_int
 from vyper.compiler import compile_code
+from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
@@ -739,7 +740,11 @@ def test_array_decimal_return3() -> DynArray[DynArray[decimal, 2], 2]:
     ]
 
 
-@pytest.mark.requires_optimization("code size reduction")
+@pytest.mark.skip_at_optimization(
+    OptimizationLevel.O1,
+    OptimizationLevel.NONE,
+    reason="the test contract depends on optimizer code-size reduction",
+)
 def test_mult_list(get_contract):
     code = """
 nest3: DynArray[DynArray[DynArray[uint256, 2], 2], 2]

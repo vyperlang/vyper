@@ -844,7 +844,11 @@ def foo() -> {return_type}:
     assert_compile_failed(lambda: get_contract(code), TypeMismatch)
 
 
-@pytest.mark.requires_optimization("code size reduction")
+@pytest.mark.skip_at_optimization(
+    OptimizationLevel.O1,
+    OptimizationLevel.NONE,
+    reason="the test contract depends on optimizer code-size reduction",
+)
 def test_array_copy_oog(env, get_contract, tx_failed, optimize, experimental_codegen, request):
     # GHSA-vgf2-gvx8-xwc3
     code = """
@@ -882,7 +886,11 @@ def foo(x: uint256[3000]) -> uint256:
         c.foo(array, gas=gas_used)
 
 
-@pytest.mark.requires_optimization("code size reduction")
+@pytest.mark.skip_at_optimization(
+    OptimizationLevel.O1,
+    OptimizationLevel.NONE,
+    reason="the test contract depends on optimizer code-size reduction",
+)
 def test_array_copy_oog2(env, get_contract, tx_failed, optimize, experimental_codegen, request):
     # GHSA-vgf2-gvx8-xwc3
     code = """
