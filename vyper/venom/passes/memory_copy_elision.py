@@ -223,8 +223,11 @@ class MemoryCopyElisionPass(IRPass):
         # fixed-size copies (where size is a literal) are tracked in self.copies.
         # Variable-size copies have is_fixed=False and aren't tracked.
         src = self.copy_forwarding.copy_source(previous)
-        inst.opcode = previous.opcode
-        inst.operands[1] = src
+        size, _, dst = inst.operands
+        # go through the updater so that `memory_read_max_size` is dropped when
+        # the rewrite turns this into a non-memory read (e.g. calldatacopy);
+        # a stale bound would then describe an operand which no longer exists.
+        self.updater.update(inst, previous.opcode, [size, src, dst])
 
     def _try_elide_redundant_copy(self, inst: IRInstruction) -> bool:
         """
