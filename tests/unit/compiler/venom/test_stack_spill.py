@@ -55,6 +55,34 @@ def test_set_current_function_clears_missing_fn_eom() -> None:
     assert compiler.spiller._next_spill_offset is None
 
 
+def test_function_spill_regions_are_disjoint_and_above_static_frames() -> None:
+    ctx = parse_venom("""
+        function first {
+            main:
+                stop
+        }
+
+        function second {
+            main:
+                stop
+        }
+        """)
+    compiler = VenomCompiler(ctx)
+    spiller = compiler.spiller
+    first, second = list(ctx.functions.values())
+
+    ctx.mem_allocator.fn_eom[first] = 64
+    ctx.mem_allocator.fn_eom[second] = 256
+    spiller.reset_for_codegen()
+
+    spiller.set_current_function(first)
+    assert spiller._next_spill_offset == 256
+    assert spiller._get_spill_slot(dry_run=False) == 256
+
+    spiller.set_current_function(second)
+    assert spiller._next_spill_offset == 288
+
+
 def test_swap_spills_deep_stack() -> None:
     compiler = VenomCompiler(IRContext())
     compiler.spiller._next_spill_offset = 0x10000  # Set up for unit test
