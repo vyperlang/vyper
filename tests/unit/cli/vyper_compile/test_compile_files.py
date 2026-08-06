@@ -337,7 +337,9 @@ def bar(x: uint256) -> uint256:
         "a": {"type": "uint256", "n_slots": 1, "slot": 5},
         "b": {"type": "uint256", "n_slots": 1, "slot": 0},
     }
-    storage_layout_source = json.dumps(storage_layout_overrides)
+    # pretty-print to test that the integrity sum is invariant to the
+    # formatting of the storage layout file
+    storage_layout_source = json.dumps(storage_layout_overrides, indent=4)
 
     tmpdir = tmp_path_factory.mktemp("fake-package")
     with open(tmpdir / "lib.vy", "w") as f:
@@ -353,7 +355,7 @@ def bar(x: uint256) -> uint256:
     library_hash = sha256sum(library_source)
     jsonabi_hash = sha256sum(json_source)
     resolved_imports_hash = sha256sum(contract_hash + sha256sum(library_hash) + jsonabi_hash)
-    storage_layout_hash = sha256sum(storage_layout_source)
+    storage_layout_hash = sha256sum(json.dumps(storage_layout_overrides, sort_keys=True))
     expected_integrity = sha256sum(storage_layout_hash + resolved_imports_hash)
 
     return (
@@ -561,6 +563,27 @@ def test_solc_json_output(input_files):
     w = warn_data[Path("contract.vy")]
     assert len(w) == 1, [s.message for s in w]
     assert w[0].message.message.startswith(INTEGRITY_WARNING.format(integrity=integrity))
+
+
+# the integrity sum must not depend on the formatting of the storage
+# layout file, since formatting is not preserved by the solc_json output
+# format (GH 5074)
+def test_solc_json_storage_layout_integrity(input_files):
+    tmpdir, _, _, storage_layout_path, contract_file, integrity = input_files
+    search_paths = [".", tmpdir]
+
+    out = compile_files(
+        [contract_file],
+        ["solc_json"],
+        paths=search_paths,
+        storage_layout_paths=[storage_layout_path],
+    )
+    json_input = out[contract_file]["solc_json"]
+    assert json_input["integrity"] == integrity
+
+    # round-tripping thru standard json must not warn about the integrity sum
+    _, warn_data = compile_from_input_dict(json_input)
+    assert len(warn_data) == 0, [str(w.message) for ws in warn_data.values() for w in ws]
 
 
 # test that we can construct output bundles even when there is a semantic error
