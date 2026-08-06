@@ -216,20 +216,28 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             # a copy here.
             node = copy.copy(node)
 
-        # adapted from cpython Lib/ast.py. adds line/col info to ast,
-        # but unlike Lib/ast.py, adjusts *all* ast nodes, not just the
-        # one that python defines to have line/col info.
-        # https://github.com/python/cpython/blob/62729d79206014886f5d/Lib/ast.py#L228
-        for field in LINE_INFO_FIELDS:
-            if len(self._parents) > 0:
-                parent = self._parents[-1]
-                val = getattr(node, field, None)
-                if val is None:
-                    # try to get the field from the parent
-                    val = getattr(parent, field)
-                setattr(node, field, val)
-            else:
-                assert hasattr(node, field), node
+        if hasattr(node, "lineno"):
+            assert hasattr(node, "col_offset")
+            assert hasattr(node, "end_lineno")
+            assert hasattr(node, "end_col_offset")
+            # node has the position fields, adjust them
+
+            node.col_offset += self._pre_parser.shift_for(node.lineno, node.col_offset)
+            node.end_col_offset += self._pre_parser.shift_for(node.end_lineno, node.end_col_offset)
+        else:
+            assert not hasattr(node, "col_offset")
+            assert not hasattr(node, "end_lineno")
+            assert not hasattr(node, "end_col_offset")
+            # node doesn't have the position fields, copy from parent
+            # (they will already have been adjusted)
+
+            assert len(self._parents) > 0
+            parent = self._parents[-1]
+
+            for field_name in LINE_INFO_FIELDS:
+                parent_field = getattr(parent, field_name)
+                assert parent_field is not None
+                setattr(node, field_name, parent_field)
 
         # decorate every node with the original source code to allow
         # pretty-printing errors
@@ -237,9 +245,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         node.node_id = self.counter
         self.counter += 1
         node.ast_type = node.__class__.__name__
-
-        node.col_offset += self._pre_parser.shift_for(node.lineno, node.col_offset)
-        node.end_col_offset += self._pre_parser.shift_for(node.end_lineno, node.end_col_offset)
 
         start_pos = self.line_offsets[node.lineno] + node.col_offset
         end_pos = self.line_offsets[node.end_lineno] + node.end_col_offset

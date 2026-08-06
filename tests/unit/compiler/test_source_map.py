@@ -226,6 +226,37 @@ def foo() -> uint256:
                     assert int(parts[1]) >= 0, f"negative length in {entry!r}"
 
 
+def test_singleton_child_coords_not_double_shifted():
+    from vyper.ast.nodes import BinOp
+    from vyper.ast.parse import parse_to_ast
+
+    code = """
+interface Vault:
+    def convertToAssets(shares: uint256) -> uint256: view
+
+d: immutable(uint256)
+
+@deploy
+def __init__():
+    d = 18
+
+@external
+@view
+def get(v: address) -> uint256:
+    return staticcall Vault(v).convertToAssets(10 ** d)
+"""
+    module = parse_to_ast(code)
+    binop = module.get_descendants(BinOp, filters={"node_source_code": "10 ** d"})[0]
+
+    # ensures field exists on both
+    sentinel1 = object()
+    sentinel2 = object()
+
+    # `op` (Pow) inherits its coordinates from the parent BinOp, so they must match.
+    for field_name in ("lineno", "col_offset","end_lineno", "end_col_offset"):
+        assert getattr(binop.op, field_name, sentinel1) == getattr(binop, field_name, sentinel2)
+
+
 def _construct_node_id_map(ast_struct):
     if isinstance(ast_struct, dict):
         ret = {}
