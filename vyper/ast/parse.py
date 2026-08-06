@@ -216,14 +216,32 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             # a copy here.
             node = copy.copy(node)
 
-        if hasattr(node, "lineno"):
+        # set/update source positions
+
+        if isinstance(node, python_ast.Module):
+            # Module nodes are set to span the whole file
+            node.lineno = 1
+            node.col_offset = 0
+
+            if len(self.source_lines) > 0:
+                node.end_lineno = len(self.source_lines)
+                node.end_col_offset = len(self.source_lines[-1])
+            else:
+                node.end_lineno = 1
+                node.end_col_offset = 0
+
+        elif hasattr(node, "lineno"):
             assert hasattr(node, "col_offset")
             assert hasattr(node, "end_lineno")
             assert hasattr(node, "end_col_offset")
             # node has the position fields, adjust them
 
-            node.col_offset += self._pre_parser.shift_for(node.lineno, node.col_offset)
-            node.end_col_offset += self._pre_parser.shift_for(node.end_lineno, node.end_col_offset)
+            # Modules have their positions manually set
+            if not isinstance(node, python_ast.Module):
+                node.col_offset += self._pre_parser.shift_for(node.lineno, node.col_offset)
+                node.end_col_offset += self._pre_parser.shift_for(
+                    node.end_lineno, node.end_col_offset
+                )
         else:
             assert not hasattr(node, "col_offset")
             assert not hasattr(node, "end_lineno")
@@ -282,14 +300,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return node
 
     def visit_Module(self, node):
-        node.lineno = 1
-        node.col_offset = 0
-        node.end_lineno = max(1, len(self.source_lines))
-
-        if len(self.source_lines) > 0:
-            node.end_col_offset = len(self.source_lines[-1])
-        else:
-            node.end_col_offset = 0
 
         # TODO: is this the best place for these? maybe they can be on
         # CompilerData instead.

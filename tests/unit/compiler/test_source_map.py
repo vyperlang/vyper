@@ -226,6 +226,22 @@ def foo() -> uint256:
                     assert int(parts[1]) >= 0, f"negative length in {entry!r}"
 
 
+def test_module_has_correct_end_position_with_rewrite():
+
+    from vyper.ast.parse import parse_to_ast
+
+    code = """
+def get() -> uint256:
+    return staticcall foo()"""  # staticcall -> await  will cause a shift
+    module = parse_to_ast(code)
+
+    last_line = code.split("\n")[-1]
+    assert module.end_col_offset == len(last_line)
+
+    start, length, _ = module.src.split(":")
+    assert int(start) + int(length) == len(code)
+
+
 def test_singleton_child_coords_not_double_shifted():
     from vyper.ast.nodes import BinOp
     from vyper.ast.parse import parse_to_ast
