@@ -253,7 +253,7 @@ def get(v: address) -> uint256:
     sentinel2 = object()
 
     # `op` (Pow) inherits its coordinates from the parent BinOp, so they must match.
-    for field_name in ("lineno", "col_offset","end_lineno", "end_col_offset"):
+    for field_name in ("lineno", "col_offset", "end_lineno", "end_col_offset"):
         assert getattr(binop.op, field_name, sentinel1) == getattr(binop, field_name, sentinel2)
 
 
