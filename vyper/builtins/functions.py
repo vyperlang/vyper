@@ -245,14 +245,12 @@ class Convert(BuiltinFunctionT):
             return (IntegerT, BoolT, BytesM_T.any(), BytesT(32))
 
         if isinstance(target_type, BytesM_T):
-            allowed = []
+            allowed = [BytesM_T.any(), BytesT(target_type.m), BoolT]
             allowed.extend(i for i in IntegerT.all() if i.bits <= target_type.m_bits)
             if DecimalT().bits <= target_type.m_bits:
                 allowed.append(DecimalT)
-            allowed.append(BytesM_T.any())
             if target_type.m_bits >= 160:
                 allowed.append(AddressT)
-            allowed.extend((BytesT(target_type.m), BoolT))
             if target_type.m_bits == 256:
                 allowed.append(FlagT)
             return tuple(allowed)
