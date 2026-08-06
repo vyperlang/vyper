@@ -193,7 +193,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return self._source_code.splitlines(keepends=True)
 
     @cached_property
-    def line_offsets(self):
+    def line_index(self):
         ofst = 0
         # ensure line_offsets has at least 1 entry for 0-line source
         ret = {1: ofst}
@@ -246,11 +246,11 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self.counter += 1
         node.ast_type = node.__class__.__name__
 
-        start_pos = self.line_offsets[node.lineno] + node.col_offset
-        end_pos = self.line_offsets[node.end_lineno] + node.end_col_offset
+        start_index = self.line_index[node.lineno] + node.col_offset
+        end_index = self.line_index[node.end_lineno] + node.end_col_offset
 
-        node.src = f"{start_pos}:{end_pos-start_pos}:{self._source_id}"
-        node.node_source_code = self._source_code[start_pos:end_pos]
+        node.src = f"{start_index}:{end_index-start_index}:{self._source_id}"
+        node.node_source_code = self._source_code[start_index:end_index]
 
         # keep track of the current path thru the AST
         self._parents.append(node)
