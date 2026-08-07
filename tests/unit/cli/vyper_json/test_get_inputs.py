@@ -36,6 +36,11 @@ def test_contracts_no_content_key():
         get_inputs({"sources": {"foo.vy": FOO_CODE}})
 
 
+def test_contracts_non_string_content():
+    with pytest.raises(JSONError):
+        get_inputs({"sources": {"foo.vy": {"content": 5}}})
+
+
 def test_contracts_keccak():
     hash_ = keccak256(FOO_CODE.encode()).hex()
 

@@ -124,7 +124,7 @@ def foo():
         compile_code(bad_code)
 
     expected_error = """
-invalid syntax. Perhaps you forgot a comma? (<unknown>, line 5)
+invalid syntax. Perhaps you forgot a comma?
 
   contract "<unknown>:5", line 5:54 
        4 def foo():
