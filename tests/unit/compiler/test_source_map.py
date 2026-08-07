@@ -1,5 +1,7 @@
 from collections import namedtuple
 
+import pytest
+
 from vyper.compiler import compile_code
 from vyper.compiler.output import _compress_source_map
 from vyper.compiler.settings import OptimizationLevel
@@ -182,48 +184,39 @@ def test_expand_source_map():
     assert expand_source_map(compressed) == expanded
 
 
-def test_source_map_no_negative_length_after_keyword_rewrite():
-    single_rewrite = """
-interface Vault:
-    def convertToAssets(shares: uint256) -> uint256: view
+@pytest.mark.parametrize(
+    "code",
+    [
+        """
+interface I:
+    def f() -> uint256: view
 
-d: immutable(uint256)
+def g(a: address) -> uint256:
+    return staticcall I(a).f()
+""",
+        """
+interface I:
+    def f(x: uint256) -> uint256: nonpayable
 
-@deploy
-def __init__():
-    d = 18
-
-@external
-@view
-def get(v: address) -> uint256:
-    return staticcall Vault(v).convertToAssets(10 ** d)
-    """
-    nested_rewrite = """
-interface Outer:
-    def call(x: uint256) -> uint256: nonpayable
-
-interface Inner:
-    def get() -> uint256: nonpayable
-
-o: address
-i: address
-
-@external
-def foo() -> uint256:
-    return extcall Outer(self.o).call(extcall Inner(self.i).get())
-    """
-    for code in (single_rewrite, nested_rewrite):
-        for fmt in ("source_map", "source_map_runtime"):
-            out = compile_code(code, output_formats=[fmt])[fmt]
-            for pc, (lineno, col, end_lineno, end_col) in out["pc_pos_map"].items():
-                assert (end_lineno, end_col) >= (
-                    lineno,
-                    col,
-                ), f"reversed span at pc={pc}: {(lineno, col, end_lineno, end_col)}"
-            for entry in out["pc_pos_map_compressed"].split(";"):
-                parts = entry.split(":")
-                if len(parts) >= 2 and parts[1] and parts[1] != "-1":
-                    assert int(parts[1]) >= 0, f"negative length in {entry!r}"
+def g(a: address) -> uint256:
+    return extcall I(a).f(extcall I(a).f(1))
+""",
+    ],
+    ids=["single_rewrite", "nested_rewrite"],
+)
+@pytest.mark.parametrize("fmt", ["source_map", "source_map_runtime"])
+def test_source_map_no_negative_length_after_keyword_rewrite(code, fmt):
+    out = compile_code(code, output_formats=[fmt])[fmt]
+    for pc, (lineno, col, end_lineno, end_col) in out["pc_pos_map"].items():
+        assert (end_lineno, end_col) >= (
+            lineno,
+            col,
+        )
+    for entry in out["pc_pos_map_compressed"].split(";"):
+        parts = entry.split(":")
+        assert len(parts) >= 2
+        if parts[1] != "-1":
+            assert int(parts[1]) >= 0
 
 
 def test_module_has_correct_end_position_with_rewrite():
