@@ -23,6 +23,7 @@ from vyper.exceptions import (
 from vyper.semantics import types
 from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarAccess, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
@@ -110,6 +111,13 @@ class _ExprAnalyser:
 
             if isinstance(t, ModuleInfo):
                 return ExprInfo.from_moduleinfo(t, attr=attr)
+
+            if info.typ._type_members and attr in info.typ._type_members:
+                # things like `addr.balance` should not inherit the location of `addr`
+                # since `addr` can be assignable, while `addr.balance` never is
+                return ExprInfo(
+                    t, attr=attr, location=DataLocation.UNSET, modifiability=info.modifiability
+                )
 
             return info.copy_with_type(t, attr=attr)
 
