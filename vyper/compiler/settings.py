@@ -25,10 +25,10 @@ if (_venom_elo := os.environ.get("VENOM_ENABLE_LEGACY_OPTIMIZER")) is not None:
 
 # TODO: use StringEnum (requires refactoring vyper.utils to avoid import cycle)
 class OptimizationLevel(Enum):
-    NONE = 1
+    NONE = 1  # No optional IR or assembly optimization
     GAS = 2
     CODESIZE = 3
-    O1 = 5  # Minimal passes -- lowering only, used as the formal verification input
+    O1 = 5  # Lowering-only IR used as the formal verification input
     O2 = 6  # Standard "stable" optimizations (default)
     O3 = 7  # Aggressive optimizations -- experimental possibly unsafe
     Os = 8  # Optimize for size
@@ -53,12 +53,11 @@ class OptimizationLevel(Enum):
     def default(cls):
         return cls.GAS
 
-    def is_minimal(self) -> bool:
+    def uses_lowering_only_ir(self) -> bool:
         """
-        The minimal-transformation levels: only what is needed to lower to
-        legal bytecode, no optimization anywhere in the pipeline (venom
-        passes, legacy IR optimizer, or assembly peephole). O1 is the level
-        formal verification consumes; `none` is an alias for it.
+        Whether frontend and IR processing should perform only the transforms
+        needed to lower to legal bytecode. Final assembly optimization is a
+        separate policy: it runs at O1, but not at NONE.
         """
         return self in (OptimizationLevel.NONE, OptimizationLevel.O1)
 
@@ -226,7 +225,7 @@ class Settings:
 
 
 def should_run_legacy_optimizer(settings: Settings):
-    if settings.optimize is not None and settings.optimize.is_minimal():
+    if settings.optimize is not None and settings.optimize.uses_lowering_only_ir():
         return False
     if settings.experimental_codegen and not VENOM_ENABLE_LEGACY_OPTIMIZER:
         return False
@@ -308,15 +307,18 @@ def anchor_settings(new_settings: Settings) -> Generator:
         set_global_settings(tmp)
 
 
-# These three partition OptimizationLevel: codegen dispatches on them with
-# `if/elif/else assert _opt_none()`, so a level which matches none of them is
-# a CodegenPanic. Keep them exhaustive when adding a level.
+# These three partition OptimizationLevel for frontend code-shape decisions.
+# Keep them exhaustive when adding a level.
 _OPT_CODESIZE_LEVELS = (OptimizationLevel.CODESIZE, OptimizationLevel.Os)
 _OPT_GAS_LEVELS = (OptimizationLevel.GAS, OptimizationLevel.O2, OptimizationLevel.O3)
-# the minimal levels also get the frontend's simplest codegen shapes
-_OPT_NONE_LEVELS = tuple(level for level in OptimizationLevel if level.is_minimal())
+# Both lowering-only IR levels use the frontend's simplest codegen shapes.
+_OPT_LOWERING_ONLY_LEVELS = tuple(
+    level for level in OptimizationLevel if level.uses_lowering_only_ir()
+)
 
-assert set(_OPT_CODESIZE_LEVELS + _OPT_GAS_LEVELS + _OPT_NONE_LEVELS) == set(OptimizationLevel)
+assert set(_OPT_CODESIZE_LEVELS + _OPT_GAS_LEVELS + _OPT_LOWERING_ONLY_LEVELS) == set(
+    OptimizationLevel
+)
 
 
 def _opt_codesize():
@@ -327,8 +329,8 @@ def _opt_gas():
     return _settings.optimize in _OPT_GAS_LEVELS
 
 
-def _opt_none():
-    return _settings.optimize in _OPT_NONE_LEVELS
+def _opt_lowering_only_ir():
+    return _settings.optimize in _OPT_LOWERING_ONLY_LEVELS
 
 
 def _is_debug_mode():

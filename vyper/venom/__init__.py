@@ -41,6 +41,10 @@ DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
 # Pass configuration for each optimization level
 OPTIMIZATION_PASSES: Dict[OptimizationLevel, List[PassConfig]] = {
+    # NONE is a distinct level even though it currently shares O1's IR
+    # pipeline. Its pass list is independent, and it alone disables the
+    # final assembly optimizer.
+    OptimizationLevel.NONE: PASSES_O1.copy(),
     OptimizationLevel.O1: PASSES_O1,
     OptimizationLevel.O2: PASSES_O2,
     OptimizationLevel.O3: PASSES_O3,
@@ -48,9 +52,6 @@ OPTIMIZATION_PASSES: Dict[OptimizationLevel, List[PassConfig]] = {
 }
 
 # Legacy aliases for backwards compatibility
-OPTIMIZATION_PASSES[OptimizationLevel.NONE] = OPTIMIZATION_PASSES[
-    OptimizationLevel.O1
-]  # none -> O1
 OPTIMIZATION_PASSES[OptimizationLevel.GAS] = OPTIMIZATION_PASSES[OptimizationLevel.O2]  # gas -> O2
 OPTIMIZATION_PASSES[OptimizationLevel.CODESIZE] = OPTIMIZATION_PASSES[
     OptimizationLevel.Os
@@ -61,7 +62,7 @@ def generate_assembly_experimental(
     venom_ctx: IRContext, optimize: OptimizationLevel = DEFAULT_OPT_LEVEL
 ) -> list[AssemblyInstruction]:
     compiler = VenomCompiler(venom_ctx)
-    return compiler.generate_evm_assembly(optimize.is_minimal())
+    return compiler.generate_evm_assembly(optimize == OptimizationLevel.NONE)
 
 
 # Mapping of pass classes to their disable flag names
@@ -123,11 +124,11 @@ def _run_global_passes(
     for fn in ctx.get_functions():
         SimplifyCFGPass(ir_analyses[fn], fn).run_pass()
 
-    # at the minimal levels, skip the global optimizations and run only the
-    # desugaring that the backend requires.
-    minimal = flags.level.is_minimal()
+    # The lowering-only IR pipelines skip global optimizations and run only
+    # the desugaring that the backend requires.
+    lowering_only = flags.level.uses_lowering_only_ir()
 
-    if not minimal:
+    if not lowering_only:
         # Intentionally run invoke-copy forwarding twice in the full pipeline:
         # 1) here (pre-inlining) to shrink obvious frontend-emitted staging copies
         # 2) again in O2/O3/Os per-function pipelines to catch shapes created later.
@@ -141,7 +142,7 @@ def _run_global_passes(
     # recomputed before the inliner reads them
     ctx.global_analyses_cache.invalidate_analysis(ReadonlyMemoryArgsGlobalAnalysis)
 
-    if not minimal and not flags.disable_inlining:
+    if not lowering_only and not flags.disable_inlining:
         FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
 
 

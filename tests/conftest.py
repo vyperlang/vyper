@@ -219,7 +219,7 @@ def env(gas_limit, evm_version, evm_backend, tracing, account_keys, exporter) ->
 def get_contract_from_ir(env, optimize):
     def ir_compiler(ir, *args, **kwargs):
         ir = IRnode.from_list(ir)
-        if kwargs.pop("optimize", optimize) != OptimizationLevel.NONE:
+        if not kwargs.pop("optimize", optimize).uses_lowering_only_ir():
             ir = optimizer.optimize(ir)
 
         assembly = compile_ir.compile_to_assembly(ir, optimize=optimize)
