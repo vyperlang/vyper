@@ -207,11 +207,8 @@ def g(a: address) -> uint256:
 @pytest.mark.parametrize("fmt", ["source_map", "source_map_runtime"])
 def test_source_map_no_negative_length_after_keyword_rewrite(code, fmt):
     out = compile_code(code, output_formats=[fmt])[fmt]
-    for pc, (lineno, col, end_lineno, end_col) in out["pc_pos_map"].items():
-        assert (end_lineno, end_col) >= (
-            lineno,
-            col,
-        )
+    for lineno, col, end_lineno, end_col in out["pc_pos_map"].values():
+        assert (end_lineno, end_col) >= (lineno, col)
     for entry in out["pc_pos_map_compressed"].split(";"):
         parts = entry.split(":")
         assert len(parts) >= 2
