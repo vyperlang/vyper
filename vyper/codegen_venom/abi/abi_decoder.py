@@ -37,7 +37,6 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
-from vyper.evm.address_space import CALLDATA
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -418,8 +417,6 @@ def _decode_complex(
     abi_offset = 0
     vyper_offset = 0
 
-    
-
     ok = True
     for _, elem_typ in items:
         # Advance offsets
@@ -444,7 +441,6 @@ def _decode_complex(
     # Track ABI and Vyper offsets separately
     abi_offset = 0
     vyper_offset = 0
-
 
     for _key, elem_typ in items:
         # Get source pointer (ABI layout) - returns VyperValue
