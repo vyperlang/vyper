@@ -3,6 +3,7 @@ import functools
 import math
 
 from vyper import ast as vy_ast
+from vyper.builtins._convert_bounds import fixed_to_int_clamp_bounds, int_to_fixed_clamp_bounds
 from vyper.codegen.core import (
     LOAD,
     IRnode,
@@ -31,20 +32,11 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
 )
-from vyper.semantics.types import (
-    AddressT,
-    BoolT,
-    BytesM_T,
-    BytesT,
-    DecimalT,
-    FlagT,
-    IntegerT,
-    StringT,
-)
+from vyper.semantics.types import AddressT, BoolT, BytesT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.infinity import is_bounded_length
 from vyper.semantics.types.shortcuts import INT256_T, UINT160_T, UINT256_T
-from vyper.utils import DECIMAL_DIVISOR, round_towards_zero, unsigned_to_signed
+from vyper.utils import DECIMAL_DIVISOR, unsigned_to_signed
 
 
 def _FAIL(ityp, otyp, source_expr=None):
@@ -53,27 +45,21 @@ def _FAIL(ityp, otyp, source_expr=None):
     raise TypeMismatch(f"Can't convert {ityp} to {otyp}", source_expr)
 
 
-def _input_types(*allowed_types):
-    def decorator(f):
-        @functools.wraps(f)
-        def check_input_type(expr, arg, out_typ):
-            # convert arg to out_typ.
-            # (expr is the AST corresponding to `arg`)
-            ok = isinstance(arg.typ, allowed_types)
-            if not ok:
-                _FAIL(arg.typ, out_typ, expr)
+def _validate_inputs(f):
+    # (expr is the AST corresponding to `arg`)
+    @functools.wraps(f)
+    def check_input_type(expr, arg, out_typ):
+        # user safety: disallow convert from type to itself
+        # note allowance of [u]int256; this is due to type inference
+        # on literals not quite working yet.
+        # (checked before the conversion matrix so that same-type errors
+        # keep raising InvalidType rather than TypeMismatch.)
+        if arg.typ == out_typ and arg.typ not in (UINT256_T, INT256_T):
+            raise InvalidType(f"value and target are both {out_typ}", expr)
 
-            # user safety: disallow convert from type to itself
-            # note allowance of [u]int256; this is due to type inference
-            # on literals not quite working yet.
-            if arg.typ == out_typ and arg.typ not in (UINT256_T, INT256_T):
-                raise InvalidType(f"value and target are both {out_typ}", expr)
+        return f(expr, arg, out_typ)
 
-            return f(expr, arg, out_typ)
-
-        return check_input_type
-
-    return decorator
+    return check_input_type
 
 
 def _bytes_to_num(arg, out_typ, signed):
@@ -126,9 +112,7 @@ def _fixed_to_int(arg, out_typ):
 
     # block inputs which are out of bounds before truncation.
     # e.g., convert(255.1, uint8) should revert or fail to compile.
-    out_lo, out_hi = out_typ.int_bounds
-    out_lo *= DIVISOR
-    out_hi *= DIVISOR
+    out_lo, out_hi = fixed_to_int_clamp_bounds(arg.typ, out_typ)
 
     arg_bounds = arg.typ.int_bounds
 
@@ -143,9 +127,7 @@ def _int_to_fixed(arg, out_typ):
     DIVISOR = out_typ.divisor
 
     # block inputs which are out of bounds before promotion
-    out_lo, out_hi = out_typ.int_bounds
-    out_lo = round_towards_zero(out_lo / decimal.Decimal(DIVISOR))
-    out_hi = round_towards_zero(out_hi / decimal.Decimal(DIVISOR))
+    out_lo, out_hi = int_to_fixed_clamp_bounds(out_typ)
 
     arg_bounds = arg.typ.int_bounds
 
@@ -268,7 +250,7 @@ def _literal_decimal(expr, arg_typ, out_typ):
 
 
 # any base type or bytes/string
-@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BoolT, BytesT, StringT)
+@_validate_inputs
 def to_bool(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, 32)  # should we restrict to Bytes[1]?
 
@@ -282,7 +264,7 @@ def to_bool(expr, arg, out_typ):
     return IRnode.from_list(["iszero", ["iszero", arg]], typ=out_typ)
 
 
-@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BoolT, FlagT, BytesT)
+@_validate_inputs
 def to_int(expr, arg, out_typ):
     return _to_int(expr, arg, out_typ)
 
@@ -331,7 +313,7 @@ def _to_int(expr, arg, out_typ):
     return IRnode.from_list(arg, typ=out_typ)
 
 
-@_input_types(IntegerT, BoolT, BytesM_T, BytesT)
+@_validate_inputs
 def to_decimal(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, 32)
 
@@ -368,7 +350,7 @@ def to_decimal(expr, arg, out_typ):
         raise CompilerPanic("unreachable")
 
 
-@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BytesT, BoolT, FlagT)
+@_validate_inputs
 def to_bytes_m(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, max_bytes_allowed=out_typ.m)
 
@@ -426,7 +408,7 @@ def to_bytes_m(expr, arg, out_typ):
     return IRnode.from_list(arg, typ=out_typ)
 
 
-@_input_types(BytesM_T, IntegerT, BytesT)
+@_validate_inputs
 def to_address(expr, arg, out_typ):
     # question: should this be allowed?
     if is_integer_type(arg.typ):
@@ -454,17 +436,17 @@ def _cast_bytestring(expr, arg, out_typ):
 
 
 # question: should we allow bytesM -> String?
-@_input_types(BytesT, StringT)
+@_validate_inputs
 def to_string(expr, arg, out_typ):
     return _cast_bytestring(expr, arg, out_typ)
 
 
-@_input_types(StringT, BytesT)
+@_validate_inputs
 def to_bytes(expr, arg, out_typ):
     return _cast_bytestring(expr, arg, out_typ)
 
 
-@_input_types(IntegerT)
+@_validate_inputs
 def to_flag(expr, arg, out_typ):
     if arg.typ != UINT256_T:
         _FAIL(arg.typ, out_typ, expr)

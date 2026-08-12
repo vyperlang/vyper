@@ -16,10 +16,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
+from vyper.builtins._convert_bounds import fixed_to_int_clamp_bounds, int_to_fixed_clamp_bounds
 from vyper.exceptions import CompilerPanic, InvalidLiteral, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.shortcuts import UINT160_T, UINT256_T
+from vyper.semantics.types.shortcuts import UINT160_T
 from vyper.semantics.types.user import FlagT
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -111,8 +112,6 @@ def _to_bool(
 
     Any nonzero value is True. For bytestrings, loads the data and checks.
     """
-    _check_bytes(in_t, out_t, 32, arg_node)
-
     b = ctx.builder
 
     if isinstance(in_t, _BytestringT):
@@ -144,12 +143,9 @@ def _to_address(
     """
     Convert to address (160-bit unsigned).
 
-    From signed integers: disallowed (type checker handles this)
+    From signed integers: disallowed (rejected by the typechecker)
     From bytes: right-shift if needed, clamp to 160 bits
     """
-    if isinstance(in_t, IntegerT) and in_t.is_signed:
-        raise TypeMismatch(f"Can't convert {in_t} to address", arg_node)
-
     # Use _to_int to get uint160, which handles clamping
     result = _to_int(val, in_t, UINT160_T, arg_node, ctx)
     return result
@@ -169,7 +165,6 @@ def _to_int(
     - flag: treated as uint256
     - other integer: clamp to bounds
     """
-    _check_bytes(in_t, out_t, 32, arg_node)
     # Check literal bounds at compile time
     _check_literal_int_bounds(arg_node, out_t)
 
@@ -208,30 +203,24 @@ def _to_int(
 
     # From decimal: divide by divisor
     if isinstance(in_t, DecimalT):
-        divisor = in_t.divisor
         # Clamp first to avoid overflow in intermediate
-        out_lo, out_hi = out_t.int_bounds
+        scaled_lo, scaled_hi = fixed_to_int_clamp_bounds(in_t, out_t)
         in_lo, in_hi = in_t.int_bounds
-        # Scale output bounds by divisor for clamping the decimal value
-        scaled_lo = out_lo * divisor
-        scaled_hi = out_hi * divisor
         val = _clamp_numeric_convert(
             val, (in_lo, in_hi), (scaled_lo, scaled_hi), in_t.is_signed, ctx
         )
         # Now divide
-        val = b.sdiv(val, IRLiteral(divisor))
+        val = b.sdiv(val, IRLiteral(in_t.divisor))
         return val
 
-    # From flag: treat as uint256, use int-to-int rules
+    # From flag: the conversion matrix guarantees out_t is uint256,
+    # so this is a no-op
     if isinstance(in_t, FlagT):
-        # Flags can only convert to uint256
-        return _int_to_int(val, UINT256_T, out_t, ctx)
+        return val
 
-    # From address: treat as uint160
+    # From address: treat as uint160 (the conversion matrix guarantees
+    # out_t is unsigned)
     if in_t == AddressT():
-        if out_t.is_signed:
-            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
-        # Can only go to unsigned types >= 160 bits
         if out_t.bits < 160:
             val = _int_clamp(val, out_t, ctx)
         return val
@@ -253,8 +242,6 @@ def _to_decimal(
     From integer: multiply by DECIMAL_DIVISOR with overflow check.
     From bytes: shift and interpret as decimal.
     """
-    _check_bytes(in_t, out_t, 32, arg_node)
-
     b = ctx.builder
     divisor = out_t.divisor
 
@@ -281,11 +268,9 @@ def _to_decimal(
 
     # From integer: multiply by divisor
     if isinstance(in_t, IntegerT):
-        # Clamp input to valid range before scaling
-        out_lo, out_hi = out_t.int_bounds
-        # Scale bounds for pre-multiplication check
-        pre_lo = out_lo // divisor
-        pre_hi = out_hi // divisor
+        # Clamp input to valid range before scaling. Note the bounds are
+        # computed with truncating division (GH 5110).
+        pre_lo, pre_hi = int_to_fixed_clamp_bounds(out_t)
         in_lo, in_hi = in_t.int_bounds
         val = _clamp_numeric_convert(val, (in_lo, in_hi), (pre_lo, pre_hi), in_t.is_signed, ctx)
         # Multiply by divisor
@@ -296,7 +281,7 @@ def _to_decimal(
     if isinstance(in_t, BoolT):
         return b.mul(val, IRLiteral(divisor))
 
-    return val
+    raise CompilerPanic(f"Unsupported conversion: {in_t} to {out_t}")  # pragma: nocover
 
 
 def _to_bytes_m(
@@ -307,8 +292,6 @@ def _to_bytes_m(
 
     Values are left-aligned in 32-byte word.
     """
-    _check_bytes(in_t, out_t, out_t.m, arg_node)
-
     b = ctx.builder
 
     # From bytes/string: load data, mask/shift as needed
@@ -335,17 +318,8 @@ def _to_bytes_m(
         # Widening is no-op (already left-aligned)
         return val
 
-    if isinstance(in_t, IntegerT):
-        if out_t.m_bits < in_t.bits:
-            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
-    elif in_t == AddressT():
-        if out_t.m_bits < 160:
-            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
-    elif isinstance(in_t, DecimalT):
-        if out_t.m_bits < in_t.bits:
-            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
-
-    # From integer/address/decimal: left-shift to align
+    # From integer/address/decimal/bool: left-shift to align. Narrowing
+    # conversions are rejected during typechecking.
     shift_bits = (32 - out_t.m) * 8
     return b.shl(IRLiteral(shift_bits), val)
 
@@ -358,14 +332,6 @@ def _to_bytes(
 
     From string: just reinterpret (check length)
     """
-    # Only bytestring types can be converted to Bytes
-    if not isinstance(in_t, _BytestringT):  # pragma: nocover
-        raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
-
-    # Ban converting same type (e.g. Bytes[20] to Bytes[21] upcast is not a real conversion)
-    if isinstance(in_t, BytesT) and in_t.maxlen <= out_t.maxlen:  # pragma: nocover
-        raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
-
     # Can't downcast literals with known length (e.g. b"abc" to Bytes[2])
     # Use reduced() to handle constant variables like `BAR: constant(Bytes[5])`
     reduced = arg_node.reduced() if arg_node.has_folded_value else arg_node
@@ -395,14 +361,6 @@ def _to_string(
 
     From bytes: just reinterpret (check length)
     """
-    # Only bytestring types can be converted to String
-    if not isinstance(in_t, _BytestringT):  # pragma: nocover
-        raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
-
-    # Ban converting same type (e.g. String[20] to String[21] upcast is not a real conversion)
-    if isinstance(in_t, StringT) and in_t.maxlen <= out_t.maxlen:  # pragma: nocover
-        raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
-
     # Can't downcast literals with known length (e.g. "abc" to String[2])
     # Use reduced() to handle constant variables like `BAR: constant(String[5])`
     reduced = arg_node.reduced() if arg_node.has_folded_value else arg_node
@@ -441,16 +399,6 @@ def _to_flag(val: IROperand, in_t, out_t: FlagT, ctx: VenomCodegenContext) -> IR
 
 
 # === Helper functions ===
-
-
-def _check_bytes(in_t, out_t, max_bytes_allowed: int, source_expr: vy_ast.VyperNode):
-    """
-    Validate bytestring input doesn't exceed maximum allowed size.
-
-    Raises TypeMismatch if in_t is a bytestring with maxlen > max_bytes_allowed.
-    """
-    if isinstance(in_t, _BytestringT) and in_t.maxlen > max_bytes_allowed:  # pragma: nocover
-        raise TypeMismatch(f"Can't convert {in_t} to {out_t}", source_expr)
 
 
 def _int_clamp(val: IROperand, out_t: IntegerT, ctx: VenomCodegenContext) -> IROperand:
