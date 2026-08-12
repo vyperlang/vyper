@@ -423,12 +423,11 @@ def _decode_complex(
     ok = True
     for _, elem_typ in items:
         # Advance offsets
-        elem_src = _getelemptr_abi(ctx, src, elem_typ, abi_offset, hi)
 
-        if not elem_src.typ._is_prim_word:
+        if not elem_typ._is_prim_word:
             ok = False
             break
-        if elem_src.location != DataLocation.CALLDATA:
+        if src.location != DataLocation.CALLDATA:
             ok = False
             break
         if needs_clamp(elem_typ):
