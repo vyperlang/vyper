@@ -417,6 +417,31 @@ def _decode_complex(
     abi_offset = 0
     vyper_offset = 0
 
+    ok = True
+    for _, elem_typ in items:
+        # Advance offsets
+
+        if not elem_typ._is_prim_word:
+            ok = False
+            break
+        if src.location != DataLocation.CALLDATA:
+            ok = False
+            break
+        if needs_clamp(elem_typ):
+            ok = False
+            break
+
+        abi_offset += elem_typ.abi_type.embedded_static_size()
+        vyper_offset += elem_typ.memory_bytes_required
+
+    if ok and abi_offset == vyper_offset:
+        b.calldatacopy(dst, src.operand, vyper_offset)
+        return
+
+    # Track ABI and Vyper offsets separately
+    abi_offset = 0
+    vyper_offset = 0
+
     for _key, elem_typ in items:
         # Get source pointer (ABI layout) - returns VyperValue
         elem_src = _getelemptr_abi(ctx, src, elem_typ, abi_offset, hi)
