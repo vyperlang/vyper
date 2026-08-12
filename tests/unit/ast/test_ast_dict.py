@@ -2,6 +2,7 @@ import copy
 import json
 
 from tests.ast_utils import deepequals
+from vyper import ast as vy_ast
 from vyper import compiler
 from vyper.ast.nodes import NODE_SRC_ATTRIBUTES
 from vyper.ast.parse import parse_to_ast
@@ -157,6 +158,25 @@ def test() -> int128:
     new_ast = dict_to_ast(new_dict)
 
     assert deepequals(new_ast, original_ast)
+
+
+def test_checksum_address_dict_roundtrip():
+    address = "0x6B175474E89094C44Da98b954EedeAC495271d0F"
+    code = f"""
+@external
+def test() -> address:
+    return {address}
+    """
+
+    original_ast = parse_to_ast(code)
+    out_dict = ast_to_dict(original_ast)
+    new_ast = dict_to_ast(copy.deepcopy(out_dict))
+
+    original_hex = original_ast.get_descendants(vy_ast.Hex)[0]
+    new_hex = new_ast.get_descendants(vy_ast.Hex)[0]
+    assert original_hex.value == address.lower()
+    assert out_dict["body"][0]["body"][0]["value"]["value"] == address
+    assert new_hex.original_value == address
 
 
 # strip source annotations like lineno, we don't care for inspecting
