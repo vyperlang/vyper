@@ -91,6 +91,16 @@ class Namespace(dict):
         if attr in self:
             prev = super().__getitem__(attr)
             prev_decl = getattr(prev, "decl_node", None)
+            module_t = getattr(prev, "module_t", None)
+            if module_t is not None:
+                # prev is a ModuleInfo: emit a friendlier message with a hint
+                # showing valid alias syntax. The (from ...) source path will
+                # already appear in the context arrows, so omit it from the
+                # main message. Use the later import (attr) in the hint as it
+                # is more likely to be the one the user needs to rename.
+                msg = f"'{attr}' is already imported as a module."
+                hint = f"use a different alias, e.g. `import {attr} as {attr}_m`"
+                raise NamespaceCollision(msg, prev_decl=prev_decl, hint=hint)
             msg = f"'{attr}' has already been declared"
             if prev_decl is None:
                 msg += f" as a {prev}"
