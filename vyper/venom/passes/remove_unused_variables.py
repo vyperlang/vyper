@@ -1,6 +1,10 @@
+from vyper.evm import address_space
 from vyper.utils import OrderedSet, uniq
+from vyper.venom import effects
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
+from vyper.venom.analysis.mem_alias import mem_alias_type_factory
 from vyper.venom.basicblock import IRInstruction
+from vyper.venom.effects import EMPTY
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -12,8 +16,11 @@ class RemoveUnusedVariablesPass(IRPass):
     dfg: DFGAnalysis
     work_list: OrderedSet[IRInstruction]
 
+    invalidate_alias: set[address_space.AddrSpace]
+
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.invalidate_alias = set()
 
         work_list = OrderedSet()
         self.work_list = work_list
@@ -29,8 +36,12 @@ class RemoveUnusedVariablesPass(IRPass):
             bb.clear_nops()
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        for space in self.invalidate_alias:
+            alias_analysis = mem_alias_type_factory(space)
+            self.analyses_cache.invalidate_analysis(alias_analysis)
 
-    def _process_instruction(self, inst):
+
+    def _process_instruction(self, inst: IRInstruction):
         outputs = inst.get_outputs()
         if len(outputs) == 0:
             return
@@ -47,5 +58,12 @@ class RemoveUnusedVariablesPass(IRPass):
             self.dfg.remove_use(operand, inst)
             new_uses = self.dfg.get_uses(operand)
             self.work_list.addmany(new_uses)
+
+        assert inst.get_write_effects() == EMPTY
+        eff = inst.get_read_effects()
+        if eff != EMPTY:
+            space = effects.to_addr_space(eff)
+            assert space is not None
+            self.invalidate_alias.add(space)            
 
         inst.make_nop()
