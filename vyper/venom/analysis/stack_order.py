@@ -137,7 +137,9 @@ class StackOrderAnalysis(IRAnalysis):
                 self._add_needed(op)
             if op not in self.stack:
                 self.stack.append(op)
-        self._reorder(ops)
+
+        if inst.opcode != "phi":
+            self._reorder(ops)
 
     def _merge(self, orders: list[Needed]) -> Needed:
         if len(orders) == 0:
