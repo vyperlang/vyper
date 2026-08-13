@@ -142,11 +142,3 @@ def note_line_num(line_number_map, pc, item):
 
         if item.error_msg is not None:
             line_number_map["error_map"][pc] = item.error_msg
-
-
-# NOTE: this is dead code, we don't emit DEBUG anymore.
-def note_breakpoint(line_number_map, pc, item):
-    # Record line number attached to pc
-    if item == "DEBUG":
-        # Create line number breakpoint.
-        line_number_map["breakpoints"].add(item.lineno + 1)
