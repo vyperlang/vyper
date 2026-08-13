@@ -13,9 +13,11 @@ convert(value, type) handles all type conversions in Vyper:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.builtins._call import BuiltinLowerer, PreparedBuiltinCall
+from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic, InvalidLiteral, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.bytestrings import _BytestringT
@@ -27,24 +29,20 @@ if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_convert(call: PreparedBuiltinCall) -> Union[IROperand, VyperValue]:
     """
     convert(value, type) - type conversion.
 
     Dispatches to type-specific conversion based on output type.
     """
-    from vyper.codegen_venom.expr import Expr
+    ctx = call.ctx
+    arg_node = call.source_arg(0)
+    in_t = call.arg_type(0)
+    out_t = call.type_arg(1)
 
-    arg_node = node.args[0]
-    in_t = arg_node._metadata["type"]
-    out_t = node.args[1]._metadata["type"].typedef
-
-    # For bytestrings we need pointer, for primitives we need value
-    if isinstance(in_t, _BytestringT):
-        arg_vv = Expr(arg_node, ctx).lower()
-        arg = ctx.unwrap(arg_vv)  # Copies storage/transient to memory
-    else:
-        arg = Expr(arg_node, ctx).lower_value()
+    # bytestrings unwrap to a pointer (copying storage/transient to
+    # memory), primitives unwrap to a value
+    arg = call.arg_operand(0)
 
     # Dispatch based on output type
     if out_t == BoolT():
@@ -58,9 +56,11 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     elif isinstance(out_t, BytesM_T):
         return _to_bytes_m(arg, in_t, out_t, arg_node, ctx)
     elif isinstance(out_t, BytesT):
-        return _to_bytes(arg, in_t, out_t, arg_node, ctx)
+        _to_bytes(arg, in_t, out_t, arg_node, ctx)
+        return VyperValue.from_ptr(call.arg(0).ptr(), out_t)
     elif isinstance(out_t, StringT):
-        return _to_string(arg, in_t, out_t, arg_node, ctx)
+        _to_string(arg, in_t, out_t, arg_node, ctx)
+        return VyperValue.from_ptr(call.arg(0).ptr(), out_t)
     elif isinstance(out_t, FlagT):
         return _to_flag(arg, in_t, out_t, ctx)
     else:  # pragma: nocover
@@ -559,4 +559,4 @@ def _int_to_int(
 
 
 # Export handler
-HANDLERS = {"convert": lower_convert}
+HANDLERS = {"convert": BuiltinLowerer(lower_convert)}

@@ -1145,10 +1145,13 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32) -> address
     assert env.get_code(res) == runtime
 
 
-# evaluation of the value kwarg changes the value of the salt kwarg
-# value kwarg comes after the salt kwarg in the source code
-@pytest.mark.xfail(raises=AssertionError, reason="salt kwarg is evaluated after value kwarg")
-def test_raw_create_order_of_eval_of_kwargs(get_contract, env, create2_address_of, keccak):
+# value is evaluated after salt because that is the source order.
+def test_raw_create_order_of_eval_of_kwargs(
+    get_contract, env, create2_address_of, keccak, experimental_codegen
+):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen does not preserve this source order")
+
     to_deploy_code = """
 foo: public(uint256)
 
@@ -1162,8 +1165,6 @@ def __init__(arg: uint256):
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
     runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
 
-    # the implementation of `raw_create` firstly caches
-    # `value` and then `salt`, here the source order is `salt` then `value`
     deployer_code = """
 c: Bytes[1024]
 salt: bytes32
@@ -1194,11 +1195,10 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32, value_: ui
 
 
 # test vararg and kwarg order of evaluation
-# test fails because `value` gets evaluated
-# before the 1st vararg which doesn't follow
-# source code order
-@pytest.mark.xfail(raises=AssertionError)
-def test_raw_create_eval_order(get_contract):
+def test_raw_create_eval_order(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen does not preserve this source order")
+
     code = """
 a: public(uint256)
 

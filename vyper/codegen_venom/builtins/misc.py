@@ -5,7 +5,6 @@ Miscellaneous built-in functions.
 - blockhash, blobhash: Block info
 - floor, ceil: Decimal truncation
 - as_wei_value: Wei denomination conversion
-- min_value, max_value, epsilon: Compile-time constants
 - breakpoint: Debug interrupt
 - print: Debug logging to console.log address
 """
@@ -14,10 +13,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from vyper import ast as vy_ast
 from vyper.builtins.functions import AsWeiValue
 from vyper.codegen_venom.abi.abi_encoder import abi_encode_to_buf
+from vyper.codegen_venom.builtins._call import BuiltinLowerer, PreparedBuiltinCall
+from vyper.codegen_venom.call_args import FOLDED
 from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PRECOMPILE
+from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, EvmVersionException
 from vyper.semantics.types import BytesT, DecimalT, IntegerT, StringT, TupleT
@@ -37,7 +38,7 @@ CONSOLE_ADDRESS = 0x000000000000000000636F6E736F6C652E6C6F67
 # =============================================================================
 
 
-def lower_ecrecover(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_ecrecover(call: PreparedBuiltinCall) -> IROperand:
     """
     ecrecover(hash, v, r, s) -> address
 
@@ -45,14 +46,13 @@ def lower_ecrecover(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     Input: 128 bytes (hash, v, r, s)
     Output: 32 bytes (address, right-padded)
     """
-    from vyper.codegen_venom.expr import Expr
-
+    ctx = call.ctx
     b = ctx.builder
 
-    hash_val = Expr(node.args[0], ctx).lower_value()
-    v = Expr(node.args[1], ctx).lower_value()
-    r = Expr(node.args[2], ctx).lower_value()
-    s = Expr(node.args[3], ctx).lower_value()
+    hash_val = call.word("hash")
+    v = call.word("v")
+    r = call.word("r")
+    s = call.word("s")
 
     # Prepare input buffer (128 bytes)
     input_buf = ctx.allocate_buffer(128)
@@ -79,7 +79,7 @@ def lower_ecrecover(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return b.mload(output_buf._ptr)
 
 
-def lower_ecadd(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_ecadd(call: PreparedBuiltinCall) -> VyperValue:
     """
     ecadd(a, b) -> uint256[2]
 
@@ -87,10 +87,10 @@ def lower_ecadd(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     Input: 128 bytes (x1, y1, x2, y2)
     Output: 64 bytes (x, y)
     """
-    return _lower_ec_arith(node, ctx, precompile=6)
+    return _lower_ec_arith(call, precompile=6)
 
 
-def lower_ecmul(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_ecmul(call: PreparedBuiltinCall) -> VyperValue:
     """
     ecmul(point, scalar) -> uint256[2]
 
@@ -98,59 +98,43 @@ def lower_ecmul(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     Input: 96 bytes (x, y, scalar)
     Output: 64 bytes (x, y)
     """
-    return _lower_ec_arith(node, ctx, precompile=7)
+    return _lower_ec_arith(call, precompile=7)
 
 
-def _lower_ec_arith(node: vy_ast.Call, ctx: VenomCodegenContext, precompile: int) -> IROperand:
+def _lower_ec_arith(call: PreparedBuiltinCall, precompile: int) -> VyperValue:
     """
     Common implementation for ecadd/ecmul.
 
     Both return a uint256[2] stored in memory.
     """
-    from vyper.codegen_venom.expr import Expr
-
+    ctx = call.ctx
     b = ctx.builder
 
     # Get argument types to determine input size
     # ecadd: (uint256[2], uint256[2]) = 128 bytes
     # ecmul: (uint256[2], uint256) = 96 bytes
-    args_typ = [arg._metadata["type"] for arg in node.args]
+    args_typ = [call.arg_type(index) for index in range(call.arg_count)]
     input_size = sum(t.memory_bytes_required for t in args_typ)
 
-    # CRITICAL: Evaluate ALL arguments FIRST before any copying.
-    # This ensures correct evaluation order when arguments have side effects
-    # (e.g., ecadd(self.x, self.bar()) where bar() modifies self.x).
-    # For arrays from storage/transient, unwrap() copies them to memory first.
-    evaluated_args = []
-    for arg in node.args:
-        arg_typ = arg._metadata["type"]
-        if arg_typ._is_prim_word:
-            # Primitive: get value directly
-            evaluated_args.append(Expr(arg, ctx).lower_value())
-        else:
-            # Array: unwrap handles storage/transient/code -> memory conversion
-            arg_vv = Expr(arg, ctx).lower()
-            evaluated_args.append(ctx.unwrap(arg_vv))
-
-    # Now copy evaluated arguments to input buffer
+    # Copy evaluated arguments to input buffer
     input_buf = ctx.allocate_buffer(input_size)
     offset = 0
     for i, arg_typ in enumerate(args_typ):
-        arg_val = evaluated_args[i]
-
         if arg_typ._is_prim_word:
             # Single 32-byte value
-            b.mstore(b.add(input_buf._ptr, IRLiteral(offset)), arg_val)
+            b.mstore(b.add(input_buf._ptr, IRLiteral(offset)), call.word(i))
             offset += 32
         else:
             # Array (uint256[2]) - arg_val is now a memory pointer
+            arg_val = call.memory(i)
             for j in range(arg_typ.count):
                 word = b.mload(b.add(arg_val, IRLiteral(j * 32)))
                 b.mstore(b.add(input_buf._ptr, IRLiteral(offset)), word)
                 offset += 32
 
     # Output buffer (64 bytes for resulting point)
-    output_buf = ctx.allocate_buffer(64)
+    output_val = ctx.new_temporary_value(call.return_type)
+    assert isinstance(output_val.operand, IRVariable)
 
     # Call precompile
     success = b.staticcall(
@@ -158,13 +142,13 @@ def _lower_ec_arith(node: vy_ast.Call, ctx: VenomCodegenContext, precompile: int
         IRLiteral(precompile),
         input_buf._ptr,
         IRLiteral(input_size),
-        output_buf._ptr,
+        output_val.operand,
         IRLiteral(64),
     )
     b.assert_(success)
 
     # Return pointer to output buffer (it's a memory location with the result array)
-    return output_buf._ptr
+    return output_val
 
 
 # =============================================================================
@@ -172,7 +156,7 @@ def _lower_ec_arith(node: vy_ast.Call, ctx: VenomCodegenContext, precompile: int
 # =============================================================================
 
 
-def lower_blockhash(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_blockhash(call: PreparedBuiltinCall) -> IROperand:
     """
     blockhash(block_num) -> bytes32
 
@@ -180,11 +164,10 @@ def lower_blockhash(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     Only works for the 256 most recent blocks (excluding current).
     Reverts if block_num is out of valid range.
     """
-    from vyper.codegen_venom.expr import Expr
-
+    ctx = call.ctx
     b = ctx.builder
 
-    block_num = Expr(node.args[0], ctx).lower_value()
+    block_num = call.word("block_num")
 
     # Validate block number is in valid range:
     # block_num >= block.number - BLOCKHASH_LOOKBACK_LIMIT AND block_num < block.number
@@ -205,20 +188,20 @@ def lower_blockhash(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return b.blockhash(block_num)
 
 
-def lower_blobhash(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_blobhash(call: PreparedBuiltinCall) -> IROperand:
     """
     blobhash(index) -> bytes32
 
     Returns versioned hash of blob at given index (Cancun+).
     """
-    from vyper.codegen_venom.expr import Expr
-
+    node = call.node
+    ctx = call.ctx
     if not version_check(begin="cancun"):
         raise EvmVersionException("`blobhash` is not available pre-cancun", node)
 
     b = ctx.builder
 
-    index = Expr(node.args[0], ctx).lower_value()
+    index = call.word("index")
     return b.blobhash(index)
 
 
@@ -227,7 +210,7 @@ def lower_blobhash(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 # =============================================================================
 
 
-def lower_floor(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_floor(call: PreparedBuiltinCall) -> IROperand:
     """
     floor(x) -> int256
 
@@ -235,11 +218,10 @@ def lower_floor(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     For positive: x / divisor
     For negative: (x - (divisor - 1)) / divisor
     """
-    from vyper.codegen_venom.expr import Expr
-
+    ctx = call.ctx
     b = ctx.builder
 
-    val = Expr(node.args[0], ctx).lower_value()
+    val = call.word("value")
     divisor = IRLiteral(DECIMAL_DIVISOR)
 
     # For negative values: subtract (divisor - 1) before dividing
@@ -251,7 +233,7 @@ def lower_floor(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     return b.sdiv(adjusted_or_orig, divisor)
 
 
-def lower_ceil(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_ceil(call: PreparedBuiltinCall) -> IROperand:
     """
     ceil(x) -> int256
 
@@ -259,11 +241,10 @@ def lower_ceil(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     For positive: (x + (divisor - 1)) / divisor
     For negative: x / divisor
     """
-    from vyper.codegen_venom.expr import Expr
-
+    ctx = call.ctx
     b = ctx.builder
 
-    val = Expr(node.args[0], ctx).lower_value()
+    val = call.word("value")
     divisor = IRLiteral(DECIMAL_DIVISOR)
 
     # For positive values: add (divisor - 1) before dividing
@@ -280,22 +261,25 @@ def lower_ceil(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 # =============================================================================
 
 
-def lower_as_wei_value(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+# the unit is a denomination literal consumed at compile time
+def lower_as_wei_value(call: PreparedBuiltinCall) -> IROperand:
     """
     as_wei_value(value, unit) -> uint256
 
     Converts a value to wei based on denomination unit.
     Includes overflow check for the multiplication.
     """
-    from vyper.codegen_venom.expr import Expr
-
+    ctx = call.ctx
     b = ctx.builder
 
-    value = Expr(node.args[0], ctx).lower_value()
-    typ = node.args[0]._metadata["type"]
+    value = call.word("value")
+    typ = call.arg_type("value")
 
-    # Get the denomination multiplier
-    denom = AsWeiValue().get_denomination(node)
+    unit = call.folded_arg("unit")
+    try:
+        denom = next(value for aliases, value in AsWeiValue.wei_denoms.items() if unit in aliases)
+    except StopIteration:  # pragma: nocover
+        raise CompilerPanic(f"unknown wei denomination: {unit}") from None
 
     if denom == 1:
         # No multiplication needed for "wei"
@@ -337,66 +321,8 @@ def lower_as_wei_value(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand
 
 
 # =============================================================================
-# Compile-time Type Constants
-# =============================================================================
-
-
-def lower_min_value(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
-    """
-    min_value(T) -> T
-
-    Returns the minimum value for a numeric type.
-    This is evaluated at compile time.
-    """
-    typ = node.args[0]._metadata["type"].typedef
-    return IRLiteral(typ.ast_bounds[0])
-
-
-def lower_max_value(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
-    """
-    max_value(T) -> T
-
-    Returns the maximum value for a numeric type.
-    This is evaluated at compile time.
-    """
-    typ = node.args[0]._metadata["type"].typedef
-    return IRLiteral(typ.ast_bounds[1])
-
-
-def lower_epsilon(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
-    """
-    epsilon(decimal) -> decimal
-
-    Returns the smallest positive decimal value (10^-10).
-    """
-    # The smallest decimal unit is 1 (representing 10^-10)
-    return IRLiteral(1)
-
-
-# =============================================================================
 # Debug
 # =============================================================================
-
-
-def _get_kwarg_value(node: vy_ast.Call, kwarg_name: str, default=None):
-    """Extract a keyword argument value from a Call node."""
-    for kw in node.keywords:
-        if kw.arg == kwarg_name:
-            return kw.value
-    return default
-
-
-def _get_bool_kwarg(node: vy_ast.Call, kwarg_name: str, default: bool) -> bool:
-    """Extract a boolean keyword argument (must be literal)."""
-    kw_node = _get_kwarg_value(node, kwarg_name)
-    if kw_node is None:
-        return default
-    kw_node = kw_node.reduced()
-    if isinstance(kw_node, vy_ast.NameConstant):
-        return kw_node.value
-    if isinstance(kw_node, vy_ast.Int):
-        return bool(kw_node.value)
-    raise CompilerPanic(f"unfoldable boolean kwarg: {kwarg_name}", kw_node)
 
 
 def _create_tuple_in_memory(
@@ -422,7 +348,7 @@ def _create_tuple_in_memory(
     return val.operand, tuple_t
 
 
-def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
+def lower_print(call: PreparedBuiltinCall) -> IROperand:
     """
     print(*args, hardhat_compat=False) -> None
 
@@ -437,24 +363,14 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     - Uses method_id("log(type1,type2,...)") directly
     - Args are ABI-encoded inline
     """
-    from vyper.codegen_venom.expr import Expr
-
+    ctx = call.ctx
     b = ctx.builder
 
-    hardhat_compat = _get_bool_kwarg(node, "hardhat_compat", default=False)
+    hardhat_compat = call.literal("hardhat_compat")
 
-    # Get arg types and values
-    arg_types = [arg._metadata["type"] for arg in node.args]
-
-    # Evaluate all args - primitives get values, complex types get pointers
-    args = []
-    for arg in node.args:
-        arg_t = arg._metadata["type"]
-        if arg_t._is_prim_word:
-            args.append(Expr(arg, ctx).lower_value())
-        else:
-            arg_vv = Expr(arg, ctx).lower()
-            args.append(ctx.unwrap(arg_vv))  # Copies storage/transient to memory
+    # Primitives are words; composite arguments are stable memory pointers.
+    arg_types = [call.arg_type(index) for index in range(call.arg_count)]
+    args = call.arg_operands()
 
     # Create tuple type for ABI encoding
     tuple_t = TupleT(tuple(arg_types))
@@ -561,29 +477,27 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     return IRLiteral(0)
 
 
-def lower_breakpoint(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_breakpoint(call: PreparedBuiltinCall) -> IROperand:
     """
     breakpoint() -> None
 
     Inserts an INVALID opcode for debugging.
     """
+    ctx = call.ctx
     ctx.builder.invalid()
     return IRLiteral(0)
 
 
 # Export handlers
 HANDLERS = {
-    "ecrecover": lower_ecrecover,
-    "ecadd": lower_ecadd,
-    "ecmul": lower_ecmul,
-    "blockhash": lower_blockhash,
-    "blobhash": lower_blobhash,
-    "floor": lower_floor,
-    "ceil": lower_ceil,
-    "as_wei_value": lower_as_wei_value,
-    "min_value": lower_min_value,
-    "max_value": lower_max_value,
-    "epsilon": lower_epsilon,
-    "breakpoint": lower_breakpoint,
-    "print": lower_print,
+    "ecrecover": BuiltinLowerer(lower_ecrecover),
+    "ecadd": BuiltinLowerer(lower_ecadd),
+    "ecmul": BuiltinLowerer(lower_ecmul),
+    "blockhash": BuiltinLowerer(lower_blockhash),
+    "blobhash": BuiltinLowerer(lower_blobhash),
+    "floor": BuiltinLowerer(lower_floor),
+    "ceil": BuiltinLowerer(lower_ceil),
+    "as_wei_value": BuiltinLowerer(lower_as_wei_value, arg_policies={"unit": FOLDED}),
+    "breakpoint": BuiltinLowerer(lower_breakpoint),
+    "print": BuiltinLowerer(lower_print),
 }
