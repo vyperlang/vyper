@@ -22,7 +22,7 @@ See [Tools and Resources](https://docs.vyperlang.org/en/latest/resources.html) f
 See [Documentation](http://docs.vyperlang.org/en/latest/index.html) for the documentation and overall design goals of the Vyper language.
 
 See [learn.vyperlang.org](https://learn.vyperlang.org/) for **learning Vyper by building a Pokémon game**.
-See [try.vyperlang.org](https://try.vyperlang.org/) to use Vyper in a hosted jupyter environment!
+See [vyperlang.org](https://vyperlang.org/) to use Vyper in a hosted jupyter environment!
 
 **Note: Vyper is constantly evolving, use with care and understand the risks associated with smart contract development.**
 
