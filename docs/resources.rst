@@ -29,6 +29,16 @@ Security
 
 - `VyperPunk – learn to secure and hack Vyper smart contracts <https://github.com/defcongroup0532/VyperPunk>`_
 
+Projects using Vyper
+--------------------
+
+- `Curve <https://github.com/curvefi/curve-stablecoin>`__
+- `Yearn <https://github.com/yearn/yearn-vaults>`__
+- `Lido <https://github.com/lidofinance/gate-seals>`__
+- `Ethereum <https://github.com/ethereum/sharding>`__
+- `Uniswap <https://github.com/Uniswap/v1-contracts> (v1)`__
+- `Cog Finance <https://github.com/CogFinance/Cog-Isolated-Lending>`
+
 Conference presentations
 ------------------------
 
