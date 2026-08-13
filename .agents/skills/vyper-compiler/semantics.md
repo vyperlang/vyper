@@ -2,7 +2,7 @@
 
 Type checking, validation, and semantic analysis of Vyper AST.
 
-Primary reference: [vyper/semantics/README.md](../vyper/semantics/README.md) — full control flow, design, examples.
+Primary reference: [vyper/semantics/README.md](../../../vyper/semantics/README.md) — full control flow, design, examples.
 
 ## Pipeline
 
@@ -12,7 +12,7 @@ Source → pre_parser → Python AST → Vyper AST → semantic analysis → ann
 
 ### AST Phase (`vyper/ast/`)
 
-See [vyper/ast/README.md](../vyper/ast/README.md).
+See [vyper/ast/README.md](../../../vyper/ast/README.md).
 
 - `pre_parser.py`: Vyper source → parseable Python (substitutes `struct`/`interface` → `class`, etc.)
 - `grammar.lark`: Lark grammar definition (for reference/making sure we adhere to a bnf spec)

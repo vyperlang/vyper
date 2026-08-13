@@ -2,7 +2,7 @@
 
 SSA-based intermediate representation for Vyper. Inspired by LLVM IR, adapted for stack-based EVM.
 
-Primary reference: [vyper/venom/README.md](../vyper/venom/README.md) — full instruction set, grammar, examples.
+Primary reference: [vyper/venom/README.md](../../../vyper/venom/README.md) — full instruction set, grammar, examples.
 
 ## Structure
 

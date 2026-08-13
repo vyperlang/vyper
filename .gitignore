@@ -56,7 +56,9 @@ vyper/vyper_git_commithash.txt
 
 # dev scratch stuff
 CLAUDE.local.md
-.agents/
+.agents/*
+!.agents/skills/
+!.agents/skills/**
 scratch/
 tmp/
 trees/
