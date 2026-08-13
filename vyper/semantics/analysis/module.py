@@ -423,7 +423,7 @@ def _validate_overrides(func_t: ContractFunctionT, node: vy_ast.FunctionDef):
         abstract_t.set_overridden_by(func_t)
 
 
-class ModuleAnalyzer(VyperNodeVisitorBase):
+class ModuleAnalyzer(VyperNodeVisitorBase[None]):
     scope_name = "module"
 
     def __init__(self, module_node: vy_ast.Module, namespace: Namespace) -> None:
@@ -675,9 +675,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # CMC 2024-04-13 TODO: reduce nesting in this function
 
         for export_ann in export_annotations:
-            # set is_callable=True to give better error messages for imported
+            # set allow_type_exprs=True to give better error messages for imported
             # types, e.g. exports: some_module.MyEvent
-            info = get_expr_info(export_ann, is_callable=True)
+            info = get_expr_info(export_ann, allow_type_exprs=True)
 
             if info.var_info is not None:
                 decl = info.var_info.decl_node

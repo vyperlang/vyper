@@ -168,7 +168,7 @@ def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name, typ: VyperType) 
                 "not allowed to query environment variables in pure functions"
             )
         # allow type exprs in the value node, e.g. MyFlag.A
-        parent_info = get_expr_info(node.value, is_callable=True)
+        parent_info = get_expr_info(node.value, allow_type_exprs=True)
         if isinstance(parent_info.typ, AddressT) and node.attr in AddressT._type_members:
             raise StateAccessViolation("not allowed to query address members in pure functions")
 
@@ -209,7 +209,7 @@ def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
 
         assert isinstance(node, (vy_ast.Subscript, vy_ast.Attribute))  # help mypy
         node = node.value
-        info = get_expr_info(node)
+        info = get_expr_info(node, allow_type_exprs=True)
 
     # ignore `self.` as it interferes with VarAccess comparison across modules
     if len(path) > 0 and path[-1] == "self":
@@ -226,7 +226,7 @@ def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
 # be refactored into data on ExprInfo.
 def _get_module_chain(node: vy_ast.ExprNode) -> list[ModuleInfo]:
     ret: list[ModuleInfo] = []
-    info = get_expr_info(node)
+    info = get_expr_info(node, allow_type_exprs=True)
 
     while True:
         if info.module_info is not None:
@@ -236,7 +236,7 @@ def _get_module_chain(node: vy_ast.ExprNode) -> list[ModuleInfo]:
             break
 
         node = node.value
-        info = get_expr_info(node)
+        info = get_expr_info(node, allow_type_exprs=True)
 
     ret.reverse()
     return ret
@@ -381,8 +381,7 @@ def check_module_uses_for_abstract(
     return root_module_info
 
 
-class FunctionAnalyzer(VyperNodeVisitorBase):
-    ignored_types = (vy_ast.Pass,)
+class FunctionAnalyzer(VyperNodeVisitorBase[None]):
     scope_name = "function"
 
     def __init__(self, fn_node: vy_ast.FunctionDef, namespace: dict) -> None:
@@ -486,7 +485,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             return
 
         if isinstance(msg_node, vy_ast.Call):
-            call_type = get_exact_type_from_node(msg_node.func)
+            call_type = get_exact_type_from_node(msg_node.func, allow_type_exprs=True)
             if is_type_t(call_type, ErrorT):
                 self.expr_visitor.visit(msg_node, call_type.typedef)
                 self.func.mark_raised_error(call_type.typedef)
@@ -626,7 +625,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         func = call_node.func
 
-        fn_type = get_exact_type_from_node(func)
+        fn_type = get_exact_type_from_node(func, allow_type_exprs=True)
 
         if is_type_t(fn_type, EventT):
             raise StructureException("To call an event you must use the `log` statement", node)
@@ -762,7 +761,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         # postcondition of Log.validate()
         assert isinstance(node.value, vy_ast.Call)
 
-        f = get_exact_type_from_node(node.value.func)
+        f = get_exact_type_from_node(node.value.func, allow_type_exprs=True)
         if is_type_t(f, ErrorT):
             raise StructureException(
                 "To raise a custom error you must use `raise` or `assert`", node
@@ -806,8 +805,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         self.expr_visitor.visit(node.value, self.func.return_type)
 
+    def visit_Pass(self, node):
+        pass
 
-class ExprVisitor(VyperNodeVisitorBase):
+
+class ExprVisitor(VyperNodeVisitorBase[None]):
     def __init__(self, function_analyzer: Optional[FunctionAnalyzer] = None):
         self.function_analyzer = function_analyzer
 
@@ -882,7 +884,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         if self.func and self.func.mutability == StateMutability.PURE:
             _validate_pure_access(node, typ)
 
-        value_type = get_exact_type_from_node(node.value)
+        value_type = get_exact_type_from_node(node.value, allow_type_exprs=True)
 
         _validate_address_code(node, value_type)
 
@@ -919,7 +921,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         return self.visit(node.value, typ)
 
     def visit_Call(self, node: vy_ast.Call, typ: VyperType) -> None:
-        func_info = get_expr_info(node.func, is_callable=True)
+        func_info = get_expr_info(node.func, allow_type_exprs=True)
         func_type = func_info.typ
 
         # TODO: unify the APIs for different callable types so that
@@ -1070,7 +1072,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                 ltyp = get_common_types(node.left, *node.right.elements).pop()
 
                 rlen = len(node.right.elements)
-                rtyp = SArrayT(ltyp, rlen)
+                rtyp: VyperType = SArrayT(ltyp, rlen)
             else:
                 rtyp = get_exact_type_from_node(node.right)
                 if isinstance(rtyp, FlagT):
@@ -1130,10 +1132,11 @@ class ExprVisitor(VyperNodeVisitorBase):
                     assert isinstance(node.slice, vy_ast.Int)  # help mypy
                     value_type = possible_type.member_types[node.slice.value]
                 else:
+                    assert isinstance(possible_type, (SArrayT, DArrayT, HashMapT))
                     value_type = possible_type.value_type
 
                 if typ.compare_type(value_type):
-                    base_type = possible_type
+                    base_type: VyperType = possible_type
                     break
             else:
                 # this should have been caught in
