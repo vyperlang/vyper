@@ -2,11 +2,12 @@
 
 from decimal import Decimal
 from functools import cached_property
-from typing import Any, Tuple, Union
+from typing import Any, NoReturn, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_Bool, ABI_BytesM, ABI_GIntM, ABIType
 from vyper.exceptions import (
+    BadChecksumAddress,
     CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
@@ -425,13 +426,16 @@ class AddressT(_PrimT):
         if node.n_bytes != 20:
             raise InvalidLiteral(f"Invalid address. Expected 20 bytes, got {node.n_bytes}.", node)
 
-        addr = node.value
-        if not is_checksum_encoded(addr):
-            raise InvalidLiteral(
-                "Address checksum mismatch. If you are sure this is the right "
-                f"address, the correct checksummed form is: {checksum_encode(addr)}",
-                node,
-            )
+        if not is_checksum_encoded(node.value):
+            self.raise_bad_checksum(node)
+
+    def _checksum_error_msg(self, node: vy_ast.Hex) -> str:
+        msg = "Address checksum mismatch. If you are sure this is the right "
+        msg += f"address, the correct checksummed form is: {checksum_encode(node.value)}"
+        return msg
+
+    def raise_bad_checksum(self, node: vy_ast.Hex) -> NoReturn:
+        raise BadChecksumAddress(self._checksum_error_msg(node), node)
 
 
 # type for "self"
