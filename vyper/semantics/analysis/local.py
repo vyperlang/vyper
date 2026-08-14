@@ -60,7 +60,6 @@ from vyper.semantics.types import (
     StructT,
     TupleT,
     VyperType,
-    _BytestringT,
     is_type_t,
     map_void,
 )
@@ -1087,18 +1086,9 @@ class ExprVisitor(VyperNodeVisitorBase):
         else:
             # ex. a < b
             cmp_typ = get_common_types(node.left, node.right).pop()
-            if isinstance(cmp_typ, _BytestringT):
-                # for bytestrings, get_common_types automatically downcasts
-                # to the smaller common type - that will annotate with the
-                # wrong type, instead use get_exact_type_from_node (which
-                # resolves to the right type for bytestrings anyways).
-                ltyp = get_exact_type_from_node(node.left)
-                rtyp = get_exact_type_from_node(node.right)
-            else:
-                ltyp = rtyp = cmp_typ
 
-            self.visit(node.left, ltyp)
-            self.visit(node.right, rtyp)
+            self.visit(node.left, cmp_typ)
+            self.visit(node.right, cmp_typ)
 
     def visit_Constant(self, node: vy_ast.Constant, typ: VyperType) -> None:
         pass
