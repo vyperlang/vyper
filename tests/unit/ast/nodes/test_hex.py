@@ -2,7 +2,6 @@ import pytest
 
 from tests.utils import analyze_module_single
 from vyper import ast as vy_ast
-from vyper import semantics
 from vyper.exceptions import BadChecksumAddress, InvalidLiteral
 
 code_invalid_checksum = [

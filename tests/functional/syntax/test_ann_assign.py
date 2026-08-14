@@ -3,8 +3,8 @@ from pytest import raises
 
 from vyper import compiler
 from vyper.exceptions import (
-    InstantiationException,
     BadChecksumAddress,
+    InstantiationException,
     InvalidAttribute,
     TypeMismatch,
     UndeclaredDefinition,

@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, Callable, Iterable, List
 
 from vyper import ast as vy_ast
 from vyper.exceptions import (
-    BadChecksumAddress,
     CompilerPanic,
     InstantiationException,
     InvalidAttribute,
@@ -34,7 +33,7 @@ if TYPE_CHECKING:
 
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
-from vyper.utils import OrderedSet, checksum_encode, int_to_fourbytes
+from vyper.utils import OrderedSet, int_to_fourbytes, is_checksum_encoded
 from vyper.warnings import Deprecation, vyper_warn
 
 
@@ -338,14 +337,13 @@ class _ExprAnalyser:
             )
 
         msg = f"Could not determine type for literal value '{node.value}'"
-        if isinstance(node, vy_ast.Hex) and len(node.value) == 42:
-            # call `validate_literal` to add a hint on address checksum mismatch
-            try:
-                AddressT().validate_literal(node)
-            except BadChecksumAddress as e:
-                raise InvalidLiteral(msg, node, hint=e.args[0])
+        hint = None
+        # add a hint on address checksum mismatch
+        if isinstance(node, vy_ast.Hex) and node.n_bytes == 20:
+            assert not is_checksum_encoded(node.value)
+            hint = AddressT()._checksum_error_msg(node)
 
-        raise InvalidLiteral(msg, node)
+        raise InvalidLiteral(msg, node, hint=hint)
 
     def types_from_IfExp(self, node):
         validate_expected_type(node.test, BoolT())
@@ -617,10 +615,10 @@ def validate_expected_type(node, expected_type):
     try:
         given_types = _ExprAnalyser().get_possible_types_from_node(node)
     except InvalidLiteral as i:
-        # call `validate_literal` for its side effect of throwing an exception for
-        # address checksum mismatch only if the expected type is an address
-        if AddressT() in expected_type and isinstance(node, vy_ast.Hex) and len(node.value) == 42:
-            AddressT().validate_literal(node)
+        # throw more specific error if the cause of the failure was an incorrect checksum
+        if AddressT() in expected_type and isinstance(node, vy_ast.Hex) and node.n_bytes == 20:
+            assert not is_checksum_encoded(node.value)
+            AddressT().raise_bad_checksum(node)
         raise i
 
     if isinstance(node, vy_ast.List):
