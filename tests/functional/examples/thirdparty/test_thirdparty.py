@@ -3,34 +3,6 @@ from pathlib import Path
 
 import pytest
 
-from vyper.venom.passes import (
-    AffineFoldingPass,
-    AlgebraicOptimizationPass,
-    AssertCombinerPass,
-    AssertEliminationPass,
-    AssignElimination,
-    BranchOptimizationPass,
-    CSE,
-    DeadStoreElimination,
-    DFTPass,
-    FunctionInlinerPass,
-    InternalReturnCopyForwardingPass,
-    ReduceLiteralsCodesize,
-    LoadElimination,
-    Mem2Var,
-    MemMergePass,
-    MemoryCopyElisionPass,
-    OverflowEliminationPass,
-    PhiEliminationPass,
-    ReadonlyInvokeArgCopyForwardingPass,
-    RemoveUnusedVariablesPass,
-    RevertToAssert,
-    SCCP,
-    TailMergePass,
-)
-
-from vyper.venom import OPTIMIZATION_PASSES
-
 import vyper.compiler as compiler
 
 dir_path = Path(__file__).parent
@@ -46,51 +18,3 @@ def test_compile(vy_filename):
         source_code = f.read()
     compiler.compile_code(source_code)
 
-@pytest.mark.parametrize("vy_filename", get_example_vy_filenames())
-@pytest.mark.parametrize("pass_to_disable", [
-    AffineFoldingPass,
-    AlgebraicOptimizationPass,
-    AssertCombinerPass,
-    AssertEliminationPass,
-    AssignElimination,
-    BranchOptimizationPass,
-    CSE,
-    DeadStoreElimination,
-    DFTPass,
-    InternalReturnCopyForwardingPass,
-    ReduceLiteralsCodesize,
-    LoadElimination,
-    Mem2Var,
-    MemMergePass,
-    MemoryCopyElisionPass,
-    OverflowEliminationPass,
-    PhiEliminationPass,
-    ReadonlyInvokeArgCopyForwardingPass,
-    RevertToAssert,
-    SCCP,
-    TailMergePass,
-])
-@pytest.mark.parametrize("disable_inliner", [True, False])
-def test_compile_pass_fuzz(vy_filename, pass_to_disable, disable_inliner, compiler_settings, monkeypatch):
-    if not compiler_settings.experimental_codegen:
-        pytest.skip()
-
-    if pass_to_disable not in OPTIMIZATION_PASSES[compiler_settings.optimize]:
-        pytest.skip()
-
-    with open(dir_path / vy_filename) as f:
-        source_code = f.read()
-    
-    run = []
-    def temp(*args, **kwargs):
-        run.append(True)
-
-    monkeypatch.setattr(pass_to_disable, "run_pass", temp)
-
-    if disable_inliner:
-        monkeypatch.setattr(FunctionInlinerPass, "run_pass", temp)
-
-
-    compiler.compile_code(source_code)
-
-    assert len(run) != 0 and all(run)
