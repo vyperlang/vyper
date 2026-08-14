@@ -1,6 +1,7 @@
 import glob
 from pathlib import Path
 
+from hypothesis import strategies as st, given, settings, HealthCheck, Phase
 import pytest
 
 from vyper.venom.passes import (
@@ -39,15 +40,7 @@ dir_path = Path(__file__).parent
 def get_example_vy_filenames():
     return glob.glob("**/*.vy", root_dir=dir_path, recursive=True)
 
-
-@pytest.mark.parametrize("vy_filename", get_example_vy_filenames())
-def test_compile(vy_filename):
-    with open(dir_path / vy_filename) as f:
-        source_code = f.read()
-    compiler.compile_code(source_code)
-
-@pytest.mark.parametrize("vy_filename", get_example_vy_filenames())
-@pytest.mark.parametrize("pass_to_disable", [
+pass_to_disable = [
     AffineFoldingPass,
     AlgebraicOptimizationPass,
     AssertCombinerPass,
@@ -69,13 +62,21 @@ def test_compile(vy_filename):
     RevertToAssert,
     SCCP,
     TailMergePass,
-])
-@pytest.mark.parametrize("disable_inliner", [True, False])
-def test_compile_pass_fuzz(vy_filename, pass_to_disable, disable_inliner, compiler_settings, monkeypatch):
-    if not compiler_settings.experimental_codegen:
-        pytest.skip()
+]
 
-    if pass_to_disable not in OPTIMIZATION_PASSES[compiler_settings.optimize]:
+any_passes = st.lists(
+    st.sampled_from(pass_to_disable),
+    min_size=2,
+    max_size=10,
+    unique=True,
+)
+
+@pytest.mark.parametrize("vy_filename", get_example_vy_filenames())
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], max_examples=10, phases=[Phase.generate])
+@given(passes_to_disable=any_passes)
+@pytest.mark.fuzzing
+def test_compile_pass_fuzz(vy_filename, passes_to_disable, compiler_settings, monkeypatch):
+    if not compiler_settings.experimental_codegen:
         pytest.skip()
 
     with open(dir_path / vy_filename) as f:
@@ -85,11 +86,8 @@ def test_compile_pass_fuzz(vy_filename, pass_to_disable, disable_inliner, compil
     def temp(*args, **kwargs):
         run.append(True)
 
-    monkeypatch.setattr(pass_to_disable, "run_pass", temp)
-
-    if disable_inliner:
-        monkeypatch.setattr(FunctionInlinerPass, "run_pass", temp)
-
+    for pass_to_disable in passes_to_disable:
+        monkeypatch.setattr(pass_to_disable, "run_pass", temp)
 
     compiler.compile_code(source_code)
 
