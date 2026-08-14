@@ -40,7 +40,6 @@ class RemoveUnusedVariablesPass(IRPass):
             alias_analysis = mem_alias_type_factory(space)
             self.analyses_cache.invalidate_analysis(alias_analysis)
 
-
     def _process_instruction(self, inst: IRInstruction):
         outputs = inst.get_outputs()
         if len(outputs) == 0:
@@ -64,6 +63,6 @@ class RemoveUnusedVariablesPass(IRPass):
         if eff != EMPTY:
             space = effects.to_addr_space(eff)
             assert space is not None
-            self.invalidate_alias.add(space)            
+            self.invalidate_alias.add(space)
 
         inst.make_nop()

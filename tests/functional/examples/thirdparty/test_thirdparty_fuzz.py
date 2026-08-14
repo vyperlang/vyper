@@ -1,22 +1,23 @@
 import glob
 from pathlib import Path
 
-from hypothesis import strategies as st, given, settings, HealthCheck, Phase
 import pytest
+from hypothesis import HealthCheck, Phase, given, settings
+from hypothesis import strategies as st
 
+import vyper.compiler as compiler
 from vyper.venom.passes import (
+    CSE,
+    SCCP,
     AffineFoldingPass,
     AlgebraicOptimizationPass,
     AssertCombinerPass,
     AssertEliminationPass,
     AssignElimination,
     BranchOptimizationPass,
-    CSE,
     DeadStoreElimination,
     DFTPass,
-    FunctionInlinerPass,
     InternalReturnCopyForwardingPass,
-    ReduceLiteralsCodesize,
     LoadElimination,
     Mem2Var,
     MemMergePass,
@@ -24,21 +25,17 @@ from vyper.venom.passes import (
     OverflowEliminationPass,
     PhiEliminationPass,
     ReadonlyInvokeArgCopyForwardingPass,
-    RemoveUnusedVariablesPass,
+    ReduceLiteralsCodesize,
     RevertToAssert,
-    SCCP,
     TailMergePass,
 )
-
-from vyper.venom import OPTIMIZATION_PASSES
-
-import vyper.compiler as compiler
 
 dir_path = Path(__file__).parent
 
 
 def get_example_vy_filenames():
     return glob.glob("**/*.vy", root_dir=dir_path, recursive=True)
+
 
 pass_to_disable = [
     AffineFoldingPass,
@@ -64,15 +61,15 @@ pass_to_disable = [
     TailMergePass,
 ]
 
-any_passes = st.lists(
-    st.sampled_from(pass_to_disable),
-    min_size=2,
-    max_size=10,
-    unique=True,
-)
+any_passes = st.lists(st.sampled_from(pass_to_disable), min_size=2, max_size=10, unique=True)
+
 
 @pytest.mark.parametrize("vy_filename", get_example_vy_filenames())
-@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], max_examples=10, phases=[Phase.generate])
+@settings(
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+    max_examples=10,
+    phases=[Phase.generate],
+)
 @given(passes_to_disable=any_passes)
 @pytest.mark.fuzzing
 def test_compile_pass_fuzz(vy_filename, passes_to_disable, compiler_settings, monkeypatch):
@@ -81,8 +78,9 @@ def test_compile_pass_fuzz(vy_filename, passes_to_disable, compiler_settings, mo
 
     with open(dir_path / vy_filename) as f:
         source_code = f.read()
-    
+
     run = []
+
     def temp(*args, **kwargs):
         run.append(True)
 

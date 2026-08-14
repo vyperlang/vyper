@@ -17,4 +17,3 @@ def test_compile(vy_filename):
     with open(dir_path / vy_filename) as f:
         source_code = f.read()
     compiler.compile_code(source_code)
-
