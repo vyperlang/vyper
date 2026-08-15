@@ -524,6 +524,14 @@ def extend_dyn_array(dst, src, context):
         raise CodegenPanic("extend not yet implemented for unbounded DynArray")
 
     ret = ["seq"]
+
+    # a list literal cannot be indexed with a runtime loop variable,
+    # force it to memory first
+    if not src.is_pointer:
+        tmp = context.new_internal_variable(src.typ)
+        ret.append(make_setter(tmp, src))
+        src = tmp
+
     with dst.cache_when_complex("dst") as (b1, dst):
         dst_len = get_dyn_array_count(dst)
         dst_bound = dst.typ.count
