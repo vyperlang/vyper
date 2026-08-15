@@ -1262,7 +1262,6 @@ def foo(x: {typ}) -> {typ}:
     "subtype",
     ["uint256[3]", "DynArray[uint256,3]", "DynArray[uint8, 4]", "Foo", "DynArray[Foobar, 3]"],
 )
-# TODO change this to fuzz random data
 def test_append_pop_complex(get_contract, tx_failed, code_template, check_result, subtype):
     code = code_template.format(typ=subtype)
     test_data = [1, 2, 3]
@@ -1479,7 +1478,6 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
 
 
 @pytest.mark.parametrize("code,check_result", extend_pop_tests)
-# TODO change this to fuzz random data
 @pytest.mark.parametrize("test_data", [[1, 2, 3, 4, 5][:i] for i in range(6)])
 def test_extend_pop(get_contract, tx_failed, code, check_result, test_data):
     c = get_contract(code)
@@ -1564,7 +1562,6 @@ def foo(x: {typ}) -> ({typ}, DynArray[{typ}, 5]):
 @pytest.mark.parametrize(
     "subtype", ["uint256[3]", "DynArray[uint256,3]", "DynArray[uint8, 4]", "Foo"]
 )
-# TODO change this to fuzz random data
 def test_extend_pop_complex(get_contract, tx_failed, code_template, check_result, subtype):
     code = code_template.format(typ=subtype)
     test_data = [1, 2, 3]
@@ -1581,7 +1578,7 @@ struct Foo:
     c = get_contract(code)
     expected_result = check_result(test_data)
     if expected_result is None:
-        # None is sentinel to indicatecool, I'd txn should revert
+        # None is sentinel to indicate txn should revert
         with tx_failed():
             c.foo(test_data)
     else:
