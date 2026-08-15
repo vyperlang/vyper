@@ -5,6 +5,7 @@ import vyper.codegen.arithmetic as arithmetic
 from vyper import ast as vy_ast
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
+    STORE,
     append_dyn_array,
     check_assign,
     clamp,
@@ -711,9 +712,6 @@ class Expr:
 
             return arg_ir
 
-        elif isinstance(self.expr.func, vy_ast.Attribute) and self.expr.func.attr == "pop":
-            return DISPATCH_TABLE["pop"].build_IR(self.expr, self.context, True)
-
         if isinstance(func_t, MemberFunctionT):
             # TODO consider moving these to builtins or a dedicated file
             darray = Expr(func.value, self.context).ir_node
@@ -737,6 +735,37 @@ class Expr:
                     arg = tmp
 
                 ret.append(append_dyn_array(darray, arg))
+                return IRnode.from_list(ret)
+            elif func.attr == "extend":
+                assert len(self.expr.args) == 1
+                src = args[0]
+
+                ret = ["seq"]
+
+                darray_len = get_dyn_array_count(darray)
+
+                darray_bound = darray.typ.count
+                src_len = get_dyn_array_count(src)
+                new_len = IRnode.from_list(["add", darray_len, src_len], typ=UINT256_T)
+
+                # Assert that `src_len + darray_len` <= maxlen(darray)`
+                check = IRnode.from_list(["assert", ["le", new_len, darray_bound]])
+                ret.append(check)
+
+                # Store updated length
+                store_length = IRnode.from_list(STORE(darray, new_len))
+                ret.append(store_length)
+
+                # Get start pointer of darray
+                darray_start_idx = get_element_ptr(darray, darray_len, array_bounds_check=False)
+
+                # Cast dst start pointer as a static array for `make_setter`
+                darray_start_idx.typ = SArrayT(darray.typ.subtype, darray_bound)
+                darray_start_idx.location = darray.location
+
+                body = IRnode.from_list(make_setter(darray_start_idx, src))
+                ret.append(body)
+
                 return IRnode.from_list(ret)
 
             raise CompilerPanic("unreachable!")  # pragma: nocover
