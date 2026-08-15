@@ -1365,6 +1365,33 @@ def foo(y: DynArray[uint256, 2]) -> DynArray[uint256, 3]:
         c.foo([3, 4])
 
 
+def test_extend_self_memory(get_contract):
+    code = """
+@external
+def foo() -> DynArray[uint256, 6]:
+    x: DynArray[uint256, 6] = [1, 2, 3]
+    x.extend(x)
+    return x
+    """
+    c = get_contract(code)
+    assert c.foo() == [1, 2, 3, 1, 2, 3]
+
+
+def test_extend_self_storage(get_contract):
+    # storage aliasing
+    code = """
+my_array: DynArray[uint256, 6]
+
+@external
+def foo() -> DynArray[uint256, 6]:
+    self.my_array = [1, 2, 3]
+    self.my_array.extend(self.my_array)
+    return self.my_array
+    """
+    c = get_contract(code)
+    assert c.foo() == [1, 2, 3, 1, 2, 3]
+
+
 extend_pop_tests = [
     (
         """
