@@ -524,11 +524,14 @@ def extend_dyn_array(dst, src, context):
         raise CodegenPanic("extend not yet implemented for unbounded DynArray")
 
     ret = ["seq"]
-    with dst.cache_when_complex("dst") as (b1, dst), src.cache_when_complex("src") as (b2, src):
+    with dst.cache_when_complex("dst") as (b1, dst):
         dst_len = get_dyn_array_count(dst)
         dst_bound = dst.typ.count
 
-        with dst_len.cache_when_complex("old_dst_len") as (b3, dst_len):
+        with (
+            src.cache_when_complex("src") as (b2, src),
+            dst_len.cache_when_complex("old_dst_len") as (b3, dst_len),
+        ):
             src_len = get_dyn_array_count(src)
             new_len = IRnode.from_list(["add", dst_len, src_len], typ=UINT256_T)
 
