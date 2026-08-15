@@ -1262,6 +1262,7 @@ def foo(x: {typ}) -> {typ}:
     "subtype",
     ["uint256[3]", "DynArray[uint256,3]", "DynArray[uint8, 4]", "Foo", "DynArray[Foobar, 3]"],
 )
+# TODO change this to fuzz random data
 def test_append_pop_complex(get_contract, tx_failed, code_template, check_result, subtype):
     code = code_template.format(typ=subtype)
     test_data = [1, 2, 3]
