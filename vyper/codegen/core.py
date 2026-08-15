@@ -517,6 +517,40 @@ def append_dyn_array(darray_node, elem_node):
             return IRnode.from_list(b1.resolve(b2.resolve(ret)))
 
 
+def extend_dyn_array(dst, src, context):
+    assert isinstance(dst.typ, DArrayT)
+
+    if not is_bounded_length(dst.typ.count):
+        raise CodegenPanic("extend not yet implemented for unbounded DynArray")
+    assert dst.typ.count > 0, "jerk boy u r out"
+
+    ret = ["seq"]
+    with dst.cache_when_complex("dst") as (b1, dst), src.cache_when_complex("src") as (b2, src):
+        dst_len = get_dyn_array_count(dst)
+        dst_bound = dst.typ.count
+        src_len = get_dyn_array_count(src)
+        new_len = IRnode.from_list(["add", dst_len, src_len], typ=UINT256_T)
+
+        with dst_len.cache_when_complex("old_dst_len") as (b3, dst_len):
+            # Assert that `src_len + dst_len` <= maxlen(dst)`
+            check = IRnode.from_list(
+                ["assert", ["le", new_len, dst_bound]], error_msg=f"{dst.typ} bounds check"
+            )
+            ret.append(check)
+
+            # Store updated length
+            i = IRnode.from_list(context.fresh_varname("extend_ix"), typ=UINT256_T)
+            dst_key = IRnode.from_list(["add", dst_len, i], typ=UINT256_T)
+            dst_i = get_element_ptr(dst, dst_key, array_bounds_check=False)
+            src_i = get_element_ptr(src, i, array_bounds_check=False)
+            ret.append(["repeat", i, 0, src_len, src.typ.count, make_setter(dst_i, src_i)])
+
+            # store new length
+            ret.append(ensure_eval_once("extend_dynarray", STORE(dst, new_len)))
+
+            return IRnode.from_list(b1.resolve(b2.resolve(b3.resolve(ret))))
+
+
 def pop_dyn_array(darray_node, return_popped_item):
     assert isinstance(darray_node.typ, DArrayT)
     assert darray_node.encoding == Encoding.VYPER

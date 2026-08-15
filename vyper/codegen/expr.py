@@ -5,13 +5,13 @@ import vyper.codegen.arithmetic as arithmetic
 from vyper import ast as vy_ast
 from vyper.codegen import external_call, self_call
 from vyper.codegen.core import (
-    STORE,
     append_dyn_array,
     check_assign,
     clamp,
     data_location_to_address_space,
     dummy_node_for_type,
     ensure_in_memory,
+    extend_dyn_array,
     get_dyn_array_count,
     get_element_ptr,
     is_array_like,
@@ -741,31 +741,12 @@ class Expr:
                 src = args[0]
 
                 ret = ["seq"]
+                if potential_overlap(darray, src):
+                    tmp = self.context.new_internal_variable(src.typ)
+                    ret.append(make_setter(tmp, src))
+                    src = tmp
 
-                darray_len = get_dyn_array_count(darray)
-
-                darray_bound = darray.typ.count
-                src_len = get_dyn_array_count(src)
-                new_len = IRnode.from_list(["add", darray_len, src_len], typ=UINT256_T)
-
-                # Assert that `src_len + darray_len` <= maxlen(darray)`
-                check = IRnode.from_list(["assert", ["le", new_len, darray_bound]])
-                ret.append(check)
-
-                # Store updated length
-                store_length = IRnode.from_list(STORE(darray, new_len))
-                ret.append(store_length)
-
-                # Get start pointer of darray
-                darray_start_idx = get_element_ptr(darray, darray_len, array_bounds_check=False)
-
-                # Cast dst start pointer as a static array for `make_setter`
-                darray_start_idx.typ = SArrayT(darray.typ.subtype, darray_bound)
-                darray_start_idx.location = darray.location
-
-                body = IRnode.from_list(make_setter(darray_start_idx, src))
-                ret.append(body)
-
+                ret.append(extend_dyn_array(darray, src, self.context))
                 return IRnode.from_list(ret)
 
             raise CompilerPanic("unreachable!")  # pragma: nocover
