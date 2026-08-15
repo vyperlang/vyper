@@ -522,7 +522,6 @@ def extend_dyn_array(dst, src, context):
 
     if not is_bounded_length(dst.typ.count):
         raise CodegenPanic("extend not yet implemented for unbounded DynArray")
-    assert dst.typ.count > 0, "jerk boy u r out"
 
     ret = ["seq"]
     with dst.cache_when_complex("dst") as (b1, dst), src.cache_when_complex("src") as (b2, src):
