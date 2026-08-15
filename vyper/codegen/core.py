@@ -543,10 +543,8 @@ def extend_dyn_array(dst, src, context):
             src_len = get_dyn_array_count(src)
             new_len = IRnode.from_list(["add", dst_len, src_len], typ=UINT256_T)
 
-            check = IRnode.from_list(
-                ["assert", ["le", new_len, dst_bound]], error_msg=f"{dst.typ} bounds check"
-            )
-            ret.append(check)
+            assertion = ["assert", ["le", new_len, dst_bound]]
+            ret.append(IRnode.from_list(assertion, error_msg=f"{dst.typ} bounds check"))
 
             i = IRnode.from_list(context.fresh_varname("extend_ix"), typ=UINT256_T)
             dst_key = IRnode.from_list(["add", dst_len, i], typ=UINT256_T)
