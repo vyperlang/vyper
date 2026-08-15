@@ -527,17 +527,16 @@ def extend_dyn_array(dst, src, context):
     with dst.cache_when_complex("dst") as (b1, dst), src.cache_when_complex("src") as (b2, src):
         dst_len = get_dyn_array_count(dst)
         dst_bound = dst.typ.count
-        src_len = get_dyn_array_count(src)
-        new_len = IRnode.from_list(["add", dst_len, src_len], typ=UINT256_T)
 
         with dst_len.cache_when_complex("old_dst_len") as (b3, dst_len):
-            # Assert that `src_len + dst_len` <= maxlen(dst)`
+            src_len = get_dyn_array_count(src)
+            new_len = IRnode.from_list(["add", dst_len, src_len], typ=UINT256_T)
+
             check = IRnode.from_list(
                 ["assert", ["le", new_len, dst_bound]], error_msg=f"{dst.typ} bounds check"
             )
             ret.append(check)
 
-            # Store updated length
             i = IRnode.from_list(context.fresh_varname("extend_ix"), typ=UINT256_T)
             dst_key = IRnode.from_list(["add", dst_len, i], typ=UINT256_T)
             dst_i = get_element_ptr(dst, dst_key, array_bounds_check=False)
