@@ -1376,6 +1376,20 @@ def foo() -> DynArray[uint256, 5]:
     assert c.foo() == [1, 2, 3, 4]
 
 
+def test_extend_literal_storage(get_contract):
+    code = """
+my_array: DynArray[uint256, 5]
+
+@external
+def foo() -> DynArray[uint256, 5]:
+    self.my_array = [1]
+    self.my_array.extend([2, 3])
+    return self.my_array
+    """
+    c = get_contract(code)
+    assert c.foo() == [1, 2, 3]
+
+
 def test_extend_length_clamp(get_contract, tx_failed):
     code = """
 @external
