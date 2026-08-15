@@ -492,15 +492,6 @@ def get_dyn_array_count(arg):
     return IRnode.from_list(LOAD(arg), typ=typ)
 
 
-<<<<<<< HEAD
-def getpos(node):
-    return (
-        node.lineno,
-        node.col_offset,
-        getattr(node, "end_lineno", None),
-        getattr(node, "end_col_offset", None),
-    )
-=======
 def append_dyn_array(darray_node, elem_node):
     assert isinstance(darray_node.typ, DArrayT)
 
