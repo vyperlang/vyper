@@ -121,7 +121,9 @@ class FlagT(_UserType):
     _is_prim_word = True
     _as_hashmap_key = True
 
-    def __init__(self, name: str, members: dict) -> None:
+    def __init__(
+        self, name: str, members: dict, decl_node: Optional[vy_ast.VyperNode] = None
+    ) -> None:
         if len(members.keys()) > 256:
             raise FlagDeclarationException("Flags are limited to 256 members!")
 
@@ -137,6 +139,8 @@ class FlagT(_UserType):
 
         # set the name for exception handling in `get_member`
         self._helper._id = name
+
+        self.decl_node = decl_node
 
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
         self._helper.get_member(key, node)
@@ -206,7 +210,7 @@ class FlagT(_UserType):
 
             members[member_name] = i
 
-        return cls(base_node.name, members)
+        return cls(base_node.name, members, decl_node=base_node)
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         # TODO
@@ -474,6 +478,10 @@ class StructT(_UserType):
         self._id = _id
 
         self.ast_def = ast_def
+
+    @property
+    def decl_node(self):
+        return self.ast_def
 
     @cached_property
     def name(self) -> str:
