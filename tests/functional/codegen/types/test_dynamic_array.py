@@ -1352,7 +1352,7 @@ def foo(y: DynArray[uint256, 3]) -> DynArray[uint256, 3]:
     assert c.foo([]) == [1, 2, 3]
 
 
-def test_extend_length_clamp(get_contract, assert_tx_failed):
+def test_extend_length_clamp(get_contract, tx_failed):
     code = """
 @external
 def foo(y: DynArray[uint256, 2]) -> DynArray[uint256, 3]:
@@ -1361,7 +1361,8 @@ def foo(y: DynArray[uint256, 2]) -> DynArray[uint256, 3]:
     return x
     """
     c = get_contract(code)
-    assert_tx_failed(lambda: c.foo([3, 4]))
+    with tx_failed():
+        c.foo([3, 4])
 
 
 extend_pop_tests = [
@@ -1381,7 +1382,7 @@ my_array: DynArray[uint256, 5]
 @external
 def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
     self.my_array.extend(xs)
-    for x in xs:
+    for x: uint256 in xs:
         self.my_array.pop()
     return self.my_array
     """,
@@ -1396,7 +1397,7 @@ def foo(xs: DynArray[uint256, 5]) -> (DynArray[uint256, 5], uint256):
     self.my_array.extend(xs)
     return self.my_array, self.my_array.pop()
     """,
-        lambda xs: None if len(xs) == 0 else [xs, xs[-1]],
+        lambda xs: None if len(xs) == 0 else (xs, xs[-1]),
     ),
     # check order of evaluation.
     (
@@ -1407,7 +1408,7 @@ def foo(xs: DynArray[uint256, 5]) -> (uint256, DynArray[uint256, 5]):
     self.my_array.extend(xs)
     return self.my_array.pop(), self.my_array
     """,
-        lambda xs: None if len(xs) == 0 else [xs[-1], xs[:-1]],
+        lambda xs: None if len(xs) == 0 else (xs[-1], xs[:-1]),
     ),
     # test memory arrays
     (
@@ -1427,7 +1428,7 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
 def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
     ys: DynArray[uint256, 5] = []
     ys.extend(xs)
-    for x in xs:
+    for x: uint256 in xs:
         ys.pop()
     return ys
     """,
@@ -1440,7 +1441,7 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
 def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
     ys: DynArray[uint256, 5] = []
     ys.extend(xs)
-    for x in xs:
+    for x: uint256 in xs:
         ys.pop()
     ys.pop()  # fail
     return ys
@@ -1453,12 +1454,13 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
 @pytest.mark.parametrize("code,check_result", extend_pop_tests)
 # TODO change this to fuzz random data
 @pytest.mark.parametrize("test_data", [[1, 2, 3, 4, 5][:i] for i in range(6)])
-def test_extend_pop(get_contract, assert_tx_failed, code, check_result, test_data):
+def test_extend_pop(get_contract, tx_failed, code, check_result, test_data):
     c = get_contract(code)
     expected_result = check_result(test_data)
     if expected_result is None:
         # None is sentinel to indicate txn should revert
-        assert_tx_failed(lambda: c.foo(test_data))
+        with tx_failed():
+            c.foo(test_data)
     else:
         assert c.foo(test_data) == expected_result
 
@@ -1515,7 +1517,7 @@ def foo(x: {typ}) -> (DynArray[{typ}, 5], {typ}):
     self.my_array.extend(temp)
     return self.my_array, self.my_array.pop()
     """,
-        lambda x: [[x], x],
+        lambda x: ([x], x),
     ),
     (
         """
@@ -1526,7 +1528,7 @@ def foo(x: {typ}) -> ({typ}, DynArray[{typ}, 5]):
     self.my_array.extend(temp)
     return self.my_array.pop(), self.my_array
     """,
-        lambda x: [x, []],
+        lambda x: (x, []),
     ),
 ]
 
@@ -1536,7 +1538,7 @@ def foo(x: {typ}) -> ({typ}, DynArray[{typ}, 5]):
     "subtype", ["uint256[3]", "DynArray[uint256,3]", "DynArray[uint8, 4]", "Foo"]
 )
 # TODO change this to fuzz random data
-def test_extend_pop_complex(get_contract, assert_tx_failed, code_template, check_result, subtype):
+def test_extend_pop_complex(get_contract, tx_failed, code_template, check_result, subtype):
     code = code_template.format(typ=subtype)
     test_data = [1, 2, 3]
     if subtype == "Foo":
@@ -1553,7 +1555,8 @@ struct Foo:
     expected_result = check_result(test_data)
     if expected_result is None:
         # None is sentinel to indicatecool, I'd txn should revert
-        assert_tx_failed(lambda: c.foo(test_data))
+        with tx_failed():
+            c.foo(test_data)
     else:
         assert c.foo(test_data) == expected_result
 
