@@ -111,32 +111,6 @@ class Stmt:
 
         return events.ir_node_for_log(self.stmt, event, topic_ir, data_ir, self.context)
 
-    def parse_Call(self):
-        # TODO use expr.func.type.is_internal once type annotations
-        # are consistently available.
-        is_self_function = (
-            (isinstance(self.stmt.func, vy_ast.Attribute))
-            and isinstance(self.stmt.func.value, vy_ast.Name)
-            and self.stmt.func.value.id == "self"
-        )
-
-        if isinstance(self.stmt.func, vy_ast.Name):
-            funcname = self.stmt.func.id
-            return STMT_DISPATCH_TABLE[funcname].build_IR(self.stmt, self.context)
-
-        elif isinstance(self.stmt.func, vy_ast.Attribute) and self.stmt.func.attr in (
-            "append",
-            "pop",
-            "extend",
-        ):
-            funcname = self.stmt.func.attr
-            return STMT_DISPATCH_TABLE[funcname].build_IR(self.stmt, self.context)
-
-        elif is_self_function:
-            return self_call.ir_for_self_call(self.stmt, self.context)
-        else:
-            return external_call.ir_for_external_call(self.stmt, self.context)
-
     def _assert_reason(self, test_expr, msg):
         if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
             return self._assert_unreachable(test_expr)
