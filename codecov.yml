@@ -1,0 +1,7 @@
+# https://docs.codecov.com/docs/codecovyml-reference
+coverage:
+  status:
+    project:
+      default:
+        # set threshold given noise in the coverage from fuzzing
+        threshold: 0.5%

@@ -194,6 +194,10 @@ Could compile to:
 _sym_foo JUMPDEST
 ```
 
+### UNIQUE\_SYMBOL
+
+`(unique_symbol l)` defines a "unique symbol". These are generated to help catch front-end bugs involving multiple execution of side-effects (which should be only executed once). They can be ignored, or to be strict, any backend should enforce that each `unique_symbol` only appears one time in the code.
+
 ### IF\_STMT
 
 Branching statements. There are two forms, if with a single branch, and if with two branches.

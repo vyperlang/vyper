@@ -5,7 +5,7 @@ Contributing
 
 Help is always appreciated!
 
-To get started, you can try `installing Vyper <https://vyper.readthedocs.io/en/latest/installing-vyper.html>`_ in order to familiarize
+To get started, you can try `installing Vyper <installing-vyper.html>`_ in order to familiarize
 yourself with the components of Vyper and the build process. Also, it may be
 useful to become well-versed at writing smart-contracts in Vyper.
 
@@ -66,6 +66,19 @@ If you need to pull in any changes from ``master`` after making your fork (for
 example, to resolve potential merge conflicts), please avoid using ``git merge``
 and instead, ``git rebase`` your branch.
 
+Commit Messages
+---------------
+
+For guidance on writing good commit messages, see `How to Write a Git Commit Message <https://cbea.ms/git-commit/>`_.
+
+To ensure your commit message is properly formatted (wrapped at 72 characters), use the included formatter:
+
+1. Write your commit message in a text file
+2. Run ``python fmt_commit_msg.py commitmsg.txt`` (this formats the file in-place)
+3. Paste the formatted message in your PR description, wrapped in triple backticks
+
+The maintainer will use this message when squash-merging your PR.
+
 Implementing New Features
 -------------------------
 
@@ -75,4 +88,4 @@ If you are making a larger change, please consult first with the `Vyper (Smart C
 
 Although we do CI testing, please make sure that the tests pass for supported Python version and ensure that it builds locally before submitting a pull request.
 
-Thank you for your help! ​
+Thank you for your help!

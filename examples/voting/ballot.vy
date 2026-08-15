@@ -1,3 +1,5 @@
+#pragma version >0.3.10
+
 # Voting with delegation.
 
 # Information about voters
@@ -50,15 +52,15 @@ def directlyVoted(addr: address) -> bool:
 
 
 # Setup global variables
-@external
+@deploy
 def __init__(_proposalNames: bytes32[2]):
     self.chairperson = msg.sender
     self.voterCount = 0
-    for i in range(2):
-        self.proposals[i] = Proposal({
-            name: _proposalNames[i],
-            voteCount: 0
-        })
+    for i: int128 in range(2):
+        self.proposals[i] = Proposal(
+            name=_proposalNames[i],
+            voteCount=0
+        )
         self.int128Proposals += 1
 
 # Give a `voter` the right to vote on this ballot.
@@ -82,7 +84,7 @@ def _forwardWeight(delegate_with_weight_to_forward: address):
     assert self.voters[delegate_with_weight_to_forward].weight > 0
 
     target: address = self.voters[delegate_with_weight_to_forward].delegate
-    for i in range(4):
+    for i: int128 in range(4):
         if self._delegated(target):
             target = self.voters[target].delegate
             # The following effectively detects cycles of length <= 5,
@@ -157,7 +159,7 @@ def vote(proposal: int128):
 def _winningProposal() -> int128:
     winning_vote_count: int128 = 0
     winning_proposal: int128 = 0
-    for i in range(2):
+    for i: int128 in range(2):
         if self.proposals[i].voteCount > winning_vote_count:
             winning_vote_count = self.proposals[i].voteCount
             winning_proposal = i

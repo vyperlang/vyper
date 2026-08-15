@@ -10,7 +10,7 @@ Example of Logging
 
 This example is taken from the `sample ERC20 contract <https://github.com/vyperlang/vyper/blob/master/examples/tokens/ERC20.vy>`_ and shows the basic flow of event logging:
 
-.. code-block:: python
+.. code-block:: vyper
 
     # Events of the token.
     event Transfer:
@@ -24,12 +24,13 @@ This example is taken from the `sample ERC20 contract <https://github.com/vyperl
         value: uint256
 
     # Transfer some tokens from message sender to another address
+    @external
     def transfer(_to : address, _value : uint256) -> bool:
 
        ... Logic here to do the real work ...
 
        # All done, log the event for listeners
-       log Transfer(msg.sender, _to, _value)
+       log Transfer(sender=msg.sender, receiver=_to, value=_value)
 
 Let's look at what this is doing.
 
@@ -59,36 +60,44 @@ Declaring Events
 
 Let's look at an event declaration in more detail.
 
-.. code-block:: python
+.. code-block:: vyper
 
     event Transfer:
         sender: indexed(address)
         receiver: indexed(address)
         value: uint256
 
+The EVM currently has five opcodes for emitting event logs: ``LOG0``, ``LOG1``, ``LOG2``, ``LOG3``, and ``LOG4``.
+These opcodes can be used to create log records, where each log record consists of both **topics** and **data**.
+Topics are 32-byte ''words'' that are used to describe what is happening in an event.
+While topics are searchable, data is not.
+Event data is however not limited, which means that you can include large or complicated data like arrays or strings.
+Different opcodes (``LOG0`` through ``LOG4``) allow for different numbers of topics.
+For instance, ``LOG1`` includes one topic, ``LOG2`` includes two topics, and so on.
 Event declarations look similar to struct declarations, containing one or more arguments that are passed to the event. Typical events will contain two kinds of arguments:
 
-    * **Indexed** arguments, which can be searched for by listeners. Each indexed argument is identified by the ``indexed`` keyword.  Here, each indexed argument is an address. You can have any number of indexed arguments, but indexed arguments are not passed directly to listeners, although some of this information (such as the sender) may be available in the listener's `results` object.
-    * **Value** arguments, which are passed through to listeners. You can have any number of value arguments and they can have arbitrary names, but each is limited by the EVM to be no more than 32 bytes.
+    * **Indexed** arguments (topics), which can be searched for by listeners. Each indexed argument is identified by the ``indexed`` keyword.  Here, each indexed argument is an address. You can have up to four indexed arguments (``LOG4``), but indexed arguments are not passed directly to listeners, although some of this information (such as the sender) may be available in the listener's `results` object.
+    * **Value** arguments (data), which are passed through to listeners. You can have any number of value arguments and they can have arbitrary names.
 
+Note that the first topic of a log record consists of the signature of the name of the event that occurred, including the types of its parameters.
 It is also possible to create an event with no arguments. In this case, use the ``pass`` statement:
 
-.. code-block:: python
+.. code-block:: vyper
 
     event Foo: pass
 
 Logging Events
 ==============
 
-Once an event is declared, you can log (send) events. You can send events as many times as you want to. Please note that events sent do not take state storage and thus do not cost gas: this makes events a good way to save some information. However, the drawback is that events are not available to contracts, only to clients.
+Once an event is declared, you can log (send) events. You can send events as many times as you want to. Please note that events are stored in transaction logs rather than contract state storage, making them significantly cheaper than storage operations. However, the drawback is that events are not available to contracts, only to clients.
 
 Logging events is done using the ``log`` statement:
 
-.. code-block:: python
+.. code-block:: vyper
 
-   log Transfer(msg.sender, _to, _amount)
+   log Transfer(sender=msg.sender, receiver=_to, value=_value)
 
-The order and types of arguments given must match the order of arguments used when declaring the event.
+The types of arguments given must match those used when declaring the event. When using keyword arguments (as shown above), the order does not matter.
 
 Listening for Events
 ====================

@@ -1,11 +1,11 @@
 # validation utils for ast
-# TODO this really belongs in vyper/semantics/validation/utils
 from typing import Optional, Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.exceptions import ArgumentException, CompilerPanic, StructureException
 
 
+# TODO this really belongs in vyper/semantics/validation/utils
 def validate_call_args(
     node: vy_ast.Call, arg_count: Union[int, tuple], kwargs: Optional[list] = None
 ) -> None:
@@ -45,15 +45,17 @@ def validate_call_args(
             # -1 is sentinel which means we have varargs.
             # set arg_count[1] to some large number that we
             # would never see in practice
-            arg_count = (arg_count[0], 2 ** 64)
+            arg_count = (arg_count[0], 2**64)
 
         if arg_count[0] == arg_count[1]:
-            arg_count == arg_count[0]
+            arg_count = arg_count[0]
 
     if isinstance(node.func, vy_ast.Attribute):
         msg = f" for call to '{node.func.attr}'"
     elif isinstance(node.func, vy_ast.Name):
         msg = f" for call to '{node.func.id}'"
+    else:
+        raise CompilerPanic("Unreachable")
 
     if isinstance(arg_count, int) and len(node.args) != arg_count:
         if not node.args:
@@ -93,20 +95,3 @@ def validate_call_args(
         if key.arg in kwargs_seen:
             raise ArgumentException(f"Duplicate keyword argument '{key.arg}'", key)
         kwargs_seen.add(key.arg)
-
-
-def validate_literal_nodes(vyper_module: vy_ast.Module) -> None:
-    """
-    Individually validate Vyper AST nodes.
-
-    Calls the `validate` method of each node to verify that literal nodes
-    do not contain invalid values.
-
-    Arguments
-    ---------
-    vyper_module : vy_ast.Module
-        Top level Vyper AST node.
-    """
-    for node in vyper_module.get_descendants():
-        if hasattr(node, "validate"):
-            node.validate()

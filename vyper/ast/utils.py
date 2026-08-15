@@ -1,57 +1,32 @@
-import ast as python_ast
-from typing import Dict, List, Optional, Union
+import bisect
+import re
+from typing import Dict, List, Tuple, Union
 
 from vyper.ast import nodes as vy_ast
-from vyper.ast.annotation import annotate_python_ast
-from vyper.ast.pre_parser import pre_parse
-from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
+from vyper.exceptions import CompilerPanic
 
 
-def parse_to_ast(
-    source_code: str,
-    source_id: int = 0,
-    contract_name: Optional[str] = None,
-    add_fn_node: Optional[str] = None,
-) -> vy_ast.Module:
+class LineNumbers:
     """
-    Parses a Vyper source string and generates basic Vyper AST nodes.
+    Class to convert between character offsets in a text string, and pairs (line, column) of 1-based
+    line and 0-based column numbers.
 
-    Parameters
-    ----------
-    source_code : str
-        The Vyper source code to parse.
-    source_id : int, optional
-        Source id to use in the `src` member of each node.
-    contract_name: str, optional
-        Name of contract.
-    add_fn_node: str, optional
-        If not None, adds a dummy Python AST FunctionDef wrapper node.
-
-    Returns
-    -------
-    list
-        Untyped, unoptimized Vyper AST nodes.
+    Vendored from asttokens.
     """
-    if "\x00" in source_code:
-        raise ParserException("No null bytes (\\x00) allowed in the source code.")
-    class_types, reformatted_code = pre_parse(source_code)
-    try:
-        py_ast = python_ast.parse(reformatted_code)
-    except SyntaxError as e:
-        # TODO: Ensure 1-to-1 match of source_code:reformatted_code SyntaxErrors
-        raise SyntaxException(str(e), source_code, e.lineno, e.offset) from e
 
-    # Add dummy function node to ensure local variables are treated as `AnnAssign`
-    # instead of state variables (`VariableDecl`)
-    if add_fn_node:
-        fn_node = python_ast.FunctionDef(add_fn_node, py_ast.body, [], [])
-        fn_node.body = py_ast.body
-        fn_node.args = python_ast.arguments(defaults=[])
-        py_ast.body = [fn_node]
-    annotate_python_ast(py_ast, source_code, class_types, source_id, contract_name)
+    def __init__(self, text: str) -> None:
+        # a list of character offsets of each line's first character
+        self._line_offsets = [m.start(0) for m in re.finditer(r"^", text, re.M)]
+        self._text_len = len(text)
 
-    # Convert to Vyper AST.
-    return vy_ast.get_node(py_ast)  # type: ignore
+    def offset_to_line(self, offset: int) -> Tuple[int, int]:
+        """
+        Converts 0-based character offset to pair (line, col) of 1-based line and 0-based column
+        numbers.
+        """
+        offset = max(0, min(self._text_len, offset))
+        line_index = bisect.bisect_right(self._line_offsets, offset) - 1
+        return (line_index + 1, offset - self._line_offsets[line_index])
 
 
 def ast_to_dict(ast_struct: Union[vy_ast.VyperNode, List]) -> Union[Dict, List]:

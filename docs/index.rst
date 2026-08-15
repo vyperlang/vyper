@@ -1,38 +1,85 @@
-.. image:: vyper-logo-transparent.svg
-    :width: 140px
+.. image:: _static/logo-dark.svg
+    :class: dark-only
     :alt: Vyper logo
     :align: center
 
-Vyper
-#####
+.. image:: _static/logo-light.svg
+    :class: light-only
+    :alt: Vyper logo
+    :align: center
 
-Vyper is a contract-oriented, pythonic programming language that targets the `Ethereum Virtual Machine (EVM) <https://ethereum.org/learn/#ethereum-basics>`_.
+Overview
+########
 
-Principles and Goals
-====================
+Vyper is a Pythonic smart contract language that compiles to `Ethereum Virtual Machine (EVM) <https://ethereum.org/learn/#ethereum-basics>`_ bytecode.
+It prioritises **security**, **auditability**, and **simplicity**.
 
-* **Security**: It should be possible and natural to build secure smart-contracts in Vyper.
-* **Language and compiler simplicity**: The language and the compiler implementation should strive to be simple.
-* **Auditability**: Vyper code should be maximally human-readable. Furthermore, it should be maximally difficult to write misleading code. Simplicity for the reader is more important than simplicity for the writer, and simplicity for readers with low prior experience with Vyper (and low prior experience with programming in general) is particularly important.
+.. _design-principles:
 
-Because of this Vyper provides the following features:
+Principles
+==========
 
-* **Bounds and overflow checking**: On array accesses and arithmetic.
-* **Support for signed integers and decimal fixed point numbers**
-* **Decidability**: It is possible to compute a precise upper bound for the gas consumption of any Vyper function call.
-* **Strong typing**
-* **Small and understandable compiler code**
-* **Limited support for pure functions**: Anything marked constant is not allowed to change the state.
+* **Security**: Building secure smart contracts should be natural, not an uphill battle.
+* **Simplicity**: Both the language and compiler should be easy to understand.
+* **Auditability**: Code should be maximally human-readable. Simplicity for the reader matters more than convenience for the writer.
 
-Following the principles and goals, Vyper **does not** provide the following features:
+Key Features
+============
 
-* **Modifiers**: For example in Solidity you can define a ``function foo() mod1 { ... }``, where ``mod1`` can be defined elsewhere in the code to include a check that is done before execution, a check that is done after execution, some state changes, or possibly other things. Vyper does not have this, because it makes it too easy to write misleading code. ``mod1`` just looks too innocuous for something that could add arbitrary pre-conditions, post-conditions or state changes. Also, it encourages people to write code where the execution jumps around the file, harming auditability. The usual use case for a modifier is something that performs a single check before execution of a program; our recommendation is to simply inline these checks as asserts.
-* **Class inheritance**: Class inheritance requires people to jump between multiple files to understand what a program is doing, and requires people to understand the rules of precedence in case of conflicts ("Which class's function ``X`` is the one that's actually used?"). Hence, it makes code too complicated to understand which negatively impacts auditability.
-* **Inline assembly**: Adding inline assembly would make it no longer possible to search for a variable name in order to find all instances where that variable is read or modified.
-* **Function overloading**: This can cause lots of confusion on which function is called at any given time. Thus it's easier to write missleading code (``foo("hello")`` logs "hello" but ``foo("hello", "world")`` steals your funds). Another problem with function overloading is that it makes the code much harder to search through as you have to keep track on which call refers to which function.
-* **Operator overloading**: Operator overloading makes writing misleading code possible. For example ``+`` could be overloaded so that it executes commands that are not visible at a first glance, such as sending funds the user did not want to send.
-* **Recursive calling**: Recursive calling makes it impossible to set an upper bound on gas limits, opening the door for gas limit attacks.
-* **Infinite-length loops**: Similar to recursive calling, infinite-length loops make it impossible to set an upper bound on gas limits, opening the door for gas limit attacks.
-* **Binary fixed point**: Decimal fixed point is better, because any decimal fixed point value written as a literal in code has an exact representation, whereas with binary fixed point approximations are often required (e.g. (0.2)\ :sub:`10` = (0.001100110011...)\ :sub:`2`, which needs to be truncated), leading to unintuitive results, e.g. in Python 0.3 + 0.3 + 0.3 + 0.1 != 1.
+**Safety by default**
 
-Vyper **does not** strive to be a 100% replacement for everything that can be done in Solidity; it will deliberately forbid things or make things harder if it deems fit to do so for the goal of increasing security.
+* Bounds and overflow checking on array accesses and arithmetic
+* Reentrancy protection via the ``@nonreentrant`` decorator (see :ref:`control-structures`)
+* Strong typing with explicit :ref:`type conversions <type_conversions>`
+
+**Predictable execution**
+
+* Decidable gas consumption: every function call has a calculable upper bound
+* Bounded loops only (compile-time maximum iterations)
+* No recursion: execution flow is structurally decreasing
+
+**Clean code reuse**
+
+* :ref:`Module imports <modules>` instead of class inheritance
+* Explicit ``extcall`` and ``staticcall`` keywords for external contract interactions
+* Support for :ref:`pure functions <function-mutability>` that cannot modify state
+
+Compiler-Enforced Security
+==========================
+
+Vyper eliminates entire vulnerability classes by excluding features that enable dangerous patterns:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Excluded Feature
+     - Why It Matters
+   * - Inline assembly
+     - Preserves type safety, overflow protection, and searchability of variable usage
+   * - Class inheritance
+     - Removes ambiguity about which code executes and simplifies auditing
+   * - Modifiers
+     - All checks are inline and visible, no hidden pre/post conditions
+   * - Function overloading
+     - Function calls are unambiguous; ``foo(x)`` always means the same thing
+   * - Operator overloading
+     - Arithmetic operators do exactly what they appear to do
+   * - Infinite loops
+     - Gas costs are always bounded and predictable
+   * - Recursive calls
+     - Call graphs are simple and gas limits are enforceable
+
+These constraints mean developers cannot accidentally introduce dangerous patterns, even under time pressure or with limited blockchain experience.
+
+Deep Verification
+=================
+
+Vyper’s design makes **deep verification** practical on a production smart-contract language.
+
+See :doc:`deep-verification` for the full discussion of verification depth, verification gap, and the current state of Vyper’s formal semantics and compiler verification work.
+
+Decimal Fixed Point
+===================
+
+Vyper uses decimal (not binary) fixed point numbers. This ensures that literals like ``0.1`` have exact representations, avoiding the subtle precision errors common in binary floating-point arithmetic.

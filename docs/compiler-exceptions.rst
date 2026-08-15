@@ -58,7 +58,9 @@ of the error within the code:
 
     Raises when no valid type can be found for a literal value.
 
-    .. code-block:: python
+    .. code-block:: vyper
+
+        #pragma enable-decimals
 
         @external
         def foo():
@@ -70,7 +72,7 @@ of the error within the code:
 
     Raises when using an invalid operator for a given type.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         def foo():
@@ -82,7 +84,7 @@ of the error within the code:
 
     Raises on an invalid reference to an existing definition.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         baz: int128
 
@@ -96,7 +98,7 @@ of the error within the code:
 
     Raises when using an invalid literal value for the given type.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
         @external
         def foo():
@@ -132,9 +134,9 @@ of the error within the code:
 
     Raises when attempting to access ``msg.value`` from within a function that has not been marked as ``@payable``.
 
-    .. code-block:: python
+    .. code-block:: vyper
 
-        @public
+        @external
         def _foo():
             bar: uint256 = msg.value
 
@@ -172,19 +174,21 @@ of the error within the code:
 
 .. py:exception:: TypeMismatch
 
-    Raises when attempting to perform an action between two or more objects with known, dislike types.
+    Raises when attempting to perform an action between two or more objects with incompatible types.
 
-    .. code-block:: python
+    .. code-block:: vyper
+
+        #pragma enable-decimals
 
         @external
-        def foo(:
+        def foo():
             bar: int128 = 3
-            foo: decimal = 4.2
+            baz: decimal = 4.2
 
-            if foo + bar > 4:
+            if baz + bar > 4:
                 pass
 
-    ``foo`` has a type of ``int128`` and ``bar`` has a type of ``decimal``, so attempting to add them together  raises a ``TypeMismatch``.
+    ``bar`` has a type of ``int128`` and ``baz`` has a type of ``decimal``, so attempting to add them together raises a ``TypeMismatch``.
 
 .. py:exception:: UndeclaredDefinition
 
@@ -215,7 +219,7 @@ CompilerPanic
 
 .. py:exception:: CompilerPanic
 
-    ::
+    .. code:: shell
 
         $ vyper v.vy
         Error compiling: v.vy

@@ -15,9 +15,7 @@ def _parse_cli_args():
 def _parse_args(argv):
     parser = argparse.ArgumentParser(description="Vyper IR IR compiler")
     parser.add_argument("input_file", help="Vyper sourcecode to compile")
-    parser.add_argument(
-        "--version", action="version", version=f"{vyper.__version__}+commit{vyper.__commit__}"
-    )
+    parser.add_argument("--version", action="version", version=vyper.__long_version__)
     parser.add_argument(
         "-f",
         help="Format to print csv list of ir,opt_ir,asm,bytecode",
@@ -55,7 +53,7 @@ def compile_to_ir(input_file, output_formats, show_gas_estimates=False):
         compiler_data["asm"] = asm
 
     if "bytecode" in output_formats:
-        (bytecode, _srcmap) = compile_ir.assembly_to_evm(asm)
+        bytecode, _ = compile_ir.assembly_to_evm(asm)
         compiler_data["bytecode"] = "0x" + bytecode.hex()
 
     return compiler_data

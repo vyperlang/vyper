@@ -14,7 +14,7 @@ Vyper has different groups that are considered "users":
 
 Each set of users must understand which changes to the compiler may require their
 attention, and how these changes may impact their use of the compiler.
-This guide defines what scope each compiler change may have, it's potential impact based
+This guide defines what scope each compiler change may have and its potential impact based
 on the type of user, so that users can stay informed about the progress of Vyper.
 
 +-------------+----------------------------------------------+
@@ -22,7 +22,7 @@ on the type of user, so that users can stay informed about the progress of Vyper
 +=============+==============================================+
 | Developers  | Write smart contracts in Vyper               |
 +-------------+----------------------------------------------+
-| Integrators | Integerating Vyper package or CLI into tools |
+| Integrators | Integrating Vyper package or CLI into tools  |
 +-------------+----------------------------------------------+
 | Auditors    | Aware of Vyper features and security issues  |
 +-------------+----------------------------------------------+
@@ -30,10 +30,10 @@ on the type of user, so that users can stay informed about the progress of Vyper
 A big part of Vyper's "public API" is the language grammar.
 The syntax of the language is the main touchpoint all parties have with Vyper,
 so it's important to discuss changes to the language from the viewpoint of dependability.
-Users expect that all contracts written in an earlier version of Vyper will work seemlessly
+Users expect that all contracts written in an earlier version of Vyper will work seamlessly
 with later versions, or that they will be reasonably informed when this isn't possible.
-The Vyper package itself and it's CLI utilities also has a fairly well-defined public API,
-which consists of the available features in Vyper's 
+The Vyper package itself and its CLI utilities also has a fairly well-defined public API,
+which consists of the available features in Vyper's
 `exported package <https://github.com/vyperlang/vyper/blob/master/vyper/__init__.py>`_,
 the top level modules under the package, and all CLI scripts.
 
@@ -94,7 +94,7 @@ Patch Release ``x.y.Z``
 Patch version releases will be released to fix documentation issues, usage bugs,
 and ``minor`` or ``informational`` vulnerabilities found in Vyper.
 Patch releases should only update error messages and documentation issues
-relating to it's external API.
+relating to its external API.
 
 +-------------+----------------------------------------------+
 | Group       |               Look For                       |
@@ -113,23 +113,16 @@ As Vyper develops, it is very likely that we will encounter inconsistencies in h
 language features can be used, and software bugs in the code the compiler generates.
 Some of them may be quite serious, and can render a user's compiled contract vulnerable to
 exploitation for financial gain.
-As we become aware of these vunlerabilities, we will work according to our
+As we become aware of these vulnerabilities, we will work according to our
 `security policy <https://github.com/vyperlang/vyper/security/policy>`_ to resolve these issues,
 and eventually will publish the details of all reported vulnerabilities
 `here <https://github.com/vyperlang/vyper/security/advisories?state=published>`_.
 Fixes for these issues will also be noted in the :ref:`Release Notes<release-notes>`.
 
-Vyper *Next*
-------------
+Pre-Release Versions
+--------------------
 
-There may be multiple Major versions in process of development.
-Work on new features that break compatibility with the existing grammar can
-be maintained on a separate branch called ``next`` and represents the next
-Major release of Vyper (provided in an unaudited state without Release Notes).
-The work on the current branch will remain on the ``master`` branch with periodic
-new releases using the process as mentioned above.
-
-Any other branches of work outside of what is being tracked via ``master``
+Any branches of work outside of what is being tracked via ``master``
 will use the ``-alpha.[release #]`` (Alpha) to denote WIP updates,
 and ``-beta.[release #]`` (Beta) to describe work that is eventually intended for release.
 ``-rc.[release #]`` (Release Candidate) will only be used to denote candidate builds
@@ -141,11 +134,7 @@ and will be made available alongside the full audit report summarizing the findi
 Pull Requests
 =============
 
-Pull Requests can be opened against either ``master`` or ``next`` branch, depending on their content.
-Changes that would increment a Minor or Patch release should target ``master``,
-whereas changes to syntax (as detailed above) should be opened against ``next``.
-The ``next`` branch will be periodically rebased against the ``master`` branch to pull in changes made
-that were added to the latest supported version of Vyper.
+Pull Requests should be opened against the ``master`` branch.
 
 Communication
 =============

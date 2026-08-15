@@ -1,0 +1,12 @@
+
+@view
+def name() -> String[...]:
+    ...
+
+@view
+def symbol() -> String[...]:
+    ...
+
+@view
+def decimals() -> uint8:
+    ...

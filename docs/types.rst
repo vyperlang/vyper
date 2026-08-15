@@ -9,14 +9,13 @@ Vyper is a statically typed language. The type of each variable (state and local
 
 In addition, types can interact with each other in expressions containing operators.
 
-.. index:: ! value
+Unlike in some other languages, there are no sub-categories of types. Values are always copied, both when assigned to a variable and when passed to a function (also known as call-by-value). This means a calling function never needs to worry about a callee modifying the data of a passed structure.
 
-Value Types
-===========
+.. note::
 
-The following types are also called value types because variables of these
-types will always be passed by value, i.e. they are always copied when they
-are used as function arguments or in assignments.
+    However neither parameters of :ref:`structure-functions-internal` nor variables are immutable. They can be reassigned to values of the same type. Furthermore, some types (for example arrays and structs) have operations that modify them in place, usually by assigning to their members directly (for example ``my_array[0] = 42``).
+
+    Parameters of :ref:`structure-functions-external` are immutable. They can neither be reassigned nor modified in place.
 
 .. index:: ! bool, ! true, ! false
 
@@ -95,15 +94,44 @@ Operator       Description
 ``x - y``      Subtraction
 ``-x``         Unary minus/Negation
 ``x * y``      Multiplication
-``x / y``      Division
+``x // y``     Integer division
 ``x**y``       Exponentiation
 ``x % y``      Modulo
 =============  ======================
 
 ``x`` and ``y`` must both be of the same type.
 
+Bitwise Operators
+^^^^^^^^^^^^^^^^^
+
+=============  ======================
+Operator       Description
+=============  ======================
+``x & y``      Bitwise and
+``x | y``      Bitwise or
+``x ^ y``      Bitwise xor
+=============  ======================
+
+``x`` and ``y`` must be of the same type.
+
+Shifts
+^^^^^^^^^^^^^^^^^
+
+=============  ======================
+Operator       Description
+=============  ======================
+``x << y``     Left shift
+``x >> y``     Right shift
+=============  ======================
+
+Shifting is only available for 256-bit wide types. That is, ``x`` must be ``int256``, and ``y`` can be any unsigned integer. The right shift for ``int256`` compiles to a signed right shift (EVM ``SAR`` instruction).
+
+
 .. note::
-    Arithmetic is currently only available for ``int128`` and ``int256`` types.
+   While at runtime shifts are unchecked (that is, they can be for any number of bits), to prevent common mistakes, the compiler is stricter at compile-time and will prevent out of bounds shifts. For instance, at runtime, ``1 << 257`` will evaluate to ``0``, while that expression at compile-time will raise an ``OverflowException``.
+
+.. note::
+   Integer division has different rounding semantics than Python for negative numbers: Vyper rounds towards zero, while Python rounds towards negative infinity. For example, ``-1 // 2`` will return ``-1`` in Python, but ``0`` in Vyper. This preserves the spirit (but not the text!) of the reasoning for Python's round-towards-negative-infinity behavior, which is that the behavior of ``//`` combined with the behavior of ``%`` preserves the following identity no matter if the quantities are negative or non-negative: ``(x // y) * y + (x % y) == x``.
 
 .. index:: ! uint, ! uintN, ! unsigned integer
 
@@ -154,7 +182,7 @@ Operator                     Description
 ``x + y``                    Addition
 ``x - y``                    Subtraction
 ``x * y``                    Multiplication
-``x / y``                    Division
+``x // y``                   Integer division
 ``x**y``                     Exponentiation
 ``x % y``                    Modulo
 ===========================  ======================
@@ -176,14 +204,33 @@ Operator       Description
 ``x`` and ``y`` must be of the same type.
 
 .. note::
-    Bitwise operations are currently only available for ``uint256`` type.
+    The Bitwise ``not`` operator is currently only available for ``uint256`` type.
+
+Shifts
+^^^^^^^^^^^^^^^^^
+
+=============  ======================
+Operator       Description
+=============  ======================
+``x << y``     Left shift
+``x >> y``     Right shift
+=============  ======================
+
+Shifting is only available for 256-bit wide types. That is, ``x`` must be ``uint256``, and ``y`` can be any unsigned integer. The right shift for ``uint256`` compiles to an unsigned right shift (EVM ``SHR`` instruction).
+
+
+.. note::
+   While at runtime shifts are unchecked (that is, they can be for any number of bits), to prevent common mistakes, the compiler is stricter at compile-time and will prevent out of bounds shifts. For instance, at runtime, ``1 << 257`` will evaluate to ``0``, while that expression at compile-time will raise an ``OverflowException``.
+
+
 
 Decimals
 --------
 
 **Keyword:** ``decimal``
 
-A decimal is a type to store a decimal fixed point value.
+A decimal is a type to store a decimal fixed point value. As of v0.4.0, decimals must be enabled with the CLI flag ``--enable-decimals``.
+
 
 Values
 ******
@@ -192,7 +239,7 @@ A value with a precision of 10 decimal places between -1870722095783555735300716
 
 In order for a literal to be interpreted as ``decimal`` it must include a decimal point.
 
-The ABI type (for computing method identifiers) of ``decimal`` is ``fixed168x10``.
+The ABI type (for computing method identifiers) of ``decimal`` is ``int168``.
 
 Operators
 *********
@@ -225,7 +272,7 @@ Operator       Description
 ``x - y``      Subtraction
 ``-x``         Unary minus/Negation
 ``x * y``      Multiplication
-``x / y``      Division
+``x / y``      Decimal division
 ``x % y``      Modulo
 =============  ==========================================
 
@@ -243,7 +290,7 @@ The address type holds an Ethereum address.
 Values
 ******
 
-An address type can hold an Ethereum address which equates to 20 bytes or 160 bits. Address literals must be written in hexadecimal notation with a leading ``0x`` and must be `checksummed <https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md>`_.
+An address type can hold an Ethereum address which equates to 20 bytes or 160 bits. Address literals must be written in hexadecimal notation with a leading ``0x`` and must be `checksummed <https://github.com/ethereum/EIPs/blob/master/EIPS/eip-55.md>`_.
 
 .. _members-of-addresses:
 
@@ -254,7 +301,7 @@ Members
 Member          Type        Description
 =============== =========== ==========================================================================
 ``balance``     ``uint256`` Balance of an address
-``codehash``    ``bytes32`` Keccak of code at an address, ``EMPTY_BYTES32`` if no contract is deployed
+``codehash``    ``bytes32`` Keccak of code at an address, ``0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470`` if no contract is deployed (see `EIP-1052 <https://eips.ethereum.org/EIPS/eip-1052>`_)
 ``codesize``    ``uint256`` Size of code deployed at an address, in bytes
 ``is_contract`` ``bool``    Boolean indicating if a contract is deployed at an address
 ``code``        ``Bytes``   Contract bytecode
@@ -271,7 +318,7 @@ Syntax as follows: ``_address.<member>``, where ``_address`` is of the type ``ad
     ``_address.code`` requires the usage of :func:`slice <slice>` to explicitly extract a section of contract bytecode. If the extracted section exceeds the bounds of bytecode, this will throw. You can check the size of ``_address.code`` using ``_address.codesize``.
 
 M-byte-wide Fixed Size Byte Array
-----------------------
+---------------------------------
 
 **Keyword:** ``bytesM``
 This is an M-byte-wide byte array that is otherwise similar to dynamically sized byte arrays. On an ABI level, it is annotated as bytesM (e.g., bytes32).
@@ -294,10 +341,10 @@ Keyword                               Description
 ====================================  ============================================================
 ``keccak256(x)``                      Return the keccak256 hash as bytes32.
 ``concat(x, ...)``                    Concatenate multiple inputs.
-``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
+``slice(x, start, length)``           Return a slice of ``length`` bytes starting at ``start``.
 ====================================  ============================================================
 
-Where ``x`` is a byte array and ``_start`` as well as ``_len`` are integer values.
+Where ``x`` is a byte array and ``start`` as well as ``length`` are integer values.
 
 .. index:: !bytes
 
@@ -311,11 +358,12 @@ A byte array with a max size.
 The syntax being ``Bytes[maxLen]``, where ``maxLen`` is an integer which denotes the maximum number of bytes.
 On the ABI level the Fixed-size bytes array is annotated as ``bytes``.
 
-Bytes literals may be given as bytes strings.
+Bytes literals may be given as bytes strings or as hex strings.
 
-.. code-block:: python
+.. code-block:: vyper
 
     bytes_string: Bytes[100] = b"\x01"
+    bytes_string: Bytes[100] = x"01"
 
 .. index:: !string
 
@@ -327,26 +375,26 @@ Strings
 Fixed-size strings can hold strings with equal or fewer characters than the maximum length of the string.
 On the ABI level the Fixed-size bytes array is annotated as ``string``.
 
-.. code-block:: python
+.. code-block:: vyper
 
     example_str: String[100] = "Test String"
 
-Enums
+Flags
 -----
 
-**Keyword:** ``enum``
+**Keyword:** ``flag``
 
-Enums are custom defined types. An enum must have at least one member, and can hold up to a maximum of 256 members.
+Flags are custom defined types. A flag must have at least one member, and can hold up to a maximum of 256 members.
 The members are represented by ``uint256`` values in the form of 2\ :sup:`n` where ``n`` is the index of the member in the range ``0 <= n <= 255``.
 
-.. code-block:: python
+.. code-block:: vyper
 
-    # Defining an enum with two members
-    enum Roles:
+    # Defining a flag with two members
+    flag Roles:
         ADMIN
         USER
 
-    # Declaring an enum variable
+    # Declaring a flag variable
     role: Roles = Roles.ADMIN
 
     # Returning a member
@@ -381,13 +429,13 @@ Operator       Description
 ``~x``         Bitwise not
 =============  ======================
 
-Enum members can be combined using the above bitwise operators. While enum members have values that are power of two, enum member combinations may not.
+Flag members can be combined using the above bitwise operators. While flag members have values that are power of two, flag member combinations may not.
 
-The ``in`` and ``not in`` operators can be used in conjunction with enum member combinations to check for membership.
+The ``in`` and ``not in`` operators can be used in conjunction with flag member combinations to check for membership.
 
-.. code-block:: python
+.. code-block:: vyper
 
-    enum Roles:
+    flag Roles:
         MANAGER
         ADMIN
         USER
@@ -402,11 +450,12 @@ The ``in`` and ``not in`` operators can be used in conjunction with enum member 
     def bar(a: Roles) -> bool:
         return a not in (Roles.MANAGER | Roles.USER)
 
-Note that ``in`` is not the same as strict equality (``==``). ``in`` checks that *any* of the flags on two enum objects are simultaneously set, while ``==`` checks that two enum objects are bit-for-bit equal.
+Note that ``in`` is not the same as strict equality (``==``). ``in`` checks that *any* of the flags on two flag objects are simultaneously set, while ``==`` checks that two flag objects are bit-for-bit equal.
 
 The following code uses bitwise operations to add and revoke permissions from a given ``Roles`` object.
 
 .. code-block:: python
+
     @external
     def add_user(a: Roles) -> Roles:
         ret: Roles = a
@@ -425,17 +474,6 @@ The following code uses bitwise operations to add and revoke permissions from a 
         ret ^= Roles.USER  # flip the user bit between 0 and 1
         return ret
 
-.. index:: !reference
-
-Reference Types
-===============
-
-Reference types are those whose components can be assigned to in-place without copying. For instance, array and struct members can be individually assigned to without overwriting the whole data structure.
-
-.. note::
-
-  In terms of the calling convention, reference types are passed by value, not by reference. That means that, a calling function does not need to worry about a callee modifying the data of a passed structure.
-
 .. index:: !arrays
 
 Fixed-size Lists
@@ -443,9 +481,9 @@ Fixed-size Lists
 
 Fixed-size lists hold a finite number of elements which belong to a specified type.
 
-Lists can be declared with ``_name: _ValueType[_Integer]``.
+Lists can be declared with ``_name: _ValueType[_Integer]``, except ``Bytes[N]``, ``String[N]`` and flags.
 
-.. code-block:: python
+.. code-block:: vyper
 
     # Defining a list
     exampleList: int128[3]
@@ -461,7 +499,7 @@ Multidimensional lists are also possible. The notation for the declaration is re
 
 A two dimensional list can be declared with ``_name: _ValueType[inner_size][outer_size]``. Elements can be accessed with ``_name[outer_index][inner_index]``.
 
-.. code-block:: python
+.. code-block:: vyper
 
     # Defining a list with 2 rows and 5 columns and set all values to 0
     exampleList2D: int128[5][2] = empty(int128[5][2])
@@ -475,14 +513,17 @@ A two dimensional list can be declared with ``_name: _ValueType[inner_size][oute
     # Returning the value in row 0 column 4 (in this case 14)
     return exampleList2D[0][4]
 
+.. note::
+    Defining an array in storage whose size is significantly larger than ``2**64`` can result in security vulnerabilities due to risk of overflow.
+
 .. index:: !dynarrays
 
 Dynamic Arrays
 ----------------
 
-Dynamic arrays represent bounded arrays whose length can be modified at runtime, up to a bound specified in the type. They can be declared with ``_name: DynArray[_Type, _Integer]``, where ``_Type`` can be of value type (except ``Bytes[N]`` and ``String[N]``) or reference type (except mappings).
+Dynamic arrays represent bounded arrays whose length can be modified at runtime, up to a bound specified in the type. They can be declared with ``_name: DynArray[_Type, _Integer]``, where ``_Type`` can be of value type or reference type (except mappings).
 
-.. code-block:: python
+.. code-block:: vyper
 
     # Defining a list
     exampleList: DynArray[int128, 3]
@@ -515,14 +556,18 @@ Dynamic arrays represent bounded arrays whose length can be modified at runtime,
     Attempting to access data past the runtime length of an array, ``pop()`` an empty array or ``append()`` to a full array will result in a runtime ``REVERT``. Attempting to pass an array in calldata which is larger than the array bound will result in a runtime ``REVERT``.
 
 .. note::
-    To keep code easy to reason about, modifying an array while using it as an iterator it is disallowed by the language. For instance, the following usage is not allowed:
+    To keep code easy to reason about, modifying an array while using it as an iterator is disallowed by the language. For instance, the following usage is not allowed:
 
-    .. code-block:: python
+    .. code-block:: vyper
 
-        for item in self.my_array:
+        for item: uint256 in self.my_array:
             self.my_array[0] = item
 
 In the ABI, they are represented as ``_Type[]``. For instance, ``DynArray[int128, 3]`` gets represented as ``int128[]``, and ``DynArray[DynArray[int128, 3], 3]`` gets represented as ``int128[][]``.
+
+.. note::
+    Defining a dynamic array in storage whose size is significantly larger than ``2**64`` can result in security vulnerabilities due to risk of overflow.
+
 
 .. _types-struct:
 
@@ -535,7 +580,7 @@ Struct types can be used inside mappings and arrays. Structs can contain arrays 
 
 Struct members can be accessed via ``struct.argname``.
 
-.. code-block:: python
+.. code-block:: vyper
 
     # Defining a struct
     struct MyStruct:
@@ -543,7 +588,7 @@ Struct members can be accessed via ``struct.argname``.
         value2: decimal
 
     # Declaring a struct variable
-    exampleStruct: MyStruct = MyStruct({value1: 1, value2: 2.0})
+    exampleStruct: MyStruct = MyStruct(value1=1, value2=2.0)
 
     # Accessing a value
     exampleStruct.value1 = 1
@@ -559,13 +604,13 @@ The key data is not stored in a mapping. Instead, its ``keccak256`` hash is used
 
 Mapping types are declared as ``HashMap[_KeyType, _ValueType]``.
 
-* ``_KeyType`` can be any base or bytes type. Mappings, interfaces or structs are not supported as key types.
+* ``_KeyType`` can be any base or bytes type. Mappings, arrays or structs are not supported as key types.
 * ``_ValueType`` can actually be any type, including mappings.
 
 .. note::
     Mappings are only allowed as state variables.
 
-.. code-block:: python
+.. code-block:: vyper
 
    # Defining a mapping
    exampleMapping: HashMap[int128, decimal]
@@ -582,7 +627,7 @@ Mapping types are declared as ``HashMap[_KeyType, _ValueType]``.
 .. _types-initial:
 
 Initial Values
-==============
+--------------
 
 Unlike most programming languages, Vyper does not have a concept of ``null``. Instead, every variable type has a default value. To check if a variable is empty, you must compare it to the default value for its given type.
 
@@ -617,7 +662,7 @@ Type        Default Value
 .. _type_conversions:
 
 Type Conversions
-================
+----------------
 
 All type conversions in Vyper must be made explicitly using the built-in ``convert(a: atype, btype)`` function. Type conversions in Vyper are designed to be safe and intuitive. All type conversions will check that the input is in bounds for the output type. The general principles are:
 
@@ -630,6 +675,6 @@ All type conversions in Vyper must be made explicitly using the built-in ``conve
 * Narrowing conversions (e.g., ``int256 -> int128``) check that the input is in bounds for the output type.
 * Converting between bytes and int types results in sign-extension if the output type is signed. For instance, converting ``0xff`` (``bytes1``) to ``int8`` returns ``-1``.
 * Converting between bytes and int types which have different sizes follows the rule of going through the closest integer type, first. For instance, ``bytes1 -> int16`` is like ``bytes1 -> int8 -> int16`` (signextend, then widen). ``uint8 -> bytes20`` is like ``uint8 -> uint160 -> bytes20`` (rotate left 12 bytes).
-* Enums can be converted to and from ``uint256`` only.
+* Flags can be converted to and from ``uint256`` only.
 
-A small Python reference implementation is maintained as part of Vyper's test suite, it can be found `here <https://github.com/vyperlang/vyper/blob/c4c6afd07801a0cc0038cdd4007cc43860c54193/tests/parser/functions/test_convert.py#L318>`_. The motivation and more detailed discussion of the rules can be found `here <https://github.com/vyperlang/vyper/issues/2507>`_.
+A small Python reference implementation is maintained as part of Vyper's test suite, it can be found `here <https://github.com/vyperlang/vyper/blob/c4c6afd07801a0cc0038cdd4007cc43860c54193/tests/parser/functions/test_convert.py#L318>`__. The motivation and more detailed discussion of the rules can be found `here <https://github.com/vyperlang/vyper/issues/2507>`__.

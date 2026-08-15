@@ -1,27 +1,27 @@
-SHELL := /bin/bash
-
-ifeq (, $(shell which pip3))
-	pip := $(shell which pip3)
-else
-	pip := $(shell which pip)
-endif
-
 .PHONY: test dev-deps lint clean clean-pyc clean-build clean-test docs
 
 init:
 	python setup.py install
 
 dev-init:
-	${pip} install .[dev]
+	pip install . --group dev
 
 test:
 	pytest
 
-mypy:
-	tox -e mypy
+lint: mypy black flake8 isort
 
-lint:
-	tox -e lint
+mypy:
+	mypy -p vyper
+
+black:
+	black vyper/ tests/ setup.py
+
+flake8: black
+	flake8 vyper/ tests/
+
+isort: black
+	isort vyper/ tests/ setup.py
 
 docs:
 	rm -f docs/vyper.rst
@@ -43,7 +43,7 @@ freeze: clean init
 	echo Generating binary...
 	export OS="$$(uname -s | tr A-Z a-z)" && \
 	export VERSION="$$(PYTHONPATH=. python vyper/cli/vyper_compile.py --version)" && \
-	pyinstaller --clean --onefile vyper/cli/vyper_compile.py --name "vyper.$${VERSION}.$${OS}" --add-data vyper:vyper
+	pyinstaller --target-architecture=universal2 --clean --onefile vyper/cli/vyper_compile.py --name "vyper.$${VERSION}.$${OS}" --add-data vyper:vyper
 
 clean: clean-build clean-docs clean-pyc clean-test
 

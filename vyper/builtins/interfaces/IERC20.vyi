@@ -1,0 +1,32 @@
+# Events
+event Transfer:
+    sender: indexed(address)
+    receiver: indexed(address)
+    value: uint256
+
+event Approval:
+    owner: indexed(address)
+    spender: indexed(address)
+    value: uint256
+
+# Functions
+@view
+def totalSupply() -> uint256:
+    ...
+
+@view
+def balanceOf(_owner: address) -> uint256:
+    ...
+
+@view
+def allowance(_owner: address, _spender: address) -> uint256:
+    ...
+
+def transfer(_to: address, _value: uint256) -> bool:
+    ...
+
+def transferFrom(_from: address, _to: address, _value: uint256) -> bool:
+    ...
+
+def approve(_spender: address, _value: uint256) -> bool:
+    ...

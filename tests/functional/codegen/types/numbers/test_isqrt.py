@@ -1,0 +1,175 @@
+import math
+
+import hypothesis
+import pytest
+
+from vyper.compiler import compile_code
+from vyper.exceptions import UnimplementedException
+from vyper.utils import SizeLimits
+
+
+@pytest.fixture(scope="module")
+def isqrt_contract(get_contract):
+    code = """
+import math
+
+@external
+def test(a: uint256) -> uint256:
+    return math.isqrt(a)
+    """
+    c = get_contract(code)
+    return c
+
+
+def test_isqrt_literal(get_contract):
+    val = 2
+    code = f"""
+import math
+
+@external
+def test() -> uint256:
+    return math.isqrt({val})
+    """
+    c = get_contract(code)
+    assert c.test() == math.isqrt(val)
+
+
+def test_isqrt_variable(get_contract):
+    code = """
+import math
+
+@external
+def test(a: uint256) -> uint256:
+    return math.isqrt(a)
+    """
+
+    c = get_contract(code)
+
+    val = 3333
+    assert c.test(val) == math.isqrt(val)
+
+    val = 10**17
+    assert c.test(val) == math.isqrt(val)
+    assert c.test(0) == 0
+
+
+def test_isqrt_internal_variable(get_contract):
+    val = 44001
+    code = f"""
+import math
+
+@external
+def test2() -> uint256:
+    a: uint256 = {val}
+    return math.isqrt(a)
+    """
+    c = get_contract(code)
+    assert c.test2() == math.isqrt(val)
+
+
+def test_isqrt_storage(get_contract):
+    code = """
+import math
+
+s_var: uint256
+
+@external
+def test(a: uint256) -> uint256:
+    self.s_var = a + 1
+    return math.isqrt(self.s_var)
+    """
+
+    c = get_contract(code)
+    val = 1221
+    assert c.test(val) == math.isqrt(val + 1)
+    val = 10001
+    assert c.test(val) == math.isqrt(val + 1)
+
+
+def test_isqrt_storage_internal_variable(get_contract):
+    val = 44444
+    code = f"""
+import math
+
+s_var: uint256
+
+@external
+def test2() -> uint256:
+    self.s_var = {val}
+    return math.isqrt(self.s_var)
+    """
+    c = get_contract(code)
+    assert c.test2() == math.isqrt(val)
+
+
+def test_isqrt_inline_memory_correct(get_contract):
+    code = """
+import math
+
+@external
+def test(a: uint256) -> (uint256, uint256, uint256, uint256, uint256, String[100]):
+    x: uint256 = 1
+    y: uint256 = 2
+    z: uint256 = 3
+    e: uint256 = math.isqrt(a)
+    f: String[100] = 'hello world'
+    return a, x, y, z, e, f
+    """
+
+    c = get_contract(code)
+
+    val = 21
+    assert c.test(val) == (val, 1, 2, 3, math.isqrt(val), "hello world")
+
+
+def _check_isqrt_valid_range(isqrt_contract, value):
+    vyper_isqrt = isqrt_contract.test(value)
+    actual_isqrt = math.isqrt(value)
+    assert vyper_isqrt == actual_isqrt
+
+    # check if sqrt limits are correct
+    next = vyper_isqrt + 1
+    assert vyper_isqrt * vyper_isqrt <= value
+    assert next * next > value
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        SizeLimits.MAX_UINT256,
+        0,
+        1,
+        # the following examples demonstrate correct rounding mode
+        # for an edge case in the babylonian method - the operand is
+        # a perfect square - 1
+        2704,
+        110889,
+        32239684,
+    ],
+)
+def test_isqrt_valid_range(isqrt_contract, value):
+    _check_isqrt_valid_range(isqrt_contract, value)
+
+
+@pytest.mark.fuzzing
+@hypothesis.given(
+    value=hypothesis.strategies.integers(min_value=0, max_value=SizeLimits.MAX_UINT256)
+)
+def test_isqrt_valid_range_fuzz(isqrt_contract, value):
+    _check_isqrt_valid_range(isqrt_contract, value)
+
+
+def test_use_old_isqrt_builtin(get_contract):
+    code = """
+import math
+
+@external
+def foo() -> uint256:
+    return isqrt(4)
+    """
+    with pytest.raises(UnimplementedException) as e:
+        compile_code(code)
+    expected = (
+        "The `isqrt` builtin was removed. Instead import module `math` and use `math.isqrt()`"
+    )
+    assert e.value.message == expected

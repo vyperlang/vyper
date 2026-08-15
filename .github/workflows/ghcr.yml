@@ -1,0 +1,80 @@
+name: Deploy docker image to ghcr
+
+# Deploy docker image to ghcr on pushes to master and all releases/tags.
+# Note releases to docker hub are managed separately in another process
+# (github sends webhooks to docker hub which triggers the build there).
+# This workflow is an alternative form of retention for docker images
+# which also allows us to tag and retain every single commit to master.
+
+on:
+  push:
+    branches:
+      - master
+  release:
+    types: [released]
+
+permissions: {}
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  deploy-ghcr:
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      # Push built images to GitHub Container Registry.
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+            # need to fetch unshallow so that setuptools_scm can infer the version
+            fetch-depth: 0
+            persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        name: Install Python ${{ env.PYTHON_VERSION }}
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Generate vyper/version.py
+        run: |
+          pip install .
+          echo "VYPER_VERSION=$(PYTHONPATH=. python vyper/cli/vyper_compile.py --version)" >> "$GITHUB_ENV"
+
+      - name: generate tag suffix
+        if: ${{ github.event_name != 'release' }}
+        run: echo "VERSION_SUFFIX=-dev" >> "$GITHUB_ENV"
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=${{ env.VYPER_VERSION }}${{ env.VERSION_SUFFIX }}
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/master' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+
+
+      - name: Login to ghcr.io
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
