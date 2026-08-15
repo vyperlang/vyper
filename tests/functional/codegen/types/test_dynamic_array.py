@@ -1316,18 +1316,6 @@ def foo() -> DynArray[{subtyp}, 3]:
     assert c.foo() == data
 
 
-def test_extend_invalid_length(get_contract, assert_compile_failed):
-    code = """
-@external
-def foo() -> DynArray[uint256, 3]:
-    x: DynArray[uint256, 3] = []
-    y: DynArray[uint256, 4] = []
-    x.extend(y)
-    return x
-    """
-    assert_compile_failed(lambda: get_contract(code), TypeMismatch)
-
-
 def test_extend_valid_length(get_contract):
     code = """
 @external
@@ -1430,7 +1418,7 @@ def foo() -> DynArray[uint256, 6]:
     assert c.foo() == [1, 2, 3, 1, 2, 3]
 
 
-extend_pop_tests = [
+extend_tests = [
     (
         """
 my_array: DynArray[uint256, 5]
@@ -1516,9 +1504,9 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
 ]
 
 
-@pytest.mark.parametrize("code,check_result", extend_pop_tests)
+@pytest.mark.parametrize("code,check_result", extend_tests)
 @pytest.mark.parametrize("test_data", [[1, 2, 3, 4, 5][:i] for i in range(6)])
-def test_extend_pop(get_contract, tx_failed, code, check_result, test_data):
+def test_extend(get_contract, tx_failed, code, check_result, test_data):
     c = get_contract(code)
     expected_result = check_result(test_data)
     if expected_result is None:
@@ -1529,7 +1517,7 @@ def test_extend_pop(get_contract, tx_failed, code, check_result, test_data):
         assert c.foo(test_data) == expected_result
 
 
-invalid_extend_pop = [
+invalid_extend = [
     (
         """
 my_array: DynArray[uint256, 5]
@@ -1539,16 +1527,27 @@ def foo(xs: DynArray[uint256, 6]) -> DynArray[uint256, 5]:
     return self.my_array
     """,
         TypeMismatch,  # Size of src darray is greater than dst darray
-    )
+    ),
+    (
+        """
+@external
+def foo() -> DynArray[uint256, 3]:
+    x: DynArray[uint256, 3] = []
+    y: DynArray[uint256, 4] = []
+    x.extend(y)
+    return x
+    """,
+        TypeMismatch,  # Size of src darray is greater than dst darray
+    ),
 ]
 
 
-@pytest.mark.parametrize("code,exception_type", invalid_extend_pop)
-def test_invalid_extend_pop(get_contract, assert_compile_failed, code, exception_type):
+@pytest.mark.parametrize("code,exception_type", invalid_extend)
+def test_invalid_extend(get_contract, assert_compile_failed, code, exception_type):
     assert_compile_failed(lambda: get_contract(code), exception_type)
 
 
-extend_pop_complex_tests = [
+extend_complex_tests = [
     (
         """
 @external
@@ -1597,11 +1596,11 @@ def foo(x: {typ}) -> ({typ}, DynArray[{typ}, 5]):
 ]
 
 
-@pytest.mark.parametrize("code_template,check_result", extend_pop_complex_tests)
+@pytest.mark.parametrize("code_template,check_result", extend_complex_tests)
 @pytest.mark.parametrize(
     "subtype", ["uint256[3]", "DynArray[uint256,3]", "DynArray[uint8, 4]", "Foo"]
 )
-def test_extend_pop_complex(get_contract, tx_failed, code_template, check_result, subtype):
+def test_extend_complex(get_contract, tx_failed, code_template, check_result, subtype):
     code = code_template.format(typ=subtype)
     test_data = [1, 2, 3]
     if subtype == "Foo":
