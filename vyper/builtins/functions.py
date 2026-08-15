@@ -2450,7 +2450,6 @@ class ABIDecode(BuiltinFunctionT):
             return b1.resolve(ret)
 
 
-<<<<<<< HEAD:vyper/builtin_functions/functions.py
 class Append(BuiltinFunction):
     _id = "append"
 

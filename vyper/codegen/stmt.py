@@ -111,7 +111,6 @@ class Stmt:
 
         return events.ir_node_for_log(self.stmt, event, topic_ir, data_ir, self.context)
 
-<<<<<<< HEAD
     def parse_Call(self):
         # TODO use expr.func.type.is_internal once type annotations
         # are consistently available.
