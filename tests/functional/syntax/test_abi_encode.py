@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InvalidLiteral, TypeMismatch, UnfoldableNode
+from vyper.exceptions import InvalidLiteral, InvalidReference, TypeMismatch, UnfoldableNode
 
 fail_list = [
     (
@@ -71,6 +71,14 @@ def foo() -> Bytes[132]:
     return abi_encode(x, y, method_id=b"")
         """,
         InvalidLiteral,  # len(method_id) must be 4
+    ),
+    (
+        """
+@external
+def foo() -> Bytes[32]:
+    return abi_encode(uint256)
+    """,
+        InvalidReference,  # a type name is not a value (vararg), see #4609
     ),
 ]
 
