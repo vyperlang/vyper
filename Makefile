@@ -9,7 +9,7 @@ dev-init:
 test:
 	pytest
 
-lint: mypy black flake8 isort
+lint: mypy black isort ruff
 
 mypy:
 	mypy -p vyper
@@ -17,11 +17,13 @@ mypy:
 black:
 	black vyper/ tests/ setup.py
 
-flake8: black
-	flake8 vyper/ tests/
+ruff:
+	ruff check vyper/ tests/ setup.py
 
 isort: black
-	isort vyper/ tests/ setup.py
+	ruff check --select I --fix vyper/ tests/ setup.py
+
+flake8: ruff
 
 docs:
 	rm -f docs/vyper.rst
