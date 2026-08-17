@@ -2,9 +2,9 @@ from vyper.evm import address_space
 from vyper.utils import OrderedSet, uniq
 from vyper.venom import effects
 from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
-from vyper.venom.analysis.mem_alias import mem_alias_type_factory
+from vyper.venom.analysis.mem_alias import mem_alias_type_factory, can_create_mem_alias
 from vyper.venom.basicblock import IRInstruction
-from vyper.venom.effects import EMPTY
+from vyper.venom.effects import EMPTY, FMP
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -58,11 +58,20 @@ class RemoveUnusedVariablesPass(IRPass):
             new_uses = self.dfg.get_uses(operand)
             self.work_list.addmany(new_uses)
 
-        assert inst.get_write_effects() == EMPTY
-        eff = inst.get_read_effects()
-        if eff != EMPTY:
-            space = effects.to_addr_space(eff)
-            assert space is not None
-            self.invalidate_alias.add(space)
+        # instructions that handle FMP can be removed if there is no use for the
+        # since they either bump or set only at the end of the function so the
+        # removal of the instruction will not effect other instructions.
+        # Other write effect should not be removed by this analysis
+        assert inst.get_write_effects() == EMPTY or inst.get_write_effects() == FMP
+        effs = inst.get_read_effects()
+        if effs != EMPTY:
+            for eff in effs:
+                space = effects.to_addr_space(eff)
+                if space is None:
+                    # sanity check
+                    assert eff == FMP, eff
+                # Mem alias does not use all address spaces
+                elif can_create_mem_alias(space):
+                    self.invalidate_alias.add(space)
 
         inst.make_nop()
