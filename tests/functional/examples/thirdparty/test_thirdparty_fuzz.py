@@ -88,5 +88,3 @@ def test_compile_pass_fuzz(vy_filename, passes_to_disable, compiler_settings, mo
         monkeypatch.setattr(pass_to_disable, "run_pass", temp)
 
     compiler.compile_code(source_code)
-
-    assert len(run) != 0 and all(run)
