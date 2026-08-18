@@ -276,7 +276,7 @@ def test_merge_jump_dedup_phi_when_direct_edge():
 
     entry:
         %x = source
-        jnz %cond, @join, @join
+        jmp @join
 
     other:
         %o = source
@@ -317,6 +317,36 @@ def test_merge_jump_conflicting_phi_operands():
     """
 
     _check_no_change(pre, hevm=False)
+
+
+def test_merge_jump_converging_arms():
+    """
+    Regression test: bypassing both arms of a `jnz` can make them converge on
+    the same block; the branch must become a `jmp` so that it does not end up
+    with a single cfg successor.
+    """
+    pre = """
+    _global:
+        %cond = source
+        jnz %cond, @then, @else
+
+    then:
+        jmp @join
+
+    else:
+        jmp @join
+
+    join:
+        sink %cond
+    """
+
+    post = """
+    _global:
+        %cond = source
+        sink %cond
+    """
+
+    _check_pre_post(pre, post)
 
 
 def test_data_section_label_chain():
