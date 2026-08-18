@@ -114,9 +114,15 @@ class ModuleInfo(AnalysisResult):
                 f"ownership already set to `{self.ownership}`", node, self.ownership_decl
             )
         self.ownership = module_ownership
+        self.ownership_decl = node
 
     def __hash__(self):
         return hash(id(self.module_t))
+
+    def __eq__(self, other):
+        if not isinstance(other, ModuleInfo):
+            return NotImplemented
+        return self.module_t is other.module_t
 
 
 @dataclass
@@ -144,6 +150,8 @@ class ImportInfo(AnalysisResult):
         return ret
 
 
+# TODO: Remove, the dependencies field is never used,
+#       and the node field is redundant with ModuleInfo.ownership_decl
 # analysis result of InitializesDecl
 @dataclass
 class InitializesInfo(AnalysisResult):
@@ -152,6 +160,7 @@ class InitializesInfo(AnalysisResult):
     node: Optional[vy_ast.VyperNode] = None
 
 
+# TODO: Remove, the node field is redundant with ModuleInfo.ownership_decl
 # analysis result of UsesDecl
 @dataclass
 class UsesInfo(AnalysisResult):
