@@ -392,7 +392,7 @@ class VenomCodegenContext:
             )
             # Copy 32 (length word) + ceil32(length) bytes
             copy_len = self.builder.add(padded_len, IRLiteral(32))
-            self.copy_memory_dynamic(ptr, val, copy_len)
+            self.copy_memory_dynamic(ptr, val, copy_len, src_typ.memory_bytes_required)
         elif src_typ != typ:
             # Layout-aware copy for assignments between compatible but not
             # identical memory layouts (e.g. DynArray[Bytes[540]] -> DynArray[Bytes[704]]).
@@ -535,7 +535,9 @@ class VenomCodegenContext:
         if src_elem_t == dst_elem_t and src_elem_size == dst_elem_size:
             data_size = b.mul(length, IRLiteral(dst_elem_size))
             assert isinstance(dst_data, IRVariable)
-            self.copy_memory_dynamic(dst_data, src_data, data_size)
+            self.copy_memory_dynamic(
+                dst_data, src_data, data_size, src_typ.memory_bytes_required - 32
+            )
             return
 
         cond_block = b.create_block("typed_dyn_copy_cond")
@@ -614,22 +616,28 @@ class VenomCodegenContext:
             assert isinstance(dst_ptr, IRVariable)
             self.builder.mstore(dst_ptr, val)
 
-    def copy_memory_dynamic(self, dst: IRVariable, src: IROperand, length: IROperand) -> None:
+    def copy_memory_dynamic(
+        self, dst: IRVariable, src: IROperand, length: IROperand, max_length: int
+    ) -> None:
         """Copy memory region with dynamic length (known at runtime).
 
-        Uses mcopy for Cancun+, otherwise identity precompile (address 4).
+        `max_length` is the frontend-proven upper bound retained as IR
+        metadata. Uses mcopy for Cancun+, otherwise identity precompile.
         """
         b = self.builder
+        assert max_length >= 0
 
         # For Cancun+, use mcopy
         if version_check(begin="cancun"):
             b.mcopy(dst, src, length)
+            b.get_last_inst("mcopy").memory_read_max_size = max_length
             return
 
         # Pre-Cancun: use identity precompile
         # staticcall(gas, IDENTITY_PRECOMPILE, src, length, dst, length)
         assert isinstance(src, IRVariable)
         success = b.staticcall(b.gas(), IRLiteral(IDENTITY_PRECOMPILE), src, length, dst, length)
+        b.get_last_inst("staticcall").memory_read_max_size = max_length
         b.assert_(success)
 
     _ALLOCATION_LIMIT: int = 2**64

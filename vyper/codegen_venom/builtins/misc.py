@@ -495,6 +495,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         # Schema is the ABI type selector, e.g. "(uint256,address)"
         schema = args_abi_t.selector_name().encode("utf-8")
         schema_len = len(schema)
+        padded_schema_len = ((schema_len + 31) // 32) * 32
 
         # Encode the args to a bytes payload first
         payload_buflen = args_abi_t.size_bound()
@@ -513,7 +514,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         b.mstore(payload_buf._ptr, payload_len)
 
         # Allocate schema buffer: [32 bytes length] | [data]
-        schema_buf = ctx.allocate_buffer(32 + schema_len)
+        schema_buf = ctx.allocate_buffer(32 + padded_schema_len)
         b.mstore(schema_buf._ptr, IRLiteral(schema_len))
 
         # Write schema string bytes (word by word)

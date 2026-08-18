@@ -270,6 +270,7 @@ class IRInstruction:
     annotation: Optional[str]
     ast_source: Optional[IRnode]
     error_msg: Optional[str]
+    memory_read_max_size: Optional[int]
 
     def __init__(
         self,
@@ -289,6 +290,9 @@ class IRInstruction:
 
         self.ast_source = None
         self.error_msg = None
+        # Optional frontend proof for dynamic memory reads. This is metadata,
+        # not an IR operand, so it cannot affect emitted code.
+        self.memory_read_max_size = None
 
     @property
     def is_volatile(self) -> bool:
@@ -392,6 +396,7 @@ class IRInstruction:
         self.opcode = "nop"
         self._outputs = []
         self.operands = []
+        self.memory_read_max_size = None
 
     def flip(self):
         """
@@ -483,6 +488,7 @@ class IRInstruction:
         ret.annotation = self.annotation
         ret.ast_source = self.ast_source
         ret.error_msg = self.error_msg
+        ret.memory_read_max_size = self.memory_read_max_size
         ret.parent = self.parent
         return ret
 
