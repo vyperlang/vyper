@@ -561,6 +561,51 @@ In the ABI, they are represented as ``_Type[]``. For instance, ``DynArray[int128
     Defining a dynamic array in storage whose size is significantly larger than ``2**64`` can result in security vulnerabilities due to risk of overflow.
 
 
+.. index:: unbounded sequences, INF
+
+Unbounded Sequence Types
+------------------------
+
+When using the experimental code generator, ``Bytes``, ``String`` and ``DynArray``
+may use ``INF`` as the length bound:
+
+.. code-block:: vyper
+
+    #pragma experimental-codegen
+
+    @external
+    def echo(x: Bytes[INF]) -> Bytes[INF]:
+        return x
+
+    @external
+    def values(xs: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
+        ys: DynArray[uint256, INF] = xs
+        ys.append(42)
+        return ys
+
+``Bytes[INF]`` and ``String[INF]`` can hold any runtime length. ``DynArray[T, INF]``
+can hold any runtime item count, but ``T`` must have an ABI-static layout, such
+as ``uint256``, ``bytes32``, static arrays, or structs made only from ABI-static
+members.
+
+Unbounded sequence values are supported for memory locals, function arguments,
+function returns, ABI encoding and decoding, and bytes-oriented builtins such as
+``concat``, ``slice``, ``convert``, ``empty`` and ``print``. Top-level return
+tuples may contain direct unbounded sequence members, for example
+``(uint256, Bytes[INF])``.
+
+Unbounded sequences are not supported in storage, transient storage, immutable
+module variables, struct members, event arguments, custom error arguments,
+static arrays, mappings, or nested inside another dynamic layout. For example,
+``DynArray[Bytes[INF], INF]`` and ``DynArray[Bytes[10], INF]`` are rejected.
+Tuple arguments and local tuple variables containing unbounded sequence members
+are also rejected.
+
+.. note::
+    ``INF`` sequence types require ``#pragma experimental-codegen`` or compiling
+    with ``--experimental-codegen``. The legacy code generator rejects them.
+
+
 .. _types-struct:
 
 Structs

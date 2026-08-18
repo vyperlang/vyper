@@ -208,7 +208,7 @@ class CompilerData:
         """
         module_t = self.annotated_vyper_module._metadata["type"]
 
-        validate_compilation_target(module_t)
+        validate_compilation_target(module_t, self.settings.experimental_codegen is True)
         return self.annotated_vyper_module
 
     @cached_property
@@ -246,9 +246,13 @@ class CompilerData:
 
     @property
     def function_signatures(self) -> dict[str, ContractFunctionT]:
-        # some metadata gets calculated during codegen, so
-        # ensure codegen is run:
-        _ = self._ir_output
+        # Some metadata gets calculated during codegen, so ensure codegen is
+        # run for contracts. Interfaces have no function bodies to generate.
+        if not self.annotated_vyper_module.is_interface:
+            if self.settings.experimental_codegen:
+                _ = self.venom_runtime
+            else:
+                _ = self._ir_output
 
         fs = self.annotated_vyper_module.get_children(vy_ast.FunctionDef)
         return {f.name: f._metadata["func_type"] for f in fs}
