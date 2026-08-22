@@ -603,11 +603,7 @@ class VenomCodegenContext:
         src_elem_t: VyperType,
         length: IROperand,
     ) -> None:
-        """Copy `length` DynArray elements between memory buffers.
-
-        `src` and `dst` point at element 0 (i.e. array base + 32). No length
-        word is read or written; the caller owns length bookkeeping.
-        """
+        """Copy `length` DynArray elements between memory buffers."""
         b = self.builder
         dst_elem_size = dst_elem_t.memory_bytes_required
         src_elem_size = src_elem_t.memory_bytes_required
@@ -656,12 +652,7 @@ class VenomCodegenContext:
         length: IROperand,
         transient: bool,
     ) -> None:
-        """Copy `length` DynArray elements from memory to slot-addressed storage.
-
-        `src` points at element 0 of the source (array base + 32); element i
-        lands at `dst_elem_base_slot + i * elem_words`. No length word is written;
-        the caller owns length bookkeeping (legacy writes the length last).
-        """
+        """Copy `length` DynArray elements from memory to slot-addressed storage."""
         b = self.builder
 
         elem_words = elem_typ.storage_size_in_words
