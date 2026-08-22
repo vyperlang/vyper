@@ -1418,6 +1418,64 @@ def foo() -> DynArray[uint256, 6]:
     assert c.foo() == [1, 2, 3, 1, 2, 3]
 
 
+@pytest.mark.requires_evm_version("cancun")
+def test_extend_transient(get_contract):
+    code = """
+my_array: transient(DynArray[uint256, 5])
+
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    self.my_array.extend(xs)
+    return self.my_array
+    """
+    c = get_contract(code)
+    assert c.foo([1, 2, 3]) == [1, 2, 3]
+
+
+def test_extend_storage_smaller_capacity_src(get_contract):
+    code = """
+my_array: DynArray[uint256, 5]
+
+@external
+def foo(other: DynArray[uint256, 3]) -> DynArray[uint256, 5]:
+    self.my_array = [1, 2]
+    self.my_array.extend(other)
+    return self.my_array
+    """
+    c = get_contract(code)
+    assert c.foo([3]) == [1, 2, 3]
+
+
+@pytest.mark.requires_evm_version("cancun")
+def test_extend_transient_complex_elems(get_contract):
+    code = """
+my_array: transient(DynArray[Bytes[32], 3])
+
+@external
+def foo(x: DynArray[Bytes[32], 2]) -> DynArray[Bytes[32], 3]:
+    self.my_array = [b"a"]
+    self.my_array.extend(x)
+    return self.my_array
+    """
+    c = get_contract(code)
+    assert c.foo([b"b", b"c"]) == [b"a", b"b", b"c"]
+
+
+@pytest.mark.requires_evm_version("cancun")
+def test_extend_transient_self(get_contract):
+    code = """
+my_array: transient(DynArray[uint256, 6])
+
+@external
+def foo() -> DynArray[uint256, 6]:
+    self.my_array = [1, 2, 3]
+    self.my_array.extend(self.my_array)
+    return self.my_array
+    """
+    c = get_contract(code)
+    assert c.foo() == [1, 2, 3, 1, 2, 3]
+
+
 extend_tests = [
     (
         """
@@ -1598,7 +1656,7 @@ def foo(x: {typ}) -> ({typ}, DynArray[{typ}, 5]):
 
 @pytest.mark.parametrize("code_template,check_result", extend_complex_tests)
 @pytest.mark.parametrize(
-    "subtype", ["uint256[3]", "DynArray[uint256,3]", "DynArray[uint8, 4]", "Foo"]
+    "subtype", ["uint256[3]", "DynArray[uint256,3]", "DynArray[uint8, 4]", "Foo", "Bytes[32]"]
 )
 def test_extend_complex(get_contract, tx_failed, code_template, check_result, subtype):
     code = code_template.format(typ=subtype)
@@ -1612,6 +1670,8 @@ struct Foo:
     z: uint256
         """
         code = struct_def + "\n" + code
+    elif subtype == "Bytes[32]":
+        test_data = b"123"
 
     c = get_contract(code)
     expected_result = check_result(test_data)
