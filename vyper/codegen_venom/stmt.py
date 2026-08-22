@@ -336,67 +336,12 @@ class Stmt:
         # Load length from source (at offset 0)
         assert isinstance(src, IRVariable)
         length = b.mload(src)
+        dst_elem_base_slot = b.add(dst_slot, IRLiteral(1))
+        src_data = b.add(src, IRLiteral(32))
+        self.ctx.copy_dynarray_elements_to_storage(
+            src_data, dst_elem_base_slot, typ.value_type, length, transient
+        )
 
-        elem_typ = typ.value_type
-        elem_words = elem_typ.storage_size_in_words
-
-        # Create loop blocks
-        cond_block = b.create_block("dyn_cond")
-        body_block = b.create_block("dyn_body")
-        exit_block = b.create_block("dyn_exit")
-
-        # Entry: counter = 0, jump to cond
-        counter = b.assign(IRLiteral(0))
-        b.jmp(cond_block.label)
-
-        # Condition: if counter >= length, goto exit, else body
-        b.append_block(cond_block)
-        b.set_block(cond_block)
-        # done = counter >= length = iszero(lt(counter, length))
-        done = b.iszero(b.lt(counter, length))
-        cond_finish = b.current_block
-
-        # Body: copy one element
-        b.append_block(body_block)
-        b.set_block(body_block)
-
-        if elem_words == 1:
-            # Simple case: each element is one storage word
-            # src_offset = 32 + counter * 32
-            src_offset = b.add(IRLiteral(32), b.mul(counter, IRLiteral(32)))
-            src_ptr = b.add(src, src_offset)
-            val = b.mload(src_ptr)
-
-            # dst_slot_i = dst_slot + counter + 1 (skip length word)
-            dst_slot_i = b.add(dst_slot, b.add(counter, IRLiteral(1)))
-            if transient:
-                b.tstore(dst_slot_i, val)
-            else:
-                b.sstore(dst_slot_i, val)
-        else:
-            # Complex case: element spans multiple words
-            elem_mem_size = elem_typ.memory_bytes_required
-            src_offset = b.add(IRLiteral(32), b.mul(counter, IRLiteral(elem_mem_size)))
-            src_ptr = b.add(src, src_offset)
-
-            # dst_slot_i = dst_slot + 1 + counter * elem_words
-            dst_slot_i = b.add(dst_slot, b.add(IRLiteral(1), b.mul(counter, IRLiteral(elem_words))))
-            if transient:
-                self.ctx.store_transient(src_ptr, dst_slot_i, elem_typ)
-            else:
-                self.ctx.store_storage(src_ptr, dst_slot_i, elem_typ)
-
-        # Increment counter and loop
-        new_counter = b.add(counter, IRLiteral(1))
-        b.assign_to(new_counter, counter)
-        b.jmp(cond_block.label)
-
-        # Wire up conditional jump (done after body to have block refs)
-        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
-
-        # Exit block: write length last (matches legacy behavior)
-        b.append_block(exit_block)
-        b.set_block(exit_block)
         if transient:
             b.tstore(dst_slot, length)
         else:
