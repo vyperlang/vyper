@@ -523,50 +523,13 @@ class VenomCodegenContext:
         b.assert_(b.iszero(b.gt(length, IRLiteral(dst_typ.length))))
         b.mstore(dst, length)
 
-        dst_elem_t = dst_typ.value_type
-        src_elem_t = src_typ.value_type
-        dst_elem_size = dst_elem_t.memory_bytes_required
-        src_elem_size = src_elem_t.memory_bytes_required
-
         src_data = self._with_byte_offset(src, 32)
         dst_data = self._with_byte_offset(dst, 32)
+        assert isinstance(dst_data, IRVariable)
 
-        # Fast path when element layouts match: copy exactly `length` elements.
-        if src_elem_t == dst_elem_t and src_elem_size == dst_elem_size:
-            data_size = b.mul(length, IRLiteral(dst_elem_size))
-            assert isinstance(dst_data, IRVariable)
-            self.copy_memory_dynamic(dst_data, src_data, data_size)
-            return
-
-        cond_block = b.create_block("typed_dyn_copy_cond")
-        body_block = b.create_block("typed_dyn_copy_body")
-        exit_block = b.create_block("typed_dyn_copy_exit")
-
-        counter = b.assign(IRLiteral(0))
-        b.jmp(cond_block.label)
-
-        b.append_block(cond_block)
-        b.set_block(cond_block)
-        done = b.iszero(b.lt(counter, length))
-        cond_finish = b.current_block
-
-        b.append_block(body_block)
-        b.set_block(body_block)
-
-        src_ofst = b.mul(counter, IRLiteral(src_elem_size))
-        dst_ofst = b.mul(counter, IRLiteral(dst_elem_size))
-        src_elem_ptr = b.add(src_data, src_ofst)
-        dst_elem_ptr = b.add(dst_data, dst_ofst)
-
-        self._store_memory_typed(dst_elem_ptr, dst_elem_t, src_elem_ptr, src_elem_t)
-
-        new_counter = b.add(counter, IRLiteral(1))
-        b.assign_to(new_counter, counter)
-        b.jmp(cond_block.label)
-
-        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
-        b.append_block(exit_block)
-        b.set_block(exit_block)
+        self.copy_dynarray_elements_to_memory(
+            dst_data, dst_typ.value_type, src_data, src_typ.value_type, length
+        )
 
     # Threshold for using identity precompile vs unrolling (pre-Cancun).
     # Identity precompile has ~25 bytes overhead, unrolling is ~15 bytes/word.
@@ -631,6 +594,129 @@ class VenomCodegenContext:
         assert isinstance(src, IRVariable)
         success = b.staticcall(b.gas(), IRLiteral(IDENTITY_PRECOMPILE), src, length, dst, length)
         b.assert_(success)
+
+    def copy_dynarray_elements_to_memory(
+        self,
+        dst: IRVariable,
+        dst_elem_t: VyperType,
+        src: IROperand,
+        src_elem_t: VyperType,
+        length: IROperand,
+    ) -> None:
+        """Copy `length` DynArray elements between memory buffers.
+
+        `src` and `dst` point at element 0 (i.e. array base + 32). No length
+        word is read or written; the caller owns length bookkeeping.
+        """
+        b = self.builder
+        dst_elem_size = dst_elem_t.memory_bytes_required
+        src_elem_size = src_elem_t.memory_bytes_required
+
+        # Fast path when element layouts match: copy exactly `length` elements.
+        if src_elem_t == dst_elem_t and src_elem_size == dst_elem_size:
+            data_size = b.mul(length, IRLiteral(dst_elem_size))
+            self.copy_memory_dynamic(dst, src, data_size)
+            return
+
+        cond_block = b.create_block("typed_dyn_copy_cond")
+        body_block = b.create_block("typed_dyn_copy_body")
+        exit_block = b.create_block("typed_dyn_copy_exit")
+
+        counter = b.assign(IRLiteral(0))
+        b.jmp(cond_block.label)
+
+        b.append_block(cond_block)
+        b.set_block(cond_block)
+        done = b.iszero(b.lt(counter, length))
+        cond_finish = b.current_block
+
+        b.append_block(body_block)
+        b.set_block(body_block)
+
+        src_ofst = b.mul(counter, IRLiteral(src_elem_size))
+        dst_ofst = b.mul(counter, IRLiteral(dst_elem_size))
+        src_elem_ptr = b.add(src, src_ofst)
+        dst_elem_ptr = b.add(dst, dst_ofst)
+
+        self._store_memory_typed(dst_elem_ptr, dst_elem_t, src_elem_ptr, src_elem_t)
+
+        new_counter = b.add(counter, IRLiteral(1))
+        b.assign_to(new_counter, counter)
+        b.jmp(cond_block.label)
+
+        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
+        b.append_block(exit_block)
+        b.set_block(exit_block)
+
+    def copy_dynarray_elements_to_storage(
+        self,
+        src: IROperand,
+        dst_elem_base_slot: IROperand,
+        elem_typ: VyperType,
+        length: IROperand,
+        transient: bool,
+    ) -> None:
+        """Copy `length` DynArray elements from memory to slot-addressed storage.
+
+        `src` points at element 0 of the source (array base + 32); element i
+        lands at `dst_elem_base_slot + i * elem_words`. No length word is written;
+        the caller owns length bookkeeping (legacy writes the length last).
+        """
+        b = self.builder
+
+        elem_words = elem_typ.storage_size_in_words
+
+        # Create loop blocks
+        cond_block = b.create_block("dyn_cond")
+        body_block = b.create_block("dyn_body")
+        exit_block = b.create_block("dyn_exit")
+
+        # Entry: counter = 0, jump to cond
+        counter = b.assign(IRLiteral(0))
+        b.jmp(cond_block.label)
+
+        # Condition: if counter >= length, goto exit, else body
+        b.append_block(cond_block)
+        b.set_block(cond_block)
+        # done = counter >= length = iszero(lt(counter, length))
+        done = b.iszero(b.lt(counter, length))
+        cond_finish = b.current_block
+
+        # Body: copy one element
+        b.append_block(body_block)
+        b.set_block(body_block)
+
+        if elem_words == 1:
+            # Simple case: each element is one storage word
+            src_ptr = b.add(src, b.mul(counter, IRLiteral(32)))
+            val = b.mload(src_ptr)
+
+            dst_slot_i = b.add(dst_elem_base_slot, counter)
+            if transient:
+                b.tstore(dst_slot_i, val)
+            else:
+                b.sstore(dst_slot_i, val)
+        else:
+            # Complex case: element spans multiple words
+            elem_mem_size = elem_typ.memory_bytes_required
+            src_ptr = b.add(src, b.mul(counter, IRLiteral(elem_mem_size)))
+
+            dst_slot_i = b.add(dst_elem_base_slot, b.mul(counter, IRLiteral(elem_words)))
+            if transient:
+                self.store_transient(src_ptr, dst_slot_i, elem_typ)
+            else:
+                self.store_storage(src_ptr, dst_slot_i, elem_typ)
+
+        # Increment counter and loop
+        new_counter = b.add(counter, IRLiteral(1))
+        b.assign_to(new_counter, counter)
+        b.jmp(cond_block.label)
+
+        # Wire up conditional jump (done after body to have block refs)
+        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
+
+        b.append_block(exit_block)
+        b.set_block(exit_block)
 
     _ALLOCATION_LIMIT: int = 2**64
 
