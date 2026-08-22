@@ -333,7 +333,9 @@ def _py_convert(val, i_typ, o_typ):
         val_bits = _padconvert(val_bits, _padding_direction(o_typ), n, padding_byte)
 
     if getattr(o_typ, "is_signed", False) and isinstance(i_typ, BytesM_T):
-        n_bits = _bits_of_type(i_typ)
+        out_size = _bits_of_type(o_typ)
+        in_size = _bits_of_type(i_typ)
+        n_bits = max(out_size, in_size)
         val_bits = _signextend(val_bits, n_bits)
 
     try:
@@ -424,6 +426,68 @@ def _vyper_literal(val, typ):
         val = quantize(val)
         assert tmp == val
     return str(val)
+
+
+def test_bytes_to_int_different_sizes(get_contract):
+    code = r"""
+@external
+def foo() -> int16:
+    return convert(b'\xff', int16)
+    """
+
+    c = get_contract(code)
+    assert c.foo() == 255
+
+    code = r"""
+@external
+def foo() -> int16:
+    return convert(b'\x00\xff', int16)
+    """
+
+    c = get_contract(code)
+    assert c.foo() == 255
+
+    code = r"""
+FOO: constant(Bytes[2]) = b'\xff'
+
+@external
+def foo() -> int16:
+    return convert(FOO, int16)
+    """
+
+    c = get_contract(code)
+    assert c.foo() == 255
+
+
+def test_bytes_to_int_different_sizes_bytes3(get_contract):
+    code = r"""
+@external
+def foo(x: bytes3) -> int96:
+    return convert(x, int96)
+    """
+
+    c = get_contract(code)
+    assert c.foo(b"\xff\xff\xff") == 0xFF_FF_FF
+
+
+def test_bytes_to_int_different_sizes_runtime(get_contract):
+    code = """
+@external
+def foo(x: Bytes[1]) -> int16:
+    return convert(x, int16)
+    """
+
+    c = get_contract(code)
+    assert c.foo(b"\xff") == 255
+
+    code = """
+@external
+def foo(x: Bytes[2]) -> int16:
+    return convert(x, int16)
+    """
+
+    c = get_contract(code)
+    assert c.foo(b"\xff") == 255
 
 
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_passing_cases())
