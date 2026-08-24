@@ -206,3 +206,14 @@ def test_error_message_stops_at_instead():
     message = str(exc.value).splitlines()[0]
     assert message.endswith("instead.")
     assert "Pipeline context:" not in message
+
+
+@pytest.mark.parametrize("level", [OptimizationLevel.NONE, OptimizationLevel.O1])
+def test_disable_simplify_cfg_is_ignored_at_lowering_only_levels(level):
+    # the lowering-only pipelines contain no optional passes; in particular
+    # venom_to_assembly requires SimplifyCFGPass to have run, so the disable
+    # flag must not remove it
+    flags = VenomOptimizationFlags(level=level, disable_simplify_cfg=True)
+    pipeline = venom._build_fn_pass_pipeline(flags)
+    pass_classes = [pass_cls for pass_cls, _ in pipeline]
+    assert SimplifyCFGPass in pass_classes

@@ -100,14 +100,19 @@ def _normalize_pass_config(pass_config: PassConfig) -> PassRunConfig:
 
 def _build_fn_pass_pipeline(flags: VenomOptimizationFlags) -> list[PassRunConfig]:
     passes = OPTIMIZATION_PASSES[flags.level]
+    # The lowering-only pipelines contain no optional passes -- every pass is
+    # required to produce legal assembly (e.g. venom_to_assembly requires
+    # SimplifyCFGPass to have run) -- so the disable flags do not apply there.
+    lowering_only = flags.level.uses_lowering_only_ir()
     pass_pipeline: list[PassRunConfig] = []
     for pass_config in passes:
         pass_cls, kwargs = _normalize_pass_config(pass_config)
 
         # Check if pass should be skipped based on user flags.
-        flag_name = PASS_FLAG_MAP.get(pass_cls)
-        if flag_name is not None and getattr(flags, flag_name):
-            continue
+        if not lowering_only:
+            flag_name = PASS_FLAG_MAP.get(pass_cls)
+            if flag_name is not None and getattr(flags, flag_name):
+                continue
 
         pass_pipeline.append((pass_cls, kwargs))
 
