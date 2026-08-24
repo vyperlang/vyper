@@ -247,6 +247,9 @@ def test_merge_jump_target_has_no_phi():
 def test_merge_jump_dedup_phi_when_direct_edge():
     """
     If the bypassed block's target is already a successor, avoid duplicating phi labels.
+    Both arms of `entry`'s `jnz` then converge on `@join`, so it must be
+    canonicalized to a `jmp` - a `jnz` with a single cfg successor breaks
+    consumers like `BranchOptimizationPass`.
     """
     pre = """
     _global:
@@ -317,36 +320,6 @@ def test_merge_jump_conflicting_phi_operands():
     """
 
     _check_no_change(pre, hevm=False)
-
-
-def test_merge_jump_converging_arms():
-    """
-    Regression test: bypassing both arms of a `jnz` can make them converge on
-    the same block; the branch must become a `jmp` so that it does not end up
-    with a single cfg successor.
-    """
-    pre = """
-    _global:
-        %cond = source
-        jnz %cond, @then, @else
-
-    then:
-        jmp @join
-
-    else:
-        jmp @join
-
-    join:
-        sink %cond
-    """
-
-    post = """
-    _global:
-        %cond = source
-        sink %cond
-    """
-
-    _check_pre_post(pre, post)
 
 
 def test_data_section_label_chain():
