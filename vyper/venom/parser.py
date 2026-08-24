@@ -139,6 +139,11 @@ def _apply_annotations(fn: IRFunction, annotations: Optional[list[tuple[str, Opt
     if "fmp_lowered" not in attrs:
         if "fmp_publishes" in attrs:
             raise ValueError(f"`fmp_publishes` requires `fmp_lowered` on {fn.name}")
+        if "eom" in attrs:
+            # `eom` is only meaningful once the function is fully lowered;
+            # otherwise ConcretizeMemLocPass would rerun and clobber it
+            # (see ConcretizeMemLocPass._is_already_concretized).
+            raise ValueError(f"`eom` requires `fmp_lowered` on {fn.name}")
         return
 
     publishes = "fmp_publishes" in attrs

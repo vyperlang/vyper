@@ -434,7 +434,7 @@ def test_eom_annotation():
     # backend needs it to place spill slots above the frame, so it has to
     # survive the text-format round trip.
     source = """
-    function main [eom=13024] {
+    function main [fmp_lowered, eom=13024] {
         main:
             stop
     }
@@ -473,6 +473,7 @@ def test_eom_annotation():
         ("[eom=1, eom=2]", "duplicate function annotation"),
         ("[bogus]", "unknown function annotation"),
         ("[eom=-32]", "negative `eom` annotation"),
+        ("[eom=64]", "`eom` requires `fmp_lowered`"),
     ],
 )
 def test_invalid_annotations(annotation, expected_error):
