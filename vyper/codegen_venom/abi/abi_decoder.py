@@ -422,21 +422,20 @@ def _decode_complex(
     # only for the cases where we decode from the
     # calldata, which has slowed down the
     # some of the test cases
-    for _, elem_typ in items:
-        if not elem_typ._is_prim_word:
-            break
-        if src.location != DataLocation.CALLDATA:
-            break
-        if needs_clamp(elem_typ):
-            break
+    if src.location == DataLocation.CALLDATA:
+        for _, elem_typ in items:
+            if not elem_typ._is_prim_word:
+                break
+            if needs_clamp(elem_typ):
+                break
 
-        abi_offset += elem_typ.abi_type.embedded_static_size()
-        vyper_offset += elem_typ.memory_bytes_required
-    else:
-        # all elements are primitive, do not need clamping
-        # and their source location is CALLDATA
-        b.calldatacopy(dst, src.operand, vyper_offset)
-        return
+            abi_offset += elem_typ.abi_type.embedded_static_size()
+            vyper_offset += elem_typ.memory_bytes_required
+        else:
+            # all elements are primitive, do not need clamping
+            # and their source location is CALLDATA
+            b.calldatacopy(dst, src.operand, vyper_offset)
+            return
 
     # Track ABI and Vyper offsets separately
     abi_offset = 0
