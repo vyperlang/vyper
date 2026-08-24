@@ -94,6 +94,32 @@ def test_function_spill_regions_are_disjoint_and_above_static_frames() -> None:
     assert spiller._next_spill_offset == 288
 
 
+def test_removed_function_does_not_inflate_spill_offsets() -> None:
+    # spill sizing takes the max over all fn_eom entries, so a stale entry
+    # left behind when an unreachable function is removed would push every
+    # live function's spill region (and the initial FMP) up to the dead
+    # frame's end.
+    ctx = parse_venom("""
+        function main [fmp_lowered, eom=64] {
+            main:
+                stop
+        }
+
+        function dead [fmp_lowered, eom=65536] {
+            dead:
+                stop
+        }
+        """)
+    run_passes_on(ctx, VenomOptimizationFlags(level=OptimizationLevel.O1))
+
+    assert [fn.name.value for fn in ctx.functions.values()] == ["main"]
+    assert set(ctx.mem_allocator.fn_eom.keys()) == set(ctx.functions.values())
+
+    compiler = VenomCompiler(ctx)
+    compiler.spiller.reset_for_codegen()
+    assert compiler.spiller._next_function_spill_offset == 64
+
+
 def test_round_tripped_eom_survives_o1_pass_rerun(env) -> None:
     params = ", ".join(f"a{i}: uint256" for i in range(16))
     args = ", ".join(f"a{i}" for i in range(16))
