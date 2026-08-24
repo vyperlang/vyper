@@ -417,10 +417,13 @@ def _decode_complex(
     abi_offset = 0
     vyper_offset = 0
 
+    # check if the abi decode is eligible
+    # for the quick copy. It is very conservative
+    # only for the cases where we decode from the
+    # calldata, which has slowed down the
+    # some of the test cases
     ok = True
     for _, elem_typ in items:
-        # Advance offsets
-
         if not elem_typ._is_prim_word:
             ok = False
             break
