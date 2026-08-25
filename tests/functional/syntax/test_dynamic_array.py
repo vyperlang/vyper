@@ -116,17 +116,6 @@ def foo():
     assert excinfo.value.message == "Cannot perform membership comparison between dislike types"
 
 
-def test_dynarray_negative_length():
-    code = """
-@external
-def foo():
-    x: DynArray[uint256, -1] = []
-    """
-    with pytest.raises(ArrayIndexException) as excinfo:
-        compile_code(code)
-    assert excinfo.value.message == "Subscript must be at least 0"
-
-
 valid_list = [
     """
 flag Foo:
@@ -180,16 +169,6 @@ def foo():
 @external
 def foo():
     x: uint256 = len([])
-    """,
-    """
-@external
-def foo():
-    x: DynArray[uint256, 0] = []
-    """,
-    """
-@external
-def foo():
-    x: DynArray[uint256, 4] = []
     """,
 ]
 

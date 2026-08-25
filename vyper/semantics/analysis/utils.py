@@ -352,7 +352,7 @@ class _ExprAnalyser:
 
         if len(node.elements) == 0:
             # can't have an empty SArrayT
-            return [DArrayT(BottomT(), 0)]
+            return [DArrayT(BottomT(), 1)]
 
         types_list = get_common_types(*node.elements)
 
