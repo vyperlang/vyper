@@ -71,6 +71,10 @@ class IRContext:
 
     def remove_function(self, fn: IRFunction) -> None:
         del self.functions[fn.name]
+        # spill sizing takes the max over all fn_eom entries, so a stale
+        # entry for a removed function would inflate every live function's
+        # spill region (see StackSpiller.reset_for_codegen)
+        self.mem_allocator.fn_eom.pop(fn, None)
 
     def create_function(self, name: str) -> IRFunction:
         label = IRLabel(name, True)

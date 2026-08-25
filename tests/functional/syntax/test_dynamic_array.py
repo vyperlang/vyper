@@ -1,7 +1,14 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import CodegenPanic, StructureException, TypeMismatch, UndeclaredDefinition
+from vyper.exceptions import (
+    ArrayIndexException,
+    CodegenPanic,
+    CompilerPanic,
+    StructureException,
+    TypeMismatch,
+    UndeclaredDefinition,
+)
 
 fail_list = [
     (
@@ -64,6 +71,31 @@ def foo(x: DynArray[uint256, INF]) -> DynArray[uint256, 5]:
     """,
         TypeMismatch,
     ),
+    (
+        """
+@external
+def foo():
+    [].append(1)
+    """,
+        TypeMismatch,
+    ),
+    pytest.param(
+        """
+@external
+def foo():
+    x: uint256 = [].pop()
+    """,
+        StructureException,
+        marks=pytest.mark.xfail(raises=CompilerPanic),
+    ),
+    (
+        """
+@external
+def foo() -> uint256:
+    return [][0]
+    """,
+        ArrayIndexException,
+    ),
 ]
 
 
@@ -71,6 +103,17 @@ def foo(x: DynArray[uint256, INF]) -> DynArray[uint256, 5]:
 def test_block_fail(bad_code, exc):
     with pytest.raises(exc):
         compile_code(bad_code)
+
+
+def test_membership_in_empty_list():
+    code = """
+@external
+def foo():
+    x: bool = 1 in []
+    """
+    with pytest.raises(TypeMismatch) as excinfo:
+        compile_code(code)
+    assert excinfo.value.message == "Cannot perform membership comparison between dislike types"
 
 
 valid_list = [
@@ -112,12 +155,38 @@ interface IFoo:
 interface IFoo:
     def bar() -> DynArray[uint256, ...]: nonpayable
     """,  # DynArray with wildcard in interface return type
+    """
+@external
+def foo():
+    tmp: DynArray[Bytes[3], 1] = [[b"abc"], []][0]
+    """,
+    """
+@external
+def foo():
+    tmp: DynArray[Bytes[3], 1] = [[], [b"abc"]][1]
+    """,
+    """
+@external
+def foo():
+    x: uint256 = len([])
+    """,
 ]
 
 
 @pytest.mark.parametrize("good_code", valid_list)
 def test_dynarray_pass(good_code):
     assert compile_code(good_code) is not None
+
+
+def test_len_of_singleton_list_literal(request, experimental_codegen):
+    if not experimental_codegen:
+        request.node.add_marker(pytest.mark.xfail(raises=CompilerPanic))
+    code = """
+@external
+def foo():
+    x: uint256 = len([1])
+    """
+    compile_code(code)
 
 
 @pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")

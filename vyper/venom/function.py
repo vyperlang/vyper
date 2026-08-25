@@ -224,6 +224,12 @@ class IRFunction:
         attrs = self._fmp_signature.attrs if self._fmp_signature is not None else []
         if self.noinline:
             attrs.append("noinline")
+        # the end of this function's static frame, once it is known (i.e. after
+        # ConcretizeMemLocPass). Codegen places spill slots above it, and it
+        # cannot be recovered from the instruction stream, so it has to be
+        # written out for the text format to round-trip.
+        if self.ctx is not None and (eom := self.ctx.mem_allocator.fn_eom.get(self)) is not None:
+            attrs.append(f"eom={eom}")
         annotation = f" [{', '.join(attrs)}]" if attrs else ""
         ret = f"function {self.name}{annotation} {{\n"
         for bb in self.get_basic_blocks():

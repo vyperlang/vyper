@@ -38,22 +38,16 @@ def test_jump_map(optimize, experimental_codegen):
     pos_map = source_map["pc_pos_map"]
     jump_map = source_map["pc_jump_map"]
 
-    if optimize == OptimizationLevel.NONE:
-        # some jumps which don't get optimized out when optimizer is off
-        # (slightly different behavior depending if venom pipeline is enabled):
-        if experimental_codegen:
-            expected_jumps = 0
-            expected_internals = 0
-        else:
-            expected_jumps = 3
-            expected_internals = 2
+    if experimental_codegen:
+        expected_jumps = 0
+        # Internal calls survive in the lowering-only IR pipelines because
+        # inlining is off. Assembly optimization at O1 does not change that.
+        expected_internals = 2 if optimize.uses_lowering_only_ir() else 0
     else:
-        if experimental_codegen:
-            expected_jumps = 0
-            expected_internals = 0
-        else:
-            expected_jumps = 1
-            expected_internals = 2
+        # Only NONE disables the legacy assembly optimizer. O1 uses the same
+        # lowering-only IR pipeline but still receives assembly peepholes.
+        expected_jumps = 3 if optimize == OptimizationLevel.NONE else 1
+        expected_internals = 2
 
     assert len([v for v in jump_map.values() if v == "o"]) == expected_jumps
     assert len([v for v in jump_map.values() if v == "i"]) == expected_internals
@@ -61,7 +55,7 @@ def test_jump_map(optimize, experimental_codegen):
     code_lines = [i + "\n" for i in TEST_CODE.split("\n")]
     for pc in [k for k, v in jump_map.items() if v == "o"]:
         if pc not in pos_map:
-            assert optimize == OptimizationLevel.NONE
+            assert optimize.uses_lowering_only_ir()
             continue  # some jump is not being optimized out
 
         lineno, col_offset, _, end_col_offset = pos_map[pc]
@@ -69,7 +63,7 @@ def test_jump_map(optimize, experimental_codegen):
 
     for pc in [k for k, v in jump_map.items() if v == "i"]:
         if pc not in pos_map:
-            assert optimize == OptimizationLevel.NONE
+            assert optimize.uses_lowering_only_ir()
             continue  # some jump is not being optimized out
         lineno, col_offset, _, end_col_offset = pos_map[pc]
         assert code_lines[lineno - 1][col_offset:end_col_offset].startswith("self.")

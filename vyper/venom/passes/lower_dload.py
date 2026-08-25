@@ -9,8 +9,10 @@ class LowerDloadPass(IRPass):
     Lower dload and dloadbytes instructions
     """
 
-    # Run after MemMergePass so `dload` patterns are still available for merge opportunities.
-    required_predecessors = ("MemMergePass",)
+    # Run after MemMergePass so `dload` patterns are still available for merge
+    # opportunities. This is an optimization concern, not a dependency, so
+    # pipelines which do not run MemMergePass at all (O1) are still valid.
+    ordered_after = ("MemMergePass",)
 
     def run_pass(self):
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
