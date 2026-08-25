@@ -221,7 +221,7 @@ def foo(i: uint256) -> uint256:
         # Legacy IR rejects `[][i]` at compile time.
         with pytest.raises(TypeCheckFailure):
             compile_code(code)
-        return
+        pytest.xfail("should fail with a user-facing error, not a VyperInternalException")
 
     # Venom does not have the sanity check, so it compiles (it shouldn't hence xfail)
     # Make sure at least the bytecode is correct (always reverts)
