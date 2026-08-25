@@ -1,6 +1,6 @@
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Bytes, ABI_String, ABIType
-from vyper.exceptions import CodegenPanic, StructureException, UnexpectedNodeType, UnexpectedValue
+from vyper.exceptions import CodegenPanic, StructureException, UnexpectedNodeType, UnexpectedValue, InvalidType
 from vyper.semantics.types.base import BottomT, VyperType
 from vyper.semantics.types.infinity import INF, WILDCARD, LengthUpperBound, length_to_json
 from vyper.semantics.types.utils import get_index_value
@@ -111,7 +111,9 @@ class _BytestringT(VyperType):
             raise UnexpectedValue("Node id does not match type name")
 
         length = get_index_value(node.slice)  # type: ignore
-        assert length is not None
+        
+        if length == 0:
+            raise InvalidType(f"{cls._id} cannot have length of 0", node.slice)
 
         return cls(length)
 

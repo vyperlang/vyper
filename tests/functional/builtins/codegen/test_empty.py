@@ -771,7 +771,7 @@ def test():
 def test():
     a: Bytes[32] = empty(Bytes[0])
     """,
-            ArrayIndexException,
+            InvalidType,
         ),
     ],
 )
