@@ -228,7 +228,7 @@ def get_index_value(node: vy_ast.VyperNode) -> LengthUpperBound:
             pass
         raise InvalidType("Subscript must be a literal integer", node)
 
-    if node.value <= 0:
-        raise ArrayIndexException("Subscript must be greater than 0", node)
+    if node.value < 0:
+        raise ArrayIndexException("Subscript must be at least 0", node)
 
     return node.value

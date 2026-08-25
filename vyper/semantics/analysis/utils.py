@@ -66,7 +66,7 @@ def empty_list_candidate_types():
             continue
         # 1 is minimum possible length for dynarray,
         # can be assigned to anything
-        ret.append(DArrayT(t, 1))
+        ret.append(DArrayT(t, 0))
     return ret
 
 
@@ -386,7 +386,7 @@ class _ExprAnalyser:
 
         if len(node.elements) == 0:
             # can't have an empty SArrayT
-            return [DArrayT(BottomT(), 1)]
+            return [DArrayT(BottomT(), 0)]
 
         types_list = get_common_types(*node.elements)
 
