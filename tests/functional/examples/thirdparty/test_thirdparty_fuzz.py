@@ -79,12 +79,13 @@ def test_compile_pass_fuzz(vy_filename, passes_to_disable, compiler_settings, mo
     with open(dir_path / vy_filename) as f:
         source_code = f.read()
 
-    run = []
+    with monkeypatch.context() as m:
+        run = []
 
-    def temp(*args, **kwargs):
-        run.append(True)
+        def temp(*args, **kwargs):
+            run.append(True)
 
-    for pass_to_disable in passes_to_disable:
-        monkeypatch.setattr(pass_to_disable, "run_pass", temp)
+        for pass_to_disable in passes_to_disable:
+            m.setattr(pass_to_disable, "run_pass", temp)
 
-    compiler.compile_code(source_code)
+        compiler.compile_code(source_code)
