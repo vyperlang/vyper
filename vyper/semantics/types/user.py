@@ -20,7 +20,7 @@ from vyper.semantics.analysis.utils import (
     validate_kwargs,
 )
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.base import BottomT, VyperType
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import keccak256, method_id_int
@@ -45,6 +45,8 @@ class _UserType(VyperType):
         # only one time. however, the alternative requires reasoning
         # about both the name and source (module or json abi) of
         # the type.
+        if isinstance(other, BottomT):
+            return True
         return self is other
 
     def __hash__(self):
