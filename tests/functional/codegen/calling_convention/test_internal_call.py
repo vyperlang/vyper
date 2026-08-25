@@ -6,6 +6,7 @@ from hypothesis import given, settings
 
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
+from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.exceptions import ArgumentException, CallViolation
 
 
@@ -49,6 +50,30 @@ def return_hash_of_rzpadded_cow() -> bytes32:
     assert c.return_hash_of_rzpadded_cow() == keccak(b"cow" + b"\x00" * 29)
 
     print("Passed single fixed-size argument self-call test")
+
+
+@pytest.mark.parametrize("opt_level", [OptimizationLevel.NONE, OptimizationLevel.O1])
+def test_internal_call_many_word_arguments_do_not_alias_spills(
+    get_contract, compiler_settings, opt_level
+):
+    params = ", ".join(f"a{i}: uint256" for i in range(16))
+    total = " + ".join(f"a{i}" for i in range(16))
+    code = f"""
+@internal
+def sum_words({params}) -> uint256:
+    return {total}
+
+@external
+def foo({params}) -> uint256:
+    return self.sum_words({", ".join(f"a{i}" for i in range(16))})
+    """
+
+    test_settings = Settings(
+        **dict(compiler_settings.__dict__, experimental_codegen=True, optimize=opt_level)
+    )
+    c = get_contract(code, compiler_settings=test_settings)
+    values = tuple(range(16))
+    assert c.foo(*values) == sum(values)
 
 
 # test that side-effecting self calls do not get optimized out

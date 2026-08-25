@@ -24,6 +24,28 @@ d: HashMap[uint256, (uint256, uint256)]
 def foo() -> uint256:
     return self.d[0][0]
     """,
+    """
+d: HashMap[uint256, (uint256, uint256)]
+
+@external
+def foo() -> uint256:
+    return self.d[0][1-1]
+    """,
+    """
+d: HashMap[uint256, (uint256, uint256)]
+
+@external
+def foo() -> uint256:
+    return self.d[0][1*1]
+    """,
+    """
+d: HashMap[uint256, (uint256, uint256)]
+one: constant(uint256) = 1
+
+@external
+def foo() -> uint256:
+    return self.d[0][one]
+    """,
 ]
 
 

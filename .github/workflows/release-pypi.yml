@@ -7,32 +7,39 @@ on:
   release:
     types: [published]  # releases and pre-releases (release candidates)
 
+permissions: {}
+
+env:
+  PYTHON_VERSION: "3.12"
+
 jobs:
   publish-pypi:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     # https://docs.pypi.org/trusted-publishers/using-a-publisher/
     permissions:
-      # IMPORTANT: this permission is mandatory for trusted publishing
-      id-token: write
+      contents: read
+      id-token: write # Required for PyPI trusted publishing.
     # Specifying a GitHub environment is optional, but strongly encouraged
     environment: release
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         # fetch unshallow so commit hash matches github release.
         # see https://github.com/vyperlang/vyper/blob/8f9a8cac49aafb3fbc9dde78f0f6125c390c32f0/.github/workflows/build.yml#L27-L32
         fetch-depth: 0
+        persist-credentials: false
 
     # debug
     - name: Git shorthash
       run: git rev-parse --short HEAD
 
     - name: Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
       with:
-        python-version: "3.11"
+        python-version: ${{ env.PYTHON_VERSION }}
 
     - name: Install dependencies
       run: |
@@ -43,4 +50,4 @@ jobs:
       run: python setup.py sdist bdist_wheel
 
     - name: Publish
-      uses: pypa/gh-action-pypi-publish@release/v1
+      uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # v1.14.1
