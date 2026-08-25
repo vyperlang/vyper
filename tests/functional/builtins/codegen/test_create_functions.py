@@ -6,6 +6,7 @@ from hexbytes import HexBytes
 import vyper.ir.compile_ir as compile_ir
 from tests.utils import ZERO_ADDRESS
 from vyper.compiler import compile_code
+from vyper.exceptions import InvalidOperation
 from vyper.ir.compile_ir import DATA_ITEM, PUSH, PUSHLABEL, DataHeader, Label
 from vyper.utils import EIP_170_LIMIT, ERC5202_PREFIX, checksum_encode, keccak256
 
@@ -713,6 +714,17 @@ def create_(target: address):
     assert d.deployed() == 1
 
 
+def test_create_from_blueprint_empty_ctor_args_untyped():
+    code = """
+@external
+def foo() -> address:
+    return create_from_blueprint(msg.sender, [])
+    """
+    with pytest.raises(InvalidOperation) as excinfo:
+        compile_code(code)
+    assert excinfo.value.message == "`Never` does not have an abi encoding"
+
+
 def test_create_copy_of_complex_kwargs(get_contract, env):
     # test msize allocator does not get trampled by salt= kwarg
     complex_salt = """
@@ -790,6 +802,17 @@ def test_create_copy_with_dynamic_salt(target: address, nonce: uint256) -> addre
     # Deploy and verify the created contract has correct bytecode
     created = deployer.test_create_copy_with_dynamic_salt(target.address, 123)
     assert env.get_code(created) == target_bytecode
+
+
+def test_raw_create_empty_ctor_args_untyped():
+    code = """
+@external
+def foo() -> address:
+    return raw_create(b"", [])
+    """
+    with pytest.raises(InvalidOperation) as excinfo:
+        compile_code(code)
+    assert excinfo.value.message == "`Never` does not have an abi encoding"
 
 
 def test_raw_create(get_contract, env):
