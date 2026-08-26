@@ -33,7 +33,7 @@ class InterfaceT(_UserType):
     _type_members = {"address": AddressT()}
     _is_prim_word = True
     is_valid_element_type = True
-    _as_hashmap_key = True
+    _is_hashable = True
     _supports_external_calls = True
     _attribute_in_annotation = True
 
@@ -343,7 +343,7 @@ class ModuleT(VyperType):
 
     _attribute_in_annotation = True
     is_valid_element_type = False
-    _as_hashmap_key = False
+    _is_hashable = False
     is_valid_member_type = False
     _invalid_locations = (
         DataLocation.STORAGE,

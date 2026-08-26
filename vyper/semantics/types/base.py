@@ -61,8 +61,9 @@ class VyperType:
         The name of the type.
     is_valid_element_type: bool, optional
         If `True`, this type can be used as the type of the elements of an array.
-    _as_hashmap_key: bool, optional
-        If `True`, this type can be used as a hashmap key
+    _is_hashable: bool, optional
+        If `True`, this type can be used as a hashmap key or
+        indexed event argument
     is_valid_member_type: bool, optional
         If `True`, this type can be used as a member type
     _valid_literal : Tuple
@@ -92,7 +93,7 @@ class VyperType:
     _is_bytestring: bool = False  # is it a bytes or a string?
 
     is_valid_element_type: bool = False
-    _as_hashmap_key: bool = False
+    _is_hashable: bool = False
     is_valid_member_type: bool = True
 
     _supports_external_calls: bool = False

@@ -120,7 +120,7 @@ class FlagT(_UserType):
     # flags, but not static arrays of flags
     _as_darray = True
     _is_prim_word = True
-    _as_hashmap_key = True
+    _is_hashable = True
 
     def __init__(self, name: str, members: dict) -> None:
         if len(members.keys()) > 256:
@@ -320,8 +320,7 @@ class EventT(_UserType):
                 validate_call_args(annotation, 1)
 
                 typ = type_from_annotation(annotation.args[0])
-                can_be_indexed = typ._is_prim_word or typ._is_bytestring
-                if not can_be_indexed:
+                if not typ._is_hashable:
                     raise TypeMismatch("Event indexes may only be value types", annotation)
 
                 if indexed.count(True) == 3:
