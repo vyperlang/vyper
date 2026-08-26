@@ -876,10 +876,6 @@ class Hex(Constant):
         self.original_value = getattr(self, "original_value", self.value)
         self.value = self.value.lower()
 
-    @classmethod
-    def get_comparison_fields(cls) -> set:
-        return super().get_comparison_fields() - {"original_value"}
-
     def to_dict(self):
         ast_dict = super().to_dict()
         # Preserve the source spelling in public AST output so a dict round-trip

@@ -142,6 +142,8 @@ def test_compare_in_bytes(get_contract, op, left, right):
     source = f"""
 @external
 def foo(a: bytes4, b: bytes4[{len(right)}]) -> bool:
+    # Deliberately materialize the input to exercise the memory-array path,
+    # matching the existing membership tests above.
     c: bytes4[{len(right)}] = b
     return a {op} c
     """

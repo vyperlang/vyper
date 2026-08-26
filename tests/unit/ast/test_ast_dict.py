@@ -177,6 +177,7 @@ def test() -> address:
     assert original_hex.value == address.lower()
     assert out_dict["body"][0]["body"][0]["value"]["value"] == address
     assert new_hex.original_value == address
+    assert deepequals(new_ast, original_ast)
 
 
 # strip source annotations like lineno, we don't care for inspecting
