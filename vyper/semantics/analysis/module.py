@@ -148,8 +148,19 @@ def _analyze_module_bodies(module_ast: vy_ast.Module) -> None:
     with override_global_namespace(namespace):
         analyze_functions(module_ast)
         _validate_exports_uses(module_ast, module_t)
+        _validate_initializable_modules(module_ast, module_t)
         _validate_initialized_modules(module_ast, module_t)
         _validate_used_modules(module_ast, module_t)
+
+
+def _validate_initializable_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
+    """Check all `initializes:` modules are stateful or abstract."""
+    for t in module_t.initialized_modules:
+        module_t = t.module_info.module_t
+        if not (module_t.is_stateful or module_t.is_abstract):
+            raise StructureException(
+                f"Cannot initialize a stateless concrete module {t.module_info.alias}!", t.node
+            )
 
 
 def _validate_used_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
@@ -410,6 +421,7 @@ def _validate_overrides(func_t: ContractFunctionT, node: vy_ast.FunctionDef):
 
         if abstract_t._overridden_by is not None:
             existing_override = abstract_t._overridden_by.ast_def
+            assert existing_override is not None
             existing_override_path = existing_override.module_node.path
             msg = f"`{module_info.alias}.{node.name}` was already overridden"
             msg += f" in `{existing_override_path}`!"
@@ -596,10 +608,6 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         module_info = get_expr_info(module_ref).module_info
         if module_info is None:
             raise StructureException("Not a module!", module_ref)
-        if not module_info.module_t.is_initializable:
-            raise StructureException(
-                f"Cannot initialize a stateless module {module_info.alias}!", module_ref
-            )
 
         used_modules = {i.module_t: i for i in module_info.module_t.used_modules}
 

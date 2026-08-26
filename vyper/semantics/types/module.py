@@ -580,7 +580,7 @@ class ModuleT(VyperType):
         return {k: v for (k, v) in self.variables.items() if v.is_public}
 
     @cached_property
-    def functions(self):
+    def functions(self) -> dict[str, ContractFunctionT]:
         return {f.name: f._metadata["func_type"] for f in self.function_defs}
 
     @cached_property
@@ -696,7 +696,7 @@ class ModuleT(VyperType):
         return InterfaceT.from_ModuleT(self)
 
     @cached_property
-    def is_initializable(self):
+    def is_stateful(self):
         """
         Determine whether ModuleT can be initialised by examining its top-level
         declarations. A module has state if it contains storage variables,
@@ -715,3 +715,7 @@ class ModuleT(VyperType):
                 return True
 
         return False
+
+    @cached_property
+    def is_abstract(self):
+        return any(f.is_abstract for f in self.functions.values())

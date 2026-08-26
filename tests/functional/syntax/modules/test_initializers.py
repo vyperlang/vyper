@@ -1581,6 +1581,12 @@ def foo(x: uint256, y: uint256) -> uint256:
     """
 FOO: constant(int128) = 128
     """,
+    """
+# pragma nonreentrancy on
+
+def bar(): # internal functions are always reentrant by default
+    pass
+    """,
 ]
 
 
