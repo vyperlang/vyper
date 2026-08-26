@@ -700,9 +700,11 @@ class ModuleT(VyperType):
         """
         Whether this module contains state.
 
-        A module has state if it contains storage variables,
-        transient variables, or immutables, or if it includes a "initializes"
-        declaration, or any nonreentrancy locks.
+        A module has state if it contains storage variables, transient
+        variables, immutables, or any nonreentrancy locks. A module is
+        also considered stateful if it has an `initializes` or `uses`
+        declaration or an `__init__()` function; these do not hold state
+        themselves, but require the module to be initialized.
         """
         if len(self.initializes_decls) > 0 or len(self.uses_decls) > 0:
             return True

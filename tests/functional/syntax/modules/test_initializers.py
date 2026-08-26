@@ -1601,13 +1601,16 @@ import lib
 initializes: lib
         """
     input_bundle = make_input_bundle({"lib.vy": module, "main.vy": main})
-    with pytest.raises(StructureException):
+    with pytest.raises(InitializerException) as e:
         compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "Cannot initialize a stateless concrete module `lib`!"
+    assert e.value._hint == "remove `initializes: lib`"
 
 
 @pytest.mark.parametrize("module", stateless_modules)
 def test_works_without_initializes_on_stateless_modules(module, make_input_bundle):
-    # test we cannot initialize modules that don't use state
+    # test stateless modules compile fine without `initializes`
     main = """
 import lib
         """

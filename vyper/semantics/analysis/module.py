@@ -156,10 +156,13 @@ def _analyze_module_bodies(module_ast: vy_ast.Module) -> None:
 def _validate_initializable_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
     """Check all `initializes:` modules are stateful or abstract."""
     for t in module_t.initialized_modules:
-        module_t = t.module_info.module_t
-        if not (module_t.is_stateful or module_t.is_abstract):
-            raise StructureException(
-                f"Cannot initialize a stateless concrete module {t.module_info.alias}!", t.node
+        initialized_t = t.module_info.module_t
+        if not (initialized_t.is_stateful or initialized_t.is_abstract):
+            alias = t.module_info.alias
+            raise InitializerException(
+                f"Cannot initialize a stateless concrete module `{alias}`!",
+                t.node,
+                hint=f"remove `initializes: {alias}`",
             )
 
 
