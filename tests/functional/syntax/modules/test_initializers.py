@@ -1522,9 +1522,6 @@ counter: uint32
 ended: public(bool)
     """,
     """
-ended: transient(bool)
-    """,
-    """
 @external
 @nonreentrant
 def foo():
