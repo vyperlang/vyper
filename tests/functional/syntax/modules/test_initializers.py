@@ -1604,6 +1604,7 @@ initializes: lib
     with pytest.raises(StructureException):
         compile_code(main, input_bundle=input_bundle)
 
+
 @pytest.mark.parametrize("module", stateless_modules)
 def test_works_without_initializes_on_stateless_modules(module, make_input_bundle):
     # test we cannot initialize modules that don't use state
