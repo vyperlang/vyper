@@ -415,13 +415,13 @@ The following example describes the output format of ``vyper-json``. Comments ar
                 // The contract name will always be the file name without a suffix
                 "source_file": {
                     // The Ethereum Contract ABI.
-                    // See https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI
+                    // See https://docs.soliditylang.org/en/latest/abi-spec.html
                     "abi": [],
                     // Natspec developer documentation
                     "devdoc": {},
-                    // Intermediate representation (string)
-                    "ir": "",
-                    // Natspec developer documentation
+                    // Intermediate representation (the IR node tree as a JSON object)
+                    "ir": {},
+                    // Natspec user documentation
                     "userdoc": {},
                     // Storage layout of the contract
                     "layout": {
@@ -440,7 +440,7 @@ The following example describes the output format of ``vyper-json``. Comments ar
                             "object": "00fe",
                             // Opcodes list (string)
                             "opcodes": "",
-                            // The deployed source mapping.
+                            // The creation source mapping.
                             "sourceMap": {
                                 "breakpoints": [],
                                 "error_map": {},
@@ -449,7 +449,7 @@ The following example describes the output format of ``vyper-json``. Comments ar
                                 "pc_breakpoints": [],
                                 "pc_jump_map": {},
                                 "pc_pos_map": {},
-                                // The deployed source mapping as a string.
+                                // The creation source mapping as a string.
                                 "pc_pos_map_compressed": ""
                             }
                         },

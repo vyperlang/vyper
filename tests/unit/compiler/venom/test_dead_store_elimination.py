@@ -1189,6 +1189,20 @@ def test_storage_basic_dead_store(addr_space):
     _check_pre_post_generic(pre, post, addr_space)
 
 
+def test_storage_store_before_selfdestruct():
+    pre = """
+        _global:
+            sstore 0, 1
+            selfdestruct 0
+    """
+    post = """
+        _global:
+            sstore 0, 1
+            selfdestruct 0
+    """
+    _check_pre_post_generic(pre, post, STORAGE)
+
+
 @pytest.mark.parametrize("addr_space", _persistent_address_spaces)
 def test_storage_basic_dead_store_clobbered(addr_space):
     pre = f"""

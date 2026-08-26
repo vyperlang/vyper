@@ -240,6 +240,32 @@ foo: public(constant(uint256)) = 1
         """,
         InterfaceViolation,
     ),
+    (
+        """
+interface IA:
+    def f(): nonpayable
+
+implements: IA
+
+@external
+def f() -> uint256:
+    return 1
+        """,
+        InterfaceViolation,
+    ),
+    (
+        """
+interface IA:
+    def f() -> uint256: nonpayable
+
+implements: IA
+
+@external
+def f():
+    pass
+        """,
+        InterfaceViolation,
+    ),
 ]
 
 
@@ -380,7 +406,7 @@ foo: public(immutable(uint256))
 
 @deploy
 def __init__(x: uint256):
-    foo = x
+    self.foo = x
     """,
     """
 interface Foo:

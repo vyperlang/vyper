@@ -32,15 +32,15 @@ BROADCASTER: public(immutable(address))
 
 @deploy
 def __init__(_broadcaster: address, _agent_blueprint: address):
-    BROADCASTER = _broadcaster
+    self.BROADCASTER = _broadcaster
 
-    OWNERSHIP_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
-    PARAMETER_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
-    EMERGENCY_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
+    self.OWNERSHIP_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
+    self.PARAMETER_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
+    self.EMERGENCY_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
 
-    self.agent[agent_lib.Agent.OWNERSHIP] = agent_lib.IAgent(OWNERSHIP_AGENT)
-    self.agent[agent_lib.Agent.PARAMETER] = agent_lib.IAgent(PARAMETER_AGENT)
-    self.agent[agent_lib.Agent.EMERGENCY] = agent_lib.IAgent(EMERGENCY_AGENT)
+    self.agent[agent_lib.Agent.OWNERSHIP] = agent_lib.IAgent(self.OWNERSHIP_AGENT)
+    self.agent[agent_lib.Agent.PARAMETER] = agent_lib.IAgent(self.PARAMETER_AGENT)
+    self.agent[agent_lib.Agent.EMERGENCY] = agent_lib.IAgent(self.EMERGENCY_AGENT)
 
 
 @internal

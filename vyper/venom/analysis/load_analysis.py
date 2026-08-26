@@ -71,6 +71,17 @@ class Lattice:
     def copy(self) -> "Lattice":
         new = Lattice(self._get_memloc)
         new._entries = self._entries.copy()
+
+        # this is ok since this is done only for faster removal
+        # and so it is not needed after basic block is handled
+        # so it is ok that old values are modified and the super
+        # set is safe value
+        new._by_memloc = self._by_memloc
+        return new
+
+    def deep_copy(self) -> "Lattice":
+        new = Lattice(self._get_memloc)
+        new._entries = self._entries.copy()
         new._by_memloc = {k: v.copy() for k, v in self._by_memloc.items()}
         return new
 
@@ -166,7 +177,7 @@ class LoadAnalysis(IRAnalysis):
             return self._make_lattice()
 
         first = self.bb_to_lattice.get(preds[0])
-        res = first.copy() if first is not None else self._make_lattice()
+        res = first.deep_copy() if first is not None else self._make_lattice()
 
         for pred in preds[1:]:
             other = self.bb_to_lattice.get(pred)

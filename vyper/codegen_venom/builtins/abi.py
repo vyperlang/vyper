@@ -15,6 +15,7 @@ from vyper.codegen.core import calculate_type_for_external_return
 from vyper.codegen_venom.abi import abi_decode_to_buf, abi_encode_to_buf
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.value import VyperValue
+from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import BytesT, TupleT
 from vyper.utils import fourbytes_to_int
@@ -37,13 +38,14 @@ def _get_bool_kwarg(node: vy_ast.Call, kwarg_name: str, default: bool) -> bool:
     kw_node = _get_kwarg_value(node, kwarg_name)
     if kw_node is None:
         return default
+    kw_node = kw_node.reduced()
     # The value should be a NameConstant (True/False)
     if isinstance(kw_node, vy_ast.NameConstant):
         return kw_node.value
     # Could also be an Int with constant value
     if isinstance(kw_node, vy_ast.Int):
         return bool(kw_node.value)
-    return default
+    raise CompilerPanic(f"unfoldable boolean kwarg: {kwarg_name}", kw_node)
 
 
 def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
@@ -114,6 +116,9 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     - method_id: Optional 4-byte prefix (function selector)
     """
     from vyper.codegen_venom.expr import Expr
+
+    if len(node.args) < 1:
+        raise StructureException("abi_encode expects at least one argument", node)
 
     b = ctx.builder
 

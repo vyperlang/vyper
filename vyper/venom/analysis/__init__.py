@@ -3,6 +3,7 @@ from .base_ptr_analysis import BasePtrAnalysis
 from .cfg import CFGAnalysis
 from .dfg import DFGAnalysis
 from .dominators import DominatorTreeAnalysis
+from .dynamic_memory import DynamicMemoryAnalysis, DynamicMemoryInfo
 from .fcg import FCGGlobalAnalysis
 from .liveness import LivenessAnalysis
 from .load_analysis import LoadAnalysis
@@ -10,6 +11,7 @@ from .loop import LoopAnalysis
 from .mem_alias import MemoryAliasAnalysis
 from .mem_liveness import MemLivenessAnalysis
 from .mem_ssa import MemSSA
+from .must_halt import MustHaltAnalysis
 from .reachable import ReachableAnalysis
 from .readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
 from .stack_order import StackOrderAnalysis
