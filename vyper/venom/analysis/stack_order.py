@@ -56,8 +56,6 @@ class StackOrderAnalysis(IRAnalysis):
                 self._handle_assign(inst)
             elif inst.opcode == "phi":
                 self._handle_phi(inst)
-                self.stack.pop()
-                self.stack.append(inst.output)
                 continue
             elif inst.is_bb_terminator:
                 self._handle_terminator(inst)
@@ -161,6 +159,8 @@ class StackOrderAnalysis(IRAnalysis):
             self.stack.append(chosen)
 
         self._reorder([chosen])
+        self.stack.pop()
+        self.stack.append(inst.output)
 
     def _merge(self, orders: list[Needed]) -> Needed:
         if len(orders) == 0:
