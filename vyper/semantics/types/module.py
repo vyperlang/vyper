@@ -698,8 +698,9 @@ class ModuleT(VyperType):
     @cached_property
     def is_stateful(self):
         """
-        Determine whether ModuleT can be initialised by examining its top-level
-        declarations. A module has state if it contains storage variables,
+        Whether this module contains state.
+
+        A module has state if it contains storage variables,
         transient variables, or immutables, or if it includes a "initializes"
         declaration, or any nonreentrancy locks.
         """
@@ -718,4 +719,9 @@ class ModuleT(VyperType):
 
     @cached_property
     def is_abstract(self):
+        """
+        Whether this module is abstract.
+
+        A module is abstract if it contains at least one abstract method.
+        """
         return any(f.is_abstract for f in self.functions.values())
