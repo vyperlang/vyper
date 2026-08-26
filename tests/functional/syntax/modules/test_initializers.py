@@ -1522,6 +1522,9 @@ counter: uint32
 ended: public(bool)
     """,
     """
+ended: transient(bool)
+    """,
+    """
 @external
 @nonreentrant
 def foo():
@@ -1600,6 +1603,15 @@ initializes: lib
     input_bundle = make_input_bundle({"lib.vy": module, "main.vy": main})
     with pytest.raises(StructureException):
         compile_code(main, input_bundle=input_bundle)
+
+@pytest.mark.parametrize("module", stateless_modules)
+def test_works_without_initializes_on_stateless_modules(module, make_input_bundle):
+    # test we cannot initialize modules that don't use state
+    main = """
+import lib
+        """
+    input_bundle = make_input_bundle({"lib.vy": module, "main.vy": main})
+    compile_code(main, input_bundle=input_bundle)
 
 
 def test_initializes_on_modules_with_uses(make_input_bundle):

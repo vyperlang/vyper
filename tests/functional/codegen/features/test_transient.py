@@ -601,17 +601,3 @@ def test_multiple() -> (uint256, uint256, uint256):
     env.clear_transient_storage()
 
     assert c.test_multiple() == (10, 20, 30)
-
-
-# Testing the `initializes` statement to verify how transient variables
-# interact with and relate to state.
-def test_transient_is_state(make_input_bundle):
-    lib = """
-message: transient(bool)
-    """
-    main = """
-import lib
-initializes: lib
-        """
-    input_bundle = make_input_bundle({"lib.vy": lib, "main.vy": main})
-    compile_code(main, input_bundle=input_bundle)
