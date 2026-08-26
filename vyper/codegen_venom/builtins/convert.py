@@ -204,11 +204,9 @@ def _to_int(
     # From decimal: divide by divisor
     if isinstance(in_t, DecimalT):
         # Clamp first to avoid overflow in intermediate
-        scaled_lo, scaled_hi = fixed_to_int_clamp_bounds(in_t, out_t)
+        out_lo, out_hi = fixed_to_int_clamp_bounds(in_t, out_t)
         in_lo, in_hi = in_t.int_bounds
-        val = _clamp_numeric_convert(
-            val, (in_lo, in_hi), (scaled_lo, scaled_hi), in_t.is_signed, ctx
-        )
+        val = _clamp_numeric_convert(val, (in_lo, in_hi), (out_lo, out_hi), in_t.is_signed, ctx)
         # Now divide
         val = b.sdiv(val, IRLiteral(in_t.divisor))
         return val
@@ -229,8 +227,11 @@ def _to_int(
     if isinstance(in_t, IntegerT):
         return _int_to_int(val, in_t, out_t, ctx)
 
-    # From bool: already 0 or 1, fits in any integer
-    return val
+    # From bool: the value is already 0 or 1 and fits in any integer
+    if isinstance(in_t, BoolT):
+        return val
+
+    raise CompilerPanic(f"Unsupported conversion: {in_t} to {out_t}")  # pragma: nocover
 
 
 def _to_decimal(
@@ -270,9 +271,9 @@ def _to_decimal(
     if isinstance(in_t, IntegerT):
         # Clamp input to valid range before scaling. Note the bounds are
         # computed with truncating division (GH 5110).
-        pre_lo, pre_hi = int_to_fixed_clamp_bounds(out_t)
+        out_lo, out_hi = int_to_fixed_clamp_bounds(out_t)
         in_lo, in_hi = in_t.int_bounds
-        val = _clamp_numeric_convert(val, (in_lo, in_hi), (pre_lo, pre_hi), in_t.is_signed, ctx)
+        val = _clamp_numeric_convert(val, (in_lo, in_hi), (out_lo, out_hi), in_t.is_signed, ctx)
         # Multiply by divisor
         result = b.mul(val, IRLiteral(divisor))
         return result

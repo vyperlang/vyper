@@ -197,33 +197,20 @@ class Convert(BuiltinFunctionT):
     """
     Built-in type for convert(value, target_type).
 
-    `_source_types_by_target_type` is target-keyed: the second argument's
-    destination type determines which first-argument source types it accepts.
+    The second argument's destination type determines which first-argument
+    source types it accepts.
     """
 
     _id = "convert"
-    _source_types_by_target_type: dict[type, tuple[type, ...]] = {
-        BoolT: (IntegerT, DecimalT, BytesM_T, AddressT, BoolT, BytesT, StringT),
-        AddressT: (BytesM_T, IntegerT, BytesT),
-        IntegerT: (IntegerT, DecimalT, BytesM_T, AddressT, BoolT, FlagT, BytesT),
-        DecimalT: (IntegerT, BoolT, BytesM_T, BytesT),
-        BytesM_T: (IntegerT, DecimalT, BytesM_T, AddressT, BytesT, BoolT, FlagT),
-        BytesT: (StringT, BytesT),
-        StringT: (BytesT, StringT),
-    }
 
     @staticmethod
     def _convert_fail(value_type, target_type, node):
         raise TypeMismatch(f"Can't convert {value_type} to {target_type}", node)
 
-    @classmethod
-    def _source_types_for_target(cls, target_type):
+    @staticmethod
+    def _source_types_for_target(target_type):
         if isinstance(target_type, FlagT):
             return (UINT256_T,)
-
-        allowed = cls._source_types_by_target_type.get(type(target_type))
-        if allowed is None:
-            return None
 
         if isinstance(target_type, AddressT):
             # addresses are unsigned, so only unsigned integer inputs are valid
@@ -255,7 +242,13 @@ class Convert(BuiltinFunctionT):
                 allowed.append(FlagT)
             return tuple(allowed)
 
-        return allowed
+        if isinstance(target_type, BytesT):
+            return (StringT, BytesT)
+
+        if isinstance(target_type, StringT):
+            return (BytesT, StringT)
+
+        return None
 
     @staticmethod
     def _matches_source_type(value_type, target_type, allowed_type):
