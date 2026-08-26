@@ -2366,6 +2366,25 @@ class ABIDecode(BuiltinFunctionT):
         data_type = get_exact_type_from_node(node.args[0])
         output_type = type_from_annotation(node.args[1])
 
+        kwargs = {kwarg.arg: kwarg.value for kwarg in node.keywords}
+        unwrap_tuple = kwargs.get("unwrap_tuple")
+        unwrap_tuple = True if unwrap_tuple is None else unwrap_tuple.get_folded_value().value
+
+        wrapped_type = output_type
+        if unwrap_tuple:
+            wrapped_type = calculate_type_for_external_return(output_type)
+
+        abi_size_bound = wrapped_type.abi_type.size_bound()
+        if data_type.maxlen < abi_size_bound:
+            raise StructureException(
+                (
+                    "Mismatch between size of input and size of decoded types. "
+                    f"length of ABI-encoded {wrapped_type} must be equal to or greater "
+                    f"than {abi_size_bound}"
+                ),
+                node.args[0],
+            )
+
         return [data_type, TYPE_T(output_type)]
 
     @process_inputs
@@ -2387,14 +2406,7 @@ class ABIDecode(BuiltinFunctionT):
 
         assert abi_min_size <= abi_size_bound, "bad abi type"
         if input_max_len < abi_size_bound:
-            raise StructureException(
-                (
-                    "Mismatch between size of input and size of decoded types. "
-                    f"length of ABI-encoded {wrapped_typ} must be equal to or greater "
-                    f"than {abi_size_bound}"
-                ),
-                expr.args[0],
-            )
+            raise CodegenPanic("abi_decode input max length is smaller than decoded ABI size")
 
         data = ensure_in_memory(data, context)
 
