@@ -151,6 +151,29 @@ def test_repeated_mcopy_elision_with_intermediate_reads():
     _check_pre_post(pre, post)
 
 
+def test_no_repeated_self_overlapping_mcopy_elision():
+    """
+    mcopy has memmove semantics: when source and destination overlap, the
+    copy clobbers some of its own source bytes, so repeating it is NOT
+    idempotent. The second mcopy must NOT be elided.
+
+    The reads of %1 and %2 make both mcopies observable.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 132, 100, 64
+        %1 = mload 132
+        mcopy 132, 100, 64
+        %2 = mload 132
+        %3 = add %1, %2
+        sink %3
+    """
+    _check_no_change(pre)
+
+
 def test_no_repeated_mcopy_elision_when_source_modified():
     """
     When the source buffer is modified between two identical mcopy operations,
@@ -1047,6 +1070,29 @@ def test_no_repeated_alloca_mcopy_elision_when_source_modified():
         mstore %a1, 999
         mcopy %a2, %a1, 64
         %2 = mload %a2
+        %3 = add %1, %2
+        sink %3
+    """
+    _check_no_change(pre)
+
+
+def test_no_repeated_self_overlapping_alloca_mcopy_elision():
+    """
+    Self-overlapping mcopy within a single alloca is not idempotent
+    (memmove semantics), so the repeated copy must NOT be elided.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %buf = alloca 256
+        %src = add %buf, 0
+        %dst = add %buf, 32
+        mcopy %dst, %src, 64
+        %1 = mload %dst
+        mcopy %dst, %src, 64
+        %2 = mload %dst
         %3 = add %1, %2
         sink %3
     """

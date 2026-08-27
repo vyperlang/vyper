@@ -58,6 +58,7 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.base import Modifiability, StateMutability
 from vyper.semantics.analysis.utils import (
+    check_modifiability,
     get_common_types,
     get_exact_type_from_node,
     get_possible_types_from_node,
@@ -96,6 +97,7 @@ from vyper.utils import (
     keccak256,
     method_id,
     method_id_int,
+    wrap256,
 )
 from vyper.warnings import vyper_warn
 
@@ -108,15 +110,20 @@ SHA256_PER_WORD_GAS = 12
 
 
 class FoldedFunctionT(BuiltinFunctionT):
-    # Base class for nodes which should always be folded
+    """
+    Base class for nodes which should always be folded
+    """
 
     _modifiability = Modifiability.CONSTANT
 
 
 class TypenameFoldedFunctionT(FoldedFunctionT):
-    # Base class for builtin functions that:
-    # (1) take a typename as the only argument; and
-    # (2) should always be folded.
+    """
+    Base class for builtin functions that:
+    (1) take a typename as the only argument; and
+    (2) should always be folded.
+    """
+
     _inputs = [("typename", TYPE_T.any())]
 
     def fetch_call_return(self, node):
@@ -720,6 +727,7 @@ class MethodID(FoldedFunctionT):
 
         value = node.args[0].get_folded_value()
         if not isinstance(value, vy_ast.Str):
+            # Constant Folder runs before the type-checker, so incorrect types can show up
             raise InvalidType("method id must be given as a literal string", node.args[0])
         if " " in value.value:
             raise InvalidLiteral("Invalid function signature - no spaces allowed.", node.args[0])
@@ -739,6 +747,9 @@ class MethodID(FoldedFunctionT):
         return type_
 
     def infer_arg_types(self, node, expected_return_typ=None):
+        is_constant = check_modifiability(node.args[0], Modifiability.CONSTANT)
+        if not is_constant:
+            raise StructureException("Value must be a literal", node.args[0])
         return [self._inputs[0][1]]
 
     def infer_kwarg_types(self, node):
@@ -1335,7 +1346,8 @@ class Shift(BuiltinFunctionT):
         if shift < 0:
             value = value >> -shift
         else:
-            value = (value << shift) % (2**256)
+            is_signed_shift = value < 0
+            value = wrap256(value << shift, signed=is_signed_shift)
         return vy_ast.Int.from_node(node, value=value)
 
     def fetch_call_return(self, node):
@@ -1416,6 +1428,9 @@ class PowMod256(BuiltinFunctionT):
             raise UnfoldableNode
 
         left, right = values
+        if left.value < 0 or right.value < 0:
+            # proper error will be raised later, for now just fail folding
+            raise UnfoldableNode()
         value = pow(left.value, right.value, 2**256)
         return vy_ast.Int.from_node(node, value=value)
 
@@ -1601,6 +1616,12 @@ class RawCreate(_CreateBase):
     _inputs = [("bytecode", BytesT(EIP_3860_LIMIT))]
     _has_varargs = True
 
+    def fetch_call_return(self, node):
+        for arg_t in self.infer_arg_types(node):
+            # touch abi_type to reject non-encodable argument types
+            _ = arg_t.abi_type
+        return self._return_type
+
     def _add_gas_estimate(self, args, should_use_create2):
         return _create_addl_gas_estimate(EIP_170_LIMIT, should_use_create2)
 
@@ -1759,6 +1780,12 @@ class CreateFromBlueprint(_CreateBase):
         "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
     _has_varargs = True
+
+    def fetch_call_return(self, node):
+        for arg_t in self.infer_arg_types(node):
+            # touch abi_type to reject non-encodable argument types
+            _ = arg_t.abi_type
+        return self._return_type
 
     def _add_gas_estimate(self, args, should_use_create2):
         ctor_args = ir_tuple_from_args(args[1:])
@@ -2146,6 +2173,10 @@ class Print(BuiltinFunctionT):
             vyper_warn("`print` should only be used for debugging!", node)
             self._warned = True
 
+        for arg_t in self.infer_arg_types(node):
+            # touch abi_type to reject non-encodable argument types
+            _ = arg_t.abi_type
+
         return None
 
     @process_inputs
@@ -2243,11 +2274,14 @@ class ABIEncode(BuiltinFunctionT):
 
     def fetch_call_return(self, node):
         self._validate_arg_types(node)
-        ensure_tuple = next(
-            (arg.value.value for arg in node.keywords if arg.arg == "ensure_tuple"), True
-        )
+        kwargs = {kw.arg: kw.value for kw in node.keywords}
+
+        if "ensure_tuple" in kwargs:
+            ensure_tuple = kwargs["ensure_tuple"].get_folded_value().value
+        else:
+            ensure_tuple = True
+
         assert isinstance(ensure_tuple, bool)
-        has_method_id = "method_id" in [arg.arg for arg in node.keywords]
 
         # figure out the output type by converting
         # the types to ABI_Types and calling size_bound API
@@ -2264,7 +2298,7 @@ class ABIEncode(BuiltinFunctionT):
 
         maxlen = arg_abi_t.size_bound()
 
-        if has_method_id:
+        if "method_id" in kwargs:
             # the output includes 4 bytes for the method_id.
             maxlen += 4
 

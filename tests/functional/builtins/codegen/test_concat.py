@@ -81,12 +81,12 @@ i: immutable(int256)
 
 @deploy
 def __init__():
-    i = -1
+    self.i = -1
     s: String[2] = concat("a", "b")
 
 @external
 def foo() -> int256:
-    return i
+    return self.i
     """
     c = get_contract(code)
     assert c.foo() == -1

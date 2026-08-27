@@ -49,6 +49,7 @@ from vyper.semantics.types import (
     AddressT,
     BoolT,
     DArrayT,
+    ErrorT,
     EventT,
     FlagT,
     HashMapT,
@@ -59,7 +60,6 @@ from vyper.semantics.types import (
     StructT,
     TupleT,
     VyperType,
-    _BytestringT,
     is_type_t,
     map_void,
 )
@@ -481,16 +481,27 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         self.expr_visitor.visit(node.target, typ)
 
     def _validate_revert_reason(self, msg_node: vy_ast.VyperNode) -> None:
+        if isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE":
+            return
+
+        if isinstance(msg_node, vy_ast.Call):
+            call_type = get_exact_type_from_node(msg_node.func)
+            if is_type_t(call_type, ErrorT):
+                self.expr_visitor.visit(msg_node, call_type.typedef)
+                self.func.mark_raised_error(call_type.typedef)
+                return
+
         if isinstance(msg_node, vy_ast.Str):
             if not msg_node.value.strip():
                 raise StructureException("Reason string cannot be empty", msg_node)
-            self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
-        elif not (isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE"):
-            try:
-                validate_expected_type(msg_node, StringT(1024))
-            except TypeMismatch as e:
-                raise InvalidType("revert reason must fit within String[1024]") from e
-            self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
+            # fall through to the `String[1024]` length check below, so that an
+            # over-long string literal is rejected just like a variable would be
+
+        try:
+            validate_expected_type(msg_node, StringT(1024))
+        except TypeMismatch as e:
+            raise InvalidType("revert reason must fit within String[1024]") from e
+        self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
         # CMC 2023-10-19 nice to have: tag UNREACHABLE nodes with a special type
 
     def visit_Assert(self, node):
@@ -619,6 +630,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if is_type_t(fn_type, EventT):
             raise StructureException("To call an event you must use the `log` statement", node)
 
+        if is_type_t(fn_type, ErrorT):
+            raise StructureException(
+                "To raise a custom error you must use `raise` or `assert`", node
+            )
+
         if is_type_t(fn_type, StructT):
             raise StructureException("Struct creation without assignment is disallowed", node)
 
@@ -746,6 +762,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         assert isinstance(node.value, vy_ast.Call)
 
         f = get_exact_type_from_node(node.value.func)
+        if is_type_t(f, ErrorT):
+            raise StructureException(
+                "To raise a custom error you must use `raise` or `assert`", node
+            )
         if not is_type_t(f, EventT):
             raise StructureException("Value is not an event", node.value)
         if self.func.mutability <= StateMutability.VIEW:
@@ -1066,18 +1086,9 @@ class ExprVisitor(VyperNodeVisitorBase):
         else:
             # ex. a < b
             cmp_typ = get_common_types(node.left, node.right).pop()
-            if isinstance(cmp_typ, _BytestringT):
-                # for bytestrings, get_common_types automatically downcasts
-                # to the smaller common type - that will annotate with the
-                # wrong type, instead use get_exact_type_from_node (which
-                # resolves to the right type for bytestrings anyways).
-                ltyp = get_exact_type_from_node(node.left)
-                rtyp = get_exact_type_from_node(node.right)
-            else:
-                ltyp = rtyp = cmp_typ
 
-            self.visit(node.left, ltyp)
-            self.visit(node.right, rtyp)
+            self.visit(node.left, cmp_typ)
+            self.visit(node.right, cmp_typ)
 
     def visit_Constant(self, node: vy_ast.Constant, typ: VyperType) -> None:
         pass
@@ -1106,8 +1117,9 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             for possible_type in possible_base_types:
                 if isinstance(possible_type, TupleT):
-                    assert isinstance(node.slice, vy_ast.Int)  # help mypy
-                    value_type = possible_type.member_types[node.slice.value]
+                    index = node.slice.reduced()
+                    assert isinstance(index, vy_ast.Int)  # help mypy
+                    value_type = possible_type.member_types[index.value]
                 else:
                     value_type = possible_type.value_type
 

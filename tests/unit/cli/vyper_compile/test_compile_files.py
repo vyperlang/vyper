@@ -3,7 +3,7 @@ import json
 import sys
 import warnings
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePath
 
 import pytest
 
@@ -11,7 +11,7 @@ from vyper.cli.compile_archive import compiler_data_from_zip
 from vyper.cli.vyper_compile import compile_files
 from vyper.cli.vyper_json import compile_from_input_dict, compile_json
 from vyper.compiler import INTERFACE_OUTPUT_FORMATS, OUTPUT_FORMATS
-from vyper.compiler.input_bundle import FilesystemInputBundle
+from vyper.compiler.input_bundle import FilesystemInputBundle, JSONInputBundle
 from vyper.compiler.output_bundle import OutputBundle
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
@@ -621,6 +621,57 @@ def test_integrity_sum(input_files):
     )
 
     assert out[contract_file]["integrity"] == integrity
+
+
+def _make_compiler_data(sources):
+    sources = {PurePath(path): {"content": content} for path, content in sources.items()}
+    input_bundle = JSONInputBundle(sources, search_paths=[PurePath(".")])
+    file_input = input_bundle.load_file(PurePath("main.vy"))
+    return CompilerData(file_input, input_bundle)
+
+
+# integrity sum must cover transitive imports of `.vyi` files (GH 5073)
+def test_integrity_sum_vyi_imports():
+    main_source = "import foo as Foo\n"
+    foo_source = """
+import bar
+
+@external
+def foobar():
+    ...
+"""
+    bar_source = """
+@external
+def bar_func():
+    ...
+"""
+    sources = {"main.vy": main_source, "foo.vyi": foo_source, "bar.vyi": bar_source}
+    compiler_data = _make_compiler_data(sources)
+
+    bar_hash = sha256sum(sha256sum(bar_source))
+    foo_hash = sha256sum(sha256sum(foo_source) + bar_hash)
+    expected = sha256sum(sha256sum(main_source) + foo_hash)
+    assert compiler_data.integrity_sum == expected
+
+    # changing a transitively imported interface changes the integrity sum
+    sources["bar.vyi"] = bar_source + "\n# comment\n"
+    compiler_data2 = _make_compiler_data(sources)
+    assert compiler_data.integrity_sum != compiler_data2.integrity_sum
+
+
+# integrity sum calculation should be linear in the size of the import
+# graph; diamond-shaped imports used to blow up exponentially (GH 5075)
+def test_integrity_sum_diamond_imports():
+    depth = 64
+    sources = {"main.vy": "import m0 as M\n", f"m{depth}.vy": ""}
+    for i in range(depth):
+        # m_i imports a_i and b_i, which both import m_{i+1}
+        sources[f"m{i}.vy"] = f"import a{i} as A\nimport b{i} as B\n"
+        sources[f"a{i}.vy"] = f"import m{i + 1} as M\n"
+        sources[f"b{i}.vy"] = f"import m{i + 1} as M\n"
+
+    compiler_data = _make_compiler_data(sources)
+    assert compiler_data.integrity_sum is not None
 
 
 # does this belong in tests/unit/compiler?
