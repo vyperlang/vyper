@@ -2175,6 +2175,30 @@ def test_sdiv_negative_divisor_returns_top():
     assert rng.is_top
 
 
+def test_sdiv_of_constant_wrapped_past_signed_max():
+    """
+    SIGNED_MAX + 1 wraps to the word 2**255, which is SIGNED_MIN. The
+    constant must be stored as SIGNED_MIN so that sdiv sees a negative
+    dividend: sdiv(SIGNED_MIN, 2) = -2**254, not +2**254.
+    """
+    analysis, fn = _analyze(f"""
+        function test {{
+        entry:
+            %x = {SIGNED_MAX}
+            %a = add %x, 1
+            %q = sdiv %a, 2
+            stop
+        }}
+        """)
+
+    entry = fn.get_basic_block("entry")
+    add_inst = next(inst for inst in entry.instructions if inst.opcode == "add")
+    sdiv_inst = next(inst for inst in entry.instructions if inst.opcode == "sdiv")
+    stop_inst = entry.instructions[-1]
+    assert analysis.get_range(add_inst.output, stop_inst) == ValueRange.constant(SIGNED_MIN)
+    assert analysis.get_range(sdiv_inst.output, stop_inst) == ValueRange.constant(-(2**254))
+
+
 def test_smod_positive_dividend():
     """Test smod with positive dividend range."""
     analysis, fn = _analyze("""

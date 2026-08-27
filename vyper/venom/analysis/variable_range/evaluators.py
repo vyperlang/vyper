@@ -24,10 +24,8 @@ def eval_add(lhs: ValueRange, rhs: ValueRange) -> ValueRange:
     if lhs.is_empty or rhs.is_empty:
         return ValueRange.empty()
     if lhs.is_constant and rhs.is_constant:
-        result = lhs.lo + rhs.lo
-        if result < SIGNED_MIN or result > UNSIGNED_MAX:
-            result = wrap256(result)
-        return ValueRange.constant(result)
+        # constants are kept in signed representation, like literals
+        return ValueRange.constant(wrap256(lhs.lo + rhs.lo, signed=True))
     # TODO: could be more precise for negative operands when ranges don't wrap
     if lhs.lo < 0 or rhs.lo < 0:
         return ValueRange.top()
@@ -46,10 +44,8 @@ def eval_sub(lhs: ValueRange, rhs: ValueRange) -> ValueRange:
     if lhs.is_empty or rhs.is_empty:
         return ValueRange.empty()
     if lhs.is_constant and rhs.is_constant:
-        result = lhs.lo - rhs.lo
-        if result < SIGNED_MIN or result > UNSIGNED_MAX:
-            result = wrap256(result)
-        return ValueRange.constant(result)
+        # constants are kept in signed representation, like literals
+        return ValueRange.constant(wrap256(lhs.lo - rhs.lo, signed=True))
     if (lhs.hi - lhs.lo) > RANGE_WIDTH_LIMIT or (rhs.hi - rhs.lo) > RANGE_WIDTH_LIMIT:
         return ValueRange.top()
 
@@ -72,10 +68,8 @@ def eval_mul(lhs: ValueRange, rhs: ValueRange) -> ValueRange:
         return ValueRange.constant(0)
 
     if lhs.is_constant and rhs.is_constant:
-        result = lhs.lo * rhs.lo
-        if result < SIGNED_MIN or result > UNSIGNED_MAX:
-            result = wrap256(result)
-        return ValueRange.constant(result)
+        # constants are kept in signed representation, like literals
+        return ValueRange.constant(wrap256(lhs.lo * rhs.lo, signed=True))
     # For non-constant ranges, only handle non-negative values
     if lhs.lo < 0 or rhs.lo < 0:
         return ValueRange.top()
@@ -349,7 +343,7 @@ def eval_sdiv(dividend: ValueRange, divisor: ValueRange) -> ValueRange:
 
     # For constant dividend, compute exact result
     if dividend.is_constant:
-        dv = dividend.lo
+        dv = wrap256(dividend.lo, signed=True)
         # Special case: SIGNED_MIN / -1 = SIGNED_MIN (no negation due to overflow)
         if dv == SIGNED_MIN and d == -1:
             return ValueRange.constant(SIGNED_MIN)
