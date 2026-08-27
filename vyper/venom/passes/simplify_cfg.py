@@ -29,10 +29,23 @@ class SimplifyCFGPass(IRPass):
                     break
                 inst.operands[inst.operands.index(b.label)] = a.label
 
+        # Schedule label replacement for data segment references
+        self._schedule_label_replacement(b.label, a.label)
+
         self.function.remove_basic_block(b)
 
-    def _merge_jump(self, a: IRBasicBlock, b: IRBasicBlock):
+    def _merge_jump(self, a: IRBasicBlock, b: IRBasicBlock) -> bool:
         next_bb = self.cfg.cfg_out(b).first()
+        for inst in next_bb.instructions:
+            if inst.opcode != "phi":
+                break
+            if b.label not in inst.operands or a.label not in inst.operands:
+                continue
+            b_idx = inst.operands.index(b.label)
+            a_idx = inst.operands.index(a.label)
+            if inst.operands[b_idx + 1] != inst.operands[a_idx + 1]:
+                return False
+
         jump_inst = a.instructions[-1]
         assert b.label in jump_inst.operands, f"{b.label} {jump_inst.operands}"
         jump_inst.operands[jump_inst.operands.index(b.label)] = next_bb.label
@@ -45,7 +58,19 @@ class SimplifyCFGPass(IRPass):
         self.cfg.remove_cfg_in(next_bb, b)
         self.cfg.add_cfg_in(next_bb, a)
 
+        # Update phis in next_bb: b is no longer predecessor, a is
+        for inst in next_bb.instructions:
+            if inst.opcode != "phi":
+                break
+            assert b.label in inst.operands
+            b_idx = inst.operands.index(b.label)
+            if a.label in inst.operands:
+                del inst.operands[b_idx : b_idx + 2]
+            else:
+                inst.operands[b_idx] = a.label
+
         self.function.remove_basic_block(b)
+        return True
 
     def _collapse_chained_blocks_r(self, bb: IRBasicBlock):
         """
@@ -64,9 +89,9 @@ class SimplifyCFGPass(IRPass):
                     and len(self.cfg.cfg_out(next_bb)) == 1
                     and len(next_bb.instructions) == 1
                 ):
-                    self._merge_jump(bb, next_bb)
-                    self._collapse_chained_blocks_r(bb)
-                    return
+                    if self._merge_jump(bb, next_bb):
+                        self._collapse_chained_blocks_r(bb)
+                        return
 
         if bb in self.visited:
             return
@@ -85,11 +110,6 @@ class SimplifyCFGPass(IRPass):
     def _schedule_label_replacement(self, original_label: IRLabel, replacement_label: IRLabel):
         assert original_label not in self.label_map
         self.label_map[original_label] = replacement_label
-
-    def _replace_all_labels(self):
-        for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions:
-                inst.replace_operands(self.label_map)
 
     def remove_unreachable_blocks(self) -> int:
         # Remove unreachable basic blocks
@@ -132,7 +152,7 @@ class SimplifyCFGPass(IRPass):
 
             op_len = len(inst.operands)
             if op_len == 2:
-                inst.opcode = "store"
+                inst.opcode = "assign"
                 inst.operands = [inst.operands[1]]
             elif op_len == 0:
                 inst.make_nop()
@@ -152,7 +172,7 @@ class SimplifyCFGPass(IRPass):
         for _ in range(fn.num_basic_blocks):  # essentially `while True`
             self.label_map = {}
             self._collapse_chained_blocks(entry)
-            self._replace_all_labels()
+            self._replace_all_labels(self.label_map)
             self.cfg = self.analyses_cache.force_analysis(CFGAnalysis)
             if self.remove_unreachable_blocks() == 0:
                 break

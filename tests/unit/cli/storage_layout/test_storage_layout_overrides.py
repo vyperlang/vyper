@@ -1,21 +1,12 @@
-import json
 import re
-from pathlib import PurePath
 
 import pytest
 
+from tests.utils import json_input
 from vyper.cli.vyper_json import compile_json
 from vyper.compiler import compile_code
-from vyper.compiler.input_bundle import JSONInput
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import StorageLayoutException
-
-
-def json_input(json_data):
-    path = PurePath("<dummy json file>")
-    return JSONInput(
-        data=json_data, contents=json.dumps(json_data), source_id=-1, path=path, resolved_path=path
-    )
 
 
 def test_storage_layout_overrides():
@@ -260,7 +251,7 @@ name: public(String[64])
 
 @deploy
 def __init__():
-    some_immutable = 5
+    self.some_immutable = 5
     """
 
     storage_layout_override = {"name": {"slot": 10, "type": "String[64]", "n_slots": 3}}
@@ -289,8 +280,8 @@ DECIMALS: immutable(uint8)
 
 @deploy
 def __init__():
-    SYMBOL = "VYPR"
-    DECIMALS = 18
+    self.SYMBOL = "VYPR"
+    self.DECIMALS = 18
     """
     lib2 = """
 import lib1
@@ -303,7 +294,7 @@ immutable_variable: immutable(uint256)
 
 @deploy
 def __init__(s: uint256):
-    immutable_variable = s
+    self.immutable_variable = s
     lib1.__init__()
 
 @internal
@@ -326,7 +317,7 @@ uses: a_library
 
 @deploy
 def __init__():
-    some_immutable = [1, 2, 3]
+    self.some_immutable = [1, 2, 3]
 
     lib2.__init__(17)
 

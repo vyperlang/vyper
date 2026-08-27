@@ -54,14 +54,12 @@ def test_fail_undeclared(bad_code):
         compiler.compile_code(bad_code)
 
 
-fail_list_collision = [
-    """
+fail_list_collision = ["""
 @external
 def foo():
     a: int128 = 5
     a: int128 = 7
-    """
-]
+    """]
 
 
 @pytest.mark.parametrize("bad_code", fail_list_collision)

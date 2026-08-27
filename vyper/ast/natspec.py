@@ -2,10 +2,8 @@ import re
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-# NOTE: this is our only use of asttokens -- consider vendoring in the implementation.
-from asttokens import LineNumbers
-
 from vyper.ast import nodes as vy_ast
+from vyper.ast.utils import LineNumbers
 from vyper.exceptions import NatSpecSyntaxException
 
 SINGLE_FIELDS = ("title", "author", "license", "notice", "dev")

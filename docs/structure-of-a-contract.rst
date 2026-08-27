@@ -23,7 +23,7 @@ As of 0.3.10, the recommended way to specify the version pragma is as follows:
 
 .. code-block:: vyper
 
-    #pragma version ^0.3.0
+    #pragma version ^0.4.0
 
 .. note::
 
@@ -33,10 +33,10 @@ The following declaration is equivalent, and, prior to 0.3.10, was the only supp
 
 .. code-block:: vyper
 
-    # @version ^0.3.0
+    # @version ^0.4.0
 
 
-In the above examples, the contract will only compile with Vyper versions ``0.3.x``.
+In the above examples, the contract will only compile with Vyper versions ``0.4.x``.
 
 Optimization Mode
 -----------------
@@ -55,7 +55,7 @@ EVM Version
 The EVM version can be set with the ``evm-version`` pragma, which is documented in :ref:`evm-version`.
 
 Experimental Code Generation
------------------
+----------------------------
 The new experimental code generation feature can be activated using the following directive:
 
 .. code-block:: vyper
@@ -167,7 +167,7 @@ Functions may be called internally or externally depending on their :ref:`visibi
 
 See the :ref:`Functions <control-structures-functions>` documentation for more information.
 
-.. _modules:
+.. _modules-struct:
 
 Modules
 ==========
@@ -188,6 +188,7 @@ Therefore, a module encapsulates
 Modules can be added to contracts by importing them from a ``.vy`` file. Any ``.vy`` file is a valid module which can be imported into another contract! This is a very powerful feature which allows you to assemble contracts via other contracts as building blocks.
 
 .. code-block:: vyper
+
     # my_module.vy
 
     def perform_some_computation() -> uint256:
@@ -198,6 +199,7 @@ Modules can be added to contracts by importing them from a ``.vy`` file. Any ``.
         return 6
 
 .. code-block:: vyper
+
     import my_module
 
     exports: my_module.some_external_function
@@ -229,7 +231,7 @@ Events provide an interface for the EVM's logging facilities. Events may be logg
 
 See the :ref:`Event <event-logging>` documentation for more information.
 
-.. _interfaces:
+.. _structure-interfaces:
 
 Interfaces
 ==========
@@ -254,7 +256,7 @@ Once defined, an interface can then be used to make external calls to a given ad
 
     @external
     def test(some_address: address):
-        FooBar(some_address).calculate()
+        x: uint256 = staticcall FooBar(some_address).calculate()
 
 See the :ref:`Interfaces <interfaces>` documentation for more information.
 

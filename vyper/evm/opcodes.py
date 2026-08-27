@@ -198,7 +198,6 @@ PSEUDO_OPCODES: OpcodeMap = {
     "CEIL32": (None, 1, 1, 20),
     "SET": (None, 2, 0, 20),
     "NE": (None, 2, 1, 6),
-    "DEBUGGER": (None, 0, 0, 0),
     "ILOAD": (None, 1, 1, 6),
     "ISTORE": (None, 2, 0, 6),
     "DLOAD": (None, 1, 1, 9),
@@ -220,9 +219,12 @@ def _gas(value: OpcodeValue, idx: int) -> Optional[OpcodeRulesetValue]:
 
 
 def _mk_version_opcodes(opcodes: OpcodeMap, idx: int) -> OpcodeRulesetMap:
-    return dict(
-        (k, _gas(v, idx)) for k, v in opcodes.items() if _gas(v, idx) is not None  # type: ignore
-    )
+    ret = {}
+    for k, v in opcodes.items():
+        gas = _gas(v, idx)
+        if gas is not None:
+            ret[k] = gas
+    return ret
 
 
 _evm_opcodes: Dict[int, OpcodeRulesetMap] = {

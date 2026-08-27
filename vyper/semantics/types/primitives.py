@@ -15,15 +15,16 @@ from vyper.exceptions import (
 )
 from vyper.utils import checksum_encode, int_bounds, is_checksum_encoded
 
-from .base import VyperType
+from .base import BottomT, VyperType
 from .bytestrings import BytesT
+from .infinity import INF
 
 
 class _PrimT(VyperType):
     _is_prim_word = True
     _equality_attrs: tuple = ()
     _as_hashmap_key = True
-    _as_array = True
+    is_valid_element_type = True
 
 
 # should inherit from uint8?
@@ -125,6 +126,9 @@ class BytesM_T(_PrimT):
             raise InvalidLiteral(f"Cannot mix uppercase and lowercase for {self} literal", node)
 
     def compare_type(self, other: VyperType) -> bool:
+        if isinstance(other, BottomT):
+            return True
+
         if not super().compare_type(other):
             return False
         assert isinstance(other, BytesM_T)
@@ -316,6 +320,9 @@ class IntegerT(NumericT):
         return ABI_GIntM(self.bits, self.is_signed)
 
     def compare_type(self, other: VyperType) -> bool:
+        if isinstance(other, BottomT):
+            return True
+
         # this function is performance sensitive
         # originally:
         # if not super().compare_type(other):
@@ -411,7 +418,7 @@ class AddressT(_PrimT):
         "codehash": BytesM_T(32),
         "codesize": UINT(256),
         "is_contract": BoolT(),
-        "code": BytesT(),
+        "code": BytesT(INF),
     }
 
     @cached_property
@@ -439,5 +446,8 @@ class SelfT(AddressT):
     _id = "self"
 
     def compare_type(self, other):
+        if isinstance(other, BottomT):
+            return True
         # compares true to AddressT
+        # This checks if either is a subtype of the other, which doesn't seem correct
         return isinstance(other, type(self)) or isinstance(self, type(other))

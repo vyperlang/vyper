@@ -1,5 +1,6 @@
+from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import COMPARATOR_INSTRUCTIONS, IRInstruction, IRLiteral
+from vyper.venom.basicblock import COMPARATOR_INSTRUCTIONS, IRBasicBlock, IRInstruction, IRLiteral
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
@@ -20,7 +21,12 @@ class BranchOptimizationPass(IRPass):
     """
 
     cfg: CFGAnalysis
-    liveness: LivenessAnalysis
+    # Snapshot of the liveness state at the start of the pass
+    # to be used in heuristic. Snapshot is created because the
+    # pass alter the state of the function which can invalidate
+    # the part of the state of the liveness analysis which would be
+    # needed for heuristic.
+    heuristic_liveness: dict[IRBasicBlock, OrderedSet]
     dfg: DFGAnalysis
 
     def _optimize_branches(self) -> None:
@@ -32,8 +38,8 @@ class BranchOptimizationPass(IRPass):
 
             fst, snd = self.cfg.cfg_out(bb)
 
-            fst_liveness = self.liveness.live_vars_at(fst.instructions[0])
-            snd_liveness = self.liveness.live_vars_at(snd.instructions[0])
+            fst_liveness = self.heuristic_liveness[fst]
+            snd_liveness = self.heuristic_liveness[snd]
 
             # heuristic(!) to decide if we should flip the labels or not
             cost_a, cost_b = len(fst_liveness), len(snd_liveness)
@@ -57,7 +63,13 @@ class BranchOptimizationPass(IRPass):
                 self.updater.update(term_inst, term_inst.opcode, new_operands)
 
     def run_pass(self):
-        self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
+        liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
+
+        self.heuristic_liveness = dict()
+        for bb in self.function.get_basic_blocks():
+            live_state = liveness.live_vars_at(bb.instructions[0])
+            self.heuristic_liveness[bb] = live_state
+
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(self.dfg)

@@ -92,8 +92,8 @@ class BuiltinFunctionT(VyperType):
     mutability: StateMutability = StateMutability.PURE
 
     @property
-    def modifiability(self):
-        return self._modifiability
+    def is_modifying(self) -> bool:
+        return self.mutability > StateMutability.VIEW
 
     # helper function to deal with TYPE_Ts
     def _validate_single(self, arg: vy_ast.VyperNode, expected_type: VyperType) -> None:
@@ -115,6 +115,8 @@ class BuiltinFunctionT(VyperType):
         validate_call_args(node, expect_num_args, list(self._kwargs.keys()))
 
         for arg, (_, expected) in zip(node.args, self._inputs):
+            # `expected` is sometimes not a VyperType
+            # This violates the contract of _validate_single, but it still works
             self._validate_single(arg, expected)
 
         for kwarg in node.keywords:
@@ -123,6 +125,8 @@ class BuiltinFunctionT(VyperType):
                 kwarg.value, Modifiability.CONSTANT
             ):
                 raise TypeMismatch("Value must be literal", kwarg.value)
+            # `kwarg_settings.typ` is sometimes not a VyperType
+            # This violates the contract of _validate_single, but it still works
             self._validate_single(kwarg.value, kwarg_settings.typ)
 
         # typecheck varargs. we don't have type info from the signature,

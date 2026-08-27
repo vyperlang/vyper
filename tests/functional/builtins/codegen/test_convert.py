@@ -9,6 +9,7 @@ import pytest
 
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
+from vyper.compiler.settings import Settings
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.shortcuts import BYTES20_T, BYTES32_T, UINT, UINT160_T, UINT256_T
@@ -539,6 +540,36 @@ def foo(a: {typ}) -> Status:
         assert_compile_failed(lambda: get_contract(contract), TypeMismatch)
 
 
+def test_first_flag_member_to_bytes32(get_contract):
+    contract = """
+flag MyFlag:
+    MEMBER1
+    MEMBER2
+
+@external
+@pure
+def foo() -> bytes32:
+    return convert(MyFlag.MEMBER1, bytes32)
+    """
+    c = get_contract(contract)
+    assert c.foo() == (1).to_bytes(32, "big")
+
+
+def test_second_flag_member_to_bytes32(get_contract):
+    contract = """
+flag MyFlag:
+    MEMBER1
+    MEMBER2
+
+@external
+@pure
+def foo() -> bytes32:
+    return convert(MyFlag.MEMBER2, bytes32)
+    """
+    c = get_contract(contract)
+    assert c.foo() == (2).to_bytes(32, "big")
+
+
 # uint256 conversion is currently valid due to type inference on literals
 # not quite working yet
 same_type_conversion_blocked = sorted(TEST_TYPES - {UINT256_T})
@@ -720,3 +751,100 @@ def foo(bar: {i_typ}) -> {o_typ}:
         input_val = decimal_to_int(input_val)
     with tx_failed():
         c3.foo(input_val)
+
+
+@pytest.mark.parametrize(
+    "bad_code",
+    [
+        """
+@external
+def foo(x: uint256) -> bytes1:
+    return convert(x, bytes1)
+        """,
+        """
+@external
+def foo(x: int128) -> address:
+    return convert(x, address)
+        """,
+        """
+@external
+def foo(x: address) -> int256:
+    return convert(x, int256)
+        """,
+    ],
+)
+def test_venom_bytecode_output_rejects_invalid_conversions(bad_code):
+    settings = Settings(experimental_codegen=True)
+    with pytest.raises(TypeMismatch):
+        compile_code(bad_code, output_formats=["bytecode"], settings=settings)
+
+
+@pytest.mark.parametrize(
+    "val",
+    [
+        "a000",
+        "0880",
+        "deadbeef",
+        "cafebabe",
+        "0123456789abcdef",
+        # test cases that would trigger sign extension
+        "80",
+        "8000",
+        "800000",
+        "80000000",
+        "8000000000000000",
+        "ff",
+        "ffff",
+        "ffffffff",
+        "ffffffffffffffff",
+    ],
+)
+def test_convert_bytes_literal_int(get_contract, val):
+    expected = int(val, 16)
+    source = f"""
+@external
+def test() -> uint256:
+    return convert(x'{val}', uint256)
+"""
+    c = get_contract(source)
+    assert c.test() == expected
+
+
+def test_convert_zero_bytes_to_bool(get_contract):
+    """Bytes with zero content convert to False."""
+    code = """
+@external
+def test_zero() -> bool:
+    return convert(b"\\x00", bool)
+
+@external
+def test_empty() -> bool:
+    return convert(b"", bool)
+
+@external
+def test_nonzero() -> bool:
+    return convert(b"\\x01", bool)
+
+@external
+def test_nonzero_multi() -> bool:
+    return convert(b"\\x00\\x01", bool)
+    """
+    c = get_contract(code)
+    assert c.test_zero() is False
+    assert c.test_empty() is False
+    assert c.test_nonzero() is True
+    assert c.test_nonzero_multi() is True
+
+
+def test_convert_storage_bytes_to_uint(get_contract):
+    """Regression test: convert correctly handles storage bytes."""
+    code = """
+stored: Bytes[32]
+
+@external
+def test_convert() -> uint256:
+    self.stored = b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x2a"
+    return convert(self.stored, uint256)
+    """  # noqa: E501
+    c = get_contract(code)
+    assert c.test_convert() == 42

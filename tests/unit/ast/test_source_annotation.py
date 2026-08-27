@@ -7,45 +7,28 @@ test
 lines
 to
 indent
-"""[
-    1:-1
-]
+"""[1:-1]
 
 
 def test_indent_indents_text():
-    assert (
-        indent(TEST_TEXT, indent_chars="-", level=1)
-        == """
+    assert indent(TEST_TEXT, indent_chars="-", level=1) == """
 -test
 -lines
 -to
 -indent
-"""[
-            1:-1
-        ]
-    )
-    assert (
-        indent(TEST_TEXT, indent_chars=" ", level=4)
-        == """
+"""[1:-1]
+    assert indent(TEST_TEXT, indent_chars=" ", level=4) == """
     test
     lines
     to
     indent
-"""[
-            1:-1
-        ]
-    )
-    assert (
-        indent(TEST_TEXT, indent_chars=[" ", "*", "-", "="], level=4)
-        == """
+"""[1:-1]
+    assert indent(TEST_TEXT, indent_chars=[" ", "*", "-", "="], level=4) == """
     test
 ****lines
 ----to
 ====indent
-"""[
-            1:-1
-        ]
-    )
+"""[1:-1]
 
 
 def test_indent_raises_value_errors():
@@ -93,96 +76,67 @@ class ParserException(Exception):
             output = f'line {self.lineno}:{self.col_offset} {output}'
 
         return output
-"""[
-    1:-1
-]
+"""[1:-1]
 
 
 def test_annotate_source_code_marks_positions_in_source_code():
     annotation = annotate_source_code(
         TEST_SOURCE_CODE, 22, col_offset=16, context_lines=0, line_numbers=False
     )
-    assert (
-        annotation
-        == r"""
+    assert annotation == r"""
     def __str__(self):
 ----------------^
-"""[
-            1:-1
-        ]
-    )
+"""[1:-1]
 
     annotation = annotate_source_code(
         TEST_SOURCE_CODE, 22, col_offset=15, context_lines=1, line_numbers=False
     )
-    assert (
-        annotation
-        == r"""
+    assert annotation == r"""
 
     def __str__(self):
 ---------------^
         output = self.message
-"""[
-            1:-1
-        ]
-    )
+"""[1:-1]
 
     annotation = annotate_source_code(
         TEST_SOURCE_CODE, 22, col_offset=20, context_lines=2, line_numbers=False
     )
-    assert (
-        annotation
-        == r"""
+    assert annotation == r"""
                 self.col_offset = col_offset
 
     def __str__(self):
 --------------------^
         output = self.message
 
-"""[
-            1:-1
-        ]
-    )
+"""[1:-1]
 
     annotation = annotate_source_code(
         TEST_SOURCE_CODE, 1, col_offset=5, context_lines=3, line_numbers=True
     )
-    assert (
-        annotation
-        == r"""
+    assert annotation == r"""
 ---> 1 # Attempts to display the line and column of violating code.
 ------------^
      2 class ParserException(Exception):
      3     def __init__(self, message='Error Message not found.', item=None):
      4         self.message = message
-"""[
-            1:-1
-        ]
-    )
+"""[1:-1]
 
     annotation = annotate_source_code(
         TEST_SOURCE_CODE, 36, col_offset=8, context_lines=4, line_numbers=True
     )
-    assert (
-        annotation
-        == r"""
+    assert annotation == r"""
      32
      33         elif self.lineno is not None and self.col_offset is not None:
      34             output = f'line {self.lineno}:{self.col_offset} {output}'
      35
 ---> 36         return output
 ----------------^
-"""[
-            1:-1
-        ]
-    )
+"""[1:-1]
 
     annotation = annotate_source_code(
         TEST_SOURCE_CODE, 15, col_offset=8, context_lines=11, line_numbers=True
     )
-    assert (
-        annotation
-        == r"""
+    assert annotation == r"""
       4         self.message = message
       5         self.lineno = None
       6         self.col_offset = None
@@ -207,17 +161,12 @@ def test_annotate_source_code_marks_positions_in_source_code():
      24
      25         if self.lineno and hasattr(self, 'source_code'):
      26
-"""[
-            1:-1
-        ]
-    )
+"""[1:-1]
 
     annotation = annotate_source_code(
         TEST_SOURCE_CODE, 15, col_offset=None, context_lines=3, line_numbers=True
     )
-    assert (
-        annotation
-        == r"""
+    assert annotation == r"""
      12             if hasattr(item, 'source_code'):
      13                 self.source_code = item.source_code.splitlines()
      14
@@ -225,26 +174,18 @@ def test_annotate_source_code_marks_positions_in_source_code():
      16         if not self.lineno:
      17             self.lineno = lineno
      18
-"""[
-            1:-1
-        ]
-    )
+"""[1:-1]
 
     annotation = annotate_source_code(
         TEST_SOURCE_CODE, 15, col_offset=None, context_lines=2, line_numbers=False
     )
-    assert (
-        annotation
-        == r"""
+    assert annotation == r"""
                 self.source_code = item.source_code.splitlines()
 
     def set_err_pos(self, lineno, col_offset):
         if not self.lineno:
             self.lineno = lineno
-"""[
-            1:-1
-        ]
-    )
+"""[1:-1]
 
 
 @pytest.mark.parametrize("bad_lineno", (-100, -1, 0, 45, 1000))
