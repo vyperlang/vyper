@@ -58,15 +58,15 @@ def empty_list_candidate_types():
             # `Never` is a subtype of everything, so it would match any
             # expected type and disambiguate nothing.
             continue
+        if not isinstance(t, VyperType):
+            # bytestring typeclasses. their generic acceptor (`BytesT.any()`)
+            # only matches on the expected side of `compare_type`, never as
+            # the given type, so as a candidate it could not match anything.
+            assert isinstance(t, type) and issubclass(t, VyperType), t
+            continue
         # 1 is minimum possible length for dynarray,
         # can be assigned to anything
-        if isinstance(t, VyperType):
-            ret.append(DArrayT(t, 1))
-        elif isinstance(t, type) and issubclass(t, VyperType):
-            # for typeclasses like bytestrings, use a generic type acceptor
-            ret.append(DArrayT(t.any(), 1))
-        else:
-            raise CompilerPanic(f"busted type {t}")
+        ret.append(DArrayT(t, 1))
     return ret
 
 
