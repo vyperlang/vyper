@@ -2362,8 +2362,8 @@ def foo():
     assert logs[0].args.data == expected
 
 
-@pytest.mark.xfail(raises=CompilerPanic, reason="non-unique symbols")
-def test_double_eval_pop(get_contract):
+def test_double_eval_pop(get_contract, experimental_codegen):
+    # GH issue #4072
     code = """
 m: HashMap[uint256, String[33]]
 
@@ -2373,6 +2373,13 @@ def foo() -> uint256:
     self.m[x.pop()] = "Hello world"
     return len(x)
 """
+
+    if not experimental_codegen:
+        # legacy codegen evaluates the `pop()` twice, which emits the
+        # `pop_dynarray` unique symbol twice.
+        with pytest.raises(CompilerPanic):
+            get_contract(code)
+        return
 
     c = get_contract(code)
     assert c.foo() == 15
