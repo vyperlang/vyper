@@ -335,9 +335,11 @@ def eval_sdiv(dividend: ValueRange, divisor: ValueRange) -> ValueRange:
     if dividend.is_empty or divisor.is_empty:
         return ValueRange.empty()
     d = divisor.as_constant()
-    # d is already signed from as_constant()
     if d is None:
         return ValueRange.top()
+    # constants can arrive in unsigned representation (e.g. from branch
+    # narrowing on an unsigned comparison), so read the divisor as signed
+    d = wrap256(d, signed=True)
     if d == 0:
         return ValueRange.constant(0)
 
@@ -395,9 +397,11 @@ def eval_smod(dividend: ValueRange, divisor: ValueRange) -> ValueRange:
     if dividend.is_empty or divisor.is_empty:
         return ValueRange.empty()
     d = divisor.as_constant()
-    # d is already signed from as_constant()
     if d is None:
         return ValueRange.top()
+    # constants can arrive in unsigned representation (e.g. from branch
+    # narrowing on an unsigned comparison), so read the divisor as signed
+    d = wrap256(d, signed=True)
     if d == 0:
         return ValueRange.constant(0)
     limit = abs(d) - 1
