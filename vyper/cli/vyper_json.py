@@ -170,17 +170,19 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
                 raise JSONError(
                     f"Calculated keccak of '{path}' does not match keccak given in input JSON"
                 )
-        if path in seen:
+        # import resolution tries `.vy`, `.vyi`, `.json` for a given module
+        # path, so key collisions on the path without its suffix
+        if path.with_suffix("") in seen:
             raise JSONError(f"Contract namespace collision: {path}")
 
         # value looks like {"content": <source code>}
         # this will be interpreted by JSONInputBundle later
         ret[path] = value
-        seen[path] = True
+        seen[path.with_suffix("")] = True
 
     for path, value in input_dict.get("interfaces", {}).items():
         path = PurePath(_normpath(path))
-        if path in seen:
+        if path.with_suffix("") in seen:
             raise JSONError(f"Interface namespace collision: {path}")
 
         if isinstance(value, list):
@@ -207,7 +209,7 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
             )
 
         ret[path] = value
-        seen[path] = True
+        seen[path.with_suffix("")] = True
 
     return ret
 
