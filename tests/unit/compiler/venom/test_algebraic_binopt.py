@@ -764,6 +764,8 @@ _B_IN_100_200 = """%b_base = and %y, 100
         # is above any non-negative range in an unsigned comparison
         pytest.param("gt", _A_IN_NEG100_NEG1, _B_IN_0_99, 1, id="gt-negative-a-is-large-unsigned"),
         pytest.param("lt", _A_IN_NEG100_NEG1, _B_IN_0_99, 0, id="lt-negative-a-is-large-unsigned"),
+        # as signed values, [-100, -1] is below any non-negative range
+        pytest.param("slt", _A_IN_NEG100_NEG1, _B_IN_0_99, 1, id="slt-negative-a-below-b"),
     ],
 )
 def test_comparison_disjoint_ranges_fold(opcode, a_def, b_def, expected):
@@ -962,17 +964,91 @@ def test_lt_range_spans_boundary_from_nonneg_no_fold():
     _check_fold(pre, post)
 
 
-def test_gt_both_negative_signed_disjoint():
+def test_gt_both_negative_ranges_disjoint():
     """
-    Both ranges entirely in negative signed space (high unsigned).
-    This tests that when both operands are in the same "side" of the boundary,
-    the standard comparison logic works correctly.
+    Both operands are negative words, i.e. both lie in the high half of
+    the unsigned space, so an unsigned comparison is decided by their
+    signed order: a ∈ [-100, -1] is above b ∈ [-300, -201].
+    """
+    pre = """
+    main:
+        %x = source
+        %y = source
+        %a_base = and %x, 99
+        %a = sub %a_base, 100
+        %b_base = and %y, 99
+        %b = sub %b_base, 300
+        %cmp = gt %a, %b
+        sink %cmp
+    """
 
-    Note: Range analysis via sub can produce TOP for complex expressions,
-    so we use a simpler approach - testing signed comparison where ranges
-    are clearly in the negative domain.
+    post = """
+    main:
+        %cmp = 1
+        sink %cmp
     """
-    # For now, we verify the fix via the signed wraparound test
-    # and the unsigned one_neg_one_nonneg tests below.
-    # Direct testing of both-high-unsigned requires range analysis improvements.
-    pass
+
+    _check_fold(pre, post)
+
+
+@pytest.mark.parametrize("opcode", ("slt", "sgt"))
+def test_signed_comparison_second_operand_range_past_signed_max_no_fold(opcode):
+    """
+    b ∈ [0, 2**255] contains the word 2**255, which is MIN_INT256. With
+    a ∈ [-100, -1] the raw bounds alone would order a below b, but for
+    b = MIN_INT256 a is above b, so neither slt nor sgt may fold.
+    """
+    pre = f"""
+    main:
+        %x = source
+        %y = source
+        %a_base = and %x, 99
+        %a = sub %a_base, 100
+        %b = and %y, {2**255}
+        %cmp = {opcode} %a, %b
+        sink %cmp
+    """
+
+    # Note: operands get canonicalized
+    post = f"""
+    main:
+        %x = source
+        %y = source
+        %a_base = and 99, %x
+        %a = sub %a_base, 100
+        %b = and {2**255}, %y
+        %cmp = {opcode} %a, %b
+        sink %cmp
+    """
+
+    _check_fold(pre, post)
+
+
+def test_folded_comparison_feeds_second_comparison():
+    """
+    Range analysis evaluates %c1 = lt a, b to the constant 1 (a ∈ [0, 9],
+    b ∈ [10, 99]), so the second comparison lt %c1, d with d ∈ [2, 99] is
+    decided as well and both fold in the same run.
+    """
+    pre = """
+    main:
+        %x = source
+        %y = source
+        %z = source
+        %a = and %x, 9
+        %b_base = and %y, 89
+        %b = add %b_base, 10
+        %c1 = lt %a, %b
+        %d_base = and %z, 97
+        %d = add %d_base, 2
+        %c2 = lt %c1, %d
+        sink %c2
+    """
+
+    post = """
+    main:
+        %c2 = 1
+        sink %c2
+    """
+
+    _check_fold(pre, post)
