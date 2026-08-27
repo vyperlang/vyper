@@ -138,6 +138,9 @@ class FunctionInlinerPass(IRGlobalPass):
             param_idx = 0
             for inst in bb.instructions:
                 if inst.is_param:
+                    if inst.opcode == "retpc_param":
+                        inst.make_nop()
+                        continue
                     # NOTE: one of these params is the return pc.
                     inst.opcode = "assign"
                     val = binding_ops[param_idx]

@@ -28,6 +28,7 @@ from vyper.venom.passes import (
     ReduceLiteralsCodesize,
     RevertToAssert,
     TailMergePass,
+    RemoveUnusedVariablesPass,
 )
 
 dir_path = Path(__file__).parent
@@ -59,6 +60,7 @@ pass_to_disable = [
     RevertToAssert,
     SCCP,
     TailMergePass,
+    RemoveUnusedVariablesPass,
 ]
 
 any_passes = st.lists(st.sampled_from(pass_to_disable), min_size=2, max_size=10, unique=True)
@@ -73,6 +75,26 @@ any_passes = st.lists(st.sampled_from(pass_to_disable), min_size=2, max_size=10,
 @given(passes_to_disable=any_passes)
 @pytest.mark.fuzzing
 def test_compile_pass_fuzz(vy_filename, passes_to_disable, compiler_settings, monkeypatch):
+    if not compiler_settings.experimental_codegen:
+        pytest.skip()
+
+    with open(dir_path / vy_filename) as f:
+        source_code = f.read()
+
+    with monkeypatch.context() as m:
+        run = []
+
+        def temp(*args, **kwargs):
+            run.append(True)
+
+        for pass_to_disable in passes_to_disable:
+            m.setattr(pass_to_disable, "run_pass", temp)
+
+        compiler.compile_code(source_code)
+
+def test_compile_pass_fuzz_tmp(compiler_settings, monkeypatch):
+    vy_filename = "curvefi/helpers/rate_provider/rate_provider_v_101.vy"
+    passes_to_disable = [AssignElimination, RemoveUnusedVariablesPass]
     if not compiler_settings.experimental_codegen:
         pytest.skip()
 
