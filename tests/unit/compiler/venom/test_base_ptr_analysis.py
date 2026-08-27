@@ -9,11 +9,11 @@ from vyper.venom.memory_location import MemoryLocation
 def test_base_ptr_basic():
     code = """
     main:
-        %alloca1 = alloca 1, 256
-        %2 = gep 32, %alloca1
+        %alloca1 = alloca 256
+        %2 = add 32, %alloca1
         %random = mload 123
-        %3 = gep %random, %alloca1
-        %4 = gep 32, %2
+        %3 = add %random, %alloca1
+        %4 = add 32, %2
         stop
     """
 
@@ -65,3 +65,27 @@ def test_base_ptr_instruction_with_no_memory_ops():
     # Verify that the instruction doesn't have memory operations
     assert base_ptr_analysis.get_read_location(assignment_inst, MEMORY) is MemoryLocation.EMPTY
     assert base_ptr_analysis.get_write_location(assignment_inst, MEMORY) is MemoryLocation.EMPTY
+
+
+def test_base_ptr_loop_offsets_collapse_to_unknown():
+    code = """
+    main:
+        %p = dalloca 32
+        jmp @loop
+
+    loop:
+        %p = add 32, %p
+        jmp @loop
+    """
+
+    ctx = parse_from_basic_block(code)
+
+    fn = next(ctx.get_functions())
+    ac = IRAnalysesCache(fn)
+    base_ptr_analysis = ac.request_analysis(BasePtrAnalysis)
+
+    ptr = base_ptr_analysis.ptr_from_op(IRVariable("%p"))
+
+    assert ptr is not None
+    assert ptr.base_alloca.inst.opcode == "dalloca"
+    assert ptr.offset is None

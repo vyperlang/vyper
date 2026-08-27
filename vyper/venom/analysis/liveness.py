@@ -4,7 +4,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
 
 
 class LivenessAnalysis(IRAnalysis):
@@ -96,29 +96,43 @@ class LivenessAnalysis(IRAnalysis):
     def input_vars_from(self, source: IRBasicBlock, target: IRBasicBlock) -> OrderedSet[IRVariable]:
         liveness = self.inst_to_liveness[target.instructions[0]].copy()
 
+        phis: list[IRInstruction] = []
         for inst in target.instructions:
             if inst.opcode == "phi":
-                # we arbitrarily choose one of the arguments to be in the
-                # live variables set (dependent on how we traversed into this
-                # basic block). the argument will be replaced by the destination
-                # operand during instruction selection.
-                # for instance, `%56 = phi %label1 %12 %label2 %14`
-                # will arbitrarily choose either %12 or %14 to be in the liveness
-                # set, and then during instruction selection, after this instruction,
-                # %12 will be replaced by %56 in the liveness set
-
-                # bad path into this phi node
                 if source.label not in inst.operands:
                     raise CompilerPanic(f"unreachable: {inst} from {source.label}")
+                phis.append(inst)
+            else:
+                break
 
-                for label, var in inst.phi_operands:
-                    if label == source.label:
-                        liveness.add(var)
-                    else:
-                        if var in liveness:
-                            liveness.remove(var)
+        if len(phis) == 0:
+            return liveness
 
-        return liveness
+        # Map every phi operand (from all sources) to its phi index,
+        # and record the matching operand from `source` for each phi.
+        operand_to_phi_idx: dict[IROperand, int] = {}
+        phi_matching: dict[int, IRVariable] = {}
+        for i, phi in enumerate(phis):
+            for label, var in phi.phi_operands:
+                operand_to_phi_idx[var] = i
+                if label == source.label:
+                    assert isinstance(var, IRVariable)
+                    phi_matching[i] = var
+
+        result: OrderedSet[IRVariable] = OrderedSet()
+        placed: set[int] = set()
+
+        for var in liveness:
+            phi_idx = operand_to_phi_idx.get(var)
+            if phi_idx is not None:
+                if phi_idx not in placed:
+                    placed.add(phi_idx)
+                    result.add(phi_matching[phi_idx])
+                # else: skip subsequent operands of same phi
+            else:
+                result.add(var)
+
+        return result
 
     def invalidate(self):
         # delete properties so they can't accidentally be used

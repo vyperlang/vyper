@@ -44,7 +44,7 @@ class VolatilePrePostChecker(PrePostChecker):
                 volatile_loc = MemoryLocation(offset=address, size=size, _is_volatile=True)
                 mem_ssa.mark_location_volatile(volatile_loc)
 
-            for p in self.passes:
+            for p, _ in self.passes:
                 obj = p(ac, fn)
                 self.pass_objects.append(obj)
                 obj.run_pass(self.addr_space)
@@ -248,6 +248,18 @@ def test_dead_store_memory_copy():
             return 128, 64
     """
     _check_pre_post(pre, pre)
+
+
+def test_codecopy_not_dead_when_read_via_iload_and_different_alloca():
+    pre = """
+        _global:
+            %a = alloca 32
+            %b = alloca 32
+            codecopy %a, 0, 32
+            %v = iload %b
+            sink %v
+    """
+    _check_pre_post(pre, pre, hevm=False)
 
 
 def _generate_jnz_configurations(cond, then, else_):
@@ -1079,6 +1091,42 @@ def test_volatile_derived_location_store():
     _check_pre_post(pre, post, hevm=False)
 
 
+def test_mstore_before_ret_is_not_dead():
+    """Memory stores before ret (internal function return) are live because
+    the caller can observe memory after the function returns.
+    Regression test: DSE was eliminating the free memory pointer update
+    in alloc()-style functions, causing all allocations to alias."""
+    pre = """
+    _global:
+        %ptr = mload 64
+        %new_ptr = add 64, %ptr
+        mstore 64, %new_ptr
+        ret %ptr
+    """
+    _check_no_change(pre, hevm=False)
+
+
+def test_mstore_before_ret_clobbered_is_dead():
+    """A store before ret that is clobbered by a later store IS dead."""
+    pre = """
+    _global:
+        %ptr = mload 64
+        %new_ptr = add 64, %ptr
+        mstore 64, %new_ptr
+        mstore 64, %ptr
+        ret %ptr
+    """
+    post = """
+    _global:
+        %ptr = mload 64
+        nop
+        nop
+        mstore 64, %ptr
+        ret %ptr
+    """
+    _check_pre_post(pre, post, hevm=False)
+
+
 def test_unknown_size_store():
     pre = """
     _global:
@@ -1139,6 +1187,20 @@ def test_storage_basic_dead_store(addr_space):
             stop
     """
     _check_pre_post_generic(pre, post, addr_space)
+
+
+def test_storage_store_before_selfdestruct():
+    pre = """
+        _global:
+            sstore 0, 1
+            selfdestruct 0
+    """
+    post = """
+        _global:
+            sstore 0, 1
+            selfdestruct 0
+    """
+    _check_pre_post_generic(pre, post, STORAGE)
 
 
 @pytest.mark.parametrize("addr_space", _persistent_address_spaces)

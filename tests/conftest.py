@@ -66,7 +66,7 @@ def pytest_addoption(parser):
 def output_formats():
     output_formats = compiler.OUTPUT_FORMATS.copy()
 
-    to_drop = ("bb", "bb_runtime", "cfg", "cfg_runtime", "archive", "archive_b64", "solc_json")
+    to_drop = ("cfg", "cfg_runtime", "archive", "archive_b64", "solc_json")
     for s in to_drop:
         del output_formats[s]
 
@@ -91,29 +91,6 @@ def experimental_codegen(pytestconfig):
     ret = pytestconfig.getoption("experimental_codegen")
     assert isinstance(ret, bool)
     return ret
-
-
-@pytest.fixture(autouse=True)
-def check_venom_xfail(request, experimental_codegen):
-    if not experimental_codegen:
-        return
-
-    marker = request.node.get_closest_marker("venom_xfail")
-    if marker is None:
-        return
-
-    # https://github.com/okken/pytest-runtime-xfail?tab=readme-ov-file#alternatives
-    request.node.add_marker(pytest.mark.xfail(strict=True, **marker.kwargs))
-
-
-@pytest.fixture
-def venom_xfail(request, experimental_codegen):
-    def _xfail(*args, **kwargs):
-        if not experimental_codegen:
-            return
-        request.node.add_marker(pytest.mark.xfail(*args, strict=True, **kwargs))
-
-    return _xfail
 
 
 @pytest.fixture(scope="session")
@@ -242,7 +219,7 @@ def env(gas_limit, evm_version, evm_backend, tracing, account_keys, exporter) ->
 def get_contract_from_ir(env, optimize):
     def ir_compiler(ir, *args, **kwargs):
         ir = IRnode.from_list(ir)
-        if kwargs.pop("optimize", optimize) != OptimizationLevel.NONE:
+        if not kwargs.pop("optimize", optimize).uses_lowering_only_ir():
             ir = optimizer.optimize(ir)
 
         assembly = compile_ir.compile_to_assembly(ir, optimize=optimize)
@@ -425,6 +402,22 @@ def pytest_fixture_setup(fixturedef: pytest.FixtureDef, request):
         return
 
     exporter.finalize_item(fixturedef)
+
+
+def pytest_runtest_setup(item):
+    marker = item.get_closest_marker("skip_at_optimization")
+    if marker is None:
+        return
+
+    assert marker.args, "skip_at_optimization requires at least one optimization level"
+    assert all(isinstance(level, OptimizationLevel) for level in marker.args)
+    assert set(marker.kwargs) == {"reason"}
+    reason = marker.kwargs["reason"]
+    assert isinstance(reason, str) and reason
+
+    level = OptimizationLevel.from_string(item.config.getoption("optimize"))
+    if level in marker.args:
+        pytest.skip(f"{reason}; skipped at --optimize {level}")
 
 
 @pytest.hookimpl(hookwrapper=True)

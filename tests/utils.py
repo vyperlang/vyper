@@ -6,9 +6,11 @@ from pathlib import PurePath
 from typing import Any
 
 from vyper import ast as vy_ast
-from vyper.compiler.input_bundle import JSONInput
+from vyper.compiler.input_bundle import FilesystemInputBundle, JSONInput
 from vyper.compiler.phases import CompilerData
+from vyper.semantics.analysis import analyze_modules
 from vyper.semantics.analysis.constant_folding import constant_fold
+from vyper.semantics.analysis.imports import resolve_imports
 from vyper.utils import DECIMAL_EPSILON, round_towards_zero
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
@@ -28,6 +30,15 @@ def parse_and_fold(source_code):
     ast = vy_ast.parse_to_ast(source_code)
     constant_fold(ast)
     return ast
+
+
+def analyze_module_single(module_ast):
+    """
+    Resolve imports and analyze a single self-contained module AST
+    (no file imports).
+    """
+    imports = resolve_imports(module_ast, FilesystemInputBundle([]))
+    return analyze_modules(imports)
 
 
 def decimal_to_int(*args):

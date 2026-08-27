@@ -505,17 +505,17 @@ def test_comparison_almost_always():
         %par = source
         %5 = iszero %par
         %1 = iszero %5
-        %9 = not %par  ; (eq -1 x) => (iszero (not x))
-        %6 = iszero %9
-        %2 = iszero %6
+        %6 = not %par
+        %7 = iszero %6
+        %2 = iszero %7
         assert %2
-        %10 = xor %par, {max_int256}
-        %7 = iszero %10
-        %3 = iszero %7
+        %8 = xor %par, {max_int256}
+        %9 = iszero %8
+        %3 = iszero %9
         assert %3
-        %11 = xor %par, {min_int256}
-        %8 = iszero %11
-        %4 = iszero %8
+        %10 = xor %par, {min_int256}
+        %11 = iszero %10
+        %4 = iszero %11
         assert %4
         sink %1
     """
@@ -617,6 +617,44 @@ def test_signextend_range_no_elimination():
         sink %y
     """
     _check_pre_post(pre, post)
+
+
+def test_signextend_unwrapped_zero_byte_index_not_eliminated():
+    # 2**256 wraps to byte index 0. It must not take the raw n >= 31 no-op path.
+    zero_mod_uint256 = 2**256
+    pre = f"""
+    _global:
+        %x = source
+        %y = signextend {zero_mod_uint256}, %x
+        sink %y
+    """
+    post = f"""
+    _global:
+        %x = source
+        %y = signextend {zero_mod_uint256}, %x
+        sink %y
+    """
+    _check_pre_post(pre, post, hevm=False)
+
+
+def test_signextend_chain_uses_wrapped_byte_indexes():
+    # The outer index wraps to 0, so it is not wider than the inner index 1.
+    zero_mod_uint256 = 2**256
+    pre = f"""
+    _global:
+        %x = source
+        %inner = signextend 1, %x
+        %outer = signextend {zero_mod_uint256}, %inner
+        sink %outer
+    """
+    post = f"""
+    _global:
+        %x = source
+        %inner = signextend 1, %x
+        %outer = signextend {zero_mod_uint256}, %inner
+        sink %outer
+    """
+    _check_pre_post(pre, post, hevm=False)
 
 
 @pytest.mark.skip(reason="Range-based comparison needs investigation - flip timing issue")

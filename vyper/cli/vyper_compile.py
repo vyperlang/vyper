@@ -48,11 +48,10 @@ interface          - Vyper interface of a contract
 external_interface - External interface of a contract, used for outside contract calls
 opcodes            - List of opcodes as a string
 opcodes_runtime    - List of runtime opcodes as a string
-ir                 - Intermediate representation in list format
+ir                 - Intermediate representation in list format (Venom IR if --experimental-codegen)
 ir_json            - Intermediate representation in JSON format
-ir_runtime         - Intermediate representation of runtime bytecode in list format
-bb                 - Basic blocks of Venom IR for deployable bytecode
-bb_runtime         - Basic blocks of Venom IR for runtime bytecode
+ir_runtime         - Intermediate representation of runtime bytecode
+                      (Venom IR if --experimental-codegen)
 asm                - Output the EVM assembly of the deployable bytecode
 integrity          - Output the integrity hash of the source code
 archive            - Output the build as an archive file
@@ -147,8 +146,8 @@ def _parse_args(argv):
         "-O",
         "--optimize",
         help="Optimization level (defaults to 'gas'). Valid options: "
-        "1 (basic), 2 (gas/default), 3 (aggressive - experimental), "
-        "s (size), or legacy names: none (alias for 1), gas, codesize",
+        "1 (lowering-only IR), 2 (gas/default), 3 (aggressive - experimental), "
+        "s (size), or legacy names: none (also disables assembly optimization), gas, codesize",
         metavar="LEVEL",
         dest="optimize",
     )
@@ -219,6 +218,12 @@ def _parse_args(argv):
         dest="experimental_codegen",
     )
     parser.add_argument("--enable-decimals", help="Enable decimals", action="store_true")
+    parser.add_argument(
+        "--disable-static-exceptions",
+        help="Don't raise compile-time errors for provably failing assertions",
+        action="store_true",
+        dest="disable_static_exceptions",
+    )
 
     parser.add_argument(
         "-W", help="Control warnings", dest="warnings_control", choices=["error", "none"]
@@ -289,6 +294,9 @@ def _parse_args(argv):
 
     if args.enable_decimals:
         settings.enable_decimals = args.enable_decimals
+
+    if args.disable_static_exceptions:
+        settings.disable_static_exceptions = args.disable_static_exceptions
 
     if args.verbose:
         print(f"cli specified: `{settings}`", file=sys.stderr)

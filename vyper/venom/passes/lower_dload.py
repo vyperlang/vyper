@@ -9,8 +9,10 @@ class LowerDloadPass(IRPass):
     Lower dload and dloadbytes instructions
     """
 
-    # Run after MemMergePass so `dload` patterns are still available for merge opportunities.
-    required_predecessors = ("MemMergePass",)
+    # Run after MemMergePass so `dload` patterns are still available for merge
+    # opportunities. This is an optimization concern, not a dependency, so
+    # pipelines which do not run MemMergePass at all (O1) are still valid.
+    ordered_after = ("MemMergePass",)
 
     def run_pass(self):
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
@@ -43,10 +45,12 @@ class LowerDloadPass(IRPass):
                 inst.opcode = "mload"
                 inst.operands = [dst]
             elif inst.opcode == "dloadbytes":
-                _, src, _ = inst.operands
+                # dloadbytes and codecopy operands (IR stack order): [size, src, dst]
+                # (displayed in reverse as: dst, src, size)
+                size, src, dst_op = inst.operands
                 code_ptr = fn.get_next_variable()
                 bb.insert_instruction(
                     IRInstruction("add", [src, IRLabel("code_end")], [code_ptr]), index=idx
                 )
                 inst.opcode = "codecopy"
-                inst.operands[1] = code_ptr
+                inst.operands = [size, code_ptr, dst_op]

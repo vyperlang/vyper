@@ -24,8 +24,7 @@ def _check_pre_post_with_unused_var_removal(pre, post, hevm: bool = True):
     """Like _check_pre_post but also runs RemoveUnusedVariablesPass.
 
     This is needed for tests involving load-store elision where the load
-    becomes unused after the store is nop'd. RemoveUnusedVariablesPass
-    has proper MSIZE fence handling to preserve loads that affect msize.
+    becomes unused after the store is nop'd.
     """
     pre_ctx, post_ctx = _checker.run_passes(pre, post)
     for fn in pre_ctx.functions.values():
@@ -61,7 +60,7 @@ def test_redundant_copy_elimination():
     Test that copying to the same location is eliminated entirely.
 
     MemoryCopyElisionPass only nops the store. The load is removed by
-    RemoveUnusedVariablesPass (which has proper MSIZE fence handling).
+    RemoveUnusedVariablesPass.
     """
     pre = """
     _global:
@@ -71,7 +70,7 @@ def test_redundant_copy_elimination():
     """
 
     # After MemoryCopyElisionPass: store is nop'd, load remains
-    # After RemoveUnusedVariablesPass: load is also removed (no msize downstream), nops cleared
+    # After RemoveUnusedVariablesPass: load is also removed, nops cleared
     post = """
     _global:
         stop
@@ -124,6 +123,121 @@ def test_mcopy_redundant_elimination():
         stop
     """
     _check_pre_post(pre, post)
+
+
+def test_repeated_mcopy_elision_with_intermediate_reads():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 200, 100, 32
+        %1 = mload 200
+        mcopy 200, 100, 32
+        %2 = mload 200
+        %3 = add %1, %2
+        sink %3
+    """
+
+    post = """
+    _global:
+        mcopy 200, 100, 32
+        %1 = mload 200
+        nop  ; mcopy 200, 100, 32              [memory copy elision - redundant repeated mcopy]
+        %2 = mload 200
+        %3 = add %1, %2
+        sink %3
+    """
+    _check_pre_post(pre, post)
+
+
+def test_no_repeated_self_overlapping_mcopy_elision():
+    """
+    mcopy has memmove semantics: when source and destination overlap, the
+    copy clobbers some of its own source bytes, so repeating it is NOT
+    idempotent. The second mcopy must NOT be elided.
+
+    The reads of %1 and %2 make both mcopies observable.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 132, 100, 64
+        %1 = mload 132
+        mcopy 132, 100, 64
+        %2 = mload 132
+        %3 = add %1, %2
+        sink %3
+    """
+    _check_no_change(pre)
+
+
+def test_no_repeated_mcopy_elision_when_source_modified():
+    """
+    When the source buffer is modified between two identical mcopy operations,
+    the second mcopy must NOT be elided because the source data may have changed.
+
+    The read of %1 between the copies makes the first mcopy observable,
+    preventing dead-store elimination from removing it instead.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 200, 100, 32
+        %1 = mload 200
+        mstore 100, 999
+        mcopy 200, 100, 32
+        %2 = mload 200
+        %3 = add %1, %2
+        sink %3
+    """
+    _check_no_change(pre)
+
+
+def test_no_repeated_mcopy_elision_when_dest_modified():
+    """
+    When the destination is modified between two identical mcopies,
+    the second mcopy must NOT be elided because the destination contents
+    no longer match the source.
+
+    Reading %2 after the mstore makes the write to 200 observable (not
+    dead-store eliminated), and reading %1 makes the first mcopy observable.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        mcopy 200, 100, 32
+        %1 = mload 200
+        mstore 200, 999
+        %2 = mload 200
+        mcopy 200, 100, 32
+        %3 = mload 200
+        %4 = add %1, %2
+        %5 = add %4, %3
+        sink %5
+    """
+    _check_no_change(pre)
+
+
+def test_returndatacopy_not_forwarded_across_create():
+    pre = """
+    _global:
+        %src = alloca 32
+        %dst = alloca 32
+        %code = alloca 1
+        returndatacopy %src, 0, 32
+        %addr = create 0, %code, 1
+        mcopy %dst, %src, 32
+        %1 = mload %dst
+        sink %1
+    """
+    _check_no_change(pre)
 
 
 def test_no_elision_with_intermediate_write():
@@ -713,36 +827,6 @@ def test_mem_elision_load_needed_not_precise():
     _check_pre_post(pre, post)
 
 
-def test_mem_elision_msize():
-    """
-    Test that mload is preserved when msize is read downstream.
-
-    MemoryCopyElisionPass only nops the store. RemoveUnusedVariablesPass
-    would normally remove the unused load, but it correctly preserves it
-    because there's an msize instruction downstream (msize fence).
-    """
-    pre = """
-    main:
-        ; you cannot nop both of
-        ; them since you need correct
-        ; msize (currently it does that)
-        %1 = mload 100
-        mstore 100, %1
-        %2 = msize
-        sink %2
-    """
-
-    # After MemoryCopyElisionPass: store is nop'd
-    # After RemoveUnusedVariablesPass: load is KEPT (msize fence), nops cleared
-    post = """
-    main:
-        %1 = mload 100
-        %2 = msize
-        sink %2
-    """
-    _check_pre_post_with_unused_var_removal(pre, post)
-
-
 def test_remove_unused_writes():
     pre = """
     main:
@@ -935,6 +1019,84 @@ def test_same_alloca_redundant():
         stop
     """
     _check_pre_post(pre, post)
+
+
+def test_repeated_alloca_mcopy_with_intermediate_reads():
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %a1 = alloca 64
+        %a2 = alloca 64
+        mcopy %a2, %a1, 64
+        %1 = mload %a2
+        mcopy %a2, %a1, 64
+        %2 = mload %a2
+        %3 = add %1, %2
+        sink %3
+    """
+    post = """
+    _global:
+        %a1 = alloca 64
+        %a2 = alloca 64
+        mcopy %a2, %a1, 64
+        %1 = mload %a2
+        nop
+        %2 = mload %a2
+        %3 = add %1, %2
+        sink %3
+    """
+    _check_pre_post(pre, post)
+
+
+def test_no_repeated_alloca_mcopy_elision_when_source_modified():
+    """
+    When the source alloca buffer is modified between two identical mcopy
+    operations, the second mcopy must NOT be elided because the source
+    data may have changed.
+
+    The read of %1 between the copies makes the first mcopy observable.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %a1 = alloca 64
+        %a2 = alloca 64
+        mcopy %a2, %a1, 64
+        %1 = mload %a2
+        mstore %a1, 999
+        mcopy %a2, %a1, 64
+        %2 = mload %a2
+        %3 = add %1, %2
+        sink %3
+    """
+    _check_no_change(pre)
+
+
+def test_no_repeated_self_overlapping_alloca_mcopy_elision():
+    """
+    Self-overlapping mcopy within a single alloca is not idempotent
+    (memmove semantics), so the repeated copy must NOT be elided.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %buf = alloca 256
+        %src = add %buf, 0
+        %dst = add %buf, 32
+        mcopy %dst, %src, 64
+        %1 = mload %dst
+        mcopy %dst, %src, 64
+        %2 = mload %dst
+        %3 = add %1, %2
+        sink %3
+    """
+    _check_no_change(pre)
 
 
 def test_calldatacopy_mcopy_chain_with_alloca():
@@ -1533,11 +1695,11 @@ def test_interleaved_copies_different_regions():
     _check_pre_post(pre, post)
 
 
-def test_cross_bb_copy_with_gep_different_geps():
+def test_cross_bb_copy_with_add_different_adds():
     """
-    Two paths with different gep instructions that compute same value.
-    Should NOT optimize because gep results are different variables,
-    and _traverse_assign_chain stops at gep (not assign).
+    Two paths with different add instructions that compute same value.
+    Should NOT optimize because add results are different variables,
+    and _traverse_assign_chain stops at add (not assign).
     """
     if not version_check(begin="cancun"):
         return
@@ -1545,18 +1707,18 @@ def test_cross_bb_copy_with_gep_different_geps():
     pre = """
     _global:
         %cond = param
-        %base = alloca 1, 256
+        %base = alloca 256
         jnz %cond, @path1, @path2
 
     path1:
-        %gep1 = gep 32, %base
-        %x = assign %gep1
+        %add1 = add 32, %base
+        %x = assign %add1
         calldatacopy 100, %x, 32
         jmp @merge
 
     path2:
-        %gep2 = gep 32, %base
-        %y = assign %gep2
+        %add2 = add 32, %base
+        %y = assign %add2
         calldatacopy 100, %y, 32
         jmp @merge
 
@@ -1566,14 +1728,14 @@ def test_cross_bb_copy_with_gep_different_geps():
         sink %1
     """
 
-    # mcopy should NOT be optimized - different geps break equivalence
+    # mcopy should NOT be optimized - different adds break equivalence
     _check_no_change(pre)
 
 
-def test_cross_bb_copy_with_gep_in_dominator():
+def test_cross_bb_copy_with_add_in_dominator():
     """
-    Single gep in common dominator, assign chains through it.
-    SHOULD optimize because the gep dominates merge point.
+    Single add in common dominator, assign chains through it.
+    SHOULD optimize because the add dominates merge point.
     """
     if not version_check(begin="cancun"):
         return
@@ -1581,17 +1743,17 @@ def test_cross_bb_copy_with_gep_in_dominator():
     pre = """
     _global:
         %cond = param
-        %base = alloca 1, 256
-        %gep = gep 32, %base
+        %base = alloca 256
+        %add = add 32, %base
         jnz %cond, @path1, @path2
 
     path1:
-        %x = assign %gep
+        %x = assign %add
         calldatacopy 100, %x, 32
         jmp @merge
 
     path2:
-        %y = assign %gep
+        %y = assign %add
         calldatacopy 100, %y, 32
         jmp @merge
 
@@ -1604,32 +1766,32 @@ def test_cross_bb_copy_with_gep_in_dominator():
     post = """
     _global:
         %cond = param
-        %base = alloca 1, 256
-        %gep = gep 32, %base
+        %base = alloca 256
+        %add = add 32, %base
         jnz %cond, @path1, @path2
 
     path1:
-        %x = assign %gep
+        %x = assign %add
         nop  ; calldatacopy 100, %x, 32 [dead store - overwritten at merge]
         jmp @merge
 
     path2:
-        %y = assign %gep
+        %y = assign %add
         nop  ; calldatacopy 100, %y, 32 [dead store - overwritten at merge]
         jmp @merge
 
     merge:
-        calldatacopy 200, %gep, 32
+        calldatacopy 200, %add, 32
         %1 = mload 200
         sink %1
     """
     _check_pre_post(pre, post)
 
 
-def test_cross_bb_copy_with_longer_assign_chain_through_gep():
+def test_cross_bb_copy_with_longer_assign_chain_through_add():
     """
-    Longer assign chain that goes through a gep in dominator.
-    Should optimize - the gep dominates merge point.
+    Longer assign chain that goes through a add in dominator.
+    Should optimize - the add dominates merge point.
     """
     if not version_check(begin="cancun"):
         return
@@ -1637,18 +1799,18 @@ def test_cross_bb_copy_with_longer_assign_chain_through_gep():
     pre = """
     _global:
         %cond = param
-        %base = alloca 1, 256
-        %gep = gep 32, %base
+        %base = alloca 256
+        %add = add 32, %base
         jnz %cond, @path1, @path2
 
     path1:
-        %a = assign %gep
+        %a = assign %add
         %b = assign %a
         calldatacopy 100, %b, 32
         jmp @merge
 
     path2:
-        %c = assign %gep
+        %c = assign %add
         %d = assign %c
         calldatacopy 100, %d, 32
         jmp @merge
@@ -1662,34 +1824,34 @@ def test_cross_bb_copy_with_longer_assign_chain_through_gep():
     post = """
     _global:
         %cond = param
-        %base = alloca 1, 256
-        %gep = gep 32, %base
+        %base = alloca 256
+        %add = add 32, %base
         jnz %cond, @path1, @path2
 
     path1:
-        %a = assign %gep
+        %a = assign %add
         %b = assign %a
         nop  ; calldatacopy [dead store]
         jmp @merge
 
     path2:
-        %c = assign %gep
+        %c = assign %add
         %d = assign %c
         nop  ; calldatacopy [dead store]
         jmp @merge
 
     merge:
-        calldatacopy 200, %gep, 32
+        calldatacopy 200, %add, 32
         %1 = mload 200
         sink %1
     """
     _check_pre_post(pre, post)
 
 
-def test_cross_bb_copy_with_nested_gep_different_inner_geps():
+def test_cross_bb_copy_with_nested_add_different_inner_adds():
     """
-    Nested gep (gep of gep) with different inner gep instructions in each path.
-    Should NOT optimize - the inner geps are different variables.
+    Nested add (add of add) with different inner add instructions in each path.
+    Should NOT optimize - the inner adds are different variables.
     """
     if not version_check(begin="cancun"):
         return
@@ -1697,18 +1859,18 @@ def test_cross_bb_copy_with_nested_gep_different_inner_geps():
     pre = """
     _global:
         %cond = param
-        %base = alloca 1, 256
-        %gep = gep 32, %base
+        %base = alloca 256
+        %add = add 32, %base
         jnz %cond, @path1, @path2
 
     path1:
-        %inner1 = gep 64, %gep
+        %inner1 = add 64, %add
         %a = assign %inner1
         calldatacopy 100, %a, 32
         jmp @merge
 
     path2:
-        %inner2 = gep 64, %gep
+        %inner2 = add 64, %add
         %b = assign %inner2
         calldatacopy 100, %b, 32
         jmp @merge
@@ -1719,5 +1881,5 @@ def test_cross_bb_copy_with_nested_gep_different_inner_geps():
         sink %1
     """
 
-    # mcopy should NOT be optimized - different inner geps break equivalence
+    # mcopy should NOT be optimized - different inner adds break equivalence
     _check_no_change(pre)

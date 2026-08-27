@@ -12,20 +12,28 @@ from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand
 class Allocation:
     """
     a memory region which hasn't been allocated (assigned a concrete position) yet.
-    (can be thought of thin wrapper around alloca)
+    wraps either an `alloca` (static, known size, lives in the static frame)
+    or a dynamic allocation (`dalloca` before lowering, `bump` after lowering)
+    which lives above the static frame via the threaded free-memory pointer.
+    each instruction produces a distinct Allocation identity.
     """
 
     # note this class is NOT robust to mutations to the alloca instruction!
 
-    inst: IRInstruction  # the alloca instruction
+    inst: IRInstruction  # the alloca/dalloca/bump instruction
 
     def __post_init__(self):
         # sanity check
-        assert self.inst.opcode in ("alloca", "palloca"), self.inst
+        assert self.inst.opcode in ("alloca", "bump", "dalloca"), self.inst
+
+    @property
+    def is_dynamic(self) -> bool:
+        return self.inst.opcode in ("bump", "dalloca")
 
     @property
     def alloca_size(self) -> int:
-        assert self.inst.opcode in ("alloca", "palloca"), self.inst
+        # only valid for static allocas; dynamic allocas have runtime size.
+        assert self.inst.opcode == "alloca", self.inst
         size = self.inst.operands[0]
         assert isinstance(size, IRLiteral)
         return size.value
@@ -188,6 +196,11 @@ def memory_write_ops(inst) -> InstAccessOps:
     if opcode == "mstore":
         dst = inst.operands[1]
         return InstAccessOps(ofst=dst, size=IRLiteral(32))
+    if opcode == "istore":
+        # istore offset, val -> writes to memory at offset
+        # operands = [offset, val]
+        dst = inst.operands[0]
+        return InstAccessOps(ofst=dst, size=IRLiteral(32))
     if opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
         size, _, dst = inst.operands
         return InstAccessOps(ofst=dst, size=size)
@@ -224,6 +237,12 @@ def get_write_max_size(inst: IRInstruction) -> Optional[IROperand]:
 def memory_read_ops(inst) -> InstAccessOps:
     opcode = inst.opcode
     if opcode == "mload":
+        ofst = inst.operands[0]
+        size = IRLiteral(32)
+        return InstAccessOps(ofst=ofst, size=size)
+
+    if opcode == "iload":
+        # iload offset -> reads from memory at offset
         ofst = inst.operands[0]
         size = IRLiteral(32)
         return InstAccessOps(ofst=ofst, size=size)
@@ -276,6 +295,8 @@ def update_write_location(inst, new_op: IROperand):
     opcode = inst.opcode
     if opcode == "mstore":
         inst.operands[1] = new_op
+    elif opcode == "istore":
+        inst.operands[0] = new_op
     elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
         inst.operands[2] = new_op
     elif opcode == "call":
@@ -292,6 +313,8 @@ def update_write_location(inst, new_op: IROperand):
 def update_read_location(inst, new_op: IROperand):
     opcode = inst.opcode
     if opcode == "mload":
+        inst.operands[0] = new_op
+    elif opcode == "iload":
         inst.operands[0] = new_op
     elif opcode == "mcopy":
         inst.operands[1] = new_op
