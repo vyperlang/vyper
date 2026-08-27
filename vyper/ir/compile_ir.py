@@ -20,7 +20,6 @@ from vyper.evm.assembler.instructions import (
     AssemblyInstruction,
     DataHeader,
     TaggedInstruction,
-    mkdebug,
 )
 from vyper.evm.assembler.optimizer import optimize_assembly
 from vyper.evm.assembler.symbols import CONSTREF, Label
@@ -737,14 +736,6 @@ class _IRnodeLowerer:
         if code.value == "exit_to":
             # currently removed by _rewrite_return_sequences
             raise CodegenPanic("exit_to not implemented yet!")
-
-        # inject debug opcode.
-        if code.value == "debugger":
-            return mkdebug(pc_debugger=False, ast_source=code.ast_source)
-
-        # inject debug opcode.
-        if code.value == "pc_debugger":
-            return mkdebug(pc_debugger=True, ast_source=code.ast_source)
 
         raise CompilerPanic(f"invalid IRnode: {type(code)} {code}")  # pragma: no cover
 
