@@ -10,3 +10,4 @@ class DataLocation(StringEnum):
     CALLDATA = enum.auto()
     CODE = enum.auto()
     TRANSIENT = enum.auto()
+    IMMUTABLES = enum.auto()

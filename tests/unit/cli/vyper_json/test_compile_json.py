@@ -101,7 +101,7 @@ def input_json(optimize, evm_version, experimental_codegen, debug):
         "interfaces": {"contracts/ibar.json": {"abi": BAR_ABI}},
         "settings": {
             "outputSelection": {"*": ["*"]},
-            "optimize": optimize.name.lower(),
+            "optimize": str(optimize),
             "evmVersion": evm_version,
             "experimentalCodegen": experimental_codegen,
             "debug": debug,
@@ -151,6 +151,9 @@ def test_compile_json(input_json, input_bundle, experimental_codegen):
     # remove venom related from output formats
     # because they require venom (experimental)
     output_formats = OUTPUT_FORMATS.copy()
+    if not experimental_codegen:
+        output_formats.pop("cfg", None)
+        output_formats.pop("cfg_runtime", None)
     foo = compile_from_file_input(
         foo_input,
         output_formats=output_formats,
@@ -208,22 +211,19 @@ def test_compile_json(input_json, input_bundle, experimental_codegen):
                     "object": data["bytecode"],
                     "opcodes": data["opcodes"],
                     "sourceMap": data["source_map"],
+                    "symbolMap": data["symbol_map"],
                 },
                 "deployedBytecode": {
                     "object": data["bytecode_runtime"],
                     "opcodes": data["opcodes_runtime"],
                     "sourceMap": data["source_map_runtime"],
+                    "symbolMap": data["symbol_map_runtime"],
                 },
                 "methodIdentifiers": data["method_identifiers"],
             },
         }
         if experimental_codegen:
-            expected["venom"] = {
-                "bb": repr(data["bb"]),
-                "bb_runtime": repr(data["bb_runtime"]),
-                "cfg": data["cfg"],
-                "cfg_runtime": data["cfg_runtime"],
-            }
+            expected["venom"] = {"cfg": data["cfg"], "cfg_runtime": data["cfg_runtime"]}
         assert output_json["contracts"][path][contract_name] == expected
 
 
@@ -397,8 +397,6 @@ def test_compile_json_with_experimental_codegen():
     output_json = compile_json(code)
     assert "venom" in output_json["contracts"]["foo.vy"]["foo"]
     venom = output_json["contracts"]["foo.vy"]["foo"]["venom"]
-    assert venom["bb"] == repr(expected["bb"])
-    assert venom["bb_runtime"] == repr(expected["bb_runtime"])
     assert venom["cfg"] == expected["cfg"]
     assert venom["cfg_runtime"] == expected["cfg_runtime"]
 

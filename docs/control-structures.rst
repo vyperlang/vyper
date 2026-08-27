@@ -29,6 +29,7 @@ You can optionally declare a function's visibility by using a :ref:`decorator <f
     * ``@internal`` (default): can be invoked only from within this contract. Not available to external callers
     * ``@deploy``: constructor code. This is code which is invoked once in the lifetime of a contract, upon its deploy. It is not available at runtime to either external callers or internal call invocations. At this time, only the :ref:`__init__() function <init-function>` may be marked as ``@deploy``.
 
+.. _structure-functions-external:
 
 External Functions
 ******************
@@ -42,7 +43,7 @@ External functions (marked with the ``@external`` decorator) are a part of the c
         return a + 7
 
     @external
-    def add_seven_with_overloading(a: uint256, b: uint256 = 3):
+    def add_seven_with_overloading(a: uint256, b: uint256 = 3) -> uint256:
         return a + b
 
 A Vyper contract cannot call directly between two external functions. If you must do this, you can use an :ref:`interface <interfaces>`.
@@ -95,6 +96,7 @@ Internal functions (optionally marked with the ``@internal`` decorator) are only
 Or for internal functions which are defined in :ref:`imported modules <modules>`, they are invoked by prefixing the name of the module to the function name:
 
 .. code-block:: vyper
+
     import calculator_library
 
     @external
@@ -172,6 +174,8 @@ Functions marked with ``@pure`` cannot call non-``pure`` functions.
 Nonreentrancy Locks
 -------------------
 
+.. _reentrancy:
+
 The ``@nonreentrant`` decorator places a global nonreentrancy lock on a function. An attempt by an external contract to call back into any other ``@nonreentrant`` function causes the transaction to revert.
 
 .. code-block:: vyper
@@ -212,7 +216,7 @@ When the pragma is on, to re-enable reentrancy for a specific function, add the 
     # pragma nonreentrancy on
 
     x: public(uint256)  # this is protected from view-only reentrancy
-    y: public(reentrant(uint256))  # this is not not protected from view-only reentrancy
+    y: public(reentrant(uint256))  # this is not protected from view-only reentrancy
 
     @external
     def make_a_call(addr: address):
@@ -307,6 +311,8 @@ Decorator                       Description
 ``@payable``                    Function is able to receive Ether
 ``@nonreentrant``               Function cannot be called back into during an external call
 ``@raw_return``                 Function returns raw bytes without ABI-encoding (``@external`` functions only)
+``@abstract``                   Function body must be ``...``; an ``@override`` must provide the implementation (see :ref:`abstract-modules`)
+``@override(module)``           Function provides the implementation for an ``@abstract`` function in ``module`` (see :ref:`abstract-modules`)
 =============================== ===========================================================
 
 Raw Return

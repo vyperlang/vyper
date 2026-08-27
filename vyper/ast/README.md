@@ -78,7 +78,7 @@ silently included in the nodes.
 
 To learn more about `__slots__`:
 
-* Python Documentation: [`__slots__`](https://docs.python.org/3.10/reference/datamodel.html#slots)
+* Python Documentation: [`__slots__`](https://docs.python.org/3.13/reference/datamodel.html#slots)
 * Stack Overflow: [Usage of `__slots__`?](https://stackoverflow.com/a/28059785/11451521)
 
 ### Interface Files (`.pyi`)
