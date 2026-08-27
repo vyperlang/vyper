@@ -691,7 +691,7 @@ class _IRnodeLowerer:
             assert isinstance(label_name, str)
 
             if label_name in self.existing_labels:  # pragma: nocover
-                raise Exception(f"Label with name {label_name} already exists!")
+                raise CompilerPanic(f"Label with name {label_name} already exists!")
             else:
                 self.existing_labels.add(label_name)
 
@@ -727,7 +727,7 @@ class _IRnodeLowerer:
             assert isinstance(symbol, str)
 
             if symbol in self.existing_labels:  # pragma: nocover
-                raise Exception(f"symbol {symbol} already exists!")
+                raise CompilerPanic(f"symbol {symbol} already exists!")
             else:
                 self.existing_labels.add(symbol)
 
