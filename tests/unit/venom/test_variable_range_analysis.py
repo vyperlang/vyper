@@ -2314,3 +2314,13 @@ def test_sdiv_dividend_above_signed_max_is_top():
     dividend = ValueRange.iv(SIGNED_MAX + 1, 2**256 - 32)
     rng = eval_sdiv(dividend, ValueRange.constant(10))
     assert rng.is_top
+
+
+def test_sdiv_all_negative_dividend():
+    """
+    [-100, -1] sdiv 3 truncates toward zero, giving [-33, 0]. The bounds
+    were computed swapped as [0, -33], which ValueRange.iv normalizes to
+    BOTTOM, so a phi union then silently dropped the sdiv path.
+    """
+    rng = eval_sdiv(ValueRange.iv(-100, -1), ValueRange.constant(3))
+    assert rng == ValueRange.iv(-33, 0)
