@@ -71,6 +71,7 @@ xfail_strict = true
 markers = [
     "fuzzing: Run Hypothesis fuzz test suite (deselect with '-m \"not fuzzing\"')",
     "requires_evm_version(version): Mark tests that require at least a specific EVM version and would throw EvmVersionException otherwise",
+    "skip_at_optimization(*levels, reason): Skip a test at the specified OptimizationLevel values",
     "venom_xfail: mark a test case as a regression (expected to fail) under the venom pipeline",
     "hevm: run tests marked for symbolic execution",
 ]
@@ -90,7 +91,7 @@ omit = ["vyper/version.py"]
 # (mainly important for consolidating coverage reports in the CI).
 relative_files = true
 
-[project.optional-dependencies]
+[dependency-groups]
 test = [
     "pytest>=8.0,<9.0",
     "pytest-cov>=4.1,<5.0",
@@ -123,13 +124,11 @@ docs = [
     "sphinx-reredirects==0.1.5",
 ]
 dev = [
-    "vyper[test,lint,docs]",
+    {include-group = "test"},
+    {include-group = "lint"},
+    {include-group = "docs"},
     "ipython",
     "pre-commit",
     "pyinstaller",
     "twine",
 ]
-
-# uv installs dev group by default, but not dev extras, so this bridges that gap
-[dependency-groups]
-dev = ["vyper[dev]"]

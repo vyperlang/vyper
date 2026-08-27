@@ -1,4 +1,8 @@
-<img src="https://raw.githubusercontent.com/vyperlang/vyper/master/docs/logo.svg?sanitize=true" alt="" width="110">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/_static/logo-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/_static/logo-light.svg">
+  <img height="100" src="docs/_static/logo-light.svg">
+</picture>
 
 [![Build Status](https://github.com/vyperlang/vyper/actions/workflows/test.yml/badge.svg)](https://github.com/vyperlang/vyper/actions/workflows/test.yml)
 [![Documentation Status](https://readthedocs.org/projects/vyper/badge/?version=latest)](http://docs.vyperlang.org/en/latest/?badge=latest "ReadTheDocs")
@@ -68,7 +72,7 @@ Make sure you have `uv` installed
 
 #### pip
 
-Make sure you have `pip`, `setuptools`, and `pytest` installed
+Make sure you have `pip` (version 25.1 or above), `setuptools`, and `pytest` installed
 
 1. Clone this repo and `cd` into it
 2. Run `git fetch --tags git@github.com:vyperlang/vyper.git` to get the tags necessary for version inference
@@ -89,6 +93,28 @@ Make sure you have `pip`, `setuptools`, and `pytest` installed
         * `--disable-warnings`: Hide warnings which occurred during tests
 * `make mypy` to type check your changes
 * `make lint` to check your files are correctly formatted (also runs mypy)
+
+### Docker Setup
+
+Note: This is only useful for contributors, if you just want to use vyper, look [here](https://docs.vyperlang.org/en/latest/installing-vyper.html#docker).
+
+#### Build the image:
+
+`docker build . -t vyper -f Dockerfile`
+
+#### Check it runs:
+
+`docker run -v $(pwd):/code vyper --help`
+
+#### Run vyper:
+
+It works like `vyper` locally, with the difference that you should add `/code/` before the local path:
+
+`docker run -v $(pwd):/code vyper /code/<path to vy file>`
+
+Example:
+* `vyper -f abi_python examples/name_registry/name_registry.vy` becomes
+* `docker run -v $(pwd):/code vyper -f abi_python /code/examples/name_registry/name_registry.vy`
 
 ### Other Tips
 

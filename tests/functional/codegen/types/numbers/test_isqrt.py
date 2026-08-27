@@ -122,20 +122,7 @@ def test(a: uint256) -> (uint256, uint256, uint256, uint256, uint256, String[100
     assert c.test(val) == (val, 1, 2, 3, math.isqrt(val), "hello world")
 
 
-@pytest.mark.fuzzing
-@hypothesis.given(
-    value=hypothesis.strategies.integers(min_value=0, max_value=SizeLimits.MAX_UINT256)
-)
-@hypothesis.example(SizeLimits.MAX_UINT256)
-@hypothesis.example(0)
-@hypothesis.example(1)
-# the following examples demonstrate correct rounding mode
-# for an edge case in the babylonian method - the operand is
-# a perfect square - 1
-@hypothesis.example(2704)
-@hypothesis.example(110889)
-@hypothesis.example(32239684)
-def test_isqrt_valid_range(isqrt_contract, value):
+def _check_isqrt_valid_range(isqrt_contract, value):
     vyper_isqrt = isqrt_contract.test(value)
     actual_isqrt = math.isqrt(value)
     assert vyper_isqrt == actual_isqrt
@@ -144,6 +131,32 @@ def test_isqrt_valid_range(isqrt_contract, value):
     next = vyper_isqrt + 1
     assert vyper_isqrt * vyper_isqrt <= value
     assert next * next > value
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        SizeLimits.MAX_UINT256,
+        0,
+        1,
+        # the following examples demonstrate correct rounding mode
+        # for an edge case in the babylonian method - the operand is
+        # a perfect square - 1
+        2704,
+        110889,
+        32239684,
+    ],
+)
+def test_isqrt_valid_range(isqrt_contract, value):
+    _check_isqrt_valid_range(isqrt_contract, value)
+
+
+@pytest.mark.fuzzing
+@hypothesis.given(
+    value=hypothesis.strategies.integers(min_value=0, max_value=SizeLimits.MAX_UINT256)
+)
+def test_isqrt_valid_range_fuzz(isqrt_contract, value):
+    _check_isqrt_valid_range(isqrt_contract, value)
 
 
 def test_use_old_isqrt_builtin(get_contract):

@@ -37,6 +37,9 @@ class _GenericTypeAcceptor:
         return self.compare_type(other) and other.compare_type(self)
 
     def compare_type(self, other):
+        if isinstance(other, BottomT):
+            return True
+
         if isinstance(other, self.type_):
             return True
         # compare two GenericTypeAcceptors -- they are the same if the base
@@ -165,6 +168,13 @@ class VyperType:
     @cached_property
     def _as_darray(self):
         return self.is_valid_element_type
+
+    @property
+    def has_wildcard(self):
+        return False
+
+    def resolve_wildcard(self):
+        return self
 
     @property
     def getter_signature(self):
@@ -400,6 +410,9 @@ class VyperType:
         bool
             Indicates if the types are equivalent.
         """
+        if isinstance(other, BottomT):
+            return True
+
         return isinstance(other, type(self))
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional["VyperType"]:
@@ -471,6 +484,25 @@ class KwargSettings:
         self.typ = typ
         self.default = default
         self.require_literal = require_literal
+
+
+class BottomT(VyperType):
+    """
+    Bottom type, the ultimate subtype: is a subtype of every other type.
+    It is uninhabited: no value has this type.
+
+    It is for example the element type for empty lists: `[]: DynArray[Never, 1]`
+    """
+
+    _id = "Never"  # see python's typing.Never
+    _equality_attrs = ()
+
+    @property
+    def abi_type(self) -> ABIType:
+        """
+        The ABI type corresponding to this type
+        """
+        raise InvalidOperation(f"`{self._id}` does not have an abi encoding")
 
 
 class _VoidType(VyperType):

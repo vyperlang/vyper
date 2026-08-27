@@ -113,6 +113,20 @@ def foo(x: Bytes[{input_len}]) -> {output_typ}:
     assert c.foo(encoded) == expected
 
 
+def test_abi_decode_folded_unwrap_tuple_kwarg(get_contract):
+    contract = """
+UNWRAP: constant(bool) = False
+
+@external
+def foo(x: Bytes[64]) -> Bytes[3]:
+    return abi_decode(x, Bytes[3], unwrap_tuple=UNWRAP)
+    """
+    c = get_contract(contract)
+
+    encoded = abi.encode("bytes", b"vyx")
+    assert c.foo(encoded) == b"vyx"
+
+
 @pytest.mark.parametrize(
     "arg,expected,input_len,output_typ1,output_typ2,abi_typ",
     [
@@ -521,6 +535,57 @@ def __init__(x: {typ}):
 
 def _replicate(value: int, count: int) -> tuple[int, ...]:
     return (value,) * count
+
+
+def test_abi_arg_wrapped_dynarray_head(env, get_contract):
+    """Calldata/CODE decodes preserve legacy's lenient offset arithmetic."""
+    typ = "DynArray[DynArray[uint256, 1], 1]"
+    code = f"""
+@external
+def f(xs: {typ}) -> uint256:
+    return xs[0][0]
+"""
+    c = get_contract(code)
+
+    # The inner array base is one word after the outer length. Adding this
+    # offset wraps it back to the outer length word, which becomes inner.len.
+    wrapped_head = 2**256 - 0x20
+    payload = _abi_payload_from_tuple((0x20, 1, wrapped_head), 3 * 32)
+
+    ret = env.message_call(c.address, data=method_id("f(uint256[][])") + payload)
+    assert ret == wrapped_head.to_bytes(32, "big")
+
+    # Constructor arguments use CODE instead of CALLDATA and have the same
+    # intentionally lenient semantics.
+    _test_ctor_decode(env, typ, payload, [[wrapped_head]])
+
+
+def test_abi_arg_wrapped_complex_member_head(env, get_contract):
+    """Exercise wrapped offsets navigated through _getelemptr_abi()."""
+    preamble = """
+struct Point:
+    x: uint256
+    ys: DynArray[uint256, 1]
+"""
+    typ = "DynArray[Point, 1]"
+    code = f"""
+{preamble}
+@external
+def f(xs: {typ}) -> (uint256, uint256):
+    return xs[0].x, xs[0].ys[0]
+"""
+    c = get_contract(code)
+
+    # Point.ys is based two words after the outer length. Its offset wraps
+    # back to that length word, while its first element aliases Point's head.
+    wrapped_head = 2**256 - 0x40
+    payload = _abi_payload_from_tuple((0x20, 1, 0x20, 123, wrapped_head), 5 * 32)
+
+    signature = "f((uint256,uint256[])[])"
+    ret = env.message_call(c.address, data=method_id(signature) + payload)
+    assert ret == _abi_payload_from_tuple((123, 0x20), 2 * 32)
+
+    _test_ctor_decode(env, typ, payload, [(123, [0x20])], preamble=preamble)
 
 
 def test_abi_decode_arithmetic_overflow(env, tx_failed, get_contract):

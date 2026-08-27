@@ -1,4 +1,5 @@
 import contextlib
+import dataclasses
 import itertools
 from typing import Any, Callable
 
@@ -6,6 +7,7 @@ import pytest
 
 from tests.utils import check_precompile_asserts, decimal_to_int
 from vyper.compiler import compile_code
+from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
@@ -14,7 +16,6 @@ from vyper.exceptions import (
     ImmutableViolation,
     OverflowException,
     StateAccessViolation,
-    StaticAssertionException,
     TypeMismatch,
 )
 
@@ -233,6 +234,20 @@ def uoo(inp: DynArray[Foobar, 2]) -> DynArray[DynArray[Foobar, 2], 2]:
     assert c.uoo([1, 2]) == [[1, 2], [2, 1]]
 
     print("Passed list output tests")
+
+
+def test_nested_dynarray_empty_and_flag_literal(get_contract):
+    code = """
+flag Foo:
+    Member1
+
+@external
+def foo() -> DynArray[DynArray[Foo, 5], 5]:
+    tmp: DynArray[DynArray[Foo, 5], 5] = [[], [Foo.Member1]]
+    return tmp
+    """
+    c = get_contract(code)
+    assert c.foo() == [[], [1]]
 
 
 def test_array_accessor(get_contract):
@@ -739,6 +754,11 @@ def test_array_decimal_return3() -> DynArray[DynArray[decimal, 2], 2]:
     ]
 
 
+@pytest.mark.skip_at_optimization(
+    OptimizationLevel.O1,
+    OptimizationLevel.NONE,
+    reason="the test contract depends on optimizer code-size reduction",
+)
 def test_mult_list(get_contract):
     code = """
 nest3: DynArray[DynArray[DynArray[uint256, 2], 2], 2]
@@ -1862,18 +1882,12 @@ def should_revert() -> DynArray[String[65], 2]:
 
 
 @pytest.mark.parametrize("code", dynarray_length_no_clobber_cases)
-def test_dynarray_length_no_clobber(get_contract, tx_failed, code):
+def test_dynarray_length_no_clobber(get_contract, tx_failed, code, compiler_settings):
     # check that length is not clobbered before dynarray data copy happens
-    try:
-        c = get_contract(code)
-        with tx_failed():
-            c.should_revert()
-    except StaticAssertionException:
-        # this test should create
-        # assert error so if it is
-        # detected in compile time
-        # we can continue
-        pass
+    compiler_settings = dataclasses.replace(compiler_settings, disable_static_exceptions=True)
+    c = get_contract(code, compiler_settings=compiler_settings)
+    with tx_failed():
+        c.should_revert()
 
 
 def test_dynarray_make_setter_overlap(get_contract):
