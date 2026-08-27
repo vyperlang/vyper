@@ -58,8 +58,9 @@ class InterfaceT(_UserType):
         assert len(members) == len(functions) + len(events) + len(errors) + len(structs) + len(
             flags
         )
-
+        # super().__init__ uses self._id in errors
         self._id = _id
+
         super().__init__(functions)
 
         self._helper = VyperType(events | errors | structs | flags)

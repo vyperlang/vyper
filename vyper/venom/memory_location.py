@@ -4,7 +4,6 @@ import dataclasses as dc
 from dataclasses import dataclass
 from typing import ClassVar, Optional
 
-from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand
 
 
@@ -291,49 +290,49 @@ def get_read_size(inst: IRInstruction) -> Optional[IROperand]:
     return memory_read_ops(inst).size
 
 
-def update_write_location(inst, new_op: IROperand):
+def write_location_idx(inst) -> Optional[int]:
     opcode = inst.opcode
     if opcode == "mstore":
-        inst.operands[1] = new_op
+        return 1
     elif opcode == "istore":
-        inst.operands[0] = new_op
+        return 0
     elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
-        inst.operands[2] = new_op
+        return 2
     elif opcode == "call":
-        inst.operands[1] = new_op
+        return 1
     elif opcode in ("delegatecall", "staticcall"):
-        inst.operands[1] = new_op
+        return 1
     elif opcode == "extcodecopy":
-        inst.operands[2] = new_op
+        return 2
 
     else:  # pragma: nocover
-        raise CompilerPanic("unreachable")
+        return None
 
 
-def update_read_location(inst, new_op: IROperand):
+def read_location_idx(inst) -> Optional[int]:
     opcode = inst.opcode
     if opcode == "mload":
-        inst.operands[0] = new_op
+        return 0
     elif opcode == "iload":
-        inst.operands[0] = new_op
+        return 0
     elif opcode == "mcopy":
-        inst.operands[1] = new_op
+        return 1
     elif opcode == "call":
-        inst.operands[3] = new_op
+        return 3
     elif opcode in ("delegatecall", "staticcall", "call"):
-        inst.operands[3] = new_op
+        return 3
     elif opcode == "return":
-        inst.operands[1] = new_op
+        return 1
     elif opcode == "create":
-        inst.operands[1] = new_op
+        return 1
     elif opcode == "create2":
-        inst.operands[2] = new_op
+        return 2
     elif opcode == "sha3":
-        inst.operands[1] = new_op
+        return 1
     elif opcode == "log":
-        inst.operands[-1] = new_op
+        return -1
     elif opcode == "revert":
-        inst.operands[1] = new_op
+        return 1
 
     else:  # pragma: nocover
-        raise CompilerPanic("unreachable")
+        return None

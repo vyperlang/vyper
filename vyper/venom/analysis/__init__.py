@@ -10,6 +10,7 @@ from .load_analysis import LoadAnalysis
 from .mem_alias import MemoryAliasAnalysis
 from .mem_liveness import MemLivenessAnalysis
 from .mem_ssa import MemSSA
+from .must_halt import MustHaltAnalysis
 from .reachable import ReachableAnalysis
 from .readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
 from .stack_order import StackOrderAnalysis

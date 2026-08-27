@@ -25,7 +25,7 @@ jobs:
     environment: release
 
     steps:
-    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         # fetch unshallow so commit hash matches github release.
         # see https://github.com/vyperlang/vyper/blob/8f9a8cac49aafb3fbc9dde78f0f6125c390c32f0/.github/workflows/build.yml#L27-L32
@@ -37,7 +37,7 @@ jobs:
       run: git rev-parse --short HEAD
 
     - name: Python
-      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
       with:
         python-version: ${{ env.PYTHON_VERSION }}
 
@@ -50,4 +50,4 @@ jobs:
       run: python setup.py sdist bdist_wheel
 
     - name: Publish
-      uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+      uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # v1.14.1

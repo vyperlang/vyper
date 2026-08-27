@@ -251,7 +251,7 @@ name: public(String[64])
 
 @deploy
 def __init__():
-    some_immutable = 5
+    self.some_immutable = 5
     """
 
     storage_layout_override = {"name": {"slot": 10, "type": "String[64]", "n_slots": 3}}
@@ -280,8 +280,8 @@ DECIMALS: immutable(uint8)
 
 @deploy
 def __init__():
-    SYMBOL = "VYPR"
-    DECIMALS = 18
+    self.SYMBOL = "VYPR"
+    self.DECIMALS = 18
     """
     lib2 = """
 import lib1
@@ -294,7 +294,7 @@ immutable_variable: immutable(uint256)
 
 @deploy
 def __init__(s: uint256):
-    immutable_variable = s
+    self.immutable_variable = s
     lib1.__init__()
 
 @internal
@@ -317,7 +317,7 @@ uses: a_library
 
 @deploy
 def __init__():
-    some_immutable = [1, 2, 3]
+    self.some_immutable = [1, 2, 3]
 
     lib2.__init__(17)
 
@@ -480,7 +480,7 @@ a: uint256
         )
     assert exc_info.value.message == (
         "Computed storage layout does not match override file!\n"
-        'expected: {"a": {"type": "uint256", "slot": 0, "n_slots": 1}, '
+        'expected: {"a": {"type": "uint256", "slot": 0, "n_slots": 1}, '  # noqa: FS003
         '"ghost": {"type": "uint256", "slot": 9, "n_slots": 1}}\n\n'
         'got:\n{"a": {"type": "uint256", "n_slots": 1, "slot": 0}}'
     )

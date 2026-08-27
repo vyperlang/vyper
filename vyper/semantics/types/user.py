@@ -21,7 +21,7 @@ from vyper.semantics.analysis.utils import (
     validate_kwargs,
 )
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.base import BottomT, VyperType
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import keccak256, method_id_int
@@ -32,7 +32,6 @@ from vyper.warnings import Deprecation, vyper_warn
 class _UserType(VyperType):
     def __init__(self, members=None):
         super().__init__(members=members)
-
         if members is not None:
             for mt in members.values():
                 if not mt.is_valid_member_type:
@@ -47,6 +46,8 @@ class _UserType(VyperType):
         # only one time. however, the alternative requires reasoning
         # about both the name and source (module or json abi) of
         # the type.
+        if isinstance(other, BottomT):
+            return True
         return self is other
 
     def __hash__(self):
@@ -299,8 +300,9 @@ class EventT(_UserType):
         Event object.
         """
         members: dict = {}
-        indexed: list = [i.get("indexed", False) for i in abi["inputs"]]
-        for i, item in enumerate(abi["inputs"]):
+        inputs = abi.get("inputs", [])
+        indexed: list = [i.get("indexed", False) for i in inputs]
+        for i, item in enumerate(inputs):
             name = _abi_input_name(item, i, members)
             members[name] = type_from_abi(item)
         return cls(abi["name"], members, indexed)
