@@ -12,6 +12,7 @@ from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
     ArrayIndexException,
+    CompilerPanic,
     ImmutableViolation,
     OverflowException,
     StateAccessViolation,
