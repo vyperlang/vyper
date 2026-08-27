@@ -570,3 +570,34 @@ def foo() -> (uint256[3], uint256, uint256, uint256):
 
     c = get_contract(main, input_bundle=input_bundle)
     assert c.foo() == ([1, 2, 3], 1, 2, 42)
+
+
+def test_dynarray_append_single_field_struct_transient(get_contract, env):
+    """
+    Regression test: DynArray.append to transient storage with single-field
+    struct should store the actual value, not a memory pointer.
+    """
+    code = """
+struct Point:
+    x: uint256
+
+data: transient(DynArray[Point, 10])
+
+@external
+def test_append() -> uint256:
+    p: Point = Point(x=42)
+    self.data.append(p)
+    return self.data[0].x
+
+@external
+def test_multiple() -> (uint256, uint256, uint256):
+    self.data.append(Point(x=10))
+    self.data.append(Point(x=20))
+    self.data.append(Point(x=30))
+    return self.data[0].x, self.data[1].x, self.data[2].x
+    """
+    c = get_contract(code)
+    assert c.test_append() == 42
+    env.clear_transient_storage()
+
+    assert c.test_multiple() == (10, 20, 30)

@@ -16,7 +16,7 @@ def test_simple_jump_case():
 
     pre = """
     main:
-        %p1 = param
+        %p1 = source
 
         %op1 = %p1
         %op2 = 64
@@ -35,7 +35,7 @@ def test_simple_jump_case():
 
     post = """
     main:
-        %p1 = param
+        %p1 = source
 
         %op1 = %p1
         %op2 = 64

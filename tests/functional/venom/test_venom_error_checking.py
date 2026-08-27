@@ -1,5 +1,10 @@
 from tests.venom_utils import parse_from_basic_block
-from vyper.venom.check_venom import BasicBlockNotTerminated, VarNotDefined, find_semantic_errors
+from vyper.venom.check_venom import (
+    BasicBlockNotTerminated,
+    UnsupportedInstruction,
+    VarNotDefined,
+    find_semantic_errors,
+)
 
 
 def test_venom_parser():
@@ -62,7 +67,7 @@ def test_venom_parser_nonexistent_var2():
     """
     code = """
     main:
-        %par = param
+        %par = source
         %1 = 1
         jnz %par, @br1, @br2
     br1:
@@ -92,7 +97,7 @@ def test_venom_parser_nonexistant_var_loop():
     """
     code = """
     main:
-        %par = param
+        %par = source
         jmp @cond
     cond:
         %iter = phi @main, %par, @loop_body, %iter:1
@@ -125,7 +130,7 @@ def test_venom_parser_nonexistant_var_loop_incorrect_phi():
     """
     code = """
     main:
-        %par = param
+        %par = source
         jmp @cond
     cond:
         ; incorrect phi (var is not main)
@@ -155,7 +160,7 @@ def test_venom_parser_unrechable():
     """ """
     code = """
     main:
-        %par = param
+        %par = source
         jmp @after
     unreachable:
         sink %par
@@ -172,3 +177,17 @@ def test_venom_parser_unrechable():
 
     assert [err.var.name for err in errors] == ["%par"]
     assert [err.inst.parent.label.name for err in errors] == ["unreachable"]
+
+
+def test_venom_parser_rejects_removed_memtop():
+    code = """
+    main:
+        %ptr = memtop
+        stop
+    """
+
+    ctx = parse_from_basic_block(code)
+    errors = find_semantic_errors(ctx)
+
+    assert len(errors) == 1
+    assert isinstance(errors[0], UnsupportedInstruction)

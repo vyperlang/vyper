@@ -15,7 +15,7 @@ def _check_no_change(pre):
 def test_revert_to_assert():
     pre = """
     main:
-        %cond = param
+        %cond = source
         jnz %cond, @revert_block, @else
     revert_block:
         revert 0, 0
@@ -24,7 +24,7 @@ def test_revert_to_assert():
     """
     post = """
     main:
-        %cond = param
+        %cond = source
         %1 = iszero %cond
         assert %1
         stop
@@ -36,7 +36,7 @@ def test_revert_to_assert():
 def test_revert_to_assert2():
     pre = """
     main:
-        %cond = param
+        %cond = source
         jnz %cond, @then, @revert_block
     then:
         stop
@@ -45,7 +45,7 @@ def test_revert_to_assert2():
     """
     post = """
     main:
-        %cond = param
+        %cond = source
         assert %cond
         stop
     """

@@ -1,5 +1,8 @@
 import pytest
 
+from vyper import compiler
+from vyper.exceptions import StructureException
+
 
 def test_import_interface_types(make_input_bundle, get_contract):
     ifaces = """
@@ -36,17 +39,17 @@ def test_foo(s: ifaces.IFoo) -> bool:
 
 def test_import_interface_types_stability(make_input_bundle, get_contract):
     lib1 = """
-from ethereum.ercs import IERC20
+from ethereum.ercs import IERC20, IERC721 as AliasIERC721
     """
     lib2 = """
-from ethereum.ercs import IERC20
+from ethereum.ercs import IERC20, IERC721
     """
 
     main = """
 import lib1
 import lib2
 
-from ethereum.ercs import IERC20
+from ethereum.ercs import IERC20, IERC721
 
 @external
 def foo() -> bool:
@@ -55,13 +58,34 @@ def foo() -> bool:
     b: lib2.IERC20 = IERC20(msg.sender)
     c: IERC20 = lib1.IERC20(msg.sender)  # allowed in call position
 
+    d: lib1.AliasIERC721 = IERC721(msg.sender)
+    e: lib2.IERC721 = IERC721(msg.sender)
+    f: IERC721 = lib1.AliasIERC721(msg.sender)  # allowed in call position
+
     # return the equality so we can sanity check it
-    return a == b and b == c
+    return a == b and b == c and d == e and e == f
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
     c = get_contract(main, input_bundle=input_bundle)
 
     assert c.foo() is True
+
+
+def test_multi_import_module_fails(make_input_bundle, get_contract):
+    lib1 = ""
+    lib2 = ""
+
+    main = """
+import lib1, lib2
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+    with pytest.raises(StructureException) as e:
+        compiler.compile_from_file_input(main, input_bundle=input_bundle)
+
+    assert "modules need to be imported one by one" in e.value.message
+    assert "import lib1" in e.value.hint
+    assert "import lib2" in e.value.hint
 
 
 @pytest.mark.parametrize("interface_syntax", ["__at__", "__interface__"])

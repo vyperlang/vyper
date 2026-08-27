@@ -20,6 +20,7 @@ class DominatorTreeAnalysis(IRAnalysis):
     immediate_dominators: dict[IRBasicBlock, IRBasicBlock]
     dominated: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
     dominator_frontiers: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
+    cfg: CFGAnalysis
 
     def analyze(self):
         """
@@ -33,6 +34,7 @@ class DominatorTreeAnalysis(IRAnalysis):
         self.dominator_frontiers = {}
 
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+
         self.cfg_post_walk = list(self.cfg.dfs_post_walk)
         self.cfg_post_order = {bb: idx for idx, bb in enumerate(self.cfg_post_walk)}
 
@@ -40,11 +42,24 @@ class DominatorTreeAnalysis(IRAnalysis):
         self._compute_idoms()
         self._compute_df()
 
-    def dominates(self, bb1, bb2):
+    def get_all_dominated_blocks(self, bb: IRBasicBlock) -> OrderedSet[IRBasicBlock]:
+        result: OrderedSet[IRBasicBlock] = OrderedSet()
+
+        def visit(block):
+            for dominated_block in self.dominated.get(block, OrderedSet()):
+                if dominated_block not in result:
+                    result.add(dominated_block)
+                    visit(dominated_block)
+
+        visit(bb)
+
+        return result
+
+    def dominates(self, dom, sub):
         """
-        Check if bb1 dominates bb2.
+        Check if `dom` dominates `sub`.
         """
-        return bb2 in self.dominators[bb1]
+        return dom in self.dominators[sub]
 
     def immediate_dominator(self, bb):
         """
@@ -69,7 +84,7 @@ class DominatorTreeAnalysis(IRAnalysis):
             for bb in basic_blocks:
                 if bb == self.entry_block:
                     continue
-                preds = bb.cfg_in
+                preds = self.cfg.cfg_in(bb)
                 if len(preds) == 0:
                     continue
                 new_dominators = OrderedSet.intersection(*[self.dominators[pred] for pred in preds])
@@ -102,8 +117,8 @@ class DominatorTreeAnalysis(IRAnalysis):
         self.dominator_frontiers = {bb: OrderedSet() for bb in basic_blocks}
 
         for bb in self.cfg_post_walk:
-            if len(bb.cfg_in) > 1:
-                for pred in bb.cfg_in:
+            if len(in_bbs := self.cfg.cfg_in(bb)) > 1:
+                for pred in in_bbs:
                     runner = pred
                     while runner != self.immediate_dominators[bb]:
                         self.dominator_frontiers[runner].add(bb)

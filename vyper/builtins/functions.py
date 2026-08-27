@@ -44,6 +44,7 @@ from vyper.evm.address_space import MEMORY
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
+    CodegenPanic,
     CompilerPanic,
     EvmVersionException,
     InvalidLiteral,
@@ -57,12 +58,14 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.base import Modifiability, StateMutability
 from vyper.semantics.analysis.utils import (
+    check_modifiability,
     get_common_types,
     get_exact_type_from_node,
     get_possible_types_from_node,
     validate_expected_type,
 )
 from vyper.semantics.types import (
+    INF,
     TYPE_T,
     AddressT,
     BoolT,
@@ -76,6 +79,7 @@ from vyper.semantics.types import (
     SArrayT,
     StringT,
     TupleT,
+    is_bounded_length,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT8_T, UINT256_T
@@ -93,6 +97,7 @@ from vyper.utils import (
     keccak256,
     method_id,
     method_id_int,
+    wrap256,
 )
 from vyper.warnings import vyper_warn
 
@@ -105,15 +110,20 @@ SHA256_PER_WORD_GAS = 12
 
 
 class FoldedFunctionT(BuiltinFunctionT):
-    # Base class for nodes which should always be folded
+    """
+    Base class for nodes which should always be folded
+    """
 
     _modifiability = Modifiability.CONSTANT
 
 
 class TypenameFoldedFunctionT(FoldedFunctionT):
-    # Base class for builtin functions that:
-    # (1) take a typename as the only argument; and
-    # (2) should always be folded.
+    """
+    Base class for builtin functions that:
+    (1) take a typename as the only argument; and
+    (2) should always be folded.
+    """
+
     _inputs = [("typename", TYPE_T.any())]
 
     def fetch_call_return(self, node):
@@ -214,13 +224,19 @@ class Convert(BuiltinFunctionT):
                 value_types = sorted(value_types, key=lambda v: (v.is_signed, v.bits), reverse=True)
             else:
                 # filter out the target type from list of possible types
-                value_types = [i for i in value_types if not target_type.compare_type(i)]
+                value_types = [i for i in value_types if not i.is_equivalent_to(target_type)]
 
         value_type = value_types.pop()
 
         # block conversions between same type
-        if target_type.compare_type(value_type):
-            raise InvalidType(f"Value and target type are both '{target_type}'", node)
+        if value_type.is_subtype_of(target_type):
+            hint = "remove convert()"
+            raise InvalidType(f"Already a '{target_type}' !", node, hint=hint)
+
+        if isinstance(value_type, _BytestringT) and not is_bounded_length(value_type.maxlen):
+            raise CodegenPanic("convert not yet implemented for unbounded sequence type")
+        if isinstance(value_type, DArrayT) and not is_bounded_length(value_type.count):
+            raise CodegenPanic("convert not yet implemented for unbounded sequence type")
 
         return [value_type, TYPE_T(target_type)]
 
@@ -293,32 +309,24 @@ class Slice(BuiltinFunctionT):
     def fetch_call_return(self, node):
         arg_type, _, _ = self.infer_arg_types(node)
 
-        if isinstance(arg_type, StringT):
-            return_type = StringT()
-        else:
-            return_type = BytesT()
-
         # validate start and length are in bounds
 
-        arg = node.args[0]
         start_expr = node.args[1]
         length_expr = node.args[2].reduced()
-
-        # CMC 2022-03-22 NOTE slight code duplication with semantics/analysis/local
-        is_adhoc_slice = arg.get("attr") == "code" or (
-            arg.get("value.id") == "msg" and arg.get("attr") == "data"
-        )
 
         start_literal = start_expr.value if isinstance(start_expr, vy_ast.Int) else None
         length_literal = length_expr.value if isinstance(length_expr, vy_ast.Int) else None
 
-        if not is_adhoc_slice:
-            if length_literal is not None:
-                if length_literal < 1:
-                    raise ArgumentException("Length cannot be less than 1", length_expr)
+        # validation
 
-                if length_literal > arg_type.length:
-                    raise ArgumentException(f"slice out of bounds for {arg_type}", length_expr)
+        if length_literal is not None:
+            if length_literal < 1:
+                raise ArgumentException("Length cannot be less than 1", length_expr)
+
+        if is_bounded_length(arg_type.length):
+
+            if length_literal is not None and length_literal > arg_type.length:
+                raise ArgumentException(f"slice out of bounds for {arg_type}", length_expr)
 
             if start_literal is not None:
                 if start_literal > arg_type.length:
@@ -326,11 +334,12 @@ class Slice(BuiltinFunctionT):
                 if length_literal is not None and start_literal + length_literal > arg_type.length:
                     raise ArgumentException(f"slice out of bounds for {arg_type}", node)
 
-        # we know the length statically
-        if length_literal is not None:
-            return_type.set_length(length_literal)
+        length = length_literal if length_literal is not None else arg_type.length
+
+        if isinstance(arg_type, StringT):
+            return_type = StringT(length)
         else:
-            return_type.set_min_length(arg_type.length)
+            return_type = BytesT(length)
 
         return return_type
 
@@ -352,15 +361,16 @@ class Slice(BuiltinFunctionT):
         if src.location is None:
             # it's not a pointer; force it to be one since
             # copy_bytes works on pointers.
-            assert is_bytes32, src
+            assert is_bytes32 or src.is_empty_intrinsic, src
             src = ensure_in_memory(src, context)
         elif potential_overlap(src, start) or potential_overlap(src, length):
             src = create_memory_copy(src, context)
 
-        with src.cache_when_complex("src") as (b1, src), start.cache_when_complex("start") as (
-            b2,
-            start,
-        ), length.cache_when_complex("length") as (b3, length):
+        with (
+            src.cache_when_complex("src") as (b1, src),
+            start.cache_when_complex("start") as (b2, start),
+            length.cache_when_complex("length") as (b3, length),
+        ):
             if is_bytes32:
                 src_maxlen = 32
             else:
@@ -462,7 +472,7 @@ class Len(BuiltinFunctionT):
     def _try_fold(self, node):
         validate_call_args(node, 1)
         arg = node.args[0].get_folded_value()
-        if isinstance(arg, (vy_ast.Str, vy_ast.Bytes)):
+        if isinstance(arg, (vy_ast.Str, vy_ast.Bytes, vy_ast.HexBytes)):
             length = len(arg.value)
         elif isinstance(arg, vy_ast.Hex):
             length = len(arg.bytes_value)
@@ -492,13 +502,18 @@ class Concat(BuiltinFunctionT):
 
         length = 0
         for arg_t in arg_types:
-            length += arg_t.length
+            arg_length = arg_t.length
+
+            if not is_bounded_length(arg_length):
+                length = INF
+                break
+
+            length += arg_length
 
         if isinstance(arg_types[0], (StringT)):
-            return_type = StringT()
+            return_type = StringT(length)
         else:
-            return_type = BytesT()
-        return_type.set_length(length)
+            return_type = BytesT(length)
         return return_type
 
     def infer_arg_types(self, node, expected_return_typ=None):
@@ -557,10 +572,6 @@ class Concat(BuiltinFunctionT):
             dst_data = add_ofst(bytes_data_ptr(dst), ofst)
 
             if isinstance(arg.typ, _BytestringT):
-                # Ignore empty strings
-                if arg.typ.maxlen == 0:
-                    continue
-
                 with arg.cache_when_complex("arg") as (b1, arg):
                     argdata = bytes_data_ptr(arg)
 
@@ -716,6 +727,7 @@ class MethodID(FoldedFunctionT):
 
         value = node.args[0].get_folded_value()
         if not isinstance(value, vy_ast.Str):
+            # Constant Folder runs before the type-checker, so incorrect types can show up
             raise InvalidType("method id must be given as a literal string", node.args[0])
         if " " in value.value:
             raise InvalidLiteral("Invalid function signature - no spaces allowed.", node.args[0])
@@ -735,6 +747,9 @@ class MethodID(FoldedFunctionT):
         return type_
 
     def infer_arg_types(self, node, expected_return_typ=None):
+        is_constant = check_modifiability(node.args[0], Modifiability.CONSTANT)
+        if not is_constant:
+            raise StructureException("Value must be a literal", node.args[0])
         return [self._inputs[0][1]]
 
     def infer_kwarg_types(self, node):
@@ -889,10 +904,10 @@ class Extract32(BuiltinFunctionT):
                 # byte offset within the slot
                 byte_ofst = IRnode.from_list(["mod", index, 32])
 
-                with byte_ofst.cache_when_complex("byte_ofst") as (
-                    b3,
-                    byte_ofst,
-                ), slot.cache_when_complex("slot") as (b4, slot):
+                with (
+                    byte_ofst.cache_when_complex("byte_ofst") as (b3, byte_ofst),
+                    slot.cache_when_complex("slot") as (b4, slot),
+                ):
                     # perform two loads and merge
                     w1 = LOAD(add_ofst(bytes_data_ptr(bytez), slot))
                     w2 = LOAD(add_ofst(bytes_data_ptr(bytez), ["add", slot, 1]))
@@ -1041,8 +1056,7 @@ class RawCall(BuiltinFunctionT):
             raise
 
         if outsize.value:
-            return_type = BytesT()
-            return_type.set_min_length(outsize.value)
+            return_type = BytesT(outsize.value)
 
             if revert_on_failure:
                 return return_type
@@ -1053,6 +1067,18 @@ class RawCall(BuiltinFunctionT):
         # return a concrete type for `data`
         data_type = get_possible_types_from_node(node.args[1]).pop()
         return [self._inputs[0][1], data_type]
+
+    # get the mutability, which is determined at a specific call site
+    def get_mutability_at_call_site(self, node: vy_ast.Call):
+        kw = {k.arg: k.value for k in node.keywords}
+
+        is_static = kw.get("is_static_call", None)
+        is_static = is_static.get_folded_value() if is_static else False
+
+        if is_static:
+            return StateMutability.VIEW
+
+        return StateMutability.NONPAYABLE
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
@@ -1189,12 +1215,15 @@ class SelfDestruct(BuiltinFunctionT):
     _inputs = [("to", AddressT())]
     _is_terminus = True
 
+    def fetch_call_return(self, node):
+        # Emit deprecation warning during semantic analysis (runs exactly once)
+        vyper_warn(
+            "`selfdestruct` is deprecated! The opcode is no longer recommended for use.", node
+        )
+        return super().fetch_call_return(node)
+
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        vyper_warn(
-            "`selfdestruct` is deprecated! The opcode is no longer recommended for use.", expr
-        )
-
         context.check_is_not_constant("selfdestruct", expr)
         return IRnode.from_list(ensure_eval_once("selfdestruct", ["selfdestruct", args[0]]))
 
@@ -1317,7 +1346,8 @@ class Shift(BuiltinFunctionT):
         if shift < 0:
             value = value >> -shift
         else:
-            value = (value << shift) % (2**256)
+            is_signed_shift = value < 0
+            value = wrap256(value << shift, signed=is_signed_shift)
         return vy_ast.Int.from_node(node, value=value)
 
     def fetch_call_return(self, node):
@@ -1337,9 +1367,10 @@ class Shift(BuiltinFunctionT):
         argty = args[0].typ
         GSHR = sar if argty.is_signed else shr
 
-        with args[0].cache_when_complex("to_shift") as (b1, arg), args[1].cache_when_complex(
-            "bits"
-        ) as (b2, bits):
+        with (
+            args[0].cache_when_complex("to_shift") as (b1, arg),
+            args[1].cache_when_complex("bits") as (b2, bits),
+        ):
             neg_bits = ["sub", 0, bits]
             ret = ["if", ["slt", bits, 0], GSHR(neg_bits, arg), shl(bits, arg)]
             return b1.resolve(b2.resolve(IRnode.from_list(ret, typ=argty)))
@@ -1397,6 +1428,9 @@ class PowMod256(BuiltinFunctionT):
             raise UnfoldableNode
 
         left, right = values
+        if left.value < 0 or right.value < 0:
+            # proper error will be raised later, for now just fail folding
+            raise UnfoldableNode()
         value = pow(left.value, right.value, 2**256)
         return vy_ast.Int.from_node(node, value=value)
 
@@ -1582,6 +1616,12 @@ class RawCreate(_CreateBase):
     _inputs = [("bytecode", BytesT(EIP_3860_LIMIT))]
     _has_varargs = True
 
+    def fetch_call_return(self, node):
+        for arg_t in self.infer_arg_types(node):
+            # touch abi_type to reject non-encodable argument types
+            _ = arg_t.abi_type
+        return self._return_type
+
     def _add_gas_estimate(self, args, should_use_create2):
         return _create_addl_gas_estimate(EIP_170_LIMIT, should_use_create2)
 
@@ -1589,6 +1629,14 @@ class RawCreate(_CreateBase):
         args = [ensure_in_memory(arg, context) for arg in args]
         initcode = args[0]
         ctor_args = args[1:]
+
+        if any(potential_overlap(initcode, other) for other in ctor_args + [value, salt]):
+            # value or salt could be expressions which trample the initcode
+            # buffer. cf. test_raw_create_memory_overlap
+            # note that potential_overlap is overly conservative, since it
+            # checks for the existence of calls (which are not applicable
+            # here, since `initcode` is guaranteed to be in memory).
+            initcode = create_memory_copy(initcode, context)
 
         # encode the varargs
         to_encode = ir_tuple_from_args(ctor_args)
@@ -1733,6 +1781,12 @@ class CreateFromBlueprint(_CreateBase):
     }
     _has_varargs = True
 
+    def fetch_call_return(self, node):
+        for arg_t in self.infer_arg_types(node):
+            # touch abi_type to reject non-encodable argument types
+            _ = arg_t.abi_type
+        return self._return_type
+
     def _add_gas_estimate(self, args, should_use_create2):
         ctor_args = ir_tuple_from_args(args[1:])
         # max possible size of init code
@@ -1853,7 +1907,7 @@ class _UnsafeMath(BuiltinFunctionT):
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
-        (a, b) = args
+        a, b = args
         op = self.op
 
         assert a.typ == b.typ, "unreachable"
@@ -1943,9 +1997,9 @@ class _MinMax(BuiltinFunctionT):
     def build_IR(self, expr, args, kwargs, context):
         op = self._opcode
 
-        with args[0].cache_when_complex("_l") as (b1, left), args[1].cache_when_complex("_r") as (
-            b2,
-            right,
+        with (
+            args[0].cache_when_complex("_l") as (b1, left),
+            args[1].cache_when_complex("_r") as (b2, right),
         ):
             if left.typ == right.typ:
                 if left.typ != UINT256_T:
@@ -2067,49 +2121,10 @@ class ISqrt(BuiltinFunctionT):
     _inputs = [("d", UINT256_T)]
     _return_type = UINT256_T
 
-    @process_inputs
-    def build_IR(self, expr, args, kwargs, context):
-        # calculate isqrt using the babylonian method
-
-        y, z = "y", "z"
-        arg = args[0]
-        with arg.cache_when_complex("x") as (b1, x):
-            ret = [
-                "seq",
-                [
-                    "if",
-                    ["ge", y, 2 ** (128 + 8)],
-                    ["seq", ["set", y, shr(128, y)], ["set", z, shl(64, z)]],
-                ],
-                [
-                    "if",
-                    ["ge", y, 2 ** (64 + 8)],
-                    ["seq", ["set", y, shr(64, y)], ["set", z, shl(32, z)]],
-                ],
-                [
-                    "if",
-                    ["ge", y, 2 ** (32 + 8)],
-                    ["seq", ["set", y, shr(32, y)], ["set", z, shl(16, z)]],
-                ],
-                [
-                    "if",
-                    ["ge", y, 2 ** (16 + 8)],
-                    ["seq", ["set", y, shr(16, y)], ["set", z, shl(8, z)]],
-                ],
-            ]
-            ret.append(["set", z, ["div", ["mul", z, ["add", y, 2**16]], 2**18]])
-
-            for _ in range(7):
-                ret.append(["set", z, ["div", ["add", ["div", x, z], z], 2]])
-
-            # note: If ``x+1`` is a perfect square, then the Babylonian
-            # algorithm oscillates between floor(sqrt(x)) and ceil(sqrt(x)) in
-            # consecutive iterations. return the floor value always.
-
-            ret.append(["with", "t", ["div", x, z], ["select", ["lt", z, "t"], z, "t"]])
-
-            ret = ["with", y, x, ["with", z, 181, ret]]
-            return b1.resolve(IRnode.from_list(ret, typ=UINT256_T))
+    def fetch_call_return(self, node):
+        message = "The `isqrt` builtin was removed. Instead import module "
+        message += "`math` and use `math.isqrt()`"
+        raise UnimplementedException(message, node)
 
 
 class Empty(TypenameFoldedFunctionT):
@@ -2157,6 +2172,10 @@ class Print(BuiltinFunctionT):
         if not self._warned:
             vyper_warn("`print` should only be used for debugging!", node)
             self._warned = True
+
+        for arg_t in self.infer_arg_types(node):
+            # touch abi_type to reject non-encodable argument types
+            _ = arg_t.abi_type
 
         return None
 
@@ -2255,11 +2274,14 @@ class ABIEncode(BuiltinFunctionT):
 
     def fetch_call_return(self, node):
         self._validate_arg_types(node)
-        ensure_tuple = next(
-            (arg.value.value for arg in node.keywords if arg.arg == "ensure_tuple"), True
-        )
+        kwargs = {kw.arg: kw.value for kw in node.keywords}
+
+        if "ensure_tuple" in kwargs:
+            ensure_tuple = kwargs["ensure_tuple"].get_folded_value().value
+        else:
+            ensure_tuple = True
+
         assert isinstance(ensure_tuple, bool)
-        has_method_id = "method_id" in [arg.arg for arg in node.keywords]
 
         # figure out the output type by converting
         # the types to ABI_Types and calling size_bound API
@@ -2276,13 +2298,11 @@ class ABIEncode(BuiltinFunctionT):
 
         maxlen = arg_abi_t.size_bound()
 
-        if has_method_id:
+        if "method_id" in kwargs:
             # the output includes 4 bytes for the method_id.
             maxlen += 4
 
-        ret = BytesT()
-        ret.set_length(maxlen)
-        return ret
+        return BytesT(maxlen)
 
     @staticmethod
     def _parse_method_id(method_id_literal):
@@ -2502,7 +2522,7 @@ class Epsilon(TypenameFoldedFunctionT):
         self._validate_arg_types(node)
         input_type = type_from_annotation(node.args[0])
 
-        if not input_type.compare_type(DecimalT()):
+        if not input_type.is_subtype_of(DecimalT()):
             raise InvalidType(f"Expected decimal type but got {input_type} instead", node)
 
         return vy_ast.Decimal.from_node(node, value=input_type.epsilon)

@@ -5,6 +5,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
+    StateAccessViolation,
     StructureException,
     SyntaxException,
     TypeMismatch,
@@ -328,6 +329,103 @@ def foo():
         None,
         "10.1",
     ),
+    (
+        """
+interface I:
+    def bar() -> uint256: payable
+
+@external
+def bar(t: address):
+    for i: uint256 in range(extcall I(t).bar(), bound=10):
+        pass
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression or for loop iterator.",
+        None,
+        "extcall I(t).bar()",
+    ),
+    (
+        """
+a: DynArray[uint256, 3]
+
+@internal
+def foo() -> uint256:
+    return self.a.pop()
+
+
+@external
+def bar():
+    for i: uint256 in range(2, self.foo(), bound=5):
+        pass
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression or for loop iterator.",
+        None,
+        "self.foo()",
+    ),
+    (
+        """
+interface I:
+    def bar() -> DynArray[uint256, 10]: nonpayable
+
+@external
+def bar(t: address):
+    for i: uint256 in extcall I(t).bar():
+        pass
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression or for loop iterator.",
+        None,
+        "extcall I(t).bar()",
+    ),
+    # Cannot call `pop()` in for range because it modifies state
+    (
+        """
+arr: DynArray[uint256, 10]
+@external
+def test()-> (DynArray[uint256, 6], DynArray[uint256, 10]):
+    b: DynArray[uint256, 6] = []
+    self.arr = [1,0]
+    for i: uint256 in range(self.arr.pop(), 20, bound=12):
+        b.append(i)
+    return b, self.arr
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression or for loop iterator.",
+        None,
+        "self.arr.pop()",
+    ),
+    (
+        """
+arr: DynArray[uint256, 10]
+@external
+def test()-> (DynArray[uint256, 6], DynArray[uint256, 10]):
+    b: DynArray[uint256, 6] = []
+    self.arr = [1,0]
+    for i: uint256 in range(5, self.arr.pop() + 2, bound=12):
+        b.append(i)
+    return b, self.arr
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression or for loop iterator.",
+        None,
+        "self.arr.pop() + 2",
+    ),
+    # Cannot call `pop()` in iterator because it modifies state
+    (
+        """
+a: DynArray[uint256, 3]
+
+@external
+def foo():
+    for i: uint256 in [1, 2, self.a.pop()]:
+        pass
+    """,
+        StateAccessViolation,
+        "May not call state modifying function within a range expression or for loop iterator.",
+        None,
+        "self.a.pop()",
+    ),
 ]
 
 for_code_regex = re.compile(r"for .+ in (.*):", re.DOTALL)
@@ -380,6 +478,16 @@ def bar():
         pass
     """,
             "invalid type annotation",
+        ),
+        (
+            """
+@external
+def bar():
+    # Tuple targets are invalid Vyper syntax, but should raise SyntaxException.
+    for i, j in [(1, 2)]:
+        pass
+    """,
+            "invalid for loop syntax: not a name",
         ),
         (
             """

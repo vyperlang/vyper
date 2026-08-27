@@ -31,13 +31,17 @@ class RemoveUnusedVariablesPass(IRPass):
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _process_instruction(self, inst):
-        if inst.output is None:
+        outputs = inst.get_outputs()
+        if len(outputs) == 0:
             return
         if inst.is_volatile or inst.is_bb_terminator:
             return
-        uses = self.dfg.get_uses(inst.output)
-        if len(uses) > 0:
-            return
+
+        # Check if ANY output has uses
+        for output in outputs:
+            uses = self.dfg.get_uses(output)
+            if len(uses) > 0:
+                return
 
         for operand in uniq(inst.get_input_variables()):
             self.dfg.remove_use(operand, inst)

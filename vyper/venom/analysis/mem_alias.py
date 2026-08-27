@@ -1,29 +1,33 @@
-import dataclasses as dc
+import bisect
 from typing import Optional
 
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
-from vyper.venom.basicblock import (
-    EMPTY_MEMORY_ACCESS,
-    FULL_MEMORY_ACCESS,
-    IRInstruction,
-    MemoryLocation,
-)
+from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis, IRAnalysis
+from vyper.venom.basicblock import IRInstruction
+from vyper.venom.memory_location import Allocation, MemoryLocation
 
 
-class MemoryAliasAnalysis(IRAnalysis):
+class MemoryAliasAnalysisAbstract(IRAnalysis):
     """
     Analyzes memory operations to determine which locations may alias.
     This helps optimize memory operations by identifying when different
     memory accesses are guaranteed not to overlap.
     """
 
+    addr_space: AddrSpace
+
     def analyze(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
 
         # Map from memory locations to sets of potentially aliasing locations
         self.alias_sets: dict[MemoryLocation, OrderedSet[MemoryLocation]] = {}
+        self.concrete_locs: set[MemoryLocation] = set()
+        self.abstract_locs: dict[Allocation, list[MemoryLocation]] = dict()
+
+        self.mem_loc_insts: dict[MemoryLocation, set[IRInstruction]] = dict()
 
         # Analyze all memory operations
         for bb in self.function.get_basic_blocks():
@@ -34,12 +38,18 @@ class MemoryAliasAnalysis(IRAnalysis):
         """Analyze a memory instruction to determine aliasing"""
         loc: Optional[MemoryLocation] = None
 
-        loc = inst.get_read_memory_location()
-        if loc is not None:
+        loc = self.base_ptr.get_read_location(inst, self.addr_space)
+        if not loc.is_empty():
+            if loc not in self.mem_loc_insts:
+                self.mem_loc_insts[loc] = set()
+            self.mem_loc_insts[loc].add(inst)
             self._analyze_mem_location(loc)
 
-        loc = inst.get_write_memory_location()
-        if loc is not None:
+        loc = self.base_ptr.get_write_location(inst, self.addr_space)
+        if not loc.is_empty():
+            if loc not in self.mem_loc_insts:
+                self.mem_loc_insts[loc] = set()
+            self.mem_loc_insts[loc].add(inst)
             self._analyze_mem_location(loc)
 
     def _analyze_mem_location(self, loc: MemoryLocation):
@@ -47,42 +57,63 @@ class MemoryAliasAnalysis(IRAnalysis):
         if loc not in self.alias_sets:
             self.alias_sets[loc] = OrderedSet()
 
+        if not loc.is_concrete:
+            self._analyze_abstract_mem_location(loc)
+            return
+
+        self.concrete_locs.add(loc)
+
         # Check for aliasing with existing locations
+        # NOTE: This is O(n) per location, resulting in O(n^2) total for n locations.
+        # For large contracts, consider using an interval tree or immutable set
+        # data structure to improve lookup performance.
         for other_loc in self.alias_sets:
-            if self._may_alias(loc, other_loc):
+            if MemoryLocation.may_overlap(loc, other_loc):
                 self.alias_sets[loc].add(other_loc)
                 self.alias_sets[other_loc].add(loc)
 
-    def _may_alias(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
-        """
-        Determine if two memory locations alias.
-        """
-        if loc1 == FULL_MEMORY_ACCESS:
-            return loc2 != EMPTY_MEMORY_ACCESS
-        if loc2 == FULL_MEMORY_ACCESS:
-            return loc1 != EMPTY_MEMORY_ACCESS
+    def insert_memloc(self, loc: MemoryLocation):
+        assert loc.alloca is not None
+        if loc.alloca not in self.abstract_locs:
+            self.abstract_locs[loc.alloca] = []
 
-        if loc1 == EMPTY_MEMORY_ACCESS or loc2 == EMPTY_MEMORY_ACCESS:
-            return False
+        def key(item: MemoryLocation) -> int:
+            if item.size is None or item.offset is None:
+                return 2**256
+            return item.size + item.offset
 
-        assert loc1.size > 0 and loc2.size > 0
+        alloca_list = self.abstract_locs[loc.alloca]
+        index = bisect.bisect_left(alloca_list, key(loc), key=key)
+        if len(alloca_list) <= index or alloca_list[index] != loc:
+            alloca_list.insert(index, loc)
+        offset = 0 if loc.offset is None else loc.offset
+        return bisect.bisect_left(alloca_list, offset, key=key)
 
-        start1, end1 = loc1.offset, loc1.offset + loc1.size
-        start2, end2 = loc2.offset, loc2.offset + loc2.size
+    def _analyze_abstract_mem_location(self, loc: MemoryLocation):
+        assert loc.alloca is not None
+        index = self.insert_memloc(loc)
 
-        return not (end1 <= start2 or end2 <= start1)
+        for concrete_loc in self.concrete_locs:
+            if MemoryLocation.may_overlap(loc, concrete_loc):
+                self.alias_sets[loc].add(concrete_loc)
+                self.alias_sets[concrete_loc].add(loc)
+
+        for other_loc in self.abstract_locs[loc.alloca][index:]:
+            if MemoryLocation.may_overlap(loc, other_loc):
+                self.alias_sets[loc].add(other_loc)
+                self.alias_sets[other_loc].add(loc)
 
     def may_alias(self, loc1: MemoryLocation, loc2: MemoryLocation) -> bool:
         """
         Determine if two memory locations may alias.
         """
         if loc1.is_volatile or loc2.is_volatile:
-            return self._may_alias(loc1, loc2)
+            return MemoryLocation.may_overlap(loc1, loc2)
 
         if loc1 in self.alias_sets and loc2 in self.alias_sets:
             return loc2 in self.alias_sets[loc1]
 
-        result = self._may_alias(loc1, loc2)
+        result = MemoryLocation.may_overlap(loc1, loc2)
 
         if loc1 not in self.alias_sets:
             self._analyze_mem_location(loc1)
@@ -91,8 +122,28 @@ class MemoryAliasAnalysis(IRAnalysis):
 
         return result
 
+    def get_alias_set(self, loc: MemoryLocation) -> OrderedSet[MemoryLocation] | None:
+        if loc not in self.alias_sets:
+            self._analyze_mem_location(loc)
+        res = self.alias_sets[loc]
+        res.add(loc)
+        return res
+
+    def get_all_insts(self, loc: MemoryLocation) -> set[IRInstruction]:
+        alias_set = self.get_alias_set(loc)
+        assert alias_set is not None
+        res = set()
+        for alias_loc in alias_set:
+            tmp = self.mem_loc_insts.get(alias_loc, set())
+            res.update(tmp)
+        return res
+
+    def ensure_analyzed(self, loc: MemoryLocation):
+        if loc not in self.alias_sets:
+            self._analyze_mem_location(loc)
+
     def mark_volatile(self, loc: MemoryLocation) -> MemoryLocation:
-        volatile_loc = dc.replace(loc, is_volatile=True)
+        volatile_loc = loc.mk_volatile()
 
         if loc in self.alias_sets:
             self.alias_sets[volatile_loc] = OrderedSet([volatile_loc])
@@ -108,3 +159,26 @@ class MemoryAliasAnalysis(IRAnalysis):
                     self.alias_sets[other_loc].add(volatile_loc)
 
         return volatile_loc
+
+
+class MemoryAliasAnalysis(MemoryAliasAnalysisAbstract):
+    addr_space = MEMORY
+
+
+class StorageAliasAnalysis(MemoryAliasAnalysisAbstract):
+    addr_space = STORAGE
+
+
+class TransientAliasAnalysis(MemoryAliasAnalysisAbstract):
+    addr_space = TRANSIENT
+
+
+def mem_alias_type_factory(addr_space: AddrSpace) -> type[MemoryAliasAnalysisAbstract]:
+    if addr_space == MEMORY:
+        return MemoryAliasAnalysis
+    elif addr_space == STORAGE:
+        return StorageAliasAnalysis
+    elif addr_space == TRANSIENT:
+        return TransientAliasAnalysis
+    else:  # pragma: nocover
+        raise ValueError(f"Invalid address space: {addr_space}")

@@ -1,21 +1,46 @@
+from __future__ import annotations
+
 import textwrap
-from collections import defaultdict
 from dataclasses import dataclass
-from typing import Iterator, Optional
+from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.codegen.ir_node import IRnode
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 
+if TYPE_CHECKING:
+    from vyper.venom.context import IRContext
 
-@dataclass
-class IRParameter:
-    name: str
-    index: int
-    offset: int
-    size: int
-    call_site_var: Optional[IRVariable]
-    func_var: Optional[IRVariable]
-    addr_var: Optional[IRVariable]
+
+@dataclass(frozen=True)
+class FmpSignature:
+    """
+    Frozen FMP calling-convention shape of a function.
+
+    Written by FmpLoweringPass when it materializes the convention,
+    resealed by FmpPrunePass if the hidden FMP param is deleted, and
+    reconstructed by the parser from the function-header annotation
+    (`[fmp_lowered]` / `[fmp_lowered, fmp_publishes]`) plus the
+    `fmp_param` opcode. Once set, it is authoritative: callers augment
+    invokes against it and the post-lowering checks compare the physical
+    shape against it.
+    """
+
+    has_fmp_param: bool
+    publishes: bool
+
+    @property
+    def attrs(self) -> list[str]:
+        # the function-header annotation attributes in the Venom text format.
+        # `has_fmp_param` is not part of the annotation: it is carried
+        # syntactically by the `fmp_param` opcode.
+        attrs = ["fmp_lowered"]
+        if self.publishes:
+            attrs.append("fmp_publishes")
+        return attrs
+
+    @property
+    def annotation(self) -> str:
+        return f"[{', '.join(self.attrs)}]"
 
 
 class IRFunction:
@@ -24,22 +49,41 @@ class IRFunction:
     """
 
     name: IRLabel  # symbol name
-    ctx: "IRContext"  # type: ignore # noqa: F821
-    args: list
+    ctx: IRContext
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
 
+    # Internal-call metadata (excluding return_pc):
+    # - whether first invoke param is a memory return buffer
+    # - number of user-visible return values produced by invoke
+    # The user-arg count itself is syntactic: plain `param` instructions
+    # are exactly the user params (`fmp_param`/`retpc_param` name the
+    # hidden slots).
+    _has_memory_return_buffer_param: Optional[bool]
+    _return_value_count: Optional[int]
+
+    # Frozen FMP convention shape; None until FmpLoweringPass runs.
+    _fmp_signature: Optional[FmpSignature]
+
+    # Opt-out flag for FunctionInlinerPass; set via the `[noinline]`
+    # function-header annotation.
+    noinline: bool
+
     # Used during code generation
     _ast_source_stack: list[IRnode]
-    _error_msg_stack: list[str]
+    _error_msg_stack: list[Optional[str]]
 
-    def __init__(self, name: IRLabel, ctx: "IRContext" = None) -> None:  # type: ignore # noqa: F821
-        self.ctx = ctx
+    def __init__(self, name: IRLabel, ctx: IRContext = None):
+        self.ctx = ctx  # type: ignore
         self.name = name
-        self.args = []
         self._basic_block_dict = {}
 
         self.last_variable = 0
+
+        self._has_memory_return_buffer_param = None
+        self._return_value_count = None
+        self._fmp_signature = None
+        self.noinline = False
 
         self._ast_source_stack = []
         self._error_msg_stack = []
@@ -92,14 +136,6 @@ class IRFunction:
     def code_size_cost(self) -> int:
         return sum(bb.code_size_cost for bb in self.get_basic_blocks())
 
-    def get_terminal_basicblocks(self) -> Iterator[IRBasicBlock]:
-        """
-        Get basic blocks that are terminal.
-        """
-        for bb in self.get_basic_blocks():
-            if bb.is_terminal:
-                yield bb
-
     def get_next_variable(self) -> IRVariable:
         self.last_variable += 1
         return IRVariable(f"%{self.last_variable}")
@@ -107,99 +143,25 @@ class IRFunction:
     def get_last_variable(self) -> str:
         return f"%{self.last_variable}"
 
-    def freshen_varnames(self) -> None:
-        """
-        Reset `self.last_variable`, and regenerate all variable names.
-        Helpful for debugging.
-        So fresh, so clean!
-        """
-        self.last_variable = 0
-        varmap: dict[IRVariable, IRVariable] = defaultdict(self.get_next_variable)
-        for bb in self.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst.output:
-                    inst.output = varmap[inst.output]
-
-                for i, op in enumerate(inst.operands):
-                    if not isinstance(op, IRVariable):
-                        continue
-                    inst.operands[i] = varmap[op]
-
-    def remove_unreachable_blocks(self) -> int:
-        # Remove unreachable basic blocks
-        # pre: requires CFG analysis!
-        # NOTE: should this be a pass?
-
-        removed = set()
-
-        for bb in self.get_basic_blocks():
-            if not bb.is_reachable:
-                removed.add(bb)
-
-        for bb in removed:
-            self.remove_basic_block(bb)
-
-        # Remove phi instructions that reference removed basic blocks
-        for bb in self.get_basic_blocks():
-            for in_bb in list(bb.cfg_in):
-                if in_bb not in removed:
-                    continue
-
-                bb.remove_cfg_in(in_bb)
-
-            # TODO: only run this if cfg_in changed
-            bb.fix_phi_instructions()
-
-        return len(removed)
-
-    @property
-    def normalized(self) -> bool:
-        """
-        Check if function is normalized. A function is normalized if in the
-        CFG, no basic block simultaneously has multiple inputs and outputs.
-        That is, a basic block can be jumped to *from* multiple blocks, or it
-        can jump *to* multiple blocks, but it cannot simultaneously do both.
-        Having a normalized CFG makes calculation of stack layout easier when
-        emitting assembly.
-        """
-        for bb in self.get_basic_blocks():
-            # Ignore if there are no multiple predecessors
-            if len(bb.cfg_in) <= 1:
-                continue
-
-            # Check if there is a branching jump at the end
-            # of one of the predecessors
-            for in_bb in bb.cfg_in:
-                if len(in_bb.cfg_out) > 1:
-                    return False
-
-        # The function is normalized
-        return True
-
     def push_source(self, ir):
         if isinstance(ir, IRnode):
             self._ast_source_stack.append(ir.ast_source)
             self._error_msg_stack.append(ir.error_msg)
+
+    def push_error_msg(self, error_msg: Optional[str]):
+        """Push an error message without changing ast_source."""
+        self._error_msg_stack.append(error_msg)
+
+    def pop_error_msg(self):
+        """Pop an error message."""
+        assert len(self._error_msg_stack) > 0, "Empty error stack"
+        self._error_msg_stack.pop()
 
     def pop_source(self):
         assert len(self._ast_source_stack) > 0, "Empty source stack"
         self._ast_source_stack.pop()
         assert len(self._error_msg_stack) > 0, "Empty error stack"
         self._error_msg_stack.pop()
-
-    def get_param_at_offset(self, offset: int) -> Optional[IRParameter]:
-        for param in self.args:
-            if param.offset == offset:
-                return param
-        return None
-
-    def get_param_by_name(self, var: IRVariable | str) -> Optional[IRParameter]:
-        if isinstance(var, str):
-            var = IRVariable(var)
-        for param in self.args:
-            if f"%{param.name}" == var.name:
-                return param
-        return None
 
     @property
     def ast_source(self) -> Optional[IRnode]:
@@ -211,9 +173,14 @@ class IRFunction:
 
     def copy(self):
         new = IRFunction(self.name)
+        new._has_memory_return_buffer_param = self._has_memory_return_buffer_param
+        new._return_value_count = self._return_value_count
+        new._fmp_signature = self._fmp_signature
+        new.noinline = self.noinline
         for bb in self.get_basic_blocks():
             new_bb = bb.copy()
             new.append_basic_block(new_bb)
+
         return new
 
     def as_graph(self, only_subgraph=False) -> str:
@@ -237,10 +204,10 @@ class IRFunction:
 
         if not only_subgraph:
             ret.append("digraph G {{")
-        ret.append(f'subgraph "{self.name}" {{')
+        ret.append(f"subgraph {repr(self.name)} {{")
 
         for bb in self.get_basic_blocks():
-            for out_bb in bb.cfg_out:
+            for out_bb in bb.out_bbs:
                 ret.append(f'    "{bb.label.value}" -> "{out_bb.label.value}"')
 
         for bb in self.get_basic_blocks():
@@ -254,7 +221,17 @@ class IRFunction:
         return "\n".join(ret)
 
     def __repr__(self) -> str:
-        ret = f"function {self.name} {{\n"
+        attrs = self._fmp_signature.attrs if self._fmp_signature is not None else []
+        if self.noinline:
+            attrs.append("noinline")
+        # the end of this function's static frame, once it is known (i.e. after
+        # ConcretizeMemLocPass). Codegen places spill slots above it, and it
+        # cannot be recovered from the instruction stream, so it has to be
+        # written out for the text format to round-trip.
+        if self.ctx is not None and (eom := self.ctx.mem_allocator.fn_eom.get(self)) is not None:
+            attrs.append(f"eom={eom}")
+        annotation = f" [{', '.join(attrs)}]" if attrs else ""
+        ret = f"function {self.name}{annotation} {{\n"
         for bb in self.get_basic_blocks():
             bb_str = textwrap.indent(str(bb), "  ")
             ret += f"{bb_str}\n"
