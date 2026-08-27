@@ -1,3 +1,5 @@
+import pytest
+
 from tests.venom_utils import assert_bb_eq, assert_ctx_eq
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IRVariable
 from vyper.venom.context import DataItem, DataSection, IRContext
@@ -80,8 +82,7 @@ def test_multi_bb_single_fn():
 
 
 def test_data_section():
-    parsed_ctx = parse_venom(
-        """
+    parsed_ctx = parse_venom("""
     function entry {
         entry:
             stop
@@ -97,8 +98,7 @@ def test_data_section():
             db @selector_bucket_5
             db @selector_bucket_6
     }
-    """
-    )
+    """)
 
     expected_ctx = IRContext()
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
@@ -123,8 +123,7 @@ def test_data_section():
 
 
 def test_multi_function():
-    parsed_ctx = parse_venom(
-        """
+    parsed_ctx = parse_venom("""
     function entry {
         entry:
             invoke @check_cv
@@ -144,14 +143,13 @@ def test_multi_function():
         has_value:
             revert 0, 0
     }
-    """
-    )
+    """)
 
     expected_ctx = IRContext()
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
 
     entry_bb = entry_fn.get_basic_block("entry")
-    entry_bb.append_invoke_instruction([IRLabel("check_cv")], returns=False)
+    entry_bb.append_invoke_instruction([IRLabel("check_cv")], returns=0)
     entry_bb.append_instruction("jmp", IRLabel("wow"))
 
     entry_fn.append_basic_block(wow_bb := IRBasicBlock(IRLabel("wow"), entry_fn))
@@ -176,8 +174,7 @@ def test_multi_function():
 
 
 def test_multi_function_and_data():
-    parsed_ctx = parse_venom(
-        """
+    parsed_ctx = parse_venom("""
     function entry {
         entry:
             invoke @check_cv
@@ -206,14 +203,13 @@ def test_multi_function_and_data():
             db @selector_bucket_3
             db @selector_bucket_6
     }
-    """
-    )
+    """)
 
     expected_ctx = IRContext()
     expected_ctx.add_function(entry_fn := IRFunction(IRLabel("entry")))
 
     entry_bb = entry_fn.get_basic_block("entry")
-    entry_bb.append_invoke_instruction([IRLabel("check_cv")], returns=False)
+    entry_bb.append_invoke_instruction([IRLabel("check_cv")], returns=0)
     entry_bb.append_instruction("jmp", IRLabel("wow"))
 
     entry_fn.append_basic_block(wow_bb := IRBasicBlock(IRLabel("wow"), entry_fn))
@@ -357,12 +353,136 @@ def test_phis():
         IRVariable("%11:4"),
         ret=IRVariable("11:3"),
     )
-    expect_bb.append_instruction("store", IRVariable("11:3"), ret=IRVariable("%35"))
-    expect_bb.append_instruction("store", IRLiteral(9), ret=IRVariable("%36"))
+    expect_bb.append_instruction("assign", IRVariable("11:3"), ret=IRVariable("%35"))
+    expect_bb.append_instruction("assign", IRLiteral(9), ret=IRVariable("%36"))
     expect_bb.append_instruction("xor", IRVariable("%35"), IRVariable("%36"), ret=IRVariable("%15"))
-    expect_bb.append_instruction("store", IRVariable("%15"), ret=IRVariable("%37"))
+    expect_bb.append_instruction("assign", IRVariable("%15"), ret=IRVariable("%37"))
     expect_bb.append_instruction("jnz", IRVariable("%37"), IRLabel("5_body"), IRLabel("7_exit"))
     # other basic blocks omitted for brevity
 
     parsed_fn = next(iter(ctx.functions.values()))
     assert_bb_eq(parsed_fn.get_basic_block(expect_bb.label.name), expect_bb)
+
+
+def test_multi_output_last_var():
+    source = """
+    function main {
+        main:
+            %1, %2 = invoke @f
+            %3, %4, %5 = invoke @g
+            sink %1, %2, %3, %4, %5
+    }
+
+    function f {
+        f:
+            %retpc = param
+            ret 10, 20, %retpc
+    }
+
+    function g {
+        g:
+            %retpc = param
+            ret 30, 40, 50, %retpc
+    }
+    """
+
+    parsed_ctx = parse_venom(source)
+
+    main_fn = parsed_ctx.get_function(IRLabel("main"))
+    assert main_fn.last_variable == 5
+
+    f_fn = parsed_ctx.get_function(IRLabel("f"))
+    assert f_fn.last_variable == 0
+
+    g_fn = parsed_ctx.get_function(IRLabel("g"))
+    assert g_fn.last_variable == 0
+
+
+def test_noinline_annotation():
+    source = """
+    function main {
+        main:
+            stop
+    }
+
+    function f [noinline] {
+        f:
+            stop
+    }
+
+    function g [fmp_lowered, noinline] {
+        g:
+            stop
+    }
+    """
+
+    parsed_ctx = parse_venom(source)
+
+    assert parsed_ctx.get_function(IRLabel("main")).noinline is False
+    assert parsed_ctx.get_function(IRLabel("f")).noinline is True
+    g = parsed_ctx.get_function(IRLabel("g"))
+    assert g.noinline is True
+    assert g._fmp_signature is not None
+
+    # printer/parser round trip preserves the flag
+    assert_ctx_eq(parsed_ctx, parse_venom(str(parsed_ctx)))
+
+
+def test_eom_annotation():
+    # `eom` is the end of a function's static frame. Once allocas have been
+    # concretized it is not recoverable from the instruction stream, but the
+    # backend needs it to place spill slots above the frame, so it has to
+    # survive the text-format round trip.
+    source = """
+    function main [fmp_lowered, eom=13024] {
+        main:
+            stop
+    }
+
+    function f [fmp_lowered, eom=160] {
+        f:
+            stop
+    }
+
+    function g {
+        g:
+            stop
+    }
+    """
+
+    parsed_ctx = parse_venom(source)
+
+    fn_eom = parsed_ctx.mem_allocator.fn_eom
+    assert fn_eom[parsed_ctx.get_function(IRLabel("main"))] == 13024
+    assert fn_eom[parsed_ctx.get_function(IRLabel("f"))] == 160
+    # a function without the annotation must not get an entry -- a default of 0
+    # would silently place spill slots at the bottom of memory
+    assert parsed_ctx.get_function(IRLabel("g")) not in fn_eom
+
+    # printer/parser round trip preserves the value
+    reparsed = parse_venom(str(parsed_ctx))
+    assert_ctx_eq(parsed_ctx, reparsed)
+    assert reparsed.mem_allocator.fn_eom[reparsed.get_function(IRLabel("main"))] == 13024
+
+
+@pytest.mark.parametrize(
+    "annotation, expected_error",
+    [
+        ("[eom]", "requires a value"),
+        ("[noinline=1]", "takes no value"),
+        ("[eom=1, eom=2]", "duplicate function annotation"),
+        ("[bogus]", "unknown function annotation"),
+        ("[eom=-32]", "negative `eom` annotation"),
+        ("[eom=64]", "`eom` requires `fmp_lowered`"),
+    ],
+)
+def test_invalid_annotations(annotation, expected_error):
+    source = f"""
+    function main {annotation} {{
+        main:
+            stop
+    }}
+    """
+
+    with pytest.raises(ValueError, match=expected_error):
+        parse_venom(source)

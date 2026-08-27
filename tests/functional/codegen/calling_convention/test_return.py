@@ -138,6 +138,70 @@ def test() -> (int128, address, Bytes[10]):
     assert c.out_literals() == c.test() == (1, ZERO_ADDRESS, b"random")
 
 
+def test_return_tuple_assign_single_member_struct(get_contract):
+    code = """
+struct S:
+    a: uint256
+
+@internal
+def _foo() -> (S, uint256):
+    return S(a=42), 1
+
+@external
+def test() -> (uint256, uint256):
+    s: S = S(a=0)
+    b: uint256 = 0
+    s, b = self._foo()
+    return s.a, b
+    """
+
+    c = get_contract(code)
+
+    assert c.test() == (42, 1)
+
+
+def test_return_tuple_assign_single_element_array(get_contract):
+    code = """
+@internal
+def _foo() -> (uint256[1], uint256):
+    return [42], 1
+
+@external
+def test() -> (uint256, uint256):
+    a: uint256[1] = [0]
+    b: uint256 = 0
+    a, b = self._foo()
+    return a[0], b
+    """
+
+    c = get_contract(code)
+
+    assert c.test() == (42, 1)
+
+
+def test_return_tuple_assign_two_member_struct(get_contract):
+    code = """
+struct S:
+    a: uint256
+    b: uint256
+
+@internal
+def _foo() -> (S, uint256):
+    return S(a=42, b=43), 1
+
+@external
+def test() -> (uint256, uint256, uint256):
+    s: S = S(a=0, b=0)
+    c: uint256 = 0
+    s, c = self._foo()
+    return s.a, s.b, c
+    """
+
+    c = get_contract(code)
+
+    assert c.test() == (42, 43, 1)
+
+
 def test_return_tuple_assign_storage(get_contract):
     code = """
 a: int128

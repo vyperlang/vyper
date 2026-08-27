@@ -1,0 +1,111 @@
+# We keep thise in separate files to allow for
+# easier management of different optimization levels
+# and diffing between them.
+
+from typing import List
+
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
+from vyper.venom.optimization_levels.types import PassConfig
+from vyper.venom.passes import (
+    CSE,
+    SCCP,
+    AffineFoldingPass,
+    AlgebraicOptimizationPass,
+    AssertCombinerPass,
+    AssignElimination,
+    BranchOptimizationPass,
+    CFGNormalization,
+    ConcretizeMemLocPass,
+    DeadStoreElimination,
+    DFTPass,
+    FmpLoweringPass,
+    FmpPrunePass,
+    InternalReturnCopyForwardingPass,
+    LoadElimination,
+    LowerDloadPass,
+    MakeSSA,
+    Mem2Var,
+    MemMergePass,
+    MemoryCopyElisionPass,
+    PhiEliminationPass,
+    ReadonlyInvokeArgCopyForwardingPass,
+    ReduceLiteralsCodesize,
+    RemoveUnusedVariablesPass,
+    RevertToAssert,
+    SimplifyCFGPass,
+    SingleUseExpansion,
+)
+
+# Optimize for size
+PASSES_Os: List[PassConfig] = [
+    SimplifyCFGPass,
+    MakeSSA,
+    PhiEliminationPass,
+    AffineFoldingPass,
+    AlgebraicOptimizationPass,
+    SCCP,
+    SimplifyCFGPass,
+    AssignElimination,
+    Mem2Var,
+    MakeSSA,
+    PhiEliminationPass,
+    SCCP,
+    SimplifyCFGPass,
+    AssignElimination,
+    AffineFoldingPass,
+    AlgebraicOptimizationPass,
+    LoadElimination,
+    PhiEliminationPass,
+    AssignElimination,
+    SCCP,
+    AssignElimination,
+    RevertToAssert,
+    SimplifyCFGPass,
+    # Second invoke-copy forwarding run (first is global pre-inlining in venom/__init__.py).
+    InternalReturnCopyForwardingPass,
+    ReadonlyInvokeArgCopyForwardingPass,
+    # run memmerge before LowerDload
+    (MemMergePass, {"memory_abstract": True}),
+    MemoryCopyElisionPass,
+    LoadElimination,
+    LowerDloadPass,
+    RemoveUnusedVariablesPass,
+    (DeadStoreElimination, {"addr_space": MEMORY}),
+    (DeadStoreElimination, {"addr_space": STORAGE}),
+    (DeadStoreElimination, {"addr_space": TRANSIENT}),
+    AssignElimination,
+    RemoveUnusedVariablesPass,
+    ConcretizeMemLocPass,
+    FmpLoweringPass,
+    # repairs the multiply-assigned FMP runner emitted by the lowering;
+    # PhiEliminationPass then folds the trivial phis MakeSSA inserts for
+    # the runner before SCCP sees them
+    MakeSSA,
+    PhiEliminationPass,
+    SCCP,
+    SimplifyCFGPass,
+    (MemMergePass, {"memory_abstract": False}),
+    LoadElimination,
+    RemoveUnusedVariablesPass,
+    BranchOptimizationPass,
+    AffineFoldingPass,
+    AlgebraicOptimizationPass,
+    AssertCombinerPass,
+    # This improves the performance of cse
+    RemoveUnusedVariablesPass,
+    PhiEliminationPass,
+    AssignElimination,
+    CSE,
+    AssignElimination,
+    RemoveUnusedVariablesPass,
+    # deletion-only (removes a dead fmp_param plus its self-contained
+    # assign/phi chain), so SSA form is preserved and no re-SSA is needed;
+    # the trailing RemoveUnusedVariablesPass sweeps values that become dead
+    # only once the fmp_param chain is deleted
+    FmpPrunePass,
+    RemoveUnusedVariablesPass,
+    SingleUseExpansion,
+    ReduceLiteralsCodesize,
+    DFTPass,
+    CFGNormalization,
+]
