@@ -1,12 +1,7 @@
 import pytest
 
 from tests.venom_utils import PrePostChecker
-from vyper.venom.passes import (
-    AlgebraicOptimizationPass,
-    AssertEliminationPass,
-    AssignElimination,
-    RemoveUnusedVariablesPass,
-)
+from vyper.venom.passes import AlgebraicOptimizationPass, AssignElimination
 
 """
 Test abstract binop+unop optimizations in algebraic optimizations pass
@@ -15,13 +10,6 @@ Test abstract binop+unop optimizations in algebraic optimizations pass
 pytestmark = pytest.mark.hevm
 
 _check_pre_post = PrePostChecker([AssignElimination, AlgebraicOptimizationPass, AssignElimination])
-
-# the comparison folding tests also drop the operand definitions that
-# become unused once the comparison is folded
-_check_fold = PrePostChecker([AlgebraicOptimizationPass, RemoveUnusedVariablesPass])
-_check_fold_with_assert_elim = PrePostChecker(
-    [AlgebraicOptimizationPass, AssertEliminationPass, RemoveUnusedVariablesPass]
-)
 
 
 def test_sccp_algebraic_opt_sub_xor():
@@ -735,17 +723,30 @@ def test_signed_comparison_range_past_signed_max_not_folded():
 # Comparison folding via range analysis, both operands variables.
 #
 # Operand definitions shared by the tests below; each one defines %a
-# (from %x) or %b (from %y) with the value range given in its name.
-_A_IN_0_99 = "%a = and %x, 99"
-_A_IN_0_100 = "%a = and %x, 100"
-_A_IN_100_200 = """%a_base = and %x, 100
-        %a = add %a_base, 100"""
-_A_IN_NEG100_NEG1 = """%a_base = and %x, 99
-        %a = sub %a_base, 100"""
-_B_IN_0_99 = "%b = and %y, 99"
-_B_IN_0_100 = "%b = and %y, 100"
-_B_IN_100_200 = """%b_base = and %y, 100
-        %b = add %b_base, 100"""
+# (from %x) or %b (from %y) with the value range given in its name, as a
+# (definition, definition after operand canonicalization) pair.
+_A_IN_0_99 = ("%a = and %x, 99", "%a = and 99, %x")
+_A_IN_0_100 = ("%a = and %x, 100", "%a = and 100, %x")
+_A_IN_100_200 = (
+    """%a_base = and %x, 100
+        %a = add %a_base, 100""",
+    """%a_base = and 100, %x
+        %a = add 100, %a_base""",
+)
+_A_IN_NEG100_NEG1 = (
+    """%a_base = and %x, 99
+        %a = sub %a_base, 100""",
+    """%a_base = and 99, %x
+        %a = sub %a_base, 100""",
+)
+_B_IN_0_99 = ("%b = and %y, 99", "%b = and 99, %y")
+_B_IN_0_100 = ("%b = and %y, 100", "%b = and 100, %y")
+_B_IN_100_200 = (
+    """%b_base = and %y, 100
+        %b = add %b_base, 100""",
+    """%b_base = and 100, %y
+        %b = add 100, %b_base""",
+)
 
 
 @pytest.mark.parametrize(
@@ -769,22 +770,28 @@ _B_IN_100_200 = """%b_base = and %y, 100
     ],
 )
 def test_comparison_disjoint_ranges_fold(opcode, a_def, b_def, expected):
-    # the operand ranges do not overlap, so the comparison is decided
+    # the operand ranges do not overlap, so the comparison is decided and
+    # its result is sunk directly; the operand definitions stay as dead code
+    a_pre, a_post = a_def
+    b_pre, b_post = b_def
     pre = f"""
-    main:
+    _global:
         %x = source
         %y = source
-        {a_def}
-        {b_def}
+        {a_pre}
+        {b_pre}
         %cmp = {opcode} %a, %b
         sink %cmp
     """
     post = f"""
-    main:
-        %cmp = {expected}
-        sink %cmp
+    _global:
+        %x = source
+        %y = source
+        {a_post}
+        {b_post}
+        sink {expected}
     """
-    _check_fold(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_lt_var_var_overlapping_no_fold():
@@ -793,7 +800,7 @@ def test_lt_var_var_overlapping_no_fold():
     a ∈ [0, 255], b ∈ [100, 200] → overlap at [100, 200]
     """
     pre = """
-    main:
+    _global:
         %x = source
         %y = source
         %a = and %x, 255
@@ -806,7 +813,7 @@ def test_lt_var_var_overlapping_no_fold():
     # Should remain unchanged (comparison not folded)
     # Note: operands get canonicalized (literal first for commutative ops)
     post = """
-    main:
+    _global:
         %x = source
         %y = source
         %a = and 255, %x
@@ -816,7 +823,7 @@ def test_lt_var_var_overlapping_no_fold():
         sink %cmp
     """
 
-    _check_fold(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_gt_var_var_unknown_range_no_fold():
@@ -824,7 +831,7 @@ def test_gt_var_var_unknown_range_no_fold():
     gt a, b where one operand has unknown range → cannot fold
     """
     pre = """
-    main:
+    _global:
         %a = source
         %y = source
         %b = and %y, 99
@@ -835,7 +842,7 @@ def test_gt_var_var_unknown_range_no_fold():
     # Should remain unchanged - %a has TOP range
     # Note: operands get canonicalized
     post = """
-    main:
+    _global:
         %a = source
         %y = source
         %b = and 99, %y
@@ -843,7 +850,7 @@ def test_gt_var_var_unknown_range_no_fold():
         sink %cmp
     """
 
-    _check_fold(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_lt_modulo_result_always_bounded():
@@ -854,7 +861,7 @@ def test_lt_modulo_result_always_bounded():
     lt a, b → always true
     """
     pre = """
-    main:
+    _global:
         %x = source
         %y = source
         %a = mod %x, 100
@@ -865,12 +872,16 @@ def test_lt_modulo_result_always_bounded():
     """
 
     post = """
-    main:
-        %cmp = 1
-        sink %cmp
+    _global:
+        %x = source
+        %y = source
+        %a = mod %x, 100
+        %b_mod = mod %y, 1000
+        %b = add 100, %b_mod
+        sink 1
     """
 
-    _check_fold(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_slt_var_var_signed_wrap_no_fold():
@@ -879,7 +890,7 @@ def test_slt_var_var_signed_wrap_no_fold():
     a ∈ [0, 2**255], b ∈ [0, 0] → signed comparison is not constant.
     """
     pre = """
-    main:
+    _global:
         %x = source
         %y = source
         %a = and %x, 0x8000000000000000000000000000000000000000000000000000000000000000
@@ -888,25 +899,26 @@ def test_slt_var_var_signed_wrap_no_fold():
         sink %cmp
     """
 
-    # %b folds to 0, but %cmp must not fold due to signed wraparound.
+    # %b folds to 0 and is substituted, but %cmp must not fold due to
+    # signed wraparound.
     post = """
-    main:
+    _global:
         %x = source
+        %y = source
         %a = and 0x8000000000000000000000000000000000000000000000000000000000000000, %x
-        %b = 0
-        %cmp = slt %a, %b
+        %cmp = slt %a, 0
         sink %cmp
     """
 
-    _check_fold(pre, post)
+    _check_pre_post(pre, post)
 
 
-def test_assert_eliminated_via_comparison_fold():
+def test_assert_operand_folded_via_comparison():
     """
-    Full pattern: comparison folds to 1, assert(1) passes (nonzero), assert eliminated.
+    The comparison folds to 1 and the assert consumes the literal directly.
     """
     pre = """
-    main:
+    _global:
         %x = source
         %y = source
         %a = and %x, 99
@@ -917,16 +929,19 @@ def test_assert_eliminated_via_comparison_fold():
         sink %a
     """
 
-    # cmp folds to 1, assert 1 is eliminated, %a still used by sink
     # Note: operands get canonicalized
     post = """
-    main:
+    _global:
         %x = source
+        %y = source
         %a = and 99, %x
+        %b_base = and 100, %y
+        %b = add 100, %b_base
+        assert 1
         sink %a
     """
 
-    _check_fold_with_assert_elim(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_lt_range_spans_boundary_from_nonneg_no_fold():
@@ -937,7 +952,7 @@ def test_lt_range_spans_boundary_from_nonneg_no_fold():
     We construct this by having a range that could be 0 or 2^255.
     """
     pre = """
-    main:
+    _global:
         %x = source
         %y = source
         ; %a can be 0 or 2^255 (spans the boundary)
@@ -949,19 +964,18 @@ def test_lt_range_spans_boundary_from_nonneg_no_fold():
     """
 
     # Should NOT fold - %a's range spans the boundary
-    # Note: or %mask, 0 simplifies to %mask (assign)
+    # Note: or %mask, 0 simplifies to %mask, which is substituted into %cmp
     post = """
-    main:
+    _global:
         %x = source
         %y = source
         %mask = and 0x8000000000000000000000000000000000000000000000000000000000000000, %x
-        %a = %mask
         %b = and 99, %y
-        %cmp = lt %a, %b
+        %cmp = lt %mask, %b
         sink %cmp
     """
 
-    _check_fold(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_gt_both_negative_ranges_disjoint():
@@ -971,7 +985,7 @@ def test_gt_both_negative_ranges_disjoint():
     signed order: a ∈ [-100, -1] is above b ∈ [-300, -201].
     """
     pre = """
-    main:
+    _global:
         %x = source
         %y = source
         %a_base = and %x, 99
@@ -983,12 +997,17 @@ def test_gt_both_negative_ranges_disjoint():
     """
 
     post = """
-    main:
-        %cmp = 1
-        sink %cmp
+    _global:
+        %x = source
+        %y = source
+        %a_base = and 99, %x
+        %a = sub %a_base, 100
+        %b_base = and 99, %y
+        %b = sub %b_base, 300
+        sink 1
     """
 
-    _check_fold(pre, post)
+    _check_pre_post(pre, post)
 
 
 @pytest.mark.parametrize("opcode", ("slt", "sgt"))
@@ -999,7 +1018,7 @@ def test_signed_comparison_second_operand_range_past_signed_max_no_fold(opcode):
     b = MIN_INT256 a is above b, so neither slt nor sgt may fold.
     """
     pre = f"""
-    main:
+    _global:
         %x = source
         %y = source
         %a_base = and %x, 99
@@ -1011,7 +1030,7 @@ def test_signed_comparison_second_operand_range_past_signed_max_no_fold(opcode):
 
     # Note: operands get canonicalized
     post = f"""
-    main:
+    _global:
         %x = source
         %y = source
         %a_base = and 99, %x
@@ -1021,7 +1040,7 @@ def test_signed_comparison_second_operand_range_past_signed_max_no_fold(opcode):
         sink %cmp
     """
 
-    _check_fold(pre, post)
+    _check_pre_post(pre, post)
 
 
 def test_folded_comparison_feeds_second_comparison():
@@ -1031,7 +1050,7 @@ def test_folded_comparison_feeds_second_comparison():
     decided as well and both fold in the same run.
     """
     pre = """
-    main:
+    _global:
         %x = source
         %y = source
         %z = source
@@ -1046,9 +1065,16 @@ def test_folded_comparison_feeds_second_comparison():
     """
 
     post = """
-    main:
-        %c2 = 1
-        sink %c2
+    _global:
+        %x = source
+        %y = source
+        %z = source
+        %a = and 9, %x
+        %b_base = and 89, %y
+        %b = add 10, %b_base
+        %d_base = and 97, %z
+        %d = add 2, %d_base
+        sink 1
     """
 
-    _check_fold(pre, post)
+    _check_pre_post(pre, post)
