@@ -66,8 +66,8 @@ def test_phi_placement():
     bb1, bb2, bb3, bb4, bb5, bb6, bb7 = [fn.get_basic_block(str(i)) for i in range(1, 8)]
 
     x = IRVariable("%x")
-    bb1.insert_instruction(IRInstruction("mload", [IRLiteral(0)], x), 0)
-    bb2.insert_instruction(IRInstruction("add", [x, IRLiteral(1)], x), 0)
+    bb1.insert_instruction(IRInstruction("mload", [IRLiteral(0)], [x]), 0)
+    bb2.insert_instruction(IRInstruction("add", [x, IRLiteral(1)], [x]), 0)
     bb7.insert_instruction(IRInstruction("mstore", [x, IRLiteral(0)]), 0)
 
     ac = IRAnalysesCache(fn)

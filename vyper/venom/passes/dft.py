@@ -2,8 +2,7 @@ from collections import defaultdict, deque
 
 import vyper.venom.effects as effects
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
-from vyper.venom.analysis.stack_order import StackOrderAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis, StackOrderAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
@@ -20,6 +19,9 @@ class DFTPass(IRPass):
 
     stack_order: StackOrderAnalysis
     cfg: CFGAnalysis
+    # DFT expects single-use-expanded operands and should run just before CFG normalization.
+    required_predecessors = ("SingleUseExpansion",)
+    required_immediate_successors = ("CFGNormalization",)
 
     def run_pass(self) -> None:
         self.data_offspring = {}
@@ -27,7 +29,7 @@ class DFTPass(IRPass):
 
         self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
-        self.stack_order = StackOrderAnalysis(self.analyses_cache)
+        self.stack_order = self.analyses_cache.force_analysis(StackOrderAnalysis)
 
         worklist = deque(self.cfg.dfs_post_walk)
 
@@ -88,18 +90,37 @@ class DFTPass(IRPass):
             #   indirect data dependencies (offspring of operands)
             #   direct data dependencies (order of operands)
 
-            if (x not in self.dda[inst] and x in self.eda[inst]) or inst.flippable:
-                ret = -1 * int(len(self.data_offspring[x]) > 0)
-            elif x.output in inst.operands:
-                assert x in self.dda[inst]  # sanity check
-                assert x.output is not None  # help mypy
-                ret = inst.operands.index(x.output) + len(self.order)
-            else:
-                assert x in self.dda[inst]  # sanity check
-                assert x.output in self.order
-                assert x.output is not None  # help mypy
-                ret = self.order.index(x.output)
-            return ret
+            is_effect_only = x not in self.dda[inst] and x in self.eda[inst]
+            if is_effect_only or inst.flippable:
+                has_data_offspring = len(self.data_offspring[x]) > 0
+                return -1 if has_data_offspring else 0
+
+            assert x in self.dda[inst]  # sanity check
+
+            # locate operands that are produced by x and prefer earliest match
+            operand_idxs = [
+                i
+                for i, op in enumerate(inst.operands)
+                if self.dfg.get_producing_instruction(op) is x
+            ]
+            if len(operand_idxs) > 0:
+                return min(operand_idxs) + len(self.order)
+
+            outputs = x.get_outputs()
+            operand_positions = [
+                inst.operands.index(out_var) for out_var in outputs if out_var in inst.operands
+            ]
+            if len(operand_positions) > 0:
+                return min(operand_positions) + len(self.order)
+
+            order_positions = [
+                self.order.index(out_var) for out_var in outputs if out_var in self.order
+            ]
+            if len(order_positions) > 0:
+                return min(order_positions)
+
+            # fall back to a stable default when no operand is associated
+            return len(self.order)
 
         # heuristic: sort by size of child dependency graph
         orig_children = children.copy()
@@ -146,7 +167,7 @@ class DFTPass(IRPass):
                     for read_inst in all_read_effects[write_effect]:
                         self.eda[inst].add(read_inst)
                 # prevent reordering write-after-write for the same effect
-                if (write_effect & ~effects.Effects.MSIZE) in last_write_effects:
+                if write_effect in last_write_effects:
                     self.eda[inst].add(last_write_effects[write_effect])
                 last_write_effects[write_effect] = inst
                 # clear previous read effects after a write

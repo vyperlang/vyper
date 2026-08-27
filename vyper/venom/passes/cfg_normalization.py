@@ -73,7 +73,7 @@ class CFGNormalization(IRPass):
 
     def _needs_forwarding_store(self, var: IRVariable, pred_bb: IRBasicBlock) -> bool:
         for inst in pred_bb.instructions:
-            if inst.output == var:
+            if var in inst.get_outputs():
                 # variable defined by phi needs forwarding
                 return inst.opcode == "phi"
         # variable not defined in predecessor needs forwarding
