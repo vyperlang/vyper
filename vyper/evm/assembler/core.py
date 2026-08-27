@@ -56,9 +56,7 @@ def _assembly_to_evm(
     # now that all symbols have been resolved, generate bytecode
     # using the symbol map
     for item in assembly:
-        if item in ("DEBUG",):
-            continue  # skippable opcodes
-        elif isinstance(item, CONST):
+        if isinstance(item, CONST):
             continue  # CONST things do not show up in bytecode
         elif isinstance(item, DataHeader):
             continue  # DataHeader does not show up in bytecode
