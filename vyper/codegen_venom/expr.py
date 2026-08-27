@@ -1566,21 +1566,25 @@ class Expr:
         # Assemble invoke operands from the frozen values
         for i, arg_val in enumerate(arg_vals):
             arg_t = func_t.arguments[i]
-            arg_op = self.ctx.unwrap(arg_val)
 
             if pass_via_stack_dict[arg_t.name]:
                 # Stack-passed arg: use value directly
                 # For struct/tuple types that fit in one word, arg_val is a memory
                 # pointer (from unwrap), so we need to load the actual value
+                arg_op = self.ctx.unwrap(arg_val)
                 if hasattr(arg_t.typ, "tuple_items"):
                     assert isinstance(arg_op, IRVariable)
                     arg_op = self.builder.mload(arg_op)
                 invoke_args.append(arg_op)
             else:
                 # Memory-passed arg: pointer to the owned snapshot staged above.
+                # Must not go through `unwrap`: a word-typed arg is memory-passed
+                # once the stack slots are exhausted, and `unwrap` would load
+                # its value while the callee expects the pointer.
                 # Backend passes can forward safe readonly bounded arguments.
-                assert isinstance(arg_op, IRVariable)
-                invoke_args.append(arg_op)
+                assert arg_val.location == DataLocation.MEMORY, arg_val
+                assert isinstance(arg_val.operand, IRVariable)
+                invoke_args.append(arg_val.operand)
 
         # Emit invoke instruction
         invoke_returns_count = returns_count + dynamic_returns_count
