@@ -797,6 +797,16 @@ class TestComparisonSoundness:
         # -1 as unsigned is MAX_UINT, MAX_UINT > 1, so lt returns 0
         assert value_in_range(0, result_range), f"lt(-1, 1) must include 0, got {result_range}"
 
+    def test_slt_range_past_signed_max_is_unknown(self) -> None:
+        """A range reaching past SIGNED_MAX contains negative words.
+
+        [0, 2**255] contains the word 2**255, which is SIGNED_MIN, so
+        slt(x, 0) can be 1 and the comparison must not fold to 0.
+        """
+        rng = ValueRange.iv(0, 2**255)
+        assert eval_compare("slt", rng, ValueRange.constant(0)) == ValueRange.bool_range()
+        assert eval_compare("sgt", ValueRange.constant(0), rng) == ValueRange.bool_range()
+
     def test_eq_minus_one_and_max_uint(self) -> None:
         """Critical: eq(-1, MAX_UINT) must be 1 (same bit pattern)."""
         # Both -1 and UNSIGNED_MAX are the same 256-bit pattern

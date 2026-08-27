@@ -696,3 +696,25 @@ def test_comparison_range_always_false():
         sink 0
     """
     _check_pre_post(pre, post)
+
+
+def test_signed_comparison_range_past_signed_max_not_folded():
+    # and gives %a the range [0, 2**255]. The word 2**255 is MIN_INT256,
+    # so slt %a, 0 is 1 for that input and neither comparison may fold.
+    pre = f"""
+    _global:
+        %x = source
+        %a = and %x, {2**255}
+        %c = slt %a, 0
+        %d = lt %c, 1
+        sink %d
+    """
+    post = f"""
+    _global:
+        %x = source
+        %a = and {2**255}, %x
+        %c = sgt 0, %a
+        %d = iszero %c
+        sink %d
+    """
+    _check_pre_post(pre, post)

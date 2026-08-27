@@ -471,6 +471,12 @@ def eval_compare(opcode: str, lhs: ValueRange, rhs: ValueRange) -> ValueRange:
                 else:  # gt
                     return ValueRange.constant(0)
             return ValueRange.bool_range()
+    else:
+        # Ranges extending above SIGNED_MAX contain values that are negative
+        # words in the signed interpretation, so comparing the raw lo/hi
+        # bounds below would be unsound (same guard as eval_sdiv/eval_smod).
+        if lhs.hi > SIGNED_MAX or rhs.hi > SIGNED_MAX:
+            return ValueRange.bool_range()
 
     # Now we can use signed comparison logic (works for both signed ops
     # and unsigned ops where both ranges have the same sign)
