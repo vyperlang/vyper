@@ -23,7 +23,7 @@ from vyper.codegen_venom.abi.abi_decoder import _getelemptr_abi, abi_decode_to_b
 from vyper.codegen_venom.buffer import Ptr
 from vyper.codegen_venom.constants import SELECTOR_BYTES, SELECTOR_SHIFT_BITS
 from vyper.codegen_venom.value import VyperValue
-from vyper.compiler.settings import Settings, _opt_codesize, _opt_none
+from vyper.compiler.settings import Settings, _opt_codesize, _opt_lowering_only_ir
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.data_locations import DataLocation
@@ -128,11 +128,11 @@ def generate_runtime_venom(module_t: ModuleT, settings: Settings) -> IRContext:
 
     # Generate selector dispatch
     # Selection logic matches legacy codegen:
-    # - opt_none: linear search (O(n))
+    # - lowering-only IR: linear search (O(n))
     # - opt_codesize with >4 functions: dense jumptable (O(1), codesize-optimized)
     # - >3 functions: sparse jumptable (O(1) average, gas-optimized)
     # - otherwise: linear search
-    if _opt_none():
+    if _opt_lowering_only_ir():
         _generate_selector_section_linear(
             runtime_builder, module_t, external_functions, default_function
         )
@@ -1279,9 +1279,12 @@ def _generate_internal_function(
     returns_count = returns_stack_count(func_t)
     has_memory_return_buffer = func_t.return_type is not None and returns_count == 0
 
-    # Structured invoke metadata used by backend passes.
+    # Structured invoke metadata used by backend passes. _invoke_param_count
+    # is gone: the user-arg count is now syntactic (FunctionCallLayout counts
+    # plain `param` opcodes). _return_value_count feeds the post-lowering
+    # invoke output-count check (find_post_lowering_errors).
     fn._has_memory_return_buffer_param = has_memory_return_buffer
-    fn._invoke_param_count = len(func_t.arguments) + (1 if has_memory_return_buffer else 0)
+    fn._return_value_count = returns_count
 
     # Handle parameters
     # First: return buffer pointer if memory return
@@ -1300,8 +1303,9 @@ def _generate_internal_function(
             ptr = builder.param()
             codegen_ctx.register_variable(arg.name, arg.typ, ptr, mutable=True)
 
-    # Return PC is last param
-    codegen_ctx.return_pc = builder.param()
+    # Return PC is the last param, named by its dedicated opcode so the
+    # raw IR is self-describing even for functions with no `ret` to anchor it
+    codegen_ctx.return_pc = builder.retpc_param()
 
     # Allocate return buffer if needed
     if func_t.return_type is not None:

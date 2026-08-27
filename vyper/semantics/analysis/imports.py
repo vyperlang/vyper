@@ -103,6 +103,11 @@ class ImportAnalyzer:
 
         self._integrity_sum = None
 
+        # memoization for _calculate_integrity_sum_r. the import graph is
+        # a DAG, so without memoization the traversal is exponential in
+        # the presence of diamond-shaped imports.
+        self._integrity_cache: dict[int, str] = {}
+
         # should be all system paths + topmost module path
         self.absolute_search_paths = input_bundle.search_paths.copy()
 
@@ -115,16 +120,22 @@ class ImportAnalyzer:
         return self._compiler_inputs
 
     def _calculate_integrity_sum_r(self, module_ast: vy_ast.Module):
+        if id(module_ast) in self._integrity_cache:
+            return self._integrity_cache[id(module_ast)]
+
         acc = [sha256sum(module_ast.full_source_code)]
         for s in module_ast.get_children((vy_ast.Import, vy_ast.ImportFrom)):
             for info in s._metadata["import_infos"]:
-                if info.compiler_input.path.suffix in (".vyi", ".json"):
-                    # NOTE: this needs to be redone if interfaces can import other interfaces
+                if isinstance(info.compiler_input, JSONInput):
+                    # json (ABI) inputs cannot have imports; hash the input
                     acc.append(info.compiler_input.sha256sum)
                 else:
+                    # .vy and .vyi modules can have their own imports; recurse
                     acc.append(self._calculate_integrity_sum_r(info.parsed))
 
-        return sha256sum("".join(acc))
+        ret = sha256sum("".join(acc))
+        self._integrity_cache[id(module_ast)] = ret
+        return ret
 
     def _resolve_imports_r(self, module_ast: vy_ast.Module):
         if module_ast in self.seen:
