@@ -1284,3 +1284,27 @@ def foo(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     return x
     """
     _compile_inf_dynarray_code(code, experimental_codegen)
+
+
+@pytest.mark.parametrize("output_format", ["ir_dict", "ir_runtime_dict"])
+def test_legacy_ir_outputs_reject_inf_under_experimental_codegen(output_format):
+    # these outputs are built from legacy IR even with experimental codegen
+    # on. legacy codegen cannot compile unbounded sequence types, so the
+    # request must fail with a user-facing error, not an internal one.
+    code = """
+@external
+def foo(x: Bytes[INF]) -> Bytes[INF]:
+    return x
+    """
+    settings = Settings(experimental_codegen=True)
+    with pytest.raises(StructureException, match="legacy IR output does not support"):
+        compiler.compile_code(code, output_formats=[output_format], settings=settings)
+
+    # bounded contracts still get legacy IR from these outputs
+    bounded = """
+@external
+def foo(x: Bytes[10]) -> Bytes[10]:
+    return x
+    """
+    out = compiler.compile_code(bounded, output_formats=[output_format], settings=settings)
+    assert isinstance(out[output_format], dict)

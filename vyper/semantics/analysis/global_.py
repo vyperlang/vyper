@@ -8,16 +8,30 @@ from vyper.semantics.types.infinity import type_contains_unbounded_sequence
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.primitives import AddressT
 
+_LEGACY_UNBOUNDED_MSG = "unbounded sequence types require --experimental-codegen"
+
 
 def validate_compilation_target(module_t: ModuleT, experimental_codegen: bool = False) -> None:
     _validate_global_initializes_constraint(module_t)
     if not experimental_codegen:
-        _validate_legacy_codegen_no_unbounded_sequences(module_t)
+        validate_legacy_codegen_target(module_t)
 
 
-def _reject_legacy_unbounded_sequence(typ: VyperType, node: vy_ast.VyperNode) -> None:
+def validate_legacy_codegen_target(module_t: ModuleT, msg: str = _LEGACY_UNBOUNDED_MSG) -> None:
+    """
+    Reject modules which legacy codegen cannot lower.
+
+    Unbounded sequence types only lower under venom. Legacy IR can still be
+    requested under `--experimental-codegen` (the `ir_dict` outputs), and
+    callers on that path pass a message which does not tell the user to
+    enable a flag they already have on.
+    """
+    _validate_legacy_codegen_no_unbounded_sequences(module_t, msg)
+
+
+def _reject_legacy_unbounded_sequence(typ: VyperType, node: vy_ast.VyperNode, msg: str) -> None:
     if type_contains_unbounded_sequence(typ):
-        raise StructureException("unbounded sequence types require --experimental-codegen", node)
+        raise StructureException(msg, node)
 
 
 def _legacy_type_expression_from_node(node: vy_ast.VyperNode) -> VyperType | None:
@@ -93,26 +107,26 @@ def _is_legacy_blessed_unbounded_expr(node: vy_ast.VyperNode) -> bool:
     return False
 
 
-def _validate_legacy_function_body_no_unbounded_sequences(func_t) -> None:
+def _validate_legacy_function_body_no_unbounded_sequences(func_t, msg: str) -> None:
     assert func_t.ast_def is not None
 
     for stmt in func_t.ast_def.body:
         for node in stmt.get_descendants(vy_ast.ExprNode):
             typ = _legacy_type_expression_from_node(node)
             if typ is not None:
-                _reject_legacy_unbounded_sequence(typ, node)
+                _reject_legacy_unbounded_sequence(typ, node, msg)
 
             typ = _legacy_value_type_from_node(node)
             if typ is not None and not _is_legacy_blessed_unbounded_expr(node):
-                _reject_legacy_unbounded_sequence(typ, node)
+                _reject_legacy_unbounded_sequence(typ, node, msg)
 
 
-def _validate_legacy_codegen_no_unbounded_sequences(module_t: ModuleT) -> None:
+def _validate_legacy_codegen_no_unbounded_sequences(module_t: ModuleT, msg: str) -> None:
     for var_info in module_t.variables.values():
         if var_info.is_constant:
             if var_info.decl_node is None:  # pragma: nocover
                 raise CompilerPanic("constant missing declaration node")
-            _reject_legacy_unbounded_sequence(var_info.typ, var_info.decl_node.annotation)
+            _reject_legacy_unbounded_sequence(var_info.typ, var_info.decl_node.annotation, msg)
 
     # legacy codegen compiles all functions reachable from the compilation
     # target's entry points, including functions defined in imported modules;
@@ -124,12 +138,12 @@ def _validate_legacy_codegen_no_unbounded_sequences(module_t: ModuleT) -> None:
         for arg in func_t.arguments:
             if arg.ast_source is None:  # pragma: nocover
                 raise CompilerPanic("function argument missing declaration node")
-            _reject_legacy_unbounded_sequence(arg.typ, arg.ast_source.annotation)
+            _reject_legacy_unbounded_sequence(arg.typ, arg.ast_source.annotation, msg)
 
         if func_t.return_type is not None:
             if func_t.ast_def is None:  # pragma: nocover
                 raise CompilerPanic("function return type missing declaration node")
-            _reject_legacy_unbounded_sequence(func_t.return_type, func_t.ast_def.returns)
+            _reject_legacy_unbounded_sequence(func_t.return_type, func_t.ast_def.returns, msg)
 
         if func_t.ast_def is None:  # pragma: nocover
             raise CompilerPanic("function missing declaration node")
@@ -137,9 +151,9 @@ def _validate_legacy_codegen_no_unbounded_sequences(module_t: ModuleT) -> None:
             typ = node.target._metadata.get("type")
             if typ is None:  # pragma: nocover
                 raise CompilerPanic("local variable missing analysis metadata")
-            _reject_legacy_unbounded_sequence(typ, node.annotation)
+            _reject_legacy_unbounded_sequence(typ, node.annotation, msg)
 
-        _validate_legacy_function_body_no_unbounded_sequences(func_t)
+        _validate_legacy_function_body_no_unbounded_sequences(func_t, msg)
 
 
 def _collect_used_modules_r(module_t):
