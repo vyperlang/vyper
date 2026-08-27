@@ -9,6 +9,8 @@ from vyper.venom.passes.base_pass import IRPass
 
 class RevertToAssert(IRPass):
     cfg: CFGAnalysis
+    # Rewriting jnz->jmp creates dead revert tails that should be folded away next.
+    required_immediate_successors = ("SimplifyCFGPass",)
 
     def run_pass(self):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
@@ -35,7 +37,7 @@ class RevertToAssert(IRPass):
         cond, then_label, else_label = term.operands
         if then_label == revert_bb.label:
             new_cond = self.function.get_next_variable()
-            iszero_inst = IRInstruction("iszero", [cond], output=new_cond)
+            iszero_inst = IRInstruction("iszero", [cond], outputs=[new_cond])
             assert_inst = IRInstruction("assert", [iszero_inst.output])
             pred.insert_instruction(iszero_inst, index=-1)
             pred.insert_instruction(assert_inst, index=-1)

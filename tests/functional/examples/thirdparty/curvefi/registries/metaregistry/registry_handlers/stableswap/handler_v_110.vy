@@ -12,7 +12,7 @@ version: public(constant(String[8])) = "1.1.0"
 
 # ---- interfaces ---- #
 interface BaseRegistry:
-    def find_pool_for_coins(_from: address, _to: address, i: uint256 = 0) -> address: view
+    def find_pool_for_coins(_from: address, _to: address, i: uint256 = ...) -> address: view
     def get_admin_balances(_pool: address) -> DynArray[uint256, MAX_METAREGISTRY_COINS]: view
     def get_A(_pool: address) -> uint256: view
     def get_balances(_pool: address) -> DynArray[uint256, MAX_METAREGISTRY_COINS]: view

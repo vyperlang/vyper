@@ -357,7 +357,6 @@ class MemoryAllocationException(VyperException):
 
 
 class JSONError(Exception):
-
     """Invalid compiler input JSON."""
 
     def __init__(self, msg, lineno=None, col_offset=None):
@@ -412,10 +411,6 @@ class CompilerPanic(VyperInternalException):
 
 class CodegenPanic(VyperInternalException):
     """Invalid code generated during codegen phase"""
-
-
-class StackTooDeep(CodegenPanic):
-    """Stack too deep"""  # (should not happen)
 
 
 class UnexpectedNodeType(VyperInternalException):

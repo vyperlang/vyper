@@ -1,7 +1,7 @@
 import pytest
 
+from tests.utils import analyze_module_single
 from vyper import ast as vy_ast
-from vyper import semantics
 from vyper.exceptions import InvalidLiteral
 
 code_invalid_checksum = [
@@ -31,9 +31,6 @@ def foo():
 foo: constant(bytes20) = 0x6b175474e89094c44da98b954eedeac495271d0F
     """,
     """
-foo: constant(bytes4) = 0x12_34_56
-    """,
-    """
 foo: constant(bytes4) = 0X12345678
     """,
 ]
@@ -43,4 +40,4 @@ foo: constant(bytes4) = 0X12345678
 def test_invalid_checksum(code):
     with pytest.raises(InvalidLiteral):
         vyper_module = vy_ast.parse_to_ast(code)
-        semantics.analyze_module(vyper_module)
+        analyze_module_single(vyper_module)

@@ -64,12 +64,14 @@ RESERVED_KEYWORDS = _PYTHON_RESERVED_KEYWORDS | {
     "internal",
     "payable",
     "nonreentrant",
+    "staticcall",
+    "extcall",
     # "class" keywords
     "interface",
     "struct",
     "event",
     "enum",
-    "flag"
+    # "flag", # allowed since it's useful as an identifier per user feedback
     # EVM operations
     "unreachable",
     # special functions (no name mangling)
@@ -99,6 +101,8 @@ RESERVED_KEYWORDS = _PYTHON_RESERVED_KEYWORDS | {
     "mwei",
     "twei",
     "pwei",
+    # constants
+    "inf",
     # sentinel constant values
     # TODO remove when these are removed from the language
     "zero_address",
