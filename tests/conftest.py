@@ -224,7 +224,7 @@ def env(gas_limit, evm_version, evm_backend, tracing, account_keys, exporter) ->
 def get_contract_from_ir(env, optimize):
     def ir_compiler(ir, *args, **kwargs):
         ir = IRnode.from_list(ir)
-        if kwargs.pop("optimize", optimize) != OptimizationLevel.NONE:
+        if not kwargs.pop("optimize", optimize).uses_lowering_only_ir():
             ir = optimizer.optimize(ir)
 
         assembly = compile_ir.compile_to_assembly(ir, optimize=optimize)
@@ -407,6 +407,22 @@ def pytest_fixture_setup(fixturedef: pytest.FixtureDef, request):
         return
 
     exporter.finalize_item(fixturedef)
+
+
+def pytest_runtest_setup(item):
+    marker = item.get_closest_marker("skip_at_optimization")
+    if marker is None:
+        return
+
+    assert marker.args, "skip_at_optimization requires at least one optimization level"
+    assert all(isinstance(level, OptimizationLevel) for level in marker.args)
+    assert set(marker.kwargs) == {"reason"}
+    reason = marker.kwargs["reason"]
+    assert isinstance(reason, str) and reason
+
+    level = OptimizationLevel.from_string(item.config.getoption("optimize"))
+    if level in marker.args:
+        pytest.skip(f"{reason}; skipped at --optimize {level}")
 
 
 @pytest.hookimpl(hookwrapper=True)

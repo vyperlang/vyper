@@ -21,7 +21,7 @@ from vyper.semantics.analysis.utils import (
     validate_kwargs,
 )
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types.base import VyperType
+from vyper.semantics.types.base import BottomT, VyperType
 from vyper.semantics.types.infinity import type_contains_unbounded_sequence
 from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT, TupleT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
@@ -47,6 +47,8 @@ class _UserType(VyperType):
         # only one time. however, the alternative requires reasoning
         # about both the name and source (module or json abi) of
         # the type.
+        if isinstance(other, BottomT):
+            return True
         return self is other
 
     def __hash__(self):
@@ -339,8 +341,9 @@ class EventT(_UserType):
         Event object.
         """
         members: dict = {}
-        indexed: list = [i["indexed"] for i in abi["inputs"]]
-        for item in abi["inputs"]:
+        inputs = abi.get("inputs", [])
+        indexed: list = [i["indexed"] for i in inputs]
+        for item in inputs:
             members[item["name"]] = type_from_abi(item)
         return cls(abi["name"], members, indexed)
 

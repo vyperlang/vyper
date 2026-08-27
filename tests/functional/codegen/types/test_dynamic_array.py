@@ -7,6 +7,7 @@ import pytest
 
 from tests.utils import check_precompile_asserts, decimal_to_int
 from vyper.compiler import compile_code
+from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
@@ -232,6 +233,20 @@ def uoo(inp: DynArray[Foobar, 2]) -> DynArray[DynArray[Foobar, 2], 2]:
     assert c.uoo([1, 2]) == [[1, 2], [2, 1]]
 
     print("Passed list output tests")
+
+
+def test_nested_dynarray_empty_and_flag_literal(get_contract):
+    code = """
+flag Foo:
+    Member1
+
+@external
+def foo() -> DynArray[DynArray[Foo, 5], 5]:
+    tmp: DynArray[DynArray[Foo, 5], 5] = [[], [Foo.Member1]]
+    return tmp
+    """
+    c = get_contract(code)
+    assert c.foo() == [[], [1]]
 
 
 def test_array_accessor(get_contract):
@@ -738,6 +753,11 @@ def test_array_decimal_return3() -> DynArray[DynArray[decimal, 2], 2]:
     ]
 
 
+@pytest.mark.skip_at_optimization(
+    OptimizationLevel.O1,
+    OptimizationLevel.NONE,
+    reason="the test contract depends on optimizer code-size reduction",
+)
 def test_mult_list(get_contract):
     code = """
 nest3: DynArray[DynArray[DynArray[uint256, 2], 2], 2]

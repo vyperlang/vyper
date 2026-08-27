@@ -2121,6 +2121,9 @@ class Expr:
 
         # === Dispatch CALL or STATICCALL ===
         use_staticcall = fn_type.mutability in (StateMutability.VIEW, StateMutability.PURE)
+        if self.ctx.is_constant():
+            # Non-static calls in constant context should be rejected by the typechecker.
+            assert use_staticcall
 
         # Return buffer location and size
         ret_ofst = buf_ptr

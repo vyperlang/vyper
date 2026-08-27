@@ -33,6 +33,7 @@ from vyper.semantics.analysis.base import (
 )
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
+    empty_list_candidate_types,
     get_common_types,
     get_exact_type_from_node,
     get_expr_info,
@@ -48,6 +49,7 @@ from vyper.semantics.types import (
     VOID_TYPE,
     AddressT,
     BoolT,
+    BottomT,
     DArrayT,
     ErrorT,
     EventT,
@@ -60,7 +62,6 @@ from vyper.semantics.types import (
     StructT,
     TupleT,
     VyperType,
-    _BytestringT,
     is_type_t,
     map_void,
 )
@@ -860,6 +861,12 @@ class ExprVisitor(VyperNodeVisitorBase):
         # use the expected type to disambiguate expressions which have
         # several possible types on their own (e.g. the literal `[]`), so
         # that provably bounded expressions get a bounded annotation.
+        if any(isinstance(getattr(t, "value_type", None), BottomT) for t in possible_types):
+            # the empty list literal infers as the single type
+            # `DynArray[Never, 1]`, which matches any expected type and so
+            # disambiguates nothing. enumerate its element types instead.
+            possible_types = empty_list_candidate_types()
+
         candidates = [t for t in possible_types if t.is_subtype_of(typ)]
         if len(candidates) != 1:
             return typ.resolve_wildcard()
@@ -1161,18 +1168,9 @@ class ExprVisitor(VyperNodeVisitorBase):
         else:
             # ex. a < b
             cmp_typ = get_common_types(node.left, node.right).pop()
-            if isinstance(cmp_typ, _BytestringT):
-                # for bytestrings, get_common_types automatically downcasts
-                # to the smaller common type - that will annotate with the
-                # wrong type, instead use get_exact_type_from_node (which
-                # resolves to the right type for bytestrings anyways).
-                ltyp = get_exact_type_from_node(node.left)
-                rtyp = get_exact_type_from_node(node.right)
-            else:
-                ltyp = rtyp = cmp_typ
 
-            self.visit(node.left, ltyp)
-            self.visit(node.right, rtyp)
+            self.visit(node.left, cmp_typ)
+            self.visit(node.right, cmp_typ)
 
     def visit_Constant(self, node: vy_ast.Constant, typ: VyperType) -> None:
         pass
@@ -1201,8 +1199,9 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             for possible_type in possible_base_types:
                 if isinstance(possible_type, TupleT):
-                    assert isinstance(node.slice, vy_ast.Int)  # help mypy
-                    value_type = possible_type.member_types[node.slice.value]
+                    index = node.slice.reduced()
+                    assert isinstance(index, vy_ast.Int)  # help mypy
+                    value_type = possible_type.member_types[index.value]
                 else:
                     value_type = possible_type.value_type
 
