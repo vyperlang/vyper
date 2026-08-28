@@ -17,7 +17,9 @@ def _encode_log_topics(expr, event_id, arg_nodes, context):
         elif isinstance(arg.typ, _BytestringT):
             value = keccak256_helper(arg, context=context)
         else:
-            # TODO block at higher level
+            # events declared in vyper source are rejected in
+            # `EventT.from_EventDef`; this remains reachable for events
+            # imported from a JSON ABI
             raise TypeMismatch("Event indexes may only be value types", expr)
 
         topics.append(value)

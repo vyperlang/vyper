@@ -21,6 +21,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import BottomT, VyperType
+from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.infinity import (
     type_contains_nested_unbounded_sequence,
     type_contains_unbounded_sequence,
@@ -334,6 +335,13 @@ class EventT(_UserType):
                 indexed.append(False)
 
             member_type = type_from_annotation(annotation)
+            # topics hold a single word: primitive words are logged as-is and
+            # bytestrings are keccak256-hashed; no other type has a topic
+            # encoding (see codegen `_encode_log_topics`)
+            if indexed[-1] and not (
+                member_type._is_prim_word or isinstance(member_type, _BytestringT)
+            ):
+                raise StructureException("Event indexes may only be value types", annotation)
             if type_contains_nested_unbounded_sequence(member_type):
                 raise StructureException(
                     "Event members cannot contain unbounded sequence types inside aggregate types",
