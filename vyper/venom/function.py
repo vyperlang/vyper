@@ -171,18 +171,6 @@ class IRFunction:
     def error_msg(self) -> Optional[str]:
         return self._error_msg_stack[-1] if len(self._error_msg_stack) > 0 else None
 
-    def copy(self):
-        new = IRFunction(self.name)
-        new._has_memory_return_buffer_param = self._has_memory_return_buffer_param
-        new._return_value_count = self._return_value_count
-        new._fmp_signature = self._fmp_signature
-        new.noinline = self.noinline
-        for bb in self.get_basic_blocks():
-            new_bb = bb.copy()
-            new.append_basic_block(new_bb)
-
-        return new
-
     def as_graph(self, only_subgraph=False) -> str:
         """
         Return the function as a graphviz dot string. If only_subgraph is True, only return the
