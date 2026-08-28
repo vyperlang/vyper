@@ -178,7 +178,7 @@ def bar():  # implementation
         ),
     ],
 )
-def test_implements_with_public_interface(env, var_decl, iface_method, store_stmt):
+def test_implements_with_public_interface(var_decl, iface_method, store_stmt):
     """
     Tests that `var_decl` correctly implements `iface_method`
 
@@ -199,5 +199,4 @@ implements: IAsset
 def __init__(asset_: IERC20):
     {store_stmt}
     """
-    some_address = env.accounts[1]
-    compile_code(main, some_address)
+    compile_code(main)
