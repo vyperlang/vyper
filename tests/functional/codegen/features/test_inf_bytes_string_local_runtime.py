@@ -2063,11 +2063,10 @@ def deploy({target_arg}s: Bytes[INF], x: Bytes[INF], y: uint256) -> address:
     return {call}
     """
 
-    with pytest.raises(
-        StructureException,
-        match="constructor arguments cannot contain nested unbounded sequence types",
-    ):
+    with pytest.raises(StructureException) as e:
         compile_code(code, settings=compiler_settings)
+    message = "constructor arguments cannot contain nested unbounded sequence types"
+    assert e.value.message == message
 
 
 def test_inf_bytes_raw_log_data(env, get_contract):
@@ -2265,8 +2264,10 @@ def value() -> uint256:
     return len(empty(((Bytes[INF],), uint256))[0][0])
     """
 
-    with pytest.raises(StructureException, match="inside aggregate types"):
+    with pytest.raises(StructureException) as e:
         compile_code(code, settings=compiler_settings)
+    message = "empty() does not support unbounded sequence types inside aggregate types"
+    assert e.value.message == message
 
 
 def test_inf_bytes_local_reassignment_larger_and_smaller(get_contract):

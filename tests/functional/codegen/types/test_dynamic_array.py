@@ -1921,8 +1921,9 @@ def foo():
     self.a = [[1]]
     self.a.pop().append(2)
     """
-    with pytest.raises(ImmutableViolation):
+    with pytest.raises(ImmutableViolation) as e:
         get_contract(code)
+    assert e.value.message == "Cannot modify temporary value"
 
 
 def test_dynarray_append_single_field_struct_storage(get_contract):

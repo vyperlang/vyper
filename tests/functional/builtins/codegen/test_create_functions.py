@@ -976,8 +976,9 @@ def deploy(target: address, x: uint256) -> address:
     return create_from_blueprint(target, x, raw_args=True)
     """
 
-    with pytest.raises(StructureException):
+    with pytest.raises(StructureException) as e:
         compile_code(code)
+    assert e.value.message == "raw_args must be used with exactly 1 bytes argument"
 
 
 # test that create_from_blueprint bubbles up revert data

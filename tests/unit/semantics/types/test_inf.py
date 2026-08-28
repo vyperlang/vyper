@@ -504,8 +504,9 @@ def __init__():
     ],
 )
 def test_inf_module_variable_locations_rejected(code):
-    with pytest.raises(StructureException, match="Module variables cannot use unbounded"):
+    with pytest.raises(StructureException) as e:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+    assert e.value.message == "Module variables cannot use unbounded sequence types"
 
 
 @pytest.mark.parametrize(
@@ -521,15 +522,15 @@ def test_inf_module_variable_locations_rejected(code):
         ),
         (
             "DynArray[Bytes[10], INF]",
-            "DynArray\\[\\.\\.\\., INF\\] is only supported with ABI-static element types",
+            "DynArray[..., INF] is only supported with ABI-static element types",
         ),
         (
             "DynArray[String[10], INF]",
-            "DynArray\\[\\.\\.\\., INF\\] is only supported with ABI-static element types",
+            "DynArray[..., INF] is only supported with ABI-static element types",
         ),
         (
             "DynArray[DynArray[uint256, 3], INF]",
-            "DynArray\\[\\.\\.\\., INF\\] is only supported with ABI-static element types",
+            "DynArray[..., INF] is only supported with ABI-static element types",
         ),
     ],
 )
@@ -539,8 +540,9 @@ def test_inf_deferred_dynarray_shapes_rejected(typ, message):
 def foo(x: {typ}):
     pass
     """
-    with pytest.raises(StructureException, match=message):
+    with pytest.raises(StructureException) as e:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+    assert e.value.message == message
 
 
 @pytest.mark.parametrize(
@@ -583,38 +585,53 @@ def test_inf_print_rejects_nested_arg():
 def foo(x: Bytes[INF]):
     print((x,))
     """
-    with pytest.raises(StructureException):
+    with pytest.raises(StructureException) as e:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+    message = "print arguments cannot contain unbounded sequence types inside aggregate types"
+    assert e.value.message == message
 
 
 @pytest.mark.parametrize(
-    "code",
+    ("code", "message"),
     [
-        """
+        (
+            """
 @external
 def foo(x: DynArray[uint256, INF]) -> Bytes[INF]:
     return convert(x, Bytes[INF])
         """,
-        """
+            "Can't convert DynArray[uint256, INF] to Bytes[INF]",
+        ),
+        (
+            """
 @external
 def foo(x: DynArray[uint256, 5]) -> Bytes[INF]:
     return convert(x, Bytes[INF])
         """,
-        """
+            "Can't convert DynArray[uint256, 5] to Bytes[INF]",
+        ),
+        (
+            """
 @external
 def foo(x: uint256) -> DynArray[uint256, INF]:
     return convert(x, DynArray[uint256, INF])
         """,
-        """
+            "Can't convert uint256 to DynArray[uint256, INF]",
+        ),
+        (
+            """
 @external
 def foo(x: uint256) -> DynArray[uint256, 5]:
     return convert(x, DynArray[uint256, 5])
         """,
+            "Can't convert uint256 to DynArray[uint256, 5]",
+        ),
     ],
 )
-def test_convert_rejects_dynarray_source_or_target(code):
-    with pytest.raises(TypeMismatch):
+def test_convert_rejects_dynarray_source_or_target(code, message):
+    with pytest.raises(TypeMismatch) as e:
         compiler.compile_code(code)
+    assert e.value.message == message
 
 
 @pytest.mark.parametrize(
@@ -825,8 +842,9 @@ def test_inf_default_arg_expression_rejected():
 def foo(x: uint256 = len(empty(Bytes[INF]))) -> uint256:
     return x
     """
-    with pytest.raises(StateAccessViolation):
+    with pytest.raises(StateAccessViolation) as e:
         compiler.compile_code(code)
+    assert e.value.message == "Value must be literal or environment variable"
 
 
 def test_legacy_codegen_allows_bounded_local_user_type():
@@ -929,8 +947,9 @@ interface I:
 def f(a: address) -> uint256:
     return len(staticcall I(a).foo())
     """
-    with pytest.raises(StructureException):
+    with pytest.raises(StructureException) as e:
         compiler.compile_code(rejected)
+    assert e.value.message == "DynArray[..., INF] is only supported with ABI-static element types"
 
     accepted = """
 interface I:
@@ -952,11 +971,9 @@ interface I:
 def f(a: address):
     extcall I(a).foo([])
     """
-    with pytest.raises(
-        StructureException,
-        match="DynArray\\[\\.\\.\\., INF\\] is only supported with ABI-static element types",
-    ):
+    with pytest.raises(StructureException) as e:
         compiler.compile_code(rejected)
+    assert e.value.message == "DynArray[..., INF] is only supported with ABI-static element types"
 
     accepted = """
 interface I:
@@ -979,10 +996,9 @@ interface I:
 def f(a: address):
     extcall I(a).foo([])
     """
-    with pytest.raises(
-        StructureException, match="DynArray element types cannot contain unbounded sequence types"
-    ):
+    with pytest.raises(StructureException) as e:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+    assert e.value.message == "DynArray element types cannot contain unbounded sequence types"
 
 
 @pytest.mark.parametrize("arg_source", ["xs", "[]", "[1, 2]"])
@@ -1009,8 +1025,10 @@ interface I:
 def f(a: address, x: Bytes[INF]) -> uint256:
     return staticcall I(a).foo((x, 1))
     """
-    with pytest.raises(StructureException):
+    with pytest.raises(StructureException) as e:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+    message = "Function arguments cannot contain unbounded sequence types inside aggregate types"
+    assert e.value.message == message
 
 
 def test_wildcard_tuple_return_member_access_compile():
@@ -1036,8 +1054,9 @@ interface I:
 def f(a: address) -> uint256:
     return len((staticcall I(a).foo())[1])
     """
-    with pytest.raises(StructureException):
+    with pytest.raises(StructureException) as e:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+    assert e.value.message == "DynArray[..., INF] is only supported with ABI-static element types"
 
 
 def test_imported_wildcard_event_rejects_inf_arg(make_input_bundle):
@@ -1057,10 +1076,11 @@ def emit(x: Bytes[INF]):
     log JSONInterface.Foo(x=x)
     """
     input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
-    with pytest.raises(StructureException):
+    with pytest.raises(StructureException) as e:
         compiler.compile_code(
             code, input_bundle=input_bundle, settings=Settings(experimental_codegen=True)
         )
+    assert e.value.message == "Events cannot contain unbounded sequence types"
 
 
 def test_imported_wildcard_event_accepts_bounded_arg(make_input_bundle):
@@ -1136,10 +1156,11 @@ def run(a: address):
     {statement}
     """
     input_bundle = make_input_bundle({"JSONInterface.json": json.dumps([function_abi, abi_item])})
-    with pytest.raises(StructureException, match=message):
+    with pytest.raises(StructureException) as e:
         compiler.compile_code(
             code, input_bundle=input_bundle, settings=Settings(experimental_codegen=True)
         )
+    assert e.value.message == message
 
 
 def test_abi_encode_resolves_json_abi_wildcard_call_return(make_input_bundle):
@@ -1196,10 +1217,11 @@ def boom(x: Bytes[INF]):
     raise JSONInterface.Oops(x)
     """
     input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
-    with pytest.raises(StructureException):
+    with pytest.raises(StructureException) as e:
         compiler.compile_code(
             code, input_bundle=input_bundle, settings=Settings(experimental_codegen=True)
         )
+    assert e.value.message == "Custom errors cannot contain unbounded sequence types"
 
 
 def test_dynarray_inf_pure(compile_inf_code):
@@ -1223,8 +1245,9 @@ def foo(x: Bytes[INF]) -> Bytes[INF]:
     return x
     """
     settings = Settings(experimental_codegen=True)
-    with pytest.raises(StructureException, match="legacy IR output does not support"):
+    with pytest.raises(StructureException) as e:
         compiler.compile_code(code, output_formats=[output_format], settings=settings)
+    assert e.value.message == "legacy IR output does not support unbounded sequence types"
 
     # bounded contracts still get legacy IR from these outputs
     bounded = """

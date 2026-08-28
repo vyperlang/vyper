@@ -74,14 +74,6 @@ def foo(x: DynArray[uint256, INF]) -> DynArray[uint256, 5]:
     (
         """
 @external
-def foo(x: DynArray[Bytes[5], INF]):
-    pass
-    """,
-        StructureException,
-    ),
-    (
-        """
-@external
 def foo():
     [].append(1)
     """,
@@ -95,22 +87,6 @@ def foo():
     """,
         # this branch rejects mutating a temporary instead of panicking
         ImmutableViolation,
-    ),
-    (
-        """
-@external
-def foo(x: DynArray[Bytes[INF], 5]):
-    pass
-    """,
-        StructureException,
-    ),
-    (
-        """
-@external
-def foo(x: DynArray[DynArray[uint256, 5], INF]):
-    pass
-    """,
-        StructureException,
     ),
     (
         """
@@ -245,17 +221,31 @@ def foo():
     compile_inf_code(code)
 
 
-def test_dynarray_inf_nested():
-    for code in (
-        """
-a: DynArray[DynArray[uint256, 5], INF]
-        """,
-        """
-b: DynArray[DynArray[uint256, INF], 5]
-        """,
-    ):
-        with pytest.raises(StructureException):
-            compile_code(code)
+@pytest.mark.parametrize(
+    "code,msg",
+    [
+        (
+            "a: DynArray[DynArray[uint256, INF], 5]",
+            "DynArray element types cannot contain unbounded sequence types",
+        ),
+        (
+            "a: DynArray[Bytes[INF], 5]",
+            "DynArray element types cannot contain unbounded sequence types",
+        ),
+        (
+            "a: DynArray[DynArray[uint256, 5], INF]",
+            "DynArray[..., INF] is only supported with ABI-static element types",
+        ),
+        (
+            "a: DynArray[Bytes[5], INF]",
+            "DynArray[..., INF] is only supported with ABI-static element types",
+        ),
+    ],
+)
+def test_dynarray_inf_nested(code, msg):
+    with pytest.raises(StructureException) as e:
+        compile_code(code)
+    assert e.value.message == msg
 
 
 def test_dynarray_inf_append(compile_inf_code):
@@ -290,8 +280,9 @@ def foo() -> uint256:
     return empty(DynArray[uint256, INF]).pop()
         """,
     ):
-        with pytest.raises(ImmutableViolation):
+        with pytest.raises(ImmutableViolation) as e:
             compile_code(code)
+        assert e.value.message == "Cannot modify temporary value"
 
 
 def test_dynarray_inf_assign_bounded_to_unbounded(compile_inf_code):
