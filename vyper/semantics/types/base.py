@@ -61,9 +61,8 @@ class VyperType:
         The name of the type.
     is_valid_element_type: bool, optional
         If `True`, this type can be used as the type of the elements of an array.
-    _is_hashable: bool, optional
-        If `True`, this type can be used as a hashmap key or
-        indexed event argument
+    _as_hashmap_key: bool, optional
+        If `True`, this type can be used as a hashmap key
     is_valid_member_type: bool, optional
         If `True`, this type can be used as a member type
     _valid_literal : Tuple
@@ -93,7 +92,7 @@ class VyperType:
     _is_bytestring: bool = False  # is it a bytes or a string?
 
     is_valid_element_type: bool = False
-    _is_hashable: bool = False
+    _as_hashmap_key: bool = False
     is_valid_member_type: bool = True
 
     _supports_external_calls: bool = False
@@ -166,6 +165,10 @@ class VyperType:
     @cached_property
     def _as_darray(self):
         return self.is_valid_element_type
+
+    @property
+    def _as_event_index(self):
+        return self._as_hashmap_key
 
     @property
     def has_wildcard(self):

@@ -23,7 +23,7 @@ from .infinity import INF
 class _PrimT(VyperType):
     _is_prim_word = True
     _equality_attrs: tuple = ()
-    _is_hashable = True
+    _as_hashmap_key = True
     is_valid_element_type = True
 
 

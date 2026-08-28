@@ -92,7 +92,7 @@ class HashMapT(_SubscriptableT):
 
         k_ast, v_ast = node.slice.elements
         key_type = type_from_annotation(k_ast)
-        if not key_type._is_hashable:
+        if not key_type._as_hashmap_key:
             raise InvalidType("can only use primitive types as HashMap key!", k_ast)
 
         # TODO: thread through actual location - might also be TRANSIENT
