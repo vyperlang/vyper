@@ -93,3 +93,29 @@ def test_must_write_kills_liveness():
     # the second (full-size, must-write) store kills %a's liveness, so %a
     # is not live at the first store.
     assert alloc_a not in mem_liveness.liveat[first_store], mem_liveness.liveat[first_store]
+
+
+def test_escaped_pointer_stays_live():
+    """
+    An alloca whose address is stored to memory as a value escapes SSA
+    tracking: the later read through the reloaded pointer is invisible to
+    BasePtrAnalysis, so the alloca must stay live to the end of the
+    function instead of dying at the escaping store.
+    """
+    pre = """
+    main:
+        %slot = alloca 32
+        %a = alloca 32
+        mstore %a, 7
+        mstore %slot, %a
+        %p = mload %slot
+        %v = mload %p
+        sink %v
+    """
+    fn, mem_liveness = _analyze(pre)
+
+    alloc_a = _alloca_by_var(fn, "%a")
+    opaque_read = _find_inst(fn, lambda i: i.opcode == "mload" and i.operands[0].value == "%p")
+
+    assert alloc_a in mem_liveness.liveat[opaque_read], mem_liveness.liveat[opaque_read]
+    assert opaque_read in mem_liveness.livesets[alloc_a]

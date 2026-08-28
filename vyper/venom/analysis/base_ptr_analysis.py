@@ -26,6 +26,47 @@ from vyper.venom.memory_location import (
     memory_write_ops,
 )
 
+# instructions through which BasePtrAnalysis propagates pointer facts (see
+# `_handle_inst`); a pointer flowing into these stays visible to SSA-based
+# liveness.
+PTR_PROPAGATION_OPS = frozenset(["add", "sub", "assign", "phi", "bump", "dalloca", "alloca"])
+
+# comparisons produce a boolean, not a value derived from their operands:
+# a pointer compared here (e.g. an ABI-decode bounds check) cannot flow
+# onward, so it does not escape.
+_COMPARISON_OPS = frozenset(["lt", "gt", "slt", "sgt", "eq", "iszero"])
+
+
+def escaping_operands(inst: IRInstruction) -> list[IRVariable]:
+    """
+    The variable operands of `inst` that escape SSA pointer tracking:
+    occurrences not accounted for by the BasePtr propagation grammar or
+    by the known-safe (address/length) positions of the shared memory-op
+    descriptions -- e.g. the stored *value* of a store-family
+    instruction, or an operand of `invoke`/`ret`/`retfmp`/`setfmp`. An
+    escaped pointer can re-enter through memory where BasePtrAnalysis
+    cannot see it. Fail closed.
+    """
+    if inst.opcode in PTR_PROPAGATION_OPS or inst.opcode in _COMPARISON_OPS:
+        return []
+
+    safe: list[IROperand] = []
+    for access_ops in (memory_read_ops(inst), memory_write_ops(inst)):
+        for op in (access_ops.ofst, access_ops.size):
+            if op is not None:
+                safe.append(op)
+        # post_init aliases max_size to size; only count a
+        # distinct max_size to avoid inflating safe occurrences.
+        max_size = access_ops.max_size
+        if max_size is not None and max_size is not access_ops.size:
+            safe.append(max_size)
+
+    operands = [op for op in inst.operands if isinstance(op, IRVariable)]
+    # an operand escapes if it occurs more often than safe positions
+    # account for (`mstore %x, %x` stores the pointer value at its own
+    # address).
+    return [op for op in operands if operands.count(op) > safe.count(op)]
+
 
 @dataclass(frozen=True)
 class Ptr:
@@ -343,3 +384,20 @@ class BasePtrAnalysis(IRAnalysis):
 
     def get_possible_ptrs(self, var: IRVariable) -> set[Ptr]:
         return self.var_to_mem.get(var, set())
+
+    def escaping_allocations(self) -> set[Allocation]:
+        """
+        The allocations whose pointer escapes SSA tracking (see
+        `escaping_operands`). Accesses through a re-entered pointer are
+        invisible to this analysis, so clients must assume the allocation
+        stays reachable: FmpLoweringPass never reclaims such a `dalloca`,
+        MemLivenessAnalysis keeps such an `alloca` live to the end of the
+        function.
+        """
+        escaped: set[Allocation] = set()
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                for op in escaping_operands(inst):
+                    for ptr in self.get_possible_ptrs(op):
+                        escaped.add(ptr.base_alloca)
+        return escaped
