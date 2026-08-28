@@ -251,6 +251,19 @@ class EventT(_UserType):
         self.name = name
         self.indexed = indexed
         assert len(self.indexed) == len(self.arguments)
+
+        indexed_count = 0
+        for is_indexed, typ in zip(self.indexed, self.arguments.values()):
+            if not is_indexed:
+                continue
+            if not typ._is_hashable:
+                raise TypeMismatch("Event indexes may only be value types", decl_node)
+            indexed_count += 1
+            if indexed_count > 3:
+                raise EventDeclarationException(
+                    "Event cannot have more than three indexed arguments", decl_node
+                )
+
         self.event_id = int(keccak256(self.signature.encode()).hex(), 16)
 
         self.decl_node = decl_node
@@ -318,15 +331,6 @@ class EventT(_UserType):
             annotation = node.annotation
             if isinstance(annotation, vy_ast.Call) and annotation.get("func.id") == "indexed":
                 validate_call_args(annotation, 1)
-
-                typ = type_from_annotation(annotation.args[0])
-                if not typ._is_hashable:
-                    raise TypeMismatch("Event indexes may only be value types", annotation)
-
-                if indexed.count(True) == 3:
-                    raise EventDeclarationException(
-                        "Event cannot have more than three indexed arguments", annotation
-                    )
                 indexed.append(True)
                 annotation = annotation.args[0]
             else:

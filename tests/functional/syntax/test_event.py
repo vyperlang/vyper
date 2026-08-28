@@ -1,6 +1,8 @@
+import json
+
 import pytest
 
-from vyper.compiler import compile_code
+from vyper.compiler import compile_code, compile_from_file_input
 from vyper.exceptions import StructureException, TypeMismatch
 
 
@@ -71,3 +73,25 @@ event E:
     a: indexed({good_type})
     """
     assert compile_code(code) is not None
+
+
+def test_json_abi_indexed_non_value_type_rejected(make_input_bundle):
+    abi = json.dumps(
+        [
+            {
+                "type": "event",
+                "name": "E",
+                "anonymous": False,
+                "inputs": [{"name": "a", "type": "uint256[3]", "indexed": True}],
+            }
+        ]
+    )
+    main = """
+import iface
+    """
+    input_bundle = make_input_bundle({"iface.json": abi, "main.vy": main})
+    file_input = input_bundle.load_file("main.vy")
+
+    with pytest.raises(TypeMismatch) as e:
+        compile_from_file_input(file_input, input_bundle=input_bundle)
+    assert "Event indexes may only be value types" in str(e.value)
