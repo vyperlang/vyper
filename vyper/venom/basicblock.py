@@ -773,13 +773,6 @@ class IRBasicBlock:
             return False
         return self.instructions[-1].opcode in HALTING_TERMINATORS
 
-    def copy(self) -> IRBasicBlock:
-        bb = IRBasicBlock(self.label, self.parent)
-        bb.instructions = [inst.copy() for inst in self.instructions]
-        for inst in bb.instructions:
-            inst.parent = bb
-        return bb
-
     def __repr__(self) -> str:
         printer = ir_printer.get()
 
