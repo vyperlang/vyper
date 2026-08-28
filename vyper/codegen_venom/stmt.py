@@ -18,7 +18,13 @@ from vyper.codegen_venom.abi import (
     runtime_abi_size_for_encode,
 )
 from vyper.codegen_venom.arithmetic import apply_binop
-from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
+from vyper.exceptions import (
+    CodegenPanic,
+    CompilerPanic,
+    TypeCheckFailure,
+    TypeMismatch,
+    tag_exceptions,
+)
 from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
@@ -1492,8 +1498,11 @@ class Stmt:
             length = self.builder.mload(val)
             return self.builder.sha3(data_ptr, length)
 
-        else:  # pragma: nocover
-            raise CompilerPanic(f"Event indexes may only be value types, got {typ}")
+        else:
+            # events declared in vyper source are rejected in
+            # `EventT.from_EventDef`; reachable for events imported from a
+            # JSON ABI, which may declare indexed arrays or structs
+            raise TypeMismatch("Event indexes may only be value types", self.node)
 
     # === Error Handling (Assert/Raise) ===
 

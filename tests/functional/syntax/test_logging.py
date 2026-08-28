@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from vyper import compiler
@@ -202,3 +204,27 @@ def foo():
     log E(x={value})
     """
     compile_inf_code(code)
+
+
+def test_json_abi_indexed_reference_type_fails(make_input_bundle):
+    # json abi events bypass `EventT.from_EventDef`, so the codegen backstop
+    # is what rejects an indexed member without a topic encoding
+    abi = [
+        {
+            "anonymous": False,
+            "inputs": [{"indexed": True, "name": "x", "type": "uint256[2]"}],
+            "name": "EvArr",
+            "type": "event",
+        }
+    ]
+    code = """
+import JSONInterface
+
+@external
+def foo():
+    log JSONInterface.EvArr(x=[1, 2])
+    """
+    input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
+    with pytest.raises(TypeMismatch) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+    assert e.value.message == "Event indexes may only be value types"
