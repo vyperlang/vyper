@@ -439,6 +439,12 @@ class AddressT(_PrimT):
                 node,
             )
 
+    def compare_type(self, other):
+        from vyper.semantics.types.module import InterfaceT
+
+        # interfaces can be widened to addresses
+        return isinstance(other, InterfaceT) or super().compare_type(other)
+
 
 # type for "self"
 # refactoring note: it might be best for this to be a ModuleT actually

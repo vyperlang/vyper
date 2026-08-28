@@ -144,3 +144,60 @@ def bar():  # implementation
 
     assert e.value._message == "some_interface implemented more than once"
     assert e.value._hint is None
+
+
+@pytest.mark.parametrize(
+    "var_decl,iface_method,store_stmt",
+    [
+        pytest.param(
+            "foo: public(IERC20)", "def foo() -> address: view", "self.foo = asset_", id="storage"
+        ),
+        pytest.param(  # GH issue 3954
+            "foo: public(immutable(IERC20))",
+            "def foo() -> address: view",
+            "self.foo = asset_",
+            id="immutable",
+        ),
+        pytest.param(
+            "foo: public(HashMap[uint256, IERC20])",
+            "def foo(k: uint256) -> address: view",
+            "self.foo[7] = asset_",
+            id="hashmap",
+        ),
+        pytest.param(
+            "foo: public(DynArray[IERC20, 3])",
+            "def foo(i: uint256) -> address: view",
+            "self.foo.append(asset_)",
+            id="dynarray",
+        ),
+        pytest.param(  # GH issue 4721
+            "foo: public(IERC20)",
+            "def foo() -> IERC20: view",
+            "self.foo = asset_",
+            id="interface_return",
+        ),
+    ],
+)
+def test_implements_with_public_interface(env, var_decl, iface_method, store_stmt):
+    """
+    Tests that `var_decl` correctly implements `iface_method`
+
+    For example `foo: public(IERC20)` implements `def foo() -> address: view`
+    """
+
+    main = f"""
+from ethereum.ercs import IERC20
+
+{var_decl}
+
+interface IAsset:
+    {iface_method}
+
+implements: IAsset
+
+@deploy
+def __init__(asset_: IERC20):
+    {store_stmt}
+    """
+    some_address = env.accounts[1]
+    compile_code(main, some_address)
