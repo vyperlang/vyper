@@ -311,3 +311,51 @@ def get_memory_read_op(inst) -> Optional[IROperand]:
 
 def get_read_size(inst: IRInstruction) -> Optional[IROperand]:
     return memory_read_ops(inst).size
+
+
+def write_location_idx(inst) -> Optional[int]:
+    opcode = inst.opcode
+    if opcode == "mstore":
+        return 1
+    elif opcode == "istore":
+        return 0
+    elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
+        return 2
+    elif opcode == "call":
+        return 1
+    elif opcode in ("delegatecall", "staticcall"):
+        return 1
+    elif opcode == "extcodecopy":
+        return 2
+
+    else:  # pragma: nocover
+        return None
+
+
+def read_location_idx(inst) -> Optional[int]:
+    opcode = inst.opcode
+    if opcode == "mload":
+        return 0
+    elif opcode == "iload":
+        return 0
+    elif opcode == "mcopy":
+        return 1
+    elif opcode == "call":
+        return 3
+    elif opcode in ("delegatecall", "staticcall", "call"):
+        return 3
+    elif opcode == "return":
+        return 1
+    elif opcode == "create":
+        return 1
+    elif opcode == "create2":
+        return 2
+    elif opcode == "sha3":
+        return 1
+    elif opcode == "log":
+        return -1
+    elif opcode == "revert":
+        return 1
+
+    else:  # pragma: nocover
+        return None
