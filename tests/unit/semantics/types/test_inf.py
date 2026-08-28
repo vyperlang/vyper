@@ -486,6 +486,33 @@ def test_bounded_event_and_error_members_reject_inf_arg(code):
     assert e.value.message == "Given reference has type Bytes[INF], expected Bytes[10]"
 
 
+@pytest.mark.parametrize(
+    ("code", "message"),
+    [
+        (
+            """
+event E:
+    x: (Bytes[INF], uint256)
+            """,
+            "Event members cannot contain unbounded sequence types inside aggregate types",
+        ),
+        (
+            """
+error Oops:
+    x: (Bytes[INF], uint256)
+            """,
+            "Custom error members cannot contain unbounded sequence types inside aggregate types",
+        ),
+    ],
+)
+def test_event_and_error_members_reject_nested_inf(code, message):
+    # tuples are the only aggregate whose INF members survive type
+    # construction; static and dynamic arrays reject them earlier
+    with pytest.raises(StructureException) as e:
+        compiler.compile_code(code)
+    assert e.value.message == message
+
+
 def test_event_rejects_nested_inf_list_arg():
     code = """
 event E:
