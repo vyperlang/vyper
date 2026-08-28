@@ -2003,6 +2003,79 @@ def deploy(target: address, args: Bytes[INF]) -> address:
     assert abi_decode("(bytes)", ret) == (payload,)
 
 
+_BLUEPRINT_INF_CTOR_CODE = """
+@deploy
+def __init__(x: Bytes[INF]):
+    pass
+    """
+
+
+def test_inf_bytes_create_from_blueprint_oversized_initcode_no_revert(
+    get_contract, deploy_blueprint_for
+):
+    blueprint, _ = deploy_blueprint_for(_BLUEPRINT_INF_CTOR_CODE)
+
+    code = """
+@external
+def deploy(target: address, x: Bytes[INF]) -> address:
+    return create_from_blueprint(target, x, revert_on_failure=False)
+    """
+
+    deployer = get_contract(code)
+    payload = b"\x00" * (EIP_3860_LIMIT + 1)
+    assert deployer.deploy(blueprint.address, payload) == "0x" + "00" * 20
+
+
+def test_inf_bytes_create_from_blueprint_oversized_initcode_reverts(
+    get_contract, deploy_blueprint_for, tx_failed
+):
+    blueprint, _ = deploy_blueprint_for(_BLUEPRINT_INF_CTOR_CODE)
+
+    code = """
+@external
+def deploy(target: address, x: Bytes[INF]) -> address:
+    return create_from_blueprint(target, x)
+    """
+
+    deployer = get_contract(code)
+    payload = b"\x00" * (EIP_3860_LIMIT + 1)
+    with tx_failed():
+        deployer.deploy(blueprint.address, payload)
+
+
+def test_inf_bytes_create_from_blueprint_raw_args_oversized_initcode_no_revert(
+    get_contract, deploy_blueprint_for
+):
+    blueprint, _ = deploy_blueprint_for(_BLUEPRINT_INF_CTOR_CODE)
+
+    code = """
+@external
+def deploy(target: address, args: Bytes[INF]) -> address:
+    return create_from_blueprint(target, args, raw_args=True, revert_on_failure=False)
+    """
+
+    deployer = get_contract(code)
+    raw_args = b"\x00" * (EIP_3860_LIMIT + 1)
+    assert deployer.deploy(blueprint.address, raw_args) == "0x" + "00" * 20
+
+
+def test_inf_bytes_create_from_blueprint_raw_args_oversized_initcode_reverts(
+    get_contract, deploy_blueprint_for, tx_failed
+):
+    blueprint, _ = deploy_blueprint_for(_BLUEPRINT_INF_CTOR_CODE)
+
+    code = """
+@external
+def deploy(target: address, args: Bytes[INF]) -> address:
+    return create_from_blueprint(target, args, raw_args=True)
+    """
+
+    deployer = get_contract(code)
+    raw_args = b"\x00" * (EIP_3860_LIMIT + 1)
+    with tx_failed():
+        deployer.deploy(blueprint.address, raw_args)
+
+
 def test_inf_string_raw_create_unbounded_ctor_arg(env, get_contract, compiler_settings):
     payload = "raw create string " * 120 + "tail"
     to_deploy_code = """

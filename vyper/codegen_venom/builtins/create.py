@@ -111,7 +111,12 @@ def _emit_create(
     revert_on_failure: bool,
     check_eip_3860_limit: bool = True,
 ) -> IROperand:
-    """Emit CREATE/CREATE2 while preserving raw_create's no-revert failure mode."""
+    """Emit CREATE/CREATE2, optionally guarding the EIP-3860 initcode limit.
+
+    Oversized initcode is an exceptional abort at CREATE, not a zero return,
+    so with revert_on_failure=False the guard skips CREATE and yields the
+    zero address; otherwise it reverts cleanly before CREATE.
+    """
     if not check_eip_3860_limit:
         if salt is not None:
             addr = b.create2(value, initcode, initcode_len, salt)
@@ -670,13 +675,10 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         args_dest = b.add(mem_ofst, codesize)
         ctx.copy_memory_dynamic(args_dest, args_ptr, args_len)
 
-    # Create contract
-    if salt is not None:
-        addr = b.create2(value, mem_ofst, total_len, salt)
-    else:
-        addr = b.create(value, mem_ofst, total_len)
-
-    return _check_create_result(ctx, b, addr, revert_on_failure)
+    # Runtime-sized ctor args make total_len runtime-controlled. Oversized
+    # initcode aborts the whole frame at CREATE (EIP-3860), so pre-check the
+    # limit like raw_create does; bounded args keep the static path.
+    return _emit_create(ctx, b, value, mem_ofst, total_len, salt, revert_on_failure, runtime_args)
 
 
 HANDLERS = {
