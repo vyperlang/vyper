@@ -134,10 +134,10 @@ def _emit_create(
             addr = b.create(value, initcode, initcode_len)
         return _check_create_result(ctx, b, addr, revert_on_failure)
 
-    ret_cell = ctx.allocate_buffer(32, annotation="raw_create_result")
-    create_bb = b.create_block("raw_create")
-    oversize_bb = b.create_block("raw_create_oversize")
-    exit_bb = b.create_block("raw_create_exit")
+    ret_cell = ctx.allocate_buffer(32, annotation="create_result")
+    create_bb = b.create_block("create")
+    oversize_bb = b.create_block("create_oversize")
+    exit_bb = b.create_block("create_exit")
 
     b.jnz(in_eip_3860_limit, create_bb.label, oversize_bb.label)
 
