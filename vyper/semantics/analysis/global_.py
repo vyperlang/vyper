@@ -128,6 +128,13 @@ def _validate_legacy_codegen_no_unbounded_sequences(module_t: ModuleT, msg: str)
                 raise CompilerPanic("constant missing declaration node")
             _reject_legacy_unbounded_sequence(var_info.typ, var_info.decl_node.annotation, msg)
 
+    for user_type_def in (*module_t.event_defs, *module_t.error_defs):
+        for node in user_type_def.get_children(vy_ast.AnnAssign):
+            typ = node.target._metadata.get("type")
+            if typ is None:  # pragma: nocover
+                raise CompilerPanic("user type member missing analysis metadata")
+            _reject_legacy_unbounded_sequence(typ, node.annotation, msg)
+
     # legacy codegen compiles all functions reachable from the compilation
     # target's entry points, including functions defined in imported modules;
     # validate that same set (plus the target module's own functions).

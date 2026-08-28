@@ -4,11 +4,11 @@ import json
 import pytest
 
 from tests.evm_backends.abi import abi_decode, abi_encode
-from tests.evm_backends.base_env import EvmError
+from tests.evm_backends.base_env import EvmError, ExecutionReverted
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings, VenomOptimizationFlags
 from vyper.exceptions import StructureException
-from vyper.utils import EIP_3860_LIMIT, method_id
+from vyper.utils import EIP_3860_LIMIT, keccak256, method_id
 
 
 @pytest.fixture(autouse=True)
@@ -46,6 +46,12 @@ def _call(env, contract, signature, args_schema=None, args=None):
     if args_schema is not None:
         calldata += abi_encode(args_schema, args)
     return env.message_call(contract.address, data=calldata)
+
+
+def _revert_data(excinfo):
+    revert_hex = excinfo.value.args[0]
+    assert revert_hex.startswith("0x")
+    return bytes.fromhex(revert_hex[2:])
 
 
 def test_inf_bytes_local_from_bounded(get_contract):
@@ -2080,6 +2086,240 @@ def emit_raw(x: Bytes[INF]):
     c = get_contract(code)
     c.emit_raw(payload)
     assert env.get_logs(c, raw=True)[0][1] == payload
+
+
+_EVENT_PAYLOADS = [b"", b"abc", bytes(range(33)), bytes((i * 67) % 256 for i in range(2001))]
+
+
+@pytest.mark.parametrize("payload", _EVENT_PAYLOADS)
+def test_inf_bytes_event_data(env, get_contract, payload):
+    code = """
+event E:
+    x: Bytes[INF]
+
+@external
+def emit_event(x: Bytes[INF]):
+    log E(x=x)
+    """
+
+    c = get_contract(code)
+    c.emit_event(payload)
+    assert env.get_logs(c, raw=True)[0][1] == abi_encode("(bytes)", (payload,))
+
+
+def test_inf_bytes_event_data_from_bounded_arg(env, get_contract):
+    code = """
+event E:
+    x: Bytes[INF]
+
+@external
+def emit_event():
+    log E(x=b"abc")
+    """
+
+    c = get_contract(code)
+    c.emit_event()
+    assert env.get_logs(c, raw=True)[0][1] == abi_encode("(bytes)", (b"abc",))
+
+
+def test_inf_string_event_data(env, get_contract):
+    payload = "event string " * 170 + "tail"
+    code = """
+event E:
+    x: String[INF]
+
+@external
+def emit_event(x: String[INF]):
+    log E(x=x)
+    """
+
+    c = get_contract(code)
+    c.emit_event(payload)
+    assert env.get_logs(c, raw=True)[0][1] == abi_encode("(string)", (payload,))
+
+
+def test_inf_string_event_data_with_static_args(env, get_contract):
+    payload = "event string " * 170 + "tail"
+    code = """
+event E:
+    a: uint256
+    x: String[INF]
+    b: uint256
+
+@external
+def emit_event(x: String[INF]):
+    log E(a=11, x=x, b=22)
+    """
+
+    c = get_contract(code)
+    c.emit_event(payload)
+    assert env.get_logs(c, raw=True)[0][1] == abi_encode(
+        "(uint256,string,uint256)", (11, payload, 22)
+    )
+
+
+def test_inf_bytes_event_data_with_bounded_dynamic_args(env, get_contract):
+    payload = bytes((i * 71) % 256 for i in range(2001))
+    code = """
+event E:
+    x: Bytes[INF]
+    ys: DynArray[uint256, 3]
+    s: String[8]
+
+@external
+def emit_event(x: Bytes[INF]):
+    log E(x=x, ys=[1, 2, 3], s="tail")
+    """
+
+    c = get_contract(code)
+    c.emit_event(payload)
+    assert env.get_logs(c, raw=True)[0][1] == abi_encode(
+        "(bytes,uint256[],string)", (payload, [1, 2, 3], "tail")
+    )
+
+
+@pytest.mark.parametrize("xs", [[], [7], list(range(100))])
+def test_inf_dynarray_event_data(env, get_contract, xs):
+    code = """
+event E:
+    xs: DynArray[uint256, INF]
+
+@external
+def emit_event(xs: DynArray[uint256, INF]):
+    log E(xs=xs)
+    """
+
+    c = get_contract(code)
+    c.emit_event(xs)
+    assert env.get_logs(c, raw=True)[0][1] == abi_encode("(uint256[])", (xs,))
+
+
+def test_inf_dynarray_event_snapshots_arg_before_later_mutation(env, get_contract):
+    code = """
+event E:
+    xs: DynArray[uint256, INF]
+    popped: uint256
+
+@external
+def emit_event():
+    x: DynArray[uint256, INF] = [1, 2, 3]
+    log E(xs=x, popped=x.pop())
+    """
+
+    c = get_contract(code)
+    c.emit_event()
+    assert env.get_logs(c, raw=True)[0][1] == abi_encode("(uint256[],uint256)", ([1, 2, 3], 3))
+
+
+@pytest.mark.parametrize("payload", _EVENT_PAYLOADS)
+def test_indexed_inf_bytes_event_topic(env, get_contract, payload):
+    code = """
+event E:
+    x: indexed(Bytes[INF])
+
+@external
+def emit_event(x: Bytes[INF]):
+    log E(x=x)
+    """
+
+    c = get_contract(code)
+    c.emit_event(payload)
+    topics, data = env.get_logs(c, raw=True)[0]
+    assert topics[1] == keccak256(payload)
+    assert data == b""
+
+
+def test_indexed_inf_string_event_topic(env, get_contract):
+    payload = "indexed string " * 170 + "tail"
+    code = """
+event E:
+    x: indexed(String[INF])
+
+@external
+def emit_event(x: String[INF]):
+    log E(x=x)
+    """
+
+    c = get_contract(code)
+    c.emit_event(payload)
+    topics, data = env.get_logs(c, raw=True)[0]
+    assert topics[1] == keccak256(payload.encode())
+    assert data == b""
+
+
+@pytest.mark.parametrize("payload", _EVENT_PAYLOADS)
+def test_inf_bytes_custom_error_payload(get_contract, payload):
+    code = """
+error Oops:
+    x: Bytes[INF]
+
+@external
+def boom(x: Bytes[INF]):
+    raise Oops(x)
+    """
+
+    c = get_contract(code)
+    with pytest.raises(ExecutionReverted) as excinfo:
+        c.boom(payload)
+    assert _revert_data(excinfo) == method_id("Oops(bytes)") + abi_encode("(bytes)", (payload,))
+
+
+def test_inf_string_custom_error_payload_with_static_args(get_contract):
+    payload = "error string " * 170 + "tail"
+    code = """
+error Oops:
+    a: uint256
+    x: String[INF]
+    b: uint256
+
+@external
+def boom(x: String[INF]):
+    assert len(x) == 0, Oops(a=11, x=x, b=22)
+    """
+
+    c = get_contract(code)
+    with pytest.raises(ExecutionReverted) as excinfo:
+        c.boom(payload)
+    data = _revert_data(excinfo)
+    assert data[:4] == method_id("Oops(uint256,string,uint256)")
+    assert abi_decode("(uint256,string,uint256)", data[4:]) == (11, payload, 22)
+
+
+@pytest.mark.parametrize("xs", [[], [7], list(range(100))])
+def test_inf_dynarray_custom_error_payload(get_contract, xs):
+    code = """
+error Oops:
+    xs: DynArray[uint256, INF]
+
+@external
+def boom(xs: DynArray[uint256, INF]):
+    raise Oops(xs)
+    """
+
+    c = get_contract(code)
+    with pytest.raises(ExecutionReverted) as excinfo:
+        c.boom(xs)
+    assert _revert_data(excinfo) == method_id("Oops(uint256[])") + abi_encode("(uint256[])", (xs,))
+
+
+def test_inf_dynarray_custom_error_snapshots_arg_before_later_mutation(get_contract):
+    code = """
+error Oops:
+    xs: DynArray[uint256, INF]
+    popped: uint256
+
+@external
+def boom():
+    x: DynArray[uint256, INF] = [1, 2, 3]
+    raise Oops(x, x.pop())
+    """
+
+    c = get_contract(code)
+    with pytest.raises(ExecutionReverted) as excinfo:
+        c.boom()
+    data = _revert_data(excinfo)
+    assert data[:4] == method_id("Oops(uint256[],uint256)")
+    assert abi_decode("(uint256[],uint256)", data[4:]) == ([1, 2, 3], 3)
 
 
 def test_inf_bytes_constructor_arg(get_contract):

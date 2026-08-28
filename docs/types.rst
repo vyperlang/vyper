@@ -589,14 +589,14 @@ as ``uint256``, ``bytes32``, static arrays, or structs made only from ABI-static
 members.
 
 Unbounded sequence values are supported for memory locals, function arguments,
-function returns, ABI encoding and decoding, and bytes-oriented builtins such as
-``concat``, ``slice``, ``convert``, ``empty`` and ``print``. Top-level return
-tuples may contain direct unbounded sequence members, for example
-``(uint256, Bytes[INF])``.
+function returns, event and custom error members, ABI encoding and decoding, and
+bytes-oriented builtins such as ``concat``, ``slice``, ``convert``, ``empty`` and
+``print``. Top-level return tuples may contain direct unbounded sequence members,
+for example ``(uint256, Bytes[INF])``.
 
 Unbounded sequences are not supported in storage, transient storage, immutable
-module variables, struct members, event arguments, custom error arguments,
-static arrays, mappings, or nested inside another dynamic layout. For example,
+module variables, struct members, static arrays, mappings, or nested inside
+another dynamic layout. For example,
 ``DynArray[Bytes[INF], INF]`` and ``DynArray[Bytes[10], INF]`` are rejected.
 Tuple arguments and local tuple variables containing unbounded sequence members
 are also rejected.

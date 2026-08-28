@@ -302,57 +302,6 @@ struct S:
     """,
         StructureException,
     ),
-    # Unbounded sequence types are not supported inside custom errors
-    (
-        """
-error E:
-    x: Bytes[INF]
-    """,
-        StructureException,
-    ),
-    # Unbounded sequence types are not supported inside events
-    (
-        """
-event E:
-    x: Bytes[INF]
-    """,
-        StructureException,
-    ),
-    (
-        """
-event E:
-    x: String[INF]
-    """,
-        StructureException,
-    ),
-    (
-        """
-event E:
-    x: indexed(Bytes[INF])
-    """,
-        StructureException,
-    ),
-    (
-        """
-event E:
-    x: indexed(String[INF])
-    """,
-        StructureException,
-    ),
-    (
-        """
-event E:
-    x: DynArray[uint256, INF]
-    """,
-        StructureException,
-    ),
-    (
-        """
-event E:
-    x: indexed(DynArray[uint256, INF])
-    """,
-        StructureException,
-    ),
     # Unbounded sequence types are not supported inside static arrays
     (
         """
@@ -469,6 +418,89 @@ interface I:
 def test_inf_fail(bad_code, exc):
     with pytest.raises(exc):
         compiler.compile_code(bad_code)
+
+
+# events and custom errors are only ever ABI-encoded into a buffer, like
+# external INF returns, so their top-level members may be unbounded
+@pytest.mark.parametrize(
+    "code",
+    [
+        """
+event E:
+    x: Bytes[INF]
+    """,
+        """
+event E:
+    x: String[INF]
+    """,
+        """
+event E:
+    x: indexed(Bytes[INF])
+    """,
+        """
+event E:
+    x: indexed(String[INF])
+    """,
+        """
+event E:
+    x: DynArray[uint256, INF]
+    """,
+        """
+error E:
+    x: Bytes[INF]
+    """,
+        """
+error E:
+    x: DynArray[uint256, INF]
+    """,
+    ],
+)
+def test_inf_event_and_error_members(compile_inf_code, code):
+    compile_inf_code(code)
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        """
+event E:
+    x: Bytes[10]
+
+@external
+def emit(x: Bytes[INF]):
+    log E(x=x)
+    """,
+        """
+error E:
+    x: Bytes[10]
+
+@external
+def boom(x: Bytes[INF]):
+    raise E(x)
+    """,
+    ],
+)
+def test_bounded_event_and_error_members_reject_inf_arg(code):
+    with pytest.raises(TypeMismatch) as e:
+        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+    assert e.value.message == "Given reference has type Bytes[INF], expected Bytes[10]"
+
+
+def test_event_rejects_nested_inf_list_arg():
+    code = """
+event E:
+    xs: DynArray[Bytes[10], 3]
+
+@external
+def emit(x: Bytes[INF]):
+    log E(xs=[x])
+    """
+    with pytest.raises(TypeMismatch) as e:
+        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+    assert e.value.message == (
+        "Expected DynArray[Bytes[10], 3] but literal can only be cast as "
+        "Bytes[INF][1] or DynArray[Bytes[INF], 1]."
+    )
 
 
 @pytest.mark.parametrize(
@@ -833,6 +865,37 @@ def foo() -> uint256:
     compile_inf_code(code, input_bundle=input_bundle)
 
 
+@pytest.mark.parametrize(
+    ("lib", "statement"),
+    [
+        (
+            """
+event E:
+    x: Bytes[INF]
+    """,
+            "log lib.E(x=b'abc')",
+        ),
+        (
+            """
+error E:
+    x: Bytes[INF]
+    """,
+            "raise lib.E(b'abc')",
+        ),
+    ],
+)
+def test_imported_inf_event_and_error(compile_inf_code, make_input_bundle, lib, statement):
+    code = f"""
+import lib
+
+@external
+def foo():
+    {statement}
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib})
+    compile_inf_code(code, input_bundle=input_bundle)
+
+
 def test_inf_default_arg_expression_rejected():
     # default argument expressions may only be literals or environment
     # variables, so INF-typed expressions cannot appear in defaults with
@@ -1059,7 +1122,7 @@ def f(a: address) -> uint256:
     assert e.value.message == "DynArray[..., INF] is only supported with ABI-static element types"
 
 
-def test_imported_wildcard_event_rejects_inf_arg(make_input_bundle):
+def test_imported_wildcard_event_accepts_inf_arg(make_input_bundle):
     abi = [
         {
             "anonymous": False,
@@ -1076,11 +1139,12 @@ def emit(x: Bytes[INF]):
     log JSONInterface.Foo(x=x)
     """
     input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
-    with pytest.raises(StructureException) as e:
-        compiler.compile_code(
-            code, input_bundle=input_bundle, settings=Settings(experimental_codegen=True)
-        )
-    assert e.value.message == "Events cannot contain unbounded sequence types"
+    compiler.compile_code(
+        code,
+        output_formats=["bytecode"],
+        input_bundle=input_bundle,
+        settings=Settings(experimental_codegen=True),
+    )
 
 
 def test_imported_wildcard_event_accepts_bounded_arg(make_input_bundle):
@@ -1119,7 +1183,7 @@ def emit(a: address):
 
 
 @pytest.mark.parametrize(
-    ("abi_item", "statement", "message"),
+    ("abi_item", "statement"),
     [
         (
             {
@@ -1129,18 +1193,17 @@ def emit(a: address):
                 "type": "event",
             },
             "log JSONInterface.Foo(x=staticcall JSONInterface(a).returns_bytes())",
-            "Events cannot contain unbounded sequence types",
         ),
         (
             {"inputs": [{"name": "x", "type": "bytes"}], "name": "Oops", "type": "error"},
             "raise JSONInterface.Oops(staticcall JSONInterface(a).returns_bytes())",
-            "Custom errors cannot contain unbounded sequence types",
         ),
     ],
 )
-def test_imported_wildcard_user_type_rejects_wildcard_call_return(
-    make_input_bundle, abi_item, statement, message
+def test_imported_wildcard_user_type_accepts_wildcard_call_return(
+    make_input_bundle, abi_item, statement
 ):
+    # both wildcards resolve to INF, which events and errors can encode
     function_abi = {
         "inputs": [],
         "name": "returns_bytes",
@@ -1156,11 +1219,12 @@ def run(a: address):
     {statement}
     """
     input_bundle = make_input_bundle({"JSONInterface.json": json.dumps([function_abi, abi_item])})
-    with pytest.raises(StructureException) as e:
-        compiler.compile_code(
-            code, input_bundle=input_bundle, settings=Settings(experimental_codegen=True)
-        )
-    assert e.value.message == message
+    compiler.compile_code(
+        code,
+        output_formats=["bytecode"],
+        input_bundle=input_bundle,
+        settings=Settings(experimental_codegen=True),
+    )
 
 
 def test_abi_encode_resolves_json_abi_wildcard_call_return(make_input_bundle):
@@ -1207,7 +1271,7 @@ def boom(x: Bytes[10]):
     )
 
 
-def test_imported_wildcard_error_rejects_inf_arg(make_input_bundle):
+def test_imported_wildcard_error_accepts_inf_arg(make_input_bundle):
     abi = [{"inputs": [{"name": "x", "type": "bytes"}], "name": "Oops", "type": "error"}]
     code = """
 import JSONInterface
@@ -1217,11 +1281,12 @@ def boom(x: Bytes[INF]):
     raise JSONInterface.Oops(x)
     """
     input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
-    with pytest.raises(StructureException) as e:
-        compiler.compile_code(
-            code, input_bundle=input_bundle, settings=Settings(experimental_codegen=True)
-        )
-    assert e.value.message == "Custom errors cannot contain unbounded sequence types"
+    compiler.compile_code(
+        code,
+        output_formats=["bytecode"],
+        input_bundle=input_bundle,
+        settings=Settings(experimental_codegen=True),
+    )
 
 
 def test_dynarray_inf_pure(compile_inf_code):

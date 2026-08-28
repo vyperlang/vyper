@@ -1428,14 +1428,17 @@ class Stmt:
         abi_buf_ptr: IROperand
         encoded_len: IROperand
         if data_vals:
-            # Event declarations reject INF members, so log data is statically bounded here.
             data_typs = tuple(arg_vv.typ for arg_vv in data_vals)
             tuple_typ = TupleT(data_typs)
-            bufsz = tuple_typ.abi_type.size_bound()
 
-            # Allocate ABI encoding output buffer
-            abi_buf = self.ctx.allocate_buffer(bufsz)
-            abi_buf_ptr = abi_buf._ptr
+            if type_contains_unbounded_sequence(tuple_typ):
+                # INF data has no static size bound; size the encoding
+                # buffer at runtime like external INF returns do.
+                encoded_size = runtime_abi_size_for_encode(self.ctx, data_vals, tuple_typ)
+                abi_buf_ptr = self.ctx.allocate_scratch(encoded_size)
+            else:
+                bufsz = tuple_typ.abi_type.size_bound()
+                abi_buf_ptr = self.ctx.allocate_buffer(bufsz)._ptr
 
             # ABI encode the tuple
             encoded_len = abi_encode_values_to_buf(self.ctx, abi_buf_ptr, data_vals, tuple_typ)
@@ -1613,20 +1616,27 @@ class Stmt:
         arg_types = tuple(arg_vv.typ for arg_vv in arg_vvs)
         args_tuple_t = TupleT(arg_types)
 
-        bufsz = args_tuple_t.abi_type.size_bound() + 32
-        buf = self.ctx.allocate_buffer(bufsz, annotation="custom error revert buffer")
-        self.builder.mstore(buf._ptr, IRLiteral(error_t.selector))
+        buf_ptr: IRVariable
+        if type_contains_unbounded_sequence(args_tuple_t):
+            # INF payload has no static size bound; size the revert buffer
+            # at runtime like external INF returns do.
+            payload_size = runtime_abi_size_for_encode(self.ctx, arg_vvs, args_tuple_t)
+            buf_ptr = self.ctx.allocate_scratch(self.ctx.checked_add(IRLiteral(32), payload_size))
+        else:
+            bufsz = args_tuple_t.abi_type.size_bound() + 32
+            buf_ptr = self.ctx.allocate_buffer(bufsz, annotation="custom error revert buffer")._ptr
+        self.builder.mstore(buf_ptr, IRLiteral(error_t.selector))
 
         if len(arg_nodes) == 0:
-            revert_offset = self.builder.add(buf._ptr, IRLiteral(28))
+            revert_offset = self.builder.add(buf_ptr, IRLiteral(28))
             with self.builder.error_context("user revert with custom error"):
                 self.builder.revert(revert_offset, IRLiteral(4))
             return
 
-        payload_buf = self.builder.add(buf._ptr, IRLiteral(32))
+        payload_buf = self.builder.add(buf_ptr, IRLiteral(32))
         encoded_len = abi_encode_values_to_buf(self.ctx, payload_buf, arg_vvs, args_tuple_t)
 
-        revert_offset = self.builder.add(buf._ptr, IRLiteral(28))
+        revert_offset = self.builder.add(buf_ptr, IRLiteral(28))
         revert_len = self.builder.add(IRLiteral(4), encoded_len)
         with self.builder.error_context("user revert with custom error"):
             self.builder.revert(revert_offset, revert_len)
