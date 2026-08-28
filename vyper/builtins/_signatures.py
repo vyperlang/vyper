@@ -6,7 +6,7 @@ from vyper.ast.validation import validate_call_args
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic, TypeMismatch, UnfoldableNode
-from vyper.semantics.analysis.base import Modifiability
+from vyper.semantics.analysis.base import Modifiability, StateMutability
 from vyper.semantics.analysis.utils import (
     check_modifiability,
     get_exact_type_from_node,
@@ -89,10 +89,11 @@ class BuiltinFunctionT(VyperType):
     _return_type: Optional[VyperType] = None
     _equality_attrs = ("_id",)
     _is_terminus = False
+    mutability: StateMutability = StateMutability.PURE
 
     @property
-    def modifiability(self):
-        return self._modifiability
+    def is_modifying(self) -> bool:
+        return self.mutability > StateMutability.VIEW
 
     # helper function to deal with TYPE_Ts
     def _validate_single(self, arg: vy_ast.VyperNode, expected_type: VyperType) -> None:
@@ -114,6 +115,8 @@ class BuiltinFunctionT(VyperType):
         validate_call_args(node, expect_num_args, list(self._kwargs.keys()))
 
         for arg, (_, expected) in zip(node.args, self._inputs):
+            # `expected` is sometimes not a VyperType
+            # This violates the contract of _validate_single, but it still works
             self._validate_single(arg, expected)
 
         for kwarg in node.keywords:
@@ -122,6 +125,8 @@ class BuiltinFunctionT(VyperType):
                 kwarg.value, Modifiability.CONSTANT
             ):
                 raise TypeMismatch("Value must be literal", kwarg.value)
+            # `kwarg_settings.typ` is sometimes not a VyperType
+            # This violates the contract of _validate_single, but it still works
             self._validate_single(kwarg.value, kwarg_settings.typ)
 
         # typecheck varargs. we don't have type info from the signature,

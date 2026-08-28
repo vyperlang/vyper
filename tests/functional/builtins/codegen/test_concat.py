@@ -81,12 +81,12 @@ i: immutable(int256)
 
 @deploy
 def __init__():
-    i = -1
+    self.i = -1
     s: String[2] = concat("a", "b")
 
 @external
 def foo() -> int256:
-    return i
+    return self.i
     """
     c = get_contract(code)
     assert c.foo() == -1
@@ -168,6 +168,48 @@ def hoo(x: bytes32, y: bytes32) -> Bytes[64]:
     assert c.hoo(b"\x35" * 32, b"\x00" * 32) == b"\x35" * 32 + b"\x00" * 32
 
     print("Passed second concat tests")
+
+
+def test_concat_zero_length_side_effects(get_contract):
+    code = """
+counter: public(uint256)
+
+@external
+def test() -> Bytes[256]:
+    a: Bytes[256] = concat(b"" if self.sideeffect() else b"", b"aaaa")
+    return a
+
+def sideeffect() -> bool:
+    self.counter += 1
+    return True
+    """
+
+    c = get_contract(code)
+
+    assert c.counter() == 0
+    assert c.test() == b"aaaa"
+    assert c.counter() == 1
+
+
+def test_concat_zero_length_side_effects2(get_contract):
+    code = """
+counter: public(uint256)
+
+@external
+def test() -> Bytes[256]:
+    a: Bytes[256] = concat(b"" if self.sideeffect() else b"", b"")
+    return a
+
+def sideeffect() -> bool:
+    self.counter += 1
+    return True
+    """
+
+    c = get_contract(code)
+
+    assert c.counter() == 0
+    assert c.test() == b""
+    assert c.counter() == 1
 
 
 def test_small_output(get_contract):

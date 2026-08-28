@@ -19,8 +19,8 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.exceptions import CodegenPanic, StructureException, TypeCheckFailure, tag_exceptions
-from vyper.semantics.types import DArrayT
+from vyper.exceptions import CodegenPanic, TypeCheckFailure, tag_exceptions
+from vyper.semantics.types import DArrayT, ErrorT, TupleT
 from vyper.semantics.types.shortcuts import UINT256_T
 
 
@@ -45,12 +45,6 @@ class Stmt:
 
     def parse_Pass(self):
         return IRnode.from_list("pass")
-
-    def parse_Name(self):
-        if self.stmt.id == "vdb":
-            return IRnode("debugger")
-        else:
-            raise StructureException(f"Unsupported statement type: {type(self.stmt)}", self.stmt)
 
     def parse_AnnAssign(self):
         ltyp = self.stmt.target._metadata["type"]
@@ -112,50 +106,97 @@ class Stmt:
         return events.ir_node_for_log(self.stmt, event, topic_ir, data_ir, self.context)
 
     def _assert_reason(self, test_expr, msg):
-        # from parse_Raise: None passed as the assert condition
-        is_raise = test_expr is None
-
         if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
-            if is_raise:
-                return IRnode.from_list(["invalid"], error_msg="raise unreachable")
-            else:
-                return IRnode.from_list(
-                    ["assert_unreachable", test_expr], error_msg="assert unreachable"
-                )
+            return self._assert_unreachable(test_expr)
 
-        # set constant so that revert reason str is well behaved
+        msg_type = msg._metadata.get("type") if hasattr(msg, "_metadata") else None
+        if isinstance(msg_type, ErrorT):
+            assert isinstance(msg, vy_ast.Call)
+            return self._assert_custom_error(test_expr, msg, msg_type)
+
+        return self._assert_string_reason(test_expr, msg)
+
+    def _assert_unreachable(self, test_expr):
+        # from parse_Raise: None passed as the assert condition
+        if test_expr is None:
+            return IRnode.from_list(["invalid"], error_msg="raise unreachable")
+        return IRnode.from_list(["assert_unreachable", test_expr], error_msg="assert unreachable")
+
+    def _assert_string_reason(self, test_expr, msg):
+        msg_ir = self._compile_expr_in_constant_context(msg)
+        revert_seq = self._string_reason_revert_sequence(msg_ir)
+        return self._assert_revert_sequence(test_expr, revert_seq, "user revert with reason")
+
+    def _compile_expr_in_constant_context(self, node: vy_ast.VyperNode) -> IRnode:
+        old_constancy = self.context.constancy
         try:
-            tmp = self.context.constancy
             self.context.constancy = Constancy.Constant
-            msg_ir = Expr(msg, self.context).ir_node
+            return Expr(node, self.context).ir_node
         finally:
-            self.context.constancy = tmp
+            self.context.constancy = old_constancy
 
+    def _string_reason_revert_sequence(self, msg_ir: IRnode):
         msg_ir = wrap_value_for_external_return(msg_ir)
+        assert msg_ir.typ is not None
         bufsz = 64 + msg_ir.typ.memory_bytes_required
         buf = self.context.new_internal_variable(get_type_for_exact_size(bufsz))
-
-        # offset of bytes in (bytes,)
-        method_id = util.method_id_int("Error(string)")
 
         # abi encode method_id + bytestring to `buf+32`, then
         # write method_id to `buf` and get out of here
         payload_buf = add_ofst(buf, 32)
-        bufsz -= 32  # reduce buffer by size of `method_id` slot
-        encoded_length = abi_encode(payload_buf, msg_ir, self.context, bufsz, returns_len=True)
+        encode_bufsz = bufsz - 32  # reduce buffer by size of `method_id` slot
+        encoded_length = abi_encode(
+            payload_buf, msg_ir, self.context, encode_bufsz, returns_len=True
+        )
+
+        method_id = util.method_id_int("Error(string)")
+        return self._selector_revert_sequence(buf, method_id, encoded_length)
+
+    def _custom_error_args(self, call: vy_ast.Call, error_t: ErrorT) -> list[vy_ast.VyperNode]:
+        if len(call.keywords) > 0:
+            kwarg_lookup = {kw.arg: kw.value for kw in call.keywords}
+            return [kwarg_lookup[name] for name in error_t.arguments.keys()]
+
+        return call.args
+
+    def _assert_custom_error(self, test_expr, msg: vy_ast.Call, error_t: ErrorT):
+        revert_seq = self._custom_error_revert_sequence(msg, error_t)
+        return self._assert_revert_sequence(test_expr, revert_seq, "user revert with custom error")
+
+    def _custom_error_revert_sequence(self, msg: vy_ast.Call, error_t: ErrorT):
+        arg_nodes = self._custom_error_args(msg, error_t)
+        arg_irs = [self._compile_expr_in_constant_context(arg) for arg in arg_nodes]
+
+        args_tuple_t = TupleT(tuple(error_t.arguments.values()))
+        args_as_tuple = IRnode.from_list(["multi", *arg_irs], typ=args_tuple_t)
+
+        buflen = args_tuple_t.abi_type.size_bound() + 32
+        buf = self.context.new_internal_variable(get_type_for_exact_size(buflen))
+
+        if len(arg_irs) == 0:
+            return ["seq", ["mstore", buf, error_t.selector], ["revert", add_ofst(buf, 28), 4]]
+
+        payload_buf = add_ofst(buf, 32)
+        encoded_length = abi_encode(
+            payload_buf, args_as_tuple, self.context, bufsz=buflen - 32, returns_len=True
+        )
+        return self._selector_revert_sequence(buf, error_t.selector, encoded_length)
+
+    def _selector_revert_sequence(self, buf, selector: int, encoded_length):
         with encoded_length.cache_when_complex("encoded_len") as (b1, encoded_length):
             revert_seq = [
                 "seq",
-                ["mstore", buf, method_id],
+                ["mstore", buf, selector],
                 ["revert", add_ofst(buf, 28), ["add", 4, encoded_length]],
             ]
-            revert_seq = b1.resolve(revert_seq)
+            return b1.resolve(revert_seq)
 
-        if is_raise:
+    def _assert_revert_sequence(self, test_expr, revert_seq, error_msg: str):
+        if test_expr is None:
             ir_node = revert_seq
         else:
             ir_node = ["if", ["iszero", test_expr], revert_seq]
-        return IRnode.from_list(ir_node, error_msg="user revert with reason")
+        return IRnode.from_list(ir_node, error_msg=error_msg)
 
     def parse_Assert(self):
         test_expr = Expr.parse_value_expr(self.stmt.test, self.context)
@@ -245,7 +286,7 @@ class Stmt:
             iter_list = Expr(self.stmt.iter, self.context).ir_node
 
         target_type = self.stmt.target.target._metadata["type"]
-        assert target_type == iter_list.typ.value_type
+        assert iter_list.typ.value_type.is_subtype_of(target_type)
 
         # user-supplied name for loop variable
         varname = self.stmt.target.target.id
@@ -257,26 +298,27 @@ class Stmt:
 
         ret = ["seq"]
 
-        # list literal, force it to memory first
-        if isinstance(self.stmt.iter, vy_ast.List):
+        # if it's a list literal, force it to memory first
+        if not iter_list.is_pointer:
             tmp_list = self.context.new_internal_variable(iter_list.typ)
             ret.append(make_setter(tmp_list, iter_list))
             iter_list = tmp_list
 
-        # set up the loop variable
-        e = get_element_ptr(iter_list, i, array_bounds_check=False)
-        body = ["seq", make_setter(loop_var, e), parse_body(self.stmt.body, self.context)]
+        with iter_list.cache_when_complex("list_iter") as (b1, iter_list):
+            # set up the loop variable
+            e = get_element_ptr(iter_list, i, array_bounds_check=False)
+            body = ["seq", make_setter(loop_var, e), parse_body(self.stmt.body, self.context)]
 
-        repeat_bound = iter_list.typ.count
-        if isinstance(iter_list.typ, DArrayT):
-            array_len = get_dyn_array_count(iter_list)
-        else:
-            array_len = repeat_bound
+            repeat_bound = iter_list.typ.count
+            if isinstance(iter_list.typ, DArrayT):
+                array_len = get_dyn_array_count(iter_list)
+            else:
+                array_len = repeat_bound
 
-        ret.append(["repeat", i, 0, array_len, repeat_bound, body])
+            ret.append(["repeat", i, 0, array_len, repeat_bound, body])
 
-        del self.context.forvars[varname]
-        return IRnode.from_list(ret)
+            del self.context.forvars[varname]
+            return b1.resolve(IRnode.from_list(ret))
 
     def parse_AugAssign(self):
         target = self._get_target(self.stmt.target)
@@ -287,6 +329,15 @@ class Stmt:
             # make_setter references lhs<->rhs as in parse_Assign -
             # single word load/stores are atomic.
             raise TypeCheckFailure("unreachable")
+
+        for var in target.referenced_variables:
+            if var.typ._is_prim_word:
+                continue
+            # oob - GHSA-4w26-8p97-f4jp
+            if var in right.variable_writes or (
+                var.is_state_variable() and right.contains_writeable_call
+            ):
+                raise CodegenPanic("unreachable")
 
         with target.cache_when_complex("_loc") as (b, target):
             left = IRnode.from_list(LOAD(target), typ=target.typ)

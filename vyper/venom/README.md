@@ -24,6 +24,27 @@ Code is organized into non-branching instruction blocks, known as _"Basic Blocks
 
 Basic blocks are grouped into _functions_ that are named and dictate the first block to execute.
 
+A function header may carry an optional bracketed annotation list:
+
+```llvm
+function my_func [fmp_lowered] { ... }
+function my_producer [fmp_lowered, fmp_publishes] { ... }
+function keep_as_call [noinline] { ... }
+```
+
+The FMP annotations are the explicit carrier of the free-memory pointer
+calling-convention facts that are not opcodes (see "Dynamic memory" below):
+`fmp_lowered` declares that the function's FMP convention has been
+materialized (its `fmp_signature` is frozen), and `fmp_publishes` declares
+that every `ret` carries a hidden adopted-FMP value before the return PC.
+Whether the function has a hidden FMP param is *not* annotated: it is
+carried syntactically by the `fmp_param` opcode. A function containing
+lowered FMP artifacts (`fmp_param`, `bump`, `initial_fmp`) without the
+annotation is rejected by the input validator; raw IR needs no FMP annotation.
+The printer emits the annotation for every function with a frozen
+signature, so lowered IR round-trips through the parser.
+`noinline` prevents the function inliner from inlining the function at its call sites.
+
 Venom employs two scopes: global and function level.
 
 ### Example code
@@ -38,16 +59,16 @@ function global {
     selector_bucket_0:
         %3 = xor %2, 1579456981
         %4 = iszero %3
-        jnz @1, @2, %4
+        jnz %4, @true, @false
 
-    1:
+    false:
         jmp @fallback
 
-    2:
+    true:
         %5 = callvalue
         %6 = calldatasize
-        %7 = lt %6, 164
-        %8 = or %5, %7
+        %7 = lt 164, %6
+        %8 = or %7, %5
         %9 = iszero %8
         assert %9
         stop
@@ -56,7 +77,7 @@ function global {
         revert 0, 0
 }
 
-[data]
+data readonly {}
 ```
 
 ### Grammar
@@ -164,6 +185,8 @@ The exit point must be one of the following terminator instructions:
 - `djmp` 
 - `jnz` 
 - `ret` 
+- `dret` 
+- `retfmp` 
 - `return` 
 - `stop` 
 - `exit`
@@ -177,15 +200,60 @@ An operand can be a label, a variable, or a literal.
 By convention, variables have a `%-` prefix, e.g. `%1` is a valid variable. However, the prefix is not required.
 
 ## Instructions
-To enable Venom IR in Vyper, use the `--experimental-codegen` CLI flag or its alias `--venom`, or the corresponding pragma statements (e.g. `#pragma experimental-codegen`). To view the Venom IR output, use `-f bb_runtime` for the runtime code, or `-f bb` to see the deploy code. To get a dot file (for use e.g. with `xdot -`), use `-f cfg` or `-f cfg_runtime`.
+To enable Venom IR in Vyper, use the `--experimental-codegen` CLI flag or the corresponding pragma statements (e.g. `#pragma experimental-codegen`). To view the Venom IR output, use `-f ir_runtime` for the runtime code, or `-f ir` to see the deploy code. To get a dot file (for use e.g. with `xdot -`), use `-f cfg` or `-f cfg_runtime`.
 
 Assembly can be inspected with `-f asm`, whereas an opcode view of the final bytecode can be seen with `-f opcodes` or `-f opcodes_runtime`, respectively.
+
+### Dynamic memory
+
+- `dalloca`
+  - ```
+    %ptr = dalloca %size
+    ```
+  - Allocates a runtime-sized scratch region of `ceil32(size)` bytes and returns its base pointer.
+    The producer does not receive a restore token and should not emit a release instruction:
+    the *reclaim contract is leak-until-ret*. Plain `ret` is callee-save (the FMP implicitly
+    reverts to its value at function entry), so any allocation that cannot be proven dead is
+    simply left allocated until return -- always sound, never required to be reclaimed.
+    `FmpLoweringPass` runs after SSA, threads the free-memory pointer explicitly,
+    and may synthesize conservative LIFO rewinds when the allocation and all aliases are
+    provably dead and unescaped (escaped pointers pin their allocation, fail-closed).
+    It is the single owner of the hidden-FMP calling convention: it materializes the hidden
+    `fmp_param` (normalizing a discovered plain return-PC param to `retpc_param`), seeds the
+    entry function's FMP root with an explicit `initial_fmp` instruction, appends hidden
+    invoke operands (assert-and-set) and freezes the resulting shape as the function's
+    `fmp_signature` (printed as the `[fmp_lowered(, fmp_publishes)?]` function-header
+    annotation). The deletion-only `FmpPrunePass` runs after the optimization tail and
+    deletes a hidden FMP param whose use chain died, resealing the signature before any
+    caller is lowered (the pass driver is callee-first).
+- `dret`
+  - ```
+    dret dyn_count, <ordinary returns...>, src0, size0, ..., return_pc
+    ```
+  - Internal dynamic return terminator. The final `2 * dyn_count` operands before `return_pc`
+    are `(src, size)` pairs. `DretDesugarPass` runs before inlining and locally desugars the
+    terminator into FMP virtual-register IR: pack destinations computed off `getfmp`, the pack
+    copies, `setfmp` (advancing the register over the packed data) and a `retfmp` terminator.
+    `FmpLoweringPass` later threads the register and materializes the physical convention
+    (hidden FMP param/operand, `ret` with the hidden adopted-FMP value).
+- FMP virtual-register opcodes (exist only between `DretDesugarPass` and `FmpLoweringPass`)
+  - `%v = getfmp` reads the FMP virtual register; `setfmp %v` writes it.
+  - ```
+    retfmp <ordinary returns...>, <packed dst ptrs...>, return_pc
+    ```
+  - Publishing return terminator: returns values *and* makes the caller adopt the callee's FMP.
+    The publish fact lives in this opcode; plain `ret` is callee-save (FMP implicitly reverts
+    to its value at entry), so a function whose terminators are all `ret` does not publish even
+    if its body contains `setfmp` (e.g. after inlining a publishing callee).
+    `FmpLoweringPass` lowers `retfmp` to `ret <values...>, <adopted FMP>, return_pc`; the
+    lowered publish fact is then carried by the `fmp_publishes` annotation token, and the
+    caller's invoke binds the adopted FMP as a hidden extra output.
 
 ### Special instructions
 
 - `invoke`
   - ```
-    invoke offset, label
+    invoke offset, @label
     ```
   - Causes control flow to jump to a function denoted by the `label`.
   - Return values are passed in the return buffer at the `offset` address.
@@ -193,21 +261,15 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
   - Effectively translates to `JUMP`, and marks the call site as a valid return destination (for callee to jump back to) by `JUMPDEST`.
 - `alloca`
   - ```
-    out = alloca size, offset, id
+    %out = alloca size
     ```
-  - Allocates memory of a given `size` at a given `offset` in memory.
-  - The `id` argument is there to help debugging translation into venom
-  - The output is the offset value itself.
+  - Allocates an abstract memory region of a given `size`.
+  - The output is a pointer to the allocated region (concretized to an offset by `ConcretizeMemLocPass`).
   - Because the SSA form does not allow changing values of registers, handling mutable variables can be tricky. The `alloca` instruction is meant to simplify that.
-  
-- `palloca`
-  - ```
-    out = palloca size, offset, id
-    ```
-  - Like the `alloca` instruction but only used for parameters of internal functions which are passed by memory.
+
 - `iload`
   - ```
-    out = iload offset
+    %out = iload offset
     ```
   - Loads value at an immutable section of memory denoted by `offset` into `out` variable.
   - The operand can be either a literal, which is a statically computed offset, or a variable.
@@ -233,27 +295,69 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
      `PUSH1 12 PUSH1 24 _mem_deploy_end ADD MSTORE`.
 - `phi`
   - ```
-    out = phi %var_a, label_a, %var_b, label_b
+    %out = phi @label_a, %var_a, @label_b, %var_b
     ```
   - Because in SSA form each variable is assigned just once, it is tricky to handle that variables may be assigned to something different based on which program path was taken.
   - Therefore, we use `phi` instructions. They are are magic instructions, used in basic blocks where the control flow path merges.
-  - In this example, essentially the `out` variable is set to `%var_a` if the program entered the current block from `label_a` or to `%var_b` when it went through `label_b`.
+  - In this example, essentially the `%out` variable is set to `%var_a` if the program entered the current block from `@label_a` or to `%var_b` when it went through `@label_b`. Note that `%var_a%` must be defined in the `@label_a` block and `%var_b` must be defined in the `@label_b` block.
 - `offset`
   - ```
-    ret = offset label, op
+    %ret = offset @label, op
     ```
   - Statically compute offset before compiling into bytecode. Useful for `mstore`, `mload` and such.
-  - Basically `label` + `op`.
+  - Basically `@label` + `op`.
   - The `asm` output could show something like `_OFST _sym_<op> label`.
 - `param`
   - ```
-    out = param
+    %out = param
     ```
   - The `param` instruction is used to represent function arguments passed by the stack.
   - We assume the argument is on the stack and the `param` instruction is used to ensure we represent the argument by the `out` variable.
+  - Plain `param` instructions are exactly the *user* params; the hidden calling-convention
+    slots have dedicated opcodes (below). Callee params are laid out as
+    `[user params..., fmp_param?, retpc_param?]`, matching invoke operands
+    `[target, user args..., hidden_fmp?]` plus the return PC pushed by `invoke` itself.
+- `retpc_param`
+  - ```
+    %out = retpc_param
+    ```
+  - Names the return-PC entry slot (top of the entry stack). Emitted by the frontend in raw
+    IR, so even functions with no `ret` are self-describing. In hand-written raw IR a plain
+    `param` may serve as the return PC instead; there it is *defined* as the unique param the
+    last operand of `ret`/`dret`/`retfmp` aliases (ret-anchored discovery -- the raw-level
+    definition, not a heuristic). Lowered (`[fmp_lowered]`-annotated) functions must use the
+    dedicated opcode. Assembles identically to `param` (no code emitted).
+- `fmp_param`
+  - ```
+    %out = fmp_param
+    ```
+  - Names the hidden FMP param slot (directly beneath the return PC). Created only by
+    `FmpLoweringPass`; its presence *is* the `has_fmp_param` fact of the function's
+    `fmp_signature`. Only legal in `[fmp_lowered]`-annotated functions, at most once, in the
+    entry block, after all plain params. Assembles identically to `param`.
+- `bump`
+  - ```
+    %ptr, %fmp_out = bump %size, %fmp_in
+    ```
+  - Advances the threaded free-memory pointer: `%ptr` is the pre-bump FMP (the allocation's
+    base pointer and reclaim mark) and `%fmp_out = %fmp_in + %size` is the advanced FMP.
+    Created only by `FmpLoweringPass` (from `dalloca`, after ceil32-aligning the size);
+    `%fmp_in` must be FMP-rooted (validated post-lowering). Pure stack arithmetic
+    (assembles to `DUP2 ADD`), but never idempotent: each `bump` is a distinct allocation,
+    so two `bump`s must not be CSE-merged even with identical operands.
+- `initial_fmp`
+  - ```
+    %out = initial_fmp
+    ```
+  - Pushes the initial free-memory-pointer value (the first address above the static frame
+    and any stack-spill slots). This is the FMP root of the entry function; internal
+    functions receive their FMP root via `fmp_param` instead. The concrete value is only
+    known once spill analysis completes, so it assembles to a `PUSH` of an assembler-level
+    `CONST` resolved at assembly time. Pure: repeated `initial_fmp` instructions may CSE
+    together.
 - `store`
   - ```
-    out = op
+    %out = op
     ```
   - Store variable value or literal into `out` variable.
 - `dbname`
@@ -282,18 +386,6 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
     ```
   - Similar to `stop`, but used for constructor exit. The assembler is expected to jump to a special initcode sequence which returns the runtime code.
   - Might translate to something like  `_sym__ctor_exit JUMP`.
-- `sha3_64`
-  - ```
-    out = sha3_64 x y
-    ```
-  - Shortcut to access the `SHA3` EVM opcode where `out` is the result.
-  - Essentially translates to
-    ```
-    PUSH y PUSH FREE_VAR_SPACE MSTORE
-    PUSH x PUSH FREE_VAR_SPACE2 MSTORE
-    PUSH 64 PUSH FREE_VAR_SPACE SHA3
-    ```
-    where `FREE_VAR_SPACE` and `FREE_VAR_SPACE2` are locations reserved by the compiler, set to 0 and 32 respectively.
 
 - `assert`
   - ```
@@ -348,32 +440,32 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
   - No operation, does nothing.
 - `offset`
   - ```
-    %2 = offset %1 label1
+    %2 = offset %1 @label1
   - Similar to `add`, but takes a label as the second argument. If the first argument is a literal, the addition will get optimized at assembly time.
 
 ### Jump instructions
 
 - `jmp`
   - ```
-    jmp label
+    jmp @label
     ```
   - Unconditional jump to code denoted by given `label`.
   - Translates to `label JUMP`.
 - `jnz`
    - ```
-     jnz label1, label2, op
+     jnz op, @label1, @label2
      ```
   - A conditional jump depending on the value of `op`.
   - Jumps to `label2` when `op` is not zero, otherwise jumps to `label1`.
   - For example
     ```
     %op = 15
-    jnz label1, label2, %op
+    jnz %op, @label1, @label2
     ```
     could translate to: `PUSH1 15 label2 JUMPI label1 JUMP`.
 - `djmp`
   - ```
-    djmp %var, label1, label2, label3, ...
+    djmp %var, @label1, @label2, ..., @labeln
     ```
   - Dynamic jump to an address specified by the variable operand, constrained to the provided labels.
   - Accepts a variable number of labels.
@@ -445,7 +537,6 @@ Instructions have the same effects.
 - `sgt`
 - `create`
 - `create2`
-- `msize`
 - `balance`
 - `call`
 - `staticcall`

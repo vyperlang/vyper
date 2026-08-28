@@ -30,7 +30,7 @@ class Namespace(dict):
         from vyper.semantics.types import PRIMITIVE_TYPES
 
         self.update(PRIMITIVE_TYPES)
-        self.update(environment.get_constant_vars())
+        self.update(environment.CONSTANT_ENVIRONMENT_VARS)
         self.update({k: VarInfo(b) for (k, b) in get_builtin_functions().items()})
 
     def __eq__(self, other):

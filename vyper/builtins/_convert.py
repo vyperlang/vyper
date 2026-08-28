@@ -24,6 +24,7 @@ from vyper.codegen.core import (
 )
 from vyper.codegen.expr import Expr
 from vyper.exceptions import (
+    CodegenPanic,
     CompilerPanic,
     InvalidLiteral,
     InvalidType,
@@ -41,6 +42,7 @@ from vyper.semantics.types import (
     StringT,
 )
 from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types.infinity import is_bounded_length
 from vyper.semantics.types.shortcuts import INT256_T, UINT160_T, UINT256_T
 from vyper.utils import DECIMAL_DIVISOR, round_towards_zero, unsigned_to_signed
 
@@ -81,6 +83,8 @@ def _bytes_to_num(arg, out_typ, signed):
     # e.g. "abcd000000000000" -> bitcast(000000000000abcd, output_type)
 
     if isinstance(arg.typ, _BytestringT):
+        if not is_bounded_length(arg.typ.maxlen):
+            raise CodegenPanic("convert: unbounded bytestring type")
         _len = get_bytearray_length(arg)
         arg = LOAD(bytes_data_ptr(arg))
         num_zero_bits = ["mul", 8, ["sub", 32, _len]]
@@ -219,14 +223,14 @@ def _literal_int(expr, arg_typ, out_typ):
     # TODO: possible to reuse machinery from expr.py?
     if isinstance(expr, vy_ast.Hex):
         val = int(expr.value, 16)
-    elif isinstance(expr, vy_ast.Bytes):
+    elif isinstance(expr, (vy_ast.Bytes, vy_ast.HexBytes)):
         val = int.from_bytes(expr.value, "big")
     elif isinstance(expr, (vy_ast.Int, vy_ast.Decimal, vy_ast.NameConstant)):
         val = expr.value
     else:  # pragma: no cover
         raise CompilerPanic("unreachable")
 
-    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and out_typ.is_signed:
+    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes, vy_ast.HexBytes)) and out_typ.is_signed:
         val = _signextend(expr, val, arg_typ)
 
     lo, hi = out_typ.int_bounds
@@ -244,6 +248,7 @@ def _literal_decimal(expr, arg_typ, out_typ):
         val = decimal.Decimal(int(expr.value, 16))
     else:
         val = decimal.Decimal(expr.value)  # should work for Int, Decimal
+        assert isinstance(expr.value, int)
         val *= DECIMAL_DIVISOR
 
     # sanity check type checker did its job
@@ -252,7 +257,7 @@ def _literal_decimal(expr, arg_typ, out_typ):
     val = int(val)
 
     # apply sign extension, if expected
-    if isinstance(expr, (vy_ast.Hex, vy_ast.Bytes)) and out_typ.is_signed:
+    if isinstance(expr, vy_ast.Hex) and out_typ.is_signed:
         val = _signextend(expr, val, arg_typ)
 
     lo, hi = out_typ.int_bounds
@@ -363,7 +368,7 @@ def to_decimal(expr, arg, out_typ):
         raise CompilerPanic("unreachable")
 
 
-@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BytesT, BoolT)
+@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BytesT, BoolT, FlagT)
 def to_bytes_m(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, max_bytes_allowed=out_typ.m)
 
@@ -403,6 +408,16 @@ def to_bytes_m(expr, arg, out_typ):
 
         # note: neg numbers not OOB. keep sign bit
         arg = shl(256 - out_typ.m_bits, arg)
+
+    elif is_flag_type(arg.typ):
+        if out_typ.m_bits != 256:
+            _FAIL(arg.typ, out_typ, expr)
+
+        # leave `arg` as-is, equivalent to the way we treat uin256:
+        # arg = shl(256 - out_typ.m_bits, arg)
+        # => arg = shl(256 - 256, arg)
+        # => arg = shl(0, arg)
+        # => arg = arg
 
     else:
         # bool

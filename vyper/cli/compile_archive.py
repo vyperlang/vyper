@@ -50,6 +50,12 @@ def compiler_data_from_zip(file_name, settings, no_bytecode_metadata):
 
     input_bundle = ZipInputBundle(archive)
 
+    storage_layout_path = "MANIFEST/storage_layout.json"
+    storage_layout = None
+    if storage_layout_path in archive.namelist():
+        storage_layout_map = json.loads(archive.read(storage_layout_path).decode("utf-8"))
+        storage_layout = input_bundle.load_json_file(storage_layout_map[compilation_targets[0]])
+
     mainpath = PurePath(compilation_targets[0])
     file = input_bundle.load_file(mainpath)
     assert isinstance(file, FileInput)  # mypy hint
@@ -68,6 +74,7 @@ def compiler_data_from_zip(file_name, settings, no_bytecode_metadata):
     return CompilerData(
         file,
         input_bundle=input_bundle,
+        storage_layout=storage_layout,
         integrity_sum=integrity,
         settings=settings,
         no_bytecode_metadata=no_bytecode_metadata,

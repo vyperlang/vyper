@@ -20,7 +20,7 @@ def test_basic_grammar():
     code_func = """
     @external
     def one_two_three() -> uint256:
-        return 123123123
+        return 123_123_123
     """
 
     assert parse_vyper_source(code, dedent=True)
@@ -102,7 +102,7 @@ def has_no_docstrings(c):
     max_examples=500, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much]
 )
 def test_grammar_bruteforce(code):
-    pre_parser = PreParser()
+    pre_parser = PreParser(is_interface=False)
     pre_parser.parse(code + "\n")
     tree = parse_to_ast(pre_parser.reformatted_code)
     assert isinstance(tree, Module)

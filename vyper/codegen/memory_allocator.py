@@ -28,7 +28,7 @@ class FreeMemory:
         int
             Position of the newly allocated memory
         """
-        if size >= self.size:
+        if size >= self.size:  # pragma: nocover
             raise CompilerPanic("Attempted to allocate more memory than available")
         position = self.position
         self.position += size
@@ -88,8 +88,11 @@ class MemoryAllocator:
         int
             Start offset of the newly allocated memory.
         """
-        if size % 32 != 0:
+        if size % 32 != 0:  # pragma: nocover
             raise CompilerPanic(f"tried to allocate {size} bytes, only multiples of 32 supported.")
+        if size < 0:  # pragma: nocover
+            # sanity check
+            raise CompilerPanic(f"tried to allocate {size} bytes")
 
         # check for deallocated memory prior to expanding
         for i, free_memory in enumerate(self.deallocated_mem):

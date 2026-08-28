@@ -1,6 +1,8 @@
 import json
+from typing import Optional
 
 from lark import Lark, Transformer
+from lark.exceptions import VisitError
 
 from vyper.venom.basicblock import (
     IRBasicBlock,
@@ -11,10 +13,9 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import DataItem, DataSection, IRContext
-from vyper.venom.function import IRFunction
+from vyper.venom.function import FmpSignature, IRFunction
 
 VENOM_GRAMMAR = """
-    %import common.CNAME
     %import common.DIGIT
     %import common.HEXDIGIT
     %import common.LETTER
@@ -22,61 +23,67 @@ VENOM_GRAMMAR = """
     %import common.INT
     %import common.SIGNED_INT
     %import common.ESCAPED_STRING
+    %import common.NEWLINE
 
     # Allow multiple comment styles
     COMMENT: ";" /[^\\n]*/ | "//" /[^\\n]*/ | "#" /[^\\n]*/
 
     start: function* data_segment?
 
-    # TODO: consider making entry block implicit, e.g.
-    # `"{" instruction+ block* "}"`
-    function: "function" LABEL_IDENT "{" block* "}"
+    function: "function" func_name annotations? "{" block_content "}"
 
-    data_segment: "data" "readonly" "{" data_section* "}"
-    data_section: "dbsection" LABEL_IDENT ":" data_item+
-    data_item: "db" (HEXSTR | LABEL)
+    annotations: "[" annotation ("," annotation)* "]"
 
-    block: LABEL_IDENT ":" "\\n" statement*
+    annotation: IDENT ("=" CONST)?
 
-    statement: (instruction | assignment) "\\n"
-    assignment: VAR_IDENT "=" expr
+    block_content: (label_decl | statement)*
+
+    label_decl: (IDENT | ESCAPED_STRING) ":" NEWLINE+
+
+    statement: (assignment | instruction) NEWLINE+
+    assignment: lhs "=" expr
+    lhs: VAR_IDENT | lhs_list
+    lhs_list: VAR_IDENT ("," VAR_IDENT)+
     expr: instruction | operand
-    instruction: OPCODE operands_list?
+
+    instruction: IDENT operands_list?
 
     operands_list: operand ("," operand)*
 
-    operand: VAR_IDENT | CONST | LABEL
+    operand: VAR_IDENT | CONST | label_ref
 
-    CONST: SIGNED_INT
-    OPCODE: CNAME
     VAR_IDENT: "%" (DIGIT|LETTER|"_"|":")+
 
-    # handy for identifier to be an escaped string sometimes
-    # (especially for machine-generated labels)
-    LABEL_IDENT: (NAME | ESCAPED_STRING)
-    LABEL: "@" LABEL_IDENT
+    # non-terminal rules for different contexts
+    func_name: IDENT | ESCAPED_STRING
+    label_name: IDENT | ESCAPED_STRING
+    label_ref: "@" (IDENT | ESCAPED_STRING)
+
+    data_segment: "data" "readonly" "{" data_section* "}"
+    data_section: "dbsection" label_name ":" NEWLINE+ data_item+
+    data_item: "db" (HEXSTR | label_ref) NEWLINE+
 
     DOUBLE_QUOTE: "\\""
-    NAME: (DIGIT|LETTER|"_")+
+    IDENT: (DIGIT|LETTER|"_")+
     HEXSTR: "x" DOUBLE_QUOTE (HEXDIGIT|"_")+ DOUBLE_QUOTE
+    CONST: SIGNED_INT | "-"? "0x" HEXDIGIT+
 
     %ignore WS
     %ignore COMMENT
     """
 
-VENOM_PARSER = Lark(VENOM_GRAMMAR)
+VENOM_PARSER = Lark(VENOM_GRAMMAR, parser="lalr")
 
 
 def _set_last_var(fn: IRFunction):
     for bb in fn.get_basic_blocks():
         for inst in bb.instructions:
-            if inst.output is None:
-                continue
-            value = inst.output.value
-            assert value.startswith("%")
-            varname = value[1:]
-            if varname.isdigit():
-                fn.last_variable = max(fn.last_variable, int(varname))
+            for output in inst.get_outputs():
+                value = output.value
+                assert value.startswith("%")
+                varname = value[1:]
+                if varname.isdigit():
+                    fn.last_variable = max(fn.last_variable, int(varname))
 
 
 def _set_last_label(ctx: IRContext):
@@ -88,16 +95,65 @@ def _set_last_label(ctx: IRContext):
                 ctx.last_label = max(int(label_head), ctx.last_label)
 
 
-def _ensure_terminated(bb):
-    # Since "revert" is not considered terminal explicitly check for it to ensure basic
-    # blocks are terminating
-    if not bb.is_terminated:
-        if any(inst.opcode == "revert" for inst in bb.instructions):
-            bb.append_instruction("stop")
-        # TODO: raise error if still not terminated.
+# the calling convention is carried only by syntax (opcodes) and the
+# explicit function-header annotation -- there is no shape inference.
+_KNOWN_FLAG_ANNOTATIONS = frozenset(["fmp_lowered", "fmp_publishes", "noinline"])
+# annotations of the form `name=<int>`
+_KNOWN_VALUED_ANNOTATIONS = frozenset(["eom"])
 
 
-def _unescape(s: str):
+def _apply_annotations(fn: IRFunction, annotations: Optional[list[tuple[str, Optional[int]]]]):
+    """
+    Apply function-header annotations and reconstruct the FMP signature from
+    its annotations and the `fmp_param` opcode.
+    """
+    if annotations is None:
+        return
+
+    attrs: dict[str, Optional[int]] = {}
+    for attr, value in annotations:
+        if attr in attrs:
+            raise ValueError(f"duplicate function annotation `{attr}` on {fn.name}")
+        if attr in _KNOWN_FLAG_ANNOTATIONS:
+            if value is not None:
+                raise ValueError(f"function annotation `{attr}` takes no value on {fn.name}")
+        elif attr in _KNOWN_VALUED_ANNOTATIONS:
+            if value is None:
+                raise ValueError(f"function annotation `{attr}` requires a value on {fn.name}")
+        else:
+            raise ValueError(f"unknown function annotation `{attr}` on {fn.name}")
+        attrs[attr] = value
+
+    fn.noinline = "noinline" in attrs
+
+    eom = attrs.get("eom")
+    if eom is not None:
+        # end of the function's static frame. Not recoverable from the
+        # instruction stream once allocas have been concretized, but codegen
+        # needs it to place spill slots above the frame, so it has to survive
+        # the round trip (see StackSpiller._get_spill_slot).
+        if eom < 0:
+            raise ValueError(f"negative `eom` annotation on {fn.name}")
+        fn.ctx.mem_allocator.fn_eom[fn] = eom
+
+    if "fmp_lowered" not in attrs:
+        if "fmp_publishes" in attrs:
+            raise ValueError(f"`fmp_publishes` requires `fmp_lowered` on {fn.name}")
+        if "eom" in attrs:
+            # `eom` is only meaningful once the function is fully lowered;
+            # otherwise ConcretizeMemLocPass would rerun and clobber it
+            # (see ConcretizeMemLocPass._is_already_concretized).
+            raise ValueError(f"`eom` requires `fmp_lowered` on {fn.name}")
+        return
+
+    publishes = "fmp_publishes" in attrs
+    has_fmp_param = any(
+        inst.opcode == "fmp_param" for bb in fn.get_basic_blocks() for inst in bb.instructions
+    )
+    fn._fmp_signature = FmpSignature(has_fmp_param=has_fmp_param, publishes=publishes)
+
+
+def _unescape(s: str) -> str:
     """
     Unescape the escaped string. This is the inverse of `IRLabel.__repr__()`.
     """
@@ -107,12 +163,26 @@ def _unescape(s: str):
 
 
 class _TypedItem:
-    def __init__(self, children):
+    def __init__(self, children: list) -> None:
         self.children = children
 
 
 class _DataSegment(_TypedItem):
     pass
+
+
+class _LabelDecl:
+    """Represents a block declaration in the parse tree."""
+
+    def __init__(self, label: str) -> None:
+        self.label = label
+
+
+class _Annotations(list):
+    """
+    Represents a function-header annotation list in the parse tree, as
+    (name, value) pairs. `value` is None for flag-style annotations.
+    """
 
 
 class VenomTransformer(Transformer):
@@ -122,9 +192,36 @@ class VenomTransformer(Transformer):
             ctx.data_segment = children.pop().children
 
         funcs = children
-        for fn_name, blocks in funcs:
+        for fn_name, annotations, items in funcs:
             fn = ctx.create_function(fn_name)
-            fn._basic_block_dict.clear()
+            if ctx.entry_function is None:
+                ctx.entry_function = fn
+            fn.clear_basic_blocks()
+
+            # reconstruct blocks from flat list of labels and instructions.
+            # the grammar parses labels and statements as a flat sequence,
+            # so we need to group instructions by their preceding label.
+            # this makes the grammar compatible with LALR(1).
+            # blocks are implicitly defined by label declarations - each
+            # label starts a new block that contains all instructions until
+            # the next label or end of function.
+            current_block_label: Optional[str] = None
+            current_block_instructions: list[IRInstruction] = []
+            blocks: list[tuple[str, list[IRInstruction]]] = []
+
+            for item in items:
+                if isinstance(item, _LabelDecl):
+                    if current_block_label is not None:
+                        blocks.append((current_block_label, current_block_instructions))
+                    current_block_label = item.label
+                    current_block_instructions = []
+                elif isinstance(item, IRInstruction):
+                    if current_block_label is None:
+                        raise ValueError("Instruction found before any label declaration")
+                    current_block_instructions.append(item)
+
+            if current_block_label is not None:
+                blocks.append((current_block_label, current_block_instructions))
 
             for block_name, instructions in blocks:
                 bb = IRBasicBlock(IRLabel(block_name, True), fn)
@@ -134,62 +231,110 @@ class VenomTransformer(Transformer):
                     assert isinstance(instruction, IRInstruction)  # help mypy
                     bb.insert_instruction(instruction)
 
-                _ensure_terminated(bb)
-
             _set_last_var(fn)
+            _apply_annotations(fn, annotations)
         _set_last_label(ctx)
 
         return ctx
 
-    def function(self, children) -> tuple[str, list[tuple[str, list[IRInstruction]]]]:
-        name, *blocks = children
-        return name, blocks
+    def function(self, children) -> tuple[str, Optional[list[str]], list]:
+        name = children[0]
+        annotations: Optional[_Annotations] = None
+        if isinstance(children[1], _Annotations):
+            annotations = children[1]
+            block_content = children[2]
+        else:
+            block_content = children[1]  # this is the block_content node
+        return name, annotations, block_content
 
-    def statement(self, children):
+    def annotations(self, children) -> _Annotations:
+        return _Annotations(children)
+
+    def annotation(self, children) -> tuple[str, Optional[int]]:
+        name = str(children[0])
+        value = int(str(children[1]), 0) if len(children) > 1 else None
+        return name, value
+
+    def block_content(self, children) -> list:
+        # children contains label_decls and statements
+        return children
+
+    def label_decl(self, children) -> _LabelDecl:
+        # children[0] is the label, rest are NEWLINE tokens
+        label = _unescape(str(children[0]))
+        return _LabelDecl(label)
+
+    def statement(self, children) -> IRInstruction:
+        # children[0] is the instruction/assignment, rest are NEWLINE tokens
         return children[0]
 
-    def data_segment(self, children):
+    def data_segment(self, children) -> _DataSegment:
         return _DataSegment(children)
 
-    def data_section(self, children):
+    def data_section(self, children) -> DataSection:
         label = IRLabel(children[0], True)
-        data_items = children[1:]
-        assert all(isinstance(item, DataItem) for item in data_items)
+        # skip NEWLINE tokens and collect DataItems
+        data_items = [child for child in children[1:] if isinstance(child, DataItem)]
         return DataSection(label, data_items)
 
-    def data_item(self, children):
+    def data_item(self, children) -> DataItem:
+        # children[0] is the data content, rest are NEWLINE tokens
         item = children[0]
         if isinstance(item, IRLabel):
             return DataItem(item)
+
+        # handle hex strings
+        assert isinstance(item, str)
         assert item.startswith('x"')
         assert item.endswith('"')
         item = item.removeprefix('x"').removesuffix('"')
         item = item.replace("_", "")
         return DataItem(bytes.fromhex(item))
 
-    def block(self, children) -> tuple[str, list[IRInstruction]]:
-        label, *instructions = children
-        return label, instructions
+    def lhs(self, children):
+        # unwrap VAR_IDENT or lhs_list
+        assert len(children) == 1
+        return children[0]
+
+    def lhs_list(self, children):
+        # list of VAR_IDENTs
+        return children
 
     def assignment(self, children) -> IRInstruction:
-        to, value = children
-        if isinstance(value, IRInstruction):
-            value.output = to
+        left, value = children
+        # Multi-output assignment (e.g., %a, %b = invoke @f)
+        if isinstance(left, list):
+            if not isinstance(value, IRInstruction):
+                raise TypeError("Multi-target assignment requires an instruction on RHS")
+            outs = left
+            value.set_outputs(outs)
             return value
-        if isinstance(value, (IRLiteral, IRVariable)):
-            return IRInstruction("store", [value], output=to)
+
+        # Single-target assignment
+        to = left
+
+        if isinstance(value, IRInstruction):
+            value.set_outputs([to])
+            return value
+
+        if isinstance(value, (IRLiteral, IRVariable, IRLabel)):
+            return IRInstruction("assign", [value], outputs=[to])
+
         raise TypeError(f"Unexpected value {value} of type {type(value)}")
 
-    def expr(self, children):
+    def expr(self, children) -> IRInstruction | IROperand:
         return children[0]
 
     def instruction(self, children) -> IRInstruction:
         if len(children) == 1:
-            opcode = children[0]
+            # just the opcode (IDENT)
+            opcode = str(children[0])
             operands = []
         else:
             assert len(children) == 2
-            opcode, operands = children
+            # IDENT and operands_list
+            opcode = str(children[0])
+            operands = children[1]
 
         # reverse operands, venom internally represents top of stack
         # as rightmost operand
@@ -198,7 +343,7 @@ class VenomTransformer(Transformer):
             # invoke <target> <stack arguments>
             operands = [operands[0]] + list(reversed(operands[1:]))
         # special cases: operands with labels look better un-reversed
-        elif opcode not in ("jmp", "jnz", "phi"):
+        elif opcode not in ("jmp", "jnz", "djmp", "phi", "dret", "retfmp"):
             operands.reverse()
         return IRInstruction(opcode, operands)
 
@@ -208,31 +353,48 @@ class VenomTransformer(Transformer):
     def operand(self, children) -> IROperand:
         return children[0]
 
-    def OPCODE(self, token):
-        return token.value
+    def func_name(self, children) -> str:
+        # func_name can be IDENT or ESCAPED_STRING
+        return _unescape(str(children[0]))
 
-    def LABEL_IDENT(self, label) -> str:
-        return _unescape(label)
+    def label_name(self, children) -> str:
+        # label_name can be IDENT or ESCAPED_STRING
+        return _unescape(str(children[0]))
 
-    def LABEL(self, label) -> IRLabel:
-        label = _unescape(label[1:])
+    def label_ref(self, children) -> IRLabel:
+        # label_ref is "@" followed by IDENT or ESCAPED_STRING
+        label = _unescape(str(children[0]))
+        if label.startswith("@"):
+            label = label[1:]
         return IRLabel(label, True)
 
     def VAR_IDENT(self, var_ident) -> IRVariable:
         return IRVariable(var_ident[1:])
 
     def CONST(self, val) -> IRLiteral:
+        val = str(val)
+        if val.startswith("-0x"):
+            return IRLiteral(-int(val[1:], 16))
+        if val.startswith("0x"):
+            return IRLiteral(int(val, 16))
         return IRLiteral(int(val))
 
-    def CNAME(self, val) -> str:
+    def IDENT(self, val) -> str:
         return val.value
 
-    def NAME(self, val) -> str:
+    def HEXSTR(self, val) -> str:
         return val.value
 
 
 def parse_venom(source: str) -> IRContext:
     tree = VENOM_PARSER.parse(source)
-    ctx = VenomTransformer().transform(tree)
+    try:
+        ctx = VenomTransformer().transform(tree)
+    except VisitError as e:
+        if isinstance(e.orig_exc, ValueError):
+            # unwrap our own validation errors (e.g. bad function
+            # annotations) from lark's transformer wrapper
+            raise e.orig_exc from None
+        raise
     assert isinstance(ctx, IRContext)  # help mypy
     return ctx

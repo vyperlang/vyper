@@ -111,3 +111,17 @@ def foo() -> bytes32:
     """
     c = get_contract(code)
     assert c.foo() == keccak(str_val.encode())
+
+
+def test_hash_constant_hexbytes(get_contract, keccak):
+    hexbytes_val = "67363d3d37363d34f03d5260086018f3"
+    code = f"""
+FOO: constant(Bytes[16]) = x"{hexbytes_val}"
+BAR: constant(bytes32) = keccak256(FOO)
+@external
+def foo() -> bytes32:
+    x: bytes32 = BAR
+    return x
+    """
+    c = get_contract(code)
+    assert c.foo() == keccak(bytes.fromhex(hexbytes_val))

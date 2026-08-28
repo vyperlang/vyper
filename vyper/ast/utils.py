@@ -1,7 +1,32 @@
-from typing import Dict, List, Union
+import bisect
+import re
+from typing import Dict, List, Tuple, Union
 
 from vyper.ast import nodes as vy_ast
 from vyper.exceptions import CompilerPanic
+
+
+class LineNumbers:
+    """
+    Class to convert between character offsets in a text string, and pairs (line, column) of 1-based
+    line and 0-based column numbers.
+
+    Vendored from asttokens.
+    """
+
+    def __init__(self, text: str) -> None:
+        # a list of character offsets of each line's first character
+        self._line_offsets = [m.start(0) for m in re.finditer(r"^", text, re.M)]
+        self._text_len = len(text)
+
+    def offset_to_line(self, offset: int) -> Tuple[int, int]:
+        """
+        Converts 0-based character offset to pair (line, col) of 1-based line and 0-based column
+        numbers.
+        """
+        offset = max(0, min(self._text_len, offset))
+        line_index = bisect.bisect_right(self._line_offsets, offset) - 1
+        return (line_index + 1, offset - self._line_offsets[line_index])
 
 
 def ast_to_dict(ast_struct: Union[vy_ast.VyperNode, List]) -> Union[Dict, List]:
