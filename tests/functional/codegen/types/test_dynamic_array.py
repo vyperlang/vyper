@@ -1912,7 +1912,7 @@ def boo() -> uint256:
     assert c.foo() == [1, 2, 3, 4]
 
 
-def test_dangling_reference(get_contract, assert_compile_failed):
+def test_dangling_reference(get_contract):
     code = """
 a: DynArray[DynArray[uint256, 5], 5]
 
@@ -1921,7 +1921,8 @@ def foo():
     self.a = [[1]]
     self.a.pop().append(2)
     """
-    assert_compile_failed(lambda: get_contract(code), ImmutableViolation)
+    with pytest.raises(ImmutableViolation):
+        get_contract(code)
 
 
 def test_dynarray_append_single_field_struct_storage(get_contract):

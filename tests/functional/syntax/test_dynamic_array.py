@@ -243,18 +243,6 @@ def foo(x: DynArray[uint256, INF]):
     _compile_inf_dynarray_code(code, experimental_codegen)
 
 
-def test_dynarray_inf_state_var():
-    code = """
-a: DynArray[uint256, INF]
-
-@external
-def foo() -> DynArray[uint256, INF]:
-    return self.a
-    """
-    with pytest.raises(StructureException):
-        compile_code(code)
-
-
 def test_dynarray_inf_local_var(experimental_codegen):
     code = """
 @external

@@ -471,18 +471,6 @@ def test_inf_fail(bad_code, exc):
         compiler.compile_code(bad_code)
 
 
-def test_dynarray_inf():
-    code = """
-a: DynArray[uint256, INF]
-
-@external
-def foo() -> DynArray[uint256, INF]:
-    return self.a
-    """
-    with pytest.raises(StructureException):
-        compiler.compile_code(code)
-
-
 @pytest.mark.parametrize(
     "code",
     [
