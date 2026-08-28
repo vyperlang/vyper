@@ -77,6 +77,10 @@ class IRContext:
 
     def remove_function(self, fn: IRFunction) -> None:
         del self.functions[fn.name]
+        # spill sizing takes the max over all fn_eom entries, so a stale
+        # entry for a removed function would inflate every live function's
+        # spill region (see StackSpiller.reset_for_codegen)
+        self.mem_allocator.fn_eom.pop(fn, None)
 
     def prefixed_label(self, name: str, is_symbol: bool = True) -> IRLabel:
         """Return ``IRLabel(f"{prefix}_{name}")`` (or ``IRLabel(name)`` if

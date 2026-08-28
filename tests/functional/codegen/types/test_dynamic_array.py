@@ -7,6 +7,7 @@ import pytest
 
 from tests.utils import check_precompile_asserts, decimal_to_int
 from vyper.compiler import compile_code
+from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
@@ -233,6 +234,20 @@ def uoo(inp: DynArray[Foobar, 2]) -> DynArray[DynArray[Foobar, 2], 2]:
     assert c.uoo([1, 2]) == [[1, 2], [2, 1]]
 
     print("Passed list output tests")
+
+
+def test_nested_dynarray_empty_and_flag_literal(get_contract):
+    code = """
+flag Foo:
+    Member1
+
+@external
+def foo() -> DynArray[DynArray[Foo, 5], 5]:
+    tmp: DynArray[DynArray[Foo, 5], 5] = [[], [Foo.Member1]]
+    return tmp
+    """
+    c = get_contract(code)
+    assert c.foo() == [[], [1]]
 
 
 def test_array_accessor(get_contract):
@@ -739,6 +754,11 @@ def test_array_decimal_return3() -> DynArray[DynArray[decimal, 2], 2]:
     ]
 
 
+@pytest.mark.skip_at_optimization(
+    OptimizationLevel.O1,
+    OptimizationLevel.NONE,
+    reason="the test contract depends on optimizer code-size reduction",
+)
 def test_mult_list(get_contract):
     code = """
 nest3: DynArray[DynArray[DynArray[uint256, 2], 2], 2]
@@ -2340,3 +2360,26 @@ def foo():
     assert len(logs) == 1
     expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
     assert logs[0].args.data == expected
+
+
+def test_double_eval_pop(get_contract, experimental_codegen):
+    # GH issue #4072
+    code = """
+m: HashMap[uint256, String[33]]
+
+@external
+def foo() -> uint256:
+    x: DynArray[uint256, 16] = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    self.m[x.pop()] = "Hello world"
+    return len(x)
+"""
+
+    if not experimental_codegen:
+        # legacy codegen evaluates the `pop()` twice, which emits the
+        # `pop_dynarray` unique symbol twice.
+        with pytest.raises(CompilerPanic):
+            get_contract(code)
+        return
+
+    c = get_contract(code)
+    assert c.foo() == 15

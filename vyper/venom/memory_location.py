@@ -4,7 +4,6 @@ import dataclasses as dc
 from dataclasses import dataclass
 from typing import ClassVar, Optional
 
-from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand
 
 
@@ -12,19 +11,27 @@ from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand
 class Allocation:
     """
     a memory region which hasn't been allocated (assigned a concrete position) yet.
-    (can be thought of thin wrapper around alloca)
+    wraps either an `alloca` (static, known size, lives in the static frame)
+    or a dynamic allocation (`dalloca` before lowering, `bump` after lowering)
+    which lives above the static frame via the threaded free-memory pointer.
+    each instruction produces a distinct Allocation identity.
     """
 
     # note this class is NOT robust to mutations to the alloca instruction!
 
-    inst: IRInstruction  # the alloca instruction
+    inst: IRInstruction  # the alloca/dalloca/bump instruction
 
     def __post_init__(self):
         # sanity check
-        assert self.inst.opcode == "alloca", self.inst
+        assert self.inst.opcode in ("alloca", "bump", "dalloca"), self.inst
+
+    @property
+    def is_dynamic(self) -> bool:
+        return self.inst.opcode in ("bump", "dalloca")
 
     @property
     def alloca_size(self) -> int:
+        # only valid for static allocas; dynamic allocas have runtime size.
         assert self.inst.opcode == "alloca", self.inst
         size = self.inst.operands[0]
         assert isinstance(size, IRLiteral)
@@ -283,49 +290,49 @@ def get_read_size(inst: IRInstruction) -> Optional[IROperand]:
     return memory_read_ops(inst).size
 
 
-def update_write_location(inst, new_op: IROperand):
+def write_location_idx(inst) -> Optional[int]:
     opcode = inst.opcode
     if opcode == "mstore":
-        inst.operands[1] = new_op
+        return 1
     elif opcode == "istore":
-        inst.operands[0] = new_op
+        return 0
     elif opcode in ("mcopy", "calldatacopy", "dloadbytes", "codecopy", "returndatacopy"):
-        inst.operands[2] = new_op
+        return 2
     elif opcode == "call":
-        inst.operands[1] = new_op
+        return 1
     elif opcode in ("delegatecall", "staticcall"):
-        inst.operands[1] = new_op
+        return 1
     elif opcode == "extcodecopy":
-        inst.operands[2] = new_op
+        return 2
 
     else:  # pragma: nocover
-        raise CompilerPanic("unreachable")
+        return None
 
 
-def update_read_location(inst, new_op: IROperand):
+def read_location_idx(inst) -> Optional[int]:
     opcode = inst.opcode
     if opcode == "mload":
-        inst.operands[0] = new_op
+        return 0
     elif opcode == "iload":
-        inst.operands[0] = new_op
+        return 0
     elif opcode == "mcopy":
-        inst.operands[1] = new_op
+        return 1
     elif opcode == "call":
-        inst.operands[3] = new_op
+        return 3
     elif opcode in ("delegatecall", "staticcall", "call"):
-        inst.operands[3] = new_op
+        return 3
     elif opcode == "return":
-        inst.operands[1] = new_op
+        return 1
     elif opcode == "create":
-        inst.operands[1] = new_op
+        return 1
     elif opcode == "create2":
-        inst.operands[2] = new_op
+        return 2
     elif opcode == "sha3":
-        inst.operands[1] = new_op
+        return 1
     elif opcode == "log":
-        inst.operands[-1] = new_op
+        return -1
     elif opcode == "revert":
-        inst.operands[1] = new_op
+        return 1
 
     else:  # pragma: nocover
-        raise CompilerPanic("unreachable")
+        return None

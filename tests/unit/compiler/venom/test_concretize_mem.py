@@ -1,10 +1,44 @@
+import pytest
+
 from tests.venom_utils import PrePostChecker, parse_from_basic_block
+from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import IRAnalysesCache
+from vyper.venom.parser import parse_venom
 from vyper.venom.passes import AssignElimination, ConcretizeMemLocPass, RemoveUnusedVariablesPass
 
 _check_pre_post = PrePostChecker(
     [ConcretizeMemLocPass, AssignElimination, RemoveUnusedVariablesPass], default_hevm=False
 )
+
+
+def test_fmp_lowered_function_preserves_round_tripped_eom():
+    ctx = parse_venom("""
+        function main [fmp_lowered, eom=544] {
+            main:
+                stop
+        }
+        """)
+    fn = ctx.entry_function
+    assert fn is not None
+
+    ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+
+    assert ctx.mem_allocator.fn_eom[fn] == 544
+
+
+def test_fmp_lowered_function_rejects_remaining_alloca():
+    ctx = parse_venom("""
+        function main [fmp_lowered, eom=544] {
+            main:
+                %ptr = alloca 32
+                stop
+        }
+        """)
+    fn = ctx.entry_function
+    assert fn is not None
+
+    with pytest.raises(CompilerPanic, match="fmp_lowered but still contains alloca"):
+        ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
 
 
 def test_valid_overlap():
