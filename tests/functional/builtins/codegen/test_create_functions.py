@@ -6,7 +6,6 @@ from hexbytes import HexBytes
 import vyper.ir.compile_ir as compile_ir
 from tests.utils import ZERO_ADDRESS
 from vyper.compiler import compile_code
-from vyper.compiler.settings import Settings
 from vyper.exceptions import InvalidOperation, StructureException
 from vyper.ir.compile_ir import DATA_ITEM, PUSH, PUSHLABEL, DataHeader, Label
 from vyper.utils import EIP_170_LIMIT, ERC5202_PREFIX, checksum_encode, keccak256
@@ -978,7 +977,7 @@ def deploy(target: address, x: uint256) -> address:
     """
 
     with pytest.raises(StructureException):
-        compile_code(code, settings=Settings(experimental_codegen=True))
+        compile_code(code)
 
 
 # test that create_from_blueprint bubbles up revert data

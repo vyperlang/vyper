@@ -115,7 +115,7 @@ def echo(x: Bytes[INF]) -> Bytes[INF]:
     assert abi_with_gas[0]["gas"] is None
 
 
-def test_interface_abi_gas_estimates_with_experimental_codegen():
+def test_interface_abi_gas_estimates():
     code = """
 @external
 @view
@@ -124,11 +124,7 @@ def foo() -> uint256:
     """
 
     abi = compile_code(
-        code,
-        contract_path="foo.vyi",
-        output_formats=["abi"],
-        settings=Settings(experimental_codegen=True),
-        show_gas_estimates=True,
+        code, contract_path="foo.vyi", output_formats=["abi"], show_gas_estimates=True
     )["abi"]
 
     assert abi == [

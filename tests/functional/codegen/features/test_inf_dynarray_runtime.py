@@ -1,29 +1,27 @@
+import pytest
+
 from tests.evm_backends.abi import abi_decode, abi_encode
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings, VenomOptimizationFlags
 from vyper.utils import method_id
 
 
-def _venom_settings(*, disable_inlining=False):
-    settings = Settings(experimental_codegen=True)
-    if disable_inlining:
-        settings.venom_flags = VenomOptimizationFlags(disable_inlining=True)
-    return settings
+@pytest.fixture(autouse=True)
+def _venom_only(experimental_codegen):
+    if not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
 
 
-def _compile_venom(code, output_formats, *, settings=None):
-    return compile_code(code, output_formats=output_formats, settings=settings or _venom_settings())
+@pytest.fixture
+def no_inlining_settings(compiler_settings):
+    flags = VenomOptimizationFlags(level=compiler_settings.optimize, disable_inlining=True)
+    return Settings(**dict(compiler_settings.__dict__, venom_flags=flags))
 
 
-def _deploy_venom(env, code, *, settings=None):
-    out = _compile_venom(code, ["bytecode"], settings=settings)
-    return env.deploy([], bytes.fromhex(out["bytecode"].removeprefix("0x")))
-
-
-def _deploy_venom_with_ctor_data(env, code, ctor_data, *, settings=None):
-    out = _compile_venom(code, ["bytecode"], settings=settings)
+def _deploy_with_ctor_data(env, code, ctor_data, settings):
+    out = compile_code(code, output_formats=["abi", "bytecode"], settings=settings)
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x")) + ctor_data
-    return env.deploy([], initcode)
+    return env.deploy(out["abi"], initcode)
 
 
 def _deploy_raw_returner(env, payload):
@@ -36,14 +34,7 @@ def _deploy_raw_returner(env, payload):
     return env.deploy([], initcode)
 
 
-def _call(env, contract, signature, args_schema=None, args=None):
-    calldata = method_id(signature)
-    if args_schema is not None:
-        calldata += abi_encode(args_schema, args)
-    return env.message_call(contract.address, data=calldata)
-
-
-def test_inf_dynarray_local_from_literal(env):
+def test_inf_dynarray_local_from_literal(get_contract):
     code = """
 @external
 def foo() -> DynArray[uint256, INF]:
@@ -51,11 +42,11 @@ def foo() -> DynArray[uint256, INF]:
     return x
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(uint256[])", _call(env, c, "foo()")) == ([1, 2, 3],)
+    c = get_contract(code)
+    assert c.foo() == [1, 2, 3]
 
 
-def test_inf_dynarray_local_from_bounded(env):
+def test_inf_dynarray_local_from_bounded(get_contract):
     code = """
 @external
 def foo() -> DynArray[uint256, INF]:
@@ -64,33 +55,33 @@ def foo() -> DynArray[uint256, INF]:
     return x
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(uint256[])", _call(env, c, "foo()")) == ([11, 22, 33],)
+    c = get_contract(code)
+    assert c.foo() == [11, 22, 33]
 
 
-def test_empty_inf_dynarray_builtin(env):
+def test_empty_inf_dynarray_builtin(get_contract):
     code = """
 @external
 def foo() -> DynArray[uint256, INF]:
     return empty(DynArray[uint256, INF])
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(uint256[])", _call(env, c, "foo()")) == ([],)
+    c = get_contract(code)
+    assert c.foo() == []
 
 
-def test_empty_inf_dynarray_dynamic_tuple_builtin(env):
+def test_empty_inf_dynarray_dynamic_tuple_builtin(get_contract):
     code = """
 @external
 def value() -> (uint256, DynArray[uint256, INF]):
     return empty((uint256, DynArray[uint256, INF]))
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(uint256,uint256[])", _call(env, c, "value()")) == (0, [])
+    c = get_contract(code)
+    assert c.value() == (0, [])
 
 
-def test_inf_dynarray_composite_static_elements(env):
+def test_inf_dynarray_composite_static_elements(get_contract):
     code = """
 struct S:
     a: uint256
@@ -115,42 +106,38 @@ def structs(x: DynArray[S, INF]) -> (uint256, DynArray[S, INF]):
     return total, y
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "static_arrays(uint256[2][])", "(uint256[2][])", ([(1, 2), (3, 4)],))
-    assert abi_decode("(uint256,uint256[2][])", ret) == (21, [[1, 2], [3, 4], [5, 6]])
+    c = get_contract(code)
+    assert c.static_arrays([(1, 2), (3, 4)]) == (21, [[1, 2], [3, 4], [5, 6]])
 
     first = (1, bytes.fromhex("01" * 32))
     second = (3, bytes.fromhex("03" * 32))
     appended = (5, bytes.fromhex("05" * 32))
-    ret = _call(env, c, "structs((uint256,bytes32)[])", "((uint256,bytes32)[])", ([first, second],))
-    assert abi_decode("(uint256,(uint256,bytes32)[])", ret) == (9, [first, second, appended])
+    assert c.structs([first, second]) == (9, [first, second, appended])
 
 
-def test_inf_dynarray_external_param_roundtrip(env):
+def test_inf_dynarray_external_param_roundtrip(get_contract):
     code = """
 @external
 def echo(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     return x
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "echo(uint256[])", "(uint256[])", ([4, 5, 6, 7],))
-    assert abi_decode("(uint256[])", ret) == ([4, 5, 6, 7],)
+    c = get_contract(code)
+    assert c.echo([4, 5, 6, 7]) == [4, 5, 6, 7]
 
 
-def test_empty_inf_dynarray_external_param_roundtrip(env):
+def test_empty_inf_dynarray_external_param_roundtrip(get_contract):
     code = """
 @external
 def echo(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     return x
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "echo(uint256[])", "(uint256[])", ([],))
-    assert abi_decode("(uint256[])", ret) == ([],)
+    c = get_contract(code)
+    assert c.echo([]) == []
 
 
-def test_large_inf_dynarray_external_param_roundtrip(env):
+def test_large_inf_dynarray_external_param_roundtrip(get_contract):
     payload = [i * 17 for i in range(2001)]
     code = """
 @external
@@ -158,12 +145,11 @@ def echo(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     return x
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "echo(uint256[])", "(uint256[])", (payload,))
-    assert abi_decode("(uint256[])", ret) == (payload,)
+    c = get_contract(code)
+    assert c.echo(payload) == payload
 
 
-def test_inf_dynarray_reassignment_larger_and_smaller(env):
+def test_inf_dynarray_reassignment_larger_and_smaller(get_contract):
     code = """
 @external
 def grow() -> DynArray[uint256, INF]:
@@ -178,12 +164,12 @@ def shrink() -> DynArray[uint256, INF]:
     return x
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(uint256[])", _call(env, c, "grow()")) == ([1, 2, 3, 4, 5],)
-    assert abi_decode("(uint256[])", _call(env, c, "shrink()")) == ([9],)
+    c = get_contract(code)
+    assert c.grow() == [1, 2, 3, 4, 5]
+    assert c.shrink() == [9]
 
 
-def test_inf_dynarray_if_reassignment(env):
+def test_inf_dynarray_if_reassignment(get_contract):
     code = """
 @external
 def pick(flag: bool) -> DynArray[uint256, INF]:
@@ -195,14 +181,12 @@ def pick(flag: bool) -> DynArray[uint256, INF]:
     return x
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "pick(bool)", "bool", True)
-    assert abi_decode("(uint256[])", ret) == ([10, 20, 30, 40],)
-    ret = _call(env, c, "pick(bool)", "bool", False)
-    assert abi_decode("(uint256[])", ret) == ([7],)
+    c = get_contract(code)
+    assert c.pick(True) == [10, 20, 30, 40]
+    assert c.pick(False) == [7]
 
 
-def test_inf_dynarray_append_reallocates(env):
+def test_inf_dynarray_append_reallocates(get_contract):
     code = """
 @external
 def grow(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
@@ -212,12 +196,11 @@ def grow(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     return y
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "grow(uint256[])", "(uint256[])", ([1, 2, 3],))
-    assert abi_decode("(uint256[])", ret) == ([1, 2, 3, 99, 123],)
+    c = get_contract(code)
+    assert c.grow([1, 2, 3]) == [1, 2, 3, 99, 123]
 
 
-def test_inf_dynarray_append_loop(env):
+def test_inf_dynarray_append_loop(get_contract):
     code = """
 @external
 def build() -> DynArray[uint256, INF]:
@@ -227,12 +210,11 @@ def build() -> DynArray[uint256, INF]:
     return x
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "build()")
-    assert abi_decode("(uint256[])", ret) == ([i * i + 7 for i in range(64)],)
+    c = get_contract(code)
+    assert c.build() == [i * i + 7 for i in range(64)]
 
 
-def test_inf_dynarray_indexed_store(env, tx_failed):
+def test_inf_dynarray_indexed_store(get_contract, tx_failed):
     code = """
 @external
 def set(i: uint256, val: uint256) -> DynArray[uint256, INF]:
@@ -241,16 +223,15 @@ def set(i: uint256, val: uint256) -> DynArray[uint256, INF]:
     return x
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "set(uint256,uint256)", "(uint256,uint256)", (1, 99))
-    assert abi_decode("(uint256[])", ret) == ([10, 99, 30],)
+    c = get_contract(code)
+    assert c.set(1, 99) == [10, 99, 30]
 
     # indexed store into an INF dynarray retains the runtime out-of-bounds guard
     with tx_failed():
-        _call(env, c, "set(uint256,uint256)", "(uint256,uint256)", (3, 99))
+        c.set(3, 99)
 
 
-def test_inf_dynarray_internal_call_freezes_arg_before_later_mutation(env):
+def test_inf_dynarray_internal_call_freezes_arg_before_later_mutation(get_contract):
     code = """
 @internal
 def _len(a: DynArray[uint256, INF], popped: uint256) -> uint256:
@@ -263,12 +244,11 @@ def check() -> (uint256, DynArray[uint256, INF]):
     return r, x
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "check()")
-    assert abi_decode("(uint256,uint256[])", ret) == (33, [1, 2])
+    c = get_contract(code)
+    assert c.check() == (33, [1, 2])
 
 
-def test_inf_dynarray_external_call_freezes_arg_before_later_mutation(env):
+def test_inf_dynarray_external_call_freezes_arg_before_later_mutation(get_contract):
     target_code = """
 @external
 @view
@@ -286,13 +266,12 @@ def check(addr: address) -> (uint256, DynArray[uint256, INF]):
     return r, x
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(env, caller, "check(address)", "(address)", (target.address,))
-    assert abi_decode("(uint256,uint256[])", ret) == (33, [1, 2])
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.check(target.address) == (33, [1, 2])
 
 
-def test_inf_dynarray_external_call_freezes_bounded_arg_in_runtime_encoding(env):
+def test_inf_dynarray_external_call_freezes_bounded_arg_in_runtime_encoding(get_contract):
     target_code = """
 @external
 @view
@@ -315,13 +294,14 @@ def check(addr: address) -> (uint256, DynArray[uint256, 3], DynArray[uint256, IN
     return r, a, b
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(env, caller, "check(address)", "(address)", (target.address,))
-    assert abi_decode("(uint256,uint256[],uint256[])", ret) == (336, [4, 5], [1, 2, 3])
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.check(target.address) == (336, [4, 5], [1, 2, 3])
 
 
-def test_inf_dynarray_internal_call_freezes_bounded_arg_in_runtime_encoding(env):
+def test_inf_dynarray_internal_call_freezes_bounded_arg_in_runtime_encoding(
+    get_contract, no_inlining_settings
+):
     code = """
 @internal
 def _lengths(
@@ -339,12 +319,11 @@ def check() -> (uint256, DynArray[uint256, 3], DynArray[uint256, INF]):
     return r, a, b
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
-    ret = _call(env, c, "check()")
-    assert abi_decode("(uint256,uint256[],uint256[])", ret) == (336, [4, 5], [1, 2, 3])
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.check() == (336, [4, 5], [1, 2, 3])
 
 
-def test_inf_dynarray_tuple_literal_return_freezes_member_before_later_mutation(env):
+def test_inf_dynarray_tuple_literal_return_freezes_member_before_later_mutation(get_contract):
     code = """
 @external
 def check() -> (DynArray[uint256, INF], uint256, DynArray[uint256, INF]):
@@ -352,12 +331,11 @@ def check() -> (DynArray[uint256, INF], uint256, DynArray[uint256, INF]):
     return x, x.pop(), x
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "check()")
-    assert abi_decode("(uint256[],uint256,uint256[])", ret) == ([1, 2, 3], 3, [1, 2])
+    c = get_contract(code)
+    assert c.check() == ([1, 2, 3], 3, [1, 2])
 
 
-def test_inf_dynarray_abi_encode_freezes_arg_before_later_mutation(env):
+def test_inf_dynarray_abi_encode_freezes_arg_before_later_mutation(get_contract):
     code = """
 @external
 def check() -> (Bytes[INF], DynArray[uint256, INF]):
@@ -366,14 +344,13 @@ def check() -> (Bytes[INF], DynArray[uint256, INF]):
     return encoded, x
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "check()")
-    encoded, arr = abi_decode("(bytes,uint256[])", ret)
+    c = get_contract(code)
+    encoded, arr = c.check()
     assert abi_decode("(uint256[],uint256)", encoded) == ([1, 2, 3], 3)
     assert arr == [1, 2]
 
 
-def test_inf_dynarray_abi_encode_freezes_bounded_arg_in_runtime_encoding(env):
+def test_inf_dynarray_abi_encode_freezes_bounded_arg_in_runtime_encoding(get_contract):
     code = """
 @external
 def check() -> (Bytes[INF], DynArray[uint256, 3], DynArray[uint256, INF]):
@@ -383,15 +360,14 @@ def check() -> (Bytes[INF], DynArray[uint256, 3], DynArray[uint256, INF]):
     return encoded, a, b
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "check()")
-    encoded, bounded, unbounded = abi_decode("(bytes,uint256[],uint256[])", ret)
+    c = get_contract(code)
+    encoded, bounded, unbounded = c.check()
     assert abi_decode("(uint256[],uint256[],uint256)", encoded) == ([4, 5, 6], [1, 2, 3], 6)
     assert bounded == [4, 5]
     assert unbounded == [1, 2, 3]
 
 
-def test_inf_dynarray_pop_runtime(env, tx_failed):
+def test_inf_dynarray_pop_runtime(get_contract, tx_failed):
     code = """
 struct S:
     a: uint256
@@ -433,26 +409,21 @@ def pop_maybe(flag: bool) -> uint256:
     return x.pop()
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "pop_primitive()")
-    assert abi_decode("(uint256,uint256[])", ret) == (3, [1, 2])
-    ret = _call(env, c, "pop_then_append()")
-    assert abi_decode("(uint256[])", ret) == ([1, 2, 9],)
-    ret = _call(env, c, "pop_array()")
-    assert abi_decode("(uint256[2],uint256[2][])", ret) == ([3, 4], [[1, 2]])
+    c = get_contract(code)
+    assert c.pop_primitive() == (3, [1, 2])
+    assert c.pop_then_append() == [1, 2, 9]
+    assert c.pop_array() == ([3, 4], [[1, 2]])
 
     first = (1, bytes.fromhex("01" * 32))
     second = (2, bytes.fromhex("02" * 32))
-    ret = _call(env, c, "pop_struct()")
-    assert abi_decode("((uint256,bytes32),(uint256,bytes32)[])", ret) == (second, [first])
+    assert c.pop_struct() == (second, [first])
 
-    ret = _call(env, c, "pop_maybe(bool)", "bool", True)
-    assert abi_decode("(uint256)", ret) == (1,)
+    assert c.pop_maybe(True) == 1
     with tx_failed():
-        _call(env, c, "pop_maybe(bool)", "bool", False)
+        c.pop_maybe(False)
 
 
-def test_inf_dynarray_for_loop(env):
+def test_inf_dynarray_for_loop(get_contract):
     code = """
 @external
 def total(x: DynArray[uint256, INF]) -> uint256:
@@ -462,12 +433,11 @@ def total(x: DynArray[uint256, INF]) -> uint256:
     return ret
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "total(uint256[])", "(uint256[])", ([5, 8, 13, 21],))
-    assert abi_decode("(uint256)", ret) == (47,)
+    c = get_contract(code)
+    assert c.total([5, 8, 13, 21]) == 47
 
 
-def test_inf_dynarray_membership(env):
+def test_inf_dynarray_membership(get_contract):
     payload = [i * 11 for i in range(2001)]
     code = """
 @external
@@ -479,18 +449,14 @@ def missing(x: DynArray[uint256, INF], a: uint256) -> bool:
     return a not in x
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "contains(uint256[],uint256)", "(uint256[],uint256)", (payload, 22000))
-    assert abi_decode("(bool)", ret) == (True,)
-    ret = _call(env, c, "contains(uint256[],uint256)", "(uint256[],uint256)", (payload, 22001))
-    assert abi_decode("(bool)", ret) == (False,)
-    ret = _call(env, c, "missing(uint256[],uint256)", "(uint256[],uint256)", (payload, 22001))
-    assert abi_decode("(bool)", ret) == (True,)
-    ret = _call(env, c, "contains(uint256[],uint256)", "(uint256[],uint256)", ([], 0))
-    assert abi_decode("(bool)", ret) == (False,)
+    c = get_contract(code)
+    assert c.contains(payload, 22000) is True
+    assert c.contains(payload, 22001) is False
+    assert c.missing(payload, 22001) is True
+    assert c.contains([], 0) is False
 
 
-def test_inf_dynarray_print(env):
+def test_inf_dynarray_print(get_contract):
     payload = [i * 13 for i in range(2001)]
     code = """
 @external
@@ -500,12 +466,11 @@ def log_values(x: DynArray[uint256, INF]) -> (uint256, uint256, uint256):
     return len(x), x[0], x[2000]
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "log_values(uint256[])", "(uint256[])", (payload,))
-    assert abi_decode("(uint256,uint256,uint256)", ret) == (len(payload), payload[0], payload[-1])
+    c = get_contract(code)
+    assert c.log_values(payload) == (len(payload), payload[0], payload[-1])
 
 
-def test_inf_dynarray_internal_arg_return_roundtrip(env):
+def test_inf_dynarray_internal_arg_return_roundtrip(get_contract):
     code = """
 @internal
 def _echo(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
@@ -516,12 +481,11 @@ def echo(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     return self._echo(x)
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "echo(uint256[])", "(uint256[])", ([3, 1, 4, 1, 5],))
-    assert abi_decode("(uint256[])", ret) == ([3, 1, 4, 1, 5],)
+    c = get_contract(code)
+    assert c.echo([3, 1, 4, 1, 5]) == [3, 1, 4, 1, 5]
 
 
-def test_inf_dynarray_internal_arg_return_no_inline(env):
+def test_inf_dynarray_internal_arg_return_no_inline(get_contract, no_inlining_settings):
     code = """
 @internal
 def _echo(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
@@ -532,12 +496,11 @@ def echo(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     return self._echo(x)
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
-    ret = _call(env, c, "echo(uint256[])", "(uint256[])", ([8, 6, 7, 5, 3, 0, 9],))
-    assert abi_decode("(uint256[])", ret) == ([8, 6, 7, 5, 3, 0, 9],)
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.echo([8, 6, 7, 5, 3, 0, 9]) == [8, 6, 7, 5, 3, 0, 9]
 
 
-def test_inf_dynarray_internal_tuple_return_no_inline(env):
+def test_inf_dynarray_internal_tuple_return_no_inline(get_contract, no_inlining_settings):
     payload = [i * 19 for i in range(2001)]
     code = """
 @internal
@@ -549,12 +512,11 @@ def pair(x: DynArray[uint256, INF]) -> (uint256, DynArray[uint256, INF]):
     return self._pair(x)
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
-    ret = _call(env, c, "pair(uint256[])", "(uint256[])", (payload,))
-    assert abi_decode("(uint256,uint256[])", ret) == (17, payload)
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.pair(payload) == (17, payload)
 
 
-def test_inf_dynarray_internal_tuple_unpack_no_inline(env):
+def test_inf_dynarray_internal_tuple_unpack_no_inline(get_contract, no_inlining_settings):
     code = """
 @internal
 def _pair() -> (uint256, DynArray[uint256, INF]):
@@ -568,25 +530,24 @@ def unpack() -> (uint256, uint256, uint256):
     return a, len(b), b[2]
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
-    assert abi_decode("(uint256,uint256,uint256)", _call(env, c, "unpack()")) == (23, 3, 6)
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.unpack() == (23, 3, 6)
 
 
-def test_inf_dynarray_external_kwarg_default_and_provided(env):
+def test_inf_dynarray_external_kwarg_default_and_provided(get_contract):
     code = """
 @external
 def echo(x: DynArray[uint256, INF] = [12, 34]) -> DynArray[uint256, INF]:
     return x
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(uint256[])", _call(env, c, "echo()")) == ([12, 34],)
+    c = get_contract(code)
+    assert c.echo() == [12, 34]
 
-    ret = _call(env, c, "echo(uint256[])", "(uint256[])", ([56, 78, 90],))
-    assert abi_decode("(uint256[])", ret) == ([56, 78, 90],)
+    assert c.echo([56, 78, 90]) == [56, 78, 90]
 
 
-def test_inf_dynarray_constructor_param(env):
+def test_inf_dynarray_constructor_param(get_contract):
     code = """
 stored_len: immutable(uint256)
 stored_item: immutable(uint256)
@@ -601,12 +562,11 @@ def get() -> (uint256, uint256):
     return stored_len, stored_item
     """
 
-    ctor_data = abi_encode("(uint256[])", ([11, 22, 33, 44, 55],))
-    c = _deploy_venom_with_ctor_data(env, code, ctor_data)
-    assert abi_decode("(uint256,uint256)", _call(env, c, "get()")) == (5, 44)
+    c = get_contract(code, [11, 22, 33, 44, 55])
+    assert c.get() == (5, 44)
 
 
-def test_inf_dynarray_constructor_param_allows_truncated_data(env):
+def test_inf_dynarray_constructor_param_allows_truncated_data(env, compiler_settings):
     code = """
 @deploy
 def __init__(x: DynArray[uint256, INF]):
@@ -620,11 +580,11 @@ def ok() -> uint256:
     def word(value):
         return value.to_bytes(32, "big")
 
-    c = _deploy_venom_with_ctor_data(env, code, word(32) + word(2) + word(1))
-    assert abi_decode("(uint256)", _call(env, c, "ok()")) == (1,)
+    c = _deploy_with_ctor_data(env, code, word(32) + word(2) + word(1), compiler_settings)
+    assert c.ok() == 1
 
 
-def test_inf_dynarray_staticcall_return_roundtrip(env):
+def test_inf_dynarray_staticcall_return_roundtrip(get_contract):
     target_code = """
 @external
 @view
@@ -641,13 +601,12 @@ def get(addr: address) -> DynArray[uint256, INF]:
     return staticcall Source(addr).data()
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(env, caller, "get(address)", "address", target.address)
-    assert abi_decode("(uint256[])", ret) == ([10, 20, 30],)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address) == [10, 20, 30]
 
 
-def test_inf_dynarray_staticcall_return_rejects_wrapped_length(env, tx_failed):
+def test_inf_dynarray_staticcall_return_rejects_wrapped_length(env, get_contract, tx_failed):
     caller_code = """
 interface Source:
     def data() -> DynArray[uint256, INF]: view
@@ -657,17 +616,17 @@ def get(addr: address) -> DynArray[uint256, INF]:
     return staticcall Source(addr).data()
     """
 
-    caller = _deploy_venom(env, caller_code)
+    caller = get_contract(caller_code)
 
     def word(value):
         return value.to_bytes(32, "big")
 
     target = _deploy_raw_returner(env, word(32) + word(2**251))
     with tx_failed():
-        _call(env, caller, "get(address)", "address", target.address)
+        caller.get(target.address)
 
 
-def test_inf_dynarray_staticcall_default_return_value(env):
+def test_inf_dynarray_staticcall_default_return_value(env, get_contract):
     payload = [10, 20, 30]
     caller_code = """
 interface Source:
@@ -678,17 +637,15 @@ def get(addr: address) -> DynArray[uint256, INF]:
     return staticcall Source(addr).data(default_return_value=[7, 8, 9])
     """
 
-    caller = _deploy_venom(env, caller_code)
+    caller = get_contract(caller_code)
     empty_target = _deploy_raw_returner(env, b"")
-    ret = _call(env, caller, "get(address)", "address", empty_target.address)
-    assert abi_decode("(uint256[])", ret) == ([7, 8, 9],)
+    assert caller.get(empty_target.address) == [7, 8, 9]
 
     target = _deploy_raw_returner(env, abi_encode("(uint256[])", (payload,)))
-    ret = _call(env, caller, "get(address)", "address", target.address)
-    assert abi_decode("(uint256[])", ret) == (payload,)
+    assert caller.get(target.address) == payload
 
 
-def test_inf_dynarray_staticcall_default_return_value_from_inf_local(env):
+def test_inf_dynarray_staticcall_default_return_value_from_inf_local(env, get_contract):
     payload = [i * 47 for i in range(2001)]
     caller_code = """
 interface Source:
@@ -700,19 +657,12 @@ def get(addr: address, x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     return staticcall Source(addr).data(default_return_value=fallback)
     """
 
-    caller = _deploy_venom(env, caller_code)
+    caller = get_contract(caller_code)
     empty_target = _deploy_raw_returner(env, b"")
-    ret = _call(
-        env,
-        caller,
-        "get(address,uint256[])",
-        "(address,uint256[])",
-        (empty_target.address, payload),
-    )
-    assert abi_decode("(uint256[])", ret) == (payload,)
+    assert caller.get(empty_target.address, payload) == payload
 
 
-def test_inf_dynarray_staticcall_tuple_return_roundtrip(env):
+def test_inf_dynarray_staticcall_tuple_return_roundtrip(get_contract):
     payload = [i * 43 for i in range(2001)]
     target_code = """
 @external
@@ -730,15 +680,12 @@ def get(addr: address, x: DynArray[uint256, INF]) -> (uint256, DynArray[uint256,
     return staticcall Source(addr).pair(x)
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(
-        env, caller, "get(address,uint256[])", "(address,uint256[])", (target.address, payload)
-    )
-    assert abi_decode("(uint256,uint256[])", ret) == (41, payload)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address, payload) == (41, payload)
 
 
-def test_inf_dynarray_extcall_tuple_return_roundtrip(env):
+def test_inf_dynarray_extcall_tuple_return_roundtrip(get_contract):
     payload = [i * 47 for i in range(2001)]
     target_code = """
 @external
@@ -755,15 +702,12 @@ def get(addr: address, x: DynArray[uint256, INF]) -> (uint256, DynArray[uint256,
     return extcall Source(addr).pair(x)
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(
-        env, caller, "get(address,uint256[])", "(address,uint256[])", (target.address, payload)
-    )
-    assert abi_decode("(uint256,uint256[])", ret) == (47, payload)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address, payload) == (47, payload)
 
 
-def test_large_inf_dynarray_staticcall_inf_arg_roundtrip(env):
+def test_large_inf_dynarray_staticcall_inf_arg_roundtrip(get_contract):
     payload = [i * 29 for i in range(2001)]
     target_code = """
 @external
@@ -781,15 +725,12 @@ def get(addr: address, x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     return staticcall Source(addr).data(x)
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(
-        env, caller, "get(address,uint256[])", "(address,uint256[])", (target.address, payload)
-    )
-    assert abi_decode("(uint256[])", ret) == (payload,)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address, payload) == payload
 
 
-def test_inf_dynarray_extcall_inf_arg_roundtrip(env):
+def test_inf_dynarray_extcall_inf_arg_roundtrip(get_contract):
     target_code = """
 @external
 def data(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
@@ -805,15 +746,12 @@ def get(addr: address, x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     return extcall Source(addr).data(x)
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(
-        env, caller, "get(address,uint256[])", "(address,uint256[])", (target.address, [9, 8, 7])
-    )
-    assert abi_decode("(uint256[])", ret) == ([9, 8, 7],)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address, [9, 8, 7]) == [9, 8, 7]
 
 
-def test_wildcard_arg_literal_roundtrip(env):
+def test_wildcard_arg_literal_roundtrip(get_contract):
     target_code = """
 @external
 def data(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
@@ -833,15 +771,13 @@ def get_literal(addr: address) -> DynArray[uint256, 4]:
     return extcall Source(addr).data([5, 6])
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(env, caller, "get_empty(address)", "(address)", (target.address,))
-    assert abi_decode("(uint256[])", ret) == ([],)
-    ret = _call(env, caller, "get_literal(address)", "(address)", (target.address,))
-    assert abi_decode("(uint256[])", ret) == ([5, 6],)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get_empty(target.address) == []
+    assert caller.get_literal(target.address) == [5, 6]
 
 
-def test_inf_dynarray_abi_encode_default_tuple(env):
+def test_inf_dynarray_abi_encode_default_tuple(get_contract):
     payload = [i * 31 for i in range(2001)]
     code = """
 @external
@@ -849,12 +785,11 @@ def enc(x: DynArray[uint256, INF]) -> Bytes[INF]:
     return abi_encode(x)
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "enc(uint256[])", "(uint256[])", (payload,))
-    assert abi_decode("(bytes)", ret) == (abi_encode("(uint256[])", (payload,)),)
+    c = get_contract(code)
+    assert c.enc(payload) == abi_encode("(uint256[])", (payload,))
 
 
-def test_inf_dynarray_abi_encode_no_tuple(env):
+def test_inf_dynarray_abi_encode_no_tuple(get_contract):
     payload = [i * 37 for i in range(2001)]
     code = """
 @external
@@ -862,12 +797,11 @@ def enc(x: DynArray[uint256, INF]) -> Bytes[INF]:
     return abi_encode(x, ensure_tuple=False)
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "enc(uint256[])", "(uint256[])", (payload,))
-    assert abi_decode("(bytes)", ret) == (abi_encode("uint256[]", payload),)
+    c = get_contract(code)
+    assert c.enc(payload) == abi_encode("uint256[]", payload)
 
 
-def test_inf_dynarray_abi_encode_method_id_and_static_args(env):
+def test_inf_dynarray_abi_encode_method_id_and_static_args(get_contract):
     payload = [5, 8, 13, 21]
     code = """
 @external
@@ -875,16 +809,13 @@ def enc(a: uint256, x: DynArray[uint256, INF], b: uint256) -> Bytes[INF]:
     return abi_encode(a, x, b, method_id=method_id("foo(uint256,uint256[],uint256)"))
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(
-        env, c, "enc(uint256,uint256[],uint256)", "(uint256,uint256[],uint256)", (11, payload, 22)
-    )
+    c = get_contract(code)
     expected = method_id("foo(uint256,uint256[],uint256)")
     expected += abi_encode("(uint256,uint256[],uint256)", (11, payload, 22))
-    assert abi_decode("(bytes)", ret) == (expected,)
+    assert c.enc(11, payload, 22) == expected
 
 
-def test_inf_dynarray_abi_decode_default_tuple(env):
+def test_inf_dynarray_abi_decode_default_tuple(get_contract):
     payload = [i * 41 for i in range(2001)]
     code = """
 @external
@@ -892,13 +823,12 @@ def dec(x: Bytes[INF]) -> DynArray[uint256, INF]:
     return abi_decode(x, DynArray[uint256, INF])
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
     encoded = abi_encode("(uint256[])", (payload,))
-    ret = _call(env, c, "dec(bytes)", "(bytes)", (encoded,))
-    assert abi_decode("(uint256[])", ret) == (payload,)
+    assert c.dec(encoded) == payload
 
 
-def test_inf_dynarray_abi_decode_no_tuple(env):
+def test_inf_dynarray_abi_decode_no_tuple(get_contract):
     payload = [i * 43 for i in range(2001)]
     code = """
 @external
@@ -906,13 +836,12 @@ def dec(x: Bytes[INF]) -> DynArray[uint256, INF]:
     return abi_decode(x, DynArray[uint256, INF], unwrap_tuple=False)
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
     encoded = abi_encode("uint256[]", payload)
-    ret = _call(env, c, "dec(bytes)", "(bytes)", (encoded,))
-    assert abi_decode("(uint256[])", ret) == (payload,)
+    assert c.dec(encoded) == payload
 
 
-def test_inf_dynarray_abi_decode_rejects_malformed_payload(env, tx_failed):
+def test_inf_dynarray_abi_decode_rejects_malformed_payload(get_contract, tx_failed):
     code = """
 @external
 def dec(x: Bytes[INF]) -> DynArray[uint256, INF]:
@@ -923,23 +852,22 @@ def dec_no_tuple(x: Bytes[INF]) -> DynArray[uint256, INF]:
     return abi_decode(x, DynArray[uint256, INF], unwrap_tuple=False)
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
 
     def word(value):
         return value.to_bytes(32, "big")
 
-    ret = _call(env, c, "dec(bytes)", "(bytes)", (word(0),))
-    assert abi_decode("(uint256[])", ret) == ([],)
+    assert c.dec(word(0)) == []
 
     for payload in [word(32), word(32) + word(2) + word(1)]:
         with tx_failed():
-            _call(env, c, "dec(bytes)", "(bytes)", (payload,))
+            c.dec(payload)
 
     with tx_failed():
-        _call(env, c, "dec_no_tuple(bytes)", "(bytes)", (word(2) + word(1),))
+        c.dec_no_tuple(word(2) + word(1))
 
 
-def test_inf_dynarray_abi_encode_decode_local_roundtrip(env):
+def test_inf_dynarray_abi_encode_decode_local_roundtrip(get_contract):
     payload = [i * 47 for i in range(2001)]
     code = """
 @external
@@ -948,12 +876,13 @@ def roundtrip(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     return abi_decode(encoded, DynArray[uint256, INF])
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "roundtrip(uint256[])", "(uint256[])", (payload,))
-    assert abi_decode("(uint256[])", ret) == (payload,)
+    c = get_contract(code)
+    assert c.roundtrip(payload) == payload
 
 
-def test_inf_dynarray_raw_create_snapshots_ctor_arg_before_pop(env):
+def test_inf_dynarray_raw_create_snapshots_ctor_arg_before_pop(
+    env, get_contract, compiler_settings
+):
     child_code = """
 stored_len: public(uint256)
 popped: public(uint256)
@@ -963,7 +892,7 @@ def __init__(xs: DynArray[uint256, INF], popped: uint256):
     self.stored_len = len(xs)
     self.popped = popped
     """
-    out = _compile_venom(child_code, ["bytecode"])
+    out = compile_code(child_code, output_formats=["bytecode"], settings=compiler_settings)
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
 
     deployer_code = """
@@ -973,11 +902,8 @@ def deploy(s: Bytes[INF], values: DynArray[uint256, INF]) -> address:
     return raw_create(s, xs, xs.pop())
     """
 
-    deployer = _deploy_venom(env, deployer_code)
-    ret = _call(
-        env, deployer, "deploy(bytes,uint256[])", "(bytes,uint256[])", (initcode, [11, 22, 33])
-    )
-    addr = abi_decode("(address)", ret)[0]
+    deployer = get_contract(deployer_code)
+    addr = deployer.deploy(initcode, [11, 22, 33])
 
     ret = env.message_call(addr, data=method_id("stored_len()"))
     assert abi_decode("(uint256)", ret) == (3,)
@@ -985,7 +911,9 @@ def deploy(s: Bytes[INF], values: DynArray[uint256, INF]) -> address:
     assert abi_decode("(uint256)", ret) == (33,)
 
 
-def test_inf_dynarray_raw_create_snapshots_ctor_arg_before_value_kwarg(env):
+def test_inf_dynarray_raw_create_snapshots_ctor_arg_before_value_kwarg(
+    env, get_contract, compiler_settings
+):
     child_code = """
 stored_len: public(uint256)
 last: public(uint256)
@@ -996,7 +924,7 @@ def __init__(xs: DynArray[uint256, INF]):
     self.stored_len = len(xs)
     self.last = xs[len(xs) - 1]
     """
-    out = _compile_venom(child_code, ["bytecode"])
+    out = compile_code(child_code, output_formats=["bytecode"], settings=compiler_settings)
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
 
     deployer_code = """
@@ -1007,11 +935,8 @@ def deploy(s: Bytes[INF], values: DynArray[uint256, INF]) -> (address, uint256):
     return addr, len(xs)
     """
 
-    deployer = _deploy_venom(env, deployer_code)
-    ret = _call(
-        env, deployer, "deploy(bytes,uint256[])", "(bytes,uint256[])", (initcode, [11, 22, 0])
-    )
-    addr, local_len = abi_decode("(address,uint256)", ret)
+    deployer = get_contract(deployer_code)
+    addr, local_len = deployer.deploy(initcode, [11, 22, 0])
     assert local_len == 2
 
     ret = env.message_call(addr, data=method_id("stored_len()"))
@@ -1020,7 +945,9 @@ def deploy(s: Bytes[INF], values: DynArray[uint256, INF]) -> (address, uint256):
     assert abi_decode("(uint256)", ret) == (0,)
 
 
-def test_inf_dynarray_raw_create_freezes_bounded_ctor_arg_in_runtime_encoding(env):
+def test_inf_dynarray_raw_create_freezes_bounded_ctor_arg_in_runtime_encoding(
+    env, get_contract, compiler_settings
+):
     child_code = """
 stored_len_a: public(uint256)
 stored_len_b: public(uint256)
@@ -1036,7 +963,7 @@ def __init__(
     self.stored_len_b = len(b)
     self.popped = popped
     """
-    out = _compile_venom(child_code, ["bytecode"])
+    out = compile_code(child_code, output_formats=["bytecode"], settings=compiler_settings)
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
 
     deployer_code = """
@@ -1048,9 +975,8 @@ def deploy(s: Bytes[INF]) -> (address, DynArray[uint256, 3], DynArray[uint256, I
     return addr, a, b
     """
 
-    deployer = _deploy_venom(env, deployer_code)
-    ret = _call(env, deployer, "deploy(bytes)", "(bytes)", (initcode,))
-    addr, bounded, unbounded = abi_decode("(address,uint256[],uint256[])", ret)
+    deployer = get_contract(deployer_code)
+    addr, bounded, unbounded = deployer.deploy(initcode)
     assert bounded == [4, 5]
     assert unbounded == [1, 2, 3]
 
@@ -1062,7 +988,9 @@ def deploy(s: Bytes[INF]) -> (address, DynArray[uint256, 3], DynArray[uint256, I
     assert abi_decode("(uint256)", ret) == (6,)
 
 
-def test_inf_dynarray_create_from_blueprint_unbounded_ctor_arg(env):
+def test_inf_dynarray_create_from_blueprint_unbounded_ctor_arg(
+    env, get_contract, deploy_blueprint_for
+):
     payload = [(i * 17) % 1000 for i in range(777)]
     child_code = """
 stored_len: public(uint256)
@@ -1075,8 +1003,7 @@ def __init__(x: DynArray[uint256, INF]):
     self.first = x[0]
     self.last = x[len(x) - 1]
     """
-    out = _compile_venom(child_code, ["blueprint_bytecode"])
-    blueprint = env.deploy([], bytes.fromhex(out["blueprint_bytecode"].removeprefix("0x")))
+    blueprint, _ = deploy_blueprint_for(child_code)
 
     deployer_code = """
 @external
@@ -1084,15 +1011,8 @@ def deploy(target: address, x: DynArray[uint256, INF]) -> address:
     return create_from_blueprint(target, x)
     """
 
-    deployer = _deploy_venom(env, deployer_code)
-    ret = _call(
-        env,
-        deployer,
-        "deploy(address,uint256[])",
-        "(address,uint256[])",
-        (blueprint.address, payload),
-    )
-    addr = abi_decode("(address)", ret)[0]
+    deployer = get_contract(deployer_code)
+    addr = deployer.deploy(blueprint.address, payload)
     assert abi_decode("(uint256)", env.message_call(addr, data=method_id("stored_len()"))) == (
         len(payload),
     )
@@ -1104,7 +1024,9 @@ def deploy(target: address, x: DynArray[uint256, INF]) -> address:
     )
 
 
-def test_inf_dynarray_create_from_blueprint_snapshots_ctor_arg_before_code_offset(env):
+def test_inf_dynarray_create_from_blueprint_snapshots_ctor_arg_before_code_offset(
+    env, get_contract, deploy_blueprint_for
+):
     child_code = """
 stored_len: public(uint256)
 last: public(uint256)
@@ -1114,8 +1036,7 @@ def __init__(x: DynArray[uint256, INF]):
     self.stored_len = len(x)
     self.last = x[len(x) - 1]
     """
-    out = _compile_venom(child_code, ["blueprint_bytecode"])
-    blueprint = env.deploy([], bytes.fromhex(out["blueprint_bytecode"].removeprefix("0x")))
+    blueprint, _ = deploy_blueprint_for(child_code)
 
     deployer_code = """
 @external
@@ -1125,15 +1046,8 @@ def deploy(target: address, values: DynArray[uint256, INF]) -> (address, uint256
     return addr, len(x)
     """
 
-    deployer = _deploy_venom(env, deployer_code)
-    ret = _call(
-        env,
-        deployer,
-        "deploy(address,uint256[])",
-        "(address,uint256[])",
-        (blueprint.address, [11, 22, 3]),
-    )
-    addr, local_len = abi_decode("(address,uint256)", ret)
+    deployer = get_contract(deployer_code)
+    addr, local_len = deployer.deploy(blueprint.address, [11, 22, 3])
     assert local_len == 2
 
     ret = env.message_call(addr, data=method_id("stored_len()"))
@@ -1142,7 +1056,9 @@ def deploy(target: address, values: DynArray[uint256, INF]) -> (address, uint256
     assert abi_decode("(uint256)", ret) == (3,)
 
 
-def test_inf_dynarray_internal_tuple_return_coerces_bounded_complex_member(env):
+def test_inf_dynarray_internal_tuple_return_coerces_bounded_complex_member(
+    get_contract, no_inlining_settings
+):
     payload = bytes((i * 49) % 256 for i in range(2001))
     code = """
 @internal
@@ -1155,19 +1071,18 @@ def pair(x: Bytes[INF]) -> (DynArray[Bytes[65], 3], Bytes[INF]):
     return self._pair(x)
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
-    ret = _call(env, c, "pair(bytes)", "(bytes)", (payload,))
-    assert abi_decode("(bytes[],bytes)", ret) == ([b"cat", b"kitten"], payload)
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.pair(payload) == ([b"cat", b"kitten"], payload)
 
 
-def test_inf_dynarray_external_param_rejects_truncated_calldata(env, tx_failed):
+def test_inf_dynarray_external_param_rejects_truncated_calldata(env, get_contract, tx_failed):
     code = """
 @external
 def length(x: DynArray[uint256, INF]) -> uint256:
     return len(x)
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
 
     def word(value):
         return value.to_bytes(32, "big")

@@ -1,5 +1,3 @@
-import copy
-
 import pytest
 from eth.codecs import abi
 
@@ -987,7 +985,7 @@ def run(x1: Bytes[{buffer_size1}], x2: Bytes[{buffer_size2}]):
         c.run(data1, data2)
 
 
-def _run_abi_decode_merge_head_and_length(get_contract, compiler_settings=None):
+def test_abi_decode_merge_head_and_length(env, get_contract):
     # compress head and length into 33B
     buffer_size = 32 * 2 + 8 * 32
     code = f"""
@@ -997,11 +995,7 @@ def run(x: Bytes[{buffer_size}]) -> Bytes[{buffer_size}]:
     decoded_y1: Bytes[256] = _abi_decode(y, Bytes[256])
     return decoded_y1
     """
-    kwargs = {}
-    if compiler_settings is not None:
-        kwargs["compiler_settings"] = compiler_settings
-
-    c = get_contract(code, **kwargs)
+    c = get_contract(code)
 
     buffer_payload = (0x01, (0x00).to_bytes(1, "big"), *_replicate(0x00, 8))
 
@@ -1012,19 +1006,7 @@ def run(x: Bytes[{buffer_size}]) -> Bytes[{buffer_size}]:
     expected = b"\x00" * 256
     assert res == expected
 
-    return data, expected
-
-
-def test_abi_decode_merge_head_and_length(env, get_contract):
-    data, expected = _run_abi_decode_merge_head_and_length(get_contract)
-
     _test_ctor_decode(env, "Bytes[256]", data, expected)
-
-
-def test_abi_decode_merge_head_and_length_venom(get_contract, compiler_settings):
-    settings = copy.copy(compiler_settings)
-    settings.experimental_codegen = True
-    _run_abi_decode_merge_head_and_length(get_contract, compiler_settings=settings)
 
 
 def test_abi_decode_extcall_invalid_head(tx_failed, get_contract):

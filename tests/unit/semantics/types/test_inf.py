@@ -625,10 +625,9 @@ def foo(x: uint256) -> DynArray[uint256, 5]:
         """,
     ],
 )
-@pytest.mark.parametrize("exp_codegen", [False, True])
-def test_convert_rejects_dynarray_source_or_target(code, exp_codegen):
+def test_convert_rejects_dynarray_source_or_target(code):
     with pytest.raises(TypeMismatch):
-        compiler.compile_code(code, settings=Settings(experimental_codegen=exp_codegen))
+        compiler.compile_code(code)
 
 
 @pytest.mark.parametrize(
@@ -864,8 +863,7 @@ def foo() -> uint256:
     )
 
 
-@pytest.mark.parametrize("exp_codegen", [False, True])
-def test_inf_default_arg_expression_rejected(exp_codegen):
+def test_inf_default_arg_expression_rejected():
     # default argument expressions may only be literals or environment
     # variables, so INF-typed expressions cannot appear in defaults with
     # a bounded arg type; INF-typed args are covered by the argument checks
@@ -875,7 +873,7 @@ def foo(x: uint256 = len(empty(Bytes[INF]))) -> uint256:
     return x
     """
     with pytest.raises(StateAccessViolation):
-        compiler.compile_code(code, settings=Settings(experimental_codegen=exp_codegen))
+        compiler.compile_code(code)
 
 
 def test_legacy_codegen_allows_bounded_local_user_type():
@@ -987,7 +985,7 @@ def f(a: address) -> uint256:
     return len(staticcall I(a).foo())
     """
     with pytest.raises(StructureException):
-        compiler.compile_code(rejected, settings=Settings(experimental_codegen=True))
+        compiler.compile_code(rejected)
 
     accepted = """
 interface I:
@@ -997,7 +995,7 @@ interface I:
 def f(a: address) -> DynArray[Bytes[10], 5]:
     return staticcall I(a).foo()
     """
-    compiler.compile_code(accepted, settings=Settings(experimental_codegen=True))
+    compiler.compile_code(accepted)
 
 
 def test_wildcard_arg_dynamic_element_requires_expected_bound():
@@ -1013,7 +1011,7 @@ def f(a: address):
         StructureException,
         match="DynArray\\[\\.\\.\\., INF\\] is only supported with ABI-static element types",
     ):
-        compiler.compile_code(rejected, settings=Settings(experimental_codegen=True))
+        compiler.compile_code(rejected)
 
     accepted = """
 interface I:
@@ -1023,7 +1021,7 @@ interface I:
 def f(a: address, xs: DynArray[Bytes[10], 5]):
     extcall I(a).foo(xs)
     """
-    compiler.compile_code(accepted, settings=Settings(experimental_codegen=True))
+    compiler.compile_code(accepted)
 
 
 @pytest.mark.parametrize("element_type", ["Bytes[...]", "DynArray[uint256, ...]"])
@@ -1044,8 +1042,7 @@ def f(a: address):
 
 @pytest.mark.parametrize("arg_source", ["xs", "[]", "[1, 2]"])
 def test_wildcard_arg_accepts_bounded_values(arg_source):
-    # bounded variables and literals passed to a wildcard interface arg
-    # compile under both pipelines
+    # bounded variables and literals passed to a wildcard interface arg compile
     code = f"""
 interface I:
     def foo(xs: DynArray[uint256, ...]): nonpayable
@@ -1055,8 +1052,7 @@ def f(a: address):
     xs: DynArray[uint256, 3] = [1, 2, 3]
     extcall I(a).foo({arg_source})
     """
-    compiler.compile_code(code, settings=Settings(experimental_codegen=False))
-    compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+    compiler.compile_code(code)
 
 
 def test_wildcard_tuple_interface_arg_rejects_inf_source():
@@ -1139,12 +1135,7 @@ def emit(x: Bytes[10]):
     log JSONInterface.Foo(x=x)
     """
     input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
-    compiler.compile_code(
-        code,
-        output_formats=["bytecode"],
-        input_bundle=input_bundle,
-        settings=Settings(experimental_codegen=True),
-    )
+    compiler.compile_code(code, output_formats=["bytecode"], input_bundle=input_bundle)
 
 
 def test_bounded_event_accepts_wildcard_call_return():
@@ -1159,9 +1150,7 @@ interface I:
 def emit(a: address):
     log Foo(x=staticcall I(a).foo())
     """
-    compiler.compile_code(
-        code, output_formats=["bytecode"], settings=Settings(experimental_codegen=True)
-    )
+    compiler.compile_code(code, output_formats=["bytecode"])
 
 
 @pytest.mark.parametrize(

@@ -11,25 +11,22 @@ from vyper.exceptions import StructureException
 from vyper.utils import EIP_3860_LIMIT, method_id
 
 
-def _venom_settings(*, disable_inlining=False):
-    settings = Settings(experimental_codegen=True)
-    if disable_inlining:
-        settings.venom_flags = VenomOptimizationFlags(disable_inlining=True)
-    return settings
+@pytest.fixture(autouse=True)
+def _venom_only(experimental_codegen):
+    if not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
 
 
-def _compile_venom(code, output_formats, *, settings=None, input_bundle=None):
-    return compile_code(
-        code,
-        output_formats=output_formats,
-        settings=settings or _venom_settings(),
-        input_bundle=input_bundle,
-    )
+@pytest.fixture
+def no_inlining_settings(compiler_settings):
+    flags = VenomOptimizationFlags(level=compiler_settings.optimize, disable_inlining=True)
+    return Settings(**dict(compiler_settings.__dict__, venom_flags=flags))
 
 
-def _deploy_venom(env, code, *, settings=None, input_bundle=None):
-    out = _compile_venom(code, ["bytecode"], settings=settings, input_bundle=input_bundle)
-    return env.deploy([], bytes.fromhex(out["bytecode"].removeprefix("0x")))
+def _deploy_with_ctor_data(env, code, ctor_data, settings):
+    out = compile_code(code, output_formats=["abi", "bytecode"], settings=settings)
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x")) + ctor_data
+    return env.deploy(out["abi"], initcode)
 
 
 def _deploy_raw_returner(env, payload):
@@ -42,20 +39,16 @@ def _deploy_raw_returner(env, payload):
     return env.deploy([], initcode)
 
 
-def _deploy_venom_with_ctor_data(env, code, ctor_data, *, settings=None, input_bundle=None):
-    out = _compile_venom(code, ["bytecode"], settings=settings, input_bundle=input_bundle)
-    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x")) + ctor_data
-    return env.deploy([], initcode)
-
-
 def _call(env, contract, signature, args_schema=None, args=None):
+    # raw call helper for tests which check the exact wire encoding of the
+    # returndata (abi decoding would hide padding and tuple wrapping)
     calldata = method_id(signature)
     if args_schema is not None:
         calldata += abi_encode(args_schema, args)
     return env.message_call(contract.address, data=calldata)
 
 
-def test_inf_bytes_local_from_bounded(env):
+def test_inf_bytes_local_from_bounded(get_contract):
     code = """
 @external
 def foo() -> Bytes[5]:
@@ -63,11 +56,11 @@ def foo() -> Bytes[5]:
     return slice(x, 0, 5)
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(bytes)", _call(env, c, "foo()")) == (b"hello",)
+    c = get_contract(code)
+    assert c.foo() == b"hello"
 
 
-def test_inf_string_local_from_bounded(env):
+def test_inf_string_local_from_bounded(get_contract):
     code = """
 @external
 def foo() -> String[5]:
@@ -75,11 +68,11 @@ def foo() -> String[5]:
     return slice(x, 0, 5)
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(string)", _call(env, c, "foo()")) == ("hello",)
+    c = get_contract(code)
+    assert c.foo() == "hello"
 
 
-def test_inf_bytes_and_string_locals_from_bounded_params(env):
+def test_inf_bytes_and_string_locals_from_bounded_params(get_contract):
     code = """
 @external
 def foo(a: Bytes[5], b: String[5]) -> (Bytes[5], String[5]):
@@ -88,12 +81,11 @@ def foo(a: Bytes[5], b: String[5]) -> (Bytes[5], String[5]):
     return slice(x, 0, 5), slice(y, 0, 5)
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "foo(bytes,string)", "(bytes,string)", (b"hello", "world"))
-    assert abi_decode("(bytes,string)", ret) == (b"hello", "world")
+    c = get_contract(code)
+    assert c.foo(b"hello", "world") == (b"hello", "world")
 
 
-def test_inf_bytes_and_string_external_return_from_bounded(env):
+def test_inf_bytes_and_string_external_return_from_bounded(get_contract):
     code = """
 @external
 def foo() -> Bytes[INF]:
@@ -104,12 +96,12 @@ def bar() -> String[INF]:
     return "world"
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(bytes)", _call(env, c, "foo()")) == (b"hello",)
-    assert abi_decode("(string)", _call(env, c, "bar()")) == ("world",)
+    c = get_contract(code)
+    assert c.foo() == b"hello"
+    assert c.bar() == "world"
 
 
-def test_inf_bytes_external_return_from_local(env):
+def test_inf_bytes_external_return_from_local(get_contract):
     code = """
 @external
 def foo() -> Bytes[INF]:
@@ -118,22 +110,22 @@ def foo() -> Bytes[INF]:
     return x
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(bytes)", _call(env, c, "foo()")) == (b"dynamic",)
+    c = get_contract(code)
+    assert c.foo() == b"dynamic"
 
 
-def test_msg_data_as_inf_bytes_rvalue(env):
+def test_msg_data_as_inf_bytes_rvalue(get_contract):
     code = """
 @external
 def foo() -> Bytes[INF]:
     return msg.data
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(bytes)", _call(env, c, "foo()")) == (method_id("foo()"),)
+    c = get_contract(code)
+    assert c.foo() == method_id("foo()")
 
 
-def test_runtime_length_slice_returns_inf_bytes(env):
+def test_runtime_length_slice_returns_inf_bytes(get_contract):
     code = """
 @external
 def from_local() -> Bytes[INF]:
@@ -145,13 +137,13 @@ def from_msg_data() -> Bytes[INF]:
     return slice(msg.data, 0, len(msg.data))
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(bytes)", _call(env, c, "from_local()")) == (b"hello",)
+    c = get_contract(code)
+    assert c.from_local() == b"hello"
     expected = method_id("from_msg_data()")
-    assert abi_decode("(bytes)", _call(env, c, "from_msg_data()")) == (expected,)
+    assert c.from_msg_data() == expected
 
 
-def test_code_as_inf_bytes_rvalue(env):
+def test_code_as_inf_bytes_rvalue(env, get_contract):
     code = """
 @external
 def self_code() -> Bytes[INF]:
@@ -162,14 +154,13 @@ def addr_code(addr: address) -> Bytes[INF]:
     return addr.code
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
     expected = env.get_code(c.address)
-    assert abi_decode("(bytes)", _call(env, c, "self_code()")) == (expected,)
-    ret = _call(env, c, "addr_code(address)", "address", c.address)
-    assert abi_decode("(bytes)", ret) == (expected,)
+    assert c.self_code() == expected
+    assert c.addr_code(c.address) == expected
 
 
-def test_inf_bytes_internal_forwarding(env):
+def test_inf_bytes_internal_forwarding(get_contract):
     code = """
 @internal
 def _bar() -> Bytes[INF]:
@@ -181,11 +172,11 @@ def foo() -> Bytes[INF]:
     return self._bar()
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(bytes)", _call(env, c, "foo()")) == (b"hello",)
+    c = get_contract(code)
+    assert c.foo() == b"hello"
 
 
-def test_inf_string_internal_nested_forwarding(env):
+def test_inf_string_internal_nested_forwarding(get_contract):
     code = """
 @internal
 def _baz() -> String[INF]:
@@ -201,11 +192,11 @@ def foo() -> String[INF]:
     return self._bar()
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(string)", _call(env, c, "foo()")) == ("hello",)
+    c = get_contract(code)
+    assert c.foo() == "hello"
 
 
-def test_empty_inf_bytes_internal_forwarding(env):
+def test_empty_inf_bytes_internal_forwarding(get_contract):
     code = """
 @internal
 def _bar() -> Bytes[INF]:
@@ -217,11 +208,11 @@ def foo() -> Bytes[INF]:
     return self._bar()
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(bytes)", _call(env, c, "foo()")) == (b"",)
+    c = get_contract(code)
+    assert c.foo() == b""
 
 
-def test_inf_bytes_internal_forwarding_no_inline(env):
+def test_inf_bytes_internal_forwarding_no_inline(get_contract, no_inlining_settings):
     code = """
 @internal
 def _bar() -> Bytes[INF]:
@@ -233,23 +224,22 @@ def foo() -> Bytes[INF]:
     return self._bar()
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
-    assert abi_decode("(bytes)", _call(env, c, "foo()")) == (b"hello",)
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.foo() == b"hello"
 
 
-def test_inf_bytes_external_param_roundtrip(env):
+def test_inf_bytes_external_param_roundtrip(get_contract):
     code = """
 @external
 def echo(x: Bytes[INF]) -> Bytes[INF]:
     return x
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "echo(bytes)", "(bytes)", (b"unbounded input",))
-    assert abi_decode("(bytes)", ret) == (b"unbounded input",)
+    c = get_contract(code)
+    assert c.echo(b"unbounded input") == b"unbounded input"
 
 
-def test_large_inf_bytes_external_param_roundtrip(env):
+def test_large_inf_bytes_external_param_roundtrip(get_contract):
     payload = bytes((i * 17) % 256 for i in range(2001))
     code = """
 @external
@@ -257,62 +247,57 @@ def echo(x: Bytes[INF]) -> Bytes[INF]:
     return x
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "echo(bytes)", "(bytes)", (payload,))
-    assert abi_decode("(bytes)", ret) == (payload,)
+    c = get_contract(code)
+    assert c.echo(payload) == payload
 
 
-def test_inf_string_external_param_roundtrip(env):
+def test_inf_string_external_param_roundtrip(get_contract):
     code = """
 @external
 def echo(x: String[INF]) -> String[INF]:
     return x
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "echo(string)", "(string)", ("unbounded input",))
-    assert abi_decode("(string)", ret) == ("unbounded input",)
+    c = get_contract(code)
+    assert c.echo("unbounded input") == "unbounded input"
 
 
-def test_empty_inf_external_params(env):
+def test_empty_inf_external_params(get_contract):
     code = """
 @external
 def sizes(x: Bytes[INF], y: String[INF]) -> (uint256, uint256):
     return len(x), len(y)
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "sizes(bytes,string)", "(bytes,string)", (b"", ""))
-    assert abi_decode("(uint256,uint256)", ret) == (0, 0)
+    c = get_contract(code)
+    assert c.sizes(b"", "") == (0, 0)
 
 
-def test_inf_bytes_external_param_bounded_slice(env):
+def test_inf_bytes_external_param_bounded_slice(get_contract):
     code = """
 @external
 def first_three(x: Bytes[INF]) -> Bytes[3]:
     return slice(x, 0, 3)
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "first_three(bytes)", "(bytes)", (b"abcdef",))
-    assert abi_decode("(bytes)", ret) == (b"abc",)
+    c = get_contract(code)
+    assert c.first_three(b"abcdef") == b"abc"
 
 
-def test_inf_bytes_external_kwarg_default_and_provided(env):
+def test_inf_bytes_external_kwarg_default_and_provided(get_contract):
     code = """
 @external
 def echo(x: Bytes[INF] = b"default") -> Bytes[INF]:
     return x
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(bytes)", _call(env, c, "echo()")) == (b"default",)
+    c = get_contract(code)
+    assert c.echo() == b"default"
 
-    ret = _call(env, c, "echo(bytes)", "(bytes)", (b"provided",))
-    assert abi_decode("(bytes)", ret) == (b"provided",)
+    assert c.echo(b"provided") == b"provided"
 
 
-def test_inf_bytes_staticcall_return_roundtrip(env):
+def test_inf_bytes_staticcall_return_roundtrip(get_contract):
     target_code = """
 @external
 @view
@@ -329,13 +314,12 @@ def get(addr: address) -> Bytes[INF]:
     return staticcall Source(addr).data()
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(env, caller, "get(address)", "address", target.address)
-    assert abi_decode("(bytes)", ret) == (b"external bytes",)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address) == b"external bytes"
 
 
-def test_large_inf_bytes_staticcall_return(env):
+def test_large_inf_bytes_staticcall_return(get_contract):
     payload = bytes((i * 31) % 256 for i in range(2001))
     target_code = """
 @external
@@ -353,13 +337,12 @@ def get(addr: address, x: Bytes[2001]) -> Bytes[INF]:
     return staticcall Source(addr).data(x)
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(env, caller, "get(address,bytes)", "(address,bytes)", (target.address, payload))
-    assert abi_decode("(bytes)", ret) == (payload,)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address, payload) == payload
 
 
-def test_large_inf_bytes_staticcall_inf_arg_roundtrip(env):
+def test_large_inf_bytes_staticcall_inf_arg_roundtrip(get_contract):
     payload = bytes((i * 29) % 256 for i in range(2001))
     target_code = """
 @external
@@ -377,13 +360,12 @@ def get(addr: address, x: Bytes[INF]) -> Bytes[INF]:
     return staticcall Source(addr).data(x)
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(env, caller, "get(address,bytes)", "(address,bytes)", (target.address, payload))
-    assert abi_decode("(bytes)", ret) == (payload,)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address, payload) == payload
 
 
-def test_inf_bytes_staticcall_default_return_value(env):
+def test_inf_bytes_staticcall_default_return_value(env, get_contract):
     payload = b"live returndata"
     caller_code = """
 interface Source:
@@ -394,17 +376,15 @@ def get(addr: address) -> Bytes[INF]:
     return staticcall Source(addr).data(default_return_value=b"fallback")
     """
 
-    caller = _deploy_venom(env, caller_code)
+    caller = get_contract(caller_code)
     empty_target = _deploy_raw_returner(env, b"")
-    ret = _call(env, caller, "get(address)", "address", empty_target.address)
-    assert abi_decode("(bytes)", ret) == (b"fallback",)
+    assert caller.get(empty_target.address) == b"fallback"
 
     target = _deploy_raw_returner(env, abi_encode("(bytes)", (payload,)))
-    ret = _call(env, caller, "get(address)", "address", target.address)
-    assert abi_decode("(bytes)", ret) == (payload,)
+    assert caller.get(target.address) == payload
 
 
-def test_inf_bytes_staticcall_default_return_value_from_inf_local(env):
+def test_inf_bytes_staticcall_default_return_value_from_inf_local(env, get_contract):
     payload = bytes((i * 37) % 256 for i in range(2001))
     caller_code = """
 interface Source:
@@ -416,15 +396,12 @@ def get(addr: address, x: Bytes[INF]) -> Bytes[INF]:
     return staticcall Source(addr).data(default_return_value=fallback)
     """
 
-    caller = _deploy_venom(env, caller_code)
+    caller = get_contract(caller_code)
     empty_target = _deploy_raw_returner(env, b"")
-    ret = _call(
-        env, caller, "get(address,bytes)", "(address,bytes)", (empty_target.address, payload)
-    )
-    assert abi_decode("(bytes)", ret) == (payload,)
+    assert caller.get(empty_target.address, payload) == payload
 
 
-def test_inf_bytes_staticcall_tuple_return_roundtrip(env):
+def test_inf_bytes_staticcall_tuple_return_roundtrip(get_contract):
     payload = bytes((i * 41) % 256 for i in range(2001))
     target_code = """
 @external
@@ -442,13 +419,12 @@ def get(addr: address, x: Bytes[INF]) -> (uint256, Bytes[INF]):
     return staticcall Source(addr).pair(x)
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(env, caller, "get(address,bytes)", "(address,bytes)", (target.address, payload))
-    assert abi_decode("(uint256,bytes)", ret) == (31, payload)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address, payload) == (31, payload)
 
 
-def test_inf_bytes_staticcall_singleton_tuple_return(env):
+def test_inf_bytes_staticcall_singleton_tuple_return(env, get_contract):
     payload = bytes((i * 43) % 256 for i in range(2001))
 
     def encode_singleton_bytes_tuple(value):
@@ -477,13 +453,13 @@ def get(addr: address, x: Bytes[INF]) -> (Bytes[INF],):
     return staticcall Source(addr).one(x)
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
     ret = _call(env, caller, "get(address,bytes)", "(address,bytes)", (target.address, payload))
     assert ret == encode_singleton_bytes_tuple(payload)
 
 
-def test_inf_bytes_staticcall_tuple_return_subscript(env):
+def test_inf_bytes_staticcall_tuple_return_subscript(get_contract):
     target_code = """
 @external
 @view
@@ -500,13 +476,12 @@ def get(addr: address, x: Bytes[INF]) -> Bytes[3]:
     return slice((staticcall Source(addr).pair(x))[1], 0, 3)
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(env, caller, "get(address,bytes)", "(address,bytes)", (target.address, b"catdog"))
-    assert abi_decode("(bytes)", ret) == (b"cat",)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address, b"catdog") == b"cat"
 
 
-def test_inf_bytes_staticcall_tuple_default_return_value(env):
+def test_inf_bytes_staticcall_tuple_default_return_value(env, get_contract):
     caller_code = """
 interface Source:
     def pair() -> (uint256, Bytes[INF]): view
@@ -516,17 +491,15 @@ def get(addr: address) -> (uint256, Bytes[INF]):
     return staticcall Source(addr).pair(default_return_value=(7, b"fallback"))
     """
 
-    caller = _deploy_venom(env, caller_code)
+    caller = get_contract(caller_code)
     empty_target = _deploy_raw_returner(env, b"")
-    ret = _call(env, caller, "get(address)", "address", empty_target.address)
-    assert abi_decode("(uint256,bytes)", ret) == (7, b"fallback")
+    assert caller.get(empty_target.address) == (7, b"fallback")
 
     target = _deploy_raw_returner(env, abi_encode("(uint256,bytes)", (9, b"live")))
-    ret = _call(env, caller, "get(address)", "address", target.address)
-    assert abi_decode("(uint256,bytes)", ret) == (9, b"live")
+    assert caller.get(target.address) == (9, b"live")
 
 
-def test_inf_bytes_staticcall_tuple_default_return_value_from_bounded_local(env):
+def test_inf_bytes_staticcall_tuple_default_return_value_from_bounded_local(env, get_contract):
     caller_code = """
 interface Source:
     def pair() -> (uint256, Bytes[INF]): view
@@ -537,13 +510,12 @@ def get(addr: address) -> (uint256, Bytes[INF]):
     return staticcall Source(addr).pair(default_return_value=d)
     """
 
-    caller = _deploy_venom(env, caller_code)
+    caller = get_contract(caller_code)
     empty_target = _deploy_raw_returner(env, b"")
-    ret = _call(env, caller, "get(address)", "address", empty_target.address)
-    assert abi_decode("(uint256,bytes)", ret) == (7, b"fallback")
+    assert caller.get(empty_target.address) == (7, b"fallback")
 
 
-def test_inf_bytes_extcall_tuple_return_roundtrip(env):
+def test_inf_bytes_extcall_tuple_return_roundtrip(get_contract):
     payload = bytes((i * 47) % 256 for i in range(2001))
     target_code = """
 @external
@@ -560,13 +532,12 @@ def get(addr: address, x: Bytes[INF]) -> (uint256, Bytes[INF]):
     return extcall Source(addr).pair(x)
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(env, caller, "get(address,bytes)", "(address,bytes)", (target.address, payload))
-    assert abi_decode("(uint256,bytes)", ret) == (43, payload)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address, payload) == (43, payload)
 
 
-def test_inf_bytes_string_staticcall_tuple_multi_dynamic_return(env):
+def test_inf_bytes_string_staticcall_tuple_multi_dynamic_return(get_contract):
     payload = bytes((i * 49) % 256 for i in range(2001))
     text = "external tuple " * 170 + "tail"
     target_code = """
@@ -585,19 +556,12 @@ def get(addr: address, x: Bytes[INF], y: String[INF]) -> (Bytes[INF], uint256, S
     return staticcall Source(addr).mix(x, y)
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(
-        env,
-        caller,
-        "get(address,bytes,string)",
-        "(address,bytes,string)",
-        (target.address, payload, text),
-    )
-    assert abi_decode("(bytes,uint256,string)", ret) == (payload, 53, text)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address, payload, text) == (payload, 53, text)
 
 
-def test_inf_bytes_staticcall_inf_arg_with_static_args(env):
+def test_inf_bytes_staticcall_inf_arg_with_static_args(get_contract):
     code = """
 @external
 @view
@@ -616,13 +580,12 @@ def get(addr: address, x: Bytes[INF]) -> Bytes[3]:
     return staticcall Source(addr).data(11, x, 22)
     """
 
-    target = _deploy_venom(env, code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(env, caller, "get(address,bytes)", "(address,bytes)", (target.address, b"abcdef"))
-    assert abi_decode("(bytes)", ret) == (b"abc",)
+    target = get_contract(code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address, b"abcdef") == b"abc"
 
 
-def test_inf_bytes_staticcall_snapshots_primitive_arg_before_later_mutation(env):
+def test_inf_bytes_staticcall_snapshots_primitive_arg_before_later_mutation(get_contract):
     target_code = """
 @external
 @view
@@ -647,13 +610,14 @@ def get(addr: address, x: Bytes[INF]) -> (uint256, uint256):
     return result, self.stored
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(env, caller, "get(address,bytes)", "(address,bytes)", (target.address, b"cat"))
-    assert abi_decode("(uint256,uint256)", ret) == (637, 2)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address, b"cat") == (637, 2)
 
 
-def test_inf_bytes_internal_call_snapshots_primitive_arg_before_later_mutation(env):
+def test_inf_bytes_internal_call_snapshots_primitive_arg_before_later_mutation(
+    get_contract, no_inlining_settings
+):
     code = """
 stored: uint256
 
@@ -673,12 +637,11 @@ def get(x: Bytes[INF]) -> (uint256, uint256):
     return result, self.stored
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
-    ret = _call(env, c, "get(bytes)", "(bytes)", (b"cat",))
-    assert abi_decode("(uint256,uint256)", ret) == (637, 2)
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.get(b"cat") == (637, 2)
 
 
-def test_inf_bytes_staticcall_inf_arg_with_bounded_dynamic_args(env):
+def test_inf_bytes_staticcall_inf_arg_with_bounded_dynamic_args(get_contract):
     code = """
 @external
 @view
@@ -697,19 +660,12 @@ def get(addr: address, prefix: Bytes[7], x: Bytes[INF], suffix: Bytes[9]) -> Byt
     return staticcall Source(addr).data(prefix, x, suffix)
     """
 
-    target = _deploy_venom(env, code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(
-        env,
-        caller,
-        "get(address,bytes,bytes,bytes)",
-        "(address,bytes,bytes,bytes)",
-        (target.address, b"prelude", b"kitten", b"tail"),
-    )
-    assert abi_decode("(bytes)", ret) == (b"kitten",)
+    target = get_contract(code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address, b"prelude", b"kitten", b"tail") == b"kitten"
 
 
-def test_inf_string_staticcall_return_roundtrip(env):
+def test_inf_string_staticcall_return_roundtrip(get_contract):
     target_code = """
 @external
 @view
@@ -726,13 +682,12 @@ def get(addr: address) -> String[INF]:
     return staticcall Source(addr).data()
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(env, caller, "get(address)", "address", target.address)
-    assert abi_decode("(string)", ret) == ("external string",)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address) == "external string"
 
 
-def test_inf_string_staticcall_inf_arg_roundtrip(env):
+def test_inf_string_staticcall_inf_arg_roundtrip(get_contract):
     target_code = """
 @external
 @view
@@ -749,14 +704,13 @@ def get(addr: address, x: String[INF]) -> String[INF]:
     return staticcall Source(addr).data(x)
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
     payload = "external string argument " * 80 + "tail"
-    ret = _call(env, caller, "get(address,string)", "(address,string)", (target.address, payload))
-    assert abi_decode("(string)", ret) == (payload,)
+    assert caller.get(target.address, payload) == payload
 
 
-def test_inf_bytes_staticcall_return_bounded_slice(env):
+def test_inf_bytes_staticcall_return_bounded_slice(get_contract):
     target_code = """
 @external
 @view
@@ -774,13 +728,12 @@ def get(addr: address) -> Bytes[8]:
     return slice(x, 0, 8)
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(env, caller, "get(address)", "address", target.address)
-    assert abi_decode("(bytes)", ret) == (b"external",)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address) == b"external"
 
 
-def test_empty_inf_bytes_staticcall_return(env):
+def test_empty_inf_bytes_staticcall_return(get_contract):
     target_code = """
 @external
 @view
@@ -797,13 +750,12 @@ def get(addr: address) -> Bytes[INF]:
     return staticcall Source(addr).data()
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(env, caller, "get(address)", "address", target.address)
-    assert abi_decode("(bytes)", ret) == (b"",)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address) == b""
 
 
-def test_inf_bytes_staticcall_return_rejects_malformed_abi(env, tx_failed):
+def test_inf_bytes_staticcall_return_rejects_malformed_abi(env, get_contract, tx_failed):
     caller_code = """
 interface Source:
     def data() -> Bytes[INF]: view
@@ -813,7 +765,7 @@ def get(addr: address) -> Bytes[INF]:
     return staticcall Source(addr).data()
     """
 
-    caller = _deploy_venom(env, caller_code)
+    caller = get_contract(caller_code)
 
     def word(value):
         return value.to_bytes(32, "big")
@@ -821,18 +773,19 @@ def get(addr: address) -> Bytes[INF]:
     # Legacy accepts this non-canonical but in-bounds offset as an empty bytes
     # return; the INF path matches that leniency.
     target = _deploy_raw_returner(env, word(0))
-    ret = _call(env, caller, "get(address)", "address", target.address)
-    assert abi_decode("(bytes)", ret) == (b"",)
+    assert caller.get(target.address) == b""
 
     malformed_payloads = [word(2**256 - 31), word(32), word(32) + word(33) + b"\x01" * 32]
 
     for payload in malformed_payloads:
         target = _deploy_raw_returner(env, payload)
         with tx_failed():
-            _call(env, caller, "get(address)", "address", target.address)
+            caller.get(target.address)
 
 
-def test_inf_bytes_staticcall_tuple_return_bounds_bounded_dynamic_member(env, tx_failed):
+def test_inf_bytes_staticcall_tuple_return_bounds_bounded_dynamic_member(
+    env, get_contract, tx_failed
+):
     caller_code = """
 interface Source:
     def pair() -> (Bytes[4], Bytes[INF]): view
@@ -845,34 +798,33 @@ def get(addr: address) -> (Bytes[4], Bytes[INF]):
     def word(value):
         return value.to_bytes(32, "big")
 
-    caller = _deploy_venom(env, caller_code)
+    caller = get_contract(caller_code)
     payload = word(2**251) + word(64) + word(0)
     target = _deploy_raw_returner(env, payload)
 
     with tx_failed():
-        _call(env, caller, "get(address)", "address", target.address)
+        caller.get(target.address)
 
 
-def test_inf_bytes_abi_decode_allows_missing_padding(env, tx_failed):
+def test_inf_bytes_abi_decode_allows_missing_padding(get_contract, tx_failed):
     code = """
 @external
 def dec(x: Bytes[INF]) -> Bytes[INF]:
     return abi_decode(x, Bytes[INF], unwrap_tuple=False)
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
 
     def word(value):
         return value.to_bytes(32, "big")
 
-    ret = _call(env, c, "dec(bytes)", "(bytes)", (word(31) + b"\x01" * 31,))
-    assert abi_decode("(bytes)", ret) == (b"\x01" * 31,)
+    assert c.dec(word(31) + b"\x01" * 31) == b"\x01" * 31
 
     with tx_failed():
-        _call(env, c, "dec(bytes)", "(bytes)", (word(31) + b"\x01" * 30,))
+        c.dec(word(31) + b"\x01" * 30)
 
 
-def test_inf_bytes_extcall_return_roundtrip(env):
+def test_inf_bytes_extcall_return_roundtrip(get_contract):
     target_code = """
 @external
 def data() -> Bytes[INF]:
@@ -888,13 +840,12 @@ def get(addr: address) -> Bytes[INF]:
     return extcall Source(addr).data()
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(env, caller, "get(address)", "address", target.address)
-    assert abi_decode("(bytes)", ret) == (b"mutable bytes",)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address) == b"mutable bytes"
 
 
-def test_inf_bytes_extcall_inf_arg_roundtrip(env):
+def test_inf_bytes_extcall_inf_arg_roundtrip(get_contract):
     target_code = """
 @external
 def data(x: Bytes[INF]) -> Bytes[INF]:
@@ -910,13 +861,12 @@ def get(addr: address, x: Bytes[INF]) -> Bytes[INF]:
     return extcall Source(addr).data(x)
     """
 
-    target = _deploy_venom(env, target_code)
-    caller = _deploy_venom(env, caller_code)
-    ret = _call(env, caller, "get(address,bytes)", "(address,bytes)", (target.address, b"mutable"))
-    assert abi_decode("(bytes)", ret) == (b"mutable",)
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get(target.address, b"mutable") == b"mutable"
 
 
-def test_inf_bytes_json_abi_staticcall_return(env, make_input_bundle):
+def test_inf_bytes_json_abi_staticcall_return(get_contract, make_input_bundle):
     target_code = """
 @external
 @view
@@ -924,7 +874,7 @@ def data() -> Bytes[INF]:
     return b"json abi bytes"
     """
 
-    target = _deploy_venom(env, target_code)
+    target = get_contract(target_code)
 
     caller_code = """
 import source as Source
@@ -944,13 +894,12 @@ def get(addr: address) -> Bytes[INF]:
         }
     ]
     input_bundle = make_input_bundle({"source.json": json.dumps(source_abi)})
-    caller = _deploy_venom(env, caller_code, input_bundle=input_bundle)
-    ret = _call(env, caller, "get(address)", "address", target.address)
-    assert abi_decode("(bytes)", ret) == (b"json abi bytes",)
+    caller = get_contract(caller_code, input_bundle=input_bundle)
+    assert caller.get(target.address) == b"json abi bytes"
 
 
 def test_inf_bytes_json_abi_external_call_freezes_bounded_arg_in_runtime_encoding(
-    env, make_input_bundle
+    get_contract, make_input_bundle
 ):
     target_code = """
 @external
@@ -988,14 +937,13 @@ def check(addr: address, b: Bytes[INF]) -> (uint256, Bytes[8]):
         }
     ]
 
-    target = _deploy_venom(env, target_code)
+    target = get_contract(target_code)
     input_bundle = make_input_bundle({"source.json": json.dumps(source_abi)})
-    caller = _deploy_venom(env, caller_code, input_bundle=input_bundle)
-    ret = _call(env, caller, "check(address,bytes)", "(address,bytes)", (target.address, b"cat"))
-    assert abi_decode("(uint256,bytes)", ret) == (637, b"xy")
+    caller = get_contract(caller_code, input_bundle=input_bundle)
+    assert caller.check(target.address, b"cat") == (637, b"xy")
 
 
-def test_inf_string_json_abi_staticcall_return(env, make_input_bundle):
+def test_inf_string_json_abi_staticcall_return(get_contract, make_input_bundle):
     target_code = """
 @external
 @view
@@ -1003,7 +951,7 @@ def data() -> String[INF]:
     return "json abi string"
     """
 
-    target = _deploy_venom(env, target_code)
+    target = get_contract(target_code)
 
     caller_code = """
 import source as Source
@@ -1023,12 +971,11 @@ def get(addr: address) -> String[INF]:
         }
     ]
     input_bundle = make_input_bundle({"source.json": json.dumps(source_abi)})
-    caller = _deploy_venom(env, caller_code, input_bundle=input_bundle)
-    ret = _call(env, caller, "get(address)", "address", target.address)
-    assert abi_decode("(string)", ret) == ("json abi string",)
+    caller = get_contract(caller_code, input_bundle=input_bundle)
+    assert caller.get(target.address) == "json abi string"
 
 
-def test_inf_bytes_abi_encode_default_tuple(env):
+def test_inf_bytes_abi_encode_default_tuple(get_contract):
     payload = bytes((i * 19) % 256 for i in range(2001))
     code = """
 @external
@@ -1036,12 +983,11 @@ def enc(x: Bytes[INF]) -> Bytes[INF]:
     return abi_encode(x)
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "enc(bytes)", "(bytes)", (payload,))
-    assert abi_decode("(bytes)", ret) == (abi_encode("(bytes)", (payload,)),)
+    c = get_contract(code)
+    assert c.enc(payload) == abi_encode("(bytes)", (payload,))
 
 
-def test_inf_bytes_abi_encode_no_tuple(env):
+def test_inf_bytes_abi_encode_no_tuple(get_contract):
     payload = bytes((i * 23) % 256 for i in range(2001))
     code = """
 @external
@@ -1049,12 +995,11 @@ def enc(x: Bytes[INF]) -> Bytes[INF]:
     return abi_encode(x, ensure_tuple=False)
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "enc(bytes)", "(bytes)", (payload,))
-    assert abi_decode("(bytes)", ret) == (abi_encode("bytes", payload),)
+    c = get_contract(code)
+    assert c.enc(payload) == abi_encode("bytes", payload)
 
 
-def test_inf_bytes_abi_encode_method_id_and_static_args(env):
+def test_inf_bytes_abi_encode_method_id_and_static_args(get_contract):
     payload = b"abcdef"
     code = """
 @external
@@ -1064,14 +1009,13 @@ def enc(x: Bytes[INF]) -> Bytes[INF]:
     return abi_encode(a, x, b, method_id=method_id("foo(uint256,bytes,uint256)"))
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "enc(bytes)", "(bytes)", (payload,))
+    c = get_contract(code)
     expected = method_id("foo(uint256,bytes,uint256)")
     expected += abi_encode("(uint256,bytes,uint256)", (11, payload, 22))
-    assert abi_decode("(bytes)", ret) == (expected,)
+    assert c.enc(payload) == expected
 
 
-def test_inf_bytes_abi_encode_method_id_bounded_dynarray_below_bound(env):
+def test_inf_bytes_abi_encode_method_id_bounded_dynarray_below_bound(env, get_contract):
     # the allocation size uses the DynArray bound while the actual encoding
     # uses the runtime length, so the encoded length is smaller than the
     # allocation estimate; the result must still be an exact encoding with
@@ -1089,13 +1033,13 @@ def enc(x: Bytes[INF], d: DynArray[uint256, 4]) -> Bytes[INF]:
     return abi_encode(x, d, method_id=0xa1b2c3d4)
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
     ret = _call(env, c, "enc(bytes,uint256[])", "(bytes,uint256[])", (payload, [7]))
     expected = b"\xa1\xb2\xc3\xd4" + abi_encode("(bytes,uint256[])", (payload, [7]))
     assert ret == abi_encode("(bytes)", (expected,))
 
 
-def test_inf_string_abi_encode_default_tuple(env):
+def test_inf_string_abi_encode_default_tuple(get_contract):
     payload = "abi string " * 170 + "tail"
     code = """
 @external
@@ -1103,12 +1047,11 @@ def enc(x: String[INF]) -> Bytes[INF]:
     return abi_encode(x)
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "enc(string)", "(string)", (payload,))
-    assert abi_decode("(bytes)", ret) == (abi_encode("(string)", (payload,)),)
+    c = get_contract(code)
+    assert c.enc(payload) == abi_encode("(string)", (payload,))
 
 
-def test_inf_bytes_abi_decode_default_tuple(env):
+def test_inf_bytes_abi_decode_default_tuple(get_contract):
     payload = bytes((i * 37) % 256 for i in range(2001))
     code = """
 @external
@@ -1116,16 +1059,14 @@ def dec(x: Bytes[INF]) -> Bytes[INF]:
     return abi_decode(x, Bytes[INF])
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
     encoded = abi_encode("(bytes)", (payload,))
-    ret = _call(env, c, "dec(bytes)", "(bytes)", (encoded,))
-    assert abi_decode("(bytes)", ret) == (payload,)
+    assert c.dec(encoded) == payload
 
-    ret = _call(env, c, "dec(bytes)", "(bytes)", ((0).to_bytes(32, "big"),))
-    assert abi_decode("(bytes)", ret) == (b"",)
+    assert c.dec((0).to_bytes(32, "big")) == b""
 
 
-def test_inf_bytes_abi_decode_no_tuple(env):
+def test_inf_bytes_abi_decode_no_tuple(get_contract):
     payload = bytes((i * 41) % 256 for i in range(2001))
     code = """
 @external
@@ -1133,20 +1074,19 @@ def dec(x: Bytes[INF]) -> Bytes[INF]:
     return abi_decode(x, Bytes[INF], unwrap_tuple=False)
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
     encoded = abi_encode("bytes", payload)
-    ret = _call(env, c, "dec(bytes)", "(bytes)", (encoded,))
-    assert abi_decode("(bytes)", ret) == (payload,)
+    assert c.dec(encoded) == payload
 
 
-def test_bounded_bytes_abi_decode_short_payload_zeroes_return_padding(env):
+def test_bounded_bytes_abi_decode_short_payload_zeroes_return_padding(env, get_contract):
     code = """
 @external
 def dec(x: Bytes[INF]) -> Bytes[100]:
     return abi_decode(x, Bytes[100], unwrap_tuple=False)
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
 
     def word(value):
         return value.to_bytes(32, "big")
@@ -1156,14 +1096,14 @@ def dec(x: Bytes[INF]) -> Bytes[100]:
     assert ret == word(32) + word(3) + b"abc" + b"\x00" * 29
 
 
-def test_bounded_dynarray_abi_decode_bounds_dynamic_element_head(env, tx_failed):
+def test_bounded_dynarray_abi_decode_bounds_dynamic_element_head(get_contract, tx_failed):
     code = """
 @external
 def dec(x: Bytes[INF]) -> DynArray[Bytes[4], 2]:
     return abi_decode(x, DynArray[Bytes[4], 2], unwrap_tuple=False)
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
 
     def word(value):
         return value.to_bytes(32, "big")
@@ -1173,10 +1113,10 @@ def dec(x: Bytes[INF]) -> DynArray[Bytes[4], 2]:
     # head offset fails on memory expansion rather than an explicit bounds
     # revert, so accept any EVM failure here
     with tx_failed(EvmError):
-        _call(env, c, "dec(bytes)", "(bytes)", (payload,))
+        c.dec(payload)
 
 
-def test_inf_bytes_abi_decode_rejects_malformed_payload(env, tx_failed):
+def test_inf_bytes_abi_decode_rejects_malformed_payload(get_contract, tx_failed):
     code = """
 @external
 def dec(x: Bytes[INF]) -> Bytes[INF]:
@@ -1187,21 +1127,21 @@ def dec_no_tuple(x: Bytes[INF]) -> Bytes[INF]:
     return abi_decode(x, Bytes[INF], unwrap_tuple=False)
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
 
     def word(value):
         return value.to_bytes(32, "big")
 
     for payload in [word(32), word(32) + word(2) + b"a"]:
         with tx_failed():
-            _call(env, c, "dec(bytes)", "(bytes)", (payload,))
+            c.dec(payload)
 
     for payload in [b"", word(2) + b"a"]:
         with tx_failed():
-            _call(env, c, "dec_no_tuple(bytes)", "(bytes)", (payload,))
+            c.dec_no_tuple(payload)
 
 
-def test_inf_string_abi_decode_default_tuple(env):
+def test_inf_string_abi_decode_default_tuple(get_contract):
     payload = "decoded string " * 150 + "tail"
     code = """
 @external
@@ -1209,13 +1149,12 @@ def dec(x: Bytes[INF]) -> String[INF]:
     return abi_decode(x, String[INF])
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
     encoded = abi_encode("(string)", (payload,))
-    ret = _call(env, c, "dec(bytes)", "(bytes)", (encoded,))
-    assert abi_decode("(string)", ret) == (payload,)
+    assert c.dec(encoded) == payload
 
 
-def test_inf_bytes_abi_encode_decode_local_roundtrip(env):
+def test_inf_bytes_abi_encode_decode_local_roundtrip(get_contract):
     payload = bytes((i * 43) % 256 for i in range(2001))
     code = """
 @external
@@ -1224,12 +1163,11 @@ def roundtrip(x: Bytes[INF]) -> Bytes[INF]:
     return abi_decode(encoded, Bytes[INF])
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "roundtrip(bytes)", "(bytes)", (payload,))
-    assert abi_decode("(bytes)", ret) == (payload,)
+    c = get_contract(code)
+    assert c.roundtrip(payload) == payload
 
 
-def test_inf_bytes_concat_runtime_length(env):
+def test_inf_bytes_concat_runtime_length(get_contract):
     payload = bytes((i * 79) % 256 for i in range(2001))
     code = """
 @external
@@ -1237,12 +1175,11 @@ def join(x: Bytes[INF]) -> Bytes[INF]:
     return concat(b"pre:", x, b":post")
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "join(bytes)", "(bytes)", (payload,))
-    assert abi_decode("(bytes)", ret) == (b"pre:" + payload + b":post",)
+    c = get_contract(code)
+    assert c.join(payload) == b"pre:" + payload + b":post"
 
 
-def test_inf_string_concat_runtime_length(env):
+def test_inf_string_concat_runtime_length(get_contract):
     payload = "concat string " * 170 + "tail"
     code = """
 @external
@@ -1250,12 +1187,11 @@ def join(x: String[INF]) -> String[INF]:
     return concat("pre:", x, ":post")
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "join(string)", "(string)", (payload,))
-    assert abi_decode("(string)", ret) == ("pre:" + payload + ":post",)
+    c = get_contract(code)
+    assert c.join(payload) == "pre:" + payload + ":post"
 
 
-def test_inf_bytes_concat_trailing_bytesm_word_boundary(env):
+def test_inf_bytes_concat_trailing_bytesm_word_boundary(get_contract):
     # lengths are chosen so each trailing bytesM word-store lands in the last
     # data word of its exact-sized output (31+1 and 28+4 both fill a word);
     # the next buffer is allocated immediately above, so a store escaping the
@@ -1271,13 +1207,12 @@ def join(x: Bytes[INF], y: Bytes[INF]) -> Bytes[INF]:
     return concat(a, b)
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "join(bytes,bytes)", "(bytes,bytes)", (payload_a, payload_b))
+    c = get_contract(code)
     expected = payload_a + b"\xde" + payload_b + b"\xde\xad\xbe\xef"
-    assert abi_decode("(bytes)", ret) == (expected,)
+    assert c.join(payload_a, payload_b) == expected
 
 
-def test_inf_bytes_string_keccak256_runtime_length(env, keccak):
+def test_inf_bytes_string_keccak256_runtime_length(get_contract, keccak):
     payload = bytes((i * 81) % 256 for i in range(2001))
     text = "hash string " * 170 + "tail"
     code = """
@@ -1290,14 +1225,12 @@ def hash_string(x: String[INF]) -> bytes32:
     return keccak256(x)
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "hash_bytes(bytes)", "(bytes)", (payload,))
-    assert abi_decode("(bytes32)", ret) == (keccak(payload),)
-    ret = _call(env, c, "hash_string(string)", "(string)", (text,))
-    assert abi_decode("(bytes32)", ret) == (keccak(text.encode()),)
+    c = get_contract(code)
+    assert c.hash_bytes(payload) == keccak(payload)
+    assert c.hash_string(text) == keccak(text.encode())
 
 
-def test_inf_string_uint2str(env):
+def test_inf_string_uint2str(get_contract):
     code = """
 @external
 def direct(x: uint256) -> String[INF]:
@@ -1309,14 +1242,12 @@ def local(x: uint256) -> String[INF]:
     return y
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "direct(uint256)", "uint256", 2**256 - 1)
-    assert abi_decode("(string)", ret) == (str(2**256 - 1),)
-    ret = _call(env, c, "local(uint256)", "uint256", 0)
-    assert abi_decode("(string)", ret) == ("0",)
+    c = get_contract(code)
+    assert c.direct(2**256 - 1) == str(2**256 - 1)
+    assert c.local(0) == "0"
 
 
-def test_inf_bytes_string_cross_convert(env, tx_failed):
+def test_inf_bytes_string_cross_convert(get_contract, tx_failed):
     code = """
 @external
 def to_bytes(x: String[10]) -> Bytes[INF]:
@@ -1352,31 +1283,23 @@ def string_to_bytes_bounded(x: String[INF]) -> Bytes[5]:
     return convert(x, Bytes[5])
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "to_bytes(string)", "(string)", ("hello",))
-    assert abi_decode("(bytes)", ret) == (b"hello",)
-    ret = _call(env, c, "to_string(bytes)", "(bytes)", (b"world",))
-    assert abi_decode("(string)", ret) == ("world",)
-    ret = _call(env, c, "inf_string_to_inf_bytes(string)", "(string)", ("hello",))
-    assert abi_decode("(bytes)", ret) == (b"hello",)
-    ret = _call(env, c, "inf_bytes_to_inf_string(bytes)", "(bytes)", (b"world",))
-    assert abi_decode("(string)", ret) == ("world",)
-    ret = _call(env, c, "bytes_to_bounded(bytes)", "(bytes)", (b"abcde",))
-    assert abi_decode("(bytes)", ret) == (b"abcde",)
-    ret = _call(env, c, "string_to_bounded(string)", "(string)", ("abcde",))
-    assert abi_decode("(string)", ret) == ("abcde",)
-    ret = _call(env, c, "bytes_to_string_bounded(bytes)", "(bytes)", (b"abcde",))
-    assert abi_decode("(string)", ret) == ("abcde",)
-    ret = _call(env, c, "string_to_bytes_bounded(string)", "(string)", ("abcde",))
-    assert abi_decode("(bytes)", ret) == (b"abcde",)
+    c = get_contract(code)
+    assert c.to_bytes("hello") == b"hello"
+    assert c.to_string(b"world") == "world"
+    assert c.inf_string_to_inf_bytes("hello") == b"hello"
+    assert c.inf_bytes_to_inf_string(b"world") == "world"
+    assert c.bytes_to_bounded(b"abcde") == b"abcde"
+    assert c.string_to_bounded("abcde") == "abcde"
+    assert c.bytes_to_string_bounded(b"abcde") == "abcde"
+    assert c.string_to_bytes_bounded("abcde") == b"abcde"
 
     with tx_failed():
-        _call(env, c, "bytes_to_bounded(bytes)", "(bytes)", (b"abcdef",))
+        c.bytes_to_bounded(b"abcdef")
     with tx_failed():
-        _call(env, c, "string_to_bounded(string)", "(string)", ("abcdef",))
+        c.string_to_bounded("abcdef")
 
 
-def test_inf_bytes_to_primitive_convert(env, tx_failed):
+def test_inf_bytes_to_primitive_convert(get_contract, tx_failed):
     code = """
 @external
 def to_uint256(x: Bytes[INF]) -> uint256:
@@ -1395,25 +1318,21 @@ def to_bool(x: Bytes[INF]) -> bool:
     return convert(x, bool)
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "to_uint256(bytes)", "(bytes)", ((123).to_bytes(32, "big"),))
-    assert abi_decode("(uint256)", ret) == (123,)
-    ret = _call(env, c, "to_uint8(bytes)", "(bytes)", (b"\x7b",))
-    assert abi_decode("(uint8)", ret) == (123,)
-    ret = _call(env, c, "to_bytes4(bytes)", "(bytes)", (b"abcd",))
-    assert abi_decode("(bytes4)", ret) == (b"abcd",)
-    ret = _call(env, c, "to_bool(bytes)", "(bytes)", (b"\x00\x01",))
-    assert abi_decode("(bool)", ret) == (True,)
+    c = get_contract(code)
+    assert c.to_uint256((123).to_bytes(32, "big")) == 123
+    assert c.to_uint8(b"\x7b") == 123
+    assert c.to_bytes4(b"abcd") == b"abcd"
+    assert c.to_bool(b"\x00\x01") is True
 
     with tx_failed():
-        _call(env, c, "to_uint256(bytes)", "(bytes)", (b"\x01" * 33,))
+        c.to_uint256(b"\x01" * 33)
     with tx_failed():
-        _call(env, c, "to_uint8(bytes)", "(bytes)", (b"\x01\x00",))
+        c.to_uint8(b"\x01\x00")
     with tx_failed():
-        _call(env, c, "to_bytes4(bytes)", "(bytes)", (b"abcde",))
+        c.to_bytes4(b"abcde")
 
 
-def test_empty_inf_bytes_signed_convert(env):
+def test_empty_inf_bytes_signed_convert(get_contract):
     # empty INF bytestrings allocate only the length word; the data word
     # position may hold garbage from previously reclaimed scratch memory.
     # sar of that garbage must not leak into the conversion result.
@@ -1436,16 +1355,14 @@ def to_decimal(a: Bytes[INF], n: uint256) -> decimal:
     return convert(x, decimal)
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
     # dirty scratch memory with 0xff words, then convert an empty slice
     dirt = b"\xff" * 32
-    ret = _call(env, c, "to_int256(bytes,uint256)", "(bytes,uint256)", (dirt, 0))
-    assert abi_decode("(int256)", ret) == (0,)
-    ret = _call(env, c, "to_decimal(bytes,uint256)", "(bytes,uint256)", (dirt, 0))
-    assert abi_decode("(int168)", ret) == (0,)
+    assert c.to_int256(dirt, 0) == 0
+    assert c.to_decimal(dirt, 0) == 0
 
 
-def test_inf_bytes_string_print(env):
+def test_inf_bytes_string_print(get_contract):
     payload = bytes((i * 63) % 256 for i in range(2001))
     text = "print string " * 170 + "tail"
     code = """
@@ -1457,9 +1374,8 @@ def log_values(x: Bytes[INF], y: String[INF]) -> (uint256, uint256, bytes32, byt
     return len(x), len(y), sha256(x), sha256(y)
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "log_values(bytes,string)", "(bytes,string)", (payload, text))
-    assert abi_decode("(uint256,uint256,bytes32,bytes32)", ret) == (
+    c = get_contract(code)
+    assert c.log_values(payload, text) == (
         len(payload),
         len(text),
         hashlib.sha256(payload).digest(),
@@ -1467,7 +1383,7 @@ def log_values(x: Bytes[INF], y: String[INF]) -> (uint256, uint256, bytes32, byt
     )
 
 
-def test_inf_bytes_string_misc_builtins(env, tx_failed):
+def test_inf_bytes_string_misc_builtins(get_contract, tx_failed):
     code = """
 @external
 def hash_values(x: Bytes[INF], y: String[INF]) -> (bytes32, bytes32):
@@ -1486,34 +1402,25 @@ def boom(x: Bytes[INF]):
     raw_revert(x)
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
     payload = bytes((i * 17) % 256 for i in range(80))
     text = "sha string " * 20 + "tail"
 
-    ret = _call(env, c, "hash_values(bytes,string)", "(bytes,string)", (payload, text))
-    assert abi_decode("(bytes32,bytes32)", ret) == (
+    assert c.hash_values(payload, text) == (
         hashlib.sha256(payload).digest(),
         hashlib.sha256(text.encode()).digest(),
     )
 
-    ret = _call(env, c, "word_at(bytes,uint256)", "(bytes,uint256)", (payload, 7))
-    assert abi_decode("(bytes32)", ret) == (payload[7:39],)
+    assert c.word_at(payload, 7) == payload[7:39]
 
-    ret = _call(
-        env,
-        c,
-        "compare(bytes,bytes,string,string)",
-        "(bytes,bytes,string,string)",
-        (payload, payload, "cat", "kitten"),
-    )
-    assert abi_decode("(bool,bool)", ret) == (True, True)
+    assert c.compare(payload, payload, "cat", "kitten") == (True, True)
 
     revert_data = method_id("NoFives()") + b"\x01\x02"
     with tx_failed(exc_text=revert_data.hex()):
-        _call(env, c, "boom(bytes)", "(bytes)", (revert_data,))
+        c.boom(revert_data)
 
 
-def test_inf_bytes_raw_call_direct_return(env):
+def test_inf_bytes_raw_call_direct_return(get_contract):
     payload = bytes((i * 47) % 256 for i in range(2001))
     code = """
 IDENTITY: constant(address) = 0x0000000000000000000000000000000000000004
@@ -1523,12 +1430,11 @@ def echo(x: Bytes[INF]) -> Bytes[INF]:
     return raw_call(IDENTITY, x, max_outsize=4096)
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "echo(bytes)", "(bytes)", (payload,))
-    assert abi_decode("(bytes)", ret) == (payload,)
+    c = get_contract(code)
+    assert c.echo(payload) == payload
 
 
-def test_inf_bytes_raw_call_checkable_tuple_unpack(env):
+def test_inf_bytes_raw_call_checkable_tuple_unpack(get_contract):
     payload = bytes((i * 53) % 256 for i in range(2001))
     code = """
 IDENTITY: constant(address) = 0x0000000000000000000000000000000000000004
@@ -1542,12 +1448,11 @@ def echo(x: Bytes[INF]) -> Bytes[INF]:
     return y
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "echo(bytes)", "(bytes)", (payload,))
-    assert abi_decode("(bytes)", ret) == (payload,)
+    c = get_contract(code)
+    assert c.echo(payload) == payload
 
 
-def test_inf_bytes_raw_call_checkable_direct_tuple_return(env):
+def test_inf_bytes_raw_call_checkable_direct_tuple_return(get_contract):
     payload = bytes((i * 59) % 256 for i in range(2001))
     code = """
 IDENTITY: constant(address) = 0x0000000000000000000000000000000000000004
@@ -1557,12 +1462,11 @@ def echo(x: Bytes[INF]) -> (bool, Bytes[INF]):
     return raw_call(IDENTITY, x, max_outsize=4096, revert_on_failure=False)
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "echo(bytes)", "(bytes)", (payload,))
-    assert abi_decode("(bool,bytes)", ret) == (True, payload)
+    c = get_contract(code)
+    assert c.echo(payload) == (True, payload)
 
 
-def test_inf_bytes_raw_return(env):
+def test_inf_bytes_raw_return(env, get_contract):
     payload = bytes((i * 61) % 256 for i in range(2001))
     code = """
 @external
@@ -1581,13 +1485,13 @@ def empty() -> Bytes[INF]:
     return b""
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
     assert _call(env, c, "echo(bytes)", "(bytes)", (payload,)) == payload
     assert _call(env, c, "literal()") == b"literal"
     assert _call(env, c, "empty()") == b""
 
 
-def test_inf_bytes_tuple_literal_return(env):
+def test_inf_bytes_tuple_literal_return(get_contract):
     payload = bytes((i * 73) % 256 for i in range(2001))
     code = """
 @external
@@ -1596,12 +1500,11 @@ def pair(x: Bytes[INF]) -> (uint256, Bytes[INF]):
     return 7, y
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "pair(bytes)", "(bytes)", (payload,))
-    assert abi_decode("(uint256,bytes)", ret) == (7, payload)
+    c = get_contract(code)
+    assert c.pair(payload) == (7, payload)
 
 
-def test_inf_string_tuple_literal_return(env):
+def test_inf_string_tuple_literal_return(get_contract):
     payload = "tuple string " * 170 + "tail"
     code = """
 @external
@@ -1610,23 +1513,22 @@ def pair(x: String[INF]) -> (uint256, String[INF]):
     return 9, y
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "pair(string)", "(string)", (payload,))
-    assert abi_decode("(uint256,string)", ret) == (9, payload)
+    c = get_contract(code)
+    assert c.pair(payload) == (9, payload)
 
 
-def test_inf_bytes_tuple_empty_literal_return(env):
+def test_inf_bytes_tuple_empty_literal_return(get_contract):
     code = """
 @external
 def pair() -> (uint256, Bytes[INF]):
     return 1, b""
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(uint256,bytes)", _call(env, c, "pair()")) == (1, b"")
+    c = get_contract(code)
+    assert c.pair() == (1, b"")
 
 
-def test_inf_bytes_tuple_ternary_return(env):
+def test_inf_bytes_tuple_ternary_return(get_contract):
     code = """
 @external
 def choose(flag: bool) -> (uint256, Bytes[INF]):
@@ -1637,18 +1539,12 @@ def choose(flag: bool) -> (uint256, Bytes[INF]):
     return (a, x) if flag else (b, y)
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(uint256,bytes)", _call(env, c, "choose(bool)", "(bool)", (True,))) == (
-        1,
-        b"cat",
-    )
-    assert abi_decode("(uint256,bytes)", _call(env, c, "choose(bool)", "(bool)", (False,))) == (
-        2,
-        b"kitten",
-    )
+    c = get_contract(code)
+    assert c.choose(True) == (1, b"cat")
+    assert c.choose(False) == (2, b"kitten")
 
 
-def test_inf_bytes_tuple_ternary_materializes_bounded_arm(env):
+def test_inf_bytes_tuple_ternary_materializes_bounded_arm(get_contract):
     code = """
 @external
 def choose(flag: bool, x: Bytes[INF]) -> (uint256, Bytes[INF]):
@@ -1657,14 +1553,12 @@ def choose(flag: bool, x: Bytes[INF]) -> (uint256, Bytes[INF]):
     return d if flag else (n, x)
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "choose(bool,bytes)", "(bool,bytes)", (True, b"cat"))
-    assert abi_decode("(uint256,bytes)", ret) == (9, b"fish")
-    ret = _call(env, c, "choose(bool,bytes)", "(bool,bytes)", (False, b"kitten"))
-    assert abi_decode("(uint256,bytes)", ret) == (7, b"kitten")
+    c = get_contract(code)
+    assert c.choose(True, b"cat") == (9, b"fish")
+    assert c.choose(False, b"kitten") == (7, b"kitten")
 
 
-def test_inf_bytes_singleton_tuple_literal_return(env):
+def test_inf_bytes_singleton_tuple_literal_return(env, get_contract):
     payload = bytes((i * 83) % 256 for i in range(2001))
 
     def encode_singleton_bytes_tuple(value):
@@ -1687,13 +1581,13 @@ def empty() -> (Bytes[INF],):
     return (b"",)
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
     ret = _call(env, c, "from_arg(bytes)", "(bytes)", (payload,))
     assert ret == encode_singleton_bytes_tuple(payload)
     assert _call(env, c, "empty()") == encode_singleton_bytes_tuple(b"")
 
 
-def test_inf_bytes_internal_tuple_return(env):
+def test_inf_bytes_internal_tuple_return(get_contract, no_inlining_settings):
     payload = bytes((i * 89) % 256 for i in range(2001))
     code = """
 @internal
@@ -1705,12 +1599,13 @@ def pair(x: Bytes[INF]) -> (uint256, Bytes[INF]):
     return self._pair(x)
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
-    ret = _call(env, c, "pair(bytes)", "(bytes)", (payload,))
-    assert abi_decode("(uint256,bytes)", ret) == (11, payload)
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.pair(payload) == (11, payload)
 
 
-def test_inf_bytes_internal_tuple_return_with_bounded_complex_member(env):
+def test_inf_bytes_internal_tuple_return_with_bounded_complex_member(
+    get_contract, no_inlining_settings
+):
     payload = bytes((i * 90) % 256 for i in range(2001))
     code = """
 @internal
@@ -1722,12 +1617,13 @@ def pair(x: Bytes[INF]) -> (Bytes[5], Bytes[INF]):
     return self._pair(x)
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
-    ret = _call(env, c, "pair(bytes)", "(bytes)", (payload,))
-    assert abi_decode("(bytes,bytes)", ret) == (b"small", payload)
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.pair(payload) == (b"small", payload)
 
 
-def test_inf_bytes_internal_tuple_return_with_bounded_complex_member_after_inf(env):
+def test_inf_bytes_internal_tuple_return_with_bounded_complex_member_after_inf(
+    get_contract, no_inlining_settings
+):
     payload = bytes((i * 97) % 256 for i in range(2001))
     code = """
 @internal
@@ -1739,12 +1635,11 @@ def pair(x: Bytes[INF]) -> (Bytes[INF], Bytes[5]):
     return self._pair(x)
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
-    ret = _call(env, c, "pair(bytes)", "(bytes)", (payload,))
-    assert abi_decode("(bytes,bytes)", ret) == (payload, b"small")
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.pair(payload) == (payload, b"small")
 
 
-def test_inf_bytes_internal_tuple_return_subscript(env):
+def test_inf_bytes_internal_tuple_return_subscript(get_contract, no_inlining_settings):
     code = """
 @internal
 def _pair(x: Bytes[INF]) -> (uint256, Bytes[INF]):
@@ -1755,12 +1650,11 @@ def second(x: Bytes[INF]) -> Bytes[3]:
     return slice(self._pair(x)[1], 0, 3)
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
-    ret = _call(env, c, "second(bytes)", "(bytes)", (b"cat",))
-    assert abi_decode("(bytes)", ret) == (b"cat",)
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.second(b"cat") == b"cat"
 
 
-def test_inf_string_internal_tuple_return_subscript(env):
+def test_inf_string_internal_tuple_return_subscript(get_contract, no_inlining_settings):
     code = """
 @internal
 def _pair(x: String[INF]) -> (uint256, String[INF]):
@@ -1771,12 +1665,11 @@ def second(x: String[INF]) -> String[6]:
     return slice(self._pair(x)[1], 0, 6)
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
-    ret = _call(env, c, "second(string)", "(string)", ("kitten",))
-    assert abi_decode("(string)", ret) == ("kitten",)
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.second("kitten") == "kitten"
 
 
-def test_inf_bytes_string_internal_tuple_return_mixed_ordering(env):
+def test_inf_bytes_string_internal_tuple_return_mixed_ordering(get_contract, no_inlining_settings):
     payload = bytes((i * 91) % 256 for i in range(2001))
     text = "mixed ordering " * 150 + "tail"
     code = """
@@ -1789,12 +1682,13 @@ def mix(x: Bytes[INF], y: String[INF]) -> (Bytes[INF], uint256, String[INF]):
     return self._mix(x, y)
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
-    ret = _call(env, c, "mix(bytes,string)", "(bytes,string)", (payload, text))
-    assert abi_decode("(bytes,uint256,string)", ret) == (payload, 23, text)
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.mix(payload, text) == (payload, 23, text)
 
 
-def test_inf_bytes_internal_tuple_return_swapped_dynamic_sources(env):
+def test_inf_bytes_internal_tuple_return_swapped_dynamic_sources(
+    get_contract, no_inlining_settings
+):
     code = """
 @internal
 def _swap(x: Bytes[INF], y: Bytes[INF]) -> (Bytes[INF], Bytes[INF]):
@@ -1805,12 +1699,11 @@ def swap(x: Bytes[INF], y: Bytes[INF]) -> (Bytes[INF], Bytes[INF]):
     return self._swap(x, y)
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
-    ret = _call(env, c, "swap(bytes,bytes)", "(bytes,bytes)", (b"first", b"second value"))
-    assert abi_decode("(bytes,bytes)", ret) == (b"second value", b"first")
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.swap(b"first", b"second value") == (b"second value", b"first")
 
 
-def test_inf_bytes_internal_tuple_return_many_ordinary_members(env):
+def test_inf_bytes_internal_tuple_return_many_ordinary_members(get_contract, no_inlining_settings):
     payload = bytes((i * 95) % 256 for i in range(2001))
     code = """
 @internal
@@ -1822,12 +1715,11 @@ def many(x: Bytes[INF]) -> (uint256, uint256, uint256, Bytes[INF]):
     return self._many(x)
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
-    ret = _call(env, c, "many(bytes)", "(bytes)", (payload,))
-    assert abi_decode("(uint256,uint256,uint256,bytes)", ret) == (1, 2, 3, payload)
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.many(payload) == (1, 2, 3, payload)
 
 
-def test_inf_bytes_internal_singleton_tuple_return(env):
+def test_inf_bytes_internal_singleton_tuple_return(env, get_contract, no_inlining_settings):
     payload = bytes((i * 92) % 256 for i in range(2001))
 
     def encode_singleton_bytes_tuple(value):
@@ -1850,12 +1742,12 @@ def one(x: Bytes[INF]) -> (Bytes[INF],):
     return self._one(x)
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
+    c = get_contract(code, compiler_settings=no_inlining_settings)
     ret = _call(env, c, "one(bytes)", "(bytes)", (payload,))
     assert ret == encode_singleton_bytes_tuple(payload)
 
 
-def test_inf_bytes_internal_tuple_return_forwarding(env):
+def test_inf_bytes_internal_tuple_return_forwarding(get_contract, no_inlining_settings):
     payload = bytes((i * 93) % 256 for i in range(2001))
     code = """
 @internal
@@ -1871,12 +1763,11 @@ def pair(x: Bytes[INF]) -> (uint256, Bytes[INF]):
     return self._forward(x)
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
-    ret = _call(env, c, "pair(bytes)", "(bytes)", (payload,))
-    assert abi_decode("(uint256,bytes)", ret) == (19, payload)
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.pair(payload) == (19, payload)
 
 
-def test_inf_bytes_internal_tuple_unpack(env):
+def test_inf_bytes_internal_tuple_unpack(get_contract, no_inlining_settings):
     code = """
 @internal
 def _pair() -> (uint256, Bytes[INF]):
@@ -1890,11 +1781,11 @@ def unpack() -> (uint256, Bytes[6]):
     return a, slice(b, 0, 6)
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
-    assert abi_decode("(uint256,bytes)", _call(env, c, "unpack()")) == (13, b"kitten")
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.unpack() == (13, b"kitten")
 
 
-def test_inf_bytes_string_internal_tuple_multi_dynamic_return(env):
+def test_inf_bytes_string_internal_tuple_multi_dynamic_return(get_contract, no_inlining_settings):
     payload = bytes((i * 97) % 256 for i in range(2001))
     text = "venom tuple " * 180 + "tail"
     code = """
@@ -1907,12 +1798,11 @@ def pair(x: Bytes[INF], y: String[INF]) -> (Bytes[INF], String[INF]):
     return self._pair(x, y)
     """
 
-    c = _deploy_venom(env, code, settings=_venom_settings(disable_inlining=True))
-    ret = _call(env, c, "pair(bytes,string)", "(bytes,string)", (payload, text))
-    assert abi_decode("(bytes,string)", ret) == (payload, text)
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.pair(payload, text) == (payload, text)
 
 
-def test_inf_bytes_raw_create_bytecode_param(env):
+def test_inf_bytes_raw_create_bytecode_param(env, get_contract):
     to_deploy_code = """
 foo: public(uint256)
     """
@@ -1926,39 +1816,37 @@ def deploy(s: Bytes[INF]) -> address:
     return raw_create(s)
     """
 
-    deployer = _deploy_venom(env, deployer_code)
-    ret = _call(env, deployer, "deploy(bytes)", "(bytes)", (initcode,))
-    addr = abi_decode("(address)", ret)[0]
+    deployer = get_contract(deployer_code)
+    addr = deployer.deploy(initcode)
     assert env.get_code(addr) == runtime
 
 
-def test_inf_bytes_raw_create_oversized_initcode_no_revert(env):
+def test_inf_bytes_raw_create_oversized_initcode_no_revert(get_contract):
     deployer_code = """
 @external
 def deploy(s: Bytes[INF]) -> address:
     return raw_create(s, revert_on_failure=False)
     """
 
-    deployer = _deploy_venom(env, deployer_code)
+    deployer = get_contract(deployer_code)
     initcode = b"\x00" * (EIP_3860_LIMIT + 1)
-    ret = _call(env, deployer, "deploy(bytes)", "(bytes)", (initcode,))
-    assert abi_decode("(address)", ret) == ("0x0000000000000000000000000000000000000000",)
+    assert deployer.deploy(initcode) == "0x0000000000000000000000000000000000000000"
 
 
-def test_inf_bytes_raw_create_oversized_initcode_reverts(env, tx_failed):
+def test_inf_bytes_raw_create_oversized_initcode_reverts(get_contract, tx_failed):
     deployer_code = """
 @external
 def deploy(s: Bytes[INF]) -> address:
     return raw_create(s)
     """
 
-    deployer = _deploy_venom(env, deployer_code)
+    deployer = get_contract(deployer_code)
     initcode = b"\x00" * (EIP_3860_LIMIT + 1)
     with tx_failed():
-        _call(env, deployer, "deploy(bytes)", "(bytes)", (initcode,))
+        deployer.deploy(initcode)
 
 
-def test_inf_bytes_raw_create_bytecode_local_with_ctor_arg(env):
+def test_inf_bytes_raw_create_bytecode_local_with_ctor_arg(env, get_contract):
     to_deploy_code = """
 foo: public(uint256)
 
@@ -1977,15 +1865,14 @@ def deploy(s: Bytes[INF], x: uint256) -> address:
     return raw_create(bytecode, x)
     """
 
-    deployer = _deploy_venom(env, deployer_code)
-    ret = _call(env, deployer, "deploy(bytes,uint256)", "(bytes,uint256)", (initcode, 42))
-    addr = abi_decode("(address)", ret)[0]
+    deployer = get_contract(deployer_code)
+    addr = deployer.deploy(initcode, 42)
     assert env.get_code(addr) == runtime
     ret = env.message_call(addr, data=method_id("foo()"))
     assert abi_decode("(uint256)", ret) == (42,)
 
 
-def test_inf_bytes_raw_create_unbounded_ctor_arg(env):
+def test_inf_bytes_raw_create_unbounded_ctor_arg(env, get_contract, compiler_settings):
     payload = bytes((i * 73) % 256 for i in range(2001))
     to_deploy_code = """
 stored: Bytes[2001]
@@ -1998,7 +1885,7 @@ def __init__(x: Bytes[INF]):
 def get() -> Bytes[2001]:
     return self.stored
     """
-    out = _compile_venom(to_deploy_code, ["bytecode"])
+    out = compile_code(to_deploy_code, output_formats=["bytecode"], settings=compiler_settings)
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
 
     deployer_code = """
@@ -2007,14 +1894,15 @@ def deploy(s: Bytes[INF], x: Bytes[INF]) -> address:
     return raw_create(s, x)
     """
 
-    deployer = _deploy_venom(env, deployer_code)
-    ret = _call(env, deployer, "deploy(bytes,bytes)", "(bytes,bytes)", (initcode, payload))
-    addr = abi_decode("(address)", ret)[0]
+    deployer = get_contract(deployer_code)
+    addr = deployer.deploy(initcode, payload)
     ret = env.message_call(addr, data=method_id("get()"))
     assert abi_decode("(bytes)", ret) == (payload,)
 
 
-def test_inf_bytes_raw_create_snapshots_primitive_ctor_arg_before_later_mutation(env):
+def test_inf_bytes_raw_create_snapshots_primitive_ctor_arg_before_later_mutation(
+    env, get_contract, compiler_settings
+):
     child_code = """
 stored: public(uint256)
 marker: public(uint256)
@@ -2024,7 +1912,7 @@ def __init__(a: uint256, x: Bytes[INF], marker: uint256):
     self.stored = a * 100 + len(x) * 10
     self.marker = marker
     """
-    out = _compile_venom(child_code, ["bytecode"])
+    out = compile_code(child_code, output_formats=["bytecode"], settings=compiler_settings)
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
 
     deployer_code = """
@@ -2041,9 +1929,8 @@ def deploy(s: Bytes[INF], x: Bytes[INF]) -> address:
     return raw_create(s, self.stored, x, self._mutate())
     """
 
-    deployer = _deploy_venom(env, deployer_code)
-    ret = _call(env, deployer, "deploy(bytes,bytes)", "(bytes,bytes)", (initcode, b"cat"))
-    addr = abi_decode("(address)", ret)[0]
+    deployer = get_contract(deployer_code)
+    addr = deployer.deploy(initcode, b"cat")
 
     ret = env.message_call(addr, data=method_id("stored()"))
     assert abi_decode("(uint256)", ret) == (630,)
@@ -2051,7 +1938,9 @@ def deploy(s: Bytes[INF], x: Bytes[INF]) -> address:
     assert abi_decode("(uint256)", ret) == (7,)
 
 
-def test_inf_bytes_create_from_blueprint_unbounded_ctor_arg(env):
+def test_inf_bytes_create_from_blueprint_unbounded_ctor_arg(
+    env, get_contract, deploy_blueprint_for
+):
     payload = bytes((i * 79) % 256 for i in range(2001))
     to_deploy_code = """
 stored: Bytes[2001]
@@ -2064,8 +1953,7 @@ def __init__(x: Bytes[INF]):
 def get() -> Bytes[2001]:
     return self.stored
     """
-    out = _compile_venom(to_deploy_code, ["blueprint_bytecode"])
-    blueprint = env.deploy([], bytes.fromhex(out["blueprint_bytecode"].removeprefix("0x")))
+    blueprint, _ = deploy_blueprint_for(to_deploy_code)
 
     code = """
 @external
@@ -2073,16 +1961,15 @@ def deploy(target: address, x: Bytes[INF]) -> address:
     return create_from_blueprint(target, x)
     """
 
-    deployer = _deploy_venom(env, code)
-    ret = _call(
-        env, deployer, "deploy(address,bytes)", "(address,bytes)", (blueprint.address, payload)
-    )
-    addr = abi_decode("(address)", ret)[0]
+    deployer = get_contract(code)
+    addr = deployer.deploy(blueprint.address, payload)
     ret = env.message_call(addr, data=method_id("get()"))
     assert abi_decode("(bytes)", ret) == (payload,)
 
 
-def test_inf_bytes_create_from_blueprint_raw_args_unbounded(env):
+def test_inf_bytes_create_from_blueprint_raw_args_unbounded(
+    env, get_contract, deploy_blueprint_for
+):
     payload = bytes((i * 83) % 256 for i in range(2001))
     to_deploy_code = """
 stored: Bytes[2001]
@@ -2095,8 +1982,7 @@ def __init__(x: Bytes[INF]):
 def get() -> Bytes[2001]:
     return self.stored
     """
-    out = _compile_venom(to_deploy_code, ["blueprint_bytecode"])
-    blueprint = env.deploy([], bytes.fromhex(out["blueprint_bytecode"].removeprefix("0x")))
+    blueprint, _ = deploy_blueprint_for(to_deploy_code)
     raw_args = abi_encode("(bytes)", (payload,))
 
     code = """
@@ -2105,16 +1991,13 @@ def deploy(target: address, args: Bytes[INF]) -> address:
     return create_from_blueprint(target, args, raw_args=True)
     """
 
-    deployer = _deploy_venom(env, code)
-    ret = _call(
-        env, deployer, "deploy(address,bytes)", "(address,bytes)", (blueprint.address, raw_args)
-    )
-    addr = abi_decode("(address)", ret)[0]
+    deployer = get_contract(code)
+    addr = deployer.deploy(blueprint.address, raw_args)
     ret = env.message_call(addr, data=method_id("get()"))
     assert abi_decode("(bytes)", ret) == (payload,)
 
 
-def test_inf_string_raw_create_unbounded_ctor_arg(env):
+def test_inf_string_raw_create_unbounded_ctor_arg(env, get_contract, compiler_settings):
     payload = "raw create string " * 120 + "tail"
     to_deploy_code = """
 stored_len: public(uint256)
@@ -2125,7 +2008,7 @@ def __init__(x: String[INF]):
     self.stored_len = len(x)
     self.stored_hash = sha256(x)
     """
-    out = _compile_venom(to_deploy_code, ["bytecode"])
+    out = compile_code(to_deploy_code, output_formats=["bytecode"], settings=compiler_settings)
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
 
     deployer_code = """
@@ -2134,16 +2017,17 @@ def deploy(s: Bytes[INF], x: String[INF]) -> address:
     return raw_create(s, x)
     """
 
-    deployer = _deploy_venom(env, deployer_code)
-    ret = _call(env, deployer, "deploy(bytes,string)", "(bytes,string)", (initcode, payload))
-    addr = abi_decode("(address)", ret)[0]
+    deployer = get_contract(deployer_code)
+    addr = deployer.deploy(initcode, payload)
     ret = env.message_call(addr, data=method_id("stored_len()"))
     assert abi_decode("(uint256)", ret) == (len(payload),)
     ret = env.message_call(addr, data=method_id("stored_hash()"))
     assert abi_decode("(bytes32)", ret) == (hashlib.sha256(payload.encode()).digest(),)
 
 
-def test_inf_string_create_from_blueprint_unbounded_ctor_arg(env):
+def test_inf_string_create_from_blueprint_unbounded_ctor_arg(
+    env, get_contract, deploy_blueprint_for
+):
     payload = "blueprint string " * 130 + "tail"
     to_deploy_code = """
 stored_len: public(uint256)
@@ -2154,8 +2038,7 @@ def __init__(x: String[INF]):
     self.stored_len = len(x)
     self.stored_hash = sha256(x)
     """
-    out = _compile_venom(to_deploy_code, ["blueprint_bytecode"])
-    blueprint = env.deploy([], bytes.fromhex(out["blueprint_bytecode"].removeprefix("0x")))
+    blueprint, _ = deploy_blueprint_for(to_deploy_code)
 
     code = """
 @external
@@ -2163,11 +2046,8 @@ def deploy(target: address, x: String[INF]) -> address:
     return create_from_blueprint(target, x)
     """
 
-    deployer = _deploy_venom(env, code)
-    ret = _call(
-        env, deployer, "deploy(address,string)", "(address,string)", (blueprint.address, payload)
-    )
-    addr = abi_decode("(address)", ret)[0]
+    deployer = get_contract(code)
+    addr = deployer.deploy(blueprint.address, payload)
     ret = env.message_call(addr, data=method_id("stored_len()"))
     assert abi_decode("(uint256)", ret) == (len(payload),)
     ret = env.message_call(addr, data=method_id("stored_hash()"))
@@ -2175,7 +2055,7 @@ def deploy(target: address, x: String[INF]) -> address:
 
 
 @pytest.mark.parametrize("call", ["raw_create(s, (x, y))", "create_from_blueprint(target, (x, y))"])
-def test_create_rejects_nested_inf_ctor_arg(call):
+def test_create_rejects_nested_inf_ctor_arg(call, compiler_settings):
     target_arg = "target: address, " if call.startswith("create_from_blueprint") else ""
     code = f"""
 @external
@@ -2187,10 +2067,10 @@ def deploy({target_arg}s: Bytes[INF], x: Bytes[INF], y: uint256) -> address:
         StructureException,
         match="constructor arguments cannot contain nested unbounded sequence types",
     ):
-        compile_code(code, settings=_venom_settings())
+        compile_code(code, settings=compiler_settings)
 
 
-def test_inf_bytes_raw_log_data(env):
+def test_inf_bytes_raw_log_data(env, get_contract):
     payload = bytes((i * 61) % 256 for i in range(2001))
     code = """
 @external
@@ -2198,12 +2078,12 @@ def emit_raw(x: Bytes[INF]):
     raw_log([], x)
     """
 
-    c = _deploy_venom(env, code)
-    _call(env, c, "emit_raw(bytes)", "(bytes)", (payload,))
+    c = get_contract(code)
+    c.emit_raw(payload)
     assert env.get_logs(c, raw=True)[0][1] == payload
 
 
-def test_inf_bytes_constructor_arg(env):
+def test_inf_bytes_constructor_arg(get_contract):
     payload = bytes((i * 7) % 256 for i in range(2001))
     code = """
 saved: Bytes[2001]
@@ -2217,11 +2097,11 @@ def get() -> Bytes[2001]:
     return self.saved
     """
 
-    c = _deploy_venom_with_ctor_data(env, code, abi_encode("(bytes)", (payload,)))
-    assert abi_decode("(bytes)", _call(env, c, "get()")) == (payload,)
+    c = get_contract(code, payload)
+    assert c.get() == payload
 
 
-def test_inf_bytes_constructor_arg_allows_truncated_data(env):
+def test_inf_bytes_constructor_arg_allows_truncated_data(env, compiler_settings):
     code = """
 @deploy
 def __init__(a: Bytes[INF]):
@@ -2235,18 +2115,18 @@ def ok() -> uint256:
     def word(value):
         return value.to_bytes(32, "big")
 
-    c = _deploy_venom_with_ctor_data(env, code, word(32) + word(2001))
-    assert abi_decode("(uint256)", _call(env, c, "ok()")) == (1,)
+    c = _deploy_with_ctor_data(env, code, word(32) + word(2001), compiler_settings)
+    assert c.ok() == 1
 
 
-def test_inf_bytes_external_param_rejects_truncated_calldata(env, tx_failed):
+def test_inf_bytes_external_param_rejects_truncated_calldata(env, get_contract, tx_failed):
     code = """
 @external
 def length(x: Bytes[INF]) -> uint256:
     return len(x)
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
 
     def word(value):
         return value.to_bytes(32, "big")
@@ -2259,14 +2139,14 @@ def length(x: Bytes[INF]) -> uint256:
     assert abi_decode("(uint256)", env.message_call(c.address, data=calldata)) == (0,)
 
 
-def test_inf_bytes_external_param_allows_missing_padding(env):
+def test_inf_bytes_external_param_allows_missing_padding(env, get_contract):
     code = """
 @external
 def length(x: Bytes[INF]) -> uint256:
     return len(x)
     """
 
-    c = _deploy_venom(env, code)
+    c = get_contract(code)
 
     def word(value):
         return value.to_bytes(32, "big")
@@ -2275,7 +2155,7 @@ def length(x: Bytes[INF]) -> uint256:
     assert abi_decode("(uint256)", env.message_call(c.address, data=calldata)) == (3,)
 
 
-def test_inf_bytes_internal_arg_roundtrip(env):
+def test_inf_bytes_internal_arg_roundtrip(get_contract):
     payload = bytes((i * 13) % 256 for i in range(2001))
     code = """
 @internal
@@ -2287,12 +2167,11 @@ def echo(x: Bytes[INF]) -> Bytes[INF]:
     return self._echo(x)
     """
 
-    c = _deploy_venom(env, code)
-    ret = _call(env, c, "echo(bytes)", "(bytes)", (payload,))
-    assert abi_decode("(bytes)", ret) == (payload,)
+    c = get_contract(code)
+    assert c.echo(payload) == payload
 
 
-def test_inf_bytes_internal_arg_is_copied(env):
+def test_inf_bytes_internal_arg_is_copied(get_contract):
     code = """
 @internal
 def _copy(x: Bytes[INF]) -> Bytes[INF]:
@@ -2306,11 +2185,11 @@ def check() -> Bytes[3]:
     return slice(y, 0, 3)
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(bytes)", _call(env, c, "check()")) == (b"abc",)
+    c = get_contract(code)
+    assert c.check() == b"abc"
 
 
-def test_inf_bytes_internal_arg_reassignment_does_not_mutate_caller(env):
+def test_inf_bytes_internal_arg_reassignment_does_not_mutate_caller(get_contract):
     code = """
 @internal
 def _replace(x: Bytes[INF]) -> Bytes[3]:
@@ -2324,11 +2203,11 @@ def check() -> (Bytes[3], Bytes[3]):
     return y, slice(x, 0, 3)
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(bytes,bytes)", _call(env, c, "check()")) == (b"def", b"abc")
+    c = get_contract(code)
+    assert c.check() == (b"def", b"abc")
 
 
-def test_empty_inf_bytes_and_string_locals(env):
+def test_empty_inf_bytes_and_string_locals(get_contract):
     code = """
 @external
 def foo() -> (uint256, uint256):
@@ -2337,11 +2216,11 @@ def foo() -> (uint256, uint256):
     return len(x), len(y)
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(uint256,uint256)", _call(env, c, "foo()")) == (0, 0)
+    c = get_contract(code)
+    assert c.foo() == (0, 0)
 
 
-def test_empty_inf_bytes_and_string_builtin(env):
+def test_empty_inf_bytes_and_string_builtin(get_contract):
     code = """
 @external
 def foo() -> Bytes[INF]:
@@ -2352,34 +2231,34 @@ def bar() -> String[INF]:
     return empty(String[INF])
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(bytes)", _call(env, c, "foo()")) == (b"",)
-    assert abi_decode("(string)", _call(env, c, "bar()")) == ("",)
+    c = get_contract(code)
+    assert c.foo() == b""
+    assert c.bar() == ""
 
 
-def test_empty_inf_bytes_dynamic_tuple_builtin(env):
+def test_empty_inf_bytes_dynamic_tuple_builtin(get_contract):
     code = """
 @external
 def value() -> (uint256, Bytes[INF]):
     return empty((uint256, Bytes[INF]))
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(uint256,bytes)", _call(env, c, "value()")) == (0, b"")
+    c = get_contract(code)
+    assert c.value() == (0, b"")
 
 
-def test_empty_inf_string_dynamic_tuple_builtin(env):
+def test_empty_inf_string_dynamic_tuple_builtin(get_contract):
     code = """
 @external
 def value() -> (uint256, String[INF]):
     return empty((uint256, String[INF]))
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(uint256,string)", _call(env, c, "value()")) == (0, "")
+    c = get_contract(code)
+    assert c.value() == (0, "")
 
 
-def test_empty_nested_inf_aggregate_rejected():
+def test_empty_nested_inf_aggregate_rejected(compiler_settings):
     code = """
 @external
 def value() -> uint256:
@@ -2387,10 +2266,10 @@ def value() -> uint256:
     """
 
     with pytest.raises(StructureException, match="inside aggregate types"):
-        compile_code(code, settings=_venom_settings())
+        compile_code(code, settings=compiler_settings)
 
 
-def test_inf_bytes_local_reassignment_larger_and_smaller(env):
+def test_inf_bytes_local_reassignment_larger_and_smaller(get_contract):
     code = """
 @external
 def grow() -> Bytes[6]:
@@ -2405,12 +2284,12 @@ def shrink() -> Bytes[3]:
     return slice(x, 0, 3)
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(bytes)", _call(env, c, "grow()")) == (b"kitten",)
-    assert abi_decode("(bytes)", _call(env, c, "shrink()")) == (b"cat",)
+    c = get_contract(code)
+    assert c.grow() == b"kitten"
+    assert c.shrink() == b"cat"
 
 
-def test_inf_bytes_local_reassignment_in_if(env):
+def test_inf_bytes_local_reassignment_in_if(get_contract):
     code = """
 @external
 def foo(flag: bool) -> Bytes[3]:
@@ -2420,12 +2299,12 @@ def foo(flag: bool) -> Bytes[3]:
     return slice(x, 0, 3)
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(bytes)", _call(env, c, "foo(bool)", "bool", False)) == (b"abc",)
-    assert abi_decode("(bytes)", _call(env, c, "foo(bool)", "bool", True)) == (b"def",)
+    c = get_contract(code)
+    assert c.foo(False) == b"abc"
+    assert c.foo(True) == b"def"
 
 
-def test_inf_bytes_local_reassignment_in_loop(env):
+def test_inf_bytes_local_reassignment_in_loop(get_contract):
     code = """
 @external
 def foo(flag: bool) -> Bytes[3]:
@@ -2436,6 +2315,6 @@ def foo(flag: bool) -> Bytes[3]:
     return slice(x, 0, 3)
     """
 
-    c = _deploy_venom(env, code)
-    assert abi_decode("(bytes)", _call(env, c, "foo(bool)", "bool", False)) == (b"one",)
-    assert abi_decode("(bytes)", _call(env, c, "foo(bool)", "bool", True)) == (b"two",)
+    c = get_contract(code)
+    assert c.foo(False) == b"one"
+    assert c.foo(True) == b"two"
