@@ -22,7 +22,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.compiler import compile_code
 from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings
-from vyper.exceptions import EvmVersionException
+from vyper.exceptions import EvmVersionException, StructureException
 from vyper.ir import compile_ir, optimizer
 from vyper.utils import keccak256
 
@@ -96,6 +96,23 @@ def experimental_codegen(pytestconfig):
     ret = pytestconfig.getoption("experimental_codegen")
     assert isinstance(ret, bool)
     return ret
+
+
+@pytest.fixture
+def compile_inf_code(experimental_codegen):
+    """
+    Compile code that uses unbounded sequence types. Only venom can lower
+    them; legacy codegen rejects them at analysis time.
+    """
+
+    def _compile(code, **kwargs):
+        if experimental_codegen:
+            return compile_code(code, **kwargs)
+        with pytest.raises(StructureException) as e:
+            compile_code(code, **kwargs)
+        assert e.value.message == "unbounded sequence types require --experimental-codegen"
+
+    return _compile
 
 
 @pytest.fixture(scope="session")

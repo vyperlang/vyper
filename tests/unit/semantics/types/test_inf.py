@@ -573,9 +573,8 @@ def foo(x: Bytes[INF]):
         """,
     ],
 )
-def test_inf_legacy_builtin_gates(code):
-    with pytest.raises(StructureException):
-        compiler.compile_code(code, settings=Settings(experimental_codegen=False))
+def test_inf_builtin_args(compile_inf_code, code):
+    compile_inf_code(code)
 
 
 def test_inf_print_rejects_nested_arg():
@@ -638,9 +637,8 @@ def foo() -> uint256:
         """,
     ],
 )
-def test_inf_convert_legacy_requires_experimental_codegen(code):
-    with pytest.raises(StructureException):
-        compiler.compile_code(code, settings=Settings(experimental_codegen=False))
+def test_inf_convert(compile_inf_code, code):
+    compile_inf_code(code)
 
 
 @pytest.mark.parametrize(
@@ -667,19 +665,17 @@ def foo() -> uint256:
         """,
     ],
 )
-def test_unused_inf_internal_legacy_requires_experimental_codegen(code):
-    with pytest.raises(StructureException):
-        compiler.compile_code(code, settings=Settings(experimental_codegen=False))
+def test_unused_inf_internal(compile_inf_code, code):
+    compile_inf_code(code)
 
 
-def test_expression_only_inf_legacy_requires_experimental_codegen():
+def test_expression_only_inf(compile_inf_code):
     code = """
 @external
 def foo() -> uint256:
     return len(empty(Bytes[INF]))
     """
-    with pytest.raises(StructureException):
-        compiler.compile_code(code, settings=Settings(experimental_codegen=False))
+    compile_inf_code(code)
 
 
 @pytest.mark.parametrize(
@@ -721,15 +717,11 @@ def bar(a: address) -> Bytes[2]:
         """,
     ],
 )
-def test_inf_valued_expression_legacy_requires_experimental_codegen(code):
-    with pytest.raises(StructureException):
-        compiler.compile_code(code, settings=Settings(experimental_codegen=False))
-
-    # the same code compiles with the venom pipeline
-    compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+def test_inf_valued_expression(compile_inf_code, code):
+    compile_inf_code(code)
 
 
-def test_json_abi_extcall_slice_legacy_requires_experimental_codegen(make_input_bundle):
+def test_json_abi_extcall_slice(compile_inf_code, make_input_bundle):
     # bytes returns from JSON ABI interfaces resolve to Bytes[INF] at the
     # call site; legacy codegen has no lowering for the resulting value
     abi = [
@@ -749,16 +741,7 @@ def foo(x: JSONInterface) -> Bytes[2]:
     return slice(extcall x.returns_bytes(), 0, 2)
     """
     input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
-    with pytest.raises(StructureException):
-        compiler.compile_code(
-            code, input_bundle=input_bundle, settings=Settings(experimental_codegen=False)
-        )
-    compiler.compile_code(
-        code,
-        output_formats=["bytecode"],
-        input_bundle=input_bundle,
-        settings=Settings(experimental_codegen=True),
-    )
+    compile_inf_code(code, input_bundle=input_bundle)
 
 
 @pytest.mark.parametrize(
@@ -799,7 +782,7 @@ def test_adhoc_bytes_sources_allowed_in_legacy(code):
     compiler.compile_code(code, settings=Settings(experimental_codegen=False))
 
 
-def test_exported_inf_function_legacy_requires_experimental_codegen(make_input_bundle):
+def test_exported_inf_function(compile_inf_code, make_input_bundle):
     lib = """
 @external
 def foo() -> uint256:
@@ -812,19 +795,10 @@ import lib
 exports: lib.foo
     """
     input_bundle = make_input_bundle({"lib.vy": lib})
-    with pytest.raises(StructureException):
-        compiler.compile_code(
-            code, input_bundle=input_bundle, settings=Settings(experimental_codegen=False)
-        )
-    compiler.compile_code(
-        code,
-        output_formats=["bytecode"],
-        input_bundle=input_bundle,
-        settings=Settings(experimental_codegen=True),
-    )
+    compile_inf_code(code, input_bundle=input_bundle)
 
 
-def test_imported_inf_function_call_legacy_requires_experimental_codegen(make_input_bundle):
+def test_imported_inf_function_call(compile_inf_code, make_input_bundle):
     lib = """
 @internal
 def helper() -> uint256:
@@ -839,16 +813,7 @@ def foo() -> uint256:
     return lib.helper()
     """
     input_bundle = make_input_bundle({"lib.vy": lib})
-    with pytest.raises(StructureException):
-        compiler.compile_code(
-            code, input_bundle=input_bundle, settings=Settings(experimental_codegen=False)
-        )
-    compiler.compile_code(
-        code,
-        output_formats=["bytecode"],
-        input_bundle=input_bundle,
-        settings=Settings(experimental_codegen=True),
-    )
+    compile_inf_code(code, input_bundle=input_bundle)
 
 
 def test_inf_default_arg_expression_rejected():
@@ -899,45 +864,37 @@ def tuple_value() -> (uint256, Bytes[INF]):
     compiler.compile_code(code, settings=settings)
 
 
-def _compile_inf_bytestring_code(code, experimental_codegen):
-    if experimental_codegen:
-        compiler.compile_code(code)
-    else:
-        with pytest.raises(StructureException):
-            compiler.compile_code(code)
-
-
-def test_inf_pure_param(experimental_codegen):
+def test_inf_pure_param(compile_inf_code):
     code = """
 @pure
 @external
 def foo(x: Bytes[INF]) -> Bytes[INF]:
     return x
     """
-    _compile_inf_bytestring_code(code, experimental_codegen)
+    compile_inf_code(code)
 
 
-def test_inf_pure_param_string(experimental_codegen):
+def test_inf_pure_param_string(compile_inf_code):
     code = """
 @pure
 @external
 def foo(x: String[INF]) -> String[INF]:
     return x
     """
-    _compile_inf_bytestring_code(code, experimental_codegen)
+    compile_inf_code(code)
 
 
-def test_inf_pure_return(experimental_codegen):
+def test_inf_pure_return(compile_inf_code):
     code = """
 @pure
 @external
 def foo() -> Bytes[INF]:
     return b""
     """
-    _compile_inf_bytestring_code(code, experimental_codegen)
+    compile_inf_code(code)
 
 
-def test_inf_pure_local_var(experimental_codegen):
+def test_inf_pure_local_var(compile_inf_code):
     code = """
 @pure
 @external
@@ -945,10 +902,10 @@ def foo() -> Bytes[INF]:
     x: Bytes[INF] = b""
     return x
     """
-    _compile_inf_bytestring_code(code, experimental_codegen)
+    compile_inf_code(code)
 
 
-def test_inf_pure_internal(experimental_codegen):
+def test_inf_pure_internal(compile_inf_code):
     code = """
 @pure
 @internal
@@ -960,7 +917,7 @@ def _bar(x: Bytes[INF]) -> Bytes[INF]:
 def foo(x: Bytes[INF]) -> Bytes[INF]:
     return self._bar(x)
     """
-    _compile_inf_bytestring_code(code, experimental_codegen)
+    compile_inf_code(code)
 
 
 def test_wildcard_return_dynamic_element_requires_expected_bound():
@@ -1245,22 +1202,14 @@ def boom(x: Bytes[INF]):
         )
 
 
-def _compile_inf_dynarray_code(code, experimental_codegen):
-    if experimental_codegen:
-        compiler.compile_code(code)
-    else:
-        with pytest.raises(StructureException):
-            compiler.compile_code(code)
-
-
-def test_dynarray_inf_pure(experimental_codegen):
+def test_dynarray_inf_pure(compile_inf_code):
     code = """
 @pure
 @external
 def foo(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     return x
     """
-    _compile_inf_dynarray_code(code, experimental_codegen)
+    compile_inf_code(code)
 
 
 @pytest.mark.parametrize("output_format", ["ir_dict", "ir_runtime_dict"])

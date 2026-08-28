@@ -219,18 +219,14 @@ def test_code_properties(addr: address) -> (uint256, uint256, bytes32, bool):
     assert is_contract is True
 
 
-def test_address_code_convert(experimental_codegen):
+def test_address_code_convert(compile_inf_code):
     code = """
 @external
 def code_slice(x: address) -> uint256:
     y: uint256 = convert(x.code, uint256)
     return y
 """
-    if not experimental_codegen:
-        with pytest.raises(StructureException):
-            compiler.compile_code(code)
-    else:
-        compiler.compile_code(code)
+    compile_inf_code(code)
 
 
 @pytest.mark.parametrize(

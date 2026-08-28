@@ -226,31 +226,23 @@ def foo():
     compile_code(code)
 
 
-def _compile_inf_dynarray_code(code, experimental_codegen):
-    if experimental_codegen:
-        compile_code(code)
-    else:
-        with pytest.raises(StructureException):
-            compile_code(code)
-
-
-def test_dynarray_inf_param(experimental_codegen):
+def test_dynarray_inf_param(compile_inf_code):
     code = """
 @external
 def foo(x: DynArray[uint256, INF]):
     pass
     """
-    _compile_inf_dynarray_code(code, experimental_codegen)
+    compile_inf_code(code)
 
 
-def test_dynarray_inf_local_var(experimental_codegen):
+def test_dynarray_inf_local_var(compile_inf_code):
     code = """
 @external
 def foo():
     a: DynArray[uint256, INF] = []
     b: DynArray[uint256, INF] = [1, 2, 3, 4, 5, max_value(uint256)]
     """
-    _compile_inf_dynarray_code(code, experimental_codegen)
+    compile_inf_code(code)
 
 
 def test_dynarray_inf_nested():
@@ -266,14 +258,14 @@ b: DynArray[DynArray[uint256, INF], 5]
             compile_code(code)
 
 
-def test_dynarray_inf_append(experimental_codegen):
+def test_dynarray_inf_append(compile_inf_code):
     code = """
 @external
 def foo():
     a: DynArray[uint256, INF] = []
     a.append(1)
     """
-    _compile_inf_dynarray_code(code, experimental_codegen)
+    compile_inf_code(code)
 
 
 def test_dynarray_mutating_temporary_rejected():
@@ -302,11 +294,11 @@ def foo() -> uint256:
             compile_code(code)
 
 
-def test_dynarray_inf_assign_bounded_to_unbounded(experimental_codegen):
+def test_dynarray_inf_assign_bounded_to_unbounded(compile_inf_code):
     code = """
 @external
 def foo():
     a: DynArray[uint256, 5] = [1, 2, 3]
     b: DynArray[uint256, INF] = a
     """
-    _compile_inf_dynarray_code(code, experimental_codegen)
+    compile_inf_code(code)
