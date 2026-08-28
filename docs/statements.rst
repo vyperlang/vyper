@@ -83,7 +83,7 @@ See :ref:`Event Logging<event-logging>` for more information on events.
 Assertions and Exceptions
 =========================
 
-Vyper uses state-reverting exceptions to handle errors. Exceptions trigger the ``REVERT`` opcode (``0xFD``) with the provided reason given as the error message. When an exception is raised the code stops operation, the contract's state is reverted to the state before the transaction took place and the remaining gas is returned to the transaction's sender. When an exception happen in a sub-call, it “bubbles up” (i.e., exceptions are rethrown) automatically.
+Vyper uses state-reverting exceptions to handle errors. Exceptions trigger the ``REVERT`` opcode (``0xFD``) with the provided reason given as the error message. When an exception is raised the code stops operation, the contract's state is reverted to the state before the transaction took place and the remaining gas is returned to the transaction's sender. When an exception happens in a sub-call, it "bubbles up" (i.e., exceptions are rethrown) automatically.
 
 If the reason string is set to ``UNREACHABLE``, an ``INVALID`` opcode (``0xFE``) is used instead of ``REVERT``. In this case, calls that revert do not receive a gas refund. This is not a recommended practice for general usage, but is available for interoperability with various tools that use the ``INVALID`` opcode to perform dynamic analysis.
 
@@ -98,8 +98,21 @@ The ``raise`` statement triggers an exception and reverts the current call.
 
 The error string is not required. If it is provided, it is limited to 1024 bytes.
 
+Custom errors can also be raised. They are declared at module scope and are encoded with a 4-byte selector followed by ABI-encoded arguments:
+
+.. code-block:: vyper
+
+    error Unauthorized:
+        caller: address
+        expected: address
+
+    raise Unauthorized(caller=msg.sender, expected=owner)
+
+Custom errors are included in the generated ABI with ``type: "error"``.
+
 assert
 ------
+
 
 The ``assert`` statement makes an assertion about a given condition. If the condition evaluates falsely, the transaction is reverted.
 

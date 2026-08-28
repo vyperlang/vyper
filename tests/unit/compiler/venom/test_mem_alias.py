@@ -65,7 +65,7 @@ def test_may_alias_volatile():
     alias = MemoryAliasAnalysis(ac, fn)
     alias.analyze()
 
-    volatile_loc = MemoryLocation(offset=0, size=32, is_volatile=True)
+    volatile_loc = MemoryLocation(offset=0, size=32, _is_volatile=True)
     regular_loc = MemoryLocation(offset=0, size=32)
     assert alias.may_alias(
         volatile_loc, regular_loc
@@ -223,7 +223,7 @@ def test_may_alias_edge_cases():
         loc1, MemoryLocation.EMPTY
     ), "Regular location should not alias with EMPTY_MEMORY_ACCESS"
 
-    volatile_loc = MemoryLocation(offset=0, size=32, is_volatile=True)
+    volatile_loc = MemoryLocation(offset=0, size=32, _is_volatile=True)
     non_overlapping_loc = MemoryLocation(offset=32, size=32)
     assert not alias.may_alias(
         volatile_loc, non_overlapping_loc
@@ -272,7 +272,7 @@ def test_may_alias_edge_cases2():
         MemoryLocation.EMPTY, loc1
     ), "EMPTY_MEMORY_ACCESS should not alias with regular location"
 
-    volatile_loc = MemoryLocation(offset=0, size=32, is_volatile=True)
+    volatile_loc = MemoryLocation(offset=0, size=32, _is_volatile=True)
     overlapping_loc = MemoryLocation(offset=16, size=32)
     assert alias.may_alias(
         volatile_loc, overlapping_loc

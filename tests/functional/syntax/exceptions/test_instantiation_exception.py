@@ -72,7 +72,7 @@ b: immutable(HashMap[uint256, uint256])
 
 @deploy
 def __init__():
-    b = empty(HashMap[uint256, uint256])
+    self.b = empty(HashMap[uint256, uint256])
     """,
 ]
 

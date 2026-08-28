@@ -9,7 +9,7 @@ from typing import Any, Callable, Hashable, Optional
 
 import vyper
 from vyper.compiler.input_bundle import FileInput, JSONInput, JSONInputBundle, _normpath
-from vyper.compiler.settings import OptimizationLevel, Settings
+from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError
 from vyper.utils import OrderedSet, keccak256
@@ -35,13 +35,11 @@ TRANSLATE_MAP = {
     "metadata": "metadata",
     "layout": "layout",
     "userdoc": "userdoc",
-    "bb": "bb",
-    "bb_runtime": "bb_runtime",
     "cfg": "cfg",
     "cfg_runtime": "cfg_runtime",
 }
 
-VENOM_KEYS = ("bb", "bb_runtime", "cfg", "cfg_runtime")
+VENOM_KEYS = ("cfg", "cfg_runtime")
 
 
 def _parse_cli_args():
@@ -58,9 +56,7 @@ def _parse_args(argv):
         help="JSON file to compile from. If none is given, Vyper will receive it from stdin.",
         nargs="?",
     )
-    parser.add_argument(
-        "--version", action="version", version=f"{vyper.__version__}+commit.{vyper.__commit__}"
-    )
+    parser.add_argument("--version", action="version", version=vyper.__long_version__)
     parser.add_argument(
         "-o",
         help="Filename to save JSON output to. If the file exists it will be overwritten.",
@@ -162,7 +158,8 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
     seen = {}
 
     for path, value in input_dict["sources"].items():
-        path = PurePath(path)
+        path = PurePath(_normpath(path))
+
         if "urls" in value:
             raise JSONError(f"{path} - 'urls' is not a supported field, use 'content' instead")
         if "content" not in value:
@@ -173,17 +170,19 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
                 raise JSONError(
                     f"Calculated keccak of '{path}' does not match keccak given in input JSON"
                 )
-        if path.stem in seen:
+        # import resolution tries `.vy`, `.vyi`, `.json` for a given module
+        # path, so key collisions on the path without its suffix
+        if path.with_suffix("") in seen:
             raise JSONError(f"Contract namespace collision: {path}")
 
         # value looks like {"content": <source code>}
         # this will be interpreted by JSONInputBundle later
         ret[path] = value
-        seen[path.stem] = True
+        seen[path.with_suffix("")] = True
 
     for path, value in input_dict.get("interfaces", {}).items():
-        path = PurePath(path)
-        if path.stem in seen:
+        path = PurePath(_normpath(path))
+        if path.with_suffix("") in seen:
             raise JSONError(f"Interface namespace collision: {path}")
 
         if isinstance(value, list):
@@ -210,7 +209,7 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
             )
 
         ret[path] = value
-        seen[path.stem] = True
+        seen[path.with_suffix("")] = True
 
     return ret
 
@@ -304,6 +303,10 @@ def get_settings(input_dict: dict) -> Settings:
     evm_version = get_evm_version(input_dict)
 
     optimize = input_dict["settings"].get("optimize")
+    opt_level = input_dict["settings"].get("optLevel")
+
+    if optimize is not None and opt_level is not None:
+        raise JSONError("both 'optimize' and 'optLevel' cannot be set")
 
     experimental_codegen = input_dict["settings"].get("experimentalCodegen")
     if experimental_codegen is None:
@@ -311,7 +314,9 @@ def get_settings(input_dict: dict) -> Settings:
     elif input_dict["settings"].get("venomExperimental") is not None:
         raise JSONError("both experimentalCodegen and venomExperimental cannot be set")
 
-    if isinstance(optimize, bool):
+    if opt_level is not None:
+        optimize = OptimizationLevel.from_string(opt_level)
+    elif isinstance(optimize, bool):
         # bool optimization level for backwards compatibility
         vyper_warn(
             Deprecation(
@@ -328,6 +333,40 @@ def get_settings(input_dict: dict) -> Settings:
 
     # TODO: maybe change these to camelCase for consistency
     enable_decimals = input_dict["settings"].get("enable_decimals", None)
+    disable_static_exceptions = input_dict["settings"].get("disableStaticExceptions", None)
+
+    # Create Venom optimization flags with the optimization level
+    venom_flags = VenomOptimizationFlags(level=optimize)
+
+    # Check for Venom-specific settings
+    venom_settings = input_dict["settings"].get("venom", {})
+    if venom_settings:
+        # TODO: refactor this
+        flag_mapping = {
+            "disableInlining": ("disable_inlining", bool),
+            "disableCSE": ("disable_cse", bool),
+            "disableSCCP": ("disable_sccp", bool),
+            "disableLoadElimination": ("disable_load_elimination", bool),
+            "disableDeadStoreElimination": ("disable_dead_store_elimination", bool),
+            "disableAlgebraicOptimization": ("disable_algebraic_optimization", bool),
+            "disableBranchOptimization": ("disable_branch_optimization", bool),
+            "disableMem2Var": ("disable_mem2var", bool),
+            "disableSimplifyCFG": ("disable_simplify_cfg", bool),
+            "disableRemoveUnusedVariables": ("disable_remove_unused_variables", bool),
+            "inlineThreshold": ("inline_threshold", int),
+            "disableAssertElimination": ("disable_assert_elimination", bool),
+        }
+
+        # merge user-provided settings into venom_flags
+        for json_field, (attr_name, expected_type) in flag_mapping.items():
+            if json_field in venom_settings:
+                value = venom_settings[json_field]
+                if not isinstance(value, expected_type):
+                    raise JSONError(
+                        f"venom.{json_field} must be {expected_type.__name__}, "
+                        f"got {type(value).__name__}"
+                    )
+                setattr(venom_flags, attr_name, value)
 
     return Settings(
         evm_version=evm_version,
@@ -335,6 +374,8 @@ def get_settings(input_dict: dict) -> Settings:
         experimental_codegen=experimental_codegen,
         debug=debug,
         enable_decimals=enable_decimals,
+        disable_static_exceptions=disable_static_exceptions,
+        venom_flags=venom_flags,
     )
 
 
@@ -443,10 +484,6 @@ def format_to_output_dict(compiler_data: dict) -> dict:
 
         if any(i in data for i in VENOM_KEYS):
             venom = {}
-            if "bb" in data:
-                venom["bb"] = repr(data["bb"])
-            if "bb_runtime" in data:
-                venom["bb_runtime"] = repr(data["bb_runtime"])
             if "cfg" in data:
                 venom["cfg"] = data["cfg"]
             if "cfg_runtime" in data:

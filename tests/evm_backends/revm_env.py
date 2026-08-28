@@ -6,6 +6,7 @@ from eth_keys.datatypes import PrivateKey
 from pyrevm import EVM, BlockEnv, Env
 
 from tests.evm_backends.base_env import BaseEnv, EvmError, ExecutionResult
+from tests.exports import TestExporter
 
 
 class RevmEnv(BaseEnv):
@@ -21,8 +22,9 @@ class RevmEnv(BaseEnv):
         tracing: bool,
         block_number: int,
         evm_version: str,
+        exporter: Optional[TestExporter],
     ) -> None:
-        super().__init__(gas_limit, account_keys)
+        super().__init__(gas_limit, account_keys, exporter)
         self._evm = EVM(
             gas_limit=gas_limit,
             tracing=tracing,
@@ -49,7 +51,7 @@ class RevmEnv(BaseEnv):
     def get_balance(self, address: str) -> int:
         return self._evm.get_balance(address)
 
-    def set_balance(self, address: str, value: int):
+    def _set_balance(self, address: str, value: int):
         self._evm.set_balance(address, value)
 
     @property
@@ -92,27 +94,14 @@ class RevmEnv(BaseEnv):
         tx.blob_hashes = value
         self._evm.set_tx_env(tx)
 
-    def message_call(
-        self,
-        to: str,
-        sender: str | None = None,
-        data: bytes | str = b"",
-        value: int = 0,
-        gas: int | None = None,
-        gas_price: int = 0,
-        is_modifying: bool = True,
-        blob_hashes: Optional[list[bytes]] = None,  # for blobbasefee >= Cancun
-    ):
-        if isinstance(data, str):
-            data = bytes.fromhex(data.removeprefix("0x"))
-
+    def _message_call(self, to, sender, data, value, gas, gas_price, is_modifying, blob_hashes):
         try:
             return self._evm.message_call(
                 to=to,
-                caller=sender or self.deployer,
+                caller=sender,
                 calldata=data,
                 value=value,
-                gas=self.gas_limit if gas is None else gas,
+                gas=gas,
                 gas_price=gas_price,
                 is_static=not is_modifying,
             )
@@ -120,7 +109,7 @@ class RevmEnv(BaseEnv):
             self._parse_error(e)
             raise EvmError(*e.args) from e
 
-    def clear_transient_storage(self) -> None:
+    def _clear_transient_storage(self) -> None:
         self._evm.reset_transient_storage()
 
     def get_code(self, address: str):
@@ -141,6 +130,15 @@ class RevmEnv(BaseEnv):
         except RuntimeError as e:
             self._parse_error(e)
             raise EvmError(*e.args) from e
+
+    def get_block_hash(self, block_number: int) -> bytes:
+        """Get the hash of a block by its number."""
+        # Returns b'' for non-existent or future blocks
+        try:
+            block_hash = self._evm.block_hash(block_number)
+        except Exception:
+            block_hash = b""
+        return block_hash
 
     def _parse_error(self, e: RuntimeError):
         # TODO: Create a custom error in pyrevm instead parsing strings

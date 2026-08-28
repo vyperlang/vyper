@@ -18,7 +18,7 @@ interface AddressProvider:
 # registry handlers are just wrapper contracts that simplify//fix underlying registries
 # for integrating it into the Metaregistry.
 interface RegistryHandler:
-    def find_pool_for_coins(_from: address, _to: address, i: uint256 = 0) -> address: view
+    def find_pool_for_coins(_from: address, _to: address, i: uint256 = ...) -> address: view
     def get_admin_balances(_pool: address) -> uint256[MAX_COINS]: view
     def get_balances(_pool: address) -> uint256[MAX_COINS]: view
     def get_base_pool(_pool: address) -> address: view
@@ -82,15 +82,15 @@ def __init__(_gauge_factory: address, _gauge_type: int128):
     self.gauge_factory = GaugeFactory(_gauge_factory)
     self.gauge_type = _gauge_type
 
-    deployer = msg.sender
+    self.deployer = msg.sender
 
 
 @external
 def set_owner(_owner: address):
     
-    assert msg.sender == deployer
-    assert self.admin == deployer
-    assert _owner != deployer
+    assert msg.sender == self.deployer
+    assert self.admin == self.deployer
+    assert _owner != self.deployer
 
     self.admin = _owner
     log NewAdmin(admin=_owner)

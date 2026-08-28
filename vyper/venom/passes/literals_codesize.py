@@ -43,7 +43,7 @@ class ReduceLiteralsCodesize(IRPass):
                 assert not_benefit > 0  # implied by previous conditions
                 # transform things like 0xffff...01 to (not 0xfe)
                 inst.opcode = "not"
-                op.value = evm_not(val)
+                inst.operands = [IRLiteral(evm_not(val))]
                 continue
             else:
                 assert shl_benefit > 0  # implied by previous conditions

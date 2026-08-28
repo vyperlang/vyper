@@ -3,6 +3,7 @@ from enum import Enum
 from functools import reduce
 from typing import Union
 
+from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
@@ -58,12 +59,8 @@ class SCCP(IRPass):
 
     cfg_dirty: bool
 
-    def __init__(
-        self, analyses_cache: IRAnalysesCache, function: IRFunction, /, remove_allocas=True
-    ):
+    def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         super().__init__(analyses_cache, function)
-        self.remove_allocas = remove_allocas
-
         self.lattice = {}
         self.work_list: list[WorkListItem] = []
 
@@ -182,12 +179,11 @@ class SCCP(IRPass):
         opcode = inst.opcode
 
         store_opcodes: tuple[str, ...] = ("assign",)
-        if self.remove_allocas:
-            store_opcodes += ("alloca", "palloca", "calloca")
 
         outputs = inst.get_outputs()
 
         if opcode in store_opcodes:
+            assert "alloca" not in opcode
             out = self._eval_from_lattice(inst.operands[0])
             self._set_lattice(inst.output, out)
             self._add_ssa_work_items(inst)
@@ -265,7 +261,7 @@ class SCCP(IRPass):
             if eval_result is LatticeEnum.TOP:
                 return finalize(LatticeEnum.TOP)
 
-            assert isinstance(eval_result, IRLiteral), (op, eval_result, inst.parent.label, inst)
+            assert isinstance(eval_result, IRLiteral), (inst.parent.label, op, inst, eval_result)
             ops.append(eval_result)
 
         # If we haven't found BOTTOM yet, evaluate the operation
@@ -312,13 +308,17 @@ class SCCP(IRPass):
             lat = self._eval_from_lattice(inst.operands[0])
 
             if isinstance(lat, IRLiteral):
-                if lat.value > 0:
+                if lat.value != 0:
                     inst.make_nop()
                 else:
-                    raise StaticAssertionException(
-                        f"assertion found to fail at compile time ({inst.error_msg}).",
-                        inst.get_ast_source(),
-                    )
+                    settings = get_global_settings()
+                    if settings and settings.disable_static_exceptions:
+                        pass  # leave the assertion in place; it will revert at runtime
+                    else:
+                        raise StaticAssertionException(
+                            f"assertion found to fail at compile time ({inst.error_msg}).",
+                            inst.get_ast_source(),
+                        )
 
         elif inst.opcode == "phi":
             return

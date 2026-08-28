@@ -1,12 +1,19 @@
 import pytest
 
 from tests.venom_utils import PrePostChecker
+from vyper.venom.analysis import IRAnalysesCache
+from vyper.venom.basicblock import IRLabel
+from vyper.venom.parser import parse_venom
 from vyper.venom.passes import SimplifyCFGPass
 
 pytestmark = pytest.mark.hevm
 
 
 _check_pre_post = PrePostChecker([SimplifyCFGPass])
+
+
+def _check_no_change(pre: str, hevm: bool = True):
+    _check_pre_post(pre, pre, hevm=hevm)
 
 
 def test_phi_reduction_after_block_pruning():
@@ -124,3 +131,231 @@ def test_phi_after_merge_jump():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_merge_jump_other_successor_has_phi():
+    """
+    Regression test: _merge_jump iterates ALL successors of block `a` to update
+    phis, but only the bypassed block's target should have its phi updated.
+    Other successors may have phis that don't contain the bypassed block's label,
+    causing ValueError from index().
+
+    CFG:
+        _global -> entry, other_source
+        entry -> passthrough, branched
+        other_source -> branched
+        passthrough -> join
+        branched -> join
+
+    When entry's passthrough is bypassed, entry's successors become {branched, join}.
+    The loop incorrectly tries to update phis in `branched`, which has @entry and
+    @other_source but NOT @passthrough.
+    """
+    pre = """
+    _global:
+        %cond = source
+        jnz %cond, @entry, @other_source
+
+    entry:
+        jnz %cond, @passthrough, @branched
+
+    other_source:
+        jmp @branched
+
+    passthrough:
+        jmp @join
+
+    branched:
+        %x = phi @entry, %cond, @other_source, %cond
+        jmp @join
+
+    join:
+        %y = phi @passthrough, %cond, @branched, %x
+        sink %y
+    """
+
+    # After optimization:
+    # - other_source bypassed, _global jumps directly to branched
+    # - passthrough bypassed, entry jumps directly to join
+    # - phis updated accordingly
+    post = """
+    _global:
+        %cond = source
+        jnz %cond, @entry, @branched
+
+    entry:
+        jnz %cond, @join, @branched
+
+    branched:
+        %x = phi @entry, %cond, @_global, %cond
+        jmp @join
+
+    join:
+        %y = phi @entry, %cond, @branched, %x
+        sink %y
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_merge_jump_target_has_no_phi():
+    """
+    Regression test: bypassing a jump should not touch phis in unrelated successors,
+    even when the target block has no phi.
+    """
+    pre = """
+    _global:
+        %cond = source
+        jnz %cond, @entry, @other_source
+
+    entry:
+        jnz %cond, @passthrough, @branched
+
+    other_source:
+        jmp @branched
+
+    passthrough:
+        jmp @join
+
+    branched:
+        %x = phi @entry, %cond, @other_source, %cond
+        jmp @join
+
+    join:
+        sink %cond
+    """
+
+    post = """
+    _global:
+        %cond = source
+        jnz %cond, @entry, @branched
+
+    entry:
+        jnz %cond, @join, @branched
+
+    branched:
+        %x = phi @entry, %cond, @_global, %cond
+        jmp @join
+
+    join:
+        sink %cond
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_merge_jump_dedup_phi_when_direct_edge():
+    """
+    If the bypassed block's target is already a successor, avoid duplicating phi labels.
+    """
+    pre = """
+    _global:
+        %cond = source
+        jnz %cond, @entry, @other
+
+    entry:
+        %x = source
+        jnz %cond, @passthrough, @join
+
+    other:
+        %o = source
+        jmp @join
+
+    passthrough:
+        jmp @join
+
+    join:
+        %y = phi @entry, %x, @passthrough, %x, @other, %o
+        sink %y
+    """
+
+    post = """
+    _global:
+        %cond = source
+        jnz %cond, @entry, @other
+
+    entry:
+        %x = source
+        jnz %cond, @join, @join
+
+    other:
+        %o = source
+        jmp @join
+
+    join:
+        %y = phi @entry, %x, @other, %o
+        sink %y
+    """
+
+    _check_pre_post(pre, post, hevm=False)
+
+
+def test_merge_jump_conflicting_phi_operands():
+    """
+    Skip merging when the same predecessor would imply different phi operands.
+    """
+    pre = """
+    _global:
+        %cond = source
+        jnz %cond, @entry, @other
+
+    entry:
+        %x = source
+        %y = source
+        jnz %cond, @passthrough, @join
+
+    other:
+        %o = source
+        jmp @join
+
+    passthrough:
+        jmp @join
+
+    join:
+        %z = phi @entry, %x, @passthrough, %y, @other, %o
+        sink %z
+    """
+
+    _check_no_change(pre, hevm=False)
+
+
+def test_data_section_label_chain():
+    """
+    Regression test: when a chain of label replacements is scheduled in one
+    pass epoch (b1 -> b2 and b2 -> b3), data-section references must be
+    resolved transitively; a single non-transitive application would rewrite
+    @b1 to @b2, which no longer exists.
+    """
+    code = """
+    function main {
+    main:
+        %c = source
+        jnz %c, @b1, @other
+    b1:
+        jmp @b2
+    b2:
+        jmp @b3
+    b3:
+        stop
+    other:
+        stop
+    }
+
+    data readonly {
+        dbsection jumptable:
+            db @b1
+    }
+    """
+    ctx = parse_venom(code)
+    fn = ctx.functions[IRLabel("main")]
+    ac = IRAnalysesCache(fn)
+    SimplifyCFGPass(ac, fn).run_pass()
+
+    bb_labels = {bb.label for bb in fn.get_basic_blocks()}
+    for data_section in ctx.data_segment:
+        for item in data_section.data_items:
+            if isinstance(item.data, IRLabel):
+                assert item.data in bb_labels, f"dangling label reference {item.data}"
+
+    # the jump chain b1 -> b2 -> b3 collapses; @b1 must resolve all the way to @b3
+    assert ctx.data_segment[0].data_items[0].data == IRLabel("b3")

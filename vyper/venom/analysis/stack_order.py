@@ -1,7 +1,7 @@
-from vyper.venom.analysis import CFGAnalysis, LivenessAnalysis
-from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis.analysis import IRAnalysis
+from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IROperand, IRVariable
-from vyper.venom.function import IRFunction
 
 # needed [top, ... , bottom]
 Needed = list[IRVariable]
@@ -37,17 +37,15 @@ def _max_same_prefix(stack_a: Needed, stack_b: Needed):
     return res
 
 
-class StackOrderAnalysis:
-    function: IRFunction
+class StackOrderAnalysis(IRAnalysis):
     liveness: LivenessAnalysis
     cfg: CFGAnalysis
     _from_to: dict[tuple[IRBasicBlock, IRBasicBlock], Needed]
 
-    def __init__(self, ac: IRAnalysesCache):
+    def analyze(self):
         self._from_to = dict()
-        self.ac = ac
-        self.liveness = ac.request_analysis(LivenessAnalysis)
-        self.cfg = ac.request_analysis(CFGAnalysis)
+        self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
     def analyze_bb(self, bb: IRBasicBlock) -> Needed:
         self.needed: Needed = []
@@ -57,7 +55,8 @@ class StackOrderAnalysis:
             if inst.opcode == "assign":
                 self._handle_assign(inst)
             elif inst.opcode == "phi":
-                self._handle_inst(inst)
+                self._handle_phi(inst)
+                continue
             elif inst.is_bb_terminator:
                 self._handle_terminator(inst)
             else:
@@ -140,6 +139,28 @@ class StackOrderAnalysis:
             if op not in self.stack:
                 self.stack.append(op)
         self._reorder(ops)
+
+    def _handle_phi(self, inst: IRInstruction):
+        assert inst.opcode == "phi"
+
+        # add vars to needed if it is
+        # necessary as in other instructions
+        for _, var in inst.phi_operands:
+            assert isinstance(var, IRVariable)
+            if var not in self.stack:
+                self._add_needed(var)
+
+        # for reorder we need to simulate only
+        # one chosen varible since it should
+        # do the same behavior for all of them
+        _, chosen = next(inst.phi_operands)
+        assert isinstance(chosen, IRVariable)
+        if chosen not in self.stack:
+            self.stack.append(chosen)
+
+        self._reorder([chosen])
+        self.stack.pop()
+        self.stack.append(inst.output)
 
     def _merge(self, orders: list[Needed]) -> Needed:
         if len(orders) == 0:

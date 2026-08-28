@@ -4,11 +4,11 @@ from vyper.venom.analysis.available_expression import (
 )
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import IRInstruction
+from vyper.venom.basicblock import PARAM_INSTRUCTIONS, IRInstruction
 from vyper.venom.passes.base_pass import IRPass
 
 # instruction that dont need to be stored in available expression
-UNINTERESTING_OPCODES = frozenset(
+UNINTERESTING_OPCODES = PARAM_INSTRUCTIONS | frozenset(
     [
         "calldatasize",
         "gaslimit",
@@ -16,11 +16,9 @@ UNINTERESTING_OPCODES = frozenset(
         "codesize",
         "assign",
         "phi",
-        "param",
         "source",
         "nop",
         "returndatasize",
-        "gas",
         "gasprice",
         "origin",
         "coinbase",
@@ -31,7 +29,6 @@ UNINTERESTING_OPCODES = frozenset(
         "basefee",
         "blobbasefee",
         "pc",
-        "msize",
     ]
 )
 # instruction that are not useful to be # substituted
