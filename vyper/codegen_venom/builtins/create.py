@@ -330,7 +330,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         copy_size = b.add(bytecode_len_tmp, IRLiteral(32))
         assert isinstance(mem_buf.operand, IRVariable)
         ctx.copy_memory_dynamic(
-            mem_buf.operand, bytecode_vv.operand, copy_size, bytecode_typ.memory_bytes_required
+            mem_buf.operand, bytecode_vv.operand, copy_size, ctx.memory_size_bound(bytecode_typ)
         )
         bytecode = mem_buf.operand
 
@@ -384,7 +384,8 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         buf_ptr = buf._ptr
 
     # Copy bytecode to buffer
-    ctx.copy_memory_dynamic(buf_ptr, bytecode_ptr, bytecode_len, bytecode_typ.maxlen)
+    bytecode_max_len = None if bytecode_is_unbounded else bytecode_typ.maxlen
+    ctx.copy_memory_dynamic(buf_ptr, bytecode_ptr, bytecode_len, bytecode_max_len)
 
     # Encode ctor args after bytecode
     args_start = b.add(buf_ptr, bytecode_len)
@@ -596,7 +597,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     # Handle constructor arguments
     args_len: IROperand
     args_ptr: IROperand
-    args_max_size: int
+    args_max_size: Optional[int]
     runtime_args = False
 
     if raw_args:
@@ -616,7 +617,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         assert isinstance(raw_arg, IRVariable)
         args_len = b.mload(raw_arg)
         args_ptr = b.add(raw_arg, IRLiteral(32))
-        args_max_size = raw_arg_typ.maxlen
+        args_max_size = None if runtime_args else raw_arg_typ.maxlen
     elif len(ctor_arg_nodes) > 0:
         ctor_tuple_typ, ctor_arg_vvs, runtime_ctor_args, ctor_abi_size = _prepare_ctor_args(
             ctx, ctor_arg_nodes
@@ -625,13 +626,14 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
 
         if runtime_ctor_args:
             args_ptr = ctx.allocate_scratch(ctor_abi_size)
+            args_max_size = None
         else:
             assert isinstance(ctor_abi_size, IRLiteral)
             args_buf = ctx.allocate_buffer(ctor_abi_size.value, annotation="ctor_args_buf")
             args_ptr = args_buf._ptr
+            args_max_size = ctor_abi_size.value
         assert isinstance(args_ptr, IRVariable)
         args_len = _encode_ctor_args_to_buf(ctx, args_ptr, ctor_tuple_typ, ctor_arg_vvs)
-        args_max_size = ctor_tuple_typ.abi_type.size_bound()
     else:
         # No constructor arguments
         args_len = IRLiteral(0)

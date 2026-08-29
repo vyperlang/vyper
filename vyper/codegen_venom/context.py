@@ -811,7 +811,7 @@ class VenomCodegenContext:
                 copy_len = self.bytestring_runtime_size(val)
             else:
                 copy_len = self.unchecked_bytestring_runtime_size(val)
-            self.copy_memory_dynamic(ptr, val, copy_len, src_typ.memory_bytes_required)
+            self.copy_memory_dynamic(ptr, val, copy_len, self.memory_size_bound(src_typ))
         elif src_typ != typ:
             # Layout-aware copy for assignments between compatible but not
             # identical memory layouts (e.g. DynArray[Bytes[540]] -> DynArray[Bytes[704]]).
@@ -956,9 +956,7 @@ class VenomCodegenContext:
         if src_elem_t == dst_elem_t and src_elem_size == dst_elem_size:
             data_size = b.mul(length, IRLiteral(dst_elem_size))
             assert isinstance(dst_data, IRVariable)
-            self.copy_memory_dynamic(
-                dst_data, src_data, data_size, src_typ.memory_bytes_required - 32
-            )
+            self.copy_memory_dynamic(dst_data, src_data, data_size, self.data_size_bound(src_typ))
             return
 
         cond_block = b.create_block("typed_dyn_copy_cond")
@@ -1037,16 +1035,30 @@ class VenomCodegenContext:
             assert isinstance(dst_ptr, IRVariable)
             self.builder.mstore(dst_ptr, val)
 
+    @staticmethod
+    def memory_size_bound(typ: VyperType) -> Optional[int]:
+        """Frontend bound on a value's memory footprint; None for unbounded types."""
+        if type_contains_unbounded_sequence(typ):
+            return None
+        return typ.memory_bytes_required
+
+    @classmethod
+    def data_size_bound(cls, typ: VyperType) -> Optional[int]:
+        """`memory_size_bound` without the leading length word."""
+        bound = cls.memory_size_bound(typ)
+        return None if bound is None else bound - 32
+
     def copy_memory_dynamic(
-        self, dst: IRVariable, src: IROperand, length: IROperand, max_length: int
+        self, dst: IRVariable, src: IROperand, length: IROperand, max_length: Optional[int] = None
     ) -> None:
         """Copy memory region with dynamic length (known at runtime).
 
         `max_length` is the frontend-proven upper bound retained as IR
-        metadata. Uses mcopy for Cancun+, otherwise identity precompile.
+        metadata; None for runtime-sized (unbounded) copies, which have no
+        static bound. Uses mcopy for Cancun+, otherwise identity precompile.
         """
         b = self.builder
-        assert max_length >= 0
+        assert max_length is None or max_length >= 0
 
         # For Cancun+, use mcopy
         if version_check(begin="cancun"):

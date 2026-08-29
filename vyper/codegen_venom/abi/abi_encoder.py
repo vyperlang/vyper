@@ -424,7 +424,7 @@ def _abi_encode_to_buf(
 
         # Copy length word + data (32 + length bytes)
         copy_len = b.add(IRLiteral(32), length)
-        ctx.copy_memory_dynamic(dst, src, copy_len, src_typ.memory_bytes_required)
+        ctx.copy_memory_dynamic(dst, src, copy_len, ctx.memory_size_bound(src_typ))
 
         # Return total encoded size = ceil32(32 + length) = 32 + ceil32(length)
         if is_unbounded_bytestring_type(src_typ):

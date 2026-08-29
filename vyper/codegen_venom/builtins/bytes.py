@@ -92,7 +92,7 @@ def _lower_concat_bounded(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperV
             arg_data = b.add(arg_ptr, IRLiteral(32))
             offset = ctx.ptr_load(offset_local.ptr())
             dst = b.add(data_ptr.operand, offset)
-            ctx.copy_memory_dynamic(dst, arg_data, arg_len, arg_t.memory_bytes_required - 32)
+            ctx.copy_memory_dynamic(dst, arg_data, arg_len, ctx.data_size_bound(arg_t))
             new_offset = b.add(offset, arg_len)
             ctx.ptr_store(offset_local.ptr(), new_offset)
         else:
@@ -185,7 +185,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             arg_data = b.add(arg_val, IRLiteral(32))
             offset = ctx.ptr_load(offset_local.ptr())
             dst = b.add(data_ptr, offset)
-            ctx.copy_memory_dynamic(dst, arg_data, arg_len)
+            ctx.copy_memory_dynamic(dst, arg_data, arg_len, ctx.data_size_bound(arg_t))
             arg_unbounded = is_unbounded_bytestring_type(arg_t)
             if offset_unbounded or arg_unbounded:
                 new_offset = ctx.checked_add(offset, arg_len)
@@ -272,7 +272,7 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     # Copy bytes from src_data + start to out_data
     copy_src = b.add(src_data, start)
     assert isinstance(out_data.operand, IRVariable)
-    ctx.copy_memory_dynamic(out_data.operand, copy_src, length, out_t.memory_bytes_required - 32)
+    ctx.copy_memory_dynamic(out_data.operand, copy_src, length, ctx.data_size_bound(out_t))
 
     # Store length
     ctx.ptr_store(out_val.ptr(), length)
