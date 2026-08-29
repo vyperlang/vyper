@@ -329,7 +329,9 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         # Copy length word + data
         copy_size = b.add(bytecode_len_tmp, IRLiteral(32))
         assert isinstance(mem_buf.operand, IRVariable)
-        ctx.copy_memory_dynamic(mem_buf.operand, bytecode_vv.operand, copy_size)
+        ctx.copy_memory_dynamic(
+            mem_buf.operand, bytecode_vv.operand, copy_size, bytecode_typ.memory_bytes_required
+        )
         bytecode = mem_buf.operand
 
     # Parse kwargs
@@ -382,7 +384,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         buf_ptr = buf._ptr
 
     # Copy bytecode to buffer
-    ctx.copy_memory_dynamic(buf_ptr, bytecode_ptr, bytecode_len)
+    ctx.copy_memory_dynamic(buf_ptr, bytecode_ptr, bytecode_len, bytecode_typ.maxlen)
 
     # Encode ctor args after bytecode
     args_start = b.add(buf_ptr, bytecode_len)
@@ -594,6 +596,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     # Handle constructor arguments
     args_len: IROperand
     args_ptr: IROperand
+    args_max_size: int
     runtime_args = False
 
     if raw_args:
@@ -613,6 +616,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         assert isinstance(raw_arg, IRVariable)
         args_len = b.mload(raw_arg)
         args_ptr = b.add(raw_arg, IRLiteral(32))
+        args_max_size = raw_arg_typ.maxlen
     elif len(ctor_arg_nodes) > 0:
         ctor_tuple_typ, ctor_arg_vvs, runtime_ctor_args, ctor_abi_size = _prepare_ctor_args(
             ctx, ctor_arg_nodes
@@ -627,10 +631,12 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
             args_ptr = args_buf._ptr
         assert isinstance(args_ptr, IRVariable)
         args_len = _encode_ctor_args_to_buf(ctx, args_ptr, ctor_tuple_typ, ctor_arg_vvs)
+        args_max_size = ctor_tuple_typ.abi_type.size_bound()
     else:
         # No constructor arguments
         args_len = IRLiteral(0)
         args_ptr = IRLiteral(0)
+        args_max_size = 0
 
     if value_node is not None:
         value = Expr(value_node, ctx).lower_value()
@@ -673,7 +679,7 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     # Append constructor args after code (copy from pre-encoded buffer)
     if not isinstance(args_len, IRLiteral) or args_len.value > 0:
         args_dest = b.add(mem_ofst, codesize)
-        ctx.copy_memory_dynamic(args_dest, args_ptr, args_len)
+        ctx.copy_memory_dynamic(args_dest, args_ptr, args_len, args_max_size)
 
     # Runtime-sized ctor args make total_len runtime-controlled. Oversized
     # initcode aborts the whole frame at CREATE (EIP-3860), so pre-check the
