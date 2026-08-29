@@ -2175,6 +2175,30 @@ def test_sdiv_negative_divisor_returns_top():
     assert rng.is_top
 
 
+def test_sdiv_of_constant_wrapped_past_signed_max():
+    """
+    SIGNED_MAX + 1 wraps to the word 2**255, which is SIGNED_MIN. The
+    constant must be stored as SIGNED_MIN so that sdiv sees a negative
+    dividend: sdiv(SIGNED_MIN, 2) = -2**254, not +2**254.
+    """
+    analysis, fn = _analyze(f"""
+        function test {{
+        entry:
+            %x = {SIGNED_MAX}
+            %a = add %x, 1
+            %q = sdiv %a, 2
+            stop
+        }}
+        """)
+
+    entry = fn.get_basic_block("entry")
+    add_inst = next(inst for inst in entry.instructions if inst.opcode == "add")
+    sdiv_inst = next(inst for inst in entry.instructions if inst.opcode == "sdiv")
+    stop_inst = entry.instructions[-1]
+    assert analysis.get_range(add_inst.output, stop_inst) == ValueRange.constant(SIGNED_MIN)
+    assert analysis.get_range(sdiv_inst.output, stop_inst) == ValueRange.constant(-(2**254))
+
+
 def test_smod_positive_dividend():
     """Test smod with positive dividend range."""
     analysis, fn = _analyze("""
@@ -2290,3 +2314,63 @@ def test_sdiv_dividend_above_signed_max_is_top():
     dividend = ValueRange.iv(SIGNED_MAX + 1, 2**256 - 32)
     rng = eval_sdiv(dividend, ValueRange.constant(10))
     assert rng.is_top
+
+
+def test_sdiv_all_negative_dividend():
+    """
+    [-100, -1] sdiv 3 truncates toward zero, giving [-33, 0]. The bounds
+    were computed swapped as [0, -33], which ValueRange.iv normalizes to
+    BOTTOM, so a phi union then silently dropped the sdiv path.
+    """
+    rng = eval_sdiv(ValueRange.iv(-100, -1), ValueRange.constant(3))
+    assert rng == ValueRange.iv(-33, 0)
+
+
+def test_sdiv_divisor_constant_in_unsigned_representation():
+    """
+    The word 2**256 - 2 is -2 as a signed divisor. Treating it as a huge
+    positive divisor gave {0} for [0, 99] sdiv -2, but sdiv(99, -2) = -49.
+    """
+    rng = eval_sdiv(ValueRange.iv(0, 99), ValueRange.constant(2**256 - 2))
+    assert rng.is_top or rng.lo <= -49 <= rng.hi, f"-49 excluded from {rng}"
+
+
+def test_smod_divisor_constant_in_unsigned_representation():
+    """
+    The word 2**256 - 2 is -2 as a signed divisor, so the result magnitude
+    is bounded by 1. Reading it as a huge positive divisor gave [0, 99].
+    """
+    rng = eval_smod(ValueRange.iv(0, 99), ValueRange.constant(2**256 - 2))
+    assert rng == ValueRange.iv(0, 1)
+
+
+def test_sdiv_by_divisor_narrowed_to_unsigned_constant():
+    """
+    Branch narrowing on an unsigned comparison pins %d to the word
+    2**256 - 2 on the false edge of `lt %d, 2**256 - 2`. That word is -2
+    as a signed divisor, so sdiv(%v, %d) with %v in [0, 99] can be -49.
+    """
+    word = 2**256 - 2
+    analysis, fn = _analyze(f"""
+        function test {{
+        entry:
+            %x = calldataload 0
+            %y = calldataload 32
+            %d = and %x, {word}
+            %c = lt %d, {word}
+            jnz %c, @other, @big
+        big:
+            %v = mod %y, 100
+            %q = sdiv %v, %d
+            stop
+        other:
+            stop
+        }}
+        """)
+
+    big = fn.get_basic_block("big")
+    sdiv_inst = next(inst for inst in big.instructions if inst.opcode == "sdiv")
+    d_rng = analysis.get_range(sdiv_inst.operands[-2], sdiv_inst)
+    assert d_rng == ValueRange.constant(word)
+    rng = analysis.get_range(sdiv_inst.output, big.instructions[-1])
+    assert rng.is_top or rng.lo <= -49 <= rng.hi, f"-49 excluded from {rng}"
