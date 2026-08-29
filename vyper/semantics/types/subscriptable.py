@@ -266,6 +266,7 @@ class DArrayT(_SequenceT):
 
         self.add_member("append", MemberFunctionT(self, "append", [self.value_type], None, True))
         self.add_member("pop", MemberFunctionT(self, "pop", [], self.value_type, True))
+        self.add_member("extend", MemberFunctionT(self, "extend", [self], None, True))
 
     def __repr__(self):
         return f"DynArray[{self.value_type}, {self.length}]"

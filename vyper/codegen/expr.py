@@ -11,6 +11,7 @@ from vyper.codegen.core import (
     data_location_to_address_space,
     dummy_node_for_type,
     ensure_in_memory,
+    extend_dyn_array,
     get_dyn_array_count,
     get_element_ptr,
     is_array_like,
@@ -734,6 +735,18 @@ class Expr:
                     arg = tmp
 
                 ret.append(append_dyn_array(darray, arg))
+                return IRnode.from_list(ret)
+            elif func.attr == "extend":
+                assert len(self.expr.args) == 1
+                src = args[0]
+
+                ret = ["seq"]
+                if potential_overlap(darray, src):
+                    tmp = self.context.new_internal_variable(src.typ)
+                    ret.append(make_setter(tmp, src))
+                    src = tmp
+
+                ret.append(extend_dyn_array(darray, src, self.context))
                 return IRnode.from_list(ret)
 
             raise CompilerPanic("unreachable!")  # pragma: nocover
