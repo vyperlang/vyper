@@ -104,3 +104,33 @@ def test_multidimensional_mapping(build_node, type_str, type_str2):
     v_t = types[type_str2]
 
     assert ann_t == HashMapT(k_t, HashMapT(k_t, v_t))
+
+
+def test_internal_function_args_use_memory_location():
+    # test that internal function arguments are validated against MEMORY location,
+    # while external function arguments are validated against CALLDATA (issue #4754)
+    #
+    # HashMap is invalid in both locations, but the error message should
+    # correctly report "memory" for internal and "calldata" for external
+    from vyper.compiler import compile_code
+    from vyper.exceptions import InstantiationException
+
+    internal_code = """
+@internal
+def _foo(x: HashMap[uint256, uint256]) -> uint256:
+    return 0
+    """
+
+    external_code = """
+@external
+def foo(x: HashMap[uint256, uint256]) -> uint256:
+    return 0
+    """
+
+    # internal function should report "memory" in error
+    with pytest.raises(InstantiationException, match="not instantiable in memory"):
+        compile_code(internal_code)
+
+    # external function should report "calldata" in error
+    with pytest.raises(InstantiationException, match="not instantiable in calldata"):
+        compile_code(external_code)
