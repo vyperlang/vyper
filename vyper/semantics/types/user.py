@@ -335,13 +335,6 @@ class EventT(_UserType):
                 indexed.append(False)
 
             member_type = type_from_annotation(annotation)
-            # topics hold a single word: primitive words are logged as-is and
-            # bytestrings are keccak256-hashed; no other type has a topic
-            # encoding (see codegen `_encode_log_topics`)
-            if indexed[-1] and not (
-                member_type._is_prim_word or isinstance(member_type, _BytestringT)
-            ):
-                raise StructureException("Event indexes may only be value types", annotation)
             if type_contains_nested_unbounded_sequence(member_type):
                 raise StructureException(
                     "Event members cannot contain unbounded sequence types inside aggregate types",
@@ -352,6 +345,15 @@ class EventT(_UserType):
         return cls(base_node.name, members, indexed, base_node)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> None:
+        # topics hold a single word: primitive words are logged as-is and
+        # bytestrings are keccak256-hashed; no other type has a topic
+        # encoding. checked at the log site (not the declaration) so that
+        # events with such members can still be declared, e.g. to compute
+        # their id, and so json abi events are covered too.
+        for is_indexed, typ in zip(self.indexed, self.arguments.values()):
+            if is_indexed and not (typ._is_prim_word or isinstance(typ, _BytestringT)):
+                raise StructureException("Event indexes may only be value types", node)
+
         # validate keyword arguments if provided
         if len(node.keywords) > 0:
             if len(node.args) > 0:

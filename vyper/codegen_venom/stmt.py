@@ -1499,10 +1499,10 @@ class Stmt:
             return self.builder.sha3(data_ptr, length)
 
         else:
-            # events declared in vyper source are rejected in
-            # `EventT.from_EventDef`; reachable for events imported from a
-            # JSON ABI, which may declare indexed arrays or structs
-            raise TypeMismatch("Event indexes may only be value types", self.node)
+            # unreachable: rejected at the log site in `EventT._ctor_call_return`
+            raise TypeMismatch(
+                "Event indexes may only be value types", self.node
+            )  # pragma: nocover
 
     # === Error Handling (Assert/Raise) ===
 

@@ -154,7 +154,11 @@ struct Foo:
 
 event E:
     x: indexed({typ})
-    """
+
+@external
+def foo():
+    log E(x=empty({typ}))
+"""
     with pytest.raises(StructureException) as e:
         compiler.compile_code(code)
     assert e.value.message == "Event indexes may only be value types"
@@ -207,8 +211,8 @@ def foo():
 
 
 def test_json_abi_indexed_reference_type_fails(make_input_bundle):
-    # json abi events bypass `EventT.from_EventDef`, so the codegen backstop
-    # is what rejects an indexed member without a topic encoding
+    # json abi events bypass `EventT.from_EventDef`; the log-site check
+    # rejects an indexed member without a topic encoding for them too
     abi = [
         {
             "anonymous": False,
@@ -225,6 +229,6 @@ def foo():
     log JSONInterface.EvArr(x=[1, 2])
     """
     input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
-    with pytest.raises(TypeMismatch) as e:
+    with pytest.raises(StructureException) as e:
         compiler.compile_code(code, input_bundle=input_bundle)
     assert e.value.message == "Event indexes may only be value types"
