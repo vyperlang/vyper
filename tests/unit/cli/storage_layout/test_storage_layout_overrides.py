@@ -301,9 +301,18 @@ def __init__(s: uint256):
 def decimals() -> uint8:
     return lib1.DECIMALS
     """
+    caller_m = """
+import lib1 as a_library
+
+uses: a_library
+
+def get_supply() -> uint256:
+    return a_library.supply
+    """
     code = """
 import lib1 as a_library
 import lib2
+import caller_m
 
 counter: uint256  # test shadowing
 some_immutable: immutable(DynArray[uint256, 10])
@@ -313,7 +322,7 @@ initializes: lib2
 
 counter2: uint256
 
-uses: a_library
+initializes: caller_m[a_library := a_library]
 
 @deploy
 def __init__():
@@ -323,9 +332,9 @@ def __init__():
 
 @external
 def foo() -> uint256:
-    return a_library.supply
+    return caller_m.get_supply()
     """
-    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2})
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "caller_m.vy": caller_m})
 
     override = {
         "counter": {"slot": 5, "type": "uint256", "n_slots": 1},
