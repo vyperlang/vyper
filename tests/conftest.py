@@ -113,6 +113,7 @@ def compile_inf_code(experimental_codegen):
         with pytest.raises(StructureException) as e:
             compile_code(code, **kwargs)
         assert e.value.message == "unbounded sequence types require --experimental-codegen"
+        return None
 
     return _compile
 
