@@ -4,7 +4,6 @@ from vyper import compiler
 from vyper.exceptions import (
     FlagDeclarationException,
     InvalidOperation,
-    InvalidReference,
     NamespaceCollision,
     StructureException,
     TypeMismatch,
@@ -134,7 +133,7 @@ flag Status:
 def test_assign_to_flag():
   Status.ACTIVE = 2
         """,
-        InvalidReference,
+        StructureException,
     ),
 ]
 
