@@ -753,7 +753,7 @@ def run(x: Bytes[{buffer_size}]):
     expected.append(_abi_payload_from_tuple(_replicate(0x01, 3), 96))
     expected.append(b"")
 
-    # ctor decoding isn't strict, thus it shouldn't fail
+    # Constructor decoding is lenient here, matching legacy.
     _test_ctor_decode(env, typ, data, expected, should_fail=False)
 
 
@@ -1522,7 +1522,7 @@ def run(x: Bytes[{buffer_size}]):
     with tx_failed():
         c.run(data)
 
-    # oob is allowed in ctor context
+    # Constructor decoding is lenient here, matching legacy.
     _test_ctor_decode(env, typ, data, [], should_fail=False)
 
 
