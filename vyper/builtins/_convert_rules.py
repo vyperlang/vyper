@@ -48,30 +48,6 @@ def _fits_bytesm(input_type, output_type):
     return output_type.m_bits >= input_type.bits
 
 
-def _address_fits_bytesm(input_type, output_type):
-    return output_type.m_bits >= 160
-
-
-def _unsigned_output(input_type, output_type):
-    return not output_type.is_signed
-
-
-def _unsigned_input(input_type, output_type):
-    return not input_type.is_signed
-
-
-def _output_is_uint256(input_type, output_type):
-    return output_type == UINT256_T
-
-
-def _output_is_bytes32(input_type, output_type):
-    return output_type.m == 32
-
-
-def _input_is_uint256(input_type, output_type):
-    return input_type == UINT256_T
-
-
 # (input class, output classes, predicate); additional conversions which are
 # valid only for some instances of those classes.
 _CONDITIONAL_CONVERSIONS: list[
@@ -81,14 +57,14 @@ _CONDITIONAL_CONVERSIONS: list[
     (StringT, BoolT, _fits_word),
     (IntegerT, BytesM_T, _fits_bytesm),
     (DecimalT, BytesM_T, _fits_bytesm),
-    (AddressT, BytesM_T, _address_fits_bytesm),
+    (AddressT, BytesM_T, lambda i, o: o.m_bits >= 160),
     # Addresses are unsigned.
-    (AddressT, IntegerT, _unsigned_output),
-    (IntegerT, AddressT, _unsigned_input),
+    (AddressT, IntegerT, lambda i, o: not o.is_signed),
+    (IntegerT, AddressT, lambda i, o: not i.is_signed),
     # Flags convert to uint256 and bytes32, and only uint256 converts to a flag.
-    (FlagT, IntegerT, _output_is_uint256),
-    (FlagT, BytesM_T, _output_is_bytes32),
-    (IntegerT, FlagT, _input_is_uint256),
+    (FlagT, IntegerT, lambda i, o: o == UINT256_T),
+    (FlagT, BytesM_T, lambda i, o: o.m == 32),
+    (IntegerT, FlagT, lambda i, o: i == UINT256_T),
 ]
 
 
