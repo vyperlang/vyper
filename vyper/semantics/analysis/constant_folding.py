@@ -1,5 +1,5 @@
 from vyper import ast as vy_ast
-from vyper.exceptions import InvalidLiteral, UnfoldableNode, VyperException
+from vyper.exceptions import ArrayIndexException, InvalidLiteral, UnfoldableNode, VyperException
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.namespace import get_namespace
@@ -235,6 +235,6 @@ class ConstantFolder(VyperNodeVisitorBase):
 
         idx = slice_.value
         if idx < 0 or idx >= len(elements):
-            raise UnfoldableNode("invalid index value")
+            raise ArrayIndexException("out of bounds", node.slice)
 
         return elements[idx]

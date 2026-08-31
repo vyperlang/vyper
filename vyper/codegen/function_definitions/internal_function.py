@@ -43,6 +43,7 @@ def generate_ir_for_internal_function(
 
     # sanity check
     assert func_t.is_internal or func_t.is_constructor
+    assert not func_t.is_abstract
 
     context = initialize_context(func_t, module_ctx, is_ctor_context)
 
@@ -77,6 +78,11 @@ def generate_ir_for_internal_function(
     ]
 
     ir_node = IRnode.from_list(["seq", body, cleanup_routine])
+
+    # add function signature to passthru metadata so that the venom
+    # translator has more information to work with
+    ir_node.passthrough_metadata["func_t"] = func_t
+    ir_node.passthrough_metadata["context"] = context
 
     # tag gas estimate and frame info
     func_t._ir_info.gas_estimate = ir_node.gas

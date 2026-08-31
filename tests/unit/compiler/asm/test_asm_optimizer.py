@@ -3,7 +3,13 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.ir.compile_ir import _merge_jumpdests
+from vyper.evm.assembler.instructions import CONST, CONSTREF, PUSH_OFST, PUSHLABEL, Label
+from vyper.evm.assembler.optimizer import (
+    _merge_jumpdests,
+    _prune_unreachable_code,
+    _prune_unused_consts,
+    optimize_assembly,
+)
 
 codes = [
     """
@@ -82,18 +88,18 @@ def test_dead_code_eliminator(code):
     c = CompilerData(code, settings=Settings(optimize=OptimizationLevel.NONE))
 
     # get the labels
-    initcode_asm = [i for i in c.assembly if isinstance(i, str)]
-    runtime_asm = [i for i in c.assembly_runtime if isinstance(i, str)]
+    initcode_labels = [i for i in c.assembly if isinstance(i, Label)]
+    runtime_labels = [i for i in c.assembly_runtime if isinstance(i, Label)]
 
     ctor_only = "ctor_only()"
     runtime_only = "runtime_only()"
 
     # qux reachable from unoptimized initcode, foo not reachable.
-    assert any(ctor_only in instr for instr in initcode_asm)
-    assert all(runtime_only not in instr for instr in initcode_asm)
+    assert any(ctor_only in label.label for label in initcode_labels)
+    assert all(runtime_only not in label.label for label in initcode_labels)
 
-    assert any(runtime_only in instr for instr in runtime_asm)
-    assert all(ctor_only not in instr for instr in runtime_asm)
+    assert any(runtime_only in label.label for label in runtime_labels)
+    assert all(ctor_only not in label.label for label in runtime_labels)
 
 
 def test_library_code_eliminator(make_input_bundle, experimental_codegen):
@@ -118,15 +124,62 @@ def foo():
     library.some_function()
     """
     input_bundle = make_input_bundle({"library.vy": library})
-    res = compile_code(code, input_bundle=input_bundle, output_formats=["asm"])
-    asm = res["asm"]
-    assert "some_function()" in asm
+    res = compile_code(code, input_bundle=input_bundle, output_formats=["asm_runtime"])
+    asm = res["asm_runtime"]
+
+    if not experimental_codegen:
+        assert "some_function()" in asm  # Venom function inliner will remove this
 
     assert "unused1()" not in asm
     assert "unused2()" not in asm
 
 
 def test_merge_jumpdests():
-    asm = ["_sym_label_0", "JUMP", "PUSH0", "_sym_label_0", "JUMPDEST", "_sym_label_0", "JUMPDEST"]
+    asm = [PUSHLABEL(Label("label_0")), "JUMP", "PUSH0", Label("label_0"), Label("_label_0")]
 
     assert _merge_jumpdests(asm) is False, "should not return True as no changes were made"
+
+
+def test_prune_unreachable_code_keeps_consts():
+    # CONST declarations produce no bytecode and can be referenced from
+    # reachable code, so they must not be pruned along with dead code
+    asm = ["REVERT", "PUSH0", CONST("some_const", 5), "PUSH0", Label("label_0")]
+
+    assert _prune_unreachable_code(asm) is True
+    assert asm == ["REVERT", CONST("some_const", 5), Label("label_0")]
+
+    assert _prune_unreachable_code(asm) is False, "should not return True as no changes were made"
+
+
+def test_prune_unused_consts():
+    asm = [CONST("used", 5), CONST("unused", 6), PUSH_OFST(CONSTREF("used"), 0), Label("label_0")]
+
+    assert _prune_unused_consts(asm) is True
+    assert asm == [CONST("used", 5), PUSH_OFST(CONSTREF("used"), 0), Label("label_0")]
+
+    assert _prune_unused_consts(asm) is False, "should not return True as no changes were made"
+
+
+def test_dead_consts_are_pruned():
+    # a CONST declared in unreachable code survives dead code elimination if
+    # reachable code still refers to it, and is removed otherwise
+    asm = [
+        PUSHLABEL(Label("label_0")),
+        "JUMP",
+        CONST("used", 5),
+        CONST("unused", 6),
+        Label("label_0"),
+        PUSH_OFST(CONSTREF("used"), 0),
+        "STOP",
+    ]
+
+    optimize_assembly(asm)
+
+    assert asm == [
+        PUSHLABEL(Label("label_0")),
+        "JUMP",
+        CONST("used", 5),
+        Label("label_0"),
+        PUSH_OFST(CONSTREF("used"), 0),
+        "STOP",
+    ]

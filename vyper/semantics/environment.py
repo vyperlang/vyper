@@ -2,6 +2,7 @@ from typing import Dict
 
 from vyper.semantics.analysis.base import Modifiability, VarInfo
 from vyper.semantics.types import AddressT, BytesT, SelfT, VyperType
+from vyper.semantics.types.infinity import INF
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 
 
@@ -37,7 +38,7 @@ class _Chain(_EnvType):
 class _Msg(_EnvType):
     _id = "msg"
     _type_members = {
-        "data": BytesT(),
+        "data": BytesT(INF),
         "gas": UINT256_T,
         "mana": UINT256_T,
         "sender": AddressT(),
@@ -45,26 +46,29 @@ class _Msg(_EnvType):
     }
 
 
+# TODO: Is more of a built-in Constant, and should be Modifiability.CONSTANT
+class _Inf(_EnvType):
+    _id = "INF"
+
+
+# TODO: Remove, see other todos
+_inf = _Inf()
+
+
 class _Tx(_EnvType):
     _id = "tx"
     _type_members = {"origin": AddressT(), "gasprice": UINT256_T}
 
 
-CONSTANT_ENVIRONMENT_VARS = {t._id: t for t in (_Block(), _Chain(), _Tx(), _Msg())}
+CONSTANT_ENVIRONMENT_VARS = {
+    t._id: VarInfo(t, modifiability=Modifiability.RUNTIME_CONSTANT)
+    for t in (_Block(), _Chain(), _Tx(), _Msg())
+}
+# TODO: Fix this by adding some notion of built-in constants
+CONSTANT_ENVIRONMENT_VARS[_inf._id] = VarInfo(_inf, modifiability=Modifiability.CONSTANT)
 
 
-def get_constant_vars() -> Dict:
-    """
-    Get a dictionary of constant environment variables.
-    """
-    result = {}
-    for k, v in CONSTANT_ENVIRONMENT_VARS.items():
-        result[k] = VarInfo(v, modifiability=Modifiability.RUNTIME_CONSTANT)
-
-    return result
-
-
-MUTABLE_ENVIRONMENT_VARS: Dict[str, type] = {"self": SelfT}
+MUTABLE_ENVIRONMENT_VARS: Dict[str, type[VyperType]] = {"self": SelfT}
 
 
 def get_mutable_vars() -> Dict:

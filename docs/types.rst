@@ -9,14 +9,13 @@ Vyper is a statically typed language. The type of each variable (state and local
 
 In addition, types can interact with each other in expressions containing operators.
 
-.. index:: ! value
+Unlike in some other languages, there are no sub-categories of types. Values are always copied, both when assigned to a variable and when passed to a function (also known as call-by-value). This means a calling function never needs to worry about a callee modifying the data of a passed structure.
 
-Value Types
-===========
+.. note::
 
-The following types are also called value types because variables of these
-types will always be passed by value, i.e. they are always copied when they
-are used as function arguments or in assignments.
+    However neither parameters of :ref:`structure-functions-internal` nor variables are immutable. They can be reassigned to values of the same type. Furthermore, some types (for example arrays and structs) have operations that modify them in place, usually by assigning to their members directly (for example ``my_array[0] = 42``).
+
+    Parameters of :ref:`structure-functions-external` are immutable. They can neither be reassigned nor modified in place.
 
 .. index:: ! bool, ! true, ! false
 
@@ -217,7 +216,7 @@ Operator       Description
 ``x >> y``     Right shift
 =============  ======================
 
-Shifting is only available for 256-bit wide types. That is, ``x`` must be ``uint256``, and ``y`` can be any unsigned integer. The right shift for ``uint256`` compiles to a signed right shift (EVM ``SHR`` instruction).
+Shifting is only available for 256-bit wide types. That is, ``x`` must be ``uint256``, and ``y`` can be any unsigned integer. The right shift for ``uint256`` compiles to an unsigned right shift (EVM ``SHR`` instruction).
 
 
 .. note::
@@ -291,7 +290,7 @@ The address type holds an Ethereum address.
 Values
 ******
 
-An address type can hold an Ethereum address which equates to 20 bytes or 160 bits. Address literals must be written in hexadecimal notation with a leading ``0x`` and must be `checksummed <https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md>`_.
+An address type can hold an Ethereum address which equates to 20 bytes or 160 bits. Address literals must be written in hexadecimal notation with a leading ``0x`` and must be `checksummed <https://github.com/ethereum/EIPs/blob/master/EIPS/eip-55.md>`_.
 
 .. _members-of-addresses:
 
@@ -342,10 +341,10 @@ Keyword                               Description
 ====================================  ============================================================
 ``keccak256(x)``                      Return the keccak256 hash as bytes32.
 ``concat(x, ...)``                    Concatenate multiple inputs.
-``slice(x, start=_start, len=_len)``  Return a slice of ``_len`` starting at ``_start``.
+``slice(x, start, length)``           Return a slice of ``length`` bytes starting at ``start``.
 ====================================  ============================================================
 
-Where ``x`` is a byte array and ``_start`` as well as ``_len`` are integer values.
+Where ``x`` is a byte array and ``start`` as well as ``length`` are integer values.
 
 .. index:: !bytes
 
@@ -475,17 +474,6 @@ The following code uses bitwise operations to add and revoke permissions from a 
         ret ^= Roles.USER  # flip the user bit between 0 and 1
         return ret
 
-.. index:: !reference
-
-Reference Types
-===============
-
-Reference types are those whose components can be assigned to in-place without copying. For instance, array and struct members can be individually assigned to without overwriting the whole data structure.
-
-.. note::
-
-  In terms of the calling convention, reference types are passed by value, not by reference. That means that, a calling function does not need to worry about a callee modifying the data of a passed structure.
-
 .. index:: !arrays
 
 Fixed-size Lists
@@ -573,6 +561,51 @@ In the ABI, they are represented as ``_Type[]``. For instance, ``DynArray[int128
     Defining a dynamic array in storage whose size is significantly larger than ``2**64`` can result in security vulnerabilities due to risk of overflow.
 
 
+.. index:: unbounded sequences, INF
+
+Unbounded Sequence Types
+------------------------
+
+When using the experimental code generator, ``Bytes``, ``String`` and ``DynArray``
+may use ``INF`` as the length bound:
+
+.. code-block:: vyper
+
+    #pragma experimental-codegen
+
+    @external
+    def echo(x: Bytes[INF]) -> Bytes[INF]:
+        return x
+
+    @external
+    def values(xs: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
+        ys: DynArray[uint256, INF] = xs
+        ys.append(42)
+        return ys
+
+``Bytes[INF]`` and ``String[INF]`` can hold any runtime length. ``DynArray[T, INF]``
+can hold any runtime item count, but ``T`` must have an ABI-static layout, such
+as ``uint256``, ``bytes32``, static arrays, or structs made only from ABI-static
+members.
+
+Unbounded sequence values are supported for memory locals, function arguments,
+function returns, event and custom error members, ABI encoding and decoding, and
+bytes-oriented builtins such as ``concat``, ``slice``, ``convert``, ``empty`` and
+``print``. Top-level return tuples may contain direct unbounded sequence members,
+for example ``(uint256, Bytes[INF])``.
+
+Unbounded sequences are not supported in storage, transient storage, immutable
+module variables, struct members, static arrays, mappings, or nested inside
+another dynamic layout. For example,
+``DynArray[Bytes[INF], INF]`` and ``DynArray[Bytes[10], INF]`` are rejected.
+Tuple arguments and local tuple variables containing unbounded sequence members
+are also rejected.
+
+.. note::
+    ``INF`` sequence types require ``#pragma experimental-codegen`` or compiling
+    with ``--experimental-codegen``. The legacy code generator rejects them.
+
+
 .. _types-struct:
 
 Structs
@@ -631,7 +664,7 @@ Mapping types are declared as ``HashMap[_KeyType, _ValueType]``.
 .. _types-initial:
 
 Initial Values
-==============
+--------------
 
 Unlike most programming languages, Vyper does not have a concept of ``null``. Instead, every variable type has a default value. To check if a variable is empty, you must compare it to the default value for its given type.
 
@@ -666,7 +699,7 @@ Type        Default Value
 .. _type_conversions:
 
 Type Conversions
-================
+----------------
 
 All type conversions in Vyper must be made explicitly using the built-in ``convert(a: atype, btype)`` function. Type conversions in Vyper are designed to be safe and intuitive. All type conversions will check that the input is in bounds for the output type. The general principles are:
 

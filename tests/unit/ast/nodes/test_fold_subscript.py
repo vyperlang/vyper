@@ -46,3 +46,47 @@ def foo(array: int128[10]) -> int128:
     """
     with pytest.raises(ArrayIndexException):
         compile_code(source)
+
+
+failing_list = [
+    "MAX: constant(DynArray[uint256, 10]) = [1, 2, 3]",
+    "MAX: constant(uint256[3]) = [1, 2, 3]",
+    "MAX: constant((uint256, uint256, uint256)) = (1, 2, 3)",
+]
+
+
+@pytest.mark.parametrize("decl", failing_list)
+def test_oob_index_for_subscriptable_types(decl):
+    source = f"""
+{decl}
+a: constant(uint256) = MAX[3]
+
+@external
+def foo() -> uint256:
+    return a
+    """
+    with pytest.raises(ArrayIndexException):
+        compile_code(source)
+
+
+def test_oob_index_subscript_within_subscript():
+    source = """
+MAX: constant(uint256[3]) = [1, 2, 3]
+a: constant(uint256) = MAX[MAX[0]+MAX[1]]
+
+@external
+def foo() -> uint256:
+    return a
+    """
+    with pytest.raises(ArrayIndexException):
+        compile_code(source)
+
+
+def test_oob_index_literal_array():
+    source = """
+@external
+def foo() -> uint256:
+    return [[1], [2], [3], [4]][0][1]
+    """
+    with pytest.raises(ArrayIndexException):
+        compile_code(source)

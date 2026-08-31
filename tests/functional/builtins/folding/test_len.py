@@ -55,3 +55,18 @@ def foo(a: Bytes[1024]) -> uint256:
     new_node = old_node.get_folded_value()
 
     assert contract.foo(value) == new_node.value
+
+
+def test_len_hexbytes(get_contract):
+    source = """
+@external
+def foo(a: Bytes[1024]) -> uint256:
+    return len(a)
+    """
+
+    contract = get_contract(source)
+    vyper_ast = parse_and_fold("len(x'0000')")
+    old_node = vyper_ast.body[0].value
+    new_node = old_node.get_folded_value()
+
+    assert contract.foo("0x0000") == new_node.value

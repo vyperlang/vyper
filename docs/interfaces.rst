@@ -69,14 +69,14 @@ Either the ``extcall`` or ``staticcall`` keyword is required to precede the exte
 
 Vyper offers the option to set the following additional keyword arguments when making external calls:
 
-=============================== ===========================================================
+=============================== ==============================================================
 Keyword                         Description
-=============================== ===========================================================
+=============================== ==============================================================
 ``gas``                         Specify gas value for the call
 ``value``                       Specify amount of ether sent with the call
-``skip_contract_check``         Drop ``EXTCODESIZE`` and ``RETURNDATASIZE`` checks
+``skip_contract_check``         Drop ``EXTCODESIZE`` check (but keep ``RETURNDATASIZE`` check)
 ``default_return_value``        Specify a default return value if no value is returned
-=============================== ===========================================================
+=============================== ==============================================================
 
 The ``default_return_value`` parameter can be used to handle ERC20 tokens affected by the missing return value bug in a way similar to OpenZeppelin's ``safeTransfer`` for Solidity:
 
@@ -112,9 +112,54 @@ You can define an interface for your contract with the ``implements`` statement:
 
 This imports the defined interface from the vyper file at ``an_interface.vyi`` (or ``an_interface.json`` if using ABI json interface type) and ensures your current contract implements all the necessary external functions. If any interface functions are not included in the contract, it will fail to compile. This is especially useful when developing contracts around well-defined standards such as ERC20.
 
+Multiple ``implements`` statements can be grouped into one:
+
+.. code-block:: vyper
+
+    implements: Foo
+    implements: Bar
+
+    # Equivalent to:
+
+    implements: (
+        Foo,
+        Bar,
+    )
+
 .. note::
 
-  Interfaces that implement functions with return values that require an upper bound (e.g. ``Bytes``, ``DynArray``, or ``String``), the upper bound defined in the interface represents the lower bound of the implementation. Assuming a function ``my_func`` returns a value ``String[1]`` in the interface, this would mean for the implementation function of ``my_func`` that the return value must have **at least** length 1. This behavior might change in the future.
+  Functions involving length-bounded types (``Bytes``, ``DynArray``, ``String``) follow standard variance rules:
+
+  - **Return types are covariant**: if the interface declares ``String[10]``, the implementation's declared maximum must be **at most** 10 (it may be narrower).
+  - **Parameter types are contravariant**: if the interface declares ``Bytes[10]``, the implementation's declared maximum must be **at least** 10 (it may be wider).
+
+  For example, given the interface:
+
+  .. code-block:: vyper
+
+      interface IFoo:
+          def foo(x: Bytes[10]) -> String[10]: view
+
+  the following implementation is accepted:
+
+  .. code-block:: vyper
+
+      implements: IFoo
+
+      @external
+      @view
+      def foo(x: Bytes[20]) -> String[5]:  # wider parameter, narrower return
+          return ""
+
+  Matching bounds are also valid: an implementation declared as ``def foo(x: Bytes[10]) -> String[10]`` satisfies the same interface.
+
+  Think of a function as a funnel. To swap it for another, the input has to be at least as wide (the new function must accept everything the original did, and may accept more), and the output has to be no wider (whatever it produces must still fit where the original output went). A narrower input would let some valid arguments fall through, and a wider output would exceed what the caller is prepared to receive.
+
+  To declare "any length" in an interface, use the wildcard ``...`` with one of the length-bounded types: ``Bytes[...]``, ``DynArray[uint256, ...]``, or ``String[...]``. The wildcard is only valid inside interface declarations and only for these types; static arrays (e.g. ``uint256[5]``) still require a concrete length.
+
+  At the call site, a wildcard in a return type resolves against the type Vyper infers from context (e.g. an assignment target). If there is no such type (for example when the return value is discarded), it resolves to an unbounded length.
+
+  Because ``...`` leaves the actual bound up to the implementation, the call-site type check accepts arguments of any declared length. If the value the caller passes is longer than the implementation's declared bound, the callee reverts when decoding the argument. For example, given an interface ``def foo(x: String[...])`` and an implementation ``def foo(x: String[2])`` at address ``addr``, calling ``IFoo(addr).foo("hello")`` passes the call-site type check but reverts at the callee, because the value's length (5) exceeds the implementation's bound (2). A concrete bound in the interface (e.g. ``String[5]``) is checked at compile time instead. The compiler rejects arguments whose declared type allows lengths greater than 5 before the contract is deployed. In this sense ``...`` is less safe than a concrete bound, where "safe" means "program might revert unexpectedly", not "program is vulnerable to attackers".
 
 .. note::
 
@@ -130,6 +175,7 @@ Standalone Interfaces
 Standalone interfaces are written using a variant of standard Vyper syntax. The body of each function must be an ellipsis (``...``). Interface files must have a ``.vyi`` suffix in order to be found by an import statement.
 
 .. code-block:: vyper
+
     # ISomeInterface.vyi
 
     @external

@@ -172,7 +172,7 @@ def auctionEnd():
     assert not self.ended
 
     # Log auction ending and set flag
-    log AuctionEnded(self.highestBidder, self.highestBid)
+    log AuctionEnded(highestBidder=self.highestBidder, highestBid=self.highestBid)
     self.ended = True
 
     # Transfer funds to beneficiary

@@ -15,8 +15,9 @@ permissions:
 jobs:
   validate-pr:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
-      - uses: amannn/action-semantic-pull-request@v5
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
         name: Run conventional commit checker
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -28,6 +29,7 @@ jobs:
             fix
             chore
             refactor
+            release
           # ci: continuous integration
           # docs: documentation
           # test: test suite
@@ -46,6 +48,7 @@ jobs:
             test
             lang
             stdlib
+            builtins
             ux
             parser
             tool

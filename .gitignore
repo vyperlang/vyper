@@ -22,6 +22,9 @@ vyper.egg-info/
 venv/
 ENV/
 
+# uv
+uv.lock
+
 # Coverage tests
 .coverage*
 .cache/
@@ -50,3 +53,18 @@ vyper/vyper_git_commithash.txt
 
 # mac
 .DS_Store
+
+# dev scratch stuff
+CLAUDE.local.md
+.agents/
+scratch/
+tmp/
+trees/
+worktrees/
+repros/
+.agent-files/
+.sandbox
+
+# used by fmt_commit_msg.py
+commitmsg.txt
+.agent-files/

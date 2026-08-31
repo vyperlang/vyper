@@ -106,10 +106,12 @@ This issue can be avoided by allocating ``balanceOf`` to ``slot1`` using the sto
 .. code-block:: json
 
     {
-        "owner": {"type": "address", "slot": 0},
-        "minter": {"type": "address", "slot": 2},
-        "balanceOf": {"type": "HashMap[address, uint256]", "slot": 1}
+        "owner": {"type": "address", "n_slots": 1, "slot": 0},
+        "minter": {"type": "address", "n_slots": 1, "slot": 2},
+        "balanceOf": {"type": "HashMap[address, uint256]", "n_slots": 1, "slot": 1}
     }
+
+When creating a custom storage layout, you must also include ``n_slots`` for each storage variable. This tells the compiler how many 32 byte slots to allocate from the ``slot`` storage offset.
 
 For further information on generating the storage layout, see :ref:`Storage Layout <compiler-storage-layout>`.
 
@@ -135,13 +137,13 @@ Values that are declared in the module scope of a contract, such as storage vari
     a: int128
 
     @internal
-    def foo() -> int128
+    def foo() -> int128:
         return 42
 
     @external
-    def foo() -> int128:
+    def bar() -> int128:
         b: int128 = self.foo()
-        return self.a  + b
+        return self.a + b
 
 Name Shadowing
 **************
@@ -157,6 +159,7 @@ It is not permitted for a memory or calldata variable to shadow the name of an i
         # memory variable cannot have the same name as a constant or immutable variable
         a: bool = False
         return a
+
 .. code-block:: vyper
 
     a: immutable(bool)

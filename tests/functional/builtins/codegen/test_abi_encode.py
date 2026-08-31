@@ -2,6 +2,8 @@ import pytest
 from eth.codecs import abi
 
 from tests.utils import decimal_to_int
+from vyper.compiler import compile_code
+from vyper.exceptions import StructureException
 
 
 # @pytest.mark.parametrize("string", ["a", "abc", "abcde", "potato"])
@@ -159,6 +161,19 @@ def abi_encode(d: DynArray[uint256, 3], ensure_tuple: bool, include_method_id: b
     assert (
         c.abi_encode(arg, True, True).hex() == (method_id + abi.encode("(uint256[])", (arg,))).hex()
     )
+
+
+def test_abi_encode_snapshots_bounded_dynarray_before_later_mutation(get_contract):
+    code = """
+@external
+def run() -> Bytes[192]:
+    x: DynArray[uint256, 3] = [1, 2, 3]
+    return abi_encode(x, x.pop())
+    """
+    c = get_contract(code)
+
+    expected = abi.encode("(uint256[],uint256)", ([1, 2, 3], 3))
+    assert c.run().hex() == expected.hex()
 
 
 nested_2d_array_args = [
@@ -352,6 +367,27 @@ def foo(bs: DynArray[DynArray[DynArray[uint256, 3], 3], 3]) -> (uint256, Bytes[1
     assert c.foo(bs) == (2**256 - 1, abi.encode("(uint256[][][])", (bs,)))
 
 
+def test_abi_encode_storage_struct(get_contract):
+    """Regression test: abi_encode correctly handles storage struct."""
+    code = """
+struct Point:
+    x: uint256
+    y: uint256
+
+stored: Point
+
+@external
+def test_encode() -> Bytes[128]:
+    self.stored = Point(x=1, y=2)
+    return abi_encode(self.stored)
+    """
+    c = get_contract(code)
+    result = c.test_encode()
+    # Should encode (1, 2), not a memory pointer
+    assert int.from_bytes(result[0:32], "big") == 1
+    assert int.from_bytes(result[32:64], "big") == 2
+
+
 @pytest.mark.parametrize("empty_literal", ('b""', '""', "empty(Bytes[1])", "empty(String[1])"))
 def test_abi_encode_empty_string(get_contract, empty_literal):
     code = f"""
@@ -371,3 +407,13 @@ def foo(ensure_tuple: bool) -> Bytes[96]:
     assert c.foo(False) == expected_output
     expected_output = b"\x00" * 31 + b"\x20" + b"\x00" * 32
     assert c.foo(True) == expected_output
+
+
+def test_abi_encode_no_args():
+    code = """
+@external
+def foo() -> Bytes[32]:
+    return abi_encode()
+    """
+    with pytest.raises(StructureException, match="abi_encode expects at least one argument"):
+        compile_code(code)

@@ -1,6 +1,4 @@
 import copy
-import json
-import warnings
 from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Any, Optional
@@ -10,18 +8,29 @@ from vyper import ast as vy_ast
 from vyper.ast import natspec
 from vyper.codegen import module
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle
-from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings, merge_settings
+from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle, JSONInput
+from vyper.compiler.settings import (
+    OptimizationLevel,
+    Settings,
+    anchor_settings,
+    merge_settings,
+    should_run_legacy_optimizer,
+)
 from vyper.ir import compile_ir, optimizer
-from vyper.ir.compile_ir import reset_symbols
-from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
+from vyper.semantics import (
+    analyze_modules,
+    set_data_positions,
+    validate_compilation_target,
+    validate_legacy_codegen_target,
+)
 from vyper.semantics.analysis.data_positions import generate_layout_export
 from vyper.semantics.analysis.imports import resolve_imports
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
-from vyper.utils import ERC5202_PREFIX, sha256sum, vyper_warn
-from vyper.venom import generate_assembly_experimental, generate_ir
+from vyper.utils import ERC5202_PREFIX, sha256sum
+from vyper.venom import generate_assembly_experimental
+from vyper.warnings import VyperWarning, vyper_warn
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
 
@@ -62,7 +71,7 @@ class CompilerData:
         input_bundle: InputBundle = None,
         settings: Settings = None,
         integrity_sum: str = None,
-        storage_layout: StorageLayout = None,
+        storage_layout: JSONInput = None,
         show_gas_estimates: bool = False,
         no_bytecode_metadata: bool = False,
     ) -> None:
@@ -98,9 +107,6 @@ class CompilerData:
         self.input_bundle = input_bundle or FilesystemInputBundle([Path(".")])
         self.expected_integrity_sum = integrity_sum
 
-        # ast cache, hitchhike onto the input_bundle object
-        self.input_bundle._cache._ast_of: dict[int, vy_ast.Module] = {}  # type: ignore
-
     @cached_property
     def source_code(self):
         return self.file_input.source_code
@@ -114,16 +120,22 @@ class CompilerData:
         return self.file_input.path
 
     @cached_property
-    def _generate_ast(self):
+    def vyper_module(self):
         is_vyi = self.contract_path.suffix == ".vyi"
 
-        settings, ast = vy_ast.parse_to_ast_with_settings(
+        ast = vy_ast.parse_to_ast(
             self.source_code,
             self.source_id,
             module_path=self.contract_path.as_posix(),
             resolved_path=self.file_input.resolved_path.as_posix(),
             is_interface=is_vyi,
         )
+
+        return ast
+
+    @cached_property
+    def settings(self):
+        settings = self.vyper_module.settings
 
         if self.original_settings:
             og_settings = self.original_settings
@@ -140,21 +152,11 @@ class CompilerData:
         if settings.experimental_codegen is None:
             settings.experimental_codegen = False
 
-        return settings, ast
-
-    @cached_property
-    def settings(self):
-        settings, _ = self._generate_ast
         return settings
-
-    @cached_property
-    def vyper_module(self):
-        _, ast = self._generate_ast
-        return ast
 
     def _compute_integrity_sum(self, imports_integrity_sum: str) -> str:
         if self.storage_layout_override is not None:
-            layout_sum = sha256sum(json.dumps(self.storage_layout_override))
+            layout_sum = self.storage_layout_override.sha256sum
             return sha256sum(layout_sum + imports_integrity_sum)
         return imports_integrity_sum
 
@@ -190,10 +192,10 @@ class CompilerData:
 
     @cached_property
     def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
-        module = self._resolve_imports[0]
-        analyze_module(module)
-        nspec = natspec.parse_natspec(module)
-        return nspec, module
+        root_module, imports, _ = self._resolve_imports
+        analyze_modules(imports)
+        nspec = natspec.parse_natspec(root_module)
+        return nspec, root_module
 
     @cached_property
     def natspec(self) -> natspec.NatspecOutput:
@@ -211,13 +213,16 @@ class CompilerData:
         """
         module_t = self.annotated_vyper_module._metadata["type"]
 
-        validate_compilation_target(module_t)
+        validate_compilation_target(module_t, self.settings.experimental_codegen is True)
         return self.annotated_vyper_module
 
     @cached_property
     def storage_layout(self) -> StorageLayout:
         module_ast = self.compilation_target
-        set_data_positions(module_ast, self.storage_layout_override)
+        storage_layout = None
+        if self.storage_layout_override is not None:
+            storage_layout = self.storage_layout_override.data
+        set_data_positions(module_ast, storage_layout)
 
         return generate_layout_export(module_ast)
 
@@ -231,6 +236,13 @@ class CompilerData:
 
     @cached_property
     def _ir_output(self):
+        if self.settings.experimental_codegen:
+            # legacy IR is still reachable under venom through the `ir_dict`
+            # outputs. legacy codegen cannot lower venom-only types, so
+            # reject them with a diagnostic instead of panicking in codegen.
+            validate_legacy_codegen_target(
+                self.global_ctx, "legacy IR output does not support unbounded sequence types"
+            )
         # fetch both deployment and runtime IR
         return generate_ir_nodes(self.global_ctx, self.settings)
 
@@ -246,50 +258,98 @@ class CompilerData:
 
     @property
     def function_signatures(self) -> dict[str, ContractFunctionT]:
-        # some metadata gets calculated during codegen, so
-        # ensure codegen is run:
-        _ = self._ir_output
+        # Some metadata gets calculated during codegen, so ensure codegen is
+        # run for contracts. Interfaces have no function bodies to generate.
+        if not self.annotated_vyper_module.is_interface:
+            if self.settings.experimental_codegen:
+                _ = self.venom_runtime
+            else:
+                _ = self._ir_output
 
         fs = self.annotated_vyper_module.get_children(vy_ast.FunctionDef)
         return {f.name: f._metadata["func_type"] for f in fs}
 
     @cached_property
-    def venom_functions(self):
-        deploy_ir, runtime_ir = self._ir_output
-        deploy_venom = generate_ir(deploy_ir, self.settings.optimize)
-        runtime_venom = generate_ir(runtime_ir, self.settings.optimize)
-        return deploy_venom, runtime_venom
+    def venom_runtime(self):
+        assert self.settings.experimental_codegen
+        from vyper.codegen_venom import generate_venom_runtime
+
+        return generate_venom_runtime(self.global_ctx, self.settings)
+
+    @cached_property
+    def venom_deploytime(self):
+        assert self.settings.experimental_codegen
+        from vyper.codegen_venom import generate_venom_deploy
+
+        return generate_venom_deploy(
+            self.global_ctx, self.settings, self.bytecode_runtime, self.bytecode_metadata
+        )
 
     @cached_property
     def assembly(self) -> list:
+        metadata = None
+        if not self.no_bytecode_metadata:
+            metadata = bytes.fromhex(self.integrity_sum)
+
         if self.settings.experimental_codegen:
-            deploy_code, runtime_code = self.venom_functions
             assert self.settings.optimize is not None  # mypy hint
             return generate_assembly_experimental(
-                runtime_code, deploy_code=deploy_code, optimize=self.settings.optimize
+                self.venom_deploytime, optimize=self.settings.optimize
             )
         else:
-            return generate_assembly(self.ir_nodes, self.settings.optimize)
+            return generate_assembly(
+                self.ir_nodes, self.settings.optimize, compiler_metadata=metadata
+            )
+
+    @cached_property
+    def bytecode_metadata(self) -> Optional[bytes]:
+        if self.no_bytecode_metadata:
+            return None
+
+        runtime_asm = self.assembly_runtime
+        runtime_data_segment_lengths = compile_ir.get_data_segment_lengths(runtime_asm)
+
+        immutables_len = self.compilation_target._metadata["type"].immutable_section_bytes
+        runtime_codesize = len(self.bytecode_runtime)
+
+        metadata = bytes.fromhex(self.integrity_sum)
+        return compile_ir.generate_cbor_metadata(
+            metadata, runtime_codesize, runtime_data_segment_lengths, immutables_len
+        )
 
     @cached_property
     def assembly_runtime(self) -> list:
         if self.settings.experimental_codegen:
-            _, runtime_code = self.venom_functions
             assert self.settings.optimize is not None  # mypy hint
-            return generate_assembly_experimental(runtime_code, optimize=self.settings.optimize)
+            return generate_assembly_experimental(
+                self.venom_runtime, optimize=self.settings.optimize
+            )
         else:
             return generate_assembly(self.ir_runtime, self.settings.optimize)
 
     @cached_property
+    def _bytecode(self) -> tuple[bytes, dict[str, Any]]:
+        return generate_bytecode(self.assembly)
+
+    @property
     def bytecode(self) -> bytes:
-        metadata = None
-        if not self.no_bytecode_metadata:
-            metadata = bytes.fromhex(self.integrity_sum)
-        return generate_bytecode(self.assembly, compiler_metadata=metadata)
+        return self._bytecode[0]
+
+    @property
+    def source_map(self) -> dict[str, Any]:
+        return self._bytecode[1]
 
     @cached_property
+    def _bytecode_runtime(self) -> tuple[bytes, dict[str, Any]]:
+        return generate_bytecode(self.assembly_runtime)
+
+    @property
     def bytecode_runtime(self) -> bytes:
-        return generate_bytecode(self.assembly_runtime, compiler_metadata=None)
+        return self._bytecode_runtime[0]
+
+    @property
+    def source_map_runtime(self) -> dict[str, Any]:
+        return self._bytecode_runtime[1]
 
     @cached_property
     def blueprint_bytecode(self) -> bytes:
@@ -324,17 +384,22 @@ def generate_ir_nodes(global_ctx: ModuleT, settings: Settings) -> tuple[IRnode, 
     """
     # make IR output the same between runs
     codegen.reset_names()
-    reset_symbols()
 
     with anchor_settings(settings):
         ir_nodes, ir_runtime = module.generate_ir_for_module(global_ctx)
-    if settings.optimize != OptimizationLevel.NONE:
+
+    if should_run_legacy_optimizer(settings):
         ir_nodes = optimizer.optimize(ir_nodes)
         ir_runtime = optimizer.optimize(ir_runtime)
+
     return ir_nodes, ir_runtime
 
 
-def generate_assembly(ir_nodes: IRnode, optimize: Optional[OptimizationLevel] = None) -> list:
+def generate_assembly(
+    ir_nodes: IRnode,
+    optimize: Optional[OptimizationLevel] = None,
+    compiler_metadata: Optional[Any] = None,
+) -> list:
     """
     Generate assembly instructions from IR.
 
@@ -349,26 +414,21 @@ def generate_assembly(ir_nodes: IRnode, optimize: Optional[OptimizationLevel] = 
         List of assembly instructions.
     """
     optimize = optimize or OptimizationLevel.default()
-    assembly = compile_ir.compile_to_assembly(ir_nodes, optimize=optimize)
+    assembly = compile_ir.compile_to_assembly(
+        ir_nodes, optimize=optimize, compiler_metadata=compiler_metadata
+    )
 
-    if _find_nested_opcode(assembly, "DEBUG"):
-        warnings.warn(
-            "This code contains DEBUG opcodes! The DEBUG opcode will only work in "
-            "a supported EVM! It will FAIL on all other nodes!",
-            stacklevel=2,
+    if "DEBUG" in assembly:
+        vyper_warn(
+            VyperWarning(
+                "This code contains DEBUG opcodes! The DEBUG opcode will only work in "
+                "a supported EVM! It will FAIL on all other nodes!"
+            )
         )
     return assembly
 
 
-def _find_nested_opcode(assembly, key):
-    if key in assembly:
-        return True
-    else:
-        sublists = [sub for sub in assembly if isinstance(sub, list)]
-        return any(_find_nested_opcode(x, key) for x in sublists)
-
-
-def generate_bytecode(assembly: list, compiler_metadata: Optional[Any]) -> bytes:
+def generate_bytecode(assembly: list) -> tuple[bytes, dict[str, Any]]:
     """
     Generate bytecode from assembly instructions.
 
@@ -381,5 +441,7 @@ def generate_bytecode(assembly: list, compiler_metadata: Optional[Any]) -> bytes
     -------
     bytes
         Final compiled bytecode.
+    dict
+        Source map
     """
-    return compile_ir.assembly_to_evm(assembly, compiler_metadata=compiler_metadata)[0]
+    return compile_ir.assembly_to_evm(assembly)

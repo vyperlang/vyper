@@ -1,7 +1,11 @@
+from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
+from vyper.venom.optimization_levels.types import PassConfig
 from vyper.venom.parser import parse_venom
+from vyper.venom.passes import MakeSSA, PhiEliminationPass
+from vyper.venom.passes.base_pass import IRPass
 
 
 def parse_from_basic_block(source: str, funcname="_global"):
@@ -12,8 +16,27 @@ def parse_from_basic_block(source: str, funcname="_global"):
     return parse_venom(source)
 
 
+def find_inst(fn: IRFunction, opcode: str) -> IRInstruction:
+    """
+    Return the first instruction in `fn` with the given opcode.
+    """
+    return next(
+        inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == opcode
+    )
+
+
+def run_ssa(fn: IRFunction) -> None:
+    ac = IRAnalysesCache(fn)
+    MakeSSA(ac, fn).run_pass()
+    PhiEliminationPass(ac, fn).run_pass()
+
+
 def instructions_eq(i1: IRInstruction, i2: IRInstruction) -> bool:
-    return i1.output == i2.output and i1.opcode == i2.opcode and i1.operands == i2.operands
+    return (
+        i1.get_outputs() == i2.get_outputs()
+        and i1.opcode == i2.opcode
+        and i1.operands == i2.operands
+    )
 
 
 def assert_bb_eq(bb1: IRBasicBlock, bb2: IRBasicBlock):
@@ -28,6 +51,8 @@ def assert_bb_eq(bb1: IRBasicBlock, bb2: IRBasicBlock):
 
 def assert_fn_eq(fn1: IRFunction, fn2: IRFunction):
     assert fn1.name.value == fn2.name.value
+    assert fn1._fmp_signature == fn2._fmp_signature
+    assert fn1.noinline == fn2.noinline
     assert len(fn1._basic_block_dict) == len(fn2._basic_block_dict)
 
     for name1, bb1 in fn1._basic_block_dict.items():
@@ -47,3 +72,75 @@ def assert_ctx_eq(ctx1: IRContext, ctx2: IRContext):
     # check entry function is the same
     assert next(iter(ctx1.functions.keys())) == next(iter(ctx2.functions.keys()))
     assert ctx1.data_segment == ctx2.data_segment, ctx2.data_segment
+
+
+NormalizedPassConfig = tuple[type, dict]
+
+
+def normalize_passes(passes: list[PassConfig]) -> list[NormalizedPassConfig]:
+    res = []
+    for p in passes:
+        if not isinstance(p, tuple):
+            res.append((p, dict()))
+        else:
+            res.append(p)
+    return res
+
+
+class PrePostChecker:
+    passes: list[NormalizedPassConfig]
+    post_passes: list[NormalizedPassConfig]
+    pass_objects: list[IRPass]
+    default_hevm: bool
+
+    def __init__(
+        self, passes: list[PassConfig], post: list[PassConfig] = None, default_hevm: bool = True
+    ):
+        self.passes = normalize_passes(passes)
+        self.post_passes = []
+        if post is not None:
+            self.post_passes = normalize_passes(post)
+        self.default_hevm = default_hevm
+        self.pass_objects = list()
+
+    def run_passes(self, pre: str, post: str) -> tuple[IRContext, IRContext]:
+        self.pass_objects.clear()
+        pre_ctx = parse_from_basic_block(pre)
+        for fn in pre_ctx.functions.values():
+            ac = IRAnalysesCache(fn)
+            for p, kwargs in self.passes:
+                obj = p(ac, fn)
+                self.pass_objects.append(obj)
+                obj.run_pass(**kwargs)
+
+        post_ctx = parse_from_basic_block(post)
+        for fn in post_ctx.functions.values():
+            ac = IRAnalysesCache(fn)
+            for p, kwargs in self.post_passes:
+                obj = p(ac, fn)
+                self.pass_objects.append(obj)
+                obj.run_pass(**kwargs)
+
+        return pre_ctx, post_ctx
+
+    def __call__(self, pre: str, post: str, hevm: bool | None = None) -> list[IRPass]:
+        pre_ctx, post_ctx = self.run_passes(pre, post)
+
+        self.check(pre_ctx, post_ctx, pre, post, hevm)
+
+        return self.pass_objects
+
+    def check(
+        self, pre_ctx: IRContext, post_ctx: IRContext, pre: str, post: str, hevm: bool | None = None
+    ):
+        from tests.hevm import hevm_check_venom
+
+        assert_ctx_eq(pre_ctx, post_ctx)
+
+        if hevm is None:
+            hevm = self.default_hevm
+
+        if hevm:
+            hevm_check_venom(pre, post)
+
+        return self.pass_objects

@@ -202,6 +202,14 @@ class SyntaxException(VyperException):
         super().__init__(message, item, hint=hint)
 
 
+class PragmaException(SyntaxException):
+    """Invalid pragma"""
+
+
+class VersionException(SyntaxException):
+    """Version string is malformed or incompatible with this compiler version."""
+
+
 class DecimalOverrideException(VyperException):
     """The Vyper compiler uses specific Decimal settings which
     if overridden could lead to incorrect behavior.
@@ -218,10 +226,6 @@ class StructureException(VyperException):
 
 class InstantiationException(StructureException):
     """Variable or expression cannot be instantiated"""
-
-
-class VersionException(SyntaxException):
-    """Version string is malformed or incompatible with this compiler version."""
 
 
 class VariableDeclarationException(VyperException):
@@ -353,7 +357,6 @@ class MemoryAllocationException(VyperException):
 
 
 class JSONError(Exception):
-
     """Invalid compiler input JSON."""
 
     def __init__(self, msg, lineno=None, col_offset=None):
@@ -368,6 +371,10 @@ class ParserException(Exception):
 
 class BadArchive(Exception):
     """Bad archive"""
+
+
+class BundleError(VyperException):
+    """Cannot construct an output bundle for this build."""
 
 
 class UnimplementedException(VyperException):
@@ -408,10 +415,6 @@ class CompilerPanic(VyperInternalException):
 
 class CodegenPanic(VyperInternalException):
     """Invalid code generated during codegen phase"""
-
-
-class StackTooDeep(CodegenPanic):
-    """Stack too deep"""  # (should not happen)
 
 
 class UnexpectedNodeType(VyperInternalException):

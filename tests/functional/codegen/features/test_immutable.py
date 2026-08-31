@@ -1,6 +1,7 @@
 import pytest
 
 from vyper.compiler.settings import OptimizationLevel
+from vyper.utils import method_id
 
 
 @pytest.mark.parametrize(
@@ -22,12 +23,12 @@ VALUE: immutable({typ})
 
 @deploy
 def __init__(_value: {typ}):
-    VALUE = _value
+    self.VALUE = _value
 
 @view
 @external
 def get_value() -> {typ}:
-    return VALUE
+    return self.VALUE
     """
 
     c = get_contract(code, value)
@@ -43,14 +44,14 @@ a: public(uint256)
 
 @deploy
 def __init__(_a: uint256):
-    A = _a
-    self.a = A
+    self.A = _a
+    self.a = self.A
 
 
 @external
 @view
 def a1() -> uint256:
-    return A
+    return self.A
     """
 
     c = get_contract(code, val)
@@ -65,14 +66,14 @@ c: immutable(String[64])
 
 @deploy
 def __init__(_a: uint256, _b: address, _c: String[64]):
-    a = _a
-    b = _b
-    c = _c
+    self.a = _a
+    self.b = _b
+    self.c = _c
 
 @view
 @external
 def get_values() -> (uint256, address, String[64]):
-    return a, b, c
+    return self.a, self.b, self.c
     """
     values = (3, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", "Hello world")
     c = get_contract(code, *values)
@@ -91,7 +92,7 @@ my_struct: immutable(MyStruct)
 
 @deploy
 def __init__(_a: uint256, _b: uint256, _c: address, _d: int256):
-    my_struct = MyStruct(
+    self.my_struct = MyStruct(
         a=_a,
         b=_b,
         c=_c,
@@ -101,7 +102,7 @@ def __init__(_a: uint256, _b: uint256, _c: address, _d: int256):
 @view
 @external
 def get_my_struct() -> MyStruct:
-    return my_struct
+    return self.my_struct
     """
     values = (100, 42, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", -(2**200))
     c = get_contract(code, *values)
@@ -117,15 +118,15 @@ my_struct: immutable(MyStruct)
 
 @deploy
 def __init__(a: uint256):
-    my_struct = MyStruct(a=a)
+    self.my_struct = MyStruct(a=a)
 
     # struct members are modifiable after initialization
-    my_struct.a += 1
+    self.my_struct.a += 1
 
 @view
 @external
 def get_my_struct() -> MyStruct:
-    return my_struct
+    return self.my_struct
     """
     c = get_contract(code, 1)
     assert c.get_my_struct() == (2,)
@@ -137,12 +138,12 @@ my_list: immutable(uint256[3])
 
 @deploy
 def __init__(_a: uint256, _b: uint256, _c: uint256):
-    my_list = [_a, _b, _c]
+    self.my_list = [_a, _b, _c]
 
 @view
 @external
 def get_my_list() -> uint256[3]:
-    return my_list
+    return self.my_list
     """
     values = (100, 42, 23230)
     c = get_contract(code, *values)
@@ -155,17 +156,17 @@ my_list: immutable(DynArray[uint256, 3])
 
 @deploy
 def __init__(_a: uint256, _b: uint256, _c: uint256):
-    my_list = [_a, _b, _c]
+    self.my_list = [_a, _b, _c]
 
 @view
 @external
 def get_my_list() -> DynArray[uint256, 3]:
-    return my_list
+    return self.my_list
 
 @view
 @external
 def get_idx_two() -> uint256:
-    return my_list[2]
+    return self.my_list[2]
     """
     values = (100, 42, 23230)
     c = get_contract(code, *values)
@@ -179,17 +180,17 @@ my_list: immutable(DynArray[DynArray[uint256, 3], 3])
 
 @deploy
 def __init__(_a: uint256, _b: uint256, _c: uint256):
-    my_list = [[_a, _b, _c], [_b, _a, _c], [_c, _b, _a]]
+    self.my_list = [[_a, _b, _c], [_b, _a, _c], [_c, _b, _a]]
 
 @view
 @external
 def get_my_list() -> DynArray[DynArray[uint256, 3], 3]:
-    return my_list
+    return self.my_list
 
 @view
 @external
 def get_idx_two() -> uint256:
-    return my_list[2][2]
+    return self.my_list[2][2]
     """
     values = (100, 42, 23230)
     expected_values = [[100, 42, 23230], [42, 100, 23230], [23230, 42, 100]]
@@ -204,7 +205,7 @@ my_list: immutable(DynArray[DynArray[DynArray[int128, 3], 3], 3])
 
 @deploy
 def __init__(x: int128, y: int128, z: int128):
-    my_list = [
+    self.my_list = [
         [[x, y, z], [y, z, x], [z, y, x]],
         [
             [x * 1000 + y, y * 1000 + z, z * 1000 + x],
@@ -221,12 +222,12 @@ def __init__(x: int128, y: int128, z: int128):
 @view
 @external
 def get_my_list() -> DynArray[DynArray[DynArray[int128, 3], 3], 3]:
-    return my_list
+    return self.my_list
 
 @view
 @external
 def get_idx_two() -> int128:
-    return my_list[2][2][2]
+    return self.my_list[2][2][2]
     """
     values = (37, 41, 73)
     expected_values = [
@@ -254,12 +255,12 @@ VALUE: immutable(uint256)
 def __init__(x: uint256):
     self.counter = x
     self.foo()
-    VALUE = self.foo()
+    self.VALUE = self.foo()
     self.foo()
 
 @external
 def get_immutable() -> uint256:
-    return VALUE
+    return self.VALUE
     """
 
     c = get_contract(code, n)
@@ -283,8 +284,8 @@ b: public(uint256)
 @deploy
 def __init__(to_copy: address):
     c: address = create_copy_of(to_copy)
-    self.b = a
-    a = 12
+    self.b = self.a
+    self.a = 12
     """
     c = get_contract(code, dummy_contract.address)
 
@@ -307,9 +308,9 @@ b: public(uint256)
 @deploy
 def __init__(to_copy: address):
     c: address = create_copy_of(to_copy)
-    self.b = a
-    a = 12
-    a0 = empty(uint256[10])
+    self.b = self.a
+    self.a = 12
+    self.a0 = empty(uint256[10])
     """
     c = get_contract(code, dummy_contract.address)
 
@@ -325,7 +326,7 @@ x: immutable(uint256)
 @deploy
 def __init__():
     self.d = 1
-    x = 2
+    self.x = 2
     self.a()
 
 @external
@@ -334,7 +335,7 @@ def test() -> uint256:
 
 @internal
 def a():
-    self.d = x
+    self.d = self.x
     """
     c = get_contract(code)
     assert c.test() == 2
@@ -349,7 +350,7 @@ x: public(immutable(uint256))
 @deploy
 def __init__():
     self.d = 1
-    x = 2
+    self.x = 2
     self.a()
 
 @internal
@@ -358,7 +359,7 @@ def a():
 
 @internal
 def b():
-    self.d = x
+    self.d = self.x
     """
     c = get_contract(code)
     assert c.x() == 2
@@ -374,12 +375,12 @@ x: public(immutable(uint256))
 @deploy
 def __init__():
     self.d = 1
-    x = 2
+    self.x = 2
     self.a()
 
 @internal
 def a():
-    self.d = x
+    self.d = self.x
 
 @external
 def thrash():
@@ -401,3 +402,368 @@ def fix():
     c.fix()
     assert c.x() == 2
     assert c.d() == 2
+
+
+def test_immutable_read_outside_ctor_before_assignment(get_contract):
+    code = """
+x: public(immutable(uint256))
+
+@deploy
+def __init__():
+    self.x = self.a()
+
+@internal
+def a() -> uint256:
+    return self.x
+    """
+
+    c = get_contract(code)
+    assert c.x() == 0
+
+
+def test_immutable_assignment_in_loop(get_contract):
+    code = """
+x: public(immutable(uint256))
+
+@deploy
+def __init__():
+    for i: uint256 in range(10):
+        self.x = self.x + i
+    """
+
+    c = get_contract(code)
+    assert c.x() == 45
+
+
+def test_immutable_self_assignment(get_contract):
+    code = """
+x: public(immutable(uint256))
+
+@deploy
+def __init__():
+    self.x = self.x
+    """
+
+    c = get_contract(code)
+    assert c.x() == 0
+
+
+def test_venom_immutable_corruption(get_contract):
+    code = """
+b: Bytes[33]
+
+@internal
+def foo():
+    self.b = self.b
+
+VALUE: public(immutable(uint256))
+
+@deploy
+def __init__(x: uint256):
+    self.foo()
+    self.VALUE = x
+    self.foo()
+    """
+    c = get_contract(code, 4)
+    assert c.VALUE() == 4
+
+
+# verify that complex types are properly decoded in the constructor context
+def test_constructor_dynamic_type_decoding(get_contract):
+    code = """
+struct MyStruct:
+    a: uint256
+    b: address
+
+struct OuterStruct:
+    s: MyStruct
+    d: DynArray[bytes32, 2]
+
+val_s_a: public(uint256)
+val_s_b: public(address)
+val_d_0: public(bytes32)
+val_d_1: public(bytes32)
+val_d_len: public(uint256)
+
+val_single_dyn: public(uint256)
+
+@deploy
+def __init__(os: OuterStruct, single_dyn: DynArray[uint256, 1]):
+    self.val_s_a = os.s.a
+    self.val_s_b = os.s.b
+    self.val_d_len = len(os.d)
+    if len(os.d) > 0:
+        self.val_d_0 = os.d[0]
+    if len(os.d) > 1:
+        self.val_d_1 = os.d[1]
+
+    if len(single_dyn) > 0:
+        self.val_single_dyn = single_dyn[0]
+    """
+    struct_val = (123, "0x1234567890123456789012345678901234567890")
+    dyn_array_val = [b"\xaa" * 32, b"\xbb" * 32]
+    outer_struct_val = (struct_val, dyn_array_val)
+    single_dyn_val = [777]
+
+    c = get_contract(code, outer_struct_val, single_dyn_val)
+
+    assert c.val_s_a() == 123
+    assert c.val_s_b() == "0x1234567890123456789012345678901234567890"
+    assert c.val_d_len() == 2
+    assert c.val_d_0() == b"\xaa" * 32
+    assert c.val_d_1() == b"\xbb" * 32
+    assert c.val_single_dyn() == 777
+
+    outer_struct_val_empty_dyn = (struct_val, [])
+    c2 = get_contract(code, outer_struct_val_empty_dyn, [])
+    assert c2.val_s_a() == 123
+    assert c2.val_s_b() == "0x1234567890123456789012345678901234567890"
+    assert c2.val_d_len() == 0
+    assert c2.val_single_dyn() == 0
+
+
+def test_immutable_array_iteration(get_contract):
+    """
+    Regression test: Iterating over an immutable array should use dload
+    (not mload) since immutables are stored in CODE location.
+    """
+    code = """
+arr: immutable(uint256[5])
+
+@deploy
+def __init__():
+    self.arr = [10, 20, 30, 40, 50]
+
+@external
+@view
+def sum_array() -> uint256:
+    total: uint256 = 0
+    for val: uint256 in self.arr:
+        total += val
+    return total
+    """
+    c = get_contract(code)
+    assert c.sum_array() == 150
+
+
+def test_immutable_dynarray_iteration(get_contract):
+    """
+    Regression test: Iterating over an immutable DynArray should use
+    dload for element access.
+    """
+    code = """
+arr: immutable(DynArray[uint256, 10])
+
+@deploy
+def __init__(values: DynArray[uint256, 10]):
+    self.arr = values
+
+@external
+@view
+def sum_array() -> uint256:
+    total: uint256 = 0
+    for val: uint256 in self.arr:
+        total += val
+    return total
+
+@external
+@view
+def get_length() -> uint256:
+    return len(self.arr)
+    """
+    c = get_contract(code, [1, 2, 3, 4, 5])
+    assert c.sum_array() == 15
+    assert c.get_length() == 5
+
+    c2 = get_contract(code, [100, 200])
+    assert c2.sum_array() == 300
+    assert c2.get_length() == 2
+
+
+def test_constructor_reads_from_immutable_dynarray(get_contract):
+    code = """
+arr: immutable(DynArray[uint256, 10])
+ctor_len: public(uint256)
+ctor_sum: public(uint256)
+ctor_has_two: public(bool)
+ctor_not_in_nine: public(bool)
+
+@deploy
+def __init__(values: DynArray[uint256, 10]):
+    self.arr = values
+    self.ctor_len = len(self.arr)
+
+    total: uint256 = 0
+    for value: uint256 in self.arr:
+        total += value
+    self.ctor_sum = total
+
+    self.ctor_has_two = 2 in self.arr
+    self.ctor_not_in_nine = 9 not in self.arr
+    """
+
+    c = get_contract(code, [1, 2, 3, 4])
+    assert c.ctor_len() == 4
+    assert c.ctor_sum() == 10
+    assert c.ctor_has_two() is True
+    assert c.ctor_not_in_nine() is True
+
+    c2 = get_contract(code, [])
+    assert c2.ctor_len() == 0
+    assert c2.ctor_sum() == 0
+    assert c2.ctor_has_two() is False
+    assert c2.ctor_not_in_nine() is True
+
+
+def test_constructor_reads_immutable_dynarray_single_word_compound_elements(get_contract):
+    code = """
+arr: immutable(DynArray[uint256[1], 3])
+ctor_total: public(uint256)
+ctor_second: public(uint256)
+
+@deploy
+def __init__(values: DynArray[uint256[1], 3]):
+    self.arr = values
+
+    total: uint256 = 0
+    for item: uint256[1] in self.arr:
+        total += item[0]
+    self.ctor_total = total
+
+    if len(self.arr) > 1:
+        self.ctor_second = self.arr[1][0]
+    """
+
+    c = get_contract(code, [[5], [7], [11]])
+    assert c.ctor_total() == 23
+    assert c.ctor_second() == 7
+
+    c2 = get_contract(code, [[9]])
+    assert c2.ctor_total() == 9
+    assert c2.ctor_second() == 0
+
+
+def test_constructor_reads_immutable_dynarray_multi_word_elements(get_contract):
+    code = """
+arr: immutable(DynArray[uint256[2], 3])
+ctor_total: public(uint256)
+ctor_second_right: public(uint256)
+
+@deploy
+def __init__(values: DynArray[uint256[2], 3]):
+    self.arr = values
+
+    total: uint256 = 0
+    for pair: uint256[2] in self.arr:
+        total += pair[0] + pair[1]
+    self.ctor_total = total
+
+    if len(self.arr) > 1:
+        self.ctor_second_right = self.arr[1][1]
+    """
+
+    c = get_contract(code, [[1, 2], [3, 4]])
+    assert c.ctor_total() == 10
+    assert c.ctor_second_right() == 4
+
+    c2 = get_contract(code, [])
+    assert c2.ctor_total() == 0
+    assert c2.ctor_second_right() == 0
+
+
+def test_immutable_dynarray_multi_word_runtime_iteration(get_contract):
+    """
+    Regression test: iterating over an immutable DynArray with multi-word
+    elements (uint256[2] = 64 bytes) at RUNTIME (not constructor).
+    Immutables are in CODE location at runtime, so copy must use dload,
+    not mcopy/mload.
+    """
+    code = """
+arr: immutable(DynArray[uint256[2], 3])
+
+@deploy
+def __init__(values: DynArray[uint256[2], 3]):
+    self.arr = values
+
+@external
+@view
+def sum_pairs() -> uint256:
+    total: uint256 = 0
+    for pair: uint256[2] in self.arr:
+        total += pair[0] + pair[1]
+    return total
+    """
+    c = get_contract(code, [[1, 2], [3, 4], [5, 6]])
+    assert c.sum_pairs() == 21
+
+
+def test_constructor_immutable_dynarray_ternary_len_and_membership(get_contract):
+    code = """
+left: immutable(DynArray[uint256, 4])
+right: immutable(DynArray[uint256, 4])
+selected_len: public(uint256)
+selected_has_seven: public(bool)
+selected_has_ninetynine: public(bool)
+
+@deploy
+def __init__(
+    use_left: bool,
+    left_values: DynArray[uint256, 4],
+    right_values: DynArray[uint256, 4]
+):
+    self.left = left_values
+    self.right = right_values
+    self.selected_len = len(self.left if use_left else self.right)
+    self.selected_has_seven = 7 in (self.left if use_left else self.right)
+    self.selected_has_ninetynine = 99 in (self.left if use_left else self.right)
+    """
+
+    c = get_contract(code, True, [7, 1, 2], [5])
+    assert c.selected_len() == 3
+    assert c.selected_has_seven() is True
+    assert c.selected_has_ninetynine() is False
+
+    c2 = get_contract(code, False, [7, 1, 2], [5])
+    assert c2.selected_len() == 1
+    assert c2.selected_has_seven() is False
+    assert c2.selected_has_ninetynine() is False
+
+
+@pytest.mark.parametrize("arg", [0, 1])
+def test_uninitialized_immutable_dynarray_read_reverts(get_contract, tx_failed, arg):
+    code = """
+arr: immutable(DynArray[uint256, 1])
+
+@deploy
+def __init__(arg: uint256):
+    x: uint256 = self.arr[0]
+    self.arr = []
+    """
+
+    with tx_failed():
+        get_contract(code, arg)
+
+
+@pytest.mark.parametrize(
+    "terminator,revert_reason",
+    [('raise "nope"', "nope"), ('raw_revert(method_id("Nope()"))', method_id("Nope()").hex())],
+)
+def test_always_reverting_constructor_with_immutables(
+    get_contract, tx_failed, terminator, revert_reason
+):
+    # the `deploy` fragment declares the `mem_deploy_end` constant, which is
+    # referenced by the immutable store in the constructor. when the
+    # constructor always reverts, that fragment is unreachable; the
+    # declaration must survive dead code elimination anyway.
+    code = f"""
+V: public(immutable(uint256))
+
+@deploy
+def __init__():
+    self.V = 1
+    {terminator}
+    """
+
+    # deployment reverts, with the revert reason from the constructor
+    with tx_failed(exc_text=revert_reason):
+        get_contract(code)
