@@ -245,6 +245,7 @@ class EventT(_UserType):
         name: str,
         arguments: dict,
         indexed: list,
+        is_anonymous: bool,
         decl_node: Optional[vy_ast.VyperNode] = None,
     ) -> None:
         super().__init__(members=arguments)
@@ -259,7 +260,11 @@ class EventT(_UserType):
             if not typ._as_event_index:
                 raise TypeMismatch("Event indexes may only be value types", decl_node)
             indexed_count += 1
-            if indexed_count > 3:
+            if is_anonymous and indexed_count > 4:
+                raise EventDeclarationException(
+                    "Anonymous event cannot have more than four indexed arguments", decl_node
+                )
+            if not is_anonymous and indexed_count > 3:
                 raise EventDeclarationException(
                     "Event cannot have more than three indexed arguments", decl_node
                 )
@@ -309,7 +314,8 @@ class EventT(_UserType):
         indexed: list = [i["indexed"] for i in abi["inputs"]]
         for item in abi["inputs"]:
             members[item["name"]] = type_from_abi(item)
-        return cls(abi["name"], members, indexed)
+
+        return cls(abi["name"], members, indexed, is_anonymous=abi.get("anonymous", False))
 
     @classmethod
     def from_EventDef(cls, base_node: vy_ast.EventDef) -> "EventT":
@@ -339,7 +345,7 @@ class EventT(_UserType):
             member_type = type_from_annotation(annotation)
             _add_user_type_member(members, member_name, node, member_type)
 
-        return cls(base_node.name, members, indexed, base_node)
+        return cls(base_node.name, members, indexed, is_anonymous=False, decl_node=base_node)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> None:
         # validate keyword arguments if provided

@@ -135,6 +135,27 @@ def test_from_abi_more_than_three_indexed_rejected():
     assert excinfo.value.message == "Event cannot have more than three indexed arguments"
 
 
+def test_from_abi_anonymous_four_indexed_accepted():
+    abi = _event_abi(("uint256", True), ("uint256", True), ("uint256", True), ("uint256", True))
+    abi["anonymous"] = True
+    event = EventT.from_abi(abi)
+    assert event.indexed == [True, True, True, True]
+
+
+def test_from_abi_anonymous_more_than_four_indexed_rejected():
+    abi = _event_abi(
+        ("uint256", True),
+        ("uint256", True),
+        ("uint256", True),
+        ("uint256", True),
+        ("uint256", True),
+    )
+    abi["anonymous"] = True
+    with pytest.raises(EventDeclarationException) as excinfo:
+        EventT.from_abi(abi)
+    assert excinfo.value.message == "Anonymous event cannot have more than four indexed arguments"
+
+
 def test_from_json_abi_surfaces_indexed_type_error():
     abi = [_event_abi(("uint256[3]", True))]
     with pytest.raises(TypeMismatch) as excinfo:
