@@ -341,7 +341,7 @@ class _ExprAnalyser:
         # add a hint on address checksum mismatch
         if isinstance(node, vy_ast.Hex) and node.n_bytes == 20:
             assert not is_checksum_encoded(node.value)
-            hint = AddressT()._checksum_error_msg(node)
+            hint = AddressT._checksum_error_msg(node)
 
         raise InvalidLiteral(msg, node, hint=hint)
 
