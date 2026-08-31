@@ -31,8 +31,6 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         # constants just return a value
         if node.is_constant:
             return_expr = node.value
-        elif node.is_immutable:
-            return_expr = vy_ast.Name(id=funcname)  # type: ignore
         else:
             # the base return statement is an `Attribute` node, e.g.
             # `self.<var_name>`. for each input type we wrap it in a
@@ -63,12 +61,20 @@ def generate_public_variable_getters(vyper_module: vy_ast.Module) -> None:
         # after iterating the input types, the remaining annotation node is our return type
         return_annotation = copy.copy(annotation)
 
+        decorators = [vy_ast.Name(id="external"), vy_ast.Name(id="view")]
+        settings = node.module_node.settings
+        if settings.nonreentrancy_by_default:
+            # immutable and constant variables can't change, and thus
+            # can't lead to read-only-reentrancy
+            if node.is_reentrant or node.is_constant or node.is_immutable:
+                decorators.append(vy_ast.Name(id="reentrant"))
+
         # join everything together as a new `FunctionDef` node
         expanded = vy_ast.FunctionDef(
             name=funcname,
             args=vy_ast.arguments(args=input_nodes, defaults=[]),
             body=[vy_ast.Return(value=return_expr)],
-            decorator_list=[vy_ast.Name(id="external"), vy_ast.Name(id="view")],
+            decorator_list=decorators,
             returns=return_annotation,
         )
 

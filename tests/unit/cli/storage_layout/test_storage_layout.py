@@ -64,8 +64,8 @@ DECIMALS: immutable(uint8)
 
 @deploy
 def __init__():
-    SYMBOL = "VYPR"
-    DECIMALS = 18
+    self.SYMBOL = "VYPR"
+    self.DECIMALS = 18
     """
 
     expected_layout = {
@@ -89,8 +89,8 @@ DECIMALS: immutable(uint8)
 
 @deploy
 def __init__():
-    SYMBOL = "VYPR"
-    DECIMALS = 18
+    self.SYMBOL = "VYPR"
+    self.DECIMALS = 18
     """
     code = """
 import lib1 as a_library
@@ -104,7 +104,7 @@ initializes: a_library
 
 @deploy
 def __init__():
-    some_immutable = [1, 2, 3]
+    self.some_immutable = [1, 2, 3]
     a_library.__init__()
     """
 
@@ -139,8 +139,8 @@ DECIMALS: immutable(uint8)
 
 @deploy
 def __init__():
-    SYMBOL = "VYPR"
-    DECIMALS = 18
+    self.SYMBOL = "VYPR"
+    self.DECIMALS = 18
     """
     code = """
 import lib1 as a_library
@@ -155,7 +155,7 @@ counter2: uint256
 @deploy
 def __init__():
     a_library.__init__()
-    some_immutable = [1, 2, 3]
+    self.some_immutable = [1, 2, 3]
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
 
@@ -189,8 +189,8 @@ DECIMALS: immutable(uint8)
 
 @deploy
 def __init__():
-    SYMBOL = "VYPR"
-    DECIMALS = 18
+    self.SYMBOL = "VYPR"
+    self.DECIMALS = 18
     """
     lib2 = """
 import lib1
@@ -202,7 +202,7 @@ immutable_variable: immutable(uint256)
 
 @deploy
 def __init__(s: uint256):
-    immutable_variable = s
+    self.immutable_variable = s
 
 @internal
 def decimals() -> uint8:
@@ -230,7 +230,7 @@ initializes: a_library
 @deploy
 def __init__():
     a_library.__init__()
-    some_immutable = [1, 2, 3]
+    self.some_immutable = [1, 2, 3]
 
     lib2.__init__(17)
 
@@ -273,8 +273,8 @@ DECIMALS: immutable(uint8)
 
 @deploy
 def __init__():
-    SYMBOL = "VYPR"
-    DECIMALS = 18
+    self.SYMBOL = "VYPR"
+    self.DECIMALS = 18
     """
     lib2 = """
 import lib1
@@ -286,7 +286,7 @@ immutable_variable: immutable(uint256)
 
 @deploy
 def __init__(s: uint256):
-    immutable_variable = s
+    self.immutable_variable = s
     lib1.__init__()
 
 @internal
@@ -309,7 +309,7 @@ uses: a_library
 
 @deploy
 def __init__():
-    some_immutable = [1, 2, 3]
+    self.some_immutable = [1, 2, 3]
 
     lib2.__init__(17)
 
@@ -380,3 +380,27 @@ initializes: lib
 
     assert layout1 == {"x": {"slot": start_slot, "type": "uint256", "n_slots": 1}}
     assert layout2 == {"x": {"slot": start_slot + 1, "type": "uint256", "n_slots": 1}}
+
+
+# test that the nonreentrancy lock gets excported when the nonreentrant pragma
+# is on and the public getters are nonreentrant
+def test_lock_export_with_nonreentrant_pragma(make_input_bundle):
+    main = """
+# pragma nonreentrancy on
+a: public(uint256)
+    """
+    out = compile_code(main, output_formats=["layout"])["layout"]
+
+    if version_check(begin="cancun"):
+        storage_layout = {"a": {"type": "uint256", "n_slots": 1, "slot": 0}}
+        transient_layout = {
+            "$.nonreentrant_key": {"type": "nonreentrant lock", "slot": 0, "n_slots": 1}
+        }
+        assert transient_layout == out["transient_storage_layout"]
+    else:
+        storage_layout = {
+            "a": {"type": "uint256", "n_slots": 1, "slot": 1},
+            "$.nonreentrant_key": {"type": "nonreentrant lock", "slot": 0, "n_slots": 1},
+        }
+
+    assert storage_layout == out["storage_layout"]

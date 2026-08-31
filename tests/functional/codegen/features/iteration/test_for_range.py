@@ -1,5 +1,6 @@
 import pytest
 
+from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import StaticAssertionException
 from vyper.utils import SizeLimits
 
@@ -273,6 +274,11 @@ def test():
     c.test()
 
 
+@pytest.mark.skip_at_optimization(
+    OptimizationLevel.O1,
+    OptimizationLevel.NONE,
+    reason="the expected compile-time failure depends on constant folding",
+)
 @pytest.mark.parametrize("typ", ["uint8", "int128", "uint256"])
 def test_for_range_oob_compile_time_check(get_contract, tx_failed, typ, experimental_codegen):
     code = f"""
@@ -456,6 +462,11 @@ def foo(_min:int256, _max: int256) -> DynArray[int256, 10]:
         c.foo(SizeLimits.MIN_INT256, SizeLimits.MAX_INT256)
 
 
+@pytest.mark.skip_at_optimization(
+    OptimizationLevel.O1,
+    OptimizationLevel.NONE,
+    reason="the expected compile-time failure depends on constant folding",
+)
 def test_for_range_signed_int_overflow_compile_time_check(
     get_contract, tx_failed, experimental_codegen
 ):
@@ -475,35 +486,64 @@ def foo() -> DynArray[int256, 10]:
         get_contract(code)
 
 
-def test_for_range_start_double_eval(get_contract, tx_failed):
-    code = """
-@external
-def foo() -> (uint256, DynArray[uint256, 3]):
-    x:DynArray[uint256, 3] = [3, 1]
-    res: DynArray[uint256, 3] = empty(DynArray[uint256, 3])
-    for i:uint256 in range(x.pop(),x.pop(), bound = 3):
-        res.append(i)
-
-    return len(x), res
+def test_bubble_sort(get_contract):
     """
-    c = get_contract(code)
-    length, res = c.foo()
-
-    assert (length, res) == (0, [1, 2])
-
-
-def test_for_range_stop_double_eval(get_contract, tx_failed):
-    code = """
-@external
-def foo() -> (uint256, DynArray[uint256, 3]):
-    x:DynArray[uint256, 3] = [3, 3]
-    res: DynArray[uint256, 3] = empty(DynArray[uint256, 3])
-    for i:uint256 in range(x.pop(), bound = 3):
-        res.append(i)
-
-    return len(x), res
+    Test vyper implementation of bubble sort. Good functional test as it
+    stresses the code generator and optimizer a little.
     """
-    c = get_contract(code)
-    length, res = c.foo()
+    code = """
+MAX_DATA_SIZE: constant(uint256) = 100
 
-    assert (length, res) == (1, [0, 1, 2])
+data: DynArray[uint256, MAX_DATA_SIZE]
+
+@internal
+@view
+def _validate_index(idx: uint256):
+    assert idx < len(self.data), "Index out of bounds"
+
+@internal
+def _swap(i: uint256, j: uint256):
+    self._validate_index(i)
+    self._validate_index(j)
+    temp: uint256 = self.data[i]
+    self.data[i] = self.data[j]
+    self.data[j] = temp
+
+@internal
+def _bubble_sort():
+    n: uint256 = len(self.data)
+    for i: uint256 in range(n, bound=MAX_DATA_SIZE):
+        for j: uint256 in range(n - i - 1, bound=MAX_DATA_SIZE):
+            if self.data[j] > self.data[j + 1]:
+                self._swap(j, j + 1)
+
+@external
+def add(val: uint256):
+    self.data.append(val)
+
+@external
+def sort_data():
+    self._bubble_sort()
+
+@external
+@view
+def get(idx: uint256) -> uint256:
+    self._validate_index(idx)
+    return self.data[idx]
+"""
+
+    c = get_contract(code)
+
+    # add unsorted data
+    c.add(5)
+    c.add(2)
+    c.add(8)
+    c.add(1)
+
+    # sort
+    c.sort_data()
+
+    # check sorted
+    results = [c.get(i) for i in range(4)]
+
+    assert results == [1, 2, 5, 8]

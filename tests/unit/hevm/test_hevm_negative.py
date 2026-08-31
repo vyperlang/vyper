@@ -46,7 +46,7 @@ def test_hevm_branch():
     """
     code2 = """
     main:
-        %par = param
+        %par = source
         jnz 1, @then, @else
     then:
         sink 1
@@ -64,7 +64,7 @@ def test_hevm_branch_fault():
     """
     code2 = """
     main:
-        %par = param
+        %par = source
         %cond = iszero %par
         jnz %cond, @then, @else
     then:
@@ -109,9 +109,9 @@ def test_hevm_detect_needle():
     """
     code2 = """
     main:
-        %1 = param
+        %1 = source
         %2 = add %1, 500
-        %3 = iszero %2  ; should eval to nonzero except if param is (2**256 - 500)
+        %3 = iszero %2  ; should eval to nonzero except if source is (2**256 - 500)
         sink %3
     """
     with hevm_raises() as e:

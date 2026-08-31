@@ -1,6 +1,7 @@
 import contextlib
 import dataclasses as dc
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
 from pathlib import Path, PurePath
 from typing import Any, Iterator, Optional
 
@@ -9,11 +10,11 @@ import vyper.builtins.stdlib
 from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import (
     BUILTIN,
-    ABIInput,
     CompilerInput,
     FileInput,
     FilesystemInputBundle,
     InputBundle,
+    JSONInput,
     PathLike,
 )
 from vyper.exceptions import (
@@ -24,7 +25,7 @@ from vyper.exceptions import (
     tag_exceptions,
 )
 from vyper.semantics.analysis.base import ImportInfo
-from vyper.utils import safe_relpath, sha256sum
+from vyper.utils import OrderedSet, safe_relpath, sha256sum
 
 """
 collect import statements and validate the import graph.
@@ -73,35 +74,68 @@ class _ImportGraph:
             self.pop_path(module_ast)
 
 
+def try_parse_abi(file_input: FileInput) -> CompilerInput:
+    try:
+        s = json.loads(file_input.source_code)
+        if isinstance(s, dict) and "abi" in s:
+            s = s["abi"]
+        return JSONInput(**asdict(file_input), data=s)
+    except (ValueError, TypeError):
+        return file_input
+
+
 class ImportAnalyzer:
-    def __init__(self, input_bundle: InputBundle, graph: _ImportGraph):
+    seen: OrderedSet[vy_ast.Module]
+    _compiler_inputs: dict[CompilerInput, vy_ast.Module]
+    toplevel_module: vy_ast.Module
+
+    def __init__(self, input_bundle: InputBundle, graph: _ImportGraph, module_ast: vy_ast.Module):
         self.input_bundle = input_bundle
         self.graph = graph
+        self.toplevel_module = module_ast
         self._ast_of: dict[int, vy_ast.Module] = {}
 
-        self.seen: set[vy_ast.Module] = set()
+        self.seen = OrderedSet()
+
+        # keep around compiler inputs so when we construct the output
+        # bundle, we have access to the compiler input for each module
+        self._compiler_inputs = {}
 
         self._integrity_sum = None
+
+        # memoization for _calculate_integrity_sum_r. the import graph is
+        # a DAG, so without memoization the traversal is exponential in
+        # the presence of diamond-shaped imports.
+        self._integrity_cache: dict[int, str] = {}
 
         # should be all system paths + topmost module path
         self.absolute_search_paths = input_bundle.search_paths.copy()
 
-    def resolve_imports(self, module_ast: vy_ast.Module):
-        self._resolve_imports_r(module_ast)
-        self._integrity_sum = self._calculate_integrity_sum_r(module_ast)
+    def resolve_imports(self):
+        self._resolve_imports_r(self.toplevel_module)
+        self._integrity_sum = self._calculate_integrity_sum_r(self.toplevel_module)
+
+    @property
+    def compiler_inputs(self) -> dict[CompilerInput, vy_ast.Module]:
+        return self._compiler_inputs
 
     def _calculate_integrity_sum_r(self, module_ast: vy_ast.Module):
+        if id(module_ast) in self._integrity_cache:
+            return self._integrity_cache[id(module_ast)]
+
         acc = [sha256sum(module_ast.full_source_code)]
         for s in module_ast.get_children((vy_ast.Import, vy_ast.ImportFrom)):
-            info = s._metadata["import_info"]
+            for info in s._metadata["import_infos"]:
+                if isinstance(info.compiler_input, JSONInput):
+                    # json (ABI) inputs cannot have imports; hash the input
+                    acc.append(info.compiler_input.sha256sum)
+                else:
+                    # .vy and .vyi modules can have their own imports; recurse
+                    acc.append(self._calculate_integrity_sum_r(info.parsed))
 
-            if info.compiler_input.path.suffix in (".vyi", ".json"):
-                # NOTE: this needs to be redone if interfaces can import other interfaces
-                acc.append(info.compiler_input.sha256sum)
-            else:
-                acc.append(self._calculate_integrity_sum_r(info.parsed))
-
-        return sha256sum("".join(acc))
+        ret = sha256sum("".join(acc))
+        self._integrity_cache[id(module_ast)] = ret
+        return ret
 
     def _resolve_imports_r(self, module_ast: vy_ast.Module):
         if module_ast in self.seen:
@@ -117,60 +151,69 @@ class ImportAnalyzer:
         self.seen.add(module_ast)
 
     def _handle_Import(self, node: vy_ast.Import):
-        # import x.y[name] as y[alias]
+        # import x.y as y
 
-        alias = node.alias
-
-        if alias is None:
-            alias = node.name
-
-        # don't handle things like `import x.y`
-        if "." in alias:
-            msg = "import requires an accompanying `as` statement"
-            suggested_alias = node.name[node.name.rfind(".") :]
-            hint = f"try `import {node.name} as {suggested_alias}`"
-            raise StructureException(msg, node, hint=hint)
-
-        self._add_import(node, 0, node.name, alias)
+        self._add_imports(node, 0, "")
 
     def _handle_ImportFrom(self, node: vy_ast.ImportFrom):
-        # from m.n[module] import x[name] as y[alias]
+        # from m.n[module_prefix] import x as y
 
-        alias = node.alias
+        module_prefix = node.module or ""
+        if module_prefix:
+            module_prefix += "."
 
-        if alias is None:
-            alias = node.name
+        self._add_imports(node, node.level, module_prefix)
 
-        module = node.module or ""
-        if module:
-            module += "."
-
-        qualified_module_name = module + node.name
-        self._add_import(node, node.level, qualified_module_name, alias)
-
-    def _add_import(
-        self, node: vy_ast.VyperNode, level: int, qualified_module_name: str, alias: str
+    def _add_imports(
+        self, import_node: vy_ast.Import | vy_ast.ImportFrom, level: int, module_prefix: str
     ) -> None:
-        compiler_input, ast = self._load_import(node, level, qualified_module_name, alias)
-        node._metadata["import_info"] = ImportInfo(
-            alias, qualified_module_name, compiler_input, ast
-        )
+        assert len(import_node.names) > 0
+        assert "import_infos" not in import_node._metadata
+        import_node._metadata["import_infos"] = list()
+
+        for alias_node in import_node.names:
+            # x.y[name] as y[alias]
+            name = alias_node.name
+            alias = alias_node.asname
+            if alias is None:
+                alias = name
+
+            # don't handle things like `import x.y`
+            if "." in alias:
+                msg = "import requires an accompanying `as` statement"
+                suggested_alias = name[name.rfind(".") + 1 :]
+                hint = f"try `import {name} as {suggested_alias}`"
+                raise StructureException(msg, alias_node, hint=hint)
+
+            qualified_module_name = module_prefix + name
+
+            # Set on alias_node for more precise error messages
+            compiler_input, ast = self._load_import(level, qualified_module_name)
+            # check resolved path (catches different relative paths to same file)
+            self._check_duplicate_import(compiler_input, alias_node, alias)
+            self._compiler_inputs[compiler_input] = ast
+
+            import_node._metadata["import_infos"].append(
+                ImportInfo(alias, qualified_module_name, compiler_input, ast)
+            )
 
     # load an InterfaceT or ModuleInfo from an import.
     # raises FileNotFoundError
-    def _load_import(
-        self, node: vy_ast.VyperNode, level: int, module_str: str, alias: str
-    ) -> tuple[CompilerInput, Any]:
+    def _check_duplicate_import(self, file: CompilerInput, node: vy_ast.VyperNode, alias: str):
+        # use resolved_path to detect duplicates, not the relative import path,
+        # since different relative paths can resolve to the same file
+        # (e.g., `from . import x` and `from ..pkg import x`)
+        resolved = file.resolved_path
+        if resolved in self.graph.imported_modules:
+            previous_import_stmt = self.graph.imported_modules[resolved]
+            raise DuplicateImport(f"{alias} imported more than once!", previous_import_stmt, node)
+        self.graph.imported_modules[resolved] = node
+
+    def _load_import(self, level: int, module_str: str) -> tuple[CompilerInput, Any]:
         if _is_builtin(level, module_str):
             return _load_builtin_import(level, module_str)
 
         path = _import_to_path(level, module_str)
-
-        if path in self.graph.imported_modules:
-            previous_import_stmt = self.graph.imported_modules[path]
-            raise DuplicateImport(f"{alias} imported more than once!", previous_import_stmt, node)
-
-        self.graph.imported_modules[path] = node
 
         err = None
 
@@ -180,7 +223,7 @@ class ImportAnalyzer:
             assert isinstance(file, FileInput)  # mypy hint
 
             module_ast = self._ast_from_file(file)
-            self.resolve_imports(module_ast)
+            self._resolve_imports_r(module_ast)
 
             return file, module_ast
 
@@ -192,11 +235,9 @@ class ImportAnalyzer:
         try:
             file = self._load_file(path.with_suffix(".vyi"), level)
             assert isinstance(file, FileInput)  # mypy hint
-            module_ast = self._ast_from_file(file)
-            self.resolve_imports(module_ast)
 
-            # language does not yet allow recursion for vyi files
-            # self.resolve_imports(module_ast)
+            module_ast = self._ast_from_file(file)
+            self._resolve_imports_r(module_ast)
 
             return file, module_ast
 
@@ -205,8 +246,11 @@ class ImportAnalyzer:
 
         try:
             file = self._load_file(path.with_suffix(".json"), level)
-            assert isinstance(file, ABIInput)  # mypy hint
-            return file, file.abi
+            if isinstance(file, FileInput):
+                file = try_parse_abi(file)
+            assert isinstance(file, JSONInput)  # mypy hint
+
+            return file, file.data
         except FileNotFoundError:
             pass
 
@@ -254,11 +298,13 @@ def _parse_ast(file: FileInput) -> vy_ast.Module:
         # use the resolved path given to us by the InputBundle
         pass
 
+    is_interface = file.resolved_path.suffix == ".vyi"
     ret = vy_ast.parse_to_ast(
         file.source_code,
         source_id=file.source_id,
         module_path=module_path.as_posix(),
         resolved_path=file.resolved_path.as_posix(),
+        is_interface=is_interface,
     )
     return ret
 
@@ -349,7 +395,7 @@ def _load_builtin_import(level: int, module_str: str) -> tuple[CompilerInput, vy
 
 def resolve_imports(module_ast: vy_ast.Module, input_bundle: InputBundle):
     graph = _ImportGraph()
-    analyzer = ImportAnalyzer(input_bundle, graph)
-    analyzer.resolve_imports(module_ast)
+    analyzer = ImportAnalyzer(input_bundle, graph, module_ast)
+    analyzer.resolve_imports()
 
     return analyzer

@@ -146,6 +146,7 @@ class Expr:
     def _make_bytelike(cls, context, typeclass, bytez):
         bytez_length = len(bytez)
         btype = typeclass(bytez_length)
+
         placeholder = context.new_internal_variable(btype)
         seq = []
         seq.append(["mstore", placeholder, bytez_length])
@@ -157,12 +158,15 @@ class Expr:
                     bytes_to_int((bytez + b"\x00" * 31)[i : i + 32]),
                 ]
             )
-        return IRnode.from_list(
+
+        ret = IRnode.from_list(
             ["seq"] + seq + [placeholder],
             typ=btype,
             location=MEMORY,
             annotation=f"Create {btype}: {bytez}",
         )
+        ret.is_source_bytes_literal = True
+        return ret
 
     # True, False, None constants
     def parse_NameConstant(self):
@@ -472,9 +476,10 @@ class Expr:
 
         ret = ["seq"]
 
-        with left.cache_when_complex("needle") as (b1, left), right.cache_when_complex(
-            "haystack"
-        ) as (b2, right):
+        with (
+            left.cache_when_complex("needle") as (b1, left),
+            right.cache_when_complex("haystack") as (b2, right),
+        ):
             # unroll the loop for compile-time list literals
             if right.value == "multi":
                 # empty list literals should be rejected at typechecking time

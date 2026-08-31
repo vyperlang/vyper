@@ -1,4 +1,4 @@
-from vyper.venom.analysis import CFGAnalysis
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis
 from vyper.venom.basicblock import IRInstruction, IRLiteral
 from vyper.venom.passes.base_pass import IRPass
 
@@ -8,8 +8,12 @@ from vyper.venom.passes.base_pass import IRPass
 
 
 class RevertToAssert(IRPass):
+    cfg: CFGAnalysis
+    # Rewriting jnz->jmp creates dead revert tails that should be folded away next.
+    required_immediate_successors = ("SimplifyCFGPass",)
+
     def run_pass(self):
-        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         fn = self.function
 
         for bb in fn.get_basic_blocks():
@@ -19,20 +23,21 @@ class RevertToAssert(IRPass):
             if term.opcode != "revert" or any(op != IRLiteral(0) for op in term.operands):
                 continue
 
-            for pred in bb.cfg_in:
+            for pred in self.cfg.cfg_in(bb):
                 if pred.instructions[-1].opcode != "jnz":
                     continue
 
                 self._rewrite_jnz(pred, bb)
 
         self.analyses_cache.invalidate_analysis(CFGAnalysis)
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
 
     def _rewrite_jnz(self, pred, revert_bb):
         term = pred.instructions[-1]
         cond, then_label, else_label = term.operands
         if then_label == revert_bb.label:
             new_cond = self.function.get_next_variable()
-            iszero_inst = IRInstruction("iszero", [cond], output=new_cond)
+            iszero_inst = IRInstruction("iszero", [cond], outputs=[new_cond])
             assert_inst = IRInstruction("assert", [iszero_inst.output])
             pred.insert_instruction(iszero_inst, index=-1)
             pred.insert_instruction(assert_inst, index=-1)

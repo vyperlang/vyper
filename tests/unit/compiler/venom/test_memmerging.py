@@ -5,7 +5,12 @@ from vyper.evm.opcodes import version_check
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import SCCP, MemMergePass, RemoveUnusedVariablesPass
 
-_check_pre_post = PrePostChecker([MemMergePass, RemoveUnusedVariablesPass], default_hevm=False)
+_check_pre_post = PrePostChecker(
+    [(MemMergePass, {"memory_abstract": False}), RemoveUnusedVariablesPass], default_hevm=False
+)
+_check_pre_post_abs_mem = PrePostChecker(
+    [(MemMergePass, {"memory_abstract": True}), RemoveUnusedVariablesPass], default_hevm=False
+)
 
 
 def _check_no_change(pre):
@@ -16,7 +21,7 @@ def _check_no_change(pre):
 LOAD_COPY = [("dload", "dloadbytes"), ("calldataload", "calldatacopy")]
 
 
-def test_memmerging():
+def test_memmerging_tmp():
     """
     Basic memory merge test
     All mloads and mstores can be
@@ -42,6 +47,239 @@ def test_memmerging():
         stop
     """
     _check_pre_post(pre, post)
+
+
+def test_memmerging_tmp_alloca():
+    """
+    Basic memory merge test
+    All mloads and mstores can be
+    transformed into mcopy
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %base_read = alloca 96
+        %base_write = alloca 96
+        %ptr1 = add %base_read, 0
+        %1 = mload %ptr1
+        %ptr2 = add %base_read, 32
+        %2 = mload %ptr2
+        %ptr3 = add %base_read, 64
+        %3 = mload %ptr3
+        %ptr4 = add %base_write, 0
+        mstore %ptr4, %1
+        %ptr5 = add %base_write, 32
+        mstore %ptr5, %2
+        %ptr6 = add %base_write, 64
+        mstore %ptr6, %3
+        stop
+    """
+
+    post = """
+    _global:
+        %base_read = alloca 96
+        %base_write = alloca 96
+        %4 = add 0, %base_read
+        %5 = add 0, %base_write
+        mcopy %5, %4, 96
+        stop
+    """
+    _check_pre_post_abs_mem(pre, post)
+
+
+def test_memmerging_tmp_alloca_multiple_regions():
+    """
+    Test merging with multiple independent alloca regions
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %base_read1 = alloca 64
+        %base_write1 = alloca 64
+        %base_read2 = alloca 64
+        %base_write2 = alloca 64
+        %ptr1 = add %base_read1, 0
+        %1 = mload %ptr1
+        %ptr2 = add %base_read1, 32
+        %2 = mload %ptr2
+        %ptr3 = add %base_write1, 0
+        mstore %ptr3, %1
+        %ptr4 = add %base_write1, 32
+        mstore %ptr4, %2
+        %ptr5 = add %base_read2, 0
+        %3 = mload %ptr5
+        %ptr6 = add %base_read2, 32
+        %4 = mload %ptr6
+        %ptr7 = add %base_write2, 0
+        mstore %ptr7, %3
+        %ptr8 = add %base_write2, 32
+        mstore %ptr8, %4
+        stop
+    """
+
+    post = """
+    _global:
+        %base_read1 = alloca 64
+        %base_write1 = alloca 64
+        %base_read2 = alloca 64
+        %base_write2 = alloca 64
+        %5 = add 0, %base_read1
+        %6 = add 0, %base_write1
+        mcopy %6, %5, 64
+        %7 = add 0, %base_read2
+        %8 = add 0, %base_write2
+        mcopy %8, %7, 64
+        stop
+    """
+    _check_pre_post_abs_mem(pre, post)
+
+
+def test_memmerging_tmp_alloca_partial_barrier():
+    """
+    Test that a barrier (read from dst region) prevents merging with allocas
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %base_read = alloca 128
+        %base_write = alloca 128
+        %ptr1 = add %base_read, 0
+        %1 = mload %ptr1
+        %ptr2 = add %base_read, 32
+        %2 = mload %ptr2
+        %ptr3 = add %base_write, 0
+        mstore %ptr3, %1
+        %ptr4 = add %base_write, 32
+        %3 = mload %ptr4
+        %ptr5 = add %base_write, 32
+        mstore %ptr5, %2
+        sink %3
+    """
+
+    post = """
+    _global:
+        %base_read = alloca 128
+        %base_write = alloca 128
+        %ptr4 = add %base_write, 32
+        %3 = mload %ptr4
+        %4 = add 0, %base_read
+        %5 = add 0, %base_write
+        mcopy %5, %4, 64
+        sink %3
+    """
+    _check_pre_post_abs_mem(pre, post)
+
+
+def test_memmerging_alloca_out_of_order():
+    """
+    Test out-of-order mload/mstore with allocas
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %base_read = alloca 128
+        %base_write = alloca 128
+        %ptr1 = add %base_read, 32
+        %1 = mload %ptr1
+        %ptr2 = add %base_read, 0
+        %2 = mload %ptr2
+        %ptr3 = add %base_write, 0
+        mstore %ptr3, %2
+        %ptr4 = add %base_write, 32
+        mstore %ptr4, %1
+        stop
+    """
+
+    post = """
+    _global:
+        %base_read = alloca 128
+        %base_write = alloca 128
+        %3 = add 0, %base_read
+        %4 = add 0, %base_write
+        mcopy %4, %3, 64
+        stop
+    """
+    _check_pre_post_abs_mem(pre, post)
+
+
+def test_memmerging_alloca_single_buffer():
+    """
+    Test that mload/mstore from same allocation pair can be
+    merged into one mcopy
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %buf = alloca 128
+        %ptr1 = add %buf, 0
+        %1 = mload %ptr1
+        %ptr2 = add %buf, 32
+        %2 = mload %ptr2
+        %ptr3 = add %buf, 64
+        mstore %ptr3, %1
+        %ptr4 = add %buf, 96
+        mstore %ptr4, %2
+        stop
+    """
+
+    post = """
+    _global:
+        %buf = alloca 128
+        %3 = add 0, %buf
+        %4 = add 64, %buf
+        mcopy %4, %3, 64
+        stop
+    """
+    _check_pre_post_abs_mem(pre, post)
+
+
+def test_memmerging_alloca_out_of_order_reversed():
+    """
+    Test out-of-order mload/mstore with allocas where we write a larger
+    offset before a smaller one
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %base_read = alloca 192
+        %base_write = alloca 192
+        %ptr1 = add %base_read, 96
+        %1 = mload %ptr1
+        %ptr2 = add %base_read, 64
+        %2 = mload %ptr2
+        %ptr3 = add %base_read, 128
+        %3 = mload %ptr3
+        %ptr4 = add %base_write, 64
+        mstore %ptr4, %2
+        %ptr5 = add %base_write, 96
+        mstore %ptr5, %1
+        %ptr6 = add %base_write, 128
+        mstore %ptr6, %3
+        stop
+    """
+
+    post = """
+    _global:
+        %base_read = alloca 192
+        %base_write = alloca 192
+        %4 = add 64, %base_read
+        %5 = add 64, %base_write
+        mcopy %5, %4, 96
+        stop
+    """
+    _check_pre_post_abs_mem(pre, post)
 
 
 def test_memmerging_out_of_order():
@@ -194,7 +432,7 @@ def test_memmerging_imposs_unkown_place():
 
     pre = """
     _global:
-        %1 = param
+        %1 = source
         %2 = mload 0
         %3 = mload %1  ; BARRIER
         %4 = mload 32
@@ -203,63 +441,9 @@ def test_memmerging_imposs_unkown_place():
         mstore 1032, %4
         mstore 10, %1  ; BARRIER
         mstore 1064, %5
-        stop
+        sink %3  ; block it from being removed by RemoveUnusedVariables
     """
     _check_no_change(pre)
-
-
-def test_memmerging_imposs_msize():
-    """
-    Test case of impossible merge
-    Impossible because of the msize barier
-    """
-    if not version_check(begin="cancun"):
-        return
-
-    pre = """
-    _global:
-        %1 = mload 0
-        %2 = msize  ; BARRIER
-        %3 = mload 32
-        %4 = mload 64
-        mstore 1000, %1
-        mstore 1032, %3
-        %5 = msize  ; BARRIER
-        mstore 1064, %4
-        return %2, %5
-    """
-    _check_no_change(pre)
-
-
-def test_memmerging_partial_msize():
-    """
-    Only partial merge possible
-    because of the msize barier
-    """
-    if not version_check(begin="cancun"):
-        return
-
-    pre = """
-    _global:
-        %1 = mload 0
-        %2 = mload 32
-        %3 = mload 64
-        mstore 1000, %1
-        mstore 1032, %2
-        %4 = msize  ; BARRIER
-        mstore 1064, %3
-        return %4
-    """
-
-    post = """
-    _global:
-        %3 = mload 64
-        mcopy 1000, 0, 64
-        %4 = msize
-        mstore 1064, %3
-        return %4
-    """
-    _check_pre_post(pre, post)
 
 
 def test_memmerging_partial_overlap():
@@ -729,6 +913,7 @@ def test_memmerging_write_after_write():
         mstore 1000, %2  ; result of mload(100), partial barrier
         mstore 1032, %4
         mstore 1032, %3  ; BARRIER
+        stop
     """
 
     post = """
@@ -738,6 +923,7 @@ def test_memmerging_write_after_write():
         mstore 1000, %1
         mcopy 1000, 100, 64
         mstore 1032, %3  ; BARRIER
+        stop
     """
     _check_pre_post(pre, post)
 
@@ -907,14 +1093,14 @@ def test_memmerging_double_use():
         %2 = mload 32
         mstore 1000, %1
         mstore 1032, %2
-        return %1
+        sink %1
     """
 
     post = """
     _global:
         %1 = mload 0
         mcopy 1000, 0, 64
-        return %1
+        sink %1
     """
 
     _check_pre_post(pre, post)
@@ -930,7 +1116,7 @@ def test_existing_mcopy_overlap_nochange():
     pre = """
     _global:
         mcopy 32, 33, 2
-        return %1
+        sink %1
     """
     _check_no_change(pre)
 
@@ -1345,7 +1531,7 @@ def test_memzeroing_imposs():
 
     pre = """
     _global:
-        %1 = param  ; abstract location, causes barrier
+        %1 = source  ; abstract location, causes barrier
         mstore 32, 0
         mstore %1, 0
         mstore 64, 0
@@ -1435,7 +1621,7 @@ def test_merge_mstore_dload():
     """
     pre = """
     _global:
-        %par = param
+        %par = source
         %d = dload %par
         mstore 1000, 123
         mstore 1000, %d
@@ -1444,10 +1630,37 @@ def test_merge_mstore_dload():
 
     post = """
     _global:
-        %par = param
+        %par = source
         mstore 1000, 123
         dloadbytes 1000, %par, 32
         stop
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_merge_mstore_dload_more_uses():
+    """
+    Test for merging the mstore/dload pairs which contains
+    variable which would normally trigger barrier.
+    In this case, because %d is used by `sink`, we don't optimize
+    the dload/mstore sequence into dloadbytes. (We could in the future
+    as a further optimization, it requires insertion of an mload).
+    """
+    pre = """
+    _global:
+        %par = source
+        %d = dload %par
+        mstore 1000, %d
+        sink %d
+    """
+
+    post = """
+    _global:
+        %par = source
+        dloadbytes 1000, %par, 32
+        %1 = mload 1000
+        sink %1
     """
 
     _check_pre_post(pre, post)
@@ -1463,9 +1676,64 @@ def test_merge_mstore_dload_disallowed():
     """
     pre = """
     _global:
-        %par = param
+        %par = source
+        %d1 = dload %par
+        mstore %d1, 1000
+        mstore 1000, %d1
+        %d2 = dload %par
+        mstore %d2, %par
+        mstore 1000, %d2
+        sink %d1, %d2
+    """
+
+    _check_no_change(pre)
+
+
+def test_merge_mstore_dload_dst_disallowed():
+    """
+    Test that the dload/mstore merge does not fire when the only use of
+    the dload output is as the *destination* pointer of the mstore
+    (rather than the stored value).
+    """
+    pre = """
+    _global:
+        %par = source
         %d = dload %par
-        mstore 1000, %d
+        mstore %d, 42
+        stop
+    """
+
+    _check_no_change(pre)
+
+
+def test_merge_mstore_dload_self_dst_disallowed():
+    """
+    Test that the dload/mstore merge does not fire when the dload output
+    is used both as the stored value and as the destination pointer of
+    the mstore (single-use path).
+    """
+    pre = """
+    _global:
+        %par = source
+        %d = dload %par
+        mstore %d, %d
+        stop
+    """
+
+    _check_no_change(pre)
+
+
+def test_merge_mstore_dload_self_dst_more_uses_disallowed():
+    """
+    Test that the dload/mstore merge does not fire when the dload output
+    is used both as the stored value and as the destination pointer of
+    the mstore (multi-use path).
+    """
+    pre = """
+    _global:
+        %par = source
+        %d = dload %par
+        mstore %d, %d
         sink %d
     """
 

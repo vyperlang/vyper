@@ -5,9 +5,9 @@ from hexbytes import HexBytes
 
 import vyper.ir.compile_ir as compile_ir
 from tests.utils import ZERO_ADDRESS
-from vyper.codegen.ir_node import IRnode
 from vyper.compiler import compile_code
-from vyper.compiler.settings import OptimizationLevel
+from vyper.exceptions import InvalidOperation, StructureException
+from vyper.ir.compile_ir import DATA_ITEM, PUSH, PUSHLABEL, DataHeader, Label
 from vyper.utils import EIP_170_LIMIT, ERC5202_PREFIX, checksum_encode, keccak256
 
 
@@ -276,18 +276,22 @@ def test2(target: address, salt: bytes32):
 
 
 def test_create_from_blueprint_bad_code_offset(
-    get_contract, get_contract_from_ir, deploy_blueprint_for, env, tx_failed
+    get_contract, get_contract_from_ir, deploy_blueprint_for, env, tx_failed, experimental_codegen
 ):
     deployer_code = """
 BLUEPRINT: immutable(address)
 
 @deploy
 def __init__(blueprint_address: address):
-    BLUEPRINT = blueprint_address
+    self.BLUEPRINT = blueprint_address
 
 @external
 def test(code_ofst: uint256) -> address:
-    return create_from_blueprint(BLUEPRINT, code_offset=code_ofst)
+    return create_from_blueprint(self.BLUEPRINT, code_offset=code_ofst)
+
+@external
+def test_no_revert(code_ofst: uint256) -> address:
+    return create_from_blueprint(self.BLUEPRINT, code_offset=code_ofst, revert_on_failure=False)
     """
 
     initcode_len = 100
@@ -295,10 +299,19 @@ def test(code_ofst: uint256) -> address:
     # deploy a blueprint contract whose contained initcode contains only
     # zeroes (so no matter which offset, create_from_blueprint will
     # return empty code)
-    ir = IRnode.from_list(["deploy", 0, ["seq"] + ["stop"] * initcode_len, 0])
-    bytecode, _ = compile_ir.assembly_to_evm(
-        compile_ir.compile_to_assembly(ir, optimize=OptimizationLevel.NONE)
-    )
+    asm = [
+        *PUSH(initcode_len),
+        PUSHLABEL(Label("end")),
+        *PUSH(0),
+        "CODECOPY",
+        *PUSH(initcode_len),
+        *PUSH(0),
+        "RETURN",
+        DataHeader(Label("end")),
+        DATA_ITEM(b"\x00" * initcode_len),
+    ]
+    bytecode, _ = compile_ir.assembly_to_evm(asm)
+
     # manually deploy the bytecode
     c = env.deploy(abi=[], bytecode=bytecode)
     blueprint_address = c.address
@@ -319,6 +332,19 @@ def test(code_ofst: uint256) -> address:
     with tx_failed():
         d.test(EIP_170_LIMIT)
 
+    # Venom guards runtime offsets before subtracting. Legacy still uses the
+    # wrapped subtraction result in its check, so keep this hardening assertion
+    # scoped to the pipeline that implements it.
+    if not experimental_codegen:
+        return
+
+    # wrapped subtraction must not make huge offsets look like valid code sizes
+    for code_offset in [2**256 - initcode_len, 2**256 - 1]:
+        with tx_failed():
+            d.test(code_offset)
+        with tx_failed():
+            d.test_no_revert(code_offset)
+
 
 # test create_from_blueprint with args
 def test_create_from_blueprint_args(
@@ -333,16 +359,16 @@ BAR: immutable(Bar)
 
 @deploy
 def __init__(foo: String[128], bar: Bar):
-    FOO = foo
-    BAR = bar
+    self.FOO = foo
+    self.BAR = bar
 
 @external
 def foo() -> String[128]:
-    return FOO
+    return self.FOO
 
 @external
 def bar() -> Bar:
-    return BAR
+    return self.BAR
     """
 
     deployer_code = """
@@ -705,6 +731,17 @@ def create_(target: address):
     assert d.deployed() == 1
 
 
+def test_create_from_blueprint_empty_ctor_args_untyped():
+    code = """
+@external
+def foo() -> address:
+    return create_from_blueprint(msg.sender, [])
+    """
+    with pytest.raises(InvalidOperation) as excinfo:
+        compile_code(code)
+    assert excinfo.value.message == "`Never` does not have an abi encoding"
+
+
 def test_create_copy_of_complex_kwargs(get_contract, env):
     # test msize allocator does not get trampled by salt= kwarg
     complex_salt = """
@@ -749,6 +786,52 @@ def test(target: address) -> address:
     assert env.get_code(test1) == bytecode
 
 
+def test_create_copy_salt_eval_order_regression(get_contract, env):
+    """
+    Regression test for create2 salt evaluation order bug.
+    The salt expression that allocates memory (like keccak256 with abi_encode)
+    must be evaluated BEFORE msize() to prevent memory corruption of the
+    initcode buffer.
+    """
+    # Simple target contract to copy
+    target_code = """
+@external
+def foo() -> uint256:
+    return 42
+    """
+
+    target = get_contract(target_code)
+    target_bytecode = env.get_code(target.address)
+
+    # Deployer that uses dynamic salt computation
+    deployer_code = """
+@external
+def test_create_copy_with_dynamic_salt(target: address, nonce: uint256) -> address:
+    # Using keccak256 with abi_encode forces memory allocation
+    # during salt evaluation. If salt is evaluated after msize(),
+    # this allocation can overwrite the initcode buffer.
+    salt: bytes32 = keccak256(abi_encode(nonce, msg.sender, block.timestamp))
+    return create_copy_of(target, salt=salt)
+    """
+
+    deployer = get_contract(deployer_code)
+
+    # Deploy and verify the created contract has correct bytecode
+    created = deployer.test_create_copy_with_dynamic_salt(target.address, 123)
+    assert env.get_code(created) == target_bytecode
+
+
+def test_raw_create_empty_ctor_args_untyped():
+    code = """
+@external
+def foo() -> address:
+    return raw_create(b"", [])
+    """
+    with pytest.raises(InvalidOperation) as excinfo:
+        compile_code(code)
+    assert excinfo.value.message == "`Never` does not have an abi encoding"
+
+
 def test_raw_create(get_contract, env):
     to_deploy_code = """
 foo: public(uint256)
@@ -780,6 +863,30 @@ def deploy_from_memory() -> address:
 
     res = deployer.deploy_from_memory()
     assert env.get_code(res) == runtime
+
+    res = deployer.deploy_from_calldata(initcode)
+    assert env.get_code(res) == runtime
+
+
+# `initcode` and `value` arguments overlap
+def test_raw_create_memory_overlap(get_contract, env):
+    to_deploy_code = """
+foo: public(uint256)
+    """
+
+    out = compile_code(to_deploy_code, output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+
+    deployer_code = """
+@external
+def deploy_from_calldata(s: Bytes[49152]) -> address:
+    v: DynArray[Bytes[49152], 2] = [s]
+    x: address = raw_create(v[0], value = 0 if v.pop() == b'' else 0, revert_on_failure=False)
+    return x
+    """
+
+    deployer = get_contract(deployer_code)
 
     res = deployer.deploy_from_calldata(initcode)
     assert env.get_code(res) == runtime
@@ -860,6 +967,18 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32) -> address
     assert HexBytes(res) == create2_address_of(deployer.address, salt, initcode)
 
     assert env.get_code(res) == runtime
+
+
+def test_create_from_blueprint_raw_args_requires_bytes():
+    code = """
+@external
+def deploy(target: address, x: uint256) -> address:
+    return create_from_blueprint(target, x, raw_args=True)
+    """
+
+    with pytest.raises(StructureException) as e:
+        compile_code(code)
+    assert e.value.message == "raw_args must be used with exactly 1 bytes argument"
 
 
 # test that create_from_blueprint bubbles up revert data
@@ -1078,8 +1197,8 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32) -> address
     assert env.get_code(res) == runtime
 
 
-# evaluation of the value kwarg changes the value of the salt kwarg
-# value kwarg comes after the salt kwarg in the source code
+# evaluation of the value kwarg changes the value of the salt kwarg.
+# value kwarg comes after the salt kwarg in the source code.
 @pytest.mark.xfail(raises=AssertionError, reason="salt kwarg is evaluated after value kwarg")
 def test_raw_create_order_of_eval_of_kwargs(get_contract, env, create2_address_of, keccak):
     to_deploy_code = """
@@ -1095,6 +1214,8 @@ def __init__(arg: uint256):
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
     runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
 
+    # the implementation of `raw_create` firstly caches
+    # `value` and then `salt`, here the source order is `salt` then `value`
     deployer_code = """
 c: Bytes[1024]
 salt: bytes32
@@ -1122,3 +1243,37 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32, value_: ui
     assert HexBytes(res) == create2_address_of(deployer.address, salt, initcode)
     assert env.get_code(res) == runtime
     assert env.get_balance(res) == value
+
+
+# test vararg and kwarg expression evaluation order.
+def test_raw_create_eval_order(get_contract, experimental_codegen, request):
+    if not experimental_codegen:
+        request.node.add_marker(
+            pytest.mark.xfail(
+                raises=AssertionError,
+                reason="legacy raw_create lowers value= before the preceding vararg",
+            )
+        )
+
+    code = """
+a: public(uint256)
+
+@deploy
+def __init__():
+    initcode: Bytes[100] = b"a"
+    res: address = raw_create(
+        initcode, self.test1(), value=self.test2(), revert_on_failure=False
+    )
+
+@internal
+def test1() -> uint256:
+    self.a = 1
+    return 1
+
+@internal
+def test2() -> uint256:
+    self.a = 2
+    return 2
+    """
+    c = get_contract(code)
+    assert c.a() == 2

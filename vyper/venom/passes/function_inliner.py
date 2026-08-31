@@ -1,13 +1,15 @@
 from typing import List, Optional
 
-from vyper.compiler.settings import OptimizationLevel
+from vyper.compiler.settings import VenomOptimizationFlags
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, FCGAnalysis, IRAnalysesCache
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, DynamicMemoryAnalysis, IRAnalysesCache
+from vyper.venom.analysis.fcg import FCGGlobalAnalysis
+from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
+from vyper.venom.call_layout import InvokeLayout, has_dret
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
-from vyper.venom.passes import FloatAllocas
 from vyper.venom.passes.base_pass import IRGlobalPass
 
 
@@ -24,30 +26,36 @@ class FunctionInlinerPass(IRGlobalPass):
     """
 
     inline_count: int
-    fcg: FCGAnalysis
-    optimize: OptimizationLevel
+    fcg: FCGGlobalAnalysis
+    flags: VenomOptimizationFlags
 
     def __init__(
         self,
         analyses_caches: dict[IRFunction, IRAnalysesCache],
         ctx: IRContext,
-        optimize: OptimizationLevel,
+        flags: VenomOptimizationFlags,
     ):
         super().__init__(analyses_caches, ctx)
-        self.optimize = optimize
+        self.flags = flags or VenomOptimizationFlags()
 
     def run_pass(self):
         entry = self.ctx.entry_function
         self.inline_count = 0
+        self.fcg = self.analyses_caches[entry].force_analysis(FCGGlobalAnalysis)
+
+        for fn in self.fcg.get_reachable_functions():
+            if has_dret(fn):
+                raise CompilerPanic(
+                    "DretDesugarPass must run before FunctionInlinerPass when `dret` is present"
+                )
 
         function_count = len(self.ctx.functions)
-        self.fcg = self.analyses_caches[entry].request_analysis(FCGAnalysis)
         self.walk = self._build_call_walk(entry)
 
         for _ in range(function_count):
             candidate = self._select_inline_candidate()
             if candidate is None:
-                return
+                break
 
             # print(f"Inlining function {candidate.name} with cost {candidate.code_size_cost}")
 
@@ -56,9 +64,10 @@ class FunctionInlinerPass(IRGlobalPass):
             self.ctx.remove_function(candidate)
             self.walk.remove(candidate)
 
+            self.analyses_caches[entry].invalidate_analysis(ReadonlyMemoryArgsGlobalAnalysis)
             # TODO: check if recomputing this is a perf issue or we should rather
             # update it in-place.
-            self.fcg = self.analyses_caches[entry].force_analysis(FCGAnalysis)
+            self.fcg = self.analyses_caches[entry].force_analysis(FCGGlobalAnalysis)
 
     def _select_inline_candidate(self) -> Optional[IRFunction]:
         for func in self.walk:
@@ -66,20 +75,16 @@ class FunctionInlinerPass(IRGlobalPass):
             if call_count == 0:
                 continue
 
+            if func.noinline:
+                continue
+
             # Always inline if there is only one call site.
             if call_count == 1:
                 return func
 
-            # Decide whether to inline based on the optimization level.
-            if self.optimize == OptimizationLevel.CODESIZE:
-                continue
-            elif self.optimize == OptimizationLevel.GAS:
-                if func.code_size_cost <= 15:
-                    return func
-            elif self.optimize == OptimizationLevel.NONE:
-                continue
-            else:  # pragma: nocover
-                raise CompilerPanic(f"Unsupported inlining optimization level: {self.optimize}")
+            # Use the inline threshold from flags
+            if func.code_size_cost <= self.flags.inline_threshold:
+                return func
 
         return None
 
@@ -88,11 +93,11 @@ class FunctionInlinerPass(IRGlobalPass):
         Inline function into call sites.
         """
         for call_site in call_sites:
-            FloatAllocas(self.analyses_caches[func], func).run_pass()
             self._inline_call_site(func, call_site)
             fn = call_site.parent.parent
             self.analyses_caches[fn].invalidate_analysis(DFGAnalysis)
             self.analyses_caches[fn].invalidate_analysis(CFGAnalysis)
+            self.analyses_caches[fn].invalidate_analysis(DynamicMemoryAnalysis)
 
     def _inline_call_site(self, func: IRFunction, call_site: IRInstruction) -> None:
         """
@@ -122,25 +127,47 @@ class FunctionInlinerPass(IRGlobalPass):
         call_site_func.append_basic_block(call_site_return)
 
         func_copy = self._clone_function(func, prefix)
+        # bound_params = user args + (hidden fmp operand, never present
+        # pre-lowering) + target-as-return-pc: identical to the old
+        # operands[1:] + [operands[0]] reorder for raw IR.
+        binding_ops = InvokeLayout(self.ctx, call_site).bound_params
 
         for bb in func_copy.get_basic_blocks():
             bb.parent = call_site_func
             call_site_func.append_basic_block(bb)
             param_idx = 0
             for inst in bb.instructions:
-                if inst.opcode == "param":
-                    # NOTE: one of these params is the return pc. technically assigning
-                    # a variable to a label (e.g. %1 = @label) as we are doing here is
-                    # not valid venom code, but it will get removed in store elimination
-                    # (or unused variable elimination)
-                    inst.opcode = "store"
-                    val = call_site.operands[-param_idx - 1]
+                if inst.is_param:
+                    # NOTE: one of these params is the return pc.
+                    inst.opcode = "assign"
+                    val = binding_ops[param_idx]
                     inst.operands = [val]
                     param_idx += 1
-                elif inst.opcode == "palloca":
-                    inst.opcode = "store"
-                    inst.operands = [inst.operands[0]]
-                elif inst.opcode == "ret":
+                elif inst.opcode in ("ret", "retfmp"):
+                    # ret may be: ret @return_pc  OR  ret v1, v2, ..., @return_pc
+                    # The last operand is the return PC (label or variable);
+                    # all preceding operands (if any) are return values.
+                    #
+                    # `retfmp` maps exactly like `ret`: assign the return
+                    # values (ordinaries and pack dsts) to the call-site
+                    # outputs and jump to the continuation. No FMP restore is
+                    # emitted -- the inlined body's `setfmp` already advanced
+                    # the register, which *is* the adoption; from here the
+                    # host's own reclaim governs the inlined data. Whether the
+                    # host publishes is determined solely by the host's own
+                    # terminators (plain `ret` is callee-save).
+                    ret_values = [op for op in inst.operands[:-1] if not isinstance(op, IRLabel)]
+
+                    # Map each returned value to corresponding callsite outputs
+                    if len(ret_values) > 0:
+                        callsite_outs = call_site.get_outputs()
+                        assert len(ret_values) == len(callsite_outs), (ret_values, call_site)
+                        for idx, ret_value in enumerate(ret_values):
+                            target_out = callsite_outs[idx]
+                            bb.insert_instruction(
+                                IRInstruction("assign", [ret_value], [target_out]), -1
+                            )
+
                     inst.opcode = "jmp"
                     inst.operands = [call_site_return.label]
 
@@ -150,6 +177,22 @@ class FunctionInlinerPass(IRGlobalPass):
 
         call_site_bb.instructions = call_site_bb.instructions[:call_idx]
         call_site_bb.append_instruction("jmp", func_copy.entry.label)
+
+        self._fix_phi(call_site_bb, call_site_return)
+
+    def _fix_phi(self, orig: IRBasicBlock, new: IRBasicBlock) -> None:
+        # when a function is inlined, the successors of the entry block
+        # may contain phis.
+        # these phis need to be updated to refer to the new block
+        # which is jumped to from the callsite of caller function.
+        orig_label = orig.label
+        new_label = new.label
+
+        for bb in new.out_bbs:
+            for inst in bb.instructions:
+                if inst.opcode != "phi":
+                    continue
+                inst.replace_label_operands({orig_label: new_label})
 
     def _build_call_walk(self, function: IRFunction) -> OrderedSet[IRFunction]:
         """
@@ -177,15 +220,14 @@ class FunctionInlinerPass(IRGlobalPass):
         new_func_label = IRLabel(f"{prefix}{func.name.value}")
         clone = IRFunction(new_func_label)
         # clear the bb that is added by default
-        # consider using func.copy() intead?
-        clone._basic_block_dict.clear()
+        clone.clear_basic_blocks()
         for bb in func.get_basic_blocks():
-            clone.append_basic_block(self._clone_basic_block(bb, prefix))
+            clone.append_basic_block(self._clone_basic_block(clone, bb, prefix))
         return clone
 
-    def _clone_basic_block(self, bb: IRBasicBlock, prefix: str) -> IRBasicBlock:
+    def _clone_basic_block(self, new_fn: IRFunction, bb: IRBasicBlock, prefix: str) -> IRBasicBlock:
         new_bb_label = IRLabel(f"{prefix}{bb.label.value}")
-        new_bb = IRBasicBlock(new_bb_label, bb.parent)
+        new_bb = IRBasicBlock(new_bb_label, new_fn)
         new_bb.instructions = [self._clone_instruction(inst, prefix) for inst in bb.instructions]
         for inst in new_bb.instructions:
             inst.parent = new_bb
@@ -208,14 +250,17 @@ class FunctionInlinerPass(IRGlobalPass):
             else:
                 ops.append(op)
 
-        output = None
-        if inst.output:
-            output = IRVariable(f"{prefix}{inst.output.plain_name}")
+        all_outputs = inst.get_outputs()
+        cloned_outputs = [IRVariable(f"{prefix}{o.plain_name}") for o in all_outputs]
 
-        clone = IRInstruction(inst.opcode, ops, output)
+        clone = IRInstruction(inst.opcode, ops, cloned_outputs)
         clone.parent = inst.parent
         clone.annotation = inst.annotation
         clone.ast_source = inst.ast_source
         clone.error_msg = inst.error_msg
+        clone.memory_read_max_size = inst.memory_read_max_size
+
+        if inst.opcode == "alloca":
+            self.ctx.mem_allocator.clone_alloca(inst, clone)
 
         return clone
