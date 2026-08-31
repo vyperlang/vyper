@@ -1084,6 +1084,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                     else:
                         # Replace wildcards in the type by INF, since there is no expected type
                         return_t = return_t.resolve_wildcard()
+                        # unsupported INF shapes from wildcard resolution only exist per call site
                         if type_contains_unsupported_unbounded_sequence(return_t):
                             raise StructureException(
                                 "Function returns cannot contain unbounded sequence types "
