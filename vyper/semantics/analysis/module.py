@@ -903,7 +903,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._add_import(node)
 
     def _add_import(self, node: vy_ast.Import | vy_ast.ImportFrom) -> None:
-        for alias_node, import_info in zip(node.names, node._metadata["import_infos"]):
+        import_infos = node._metadata["import_infos"]
+        assert len(node.names) == len(import_infos)
+        for alias_node, import_info in zip(node.names, import_infos):
             # similar structure to import analyzer
             module_info = self._load_import(import_info, alias_node)
 
