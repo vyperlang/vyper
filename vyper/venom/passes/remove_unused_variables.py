@@ -92,9 +92,10 @@ class RemoveUnusedVariablesPass(IRPass):
                 space = effects.to_addr_space(eff)
                 if space is None:
                     # sanity check
-                    assert eff == FMP, eff
+                    continue
+
                 # Mem alias does not use all address spaces
-                elif can_create_mem_alias(space):
+                if can_create_mem_alias(space):
                     self.invalidate_alias.add(space)
 
         inst.make_nop()

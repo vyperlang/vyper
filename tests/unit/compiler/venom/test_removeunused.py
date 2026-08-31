@@ -1,3 +1,5 @@
+import pytest
+
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.evm.address_space import MEMORY
 from vyper.venom.analysis import MemSSA
@@ -112,3 +114,19 @@ def test_removeunused_invalidates_memory_ssa():
     # with fresh MemorySSA the store has no reader left, so DSE removes it
     DeadStoreElimination(ac, fn).run_pass(MEMORY)
     assert not any(inst.opcode == "mstore" for inst in fn.entry.instructions)
+
+
+@pytest.mark.parametrize(
+    "opcode", ["balance", "selfbalance", "extcodesize", "extcodehash", "returndatasize"]
+)
+def test_removeunused_non_alias_supported_opcodes(opcode):
+    pre = f"""
+    main:
+        %1 = {opcode}
+        stop
+    """
+    post = """
+    main:
+        stop
+    """
+    _check_pre_post(pre, post)
