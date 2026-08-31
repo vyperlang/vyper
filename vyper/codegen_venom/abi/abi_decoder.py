@@ -328,22 +328,23 @@ def _decode_bytestring(
     clamp_bytestring(ctx, src, typ, hi)
 
     assert src.location is not None, "src must have a location for bytestring decoding"
-    if not is_unbounded_bytestring_type(typ):
-        # Match the legacy bounded path: copy the destination maxbound after
-        # length<=maxlen and optional `hi` bounds checks. If the source is an
-        # exact-sized INF buffer, this can copy bytes past the runtime payload,
-        # but those bytes are padding, not value; consumers use the length word.
-        size = typ.memory_bytes_required
-        ctx.builder.copy_to_memory(dst, src.operand, IRLiteral(size), src.location)
+    if is_unbounded_bytestring_type(typ):
+        # INF destinations are exact-sized, so copy only the present ABI
+        # payload. When `hi` is provided, it proves the runtime payload is
+        # readable.
+        assert isinstance(dst, IRVariable)
+        length = ctx.builder.load(src.operand, src.location)
+        ctx.zero_bytestring_padding(dst, length)
+        copy_size = ctx.builder.add(IRLiteral(32), length)
+        ctx.builder.copy_to_memory(dst, src.operand, copy_size, src.location)
         return
 
-    # INF destinations are exact-sized, so copy only the present ABI payload.
-    # When `hi` is provided, it proves the runtime payload is readable.
-    assert isinstance(dst, IRVariable)
-    length = ctx.builder.load(src.operand, src.location)
-    ctx.zero_bytestring_padding(dst, length)
-    copy_size = ctx.builder.add(IRLiteral(32), length)
-    ctx.builder.copy_to_memory(dst, src.operand, copy_size, src.location)
+    # Match the legacy bounded path: copy the destination maxbound after
+    # length<=maxlen and optional `hi` bounds checks. If the source is an
+    # exact-sized INF buffer, this can copy bytes past the runtime payload,
+    # but those bytes are padding, not value; consumers use the length word.
+    size = typ.memory_bytes_required
+    ctx.builder.copy_to_memory(dst, src.operand, IRLiteral(size), src.location)
 
 
 def decode_unbounded_sequence_to_scratch(
