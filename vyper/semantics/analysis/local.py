@@ -72,7 +72,6 @@ from vyper.semantics.types.function import (
     is_ellipsis_body,
 )
 from vyper.semantics.types.infinity import (
-    is_unbounded_sequence_type,
     type_contains_nested_unbounded_sequence,
     type_contains_unbounded_sequence,
     type_contains_unsupported_unbounded_sequence,
@@ -1060,9 +1059,9 @@ class ExprVisitor(VyperNodeVisitorBase):
                     except VyperException:
                         has_nested_unbounded = False
                     else:
-                        has_nested_unbounded = _expr_contains_unbounded_sequence(
-                            arg
-                        ) and not is_unbounded_sequence_type(actual_arg_typ)
+                        has_nested_unbounded = type_contains_nested_unbounded_sequence(
+                            actual_arg_typ
+                        )
 
                 if has_nested_unbounded:
                     raise StructureException(
