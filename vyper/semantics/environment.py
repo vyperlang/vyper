@@ -17,7 +17,7 @@ class _EnvType(VyperType):
 
 class _Block(_EnvType):
     _id = "block"
-    _type_members = {
+    _builtin_members = {
         "coinbase": AddressT(),
         "difficulty": UINT256_T,
         "prevrandao": BYTES32_T,
@@ -32,12 +32,12 @@ class _Block(_EnvType):
 
 class _Chain(_EnvType):
     _id = "chain"
-    _type_members = {"id": UINT256_T}
+    _builtin_members = {"id": UINT256_T}
 
 
 class _Msg(_EnvType):
     _id = "msg"
-    _type_members = {
+    _builtin_members = {
         "data": BytesT(INF),
         "gas": UINT256_T,
         "mana": UINT256_T,
@@ -57,7 +57,7 @@ _inf = _Inf()
 
 class _Tx(_EnvType):
     _id = "tx"
-    _type_members = {"origin": AddressT(), "gasprice": UINT256_T}
+    _builtin_members = {"origin": AddressT(), "gasprice": UINT256_T}
 
 
 CONSTANT_ENVIRONMENT_VARS = {

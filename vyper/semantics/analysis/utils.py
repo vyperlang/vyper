@@ -111,7 +111,7 @@ class _ExprAnalyser:
             if isinstance(t, ModuleInfo):
                 return ExprInfo.from_moduleinfo(t, attr=attr)
 
-            if info.typ._type_members and attr in info.typ._type_members:
+            if info.typ._builtin_members and attr in info.typ._builtin_members:
                 # things like `addr.balance` should not inherit the location of `addr`
                 # since `addr` can be assignable, while `addr.balance` never is
                 return ExprInfo(

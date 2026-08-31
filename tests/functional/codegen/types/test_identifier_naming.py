@@ -41,7 +41,7 @@ def test({constant}: int128):
     )
 
 
-SELF_NAMESPACE_MEMBERS = set(AddressT._type_members.keys())
+SELF_NAMESPACE_MEMBERS = set(AddressT._builtin_members.keys())
 DISALLOWED_FN_NAMES = SELF_NAMESPACE_MEMBERS | RESERVED_KEYWORDS
 ALLOWED_FN_NAMES = ALL_RESERVED_KEYWORDS - DISALLOWED_FN_NAMES
 

@@ -407,7 +407,7 @@ class DecimalT(NumericT):
 class AddressT(_PrimT):
     _id = "address"
     _valid_literal = (vy_ast.Hex,)
-    _type_members = {
+    _builtin_members = {
         "balance": UINT(256),
         "codehash": BytesM_T(32),
         "codesize": UINT(256),

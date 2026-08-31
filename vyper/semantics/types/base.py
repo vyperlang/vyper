@@ -83,7 +83,7 @@ class VyperType:
     typeclass: str = None  # type: ignore
 
     _id: str  # rename to `_name`
-    _type_members: Optional[Dict] = None
+    _builtin_members: Optional[Dict] = None
     _valid_literal: Tuple = ()
     _invalid_locations: Tuple = ()
     _is_prim_word: bool = False
@@ -106,8 +106,8 @@ class VyperType:
         self.members: Dict = {}
 
         # add members that are on the class instance.
-        if self._type_members is not None:
-            for k, v in self._type_members.items():
+        if self._builtin_members is not None:
+            for k, v in self._builtin_members.items():
                 # for builtin members like `contract.address` -- skip namespace
                 # validation, as it introduces a dependency cycle
                 self.add_member(k, v)
