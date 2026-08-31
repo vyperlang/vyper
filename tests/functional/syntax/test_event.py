@@ -3,7 +3,12 @@ import json
 import pytest
 
 from vyper.compiler import compile_code, compile_from_file_input
-from vyper.exceptions import EventDeclarationException, StructureException, TypeMismatch
+from vyper.exceptions import (
+    EventDeclarationException,
+    StructureException,
+    TypeMismatch,
+    UnimplementedException,
+)
 
 
 def test_event_with_module_as_member_errors(make_input_bundle):
@@ -175,3 +180,46 @@ import iface
     with pytest.raises(EventDeclarationException) as e:
         compile_from_file_input(file_input, input_bundle=input_bundle)
     assert "Anonymous event cannot have more than four indexed arguments" in str(e.value)
+
+
+def _anonymous_event_abi():
+    return json.dumps(
+        [
+            {
+                "type": "event",
+                "name": "E",
+                "anonymous": True,
+                "inputs": [{"name": "a", "type": "uint256", "indexed": True}],
+            }
+        ]
+    )
+
+
+def test_log_anonymous_event_rejected(make_input_bundle):
+    main = """
+import iface
+
+@external
+def foo():
+    log iface.E(a=1)
+    """
+    input_bundle = make_input_bundle({"iface.json": _anonymous_event_abi(), "main.vy": main})
+    file_input = input_bundle.load_file("main.vy")
+
+    with pytest.raises(UnimplementedException) as excinfo:
+        compile_from_file_input(file_input, input_bundle=input_bundle)
+    assert excinfo.value.message == "Anonymous events are not currently supported"
+
+
+def test_unlogged_anonymous_event_accepted(make_input_bundle):
+    main = """
+import iface
+
+@external
+def foo():
+    pass
+    """
+    input_bundle = make_input_bundle({"iface.json": _anonymous_event_abi(), "main.vy": main})
+    file_input = input_bundle.load_file("main.vy")
+
+    assert compile_from_file_input(file_input, input_bundle=input_bundle) is not None

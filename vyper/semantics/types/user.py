@@ -232,6 +232,8 @@ class EventT(_UserType):
     indexed : list
         A list of booleans indicating if each argument within the event is
         indexed.
+    is_anonymous : bool
+        Whether this is an anonymous event (note that no backend exists for them)
     name : str
         Name of the event.
     """
@@ -251,6 +253,7 @@ class EventT(_UserType):
         super().__init__(members=arguments)
         self.name = name
         self.indexed = indexed
+        self.is_anonymous = is_anonymous
         assert len(self.indexed) == len(self.arguments)
 
         indexed_count = 0

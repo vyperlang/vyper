@@ -14,6 +14,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     UndeclaredDefinition,
+    UnimplementedException,
     UnknownAttribute,
 )
 from vyper.utils import keccak256
@@ -190,10 +191,12 @@ event MyLog:
     arg4: indexed(int128)
     """
 
-    with pytest.raises(EventDeclarationException):
+    with pytest.raises(EventDeclarationException) as e:
         compile_code(loggy_code)
+    assert e.value.message == "Event cannot have more than three indexed arguments"
 
 
+@pytest.mark.xfail(raises=UnimplementedException, reason="anonymous events not yet supported")
 def test_json_abi_anonymous_four_indexed_log(get_contract, get_logs, make_input_bundle):
     iface_abi = json.dumps(
         [
