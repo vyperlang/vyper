@@ -96,7 +96,7 @@ def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
     return None
 
 
-def _finish_abi_encoded_bytes(
+def _build_abi_encoded_bytes(
     ctx: VenomCodegenContext,
     buf_ptr: IRVariable,
     method_id: Optional[int],
@@ -104,6 +104,12 @@ def _finish_abi_encoded_bytes(
     add_fn: Callable[[IROperand, IROperand], IROperand],
     zero_tail_padding: bool = False,
 ) -> None:
+    """
+    Assemble a Bytes value in the buffer at `buf_ptr`: write the optional
+    4-byte method_id prefix, run `encode_fn` to encode the payload at the
+    appropriate offset, zero stale tail padding if requested, and store the
+    total length word.
+    """
     b = ctx.builder
     if method_id is not None:
         # Bytes layout is [length][payload]. method_id occupies payload[0:4],
@@ -182,13 +188,13 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             # With method_id, `alloc_size` can over-estimate the runtime
             # encoded length (bounded dynamic args are sized by their bound),
             # so this write can land past the value's actual last word;
-            # _finish_abi_encoded_bytes zeroes the tail padding instead.
+            # _build_abi_encoded_bytes zeroes the tail padding instead.
             ctx.zero_bytestring_padding(buf_ptr, alloc_size)
 
         def encode_unbounded(dst: IRVariable) -> IROperand:
             return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type)
 
-        _finish_abi_encoded_bytes(
+        _build_abi_encoded_bytes(
             ctx, buf_ptr, method_id, encode_unbounded, ctx.checked_add, zero_tail_padding=True
         )
 
@@ -207,7 +213,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     def encode_bounded(dst: IRVariable) -> IROperand:
         return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type)
 
-    _finish_abi_encoded_bytes(ctx, buf_val.operand, method_id, encode_bounded, b.add)
+    _build_abi_encoded_bytes(ctx, buf_val.operand, method_id, encode_bounded, b.add)
 
     return buf_val
 
