@@ -1,14 +1,13 @@
 from vyper.evm import address_space
 from vyper.utils import OrderedSet, uniq
 from vyper.venom import effects
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
-from vyper.venom.analysis.mem_alias import can_create_mem_alias, mem_alias_type_factory
 from vyper.venom.analysis import BasePtrAnalysis, DFGAnalysis, LivenessAnalysis
 from vyper.venom.analysis.load_analysis import LoadAnalysis
 from vyper.venom.analysis.mem_alias import (
-    MemoryAliasAnalysis,
     StorageAliasAnalysis,
     TransientAliasAnalysis,
+    can_create_mem_alias,
+    mem_alias_type_factory,
 )
 from vyper.venom.analysis.mem_ssa import MemSSA, StorageSSA, TransientSSA
 from vyper.venom.basicblock import IRInstruction
