@@ -2,7 +2,6 @@ import pytest
 
 from tests.evm_backends.abi import abi_decode, abi_encode
 from vyper.compiler import compile_code
-from vyper.compiler.settings import Settings, VenomOptimizationFlags
 from vyper.utils import method_id
 
 
@@ -10,12 +9,6 @@ from vyper.utils import method_id
 def _venom_only(experimental_codegen):
     if not experimental_codegen:
         pytest.skip("unbounded sequence types require --experimental-codegen")
-
-
-@pytest.fixture
-def no_inlining_settings(compiler_settings):
-    flags = VenomOptimizationFlags(level=compiler_settings.optimize, disable_inlining=True)
-    return Settings(**dict(compiler_settings.__dict__, venom_flags=flags))
 
 
 def _deploy_with_ctor_data(env, code, ctor_data, settings):
