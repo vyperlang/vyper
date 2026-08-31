@@ -8,7 +8,7 @@ def build_gas_estimates(func_ts: Dict[str, ContractFunctionT]) -> dict:
     # in vyper/semantics/types/function.py
     ret = {}
     for k, v in func_ts.items():
-        ret[k] = v._ir_info.gas_estimate
+        ret[k] = None if v._ir_info is None else v._ir_info.gas_estimate
     return ret
 
 
