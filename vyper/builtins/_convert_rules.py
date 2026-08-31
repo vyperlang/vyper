@@ -6,7 +6,7 @@ legacy and direct-to-Venom pipelines accept and reject the same programs.
 Value-dependent checks remain in code generation.
 """
 
-from typing import Callable
+from typing import Any, Callable
 
 from vyper.exceptions import StructureException, TypeMismatch
 from vyper.semantics.types import (
@@ -18,7 +18,6 @@ from vyper.semantics.types import (
     FlagT,
     IntegerT,
     StringT,
-    VyperType,
     is_bounded_length,
 )
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -50,9 +49,7 @@ def _fits_bytesm(input_type, output_type):
 
 # (input class, output classes, predicate); additional conversions which are
 # valid only for some instances of those classes.
-_CONDITIONAL_CONVERSIONS: list[
-    tuple[type, type | tuple[type, ...], Callable[[VyperType, VyperType], bool]]
-] = [
+_CONDITIONAL_CONVERSIONS: list[tuple[type, type | tuple[type, ...], Callable[[Any, Any], bool]]] = [
     (BytesT, (BoolT, AddressT, IntegerT, DecimalT, BytesM_T), _fits_word),
     (StringT, BoolT, _fits_word),
     (IntegerT, BytesM_T, _fits_bytesm),
