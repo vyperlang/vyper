@@ -9,6 +9,7 @@ import pickle
 import sys
 from typing import Any, Optional, Union
 
+from vyper.ast.metadata import NodeMetadata
 from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_NUMBERS, Settings
 from vyper.exceptions import (
     ArgumentException,
@@ -247,7 +248,7 @@ class VyperNode:
         """
         self.set_parent(parent)
         self._children: list = []
-        self._metadata: dict = {}
+        self._metadata: NodeMetadata = NodeMetadata()
         self._original_node = None
         self._cache_descendants = None
 
