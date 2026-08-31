@@ -1,6 +1,7 @@
 import pytest
 
 from vyper.compiler.settings import OptimizationLevel
+from vyper.utils import method_id
 
 
 @pytest.mark.parametrize(
@@ -741,3 +742,28 @@ def __init__(arg: uint256):
 
     with tx_failed():
         get_contract(code, arg)
+
+
+@pytest.mark.parametrize(
+    "terminator,revert_reason",
+    [('raise "nope"', "nope"), ('raw_revert(method_id("Nope()"))', method_id("Nope()").hex())],
+)
+def test_always_reverting_constructor_with_immutables(
+    get_contract, tx_failed, terminator, revert_reason
+):
+    # the `deploy` fragment declares the `mem_deploy_end` constant, which is
+    # referenced by the immutable store in the constructor. when the
+    # constructor always reverts, that fragment is unreachable; the
+    # declaration must survive dead code elimination anyway.
+    code = f"""
+V: public(immutable(uint256))
+
+@deploy
+def __init__():
+    self.V = 1
+    {terminator}
+    """
+
+    # deployment reverts, with the revert reason from the constructor
+    with tx_failed(exc_text=revert_reason):
+        get_contract(code)
