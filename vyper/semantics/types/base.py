@@ -170,6 +170,10 @@ class VyperType:
         return self.is_valid_element_type
 
     @property
+    def _as_event_index(self):
+        return self._as_hashmap_key
+
+    @property
     def has_wildcard(self):
         return False
 
