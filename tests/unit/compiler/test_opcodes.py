@@ -64,7 +64,7 @@ def test_opcode_rulesets_are_monotonic():
             assert older.keys() <= newer.keys()
 
 
-@pytest.mark.parametrize("version", ["london", "paris"])
+@pytest.mark.parametrize("version", ["london", "paris", "shanghai", "cancun"])
 @pytest.mark.parametrize("venom", [False, True])
 def test_no_push0_before_shanghai(version, venom):
     # PUSH0 is shanghai+. regression test for the venom revert postamble,
@@ -78,7 +78,11 @@ def foo(x: uint256) -> uint256:
     """
     settings = Settings(evm_version=version, experimental_codegen=venom)
     asm = vyper.compile_code(code, settings=settings, output_formats=["asm"])["asm"]
-    assert re.search(r"\bPUSH0\b", asm) is None
+    has_push0 = re.search(r"\bPUSH0\b", asm) is not None
+    # the shanghai+ rows are positive controls: they pin that the regex
+    # still matches the asm rendering of PUSH0.
+    shanghai_plus = opcodes.EVM_VERSIONS[version] >= opcodes.EVM_VERSIONS["shanghai"]
+    assert has_push0 == shanghai_plus
 
 
 def test_build_opcodes():
