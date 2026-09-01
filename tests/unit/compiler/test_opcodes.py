@@ -39,21 +39,29 @@ def test_version_check(evm_version):
 
 def test_get_opcodes(evm_version):
     ops = opcodes.get_opcodes()
+    version = opcodes.EVM_VERSIONS[evm_version]
 
     assert "CHAINID" in ops
     assert ops["CREATE2"][-1] == 32000
 
     assert ops["SLOAD"][-1] == 2100
 
-    if evm_version in ("shanghai", "cancun"):
-        assert "PUSH0" in ops
+    shanghai_plus = version >= opcodes.EVM_VERSIONS["shanghai"]
+    assert ("PUSH0" in ops) == shanghai_plus
 
-    if evm_version in ("cancun", "prague"):
-        for op in ("TLOAD", "TSTORE", "MCOPY"):
-            assert op in ops
-    else:
-        for op in ("TLOAD", "TSTORE", "MCOPY"):
-            assert op not in ops
+    cancun_plus = version >= opcodes.EVM_VERSIONS["cancun"]
+    for op in ("TLOAD", "TSTORE", "MCOPY", "BLOBHASH", "BLOBBASEFEE"):
+        assert (op in ops) == cancun_plus
+
+
+def test_opcode_rulesets_are_monotonic():
+    # opcodes are only ever added by newer forks. the override mechanism
+    # cannot express removing one (see OPCODE_OVERRIDES), so if this ever
+    # needs to change, the mechanism needs to change with it.
+    for rulesets in (opcodes._evm_opcodes, opcodes._ir_opcodes):
+        by_fork = [rulesets[i] for i in sorted(opcodes.EVM_VERSIONS.values())]
+        for older, newer in zip(by_fork, by_fork[1:]):
+            assert older.keys() <= newer.keys()
 
 
 @pytest.mark.parametrize("version", ["london", "paris"])

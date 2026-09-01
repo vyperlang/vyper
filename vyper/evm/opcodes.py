@@ -1,8 +1,8 @@
-from typing import Iterable, Optional
+from typing import Optional
 
 from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import CompilerPanic
-from vyper.typing import OpcodeMap, OpcodeRulesetMap
+from vyper.typing import OpcodeMap
 
 # EVM version rules work as follows:
 # 1. Fork rules go from oldest (lowest value) to newest (highest value).
@@ -11,7 +11,7 @@ from vyper.typing import OpcodeMap, OpcodeRulesetMap
 # 3. Per VIP-3365, we support mainnet fork choice rules up to 3 years old
 #    (and may optionally have forward support for experimental/unreleased
 #    fork choice rules)
-_evm_versions: Iterable[str] = ("london", "paris", "shanghai", "cancun", "prague")
+_evm_versions = ("london", "paris", "shanghai", "cancun", "prague")
 EVM_VERSIONS: dict[str, int] = dict((v, i) for i, v in enumerate(_evm_versions))
 
 DEFAULT_EVM_VERSION = "prague"
@@ -20,6 +20,7 @@ DEFAULT_EVM_VERSION = "prague"
 # opcode as hex value
 # number of values removed from stack
 # number of values added to stack
+# gas cost
 BASE_OPCODES: OpcodeMap = {
     "STOP": (0x00, 0, 0, 0),
     "ADD": (0x01, 2, 1, 3),
@@ -169,8 +170,11 @@ BASE_OPCODES: OpcodeMap = {
     "BREAKPOINT": (0xA6, 0, 0, 0),
 }
 
-# overrides for each fork
-OPCODE_OVERRIDES = {
+# opcodes which are introduced (or repriced) at a given fork; they are
+# applied cumulatively, oldest fork first.
+# note this scheme cannot *remove* an opcode at a fork. if that is ever
+# needed, the override mechanism has to be extended.
+OPCODE_OVERRIDES: dict[str, OpcodeMap] = {
     "shanghai": {"PUSH0": (0x5F, 0, 1, 2)},
     "cancun": {
         "BLOBHASH": (0x49, 1, 1, 3),
@@ -180,6 +184,9 @@ OPCODE_OVERRIDES = {
         "TSTORE": (0x5D, 2, 0, 100),
     },
 }
+
+# an unrecognized fork name would silently never be applied
+assert OPCODE_OVERRIDES.keys() <= set(_evm_versions), "bad fork name in OPCODE_OVERRIDES"
 
 PSEUDO_OPCODES: OpcodeMap = {
     "CLAMP": (None, 3, 1, 70),
@@ -212,25 +219,21 @@ PSEUDO_OPCODES: OpcodeMap = {
 IR_OPCODES: OpcodeMap = {**BASE_OPCODES, **PSEUDO_OPCODES}
 
 
-def _mk_version_opcodes(opcodes: OpcodeMap, evm_version: str) -> OpcodeRulesetMap:
+def _mk_version_opcodes(opcodes: OpcodeMap, evm_version: str) -> OpcodeMap:
     ret = opcodes.copy()
 
-    for forkname in _evm_versions:
+    # apply the overrides for every fork up to and including the target
+    for forkname in _evm_versions[: EVM_VERSIONS[evm_version] + 1]:
         ret.update(OPCODE_OVERRIDES.get(forkname, {}))
-        if evm_version == forkname:
-            break
-    else:  # pragma: nocover
-        # sanity check the passed evm version was valid
-        raise CompilerPanic(f"bad evm version {evm_version}")
 
     return ret
 
 
-_evm_opcodes: dict[int, OpcodeRulesetMap] = {
+_evm_opcodes: dict[int, OpcodeMap] = {
     i: _mk_version_opcodes(BASE_OPCODES, v) for v, i in EVM_VERSIONS.items()
 }
 
-_ir_opcodes: dict[int, OpcodeRulesetMap] = {
+_ir_opcodes: dict[int, OpcodeMap] = {
     i: _mk_version_opcodes(IR_OPCODES, v) for v, i in EVM_VERSIONS.items()
 }
 
@@ -241,11 +244,11 @@ def get_active_evm_version():
     return EVM_VERSIONS[evm_version_str]
 
 
-def get_opcodes() -> OpcodeRulesetMap:
+def get_opcodes() -> OpcodeMap:
     return _evm_opcodes[get_active_evm_version()]
 
 
-def get_ir_opcodes() -> OpcodeRulesetMap:
+def get_ir_opcodes() -> OpcodeMap:
     return _ir_opcodes[get_active_evm_version()]
 
 

@@ -10,8 +10,6 @@ OutputFormats = Sequence[str]
 StorageLayout = Dict
 
 # Opcodes
-OpcodeGasCost = int
-OpcodeValue = Tuple[Optional[int], int, int, OpcodeGasCost]
+# (opcode hex value, stack inputs, stack outputs, gas cost)
+OpcodeValue = Tuple[Optional[int], int, int, int]
 OpcodeMap = Dict[str, OpcodeValue]
-OpcodeRulesetValue = Tuple[Optional[int], int, int, int]
-OpcodeRulesetMap = Dict[str, OpcodeRulesetValue]
