@@ -422,15 +422,19 @@ class ErrorT(_UserType):
 
     def _ctor_call_return(self, node: vy_ast.Call) -> "ErrorT":
         if len(node.args) > 0:
-            positional = list(zip(self.arguments.keys(), node.args))
-            keywords = [(kw.arg, kw.value) for kw in node.keywords]
-            correct_kwargs = positional + keywords
-            correct_kwargs_string = ", ".join(
-                f"{argname}={val.node_source_code}" for argname, val in correct_kwargs
-            )
-            msg = "Instantiating errors with positional arguments is not allowed"
-            hint = f"use kwargs instead: `{node.func.node_source_code}({correct_kwargs_string})`"
+            if len(self.arguments) == 0 and len(node.args) == len(node.keywords):
+                # There are only positional arguments, and there is the correct number
+                # Assume the user put them in the right order
+                correct_kwargs = ", ".join(
+                    f"{argname}={val.node_source_code}"
+                    for argname, val in zip(self.arguments.keys(), node.args)
+                )
+                hint = f"did you mean `{node.func.node_source_code}({correct_kwargs})` ?"
+            else:
+                # Don't try to guess what the user meant
+                hint = ""
 
+            msg = "Instantiating errors with positional arguments is not allowed"
             raise InstantiationException(msg, node, hint=hint)
 
         validate_kwargs(node, self.arguments, self.typeclass)

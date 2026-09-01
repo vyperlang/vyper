@@ -53,7 +53,7 @@ def foo():
         compile_code(code)
 
     assert excinfo.value.message == "Instantiating errors with positional arguments is not allowed"
-    assert excinfo.value.hint == "use kwargs instead: `MyError(a=1, b=2)`"
+    assert excinfo.value.hint == "did you mean `MyError(a=1, b=2)` ?"
 
 
 def test_error_mixed_args_hint():
@@ -71,7 +71,7 @@ def foo():
         compile_code(code)
 
     assert excinfo.value.message == "Instantiating errors with positional arguments is not allowed"
-    assert excinfo.value.hint == "use kwargs instead: `MyError(a=1, b=2)`"
+    assert excinfo.value.hint == ""
 
 
 def test_error_hint_from_assert():
@@ -88,7 +88,7 @@ def foo(x: bool):
         compile_code(code)
 
     assert excinfo.value.message == "Instantiating errors with positional arguments is not allowed"
-    assert excinfo.value.hint == "use kwargs instead: `MyError(a=1)`"
+    assert excinfo.value.hint == "did you mean `MyError(a=1)` ?"
 
 
 def test_no_arg_no_hint():
