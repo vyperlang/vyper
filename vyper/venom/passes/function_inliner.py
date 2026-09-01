@@ -132,6 +132,7 @@ class FunctionInlinerPass(IRGlobalPass):
         # operands[1:] + [operands[0]] reorder for raw IR.
         binding_ops = InvokeLayout(self.ctx, call_site).bound_params
 
+        retpc_op = None
         for bb in func_copy.get_basic_blocks():
             bb.parent = call_site_func
             call_site_func.append_basic_block(bb)
@@ -139,6 +140,8 @@ class FunctionInlinerPass(IRGlobalPass):
             for inst in bb.instructions:
                 if inst.is_param:
                     if inst.opcode == "retpc_param":
+                        assert retpc_op is None
+                        retpc_op = inst.output
                         inst.make_nop()
                         continue
                     # NOTE: one of these params is the return pc.
@@ -159,6 +162,7 @@ class FunctionInlinerPass(IRGlobalPass):
                     # host's own reclaim governs the inlined data. Whether the
                     # host publishes is determined solely by the host's own
                     # terminators (plain `ret` is callee-save).
+                    assert retpc_op in inst.operands, retpc_op
                     ret_values = [op for op in inst.operands[:-1] if not isinstance(op, IRLabel)]
 
                     # Map each returned value to corresponding callsite outputs
@@ -176,6 +180,7 @@ class FunctionInlinerPass(IRGlobalPass):
 
             for inst in bb.instructions:
                 if not inst.annotation:
+                    assert retpc_op not in inst.operands, (inst, retpc_op, inst.parent)
                     inst.annotation = f"from {func.name}"
 
         call_site_bb.instructions = call_site_bb.instructions[:call_idx]
