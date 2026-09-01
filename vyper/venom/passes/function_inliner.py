@@ -180,7 +180,7 @@ class FunctionInlinerPass(IRGlobalPass):
 
             for inst in bb.instructions:
                 if not inst.annotation:
-                    assert retpc_op not in inst.operands, (inst, retpc_op, inst.parent)
+                    assert retpc_op not in inst.operands, (inst, retpc_op)
                     inst.annotation = f"from {func.name}"
 
         call_site_bb.instructions = call_site_bb.instructions[:call_idx]

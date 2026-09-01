@@ -54,7 +54,7 @@ class BranchOptimizationPass(IRPass):
             if not isinstance(cond, IRVariable):
                 continue
             prev_inst = self.dfg.get_producing_instruction(cond)
-            assert prev_inst is not None, cond
+            assert prev_inst is not None
 
             # heuristic: remove the iszero and swap branches
             if cost_a >= cost_b and prev_inst.opcode == "iszero":
