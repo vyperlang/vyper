@@ -1,6 +1,6 @@
 import vyper.codegen.context as ctx
 from vyper.codegen.ir_node import Encoding, IRnode
-from vyper.compiler.settings import _opt_codesize, _opt_gas, _opt_none
+from vyper.compiler.settings import _opt_codesize, _opt_gas, _opt_lowering_only_ir
 from vyper.evm.address_space import (
     CALLDATA,
     DATA,
@@ -27,8 +27,8 @@ from vyper.semantics.types import (
     TupleT,
     VyperType,
     _BytestringT,
+    is_bounded_length,
 )
-from vyper.semantics.types.infinity import is_bounded_length
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.subscriptable import SArrayT
 from vyper.semantics.types.user import FlagT
@@ -1180,7 +1180,7 @@ def _complex_make_setter(left, right, hi=None):
                 # kind of arbitrary, but cut off when code used > ~160 bytes
                 should_batch_copy = len_ >= 32 * 10
             else:
-                assert _opt_none()
+                assert _opt_lowering_only_ir()
                 # don't care, just generate the most readable version
                 should_batch_copy = True
         else:
