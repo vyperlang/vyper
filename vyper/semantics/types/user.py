@@ -435,7 +435,7 @@ class ErrorT(_UserType):
                 hint = ""
 
             msg = "Instantiating errors with positional arguments is not allowed"
-            raise InstantiationException(msg, node, hint=hint)
+            raise InstantiationException(msg, node, self.decl_node, hint=hint)
 
         validate_kwargs(node, self.arguments, self.typeclass)
 
