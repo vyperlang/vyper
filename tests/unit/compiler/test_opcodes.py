@@ -1,7 +1,10 @@
+import re
+
 import pytest
 
 import vyper
 from vyper.compiler.output import _build_opcodes
+from vyper.compiler.settings import Settings
 from vyper.evm import opcodes
 from vyper.exceptions import CompilerPanic
 
@@ -51,6 +54,23 @@ def test_get_opcodes(evm_version):
     else:
         for op in ("TLOAD", "TSTORE", "MCOPY"):
             assert op not in ops
+
+
+@pytest.mark.parametrize("version", ["london", "paris"])
+@pytest.mark.parametrize("venom", [False, True])
+def test_no_push0_before_shanghai(version, venom):
+    # PUSH0 is shanghai+. regression test for the venom revert postamble,
+    # which used to be a module-level constant and so froze in whichever
+    # evm version happened to be active at import time.
+    code = """
+@external
+def foo(x: uint256) -> uint256:
+    assert x > 0
+    return x
+    """
+    settings = Settings(evm_version=version, experimental_codegen=venom)
+    asm = vyper.compile_code(code, settings=settings, output_formats=["asm"])["asm"]
+    assert re.search(r"\bPUSH0\b", asm) is None
 
 
 def test_build_opcodes():
