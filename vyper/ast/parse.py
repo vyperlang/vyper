@@ -8,7 +8,7 @@ from typing import Optional
 
 from vyper.ast import nodes as vy_ast
 from vyper.ast.pre_parser import PreParser
-from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
+from vyper.exceptions import CompilerPanic, SyntaxException
 from vyper.utils import sha256sum
 from vyper.warnings import Deprecation, vyper_warn
 
@@ -71,8 +71,6 @@ def _parse_to_ast(
     list
         Untyped, unoptimized Vyper AST nodes.
     """
-    if "\x00" in vyper_source:
-        raise ParserException("No null bytes (\\x00) allowed in the source code.")
     pre_parser = PreParser(is_interface)
     pre_parser.parse(vyper_source)
 
