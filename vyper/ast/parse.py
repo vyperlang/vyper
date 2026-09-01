@@ -30,11 +30,9 @@ def parse_to_ast(
 ) -> vy_ast.Module:
     try:
         return _parse_to_ast(vyper_source, source_id, module_path, resolved_path, is_interface)
-    except SyntaxException as e:
+    except _BaseVyperException as e:
         e.resolved_path = resolved_path
         raise e
-    except _BaseVyperException:
-        raise
     except Exception as e:
         raise CompilerPanic(f"unhandled exception during parsing: {type(e).__name__}: {e}") from e
 
