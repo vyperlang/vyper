@@ -1,7 +1,10 @@
-from tests.venom_utils import PrePostChecker
+from tests.venom_utils import PrePostChecker, parse_venom
 from vyper.evm.address_space import MEMORY
 from vyper.evm.opcodes import version_check
+from vyper.venom.analysis import MemSSA
 from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.basicblock import IRLabel
+from vyper.venom.memory_location import memory_read_ops
 from vyper.venom.passes import (
     DeadStoreElimination,
     MemoryCopyElisionPass,
@@ -75,6 +78,26 @@ def test_redundant_copy_elimination():
         stop
     """
     _check_pre_post_with_unused_var_removal(pre, post)
+
+
+def test_memory_copy_elision_invalidates_memory_ssa():
+    ctx = parse_venom("""
+    function main {
+    main:
+        %ptr = alloca 32
+        %value = mload %ptr
+        mstore %ptr, %value
+        stop
+    }
+    """)
+    fn = next(iter(ctx.functions.values()))
+    ac = IRAnalysesCache(fn)
+
+    stale_mem_ssa = ac.request_analysis(MemSSA)
+    MemoryCopyElisionPass(ac, fn).run_pass()
+
+    assert not any(inst.opcode == "mstore" for inst in fn.entry.instructions)
+    assert ac.request_analysis(MemSSA) is not stale_mem_ssa
 
 
 def test_mcopy_chain_optimization():
@@ -1896,6 +1919,42 @@ def test_cross_bb_copy_with_nested_add_different_inner_adds():
 
     # mcopy should NOT be optimized - different inner adds break equivalence
     _check_no_change(pre)
+
+
+def test_elision_to_calldatacopy_clears_read_max_size():
+    """
+    Rewriting an mcopy into calldatacopy removes the memory read, so the
+    `memory_read_max_size` bound (which SCCP can leave behind on a copy whose
+    length folded to a literal) must not survive the rewrite.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    function main {
+    main:
+        %tmp = alloca 32
+        %out = alloca 32
+        calldatacopy %tmp, 0, 32
+        mcopy %out, %tmp, 32
+        sink %out
+    }
+    """
+
+    ctx = parse_venom(pre)
+    fn = ctx.get_function(IRLabel("main"))
+    mcopy = next(
+        inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == "mcopy"
+    )
+    mcopy.memory_read_max_size = 32
+
+    ac = IRAnalysesCache(fn)
+    MemoryCopyElisionPass(ac, fn).run_pass()
+
+    assert mcopy.opcode == "calldatacopy"
+    assert mcopy.memory_read_max_size is None
+    # memory_read_ops() asserts if the bound outlives the memory read
+    assert memory_read_ops(mcopy).ofst is None
 
 
 def test_invoke_allocation_translation():
