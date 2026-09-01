@@ -422,7 +422,7 @@ class ErrorT(_UserType):
 
     def _ctor_call_return(self, node: vy_ast.Call) -> "ErrorT":
         if len(node.args) > 0:
-            if len(self.arguments) == 0 and len(node.args) == len(node.keywords):
+            if len(node.keywords) == 0 and len(node.args) == len(self.arguments):
                 # There are only positional arguments, and there is the correct number
                 # Assume the user put them in the right order
                 correct_kwargs = ", ".join(
