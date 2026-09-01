@@ -211,3 +211,16 @@ def foo():
     assert excinfo.value.message == "unindent does not match any outer indentation level"
     annotation = excinfo.value.annotations[0]
     assert (annotation.lineno, annotation.col_offset) == (5, 2)
+
+
+def test_missing_function_body_reports_correct_offset():
+    code = """
+@external
+def foo():
+"""
+
+    with pytest.raises(SyntaxException) as excinfo:
+        compile_code(code)
+    annotation = excinfo.value.annotations[0]
+    assert annotation.lineno == 3
+    assert 0 <= annotation.col_offset < 10
