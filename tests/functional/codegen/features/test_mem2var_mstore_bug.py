@@ -5,6 +5,7 @@ Tests memory-passed parameter handling when DSE eliminates unused
 stores to alloca memory. The corresponding caller alloca and mcopy
 should also be eliminated.
 """
+
 import copy
 
 import pytest

@@ -3,6 +3,7 @@ from enum import Enum
 from functools import reduce
 from typing import Union
 
+from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import CompilerPanic, StaticAssertionException
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysesCache, LivenessAnalysis
@@ -186,10 +187,6 @@ class SCCP(IRPass):
             out = self._eval_from_lattice(inst.operands[0])
             self._set_lattice(inst.output, out)
             self._add_ssa_work_items(inst)
-        elif opcode == "gep":
-            out = LatticeEnum.BOTTOM
-            self._set_lattice(inst.output, out)
-            self._add_ssa_work_items(inst)
         elif opcode == "jmp":
             target = self.fn.get_basic_block(inst.operands[0].value)
             self.work_list.append(FlowWorkItem(inst.parent, target))
@@ -314,10 +311,14 @@ class SCCP(IRPass):
                 if lat.value != 0:
                     inst.make_nop()
                 else:
-                    raise StaticAssertionException(
-                        f"assertion found to fail at compile time ({inst.error_msg}).",
-                        inst.get_ast_source(),
-                    )
+                    settings = get_global_settings()
+                    if settings and settings.disable_static_exceptions:
+                        pass  # leave the assertion in place; it will revert at runtime
+                    else:
+                        raise StaticAssertionException(
+                            f"assertion found to fail at compile time ({inst.error_msg}).",
+                            inst.get_ast_source(),
+                        )
 
         elif inst.opcode == "phi":
             return

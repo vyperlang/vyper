@@ -7,11 +7,12 @@ from functools import cached_property
 from pathlib import PurePath
 from typing import Optional
 
+import vyper
 from vyper.compiler.input_bundle import CompilerInput, JSONInput, _NotFound
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
-from vyper.exceptions import CompilerPanic
-from vyper.utils import get_long_version, safe_relpath
+from vyper.exceptions import BundleError
+from vyper.utils import safe_relpath
 
 # data structures and routines for constructing "output bundles",
 # basically reproducible builds of a vyper contract, with varying
@@ -115,10 +116,15 @@ class OutputBundle:
                     tmp[sp] += 1
                     ok = True
 
-            # this shouldn't happen unless a file escapes its package,
-            # *or* if we have a bug
+            # this happens when a file escapes its package, e.g. a
+            # relative import reaching above all search paths. we cannot
+            # construct a bundle which reproduces this build, so bail
+            # with a user-facing error.
             if not ok:
-                raise CompilerPanic(f"Invalid path: {c.resolved_path}")
+                raise BundleError(
+                    f"cannot bundle `{c.resolved_path}`: it is not contained in any search path",
+                    hint="run the compiler from a common parent directory of all source files",
+                )
 
         sps = [sp for sp, count in tmp.items() if count > 0]
         assert len(sps) > 0
@@ -161,8 +167,7 @@ class OutputBundleWriter:
         raise NotImplementedError(f"output: {self.__class__}")
 
     def write(self):
-        long_version = get_long_version()
-        self.write_version(f"v{long_version}")
+        self.write_version(f"v{vyper.__long_version__}")
         self.write_compilation_target([self.bundle.compilation_target_path])
         self.write_search_paths(self.bundle.used_search_paths)
         self.write_settings(self.compiler_data.original_settings)

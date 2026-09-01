@@ -1,3 +1,5 @@
+import dataclasses
+
 import hypothesis.strategies as st
 import pytest
 from hypothesis import given, settings
@@ -5,7 +7,7 @@ from hypothesis import given, settings
 from vyper.compiler import compile_code
 from vyper.compiler.settings import OptimizationLevel, Settings
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import ArgumentException, StaticAssertionException, TypeMismatch
+from vyper.exceptions import ArgumentException, TypeMismatch
 
 _fun_bytes32_bounds = [(0, 32), (3, 29), (27, 5), (0, 5), (5, 3), (30, 2)]
 
@@ -26,6 +28,30 @@ def slice_tower_test(inp1: Bytes[50]) -> Bytes[50]:
     c = get_contract(code)
     x = c.slice_tower_test(b"abcdefghijklmnopqrstuvwxyz1234")
     assert x == b"klmnopqrst", x
+
+
+def test_slice_struct_field_named_code(get_contract, env):
+    code = """
+struct Account:
+    code: Bytes[10]
+
+accounts: HashMap[address, Account]
+
+@external
+def set_code(owner: address, code: Bytes[10]):
+    self.accounts[owner].code = code
+
+@external
+@view
+def get_prefix(owner: address) -> Bytes[3]:
+    return slice(self.accounts[owner].code, 0, 3)
+    """
+
+    c = get_contract(code)
+    owner = env.accounts[1]
+    c.set_code(owner, b"abcdef")
+
+    assert c.get_prefix(owner) == b"abc"
 
 
 # note: optimization boundaries at 32, 64 and 320 depending on mode
@@ -85,12 +111,12 @@ IMMUTABLE_SLICE: immutable(Bytes[{length_bound}])
 
 @deploy
 def __init__(inp: Bytes[{length_bound}], start: uint256, length: uint256):
-    IMMUTABLE_BYTES = inp
-    IMMUTABLE_SLICE = slice(IMMUTABLE_BYTES, {_start}, {_length})
+    self.IMMUTABLE_BYTES = inp
+    self.IMMUTABLE_SLICE = slice(self.IMMUTABLE_BYTES, {_start}, {_length})
 
 @external
 def do_splice() -> Bytes[{length_bound}]:
-    return IMMUTABLE_SLICE
+    return self.IMMUTABLE_SLICE
     """
 
     def _get_contract():
@@ -159,10 +185,10 @@ foo: transient(Bytes[{length_bound}])
 IMMUTABLE_BYTES: immutable(Bytes[{length_bound}])
 @deploy
 def __init__(foo: Bytes[{length_bound}]):
-    IMMUTABLE_BYTES = foo
+    self.IMMUTABLE_BYTES = foo
     """
         spliced_code = ""
-        foo = "IMMUTABLE_BYTES"
+        foo = "self.IMMUTABLE_BYTES"
     elif location == "literal":
         spliced_code = ""
         foo = f"{bytesdata}"
@@ -289,11 +315,11 @@ LENGTH: immutable(uint256)
 
 @deploy
 def __init__():
-    LENGTH = 5
+    self.LENGTH = 5
 
 @external
 def do_slice(inp: Bytes[50]) -> Bytes[50]:
-    return slice(inp, 0, LENGTH)
+    return slice(inp, 0, self.LENGTH)
     """
     c = get_contract(code)
     x = c.do_slice(b"abcdefghijklmnopqrstuvwxyz1234")
@@ -563,16 +589,11 @@ def do_slice():
 
 
 @pytest.mark.parametrize("bad_code", oob_fail_list)
-def test_slice_buffer_oob_reverts(bad_code, get_contract, tx_failed):
-    try:
-        c = get_contract(bad_code)
-        with tx_failed():
-            c.do_slice()
-    except StaticAssertionException:
-        # it should be ok if we
-        # catch the assert in compile time
-        # since it supposed to be revert
-        pass
+def test_slice_buffer_oob_reverts(bad_code, get_contract, tx_failed, compiler_settings):
+    compiler_settings = dataclasses.replace(compiler_settings, disable_static_exceptions=True)
+    c = get_contract(bad_code, compiler_settings=compiler_settings)
+    with tx_failed():
+        c.do_slice()
 
 
 # tests all 3 adhoc locations: `msg.data`, `self.code`, `<address>.code`

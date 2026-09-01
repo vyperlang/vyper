@@ -4,6 +4,7 @@ Buffer and Ptr abstractions for Venom codegen memory management.
 Buffer: An allocated memory region (from alloca instruction).
 Ptr: A pointer to a location (memory, storage, calldata, transient).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -24,7 +25,7 @@ class Buffer:
     """
 
     _ptr: IRVariable  # The alloca result (private)
-    size: int  # Allocation size in bytes
+    size: int | None  # Allocation size in bytes, or None for runtime-sized buffers
     annotation: Optional[str] = None  # Debug annotation
 
     def base_ptr(self) -> Ptr:
@@ -48,7 +49,7 @@ class Ptr:
     buf: Optional[Buffer] = None  # Provenance (MEMORY only)
 
     def __post_init__(self):
-        if self.buf is not None and self.location != DataLocation.MEMORY:
+        if self.buf is not None and self.location != DataLocation.MEMORY:  # pragma: nocover
             raise CompilerPanic("Ptr: buf only valid for MEMORY location")
-        if self.buf is None and self.location == DataLocation.MEMORY:
+        if self.buf is None and self.location == DataLocation.MEMORY:  # pragma: nocover
             raise CompilerPanic("Ptr: MEMORY location requires buf")

@@ -1,6 +1,11 @@
-from vyper.codegen_venom.calling_convention import is_word_type, pass_via_stack, returns_stack_count
+from vyper.codegen_venom.calling_convention import (
+    is_word_type,
+    pass_via_stack,
+    returns_dynamic_count,
+    returns_stack_count,
+)
 from vyper.semantics.analysis.base import FunctionVisibility, StateMutability
-from vyper.semantics.types import AddressT, BoolT
+from vyper.semantics.types import INF, AddressT, BoolT, BytesT
 from vyper.semantics.types.function import ContractFunctionT, PositionalArg
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import SArrayT, TupleT
@@ -15,6 +20,7 @@ def _make_func(args, return_type=None):
         return_type=return_type,
         function_visibility=FunctionVisibility.INTERNAL,
         state_mutability=StateMutability.NONPAYABLE,
+        is_abstract=False,
     )
 
 
@@ -74,6 +80,14 @@ def test_returns_stack_count_tuple_three_words():
 def test_returns_stack_count_tuple_mixed():
     func_t = _make_func([], return_type=TupleT([UINT256_T, SArrayT(UINT256_T, 1)]))
     assert returns_stack_count(func_t) == 0
+
+
+def test_dynamic_tuple_return_counts_bounded_aggregates_as_copied_outputs():
+    ret_t = TupleT([BytesT(INF), BytesT(5), UINT256_T])
+    func_t = _make_func([], return_type=ret_t)
+
+    assert returns_dynamic_count(func_t) == 2
+    assert returns_stack_count(func_t) == 1
 
 
 # -- pass_via_stack --

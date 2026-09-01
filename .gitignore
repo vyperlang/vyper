@@ -22,6 +22,9 @@ vyper.egg-info/
 venv/
 ENV/
 
+# uv
+uv.lock
+
 # Coverage tests
 .coverage*
 .cache/

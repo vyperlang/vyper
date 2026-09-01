@@ -8,6 +8,7 @@ The bug occurred when:
 
 Tests disable function inlining to ensure the alloca code path is exercised.
 """
+
 import copy
 
 import pytest

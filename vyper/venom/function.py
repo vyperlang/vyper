@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import textwrap
-from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterator, Optional
 
@@ -13,15 +12,35 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
-class IRParameter:
-    name: str
-    index: int  # needed?
-    offset: int  # needed?
-    size: int  # needed?
-    id_: int
-    call_site_var: Optional[IRVariable]  # needed?
-    func_var: IRVariable
-    addr_var: Optional[IRVariable]  # needed?
+class FmpSignature:
+    """
+    Frozen FMP calling-convention shape of a function.
+
+    Written by FmpLoweringPass when it materializes the convention,
+    resealed by FmpPrunePass if the hidden FMP param is deleted, and
+    reconstructed by the parser from the function-header annotation
+    (`[fmp_lowered]` / `[fmp_lowered, fmp_publishes]`) plus the
+    `fmp_param` opcode. Once set, it is authoritative: callers augment
+    invokes against it and the post-lowering checks compare the physical
+    shape against it.
+    """
+
+    has_fmp_param: bool
+    publishes: bool
+
+    @property
+    def attrs(self) -> list[str]:
+        # the function-header annotation attributes in the Venom text format.
+        # `has_fmp_param` is not part of the annotation: it is carried
+        # syntactically by the `fmp_param` opcode.
+        attrs = ["fmp_lowered"]
+        if self.publishes:
+            attrs.append("fmp_publishes")
+        return attrs
+
+    @property
+    def annotation(self) -> str:
+        return f"[{', '.join(self.attrs)}]"
 
 
 class IRFunction:
@@ -31,15 +50,24 @@ class IRFunction:
 
     name: IRLabel  # symbol name
     ctx: IRContext
-    args: list
     last_variable: int
     _basic_block_dict: dict[str, IRBasicBlock]
 
     # Internal-call metadata (excluding return_pc):
-    # - number of invoke params
     # - whether first invoke param is a memory return buffer
-    _invoke_param_count: Optional[int]
+    # - number of user-visible return values produced by invoke
+    # The user-arg count itself is syntactic: plain `param` instructions
+    # are exactly the user params (`fmp_param`/`retpc_param` name the
+    # hidden slots).
     _has_memory_return_buffer_param: Optional[bool]
+    _return_value_count: Optional[int]
+
+    # Frozen FMP convention shape; None until FmpLoweringPass runs.
+    _fmp_signature: Optional[FmpSignature]
+
+    # Opt-out flag for FunctionInlinerPass; set via the `[noinline]`
+    # function-header annotation.
+    noinline: bool
 
     # Used during code generation
     _ast_source_stack: list[IRnode]
@@ -48,13 +76,14 @@ class IRFunction:
     def __init__(self, name: IRLabel, ctx: IRContext = None):
         self.ctx = ctx  # type: ignore
         self.name = name
-        self.args = []
         self._basic_block_dict = {}
 
         self.last_variable = 0
 
-        self._invoke_param_count = None
         self._has_memory_return_buffer_param = None
+        self._return_value_count = None
+        self._fmp_signature = None
+        self.noinline = False
 
         self._ast_source_stack = []
         self._error_msg_stack = []
@@ -114,24 +143,6 @@ class IRFunction:
     def get_last_variable(self) -> str:
         return f"%{self.last_variable}"
 
-    def freshen_varnames(self) -> None:
-        """
-        Reset `self.last_variable`, and regenerate all variable names.
-        Helpful for debugging.
-        So fresh, so clean!
-        """
-        self.last_variable = 0
-        varmap: dict[IRVariable, IRVariable] = defaultdict(self.get_next_variable)
-        for bb in self.get_basic_blocks():
-            for inst in bb.instructions:
-                if inst.has_outputs:
-                    inst.set_outputs([varmap[o] for o in inst.get_outputs()])
-
-                for i, op in enumerate(inst.operands):
-                    if not isinstance(op, IRVariable):
-                        continue
-                    inst.operands[i] = varmap[op]
-
     def push_source(self, ir):
         if isinstance(ir, IRnode):
             self._ast_source_stack.append(ir.ast_source)
@@ -152,20 +163,6 @@ class IRFunction:
         assert len(self._error_msg_stack) > 0, "Empty error stack"
         self._error_msg_stack.pop()
 
-    def get_param_by_id(self, id_: int) -> Optional[IRParameter]:
-        for param in self.args:
-            if param.id_ == id_:
-                return param
-        return None
-
-    def get_param_by_name(self, var: IRVariable | str) -> Optional[IRParameter]:
-        if isinstance(var, str):
-            var = IRVariable(var)
-        for param in self.args:
-            if f"%{param.name}" == var.name:
-                return param
-        return None
-
     @property
     def ast_source(self) -> Optional[IRnode]:
         return self._ast_source_stack[-1] if len(self._ast_source_stack) > 0 else None
@@ -173,14 +170,6 @@ class IRFunction:
     @property
     def error_msg(self) -> Optional[str]:
         return self._error_msg_stack[-1] if len(self._error_msg_stack) > 0 else None
-
-    def copy(self):
-        new = IRFunction(self.name)
-        for bb in self.get_basic_blocks():
-            new_bb = bb.copy()
-            new.append_basic_block(new_bb)
-
-        return new
 
     def as_graph(self, only_subgraph=False) -> str:
         """
@@ -220,7 +209,17 @@ class IRFunction:
         return "\n".join(ret)
 
     def __repr__(self) -> str:
-        ret = f"function {self.name} {{\n"
+        attrs = self._fmp_signature.attrs if self._fmp_signature is not None else []
+        if self.noinline:
+            attrs.append("noinline")
+        # the end of this function's static frame, once it is known (i.e. after
+        # ConcretizeMemLocPass). Codegen places spill slots above it, and it
+        # cannot be recovered from the instruction stream, so it has to be
+        # written out for the text format to round-trip.
+        if self.ctx is not None and (eom := self.ctx.mem_allocator.fn_eom.get(self)) is not None:
+            attrs.append(f"eom={eom}")
+        annotation = f" [{', '.join(attrs)}]" if attrs else ""
+        ret = f"function {self.name}{annotation} {{\n"
         for bb in self.get_basic_blocks():
             bb_str = textwrap.indent(str(bb), "  ")
             ret += f"{bb_str}\n"

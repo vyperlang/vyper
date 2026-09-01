@@ -43,6 +43,7 @@ def generate_ir_for_internal_function(
 
     # sanity check
     assert func_t.is_internal or func_t.is_constructor
+    assert not func_t.is_abstract
 
     context = initialize_context(func_t, module_ctx, is_ctor_context)
 

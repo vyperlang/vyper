@@ -19,7 +19,8 @@ from vyper.venom.passes import (
     ConcretizeMemLocPass,
     DeadStoreElimination,
     DFTPass,
-    FixMemLocationsPass,
+    FmpLoweringPass,
+    FmpPrunePass,
     InternalReturnCopyForwardingPass,
     LoadElimination,
     LoopInvariantCodeMotionPass,
@@ -32,6 +33,7 @@ from vyper.venom.passes import (
     PhiEliminationPass,
     ReadonlyInvokeArgCopyForwardingPass,
     ReduceLiteralsCodesize,
+    RedundantMemoryCopyForwardingPass,
     RemoveUnusedVariablesPass,
     RevertToAssert,
     SimplifyCFGPass,
@@ -41,7 +43,6 @@ from vyper.venom.passes import (
 
 # Aggressive optimizations (O3)
 PASSES_O3: List[PassConfig] = [
-    FixMemLocationsPass,
     SimplifyCFGPass,
     MakeSSA,
     PhiEliminationPass,
@@ -72,8 +73,9 @@ PASSES_O3: List[PassConfig] = [
     InternalReturnCopyForwardingPass,
     ReadonlyInvokeArgCopyForwardingPass,
     # run memmerge before LowerDload
-    MemMergePass,
+    (MemMergePass, {"memory_abstract": True}),
     MemoryCopyElisionPass,
+    RedundantMemoryCopyForwardingPass,
     LoadElimination,
     LowerDloadPass,
     RemoveUnusedVariablesPass,
@@ -83,9 +85,15 @@ PASSES_O3: List[PassConfig] = [
     AssignElimination,
     RemoveUnusedVariablesPass,
     ConcretizeMemLocPass,
+    FmpLoweringPass,
+    # repairs the multiply-assigned FMP runner emitted by the lowering;
+    # PhiEliminationPass then folds the trivial phis MakeSSA inserts for
+    # the runner before SCCP sees them
+    MakeSSA,
+    PhiEliminationPass,
     SCCP,
     SimplifyCFGPass,
-    MemMergePass,
+    (MemMergePass, {"memory_abstract": False}),
     LoadElimination,
     MemoryCopyElisionPass,
     RemoveUnusedVariablesPass,
@@ -99,6 +107,12 @@ PASSES_O3: List[PassConfig] = [
     AssignElimination,
     CSE,
     AssignElimination,
+    RemoveUnusedVariablesPass,
+    # deletion-only (removes a dead fmp_param plus its self-contained
+    # assign/phi chain), so SSA form is preserved and no re-SSA is needed;
+    # the trailing RemoveUnusedVariablesPass sweeps values that become dead
+    # only once the fmp_param chain is deleted
+    FmpPrunePass,
     RemoveUnusedVariablesPass,
     TailMergePass,
     SimplifyCFGPass,

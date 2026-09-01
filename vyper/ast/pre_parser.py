@@ -211,6 +211,7 @@ VYPER_CLASS_TYPES = {
     "flag": "FlagDef",
     "enum": "EnumDef",
     "event": "EventDef",
+    "error": "ErrorDef",
     "interface": "InterfaceDef",
     "struct": "StructDef",
 }

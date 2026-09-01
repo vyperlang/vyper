@@ -11,6 +11,7 @@ Two-phase compilation:
 1. generate_runtime_venom() - generates runtime code (deployed bytecode)
 2. generate_deploy_venom() - generates deploy code with runtime bytecode embedded
 """
+
 from __future__ import annotations
 
 from typing import Optional
@@ -18,24 +19,27 @@ from typing import Optional
 import vyper.ast as vy_ast
 from vyper.codegen import jumptable_utils
 from vyper.codegen.function_definitions.common import EntryPointInfo, _FuncIRInfo
-from vyper.codegen_venom.abi.abi_decoder import _getelemptr_abi, abi_decode_to_buf
+from vyper.codegen_venom.abi.abi_decoder import (
+    abi_decode_to_buf,
+    decode_unbounded_sequence_to_scratch,
+)
 from vyper.codegen_venom.buffer import Ptr
 from vyper.codegen_venom.constants import SELECTOR_BYTES, SELECTOR_SHIFT_BITS
 from vyper.codegen_venom.value import VyperValue
-from vyper.compiler.settings import Settings, _opt_codesize, _opt_none
+from vyper.compiler.settings import Settings, _opt_codesize, _opt_lowering_only_ir
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types import TupleT, VyperType
+from vyper.semantics.types import TupleT, VyperType, is_unbounded_sequence_type
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import OrderedSet, method_id_int
-from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRLabel, IRLiteral, IRVariable
 from vyper.venom.builder import VenomBuilder
 from vyper.venom.context import IRContext
 from vyper.venom.memory_location import Allocation
 
-from .calling_convention import pass_via_stack, returns_stack_count
+from .calling_convention import pass_via_stack, returns_dynamic_count, returns_stack_count
 from .context import Constancy, VenomCodegenContext
 from .expr import Expr
 from .stmt import Stmt
@@ -49,15 +53,26 @@ def _get_constancy(func_t: ContractFunctionT) -> Constancy:
 
 
 class IDGenerator:
-    """Assign unique IDs to functions."""
+    """
+    Assign unique IDs to functions.
 
-    def __init__(self):
-        self._id = 0
+    Semantic analysis can assign IDs before deploy/runtime lowering. Preserve
+    existing IDs so metadata and cross-pass function references remain stable.
+    """
+
+    def __init__(self, module_t: ModuleT | None = None):
+        ids = []
+        if module_t is not None:
+            ids = [fn_t._function_id for fn_t in module_t.reachable_functions]
+            ids = [fn_id for fn_id in ids if fn_id is not None]
+        self._id = max(ids, default=-1) + 1
 
     def ensure_id(self, fn_t: ContractFunctionT) -> None:
         if fn_t._function_id is None:
             fn_t._function_id = self._id
             self._id += 1
+        else:
+            self._id = max(self._id, fn_t._function_id + 1)
 
 
 def _is_constructor(func_ast) -> bool:
@@ -106,7 +121,7 @@ def generate_runtime_venom(module_t: ModuleT, settings: Settings) -> IRContext:
     IRContext must be compiled to bytecode before generating
     deploy code.
     """
-    id_generator = IDGenerator()
+    id_generator = IDGenerator(module_t)
 
     # Find all reachable functions
     reachable = _runtime_reachable_functions(module_t, id_generator)
@@ -127,11 +142,11 @@ def generate_runtime_venom(module_t: ModuleT, settings: Settings) -> IRContext:
 
     # Generate selector dispatch
     # Selection logic matches legacy codegen:
-    # - opt_none: linear search (O(n))
+    # - lowering-only IR: linear search (O(n))
     # - opt_codesize with >4 functions: dense jumptable (O(1), codesize-optimized)
     # - >3 functions: sparse jumptable (O(1) average, gas-optimized)
     # - otherwise: linear search
-    if _opt_none():
+    if _opt_lowering_only_ir():
         _generate_selector_section_linear(
             runtime_builder, module_t, external_functions, default_function
         )
@@ -176,7 +191,7 @@ def generate_deploy_venom(
         immutables_len: Size of immutables section in bytes
         cbor_metadata: Optional CBOR-encoded metadata to append to bytecode
     """
-    id_generator = IDGenerator()
+    id_generator = IDGenerator(module_t)
 
     # Create deploy IR context
     deploy_ctx = IRContext()
@@ -203,19 +218,10 @@ def generate_deploy_venom(
         for func_t in init_func_t.reachable_internal_functions:
             id_generator.ensure_id(func_t)
 
-        # Create shared alloca_id for immutables region
-        # This ensures all ctor-context functions use the same memory region
-        immutables_alloca_id = deploy_ctx.get_next_alloca_id() if immutables_len > 0 else None
-
         # Generate constructor
         assert isinstance(init_func_t.ast_def, vy_ast.FunctionDef)
         _generate_constructor(
-            deploy_builder,
-            module_t,
-            init_func_t.ast_def,
-            len(runtime_bytecode),
-            immutables_len,
-            immutables_alloca_id,
+            deploy_builder, module_t, init_func_t.ast_def, len(runtime_bytecode), immutables_len
         )
 
         # Generate internal functions reachable from constructor
@@ -226,7 +232,6 @@ def generate_deploy_venom(
                 func_t.ast_def,
                 is_ctor_context=True,
                 immutables_len=immutables_len,
-                immutables_alloca_id=immutables_alloca_id,
             )
     else:
         # No constructor - just deploy runtime
@@ -257,6 +262,8 @@ def _generate_selector_section_linear(
     For functions with kwargs, generates ONE shared common body with
     separate entry points that handle kwargs and jump to the common body.
     """
+    codegen_ctx = VenomCodegenContext(module_t, builder)
+
     # Check calldatasize >= SELECTOR_BYTES (4 bytes)
     calldatasize = builder.calldatasize()
     has_selector = builder.iszero(builder.lt(calldatasize, IRLiteral(SELECTOR_BYTES)))
@@ -357,7 +364,8 @@ def _generate_selector_section_linear(
         _generate_fallback_body(builder, module_t, func_t, default_function)
     else:
         # No fallback - revert
-        builder.revert(IRLiteral(0), IRLiteral(0))
+        revert_buffer = codegen_ctx.allocate_buffer(0, annotation="fallback revert buffer")
+        builder.revert(revert_buffer._ptr, IRLiteral(0))
 
 
 def _generate_selector_section_sparse(
@@ -380,6 +388,7 @@ def _generate_selector_section_sparse(
     For functions with kwargs, generates ONE shared common body with
     separate entry points that handle kwargs and jump to the common body.
     """
+    codegen_ctx = VenomCodegenContext(module_t, builder)
     runtime_ctx = builder.ctx
 
     # Check calldatasize >= SELECTOR_BYTES (4 bytes)
@@ -421,152 +430,115 @@ def _generate_selector_section_sparse(
         for abi_sig, entry_info in entry_points.items():
             all_entry_points[abi_sig] = (func_ast, entry_info)
 
-    if not all_entry_points:
-        # No external functions - jump to fallback
-        builder.jmp(fallback_bb.label)
-    else:
-        # Generate buckets
-        n_buckets, buckets = jumptable_utils.generate_sparse_jumptable_buckets(
-            all_entry_points.keys()
-        )
+    assert len(all_entry_points) > 0
+    # Generate buckets
+    n_buckets, buckets = jumptable_utils.generate_sparse_jumptable_buckets(all_entry_points.keys())
 
-        SZ_BUCKET_HEADER = 2  # 2 bytes for bucket location
+    SZ_BUCKET_HEADER = 2  # 2 bytes for bucket location
 
-        if n_buckets > 1:
-            # Compute bucket_id = method_id % n_buckets
-            bucket_id = builder.mod(method_id, IRLiteral(n_buckets))
+    # Compute bucket_id = method_id % n_buckets
+    bucket_id = builder.mod(method_id, IRLiteral(n_buckets))
 
-            # Create data section with bucket headers
-            runtime_ctx.append_data_section(IRLabel("selector_buckets", is_symbol=True))
+    # Create data section with bucket headers
+    runtime_ctx.append_data_section(IRLabel("selector_buckets", is_symbol=True))
 
-            # Build jump targets list and add bucket header labels
-            jump_targets = []
-            for i in range(n_buckets):
-                if i in buckets:
-                    bucket_label = IRLabel(f"selector_bucket_{i}", is_symbol=True)
-                    jump_targets.append(bucket_label)
-                else:
-                    # Empty bucket -> fallback
-                    jump_targets.append(fallback_bb.label)
-                runtime_ctx.append_data_item(jump_targets[-1])
-
-            # Load bucket location from data header
-            # Location = selector_buckets + bucket_id * 2
-            bucket_hdr_offset = builder.mul(bucket_id, IRLiteral(SZ_BUCKET_HEADER))
-            # Use add with label - the label resolves to its code position at link time
-            selector_buckets_addr = builder.offset(
-                IRLiteral(0), IRLabel("selector_buckets", is_symbol=True)
-            )
-            bucket_hdr_location = builder.add(selector_buckets_addr, bucket_hdr_offset)
-
-            # Copy 2-byte header to memory at offset (32 - 2) = 30
-            # so mload(0) reads it right-aligned in a 32-byte word
-            dst = 32 - SZ_BUCKET_HEADER
-            builder.codecopy(IRLiteral(dst), bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
-            jumpdest = builder.mload(IRLiteral(0))
-
-            # Dynamic jump to bucket (must list all possible targets)
-            builder.djmp(jumpdest, *jump_targets)
-
-            # Generate bucket blocks
-            for bucket_id_val, bucket_method_ids in buckets.items():
-                bucket_label = IRLabel(f"selector_bucket_{bucket_id_val}", is_symbol=True)
-                bucket_bb = builder.create_block(f"bucket_{bucket_id_val}")
-                # Override the label to match the data section reference
-                bucket_bb.label = bucket_label
-                builder.append_block(bucket_bb)
-                builder.set_block(bucket_bb)
-
-                # Linear search through bucket's method_ids
-                for mid in bucket_method_ids:
-                    # Find the abi_sig for this method_id
-                    for abi_sig, (func_ast, entry_info) in all_entry_points.items():
-                        if method_id_int(abi_sig) == mid:
-                            func_t = entry_info.func_t
-                            has_kwargs = len(func_t.keyword_args) > 0
-
-                            # Create match block for this function
-                            match_bb = builder.create_block(f"match_{mid:08x}")
-
-                            # Check if method_id matches
-                            is_match = builder.eq(method_id, IRLiteral(mid))
-
-                            # Handle trailing zeros in method_id
-                            # If method_id ends with \x00, we need calldatasize check
-                            # to distinguish from truncated calldata
-                            has_trailing_zeroes = mid.to_bytes(4, "big").endswith(b"\x00")
-                            if has_trailing_zeroes:
-                                has_enough_calldata = builder.iszero(
-                                    builder.lt(builder.calldatasize(), IRLiteral(4))
-                                )
-                                is_match = builder.and_(has_enough_calldata, is_match)
-
-                            # Create next check block
-                            next_check_bb = builder.create_block("next_check")
-
-                            builder.jnz(is_match, match_bb.label, next_check_bb.label)
-
-                            # Match block: payable/calldatasize checks, then kwargs or body
-                            builder.append_block(match_bb)
-                            builder.set_block(match_bb)
-
-                            _emit_entry_checks(builder, func_t, entry_info.min_calldatasize)
-
-                            if has_kwargs:
-                                # Entry point: handle kwargs, jump to common body
-                                assert func_t._function_id is not None  # help mypy
-                                common_label = common_labels[func_t._function_id]
-                                _generate_entry_point_kwargs(
-                                    builder, module_t, func_t, entry_info, common_label
-                                )
-                            else:
-                                # No kwargs: generate body directly
-                                _generate_external_function_body(
-                                    builder, module_t, func_t, func_ast, entry_info
-                                )
-
-                            # Continue with next check
-                            builder.append_block(next_check_bb)
-                            builder.set_block(next_check_bb)
-                            break
-
-                # No match in this bucket - goto fallback
-                builder.jmp(fallback_bb.label)
-
+    # Build jump targets list and add bucket header labels
+    jump_targets = []
+    for i in range(n_buckets):
+        if i in buckets:
+            bucket_label = IRLabel(f"selector_bucket_{i}", is_symbol=True)
+            jump_targets.append(bucket_label)
         else:
-            # Only one bucket - do linear search without jumptable overhead
+            # Empty bucket -> fallback
+            jump_targets.append(fallback_bb.label)
+        runtime_ctx.append_data_item(jump_targets[-1])
+
+    # Load bucket location from data header
+    # Location = selector_buckets + bucket_id * 2
+    bucket_hdr_offset = builder.mul(bucket_id, IRLiteral(SZ_BUCKET_HEADER))
+    # Use add with label - the label resolves to its code position at link time
+    selector_buckets_addr = builder.offset(
+        IRLiteral(0), IRLabel("selector_buckets", is_symbol=True)
+    )
+    bucket_hdr_location = builder.add(selector_buckets_addr, bucket_hdr_offset)
+
+    # Copy 2-byte header to memory at offset (32 - 2) = 30
+    # so mload(0) reads it right-aligned in a 32-byte word
+    buf = codegen_ctx.allocate_buffer(32, annotation="selector scratch")
+    # this mstore is here to make sure that the value in the
+    # memory is zero out size we do not overwrite it fully
+    builder.mstore(buf._ptr, 0)
+    dst = builder.add(buf._ptr, IRLiteral(32 - SZ_BUCKET_HEADER))
+    builder.codecopy(dst, bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
+    jumpdest = builder.mload(buf._ptr)
+
+    # Dynamic jump to bucket (must list all possible targets)
+    builder.djmp(jumpdest, *jump_targets)
+
+    # Generate bucket blocks
+    for bucket_id_val, bucket_method_ids in buckets.items():
+        bucket_label = IRLabel(f"selector_bucket_{bucket_id_val}", is_symbol=True)
+        bucket_bb = builder.create_block(f"bucket_{bucket_id_val}")
+        # Override the label to match the data section reference
+        bucket_bb.label = bucket_label
+        builder.append_block(bucket_bb)
+        builder.set_block(bucket_bb)
+
+        # Linear search through bucket's method_ids
+        for mid in bucket_method_ids:
+            # Find the abi_sig for this method_id
             for abi_sig, (func_ast, entry_info) in all_entry_points.items():
-                method_id_val = method_id_int(abi_sig)
-                func_t = entry_info.func_t
-                has_kwargs = len(func_t.keyword_args) > 0
+                if method_id_int(abi_sig) == mid:
+                    func_t = entry_info.func_t
+                    has_kwargs = len(func_t.keyword_args) > 0
 
-                match_bb = builder.create_block(f"match_{method_id_val:08x}")
-                is_match = builder.eq(method_id, IRLiteral(method_id_val))
-                next_check_bb = builder.create_block("next_check")
+                    # Create match block for this function
+                    match_bb = builder.create_block(f"match_{mid:08x}")
 
-                builder.jnz(is_match, match_bb.label, next_check_bb.label)
+                    # Check if method_id matches
+                    is_match = builder.eq(method_id, IRLiteral(mid))
 
-                builder.append_block(match_bb)
-                builder.set_block(match_bb)
+                    # Handle trailing zeros in method_id
+                    # If method_id ends with \x00, we need calldatasize check
+                    # to distinguish from truncated calldata
+                    has_trailing_zeroes = mid.to_bytes(4, "big").endswith(b"\x00")
+                    if has_trailing_zeroes:
+                        has_enough_calldata = builder.iszero(
+                            builder.lt(builder.calldatasize(), IRLiteral(4))
+                        )
+                        is_match = builder.and_(has_enough_calldata, is_match)
 
-                _emit_entry_checks(builder, func_t, entry_info.min_calldatasize)
+                    # Create next check block
+                    next_check_bb = builder.create_block("next_check")
 
-                if has_kwargs:
-                    assert func_t._function_id is not None  # help mypy
-                    common_label = common_labels[func_t._function_id]
-                    _generate_entry_point_kwargs(
-                        builder, module_t, func_t, entry_info, common_label
-                    )
-                else:
-                    _generate_external_function_body(
-                        builder, module_t, func_t, func_ast, entry_info
-                    )
+                    builder.jnz(is_match, match_bb.label, next_check_bb.label)
 
-                builder.append_block(next_check_bb)
-                builder.set_block(next_check_bb)
+                    # Match block: payable/calldatasize checks, then kwargs or body
+                    builder.append_block(match_bb)
+                    builder.set_block(match_bb)
 
-            # No match - goto fallback
-            builder.jmp(fallback_bb.label)
+                    _emit_entry_checks(builder, func_t, entry_info.min_calldatasize)
+
+                    if has_kwargs:
+                        # Entry point: handle kwargs, jump to common body
+                        assert func_t._function_id is not None  # help mypy
+                        common_label = common_labels[func_t._function_id]
+                        _generate_entry_point_kwargs(
+                            builder, module_t, func_t, entry_info, common_label
+                        )
+                    else:
+                        # No kwargs: generate body directly
+                        _generate_external_function_body(
+                            builder, module_t, func_t, func_ast, entry_info
+                        )
+
+                    # Continue with next check
+                    builder.append_block(next_check_bb)
+                    builder.set_block(next_check_bb)
+                    break
+
+        # No match in this bucket - goto fallback
+        builder.jmp(fallback_bb.label)
 
     # Generate deferred common bodies for functions with kwargs
     for func_ast, func_t, common_label in deferred_common_bodies:
@@ -594,7 +566,8 @@ def _generate_selector_section_sparse(
         _generate_fallback_body(builder, module_t, func_t, default_function)
     else:
         # No fallback - revert
-        builder.revert(IRLiteral(0), IRLiteral(0))
+        revert_buffer = codegen_ctx.allocate_buffer(0, annotation="fallback revert buffer")
+        builder.revert(revert_buffer._ptr, IRLiteral(0))
 
 
 def _generate_selector_section_dense(
@@ -624,6 +597,7 @@ def _generate_selector_section_dense(
     For functions with kwargs, generates ONE shared common body with
     separate entry points that handle kwargs and jump to the common body.
     """
+    fallback_codegen_ctx = VenomCodegenContext(module_t, builder)
     runtime_ctx = builder.ctx
 
     # Check calldatasize >= SELECTOR_BYTES (4 bytes)
@@ -665,172 +639,175 @@ def _generate_selector_section_dense(
         for abi_sig, entry_info in entry_points.items():
             all_entry_points[abi_sig] = (func_ast, entry_info)
 
-    if not all_entry_points:
-        # No external functions - jump to fallback
-        builder.jmp(fallback_bb.label)
-    else:
-        # Generate dense jumptable info
-        n_buckets, jumptable_info = jumptable_utils.generate_dense_jumptable_info(
-            all_entry_points.keys()
-        )
+    assert len(all_entry_points) > 1
+    # Generate dense jumptable info
+    n_buckets, jumptable_info = jumptable_utils.generate_dense_jumptable_info(
+        all_entry_points.keys()
+    )
 
-        # Sanity check bucket IDs
-        assert n_buckets == len(jumptable_info)
-        for i, (bucket_id, _) in enumerate(sorted(jumptable_info.items())):
-            assert i == bucket_id
+    # Sanity check bucket IDs
+    assert n_buckets == len(jumptable_info)
+    for i, (bucket_id, _) in enumerate(sorted(jumptable_info.items())):
+        assert i == bucket_id
 
-        # Bucket header: magic <2 bytes> | location <2 bytes> | size <1 byte>
-        SZ_BUCKET_HEADER = 5
+    # Bucket header: magic <2 bytes> | location <2 bytes> | size <1 byte>
+    SZ_BUCKET_HEADER = 5
 
-        # Figure out the minimum number of bytes to encode min_calldatasize in function info
-        largest_mincalldatasize = max(
-            entry_info.min_calldatasize for _, entry_info in all_entry_points.values()
-        )
-        FN_METADATA_BYTES = (largest_mincalldatasize.bit_length() + 7) // 8
+    # Figure out the minimum number of bytes to encode min_calldatasize in function info
+    largest_mincalldatasize = max(
+        entry_info.min_calldatasize for _, entry_info in all_entry_points.values()
+    )
+    FN_METADATA_BYTES = (largest_mincalldatasize.bit_length() + 7) // 8
 
-        # Function info size: method_id <4 bytes> | label <2 bytes> | metadata <1-3 bytes>
-        func_info_size = 4 + 2 + FN_METADATA_BYTES
+    # Function info size: method_id <4 bytes> | label <2 bytes> | metadata <1-3 bytes>
+    func_info_size = 4 + 2 + FN_METADATA_BYTES
 
-        # Create labels for each entry point (for djmp targets)
-        entry_point_labels: dict[str, IRLabel] = {}
-        for abi_sig, (_func_ast, _entry_info) in all_entry_points.items():
-            method_id_val = method_id_int(abi_sig)
-            label = IRLabel(f"entry_{method_id_val:08x}", is_symbol=True)
-            entry_point_labels[abi_sig] = label
+    # Create labels for each entry point (for djmp targets)
+    entry_point_labels: dict[str, IRLabel] = {}
+    for abi_sig, (_func_ast, _entry_info) in all_entry_points.items():
+        method_id_val = method_id_int(abi_sig)
+        label = IRLabel(f"entry_{method_id_val:08x}", is_symbol=True)
+        entry_point_labels[abi_sig] = label
 
-        # Compute bucket_id = method_id % n_buckets
-        bucket_id_var = builder.mod(method_id, IRLiteral(n_buckets))
+    # Compute bucket_id = method_id % n_buckets
+    bucket_id_var = builder.mod(method_id, IRLiteral(n_buckets))
 
-        # Create data section for bucket headers
-        runtime_ctx.append_data_section(IRLabel("BUCKET_HEADERS", is_symbol=True))
-        for bucket_id_val, bucket in sorted(jumptable_info.items()):
-            runtime_ctx.append_data_item(bucket.magic.to_bytes(2, "big"))
-            runtime_ctx.append_data_item(IRLabel(f"bucket_{bucket_id_val}", is_symbol=True))
-            runtime_ctx.append_data_item(bucket.bucket_size.to_bytes(1, "big"))
+    # Create data section for bucket headers
+    runtime_ctx.append_data_section(IRLabel("BUCKET_HEADERS", is_symbol=True))
+    for bucket_id_val, bucket in sorted(jumptable_info.items()):
+        runtime_ctx.append_data_item(bucket.magic.to_bytes(2, "big"))
+        runtime_ctx.append_data_item(IRLabel(f"bucket_{bucket_id_val}", is_symbol=True))
+        runtime_ctx.append_data_item(bucket.bucket_size.to_bytes(1, "big"))
 
-        # Load bucket header from data section
-        # Location = BUCKET_HEADERS + bucket_id * 5
-        bucket_hdr_offset = builder.mul(bucket_id_var, IRLiteral(SZ_BUCKET_HEADER))
-        bucket_headers_addr = builder.offset(
-            IRLiteral(0), IRLabel("BUCKET_HEADERS", is_symbol=True)
-        )
-        bucket_hdr_location = builder.add(bucket_headers_addr, bucket_hdr_offset)
+    # Load bucket header from data section
+    # Location = BUCKET_HEADERS + bucket_id * 5
+    bucket_hdr_offset = builder.mul(bucket_id_var, IRLiteral(SZ_BUCKET_HEADER))
+    bucket_headers_addr = builder.offset(IRLiteral(0), IRLabel("BUCKET_HEADERS", is_symbol=True))
+    bucket_hdr_location = builder.add(bucket_headers_addr, bucket_hdr_offset)
 
-        # Copy 5-byte header to memory at offset (32 - 5) = 27
-        # so mload(0) reads it right-aligned in a 32-byte word
-        dst = 32 - SZ_BUCKET_HEADER
-        builder.codecopy(IRLiteral(dst), bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
-        hdr_info = builder.mload(IRLiteral(0))
+    # Copy 5-byte header to memory at offset (32 - 5) = 27
+    # so mload(0) reads it right-aligned in a 32-byte word
+    codegen_ctx = VenomCodegenContext(module_ctx=module_t, builder=builder)
+    header_buf = codegen_ctx.allocate_buffer(32, annotation="header")
+    # this mstore is here to make sure that the value in the
+    # memory is zero out size we do not overwrite it fully
+    builder.mstore(header_buf._ptr, 0)
+    dst_buf = builder.add(header_buf._ptr, IRLiteral(32 - SZ_BUCKET_HEADER))
+    builder.codecopy(dst_buf, bucket_hdr_location, IRLiteral(SZ_BUCKET_HEADER))
+    hdr_info = builder.mload(header_buf._ptr)
 
-        # Extract bucket header fields:
-        # hdr_info layout (right-aligned in 32 bytes):
-        #   [unused...] [magic:2] [location:2] [size:1]
-        # After mload(0), the 5 bytes are in the low 40 bits
-        bucket_location = builder.and_(IRLiteral(0xFFFF), builder.shr(IRLiteral(8), hdr_info))
-        bucket_magic = builder.shr(IRLiteral(24), hdr_info)
-        bucket_size = builder.and_(IRLiteral(0xFF), hdr_info)
+    # Extract bucket header fields:
+    # hdr_info layout (right-aligned in 32 bytes):
+    #   [unused...] [magic:2] [location:2] [size:1]
+    # After mload(0), the 5 bytes are in the low 40 bits
+    bucket_location = builder.and_(IRLiteral(0xFFFF), builder.shr(IRLiteral(8), hdr_info))
+    bucket_magic = builder.shr(IRLiteral(24), hdr_info)
+    bucket_size = builder.and_(IRLiteral(0xFF), hdr_info)
 
-        # Compute func_id = ((method_id * bucket_magic) >> BITS_MAGIC) % bucket_size
-        magic_product = builder.mul(bucket_magic, method_id)
-        shifted = builder.shr(IRLiteral(jumptable_utils.BITS_MAGIC), magic_product)
-        func_id = builder.mod(shifted, bucket_size)
+    # Compute func_id = ((method_id * bucket_magic) >> BITS_MAGIC) % bucket_size
+    magic_product = builder.mul(bucket_magic, method_id)
+    shifted = builder.shr(IRLiteral(jumptable_utils.BITS_MAGIC), magic_product)
+    func_id = builder.mod(shifted, bucket_size)
 
-        # Load function info from bucket
-        # Location = bucket_location + func_id * func_info_size
-        func_info_offset = builder.mul(func_id, IRLiteral(func_info_size))
-        func_info_location = builder.add(bucket_location, func_info_offset)
+    # Load function info from bucket
+    # Location = bucket_location + func_id * func_info_size
+    func_info_offset = builder.mul(func_id, IRLiteral(func_info_size))
+    func_info_location = builder.add(bucket_location, func_info_offset)
 
-        # Copy function info to memory
-        dst = 32 - func_info_size
-        assert func_info_size >= SZ_BUCKET_HEADER  # otherwise mload will have dirty bytes
-        builder.codecopy(IRLiteral(dst), func_info_location, IRLiteral(func_info_size))
-        func_info = builder.mload(IRLiteral(0))
+    # Copy function info to memory
+    codegen_ctx = VenomCodegenContext(module_ctx=module_t, builder=builder)
+    header_buf = codegen_ctx.allocate_buffer(32)
+    # this mstore is here to make sure that the value in the
+    # memory is zero out size we do not overwrite it fully
+    builder.mstore(header_buf._ptr, 0)
+    dst_buf = builder.add(header_buf._ptr, IRLiteral(32 - func_info_size))
+    assert func_info_size >= SZ_BUCKET_HEADER  # otherwise mload will have dirty bytes
+    builder.codecopy(dst_buf, func_info_location, IRLiteral(func_info_size))
+    func_info = builder.mload(header_buf._ptr)
 
-        # Extract function info fields:
-        # func_info layout (right-aligned):
-        #   [method_id:4] [label:2] [metadata:FN_METADATA_BYTES]
-        fn_metadata_mask = 2 ** (FN_METADATA_BYTES * 8) - 1
-        calldatasize_mask = fn_metadata_mask - 1  # ex. 0xFFFE (low bit is nonpayable flag)
+    # Extract function info fields:
+    # func_info layout (right-aligned):
+    #   [method_id:4] [label:2] [metadata:FN_METADATA_BYTES]
+    fn_metadata_mask = 2 ** (FN_METADATA_BYTES * 8) - 1
+    calldatasize_mask = fn_metadata_mask - 1  # ex. 0xFFFE (low bit is nonpayable flag)
 
-        is_nonpayable = builder.and_(IRLiteral(1), func_info)
-        expected_calldatasize = builder.and_(IRLiteral(calldatasize_mask), func_info)
+    is_nonpayable = builder.and_(IRLiteral(1), func_info)
+    expected_calldatasize = builder.and_(IRLiteral(calldatasize_mask), func_info)
 
-        label_bits_ofst = FN_METADATA_BYTES * 8
-        function_label = builder.and_(
-            IRLiteral(0xFFFF), builder.shr(IRLiteral(label_bits_ofst), func_info)
-        )
-        method_id_bits_ofst = (FN_METADATA_BYTES + 2) * 8
-        function_method_id = builder.shr(IRLiteral(method_id_bits_ofst), func_info)
+    label_bits_ofst = FN_METADATA_BYTES * 8
+    function_label = builder.and_(
+        IRLiteral(0xFFFF), builder.shr(IRLiteral(label_bits_ofst), func_info)
+    )
+    method_id_bits_ofst = (FN_METADATA_BYTES + 2) * 8
+    function_method_id = builder.shr(IRLiteral(method_id_bits_ofst), func_info)
 
-        # Check method_id is correct (handles trailing zeros case)
-        calldatasize_valid = builder.gt(builder.calldatasize(), IRLiteral(3))
-        method_id_correct = builder.eq(function_method_id, method_id)
-        should_continue = builder.and_(calldatasize_valid, method_id_correct)
-        should_fallback = builder.iszero(should_continue)
+    # Check method_id is correct (handles trailing zeros case)
+    calldatasize_valid = builder.gt(builder.calldatasize(), IRLiteral(3))
+    method_id_correct = builder.eq(function_method_id, method_id)
+    should_continue = builder.and_(calldatasize_valid, method_id_correct)
+    should_fallback = builder.iszero(should_continue)
 
-        # If method_id doesn't match, goto fallback
-        check_passed_bb = builder.create_block("check_passed")
-        builder.jnz(should_fallback, fallback_bb.label, check_passed_bb.label)
+    # If method_id doesn't match, goto fallback
+    check_passed_bb = builder.create_block("check_passed")
+    builder.jnz(should_fallback, fallback_bb.label, check_passed_bb.label)
 
-        builder.append_block(check_passed_bb)
-        builder.set_block(check_passed_bb)
+    builder.append_block(check_passed_bb)
+    builder.set_block(check_passed_bb)
 
-        # Assert callvalue == 0 if nonpayable
-        bad_callvalue = builder.mul(is_nonpayable, builder.callvalue())
-        # Assert calldatasize >= expected
-        bad_calldatasize = builder.lt(builder.calldatasize(), expected_calldatasize)
-        failed_entry_conditions = builder.or_(bad_callvalue, bad_calldatasize)
-        builder.assert_(builder.iszero(failed_entry_conditions))
+    # Assert callvalue == 0 if nonpayable
+    bad_callvalue = builder.mul(is_nonpayable, builder.callvalue())
+    # Assert calldatasize >= expected
+    bad_calldatasize = builder.lt(builder.calldatasize(), expected_calldatasize)
+    failed_entry_conditions = builder.or_(bad_callvalue, bad_calldatasize)
+    builder.assert_(builder.iszero(failed_entry_conditions))
 
-        # Dynamic jump to function label
-        jump_targets = list(entry_point_labels.values())
-        builder.djmp(function_label, *jump_targets)
+    # Dynamic jump to function label
+    jump_targets = list(entry_point_labels.values())
+    builder.djmp(function_label, *jump_targets)
 
-        # Create data sections for each bucket's function info
-        for bucket_id_val, bucket in jumptable_info.items():
-            runtime_ctx.append_data_section(IRLabel(f"bucket_{bucket_id_val}", is_symbol=True))
+    # Create data sections for each bucket's function info
+    for bucket_id_val, bucket in jumptable_info.items():
+        runtime_ctx.append_data_section(IRLabel(f"bucket_{bucket_id_val}", is_symbol=True))
 
-            # Sort function infos by their image (hash position)
-            for mid in bucket.method_ids_image_order:
-                # Find the matching_sig for this method_id
-                matching_sig: Optional[str] = None
-                for sig in all_entry_points.keys():
-                    if method_id_int(sig) == mid:
-                        matching_sig = sig
-                        break
-                assert matching_sig is not None
+        # Sort function infos by their image (hash position)
+        for mid in bucket.method_ids_image_order:
+            # Find the matching_sig for this method_id
+            matching_sig: Optional[str] = None
+            for sig in all_entry_points.keys():
+                if method_id_int(sig) == mid:
+                    matching_sig = sig
+                    break
+            assert matching_sig is not None
 
-                _, entry_info = all_entry_points[matching_sig]
+            _, entry_info = all_entry_points[matching_sig]
 
-                # method_id <4 bytes>
-                runtime_ctx.append_data_item(mid.to_bytes(4, "big"))
-                # label <2 bytes> (symbol reference)
-                runtime_ctx.append_data_item(entry_point_labels[matching_sig])
-                # metadata: min_calldatasize | is_nonpayable (packed)
-                func_metadata_int = entry_info.min_calldatasize | int(
-                    not entry_info.func_t.is_payable
-                )
-                runtime_ctx.append_data_item(func_metadata_int.to_bytes(FN_METADATA_BYTES, "big"))
+            # method_id <4 bytes>
+            runtime_ctx.append_data_item(mid.to_bytes(4, "big"))
+            # label <2 bytes> (symbol reference)
+            runtime_ctx.append_data_item(entry_point_labels[matching_sig])
+            # metadata: min_calldatasize | is_nonpayable (packed)
+            func_metadata_int = entry_info.min_calldatasize | int(not entry_info.func_t.is_payable)
+            runtime_ctx.append_data_item(func_metadata_int.to_bytes(FN_METADATA_BYTES, "big"))
 
-        # Generate entry point blocks for each function
-        for abi_sig, (func_ast, entry_info) in all_entry_points.items():
-            label = entry_point_labels[abi_sig]
-            func_t = entry_info.func_t
-            has_kwargs = len(func_t.keyword_args) > 0
+    # Generate entry point blocks for each function
+    for abi_sig, (func_ast, entry_info) in all_entry_points.items():
+        label = entry_point_labels[abi_sig]
+        func_t = entry_info.func_t
+        has_kwargs = len(func_t.keyword_args) > 0
 
-            entry_bb = builder.create_block(f"entry_{method_id_int(abi_sig):08x}")
-            entry_bb.label = label
-            builder.append_block(entry_bb)
-            builder.set_block(entry_bb)
+        entry_bb = builder.create_block(f"entry_{method_id_int(abi_sig):08x}")
+        entry_bb.label = label
+        builder.append_block(entry_bb)
+        builder.set_block(entry_bb)
 
-            if has_kwargs:
-                # Entry point: handle kwargs, jump to common body
-                assert func_t._function_id is not None  # help mypy
-                common_label = common_labels[func_t._function_id]
-                _generate_entry_point_kwargs(builder, module_t, func_t, entry_info, common_label)
-            else:
-                # No kwargs: generate body directly (entry checks already done in dispatcher)
-                _generate_external_function_body(builder, module_t, func_t, func_ast, entry_info)
+        if has_kwargs:
+            # Entry point: handle kwargs, jump to common body
+            assert func_t._function_id is not None  # help mypy
+            common_label = common_labels[func_t._function_id]
+            _generate_entry_point_kwargs(builder, module_t, func_t, entry_info, common_label)
+        else:
+            # No kwargs: generate body directly (entry checks already done in dispatcher)
+            _generate_external_function_body(builder, module_t, func_t, func_ast, entry_info)
 
     # Generate deferred common bodies for functions with kwargs
     for func_ast, func_t, common_label in deferred_common_bodies:
@@ -858,7 +835,8 @@ def _generate_selector_section_dense(
         _generate_fallback_body(builder, module_t, func_t, default_function)
     else:
         # No fallback - revert
-        builder.revert(IRLiteral(0), IRLiteral(0))
+        revert_buffer = fallback_codegen_ctx.allocate_buffer(0, annotation="fallback revert buffer")
+        builder.revert(revert_buffer._ptr, IRLiteral(0))
 
 
 def _emit_entry_checks(
@@ -954,8 +932,7 @@ def _generate_external_function_body(
         codegen_ctx.emit_nonreentrant_unlock(func_t)
         if func_t.return_type is None:
             builder.stop()
-        else:
-            # This shouldn't happen - function should have return stmt
+        else:  # pragma: nocover
             raise CompilerPanic("External function missing return")
 
 
@@ -1033,8 +1010,7 @@ def _generate_common_function_body(
         codegen_ctx.emit_nonreentrant_unlock(func_t)
         if func_t.return_type is None:
             builder.stop()
-        else:
-            # This shouldn't happen - function should have return stmt
+        else:  # pragma: nocover
             raise CompilerPanic("External function missing return")
 
 
@@ -1061,15 +1037,117 @@ def _register_positional_args(ctx: VenomCodegenContext, func_t: ContractFunction
             func_t.positional_args[j].typ.abi_type.embedded_static_size() for j in range(i)
         )
 
-        # Allocate memory for the arg
-        var = ctx.new_variable(arg.name, arg.typ, mutable=False)
-
         # Get the element location in calldata (handles ABI offset indirection for dynamic types)
-        elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
+        elem_src = _get_abi_arg_ptr(ctx, calldata_tuple, arg.typ, static_offset)
 
-        # Decode from calldata to memory
-        # Note: No hi bound needed - calldata size already validated in dispatcher
-        abi_decode_to_buf(ctx, var.value.operand, elem_src)
+        _register_abi_arg_from_src(ctx, arg, elem_src)
+
+
+def _abi_arg_hi(ctx: VenomCodegenContext, location: DataLocation):
+    # External calldata is caller-controlled and INF has no type cap, so INF
+    # args need a payload bound. Constructor CODE args keep legacy leniency.
+    if location == DataLocation.CALLDATA:
+        return ctx.builder.calldatasize()
+
+    return None
+
+
+def _get_abi_arg_ptr(
+    ctx: VenomCodegenContext, parent: VyperValue, member_typ: VyperType, static_offset: int
+) -> VyperValue:
+    """
+    Navigate to a top-level external/constructor ABI argument.
+
+    This intentionally stays separate from recursive ABI element addressing:
+    arguments live in a flat frame, and only calldata needs the top-level
+    underflow guard. Constructor CODE args keep legacy's lenient behavior.
+    """
+    loc = parent.location
+    assert loc is not None, "parent must have a location for ABI arg access"
+    assert loc in (DataLocation.CALLDATA, DataLocation.CODE), "ABI args live in calldata or code"
+
+    b = ctx.builder
+    static_loc = b.add(parent.operand, IRLiteral(static_offset))
+
+    if member_typ.abi_type.is_dynamic():
+        offset_val = b.load(static_loc, loc)
+        actual_ptr = b.add(parent.operand, offset_val)
+        # Calldata is caller-controlled. Constructor CODE args intentionally
+        # keep legacy's lenient decode behavior.
+        if loc == DataLocation.CALLDATA:
+            b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
+        return VyperValue.from_ptr(Ptr(operand=actual_ptr, location=loc), member_typ)
+
+    return VyperValue.from_ptr(Ptr(operand=static_loc, location=loc), member_typ)
+
+
+def _register_abi_arg_from_src(ctx: VenomCodegenContext, arg, elem_src: VyperValue) -> None:
+    if is_unbounded_sequence_type(arg.typ):
+        assert elem_src.location is not None, "src must have a location for ABI decoding"
+        hi = _abi_arg_hi(ctx, elem_src.location)
+        val = decode_unbounded_sequence_to_scratch(ctx, elem_src, arg.typ, hi, arg.name)
+        assert isinstance(val.operand, IRVariable)
+        ctx.register_dynamic_variable(arg.name, arg.typ, val.operand, mutable=False)
+        return
+
+    # Allocate memory for the arg
+    var = ctx.new_variable(arg.name, arg.typ, mutable=False)
+    assert isinstance(var.value.operand, IRVariable)
+
+    # Bounded args are capped by the length<=maxlen / count<=max clamp, and
+    # calldata/code overreads zero-fill, so (like legacy) no hi bound is needed.
+    # Unbounded (INF) args get their payload bound in the early-return path above.
+    abi_decode_to_buf(ctx, var.value.operand, elem_src, hi=None)
+
+
+def _store_abi_arg_to_existing_ptr(
+    ctx: VenomCodegenContext, dst: IRVariable, arg, elem_src: VyperValue
+) -> None:
+    if is_unbounded_sequence_type(arg.typ):
+        assert elem_src.location is not None, "src must have a location for ABI decoding"
+        hi = _abi_arg_hi(ctx, elem_src.location)
+        val = decode_unbounded_sequence_to_scratch(ctx, elem_src, arg.typ, hi, arg.name)
+        ctx.builder.mstore(dst, val.operand)
+        return
+
+    # Bounded args are capped by the type clamp; no hi bound needed (see above).
+    abi_decode_to_buf(ctx, dst, elem_src, hi=None)
+
+
+def _register_default_arg(ctx: VenomCodegenContext, arg, default_node: vy_ast.VyperNode) -> None:
+    if is_unbounded_sequence_type(arg.typ):
+        default_vv = Expr(default_node, ctx).lower()
+        val = ctx.copy_sequence_to_scratch(default_vv, arg.typ, annotation=arg.name)
+        assert isinstance(val.operand, IRVariable)
+        ctx.register_dynamic_variable(arg.name, arg.typ, val.operand, mutable=False)
+        return
+
+    var = ctx.new_variable(arg.name, arg.typ, mutable=False)
+    assert isinstance(var.value.operand, IRVariable)
+
+    if arg.typ._is_prim_word:
+        default_val = Expr(default_node, ctx).lower_value()
+        ctx.ptr_store(var.value.ptr(), default_val)
+    else:
+        default_vv = Expr(default_node, ctx).lower()
+        ctx.store_vyper_value(default_vv, var.value.operand, arg.typ)
+
+
+def _store_default_arg_to_existing_ptr(
+    ctx: VenomCodegenContext, dst: IRVariable, arg, default_node: vy_ast.VyperNode
+) -> None:
+    if is_unbounded_sequence_type(arg.typ):
+        default_vv = Expr(default_node, ctx).lower()
+        val = ctx.copy_sequence_to_scratch(default_vv, arg.typ, annotation=arg.name)
+        ctx.builder.mstore(dst, val.operand)
+        return
+
+    if arg.typ._is_prim_word:
+        default_val = Expr(default_node, ctx).lower_value()
+        ctx.builder.mstore(dst, default_val)
+    else:
+        default_vv = Expr(default_node, ctx).lower()
+        ctx.store_vyper_value(default_vv, dst, arg.typ)
 
 
 def _handle_kwargs(
@@ -1108,8 +1186,6 @@ def _handle_kwargs(
         calldata_tuple = VyperValue.from_ptr(ptr, calldata_tuple_t)
 
     for i, arg in enumerate(func_t.keyword_args):
-        var = ctx.new_variable(arg.name, arg.typ, mutable=False)
-
         if i < kwargs_from_calldata:
             # Copy from calldata using ABI decoder
             # This kwarg's index in the full calldata tuple
@@ -1117,17 +1193,12 @@ def _handle_kwargs(
             static_offset = sum(
                 calldata_arg_types[j].abi_type.embedded_static_size() for j in range(tuple_index)
             )
-            elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
-            abi_decode_to_buf(ctx, var.value.operand, elem_src)
+            elem_src = _get_abi_arg_ptr(ctx, calldata_tuple, arg.typ, static_offset)
+            _register_abi_arg_from_src(ctx, arg, elem_src)
         else:
             # Use default value
             default_node = func_t.default_values[arg.name]
-            if arg.typ._is_prim_word:
-                default_val = Expr(default_node, ctx).lower_value()
-                ctx.ptr_store(var.value.ptr(), default_val)
-            else:
-                default_vv = Expr(default_node, ctx).lower()
-                ctx.store_vyper_value(default_vv, var.value.operand, arg.typ)
+            _register_default_arg(ctx, arg, default_node)
 
 
 def _create_kwarg_allocas(
@@ -1146,9 +1217,11 @@ def _create_kwarg_allocas(
 
     kwarg_vars: dict[str, IRVariable] = {}
     for arg in func_t.keyword_args:
-        size = arg.typ.memory_bytes_required
-        alloca_id = builder.ctx.get_next_alloca_id()
-        ptr = builder.alloca(size, alloca_id)
+        if is_unbounded_sequence_type(arg.typ):
+            size = 32
+        else:
+            size = arg.typ.memory_bytes_required
+        ptr = builder.alloca(size)
         kwarg_vars[arg.name] = ptr
 
     func_t._ir_info.kwarg_alloca_vars = kwarg_vars
@@ -1202,17 +1275,12 @@ def _init_kwargs_in_entry_point(
             static_offset = sum(
                 calldata_arg_types[j].abi_type.embedded_static_size() for j in range(tuple_index)
             )
-            elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
-            abi_decode_to_buf(ctx, alloca_ptr, elem_src)
+            elem_src = _get_abi_arg_ptr(ctx, calldata_tuple, arg.typ, static_offset)
+            _store_abi_arg_to_existing_ptr(ctx, alloca_ptr, arg, elem_src)
         else:
             # Use default value
             default_node = func_t.default_values[arg.name]
-            if arg.typ._is_prim_word:
-                default_val = Expr(default_node, ctx).lower_value()
-                ctx.builder.mstore(alloca_ptr, default_val)
-            else:
-                default_vv = Expr(default_node, ctx).lower()
-                ctx.store_vyper_value(default_vv, alloca_ptr, arg.typ)
+            _store_default_arg_to_existing_ptr(ctx, alloca_ptr, arg, default_node)
 
 
 def _register_kwarg_variables(ctx: VenomCodegenContext, func_t: ContractFunctionT) -> None:
@@ -1233,7 +1301,10 @@ def _register_kwarg_variables(ctx: VenomCodegenContext, func_t: ContractFunction
         alloca_ptr = kwarg_vars[arg.name]
 
         # Register as a variable pointing to the existing alloca (no new allocation)
-        ctx.register_variable(arg.name, arg.typ, alloca_ptr, mutable=False)
+        if is_unbounded_sequence_type(arg.typ):
+            ctx.register_pointer_cell_variable(arg.name, arg.typ, alloca_ptr, mutable=False)
+        else:
+            ctx.register_variable(arg.name, arg.typ, alloca_ptr, mutable=False)
 
 
 def _generate_fallback_body(
@@ -1263,7 +1334,7 @@ def _generate_fallback_body(
         codegen_ctx.emit_nonreentrant_unlock(func_t)
         if func_t.return_type is None:
             builder.stop()
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic("Fallback function with return type")
 
 
@@ -1273,7 +1344,6 @@ def _generate_internal_function(
     func_ast: vy_ast.FunctionDef,
     is_ctor_context: bool,
     immutables_len: int = 0,
-    immutables_alloca_id: Optional[int] = None,
 ) -> None:
     """Generate an internal function."""
     func_t = func_ast._metadata["func_type"]
@@ -1298,11 +1368,11 @@ def _generate_internal_function(
     )
 
     # Reserve immutables region for ctor context internal functions.
-    # Uses the SHARED alloca_id and explicitly sets position 0 to match
-    # the constructor's allocation. This ensures all ctor-context functions
-    # access immutables at the same memory location.
-    if is_ctor_context and immutables_len > 0 and immutables_alloca_id is not None:
-        codegen_ctx.immutables_alloca = builder.alloca(immutables_len, immutables_alloca_id)
+    # Explicitly sets position 0 to match the constructor's allocation.
+    # This ensures all ctor-context functions access immutables at the
+    # same memory location.
+    if is_ctor_context and immutables_len > 0:
+        codegen_ctx.immutables_alloca = builder.alloca(immutables_len)
         # Get the alloca instruction (just appended) and force position 0
         alloca_inst = builder._current_bb.instructions[-1]
         assert alloca_inst.opcode == "alloca", f"Expected alloca, got {alloca_inst.opcode}"
@@ -1315,11 +1385,17 @@ def _generate_internal_function(
     # Set up return handling
     pass_via_stack_dict = pass_via_stack(func_t)
     returns_count = returns_stack_count(func_t)
-    has_memory_return_buffer = func_t.return_type is not None and returns_count == 0
+    dynamic_returns_count = returns_dynamic_count(func_t)
+    has_memory_return_buffer = (
+        func_t.return_type is not None and returns_count == 0 and dynamic_returns_count == 0
+    )
 
-    # Structured invoke metadata used by backend passes.
+    # Structured invoke metadata used by backend passes. _invoke_param_count
+    # is gone: the user-arg count is now syntactic (FunctionCallLayout counts
+    # plain `param` opcodes). _return_value_count feeds the post-lowering
+    # invoke output-count check (find_post_lowering_errors).
     fn._has_memory_return_buffer_param = has_memory_return_buffer
-    fn._invoke_param_count = len(func_t.arguments) + (1 if has_memory_return_buffer else 0)
+    fn._return_value_count = returns_count + dynamic_returns_count
 
     # Handle parameters
     # First: return buffer pointer if memory return
@@ -1336,14 +1412,19 @@ def _generate_internal_function(
         else:
             # Memory-passed: receive pointer, register directly (no allocation)
             ptr = builder.param()
-            codegen_ctx.register_variable(arg.name, arg.typ, ptr, mutable=True)
+            if is_unbounded_sequence_type(arg.typ):
+                var = codegen_ctx.new_pointer_cell_variable(arg.name, arg.typ, mutable=True)
+                codegen_ctx.ptr_store(var.value.ptr(), ptr)
+            else:
+                codegen_ctx.register_variable(arg.name, arg.typ, ptr, mutable=True)
 
-    # Return PC is last param
-    codegen_ctx.return_pc = builder.param()
+    # Return PC is the last param, named by its dedicated opcode so the
+    # raw IR is self-describing even for functions with no `ret` to anchor it
+    codegen_ctx.return_pc = builder.retpc_param()
 
     # Allocate return buffer if needed
     if func_t.return_type is not None:
-        if returns_count > 0:
+        if returns_count > 0 and dynamic_returns_count == 0:
             ret_buf = codegen_ctx.new_temporary_value(func_t.return_type).operand
             assert isinstance(ret_buf, IRVariable)
             codegen_ctx.return_buffer = ret_buf
@@ -1360,7 +1441,7 @@ def _generate_internal_function(
         codegen_ctx.emit_nonreentrant_unlock(func_t)
         if func_t.return_type is None:
             builder.ret(codegen_ctx.return_pc)
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic("Internal function missing return")
 
 
@@ -1370,7 +1451,6 @@ def _generate_constructor(
     func_ast: vy_ast.FunctionDef,
     runtime_codesize: int,
     immutables_len: int,
-    immutables_alloca_id: Optional[int],
 ) -> None:
     """Generate constructor (deploy) code."""
     func_t = func_ast._metadata["func_type"]
@@ -1400,8 +1480,8 @@ def _generate_constructor(
     # to bypass the normal allocation algorithm. This matches the legacy
     # codegen behavior.
     # (GH issue 3101)
-    if immutables_len > 0 and immutables_alloca_id is not None:
-        codegen_ctx.immutables_alloca = builder.alloca(immutables_len, immutables_alloca_id)
+    if immutables_len > 0:
+        codegen_ctx.immutables_alloca = builder.alloca(immutables_len)
         # Get the alloca instruction (just appended) and force position 0
         alloca_inst = builder._current_bb.instructions[-1]
         assert alloca_inst.opcode == "alloca", f"Expected alloca, got {alloca_inst.opcode}"
@@ -1411,12 +1491,6 @@ def _generate_constructor(
         # never reuses this region for temporary allocas.
         builder.ctx.mem_allocator.add_global(imm_alloc)
 
-        # Force msize to be past immutables region (like legacy's GH issue 3101 fix)
-        # This ensures builtins using msize() don't clobber immutables
-        # mload X touches bytes X to X+32, so touch the last word
-        touch_offset = max(0, immutables_len - 32)
-        builder.mload(IRLiteral(touch_offset))
-
     # Register constructor args from DATA section (not calldata)
     # Constructor args are appended to the deploy code
     _register_constructor_args(codegen_ctx, func_t)
@@ -1424,18 +1498,28 @@ def _generate_constructor(
     # Nonreentrant lock
     codegen_ctx.emit_nonreentrant_lock(func_t)
 
+    # Single exit block, so that the deploy epilogue is the constructor's only
+    # terminator (cf. legacy codegen, where the `deploy` fragment positionally
+    # follows the ctor exit sequence). `return` in the body jumps here; halting
+    # instead would deploy a contract with empty runtime code.
+    exit_block = builder.create_block("ctor_exit")
+    codegen_ctx.ctor_exit_label = exit_block.label
+
     # Constructor body
     for stmt in func_ast.body:
         Stmt(stmt, codegen_ctx).lower()
 
-    # Unlock
     if not builder.is_terminated():
-        codegen_ctx.emit_nonreentrant_unlock(func_t)
+        builder.jmp(exit_block.label)
 
-        # Deploy epilogue: copy runtime code to memory and return
-        _emit_deploy_epilogue(
-            builder, runtime_codesize, immutables_len, codegen_ctx.immutables_alloca
-        )
+    builder.append_block(exit_block)
+    builder.set_block(exit_block)
+
+    # Unlock
+    codegen_ctx.emit_nonreentrant_unlock(func_t)
+
+    # Deploy epilogue: copy runtime code to memory and return
+    _emit_deploy_epilogue(builder, runtime_codesize, immutables_len, codegen_ctx.immutables_alloca)
 
 
 def _register_constructor_args(ctx: VenomCodegenContext, func_t: ContractFunctionT) -> None:
@@ -1461,15 +1545,10 @@ def _register_constructor_args(ctx: VenomCodegenContext, func_t: ContractFunctio
             func_t.positional_args[j].typ.abi_type.embedded_static_size() for j in range(i)
         )
 
-        # Allocate memory for the arg
-        var = ctx.new_variable(arg.name, arg.typ, mutable=False)
-
         # Get element location in data section (handles ABI offset for dynamic types)
-        elem_src = _getelemptr_abi(ctx, data_tuple, arg.typ, static_offset)
+        elem_src = _get_abi_arg_ptr(ctx, data_tuple, arg.typ, static_offset)
 
-        # Decode from data section to memory
-        # Note: No hi bound needed for constructor args from trusted bytecode
-        abi_decode_to_buf(ctx, var.value.operand, elem_src)
+        _register_abi_arg_from_src(ctx, arg, elem_src)
 
 
 def _generate_simple_deploy(
@@ -1491,17 +1570,14 @@ def _emit_deploy_epilogue(
     """
     # Dynamically allocate memory for runtime code + immutables
     total_size = runtime_codesize + immutables_len
-    alloca_id = builder.ctx.get_next_alloca_id()
-    dst_ptr = builder.alloca(total_size, alloca_id)
+    dst_ptr = builder.alloca(total_size)
 
     # Copy immutables from deployment memory to runtime position
     if immutables_len > 0:
         immutables_dst = builder.add(dst_ptr, IRLiteral(runtime_codesize))
 
-        # Source is the immutables_alloca if available, otherwise offset 0
-        immutables_src: IROperand = (
-            immutables_alloca if immutables_alloca is not None else IRLiteral(0)
-        )
+        assert immutables_alloca is not None
+        immutables_src = immutables_alloca
 
         if version_check(begin="cancun"):
             # Cancun+: use mcopy

@@ -4,6 +4,7 @@ Safe arithmetic operations with overflow/underflow checking.
 Extracted from expr.py and stmt.py to eliminate duplication.
 Used for binary operations and augmented assignment.
 """
+
 from __future__ import annotations
 
 from typing import Optional, Union
@@ -11,9 +12,11 @@ from typing import Optional, Union
 from vyper import ast as vy_ast
 from vyper.codegen.arithmetic import calculate_largest_base, calculate_largest_power
 from vyper.exceptions import CompilerPanic, TypeCheckFailure
-from vyper.semantics.types import DecimalT, IntegerT
+from vyper.semantics.types import AddressT, BoolT, BytesM_T, DecimalT, IntegerT
 from vyper.venom.basicblock import IRLiteral, IROperand
 from vyper.venom.builder import VenomBuilder
+
+AnyPrimType = Union[AddressT, BoolT, BytesM_T, DecimalT, IntegerT]  # TODO: move to shared location
 
 
 def safe_add(
@@ -108,7 +111,7 @@ def safe_mul(
 
 def safe_div(b: VenomBuilder, x: IROperand, y: IROperand, typ: DecimalT) -> IROperand:
     """Decimal division with overflow checking."""
-    if not isinstance(typ, DecimalT):
+    if not isinstance(typ, DecimalT):  # pragma: nocover
         raise CompilerPanic("/ operator only valid for decimals")
 
     # Multiply numerator by divisor first
@@ -128,7 +131,7 @@ def safe_div(b: VenomBuilder, x: IROperand, y: IROperand, typ: DecimalT) -> IROp
 
 def safe_floordiv(b: VenomBuilder, x: IROperand, y: IROperand, typ: IntegerT) -> IROperand:
     """Integer floor division with overflow checking."""
-    if not isinstance(typ, IntegerT):
+    if not isinstance(typ, IntegerT):  # pragma: nocover
         raise CompilerPanic("// operator only valid for integers")
 
     is_signed = typ.is_signed
@@ -161,7 +164,7 @@ def safe_mod(
     b: VenomBuilder, x: IROperand, y: IROperand, typ: Union[IntegerT, DecimalT]
 ) -> IROperand:
     """Modulo with divisor check."""
-    if not isinstance(typ, (IntegerT, DecimalT)):
+    if not isinstance(typ, (IntegerT, DecimalT)):  # pragma: nocover
         raise CompilerPanic("% operator only valid for integers and decimals")
 
     is_signed = typ.is_signed
@@ -187,7 +190,7 @@ def safe_pow(
     Requires at least one operand to be a literal for bounds computation.
     Pass base_literal or exp_literal if known at compile time.
     """
-    if not isinstance(typ, IntegerT):
+    if not isinstance(typ, IntegerT):  # pragma: nocover
         raise TypeCheckFailure("pow only valid for integers")
 
     is_signed = typ.is_signed
@@ -227,15 +230,33 @@ def safe_pow(
         with b.error_context("safepow"):
             b.assert_(ok)
 
-    else:
+    else:  # pragma: nocover
         # Neither operand is literal - not currently supported
         raise TypeCheckFailure("pow requires at least one literal operand")
 
     return b.exp(x, y)
 
 
-def clamp_basetype(b: VenomBuilder, val: IROperand, typ: Union[IntegerT, DecimalT]) -> IROperand:
+def clamp_basetype(b: VenomBuilder, val: IROperand, typ: AnyPrimType) -> IROperand:
     """Clamp value to type bounds."""
+    if isinstance(typ, BytesM_T):
+        if typ.m < 32:
+            b.assert_(b.iszero(b.shl(IRLiteral(typ.m * 8), val)))
+        return val
+
+    if isinstance(typ, AddressT):
+        ok = b.iszero(b.gt(val, IRLiteral((1 << 160) - 1)))
+        b.assert_(ok)
+        return val
+
+    if isinstance(typ, BoolT):
+        ok = b.iszero(b.gt(val, IRLiteral(1)))
+        b.assert_(ok)
+        return val
+
+    if isinstance(typ, IntegerT) and typ.bits == 256:
+        return val
+
     lo, hi = typ.int_bounds
 
     if typ.is_signed:
@@ -301,4 +322,4 @@ def apply_binop(
     if isinstance(op, vy_ast.Pow):
         return safe_pow(b, left, right, typ, base_literal=base_literal, exp_literal=exp_literal)
 
-    raise CompilerPanic(f"Unsupported binary operation: {type(op)}")
+    raise CompilerPanic(f"Unsupported binary operation: {type(op)}")  # pragma: nocover

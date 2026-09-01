@@ -8,12 +8,16 @@ class Effects(Flag):
     STORAGE = auto()
     TRANSIENT = auto()
     MEMORY = auto()
-    MSIZE = auto()
     IMMUTABLES = auto()
     RETURNDATA = auto()
     LOG = auto()
     BALANCE = auto()
     EXTCODE = auto()
+    # the FMP virtual register (free memory pointer). `getfmp` reads it;
+    # `setfmp` writes it; `dalloca`/`bump` read and advance it. This row keeps
+    # FMP reads from being merged/moved across FMP writes by effect-aware
+    # passes (available-expression/CSE, DFT ordering).
+    FMP = auto()
 
 
 def to_addr_space(eff: Effects) -> Optional[space.AddrSpace]:
@@ -31,13 +35,13 @@ ALL = ~EMPTY
 STORAGE = Effects.STORAGE
 TRANSIENT = Effects.TRANSIENT
 MEMORY = Effects.MEMORY
-MSIZE = Effects.MSIZE
 IMMUTABLES = Effects.IMMUTABLES
 RETURNDATA = Effects.RETURNDATA
 LOG = Effects.LOG
 BALANCE = Effects.BALANCE
 EXTCODE = Effects.EXTCODE
-NON_MEMORY_EFFECTS = ~(Effects.MEMORY | Effects.MSIZE)
+FMP = Effects.FMP
+NON_MEMORY_EFFECTS = ~Effects.MEMORY
 NON_STORAGE_EFFECTS = ~Effects.STORAGE
 NON_TRANSIENT_EFFECTS = ~Effects.TRANSIENT
 
@@ -60,6 +64,9 @@ _writes = {
     "codecopy": MEMORY,
     "extcodecopy": MEMORY,
     "mcopy": MEMORY,
+    "setfmp": FMP,
+    "dalloca": FMP,
+    "bump": FMP,
 }
 
 _reads = {
@@ -85,19 +92,11 @@ _reads = {
     "log": MEMORY,
     "revert": MEMORY,
     "sha3": MEMORY,
-    "msize": MSIZE,
     "return": MEMORY,
+    "getfmp": FMP,
+    "dalloca": FMP,
+    "bump": FMP,
 }
 
 reads = _reads.copy()
 writes = _writes.copy()
-
-for k, v in reads.items():
-    if MEMORY in v or IMMUTABLES in v:
-        if k not in writes:
-            writes[k] = EMPTY
-        writes[k] |= MSIZE
-
-for k, v in writes.items():
-    if MEMORY in v or IMMUTABLES in v:
-        writes[k] |= MSIZE

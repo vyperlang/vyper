@@ -20,7 +20,6 @@ from vyper.evm.assembler.instructions import (
     AssemblyInstruction,
     DataHeader,
     TaggedInstruction,
-    mkdebug,
 )
 from vyper.evm.assembler.optimizer import optimize_assembly
 from vyper.evm.assembler.symbols import CONSTREF, Label
@@ -692,7 +691,7 @@ class _IRnodeLowerer:
             assert isinstance(label_name, str)
 
             if label_name in self.existing_labels:  # pragma: nocover
-                raise Exception(f"Label with name {label_name} already exists!")
+                raise CompilerPanic(f"Label with name {label_name} already exists!")
             else:
                 self.existing_labels.add(label_name)
 
@@ -728,7 +727,7 @@ class _IRnodeLowerer:
             assert isinstance(symbol, str)
 
             if symbol in self.existing_labels:  # pragma: nocover
-                raise Exception(f"symbol {symbol} already exists!")
+                raise CompilerPanic(f"symbol {symbol} already exists!")
             else:
                 self.existing_labels.add(symbol)
 
@@ -737,14 +736,6 @@ class _IRnodeLowerer:
         if code.value == "exit_to":
             # currently removed by _rewrite_return_sequences
             raise CodegenPanic("exit_to not implemented yet!")
-
-        # inject debug opcode.
-        if code.value == "debugger":
-            return mkdebug(pc_debugger=False, ast_source=code.ast_source)
-
-        # inject debug opcode.
-        if code.value == "pc_debugger":
-            return mkdebug(pc_debugger=True, ast_source=code.ast_source)
 
         raise CompilerPanic(f"invalid IRnode: {type(code)} {code}")  # pragma: no cover
 

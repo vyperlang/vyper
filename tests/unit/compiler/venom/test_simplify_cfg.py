@@ -1,6 +1,9 @@
 import pytest
 
 from tests.venom_utils import PrePostChecker
+from vyper.venom.analysis import IRAnalysesCache
+from vyper.venom.basicblock import IRLabel
+from vyper.venom.parser import parse_venom
 from vyper.venom.passes import SimplifyCFGPass
 
 pytestmark = pytest.mark.hevm
@@ -244,6 +247,9 @@ def test_merge_jump_target_has_no_phi():
 def test_merge_jump_dedup_phi_when_direct_edge():
     """
     If the bypassed block's target is already a successor, avoid duplicating phi labels.
+    Both arms of `entry`'s `jnz` then converge on `@join`, so it must be
+    canonicalized to a `jmp` - a `jnz` with a single cfg successor breaks
+    consumers like `BranchOptimizationPass`.
     """
     pre = """
     _global:
@@ -273,7 +279,7 @@ def test_merge_jump_dedup_phi_when_direct_edge():
 
     entry:
         %x = source
-        jnz %cond, @join, @join
+        jmp @join
 
     other:
         %o = source
@@ -314,3 +320,45 @@ def test_merge_jump_conflicting_phi_operands():
     """
 
     _check_no_change(pre, hevm=False)
+
+
+def test_data_section_label_chain():
+    """
+    Regression test: when a chain of label replacements is scheduled in one
+    pass epoch (b1 -> b2 and b2 -> b3), data-section references must be
+    resolved transitively; a single non-transitive application would rewrite
+    @b1 to @b2, which no longer exists.
+    """
+    code = """
+    function main {
+    main:
+        %c = source
+        jnz %c, @b1, @other
+    b1:
+        jmp @b2
+    b2:
+        jmp @b3
+    b3:
+        stop
+    other:
+        stop
+    }
+
+    data readonly {
+        dbsection jumptable:
+            db @b1
+    }
+    """
+    ctx = parse_venom(code)
+    fn = ctx.functions[IRLabel("main")]
+    ac = IRAnalysesCache(fn)
+    SimplifyCFGPass(ac, fn).run_pass()
+
+    bb_labels = {bb.label for bb in fn.get_basic_blocks()}
+    for data_section in ctx.data_segment:
+        for item in data_section.data_items:
+            if isinstance(item.data, IRLabel):
+                assert item.data in bb_labels, f"dangling label reference {item.data}"
+
+    # the jump chain b1 -> b2 -> b3 collapses; @b1 must resolve all the way to @b3
+    assert ctx.data_segment[0].data_items[0].data == IRLabel("b3")

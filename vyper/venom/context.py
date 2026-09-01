@@ -46,7 +46,6 @@ class IRContext:
     data_segment: list[DataSection]
     last_label: int
     last_variable: int
-    last_alloca_id: int
     mem_allocator: MemoryAllocator
     global_analyses_cache: Optional["IRGlobalAnalysesCache"]
 
@@ -57,7 +56,6 @@ class IRContext:
 
         self.last_label = 0
         self.last_variable = 0
-        self.last_alloca_id = 0
 
         self.mem_allocator = MemoryAllocator()
         self.global_analyses_cache = None
@@ -73,6 +71,10 @@ class IRContext:
 
     def remove_function(self, fn: IRFunction) -> None:
         del self.functions[fn.name]
+        # spill sizing takes the max over all fn_eom entries, so a stale
+        # entry for a removed function would inflate every live function's
+        # spill region (see StackSpiller.reset_for_codegen)
+        self.mem_allocator.fn_eom.pop(fn, None)
 
     def create_function(self, name: str) -> IRFunction:
         label = IRLabel(name, True)
@@ -98,10 +100,6 @@ class IRContext:
     def get_next_variable(self) -> IRVariable:
         self.last_variable += 1
         return IRVariable(f"%{self.last_variable}")
-
-    def get_next_alloca_id(self) -> int:
-        self.last_alloca_id += 1
-        return self.last_alloca_id
 
     def get_last_variable(self) -> str:
         return f"%{self.last_variable}"

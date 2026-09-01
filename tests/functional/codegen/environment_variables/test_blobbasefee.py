@@ -20,13 +20,11 @@ def get_blobbasefee() -> uint256:
 
     # kzg_hash(b"Vyper is the language of the sneks")
     env.blob_hashes = [
-        (bytes.fromhex("015a5c97e3cc516f22a95faf7eefff00eb2fee7a65037fde07ac5446fc93f2a0"))
+        bytes.fromhex("015a5c97e3cc516f22a95faf7eefff00eb2fee7a65037fde07ac5446fc93f2a0")
     ] * 6
 
     env.message_call(
-        "0xb45BEc6eeCA2a09f4689Dd308F550Ad7855051B5",  # random address
-        gas=21000,
-        gas_price=10**10,
+        "0xb45BEc6eeCA2a09f4689Dd308F550Ad7855051B5", gas=21000, gas_price=10**10  # random address
     )
 
     # TODO maybe add assert c.get_blobbasefee() != MIN_BLOB_BASE_FEE

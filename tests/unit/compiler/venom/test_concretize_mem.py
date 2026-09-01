@@ -1,10 +1,44 @@
+import pytest
+
 from tests.venom_utils import PrePostChecker, parse_from_basic_block
+from vyper.exceptions import CompilerPanic
 from vyper.venom.analysis import IRAnalysesCache
+from vyper.venom.parser import parse_venom
 from vyper.venom.passes import AssignElimination, ConcretizeMemLocPass, RemoveUnusedVariablesPass
 
 _check_pre_post = PrePostChecker(
     [ConcretizeMemLocPass, AssignElimination, RemoveUnusedVariablesPass], default_hevm=False
 )
+
+
+def test_fmp_lowered_function_preserves_round_tripped_eom():
+    ctx = parse_venom("""
+        function main [fmp_lowered, eom=544] {
+            main:
+                stop
+        }
+        """)
+    fn = ctx.entry_function
+    assert fn is not None
+
+    ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+
+    assert ctx.mem_allocator.fn_eom[fn] == 544
+
+
+def test_fmp_lowered_function_rejects_remaining_alloca():
+    ctx = parse_venom("""
+        function main [fmp_lowered, eom=544] {
+            main:
+                %ptr = alloca 32
+                stop
+        }
+        """)
+    fn = ctx.entry_function
+    assert fn is not None
+
+    with pytest.raises(CompilerPanic, match="fmp_lowered but still contains alloca"):
+        ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
 
 
 def test_valid_overlap():
@@ -137,11 +171,50 @@ def test_surviving_store_no_overlap_large():
         assert pos_a + size_a <= pos_b
 
 
+def test_escaped_pointer_no_overlap():
+    """
+    Regression for an alloca whose address escapes through memory.
+
+    %val's pointer is stored (as a value) into %slot and reloaded later;
+    the read through the reloaded pointer is invisible to BasePtrAnalysis,
+    so without escape pinning %val looks dead after `mstore %slot, %val`,
+    the allocator places %tmp on top of it and `mstore %tmp, 64` clobbers
+    the word that `mload %xptr` reads at runtime.
+    """
+    pre = """
+    main:
+        %slot = alloca 32
+        %val = alloca 32
+        mstore %val, 7
+        mstore %slot, %val
+        %tmp = alloca 32
+        mstore %tmp, 64
+        %xptr = mload %slot
+        %v = mload %xptr
+        %t = mload %tmp
+        sink %v, %t
+    """
+
+    ctx = parse_from_basic_block(pre)
+    fn = list(ctx.functions.values())[0]
+    ac = IRAnalysesCache(fn)
+    ConcretizeMemLocPass(ac, fn).run_pass()
+
+    allocator = ctx.mem_allocator
+    intervals = sorted((pos, alloca.alloca_size) for alloca, pos in allocator.allocated.items())
+
+    # all three allocations are live at `mstore %tmp, 64`, so none may share
+    for i in range(len(intervals) - 1):
+        pos_a, size_a = intervals[i]
+        pos_b, _ = intervals[i + 1]
+        assert pos_a + size_a <= pos_b, intervals
+
+
 def test_venom_allocation_branches():
     pre = """
     main:
-        %ptr1 = alloca 0, 256
-        %ptr2 = alloca 1, 128
+        %ptr1 = alloca 256
+        %ptr2 = alloca 128
         %cond = source
         jnz %cond, @then, @else
     then:
@@ -169,3 +242,36 @@ def test_venom_allocation_branches():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_escaped_alloca_allocated_lowest():
+    """
+    An escaped alloca is live to the end of the function, so every
+    allocation used after it conflicts with it. It must take the lowest
+    offset: memory expansion is paid for the highest address touched, so
+    a small always-live slot sitting above a large buffer would make
+    every use of that buffer pay for the slot as well.
+    """
+    pre = """
+    main:
+        %slot = alloca 32
+        %val = alloca 32
+        %big = alloca 1024
+        mstore %val, 7
+        mstore %slot, %val
+        calldatacopy %big, 0, 1024
+        %b = mload %big
+        %xptr = mload %slot
+        %v = mload %xptr
+        sink %v, %b
+    """
+
+    ctx = parse_from_basic_block(pre)
+    fn = list(ctx.functions.values())[0]
+    ac = IRAnalysesCache(fn)
+    ConcretizeMemLocPass(ac, fn).run_pass()
+
+    allocator = ctx.mem_allocator
+    positions = {alloca.inst.output.name: pos for alloca, pos in allocator.allocated.items()}
+    assert positions["%val"] == 0, positions
+    assert positions["%big"] > positions["%val"], positions

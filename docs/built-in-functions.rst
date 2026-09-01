@@ -281,6 +281,12 @@ Vyper has four built-ins for contract creation; the first three contract creatio
 
         The amount to send is always specified in ``wei``.
 
+    .. warning::
+
+        The ``gas`` parameter defaults to ``0``. When transferring a **non-zero amount of ETH**, the EVM `automatically <https://github.com/ethereum/execution-specs/blob/6137bb32f9b8eda6194096992cb97b28be06957d/src/ethereum/forks/amsterdam/vm/gas.py#L371>`_ grants the callee a 2300-gas stipend (``GAS_STIPEND``). However, no stipend is added when ``value == 0``.
+
+        As a result, ``send(to, 0)`` forwards no gas and will only succeed if the recipient requires no execution gas (for example, an account with no code).
+
     .. code-block:: vyper
 
         @external
@@ -665,12 +671,18 @@ Math
 
     Return the square root of the provided decimal number, using the Babylonian square root algorithm. The rounding mode is to round down to the nearest epsilon. For instance, ``sqrt(0.9999999998) == 0.9999999998``.
 
+    .. note::
+
+        ``sqrt`` has been moved to the ``math`` stdlib module as part of the ``0.4.2`` release (see `PR #4520 <https://github.com/vyperlang/vyper/pull/4520>`_). See :ref:`stdlib-math`. Import it with ``import math`` and call ``math.sqrt(d)``.
+
     .. code-block:: vyper
+
+        import math
 
         @external
         @view
         def foo(d: decimal) -> decimal:
-            return sqrt(d)
+            return math.sqrt(d)
 
     .. code-block:: vyper
 
@@ -681,12 +693,18 @@ Math
 
     Return the (integer) square root of the provided integer number, using the Babylonian square root algorithm. The rounding mode is to round down to the nearest integer. For instance, ``isqrt(101) == 10``.
 
+    .. note::
+
+        ``isqrt`` has been moved to the ``math`` stdlib module as part of the ``0.5.0`` release (see `PR #4923 <https://github.com/vyperlang/vyper/pull/4923>`_). See :ref:`stdlib-math`. Import it with ``import math`` and call ``math.isqrt(x)``.
+
     .. code-block:: vyper
+
+        import math
 
         @external
         @view
         def foo(x: uint256) -> uint256:
-            return isqrt(x)
+            return math.isqrt(x)
 
     .. code-block:: vyper
 

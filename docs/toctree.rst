@@ -27,7 +27,9 @@ Vyper
     control-structures.rst
     scoping-and-declarations.rst
     built-in-functions.rst
+    stdlib-math.rst
     using-modules.rst
+    abstract-modules.rst
     interfaces.rst
     event-logging.rst
     natspec.rst
@@ -46,6 +48,7 @@ Vyper
     :maxdepth: 2
 
     resources
+    deep-verification.rst
     release-notes.rst
     contributing.rst
     style-guide.rst
