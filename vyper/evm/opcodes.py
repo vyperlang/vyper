@@ -216,6 +216,12 @@ PSEUDO_OPCODES: OpcodeMap = {
     "DLOADBYTES": (None, 3, 0, 3),
 }
 
+# an override sharing a name with a pseudo-opcode would silently replace
+# its metadata in the versioned IR opcode tables
+assert all(
+    ops.keys().isdisjoint(PSEUDO_OPCODES) for ops in OPCODE_OVERRIDES.values()
+), "opcode override collides with a pseudo-opcode"
+
 IR_OPCODES: OpcodeMap = {**BASE_OPCODES, **PSEUDO_OPCODES}
 
 
