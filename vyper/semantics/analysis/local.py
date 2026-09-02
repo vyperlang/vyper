@@ -851,13 +851,11 @@ class ExprVisitor(VyperNodeVisitorBase):
 
         possible_types = get_possible_types_from_node(node)
 
-        # use the expected type to disambiguate expressions which have
-        # several possible types on their own (e.g. the literal `[]`), so
-        # that provably bounded expressions get a bounded annotation.
-        if any(isinstance(getattr(t, "value_type", None), BottomT) for t in possible_types):
-            # the empty list literal infers as the single type
-            # `DynArray[Never, 1]`, which matches any expected type and so
-            # disambiguates nothing. enumerate its element types instead.
+        # the empty list literal infers as the single type
+        # `DynArray[Never, 1]`, which cannot be abi-encoded and so
+        # disambiguates nothing. enumerate possible types instead.
+        if possible_types == [DArrayT(BottomT(), 1)]:
+            assert isinstance(typ, DArrayT)
             possible_types = empty_list_candidate_types()
 
         candidates = [t for t in possible_types if t.is_subtype_of(typ)]
