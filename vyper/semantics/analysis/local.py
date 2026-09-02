@@ -849,13 +849,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         if not typ.has_wildcard:
             return typ
 
-        try:
-            possible_types = get_possible_types_from_node(node)
-        except VyperException:
-            # the expression has no standalone type. it already passed
-            # `validate_expected_type`, so resolve the wildcards without
-            # a bound.
-            return typ.resolve_wildcard()
+        possible_types = get_possible_types_from_node(node)
 
         # use the expected type to disambiguate expressions which have
         # several possible types on their own (e.g. the literal `[]`), so
