@@ -125,11 +125,15 @@ class VenomCodegenContext:
         self.variables[name] = var
         return var
 
+    # Size of an unbounded (INF) local's pointer cell: two adjacent words,
+    # [payload_ptr][capacity]. See `store_pointer_cell`.
+    POINTER_CELL_SIZE = 64
+
     def new_pointer_cell_variable(
         self, name: str, typ: VyperType, mutable: bool = True
     ) -> LocalVariable:
         """Register a local whose stable memory cell stores its current memory pointer."""
-        buf = self.allocate_buffer(32, annotation=f"{name}_ptr")
+        buf = self.allocate_buffer(self.POINTER_CELL_SIZE, annotation=f"{name}_ptr")
         value = VyperValue.from_ptr(buf.base_ptr(), typ)
         var = LocalVariable(
             name=name,
@@ -153,7 +157,7 @@ class VenomCodegenContext:
         self, name: str, typ: VyperType, ptr: IRVariable, mutable: bool = True
     ) -> None:
         """Register an existing memory cell that stores the local's current pointer."""
-        buf = Buffer(_ptr=ptr, size=32, annotation=f"{name}_ptr")
+        buf = Buffer(_ptr=ptr, size=self.POINTER_CELL_SIZE, annotation=f"{name}_ptr")
         value = VyperValue.from_ptr(buf.base_ptr(), typ)
         var = LocalVariable(
             name=name,
@@ -164,10 +168,19 @@ class VenomCodegenContext:
         )
         self.variables[name] = var
 
-    def store_pointer_cell(self, cell: IROperand, ptr: IROperand) -> None:
-        """Store a local's current memory pointer into its pointer cell."""
+    def store_pointer_cell(self, cell: IROperand, ptr: IROperand, capacity: IROperand) -> None:
+        """Store a local's current memory pointer and capacity into its pointer cell.
+
+        The 64-byte cell holds two words: the payload pointer at `cell` and
+        the capacity at `cell + 32`. Capacity is the element count the owned
+        payload has room for; 0 is a sentinel meaning "no owned spare room",
+        which forces reallocation on the next append. Every store except
+        DynArray append passes 0 (Bytes[INF]/String[INF] cells keep it
+        permanently 0 — bytestrings have no append).
+        """
         assert isinstance(cell, IRVariable)
         self.builder.mstore(cell, ptr)
+        self.builder.mstore(self.builder.add(cell, IRLiteral(32)), capacity)
 
     def register_variable(
         self, name: str, typ: VyperType, ptr: IRVariable, mutable: bool = True

@@ -1869,7 +1869,8 @@ class Expr:
 
         new_length = self.builder.add(length, IRLiteral(1))
         self.builder.mstore(new_ptr, new_length)
-        self.ctx.store_pointer_cell(var.value.operand, new_ptr)
+        # the exact-sized payload has room for exactly new_length elements
+        self.ctx.store_pointer_cell(var.value.operand, new_ptr, new_length)
         return VyperValue.from_stack_op(IRLiteral(0), VOID_TYPE)
 
     def _lower_dynarray_pop(self) -> VyperValue:
