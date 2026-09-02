@@ -36,6 +36,10 @@ class _GenericTypeAcceptor:
     def is_equivalent_to(self, other):
         return self.compare_type(other) and other.compare_type(self)
 
+    @property
+    def has_wildcard(self):
+        return False
+
     def compare_type(self, other):
         if isinstance(other, BottomT):
             return True

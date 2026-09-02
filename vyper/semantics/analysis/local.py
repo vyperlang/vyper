@@ -846,7 +846,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         return "module"
 
     def _annotation_type(self, node: vy_ast.VyperNode, typ: VyperType) -> VyperType:
-        if not getattr(typ, "has_wildcard", False):
+        if not typ.has_wildcard:
             return typ
 
         try:
