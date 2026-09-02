@@ -770,6 +770,59 @@ def get_literal(addr: address) -> DynArray[uint256, 4]:
     assert caller.get_literal(target.address) == [5, 6]
 
 
+def test_wildcard_arg_dynamic_element_roundtrip(get_contract):
+    target_code = """
+@external
+def data(x: DynArray[Bytes[10], 5]) -> uint256:
+    return len(x)
+    """
+
+    caller_code = """
+interface Source:
+    def data(x: DynArray[Bytes[10], ...]) -> uint256: nonpayable
+
+@external
+def get_empty(addr: address) -> uint256:
+    return extcall Source(addr).data([])
+
+@external
+def get_bounded(addr: address, xs: DynArray[Bytes[10], 5]) -> uint256:
+    return extcall Source(addr).data(xs)
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get_empty(target.address) == 0
+    assert caller.get_bounded(target.address, [b"abc", b"defg"]) == 2
+
+
+def test_wildcard_arg_user_struct_element_empty(get_contract):
+    target_code = """
+struct S:
+    b: Bytes[10]
+
+@external
+def data(x: DynArray[S, 5]) -> uint256:
+    return len(x)
+    """
+
+    caller_code = """
+struct S:
+    b: Bytes[10]
+
+interface Source:
+    def data(x: DynArray[S, ...]) -> uint256: nonpayable
+
+@external
+def get_empty(addr: address) -> uint256:
+    return extcall Source(addr).data([])
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get_empty(target.address) == 0
+
+
 def test_inf_dynarray_abi_encode_default_tuple(get_contract):
     payload = [i * 31 for i in range(2001)]
     code = """

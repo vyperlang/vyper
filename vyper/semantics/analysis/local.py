@@ -33,7 +33,6 @@ from vyper.semantics.analysis.base import (
 )
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
-    empty_list_candidate_types,
     get_common_types,
     get_exact_type_from_node,
     get_expr_info,
@@ -851,12 +850,13 @@ class ExprVisitor(VyperNodeVisitorBase):
 
         possible_types = get_possible_types_from_node(node)
 
-        # the empty list literal infers as the single type
-        # `DynArray[Never, 1]`, which cannot be abi-encoded and so
-        # disambiguates nothing. enumerate possible types instead.
+        # since Never cannot be abi-encoded, use the expected type to know which element type is
+        # required
         if possible_types == [DArrayT(BottomT(), 1)]:
             assert isinstance(typ, DArrayT)
-            possible_types = empty_list_candidate_types()
+            v = typ.value_type.resolve_wildcard()
+            DArrayT._validate_unbounded_shape(v, 1, node)
+            return DArrayT(v, 1)
 
         candidates = [t for t in possible_types if t.is_subtype_of(typ)]
         if len(candidates) != 1:
