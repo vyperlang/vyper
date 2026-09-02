@@ -97,7 +97,8 @@ def test_unused_clean_stack_from_cfg_in():
     """
 
     ctx = parse_from_basic_block(code)
-    _ = VenomCompiler(ctx).generate_evm_assembly()
+    asm = VenomCompiler(ctx).generate_evm_assembly()
+    assert "POP" not in asm
 
 
 def test_popmany_bulk_removal_of_suffix():
