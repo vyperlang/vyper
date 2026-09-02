@@ -543,5 +543,5 @@ class TYPE_T(VyperType):
         raise UnknownAttribute("Value is not attributable", node)
 
 
-def is_type_t(x: VyperType, t: type) -> TypeGuard["TYPE_T"]:
+def is_type_t(x: VyperType, t: type) -> TypeGuard[TYPE_T]:
     return isinstance(x, TYPE_T) and isinstance(x.typedef, t)

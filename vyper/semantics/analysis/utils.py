@@ -93,11 +93,11 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
             if all(isinstance(t, IntegerT) for t in possible_types):
                 # for numeric types, sort according to number of bits descending
                 # this ensures literals are cast with the largest possible type
-                def sorting_function(t: VyperType):
+                def fn(t: VyperType):
                     assert isinstance(t, IntegerT)
                     return (t.bits, not t.is_signed)
 
-                possible_types.sort(key=sorting_function, reverse=True)
+                possible_types.sort(key=fn, reverse=True)
 
             node._metadata[k] = possible_types
 
@@ -182,7 +182,7 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
         if isinstance(node.op, (vy_ast.In, vy_ast.NotIn)):
             # x in y
             if any(isinstance(t, FlagT) for t in left):
-                types_list = supremum(left, right)
+                types_list = type_supremum(left, right)
                 _validate_op(node, types_list, "validate_comparator")
                 return [BoolT()]
 
@@ -194,13 +194,13 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
                 raise InvalidOperation(
                     "Right operand must be Array for membership comparison", node.right
                 )
-            types_list = supremum(left, [t.value_type for t in right])
+            types_list = type_supremum(left, [t.value_type for t in right])
             if not types_list:
                 raise TypeMismatch(
                     "Cannot perform membership comparison between dislike types", node
                 )
         else:
-            types_list = supremum(left, right)
+            types_list = type_supremum(left, right)
             _validate_op(node, types_list, "validate_comparator")
         return [BoolT()]
 
@@ -259,7 +259,7 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
 
         then_t = self.visit(node.body)
         else_t = self.visit(node.orelse)
-        types_list = supremum(then_t, else_t)
+        types_list = type_supremum(then_t, else_t)
 
         if not types_list:
             raise TypeMismatch(f"Dislike types: {then_t[0]} and {else_t[0]}", node)
@@ -480,11 +480,11 @@ def get_expr_info(node: vy_ast.ExprNode, allow_type_exprs: bool = False) -> Expr
     return node._expr_info
 
 
-def supremum(*branches: List[VyperType]) -> List[VyperType]:
-    assert len(branches) >= 1
+def type_supremum(*multitypes: List[VyperType]) -> List[VyperType]:
+    assert len(multitypes) >= 1
 
-    common_types = branches[0]
-    for branch in branches[1:]:
+    common_types = multitypes[0]
+    for branch in multitypes[1:]:
         tmp = []
         for c in common_types:
             for t in branch:
@@ -517,7 +517,7 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
         List of zero or more `BaseType` objects.
     """
 
-    common_types = supremum(*(get_possible_types_from_node(node) for node in nodes))
+    common_types = type_supremum(*(get_possible_types_from_node(node) for node in nodes))
 
     if filter_fn is not None:
         common_types = [i for i in common_types if filter_fn(i)]
