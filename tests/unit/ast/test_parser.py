@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 from tests.ast_utils import deepequals
@@ -5,7 +7,9 @@ from vyper.ast.parse import parse_to_ast
 from vyper.compiler import compile_code
 from vyper.exceptions import SyntaxException
 
-_NULL_BYTE_MSG = "source code string cannot contain null bytes"
+_NULL_BYTE_MSG = (
+    f"source code {'string ' if sys.version_info < (3, 12) else ''}cannot contain null bytes"
+)
 
 
 def test_ast_equal():
