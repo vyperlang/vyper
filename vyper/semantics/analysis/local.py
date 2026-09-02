@@ -859,15 +859,12 @@ class ExprVisitor(VyperNodeVisitorBase):
             return DArrayT(v, 1)
 
         candidates = [t for t in possible_types if t.is_subtype_of(typ)]
-        if len(candidates) != 1:
-            return typ.resolve_wildcard()
+        assert len(candidates) == 1
 
         actual_typ = candidates[0]
         if actual_typ.has_wildcard:
             actual_typ = actual_typ.resolve_wildcard()
 
-        # sanity check
-        assert actual_typ.is_subtype_of(typ)
         return actual_typ
 
     def visit(self, node, typ):
