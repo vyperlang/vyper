@@ -164,6 +164,11 @@ class VenomCodegenContext:
         )
         self.variables[name] = var
 
+    def store_pointer_cell(self, cell: IROperand, ptr: IROperand) -> None:
+        """Store a local's current memory pointer into its pointer cell."""
+        assert isinstance(cell, IRVariable)
+        self.builder.mstore(cell, ptr)
+
     def register_variable(
         self, name: str, typ: VyperType, ptr: IRVariable, mutable: bool = True
     ) -> None:

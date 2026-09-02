@@ -1107,7 +1107,7 @@ def _store_abi_arg_to_existing_ptr(
         assert elem_src.location is not None, "src must have a location for ABI decoding"
         hi = _abi_arg_hi(ctx, elem_src.location)
         val = decode_unbounded_sequence_to_scratch(ctx, elem_src, arg.typ, hi, arg.name)
-        ctx.builder.mstore(dst, val.operand)
+        ctx.store_pointer_cell(dst, val.operand)
         return
 
     # Bounded args are capped by the type clamp; no hi bound needed (see above).
@@ -1139,7 +1139,7 @@ def _store_default_arg_to_existing_ptr(
     if is_unbounded_sequence_type(arg.typ):
         default_vv = Expr(default_node, ctx).lower()
         val = ctx.copy_sequence_to_scratch(default_vv, arg.typ, annotation=arg.name)
-        ctx.builder.mstore(dst, val.operand)
+        ctx.store_pointer_cell(dst, val.operand)
         return
 
     if arg.typ._is_prim_word:
@@ -1414,7 +1414,7 @@ def _generate_internal_function(
             ptr = builder.param()
             if is_unbounded_sequence_type(arg.typ):
                 var = codegen_ctx.new_pointer_cell_variable(arg.name, arg.typ, mutable=True)
-                codegen_ctx.ptr_store(var.value.ptr(), ptr)
+                codegen_ctx.store_pointer_cell(var.value.operand, ptr)
             else:
                 codegen_ctx.register_variable(arg.name, arg.typ, ptr, mutable=True)
 
