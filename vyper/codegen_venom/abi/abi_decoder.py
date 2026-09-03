@@ -388,12 +388,13 @@ def decode_unbounded_sequence_to_scratch(
         # allocation is `32 + count * elem_mem_size` (elem_mem_size = padded
         # element memory size, e.g. 544 for Bytes[512]) and is reserved before
         # the per-element loop in _decode_dyn_array validates each element's
-        # head offset and tail (length <= maxlen, item_end <= hi). Lying data
-        # can therefore claim up to payload/32 elements and force memory
-        # expansion of at most `elem_mem_size / 32` times the payload size
-        # (17x for Bytes[512], 129x for Bytes[4096]) before the loop reverts.
-        # That expansion gas is paid only by the caller who supplied the data
-        # (self-DoS), so no pre-scan of the tails is emitted here.
+        # head offset and tail (length <= maxlen, item_end <= hi). Head offsets
+        # may alias (non-canonical but in-bounds encodings are accepted), so a
+        # payload can claim close to payload/32 elements that all validate, and
+        # decoding can cost memory expansion of up to `elem_mem_size / 32`
+        # times the payload size (17x for Bytes[512], 129x for Bytes[4096]).
+        # That gas is paid only by the caller who supplied the data (self-DoS),
+        # so no pre-scan of the tails is emitted here.
         elem_static_size = typ.value_type.abi_type.embedded_static_size()
         ctx.assert_abi_dynarray_payload_in_bounds(
             src.operand, length, elem_static_size, hi, data_start=data_start
