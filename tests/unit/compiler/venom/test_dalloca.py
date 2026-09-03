@@ -834,7 +834,7 @@ def test_dret_full_pipeline_with_and_without_inlining(env):
 
     function callee {
         callee:
-            %retpc = retpc_param
+            %retpc = param
             %p = dalloca 32
             mstore %p, 123
             dret 1, %p, 32, %retpc
@@ -928,7 +928,7 @@ function main {
 
 function dret_callee {
     dret_callee:
-        %retpc = retpc_param
+        %retpc = param
         %p = dalloca 32
         mstore %p, 7
         dret 1, %p, 32, %retpc
@@ -1133,7 +1133,7 @@ def test_inlined_publishing_callee_host_does_not_publish(env):
 
     function callee {
         callee:
-            %retpc = retpc_param
+            %retpc = param
             %p = dalloca 32
             mstore %p, 123
             dret 1, %p, 32, %retpc
@@ -1758,7 +1758,7 @@ function main {
 
 function callee {
     callee:
-        %retpc = retpc_param
+        %retpc = param
         %s1 = dalloca 32
         %s2 = dalloca 32
         mstore %s1, 11

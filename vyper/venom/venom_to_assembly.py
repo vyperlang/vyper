@@ -639,13 +639,7 @@ class VenomCompiler:
         # for making sure its output stack layout works no matter which
         # bb it jumps into).
         layout = self.liveness.out_vars(in_bb)
-        to_pop = []
-        for item in stack._stack:
-            if not isinstance(item, IRVariable):
-                continue
-            if item not in inputs and item not in layout:
-                to_pop.append(item)
-        to_pop.extend(list(layout.difference(inputs)))
+        to_pop = list(layout.difference(inputs))
         self._assert_dead_stack_prefix(stack)
         physical_to_pop = [
             var for var in to_pop if stack.get_depth(var) is not StackModel.NOT_IN_STACK

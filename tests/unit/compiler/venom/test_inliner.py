@@ -35,10 +35,9 @@ def test_inliner_phi_invalidation():
 
     function f {
     main:
-        %retpc = retpc_param
         %p = source
         %1 = add %p, 1
-        ret %retpc, %1
+        ret %1
     }
     """
 
@@ -92,10 +91,9 @@ def test_inliner_phi_invalidation_inner():
 
     function f {
     main:
-        %retpc = retpc_param
         %p = source
         %1 = add %p, 1
-        ret %retpc, %1
+        ret %1
     }
     """
 
@@ -154,7 +152,7 @@ def test_inliner_preserves_memory_read_max_size():
         %dst = param
         %src = param
         %size = param
-        %retpc = retpc_param
+        %retpc = param
         mcopy %dst, %src, %size
         ret %retpc
     }
@@ -186,9 +184,9 @@ def test_noinline_annotation():
 
     function f [noinline] {
     f:
-        %retpc = retpc_param
+        %retpc = param
         %1 = 42
-        ret %retpc, %1
+        ret %1, %retpc
     }
     """
 

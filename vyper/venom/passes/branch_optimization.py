@@ -1,12 +1,6 @@
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
-from vyper.venom.basicblock import (
-    COMPARATOR_INSTRUCTIONS,
-    IRBasicBlock,
-    IRInstruction,
-    IRLiteral,
-    IRVariable,
-)
+from vyper.venom.basicblock import COMPARATOR_INSTRUCTIONS, IRBasicBlock, IRInstruction, IRLiteral
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
 
@@ -51,8 +45,6 @@ class BranchOptimizationPass(IRPass):
             cost_a, cost_b = len(fst_liveness), len(snd_liveness)
 
             cond = term_inst.operands[0]
-            if not isinstance(cond, IRVariable):
-                continue
             prev_inst = self.dfg.get_producing_instruction(cond)
             assert prev_inst is not None
 

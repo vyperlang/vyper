@@ -244,7 +244,3 @@ def mem_alias_type_factory(addr_space: AddrSpace) -> type[MemoryAliasAnalysisAbs
         return TransientAliasAnalysis
     else:  # pragma: nocover
         raise ValueError(f"Invalid address space: {addr_space}")
-
-
-def can_create_mem_alias(addr_space: AddrSpace) -> bool:
-    return addr_space in (MEMORY, STORAGE, TRANSIENT)
