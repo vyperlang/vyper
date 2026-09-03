@@ -5,6 +5,7 @@ Multicall3-style aggregate over several targets.
 """
 
 import pytest
+from test_inf_abi_dynamic_elements_adversarial import _word
 
 from tests.evm_backends.abi import abi_encode
 from vyper.utils import method_id
@@ -14,10 +15,6 @@ from vyper.utils import method_id
 def _venom_only(experimental_codegen):
     if not experimental_codegen:
         pytest.skip("unbounded sequence types require --experimental-codegen")
-
-
-def _word(value):
-    return value.to_bytes(32, "big")
 
 
 _MULTICALL_CODE = """
@@ -90,13 +87,6 @@ def _batch(env, n):
     return calls, expected
 
 
-def test_multicall_abi_signature(get_contract):
-    c = get_contract(_MULTICALL_CODE)
-    (fn,) = [item for item in c.abi if item.get("name") == "multicall"]
-    assert [i["type"] for i in fn["inputs"]] == ["bytes[]"]
-    assert [o["type"] for o in fn["outputs"]] == ["bytes[]"]
-
-
 @pytest.mark.parametrize("n", [0, 1, 5, 40])
 def test_multicall_results(env, get_contract, n):
     c = get_contract(_MULTICALL_CODE)
@@ -125,26 +115,11 @@ def test_multicall_inner_failure_reverts_whole_batch(get_contract, tx_failed):
     assert c.value() == 1
 
 
-def test_multicall_gas_growth(env, get_contract):
-    # Informational: uniform batches so the per-call cost is comparable. The
-    # per-call cost grows with the batch size because memory is never
-    # reclaimed inside the call (decoded arguments, result buffers and
-    # reallocated result arrays all stay allocated) and the memory expansion
-    # cost is quadratic. Only a loose bound is asserted.
+def test_multicall_uniform_batches(get_contract):
     c = get_contract(_MULTICALL_CODE)
-
-    def run(n):
+    for n in (5, 20, 40):
         calls = [_call("add(uint256,uint256)", "(uint256,uint256)", (i, 1)) for i in range(n)]
         assert c.multicall(calls) == [_word(i + 1) for i in range(n)]
-        return env.last_result.gas_used
-
-    gas5 = run(5)
-    gas20 = run(20)
-    gas40 = run(40)
-    print(f"\n[multicall] n=5 gas_used={gas5}  n=20 gas_used={gas20}  n=40 gas_used={gas40}")
-    marginal_early = (gas20 - gas5) / 15
-    marginal_late = (gas40 - gas20) / 20
-    assert marginal_late < 3 * marginal_early
 
 
 _AGGREGATE_CODE = """

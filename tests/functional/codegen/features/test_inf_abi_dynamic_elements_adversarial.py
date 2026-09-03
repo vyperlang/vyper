@@ -5,8 +5,8 @@ types (Bytes[N], String[N], bounded DynArray, structs with bytestrings).
 The smoke tests live in test_inf_abi_dynamic_elements.py. This file covers
 malformed input on every ingress path (calldata, returndata, abi_decode),
 widening from narrower bounded element types, ABI encoding with mixed
-arguments, and the auto-legalized surfaces (events, custom errors,
-create_from_blueprint, print).
+arguments, and event, custom error, create_from_blueprint and print
+arguments.
 """
 
 import pytest
@@ -430,11 +430,9 @@ def summarize(xs: DynArray[Bytes[4096], INF]) -> (uint256, uint256, bytes32):
         c.address, data=method_id("summarize(bytes[])") + _word(32) + body, gas=30_000_000
     )
     assert abi_decode("(uint256,uint256,bytes32)", ret) == (k, 4096, keccak256(last))
-    print(f"\n[decode cost] {len(body)} byte payload, {k} aliased elements of Bytes[4096]:")
-    print(f"[decode cost] gas_used={env.last_result.gas_used}")
 
 
-# Auto-legalized surfaces for DynArray[String[64], INF]
+# event, custom error, create_from_blueprint and print arguments of DynArray[String[64], INF]
 
 
 _STRINGS = ["", "a", "z" * 64, "hello world", "x" * 63]

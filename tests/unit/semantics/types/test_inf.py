@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from vyper import ast as vy_ast
 from vyper import compiler
 from vyper.compiler.settings import Settings
 from vyper.exceptions import (
@@ -1080,7 +1081,11 @@ interface I:
 def f(a: address):
     extcall I(a).foo([])
     """
-    compiler.compile_code(inf_code, settings=Settings(experimental_codegen=True))
+    module = compiler.CompilerData(
+        inf_code, settings=Settings(experimental_codegen=True)
+    ).annotated_vyper_module
+    (arg,) = module.get_descendants(vy_ast.List)
+    assert arg._metadata["type"] == DArrayT(BytesT(10), INF)
 
     accepted = """
 interface I:
@@ -1161,7 +1166,11 @@ interface I:
 def f(a: address) -> uint256:
     return len((staticcall I(a).foo())[1])
     """
-    compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+    module = compiler.CompilerData(
+        code, settings=Settings(experimental_codegen=True)
+    ).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if "call_return_type" in n._metadata]
+    assert call._metadata["call_return_type"].member_types[1] == DArrayT(BytesT(10), INF)
 
 
 def test_imported_wildcard_event_accepts_inf_arg(make_input_bundle):
