@@ -70,7 +70,8 @@ def foo(inp: int128) -> uint256:
 
 
 def test_index_type_mismatch_message_uses_readable_type_names():
-    # exercises the `_generic_id` fallback (`IntegerT._id` is per-instance)
+    # `IntegerT.any()` renders its class-level `_id` (`integer`), not the
+    # applied per-instance name (`uint256`)
     code = """
 @external
 def foo(x: DynArray[uint256, 3]) -> uint256:

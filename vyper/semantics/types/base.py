@@ -25,12 +25,10 @@ class _GenericTypeAcceptor:
         return f"GenericTypeAcceptor({self.type_})"
 
     def __str__(self):
-        name = getattr(self.type_, "_id", None)
-        if not isinstance(name, str):
-            name = self.type_._generic_id
-        if not isinstance(name, str):
-            raise CompilerPanic(f"{self.type_.__name__} has no user-facing name")
-        return name
+        # `.any()` hands us the *class*, whose `_id` names the type family
+        # (e.g. `String`, `bytesM`, `integer`). `TYPE_T` has no `_id` but is
+        # never stringified: its call sites reject a non-type arg first.
+        return self.type_._id
 
     def __init__(self, type_):
         self.type_ = type_
@@ -90,11 +88,11 @@ class VyperType:
 
     typeclass: str = None  # type: ignore
 
-    _id: str  # rename to `_name`
-    # user-facing name for types whose `_id` is the fully applied type
-    # (e.g. `uint256`, `bytes4`) rather than the type constructor, so there
-    # is no generic name to read off the class. see `_GenericTypeAcceptor`.
-    _generic_id: Optional[str] = None
+    # Name of the type family rendered when a generic type is shown (e.g.
+    # `bool`, `String`, `DynArray`, `bytesM`, `integer`). `serialization_name`
+    # (and thus `__repr__`) appends the applied parameters where the family
+    # is parametric (e.g. `String[5]`, `uint256`, `bytes4`).
+    _id: str
     _type_members: Optional[Dict] = None
     _valid_literal: Tuple = ()
     _invalid_locations: Tuple = ()
@@ -147,11 +145,19 @@ class VyperType:
 
     def __repr__(self):
         # TODO: add `pretty()` to the VyperType API?
+        return self.serialization_name
+
+    # The name used to refer to this type as a single source token (AST
+    # `to_dict` "name", namespace key, synthesized getter annotations).
+    # Defaults to `_id`; parametric primitives that fuse the applied
+    # parameters into the name (`uint256`, `bytes4`) override it.
+    @property
+    def serialization_name(self):
         return self._id
 
     # return a dict suitable for serializing in the AST
     def to_dict(self):
-        ret = {"name": self._id}
+        ret = {"name": self.serialization_name}
         if self.decl_node is not None:
             ret["type_decl_node"] = self.decl_node.get_id_dict()
         if self.typeclass is not None:

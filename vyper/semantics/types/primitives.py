@@ -57,7 +57,7 @@ RANGE_1_32 = list(range(1, 33))
 # one-word bytesM with m possible bytes set, e.g. bytes1..bytes32
 class BytesM_T(_PrimT):
     typeclass = "bytes_m"
-    _generic_id = "bytesM"
+    _id = "bytesM"
 
     _valid_literal = (vy_ast.Hex,)
 
@@ -68,7 +68,7 @@ class BytesM_T(_PrimT):
         self.m: int = m
 
     @property
-    def _id(self):
+    def serialization_name(self):
         return f"bytes{self.m}"
 
     @property
@@ -267,7 +267,7 @@ class IntegerT(NumericT):
     """
 
     typeclass = "integer"
-    _generic_id = "integer"
+    _id = "integer"
 
     _valid_literal = (vy_ast.Int,)
     _equality_attrs = ("is_signed", "bits")
@@ -279,8 +279,8 @@ class IntegerT(NumericT):
         self._is_signed = is_signed
         self._bits = bits
 
-    @cached_property
-    def _id(self):
+    @property
+    def serialization_name(self):
         u = "u" if not self.is_signed else ""
         return f"{u}int{self.bits}"
 
