@@ -2,7 +2,8 @@
 
 import pytest
 
-from vyper.exceptions import CompilerPanic
+from vyper import compile_code
+from vyper.exceptions import CompilerPanic, TypeCheckFailure
 
 
 def test_negative_ix_access(get_contract, tx_failed):
@@ -136,9 +137,10 @@ def foo():
         assert c.arr(i) == i
 
 
-# to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
-def test_array_index_overlap(get_contract):
+def test_array_index_overlap(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen still rejects risky subscript overlap")
+
     code = """
 a: public(DynArray[DynArray[Bytes[96], 5], 5])
 
@@ -155,13 +157,13 @@ def bar() -> uint256:
     return 0
     """
     c = get_contract(code)
-    # tricky to get this right, for now we just panic instead of generating code
     assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
-# to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
-def test_array_index_overlap_extcall(get_contract):
+def test_array_index_overlap_extcall(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen still rejects risky subscript overlap")
+
     code = """
 
 interface Bar:
@@ -185,9 +187,10 @@ def bar() -> uint256:
     assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
-# to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
-def test_array_index_overlap_extcall2(get_contract):
+def test_array_index_overlap_extcall2(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen still rejects risky subscript overlap")
+
     code = """
 interface B:
     def calculate_index() -> uint256: nonpayable
@@ -207,3 +210,134 @@ def calculate_index() -> uint256:
     c = get_contract(code)
 
     assert c.bar() == 1
+
+
+def test_array_index_overlap_attribute(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen still rejects risky subscript overlap")
+
+    code = """
+struct Foo:
+    b: DynArray[uint256, 4]
+
+a: DynArray[Foo, 5]
+
+@external
+def foo() -> uint256:
+    self.a.append(Foo(b=[1, 1, 1, 1]))
+    return self.a[0].b[self.bar()]
+
+@internal
+def bar() -> uint256:
+    self.a[0] = Foo(b=[100, 100, 100, 100])
+    self.a.pop()
+    return 0
+    """
+    c = get_contract(code)
+    assert c.foo() == 1
+
+
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+def test_array_index_overlap_store(get_contract):
+    code = """
+a: DynArray[DynArray[uint256, 5], 5]
+
+@external
+def foo() -> uint256:
+    self.a.append([1])
+    self.a[0][self.bar()] = 7
+    return self.a[0][0]
+
+@internal
+def bar() -> uint256:
+    self.a.pop()
+    self.a.append([2])
+    return 0
+    """
+    c = get_contract(code)
+    assert c.foo() == 7
+
+
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+def test_array_index_overlap_store_attribute(get_contract):
+    code = """
+struct Foo:
+    b: DynArray[uint256, 4]
+
+a: DynArray[Foo, 5]
+
+@external
+def foo() -> uint256:
+    self.a.append(Foo(b=[1, 1, 1, 1]))
+    self.a[0].b[self.bar()] = 7
+    return self.a[0].b[0]
+
+@internal
+def bar() -> uint256:
+    self.a.pop()
+    self.a.append(Foo(b=[2, 2, 2, 2]))
+    return 0
+    """
+    c = get_contract(code)
+    assert c.foo() == 7
+
+
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+def test_array_index_overlap_store_attribute_target(get_contract):
+    code = """
+struct Foo:
+    b: uint256
+
+a: DynArray[DynArray[Foo, 4], 5]
+
+@external
+def foo() -> uint256:
+    self.a.append([Foo(b=1)])
+    self.a[0][self.bar()].b = 7
+    return self.a[0][0].b
+
+@internal
+def bar() -> uint256:
+    self.a.pop()
+    self.a.append([Foo(b=2)])
+    return 0
+    """
+    c = get_contract(code)
+    assert c.foo() == 7
+
+
+# TODO: When it also raises with venom, move this back to analysis
+def test_index_empty_list_variable_index(request, env, tx_failed, experimental_codegen):
+    code = """
+@external
+def foo(i: uint256) -> uint256:
+    return [][i]
+    """
+    if not experimental_codegen:
+        # Legacy IR rejects `[][i]` at compile time.
+        with pytest.raises(TypeCheckFailure):
+            compile_code(code)
+        pytest.xfail("should fail with a user-facing error, not a VyperInternalException")
+
+    # Venom does not have the sanity check, so it compiles (it shouldn't hence xfail)
+    # Make sure at least the bytecode is correct (always reverts)
+
+    # bytecode-only: requesting `abi` forces legacy IR, which independently raises TypeCheckFailure.
+    out = compile_code(code, output_formats=["bytecode"])
+    bytecode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    abi = [
+        {
+            "type": "function",
+            "name": "foo",
+            "stateMutability": "pure",
+            "inputs": [{"name": "i", "type": "uint256"}],
+            "outputs": [{"type": "uint256"}],
+        }
+    ]
+    c = env.deploy(abi, bytecode)
+    with tx_failed():
+        c.foo(0)
+    pytest.xfail("compilation succeeded with correct bytecode, but should have rejected `[][i]`")
