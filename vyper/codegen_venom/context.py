@@ -281,7 +281,10 @@ class VenomCodegenContext:
         assert self.is_dynamic_tuple_frame_type(typ)
 
         if self.is_dynamic_tuple_frame_type(vv.typ):
-            return vv
+            assert isinstance(vv.typ, TupleT)
+            if self._frame_members_punnable(vv.typ, typ):
+                return vv
+            return self._dynamic_tuple_frame_from_frame(vv, typ, annotation=annotation)
 
         if not isinstance(vv.typ, TupleT):  # pragma: nocover
             raise CompilerPanic(f"expected tuple default value, got {vv.typ}")
@@ -313,6 +316,47 @@ class VenomCodegenContext:
 
             self.builder.mstore(cell, value)
             src_offset += src_member_t.memory_bytes_required
+
+        return self.dynamic_tuple_frame_value(frame, typ, annotation=annotation)
+
+    @staticmethod
+    def _frame_members_punnable(src_typ: TupleT, dst_typ: TupleT) -> bool:
+        # frame cells hold a word or a pointer, so member sizes do not matter
+        # for the frame itself, only each member's own layout
+        n = len(dst_typ.member_types)
+        assert len(src_typ.member_types) == n
+        return all(punnable(src_typ.member_types[i], dst_typ.member_types[i]) for i in range(n))
+
+    def _dynamic_tuple_frame_from_frame(
+        self, vv: VyperValue, typ: TupleT, annotation: Optional[str] = None
+    ) -> VyperValue:
+        """Rebuild a frame of a narrower tuple type in the layout of `typ`.
+
+        A member can be narrower than the corresponding member of `typ`
+        (e.g. DynArray[Bytes[10], 5] vs DynArray[Bytes[512], 5]) and its
+        data is read with the wider layout, so such members are copied.
+        """
+        assert isinstance(vv.typ, TupleT)
+        assert isinstance(vv.operand, IRVariable)
+        members = self.dynamic_tuple_frame_values(vv.operand, vv.typ, annotation=annotation)
+        frame = self.allocate_scratch(IRLiteral(self.dynamic_tuple_frame_size(typ)))
+
+        for i, dst_member_t in enumerate(typ.member_types):
+            cell = self.builder.add(frame, IRLiteral(i * 32))
+            member_vv = members[i]
+            if dst_member_t._is_prim_word:
+                value = member_vv.operand
+            else:
+                # unbounded members only have ABI-static elements, so they
+                # never need a copy
+                assert not is_unbounded_sequence_type(dst_member_t) or punnable(
+                    member_vv.typ, dst_member_t
+                )
+                member_vv = self.ensure_memory_layout(
+                    member_vv, dst_member_t, annotation=annotation
+                )
+                value = self.unwrap(member_vv)
+            self.builder.mstore(cell, value)
 
         return self.dynamic_tuple_frame_value(frame, typ, annotation=annotation)
 
