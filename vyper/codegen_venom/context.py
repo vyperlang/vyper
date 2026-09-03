@@ -500,14 +500,20 @@ class VenomCodegenContext:
         return self.unchecked_dynarray_runtime_size_from_length(length, typ)
 
     def dynarray_runtime_abi_size(self, ptr: IRVariable, typ: DArrayT) -> IROperand:
-        """Return runtime ABI size for an unbounded DynArray with static ABI elements."""
-        if typ.value_type.abi_type.is_dynamic():
-            raise CompilerPanic(
-                "semantic analysis should reject DynArray[..., INF] with ABI-dynamic elements"
-            )  # pragma: nocover
+        """Return a runtime bound on the ABI-encoded size of an unbounded DynArray.
+
+        The result is exact for ABI-static elements. For ABI-dynamic elements
+        (e.g. `DynArray[Bytes[512], INF]`) every element is charged its full
+        head + tail bound, so the result is an upper bound on the encoded size,
+        not the encoded length. Callers may use it only to size buffers and
+        must take the real length from the encoder's return value.
+        """
         length = self.builder.mload(ptr)
-        elem_size = typ.value_type.abi_type.embedded_static_size()
-        data_size = self.checked_mul(length, IRLiteral(elem_size))
+        elem_abi_t = typ.value_type.abi_type
+        # Element types are bounded (semantic analysis rejects nested INF), so
+        # the per-element bound is a compile-time constant.
+        elem_bound = elem_abi_t.embedded_static_size() + elem_abi_t.embedded_dynamic_size_bound()
+        data_size = self.checked_mul(length, IRLiteral(elem_bound))
         return self.checked_add(IRLiteral(32), data_size)
 
     def sequence_runtime_size(self, ptr: IRVariable, typ: VyperType) -> IROperand:
