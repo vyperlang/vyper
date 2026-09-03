@@ -1,13 +1,4 @@
-import pytest
-
 from vyper.compiler import compile_code
-
-
-@pytest.fixture(autouse=True)
-def _venom_only(experimental_codegen):
-    if not experimental_codegen:
-        pytest.skip("requires --experimental-codegen")
-
 
 SHORT = [b"a", b"0123456789", b""]
 LONG = [b"x" * 512, b"", b"0123456789" * 20]
@@ -96,7 +87,14 @@ def foo(
     assert c.foo(False, a, b) == b
 
 
-def test_same_type_ternary(get_contract, compiler_settings):
+def _ternaries(ir_node, source):
+    if ir_node.value == "if" and ir_node.annotation == source:
+        yield ir_node
+    for arg in ir_node.args:
+        yield from _ternaries(arg, source)
+
+
+def test_same_type_ternary(get_contract, compiler_settings, experimental_codegen):
     code = """
 @external
 def foo(
@@ -118,7 +116,16 @@ def bar(c: bool, a: DynArray[uint256, 2], b: DynArray[uint256, 5]) -> DynArray[u
     # the arms already have the element layout of the result, so neither
     # arm is converted element by element
     ir = compile_code(code, output_formats=["ir_runtime"], settings=compiler_settings)
-    assert "typed_dyn_copy" not in str(ir["ir_runtime"])
+    ir = ir["ir_runtime"]
+    if experimental_codegen:
+        assert "typed_dyn_copy" not in str(ir)
+    else:
+        ternaries = list(_ternaries(ir, "a if c else b"))
+        assert len(ternaries) == 2
+        for ternary in ternaries:
+            _, body, orelse = ternary.args
+            # each arm is the variable itself, not a copy of it
+            assert body.is_literal and orelse.is_literal
 
 
 def test_bytestring_ternary(get_contract):
