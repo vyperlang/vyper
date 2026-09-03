@@ -88,10 +88,11 @@ class VyperType:
 
     typeclass: str = None  # type: ignore
 
-    # Name of the type family rendered when a generic type is shown (e.g.
-    # `bool`, `String`, `DynArray`, `bytesM`, `integer`). `serialization_name`
-    # (and thus `__repr__`) appends the applied parameters where the family
-    # is parametric (e.g. `String[5]`, `uint256`, `bytes4`).
+    # Name of the type family (e.g. `bool`, `String`, `DynArray`, `integer`,
+    # `bytesM`). Types whose applied parameters are fused into a single source
+    # token (`uint256`, `bytes4`) expose the applied name via
+    # `serialization_name`; parameterized containers (e.g. `String[5]`,
+    # `DynArray[uint256, 3]`) render the applied name in `__repr__`.
     _id: str
     _type_members: Optional[Dict] = None
     _valid_literal: Tuple = ()
