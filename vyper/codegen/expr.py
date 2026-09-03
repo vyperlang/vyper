@@ -8,6 +8,7 @@ from vyper.codegen.core import (
     append_dyn_array,
     check_assign,
     clamp,
+    create_memory_copy,
     data_location_to_address_space,
     dummy_node_for_type,
     ensure_in_memory,
@@ -22,6 +23,7 @@ from vyper.codegen.core import (
     pop_dyn_array,
     potential_overlap,
     read_write_overlap,
+    same_memory_layout,
     sar,
     shl,
     shr,
@@ -783,8 +785,19 @@ class Expr:
         test = Expr.parse_value_expr(self.expr.test, self.context)
         assert test.typ == BoolT()  # sanity check
 
-        body = Expr(self.expr.body, self.context).ir_node
-        orelse = Expr(self.expr.orelse, self.context).ir_node
+        typ = self.expr._metadata["type"]
+
+        def parse_arm(node):
+            arm = Expr(node, self.context).ir_node
+            # an arm can be narrower than the result type (e.g. DynArray[Bytes[10], 5]
+            # for a DynArray[Bytes[512], 5] result). the result is read with the
+            # result type's layout, so convert such arms element by element.
+            if same_memory_layout(arm.typ, typ):
+                return arm
+            return create_memory_copy(arm, self.context, typ=typ)
+
+        body = parse_arm(self.expr.body)
+        orelse = parse_arm(self.expr.orelse)
 
         # if they are in the same location, we can skip copying
         # into memory. also for the case where either body or orelse are
@@ -798,7 +811,6 @@ class Expr:
         # check this once compare_type has no side effects:
         # assert body.typ.compare_type(orelse.typ)
 
-        typ = self.expr._metadata["type"]
         location = body.location
         return IRnode.from_list(["if", test, body, orelse], typ=typ, location=location)
 
