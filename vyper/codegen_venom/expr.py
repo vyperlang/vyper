@@ -1884,9 +1884,7 @@ class Expr:
         doubled = self.ctx.checked_add(capacity, capacity)
         min_cap = self.ctx.checked_add(length, IRLiteral(1))
         new_cap = b.select(b.lt(doubled, min_cap), min_cap, doubled)
-        new_size = self.ctx.checked_add(
-            IRLiteral(32), self.ctx.checked_mul(new_cap, IRLiteral(elem_size))
-        )
+        new_size = self.ctx.dynarray_runtime_size_from_length(new_cap, darray_typ)
         new_ptr = self.ctx.allocate_scratch(new_size)
         old_size = b.add(IRLiteral(32), data_size)
         self.ctx.copy_memory_dynamic(new_ptr, old_ptr, old_size)
