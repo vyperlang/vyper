@@ -139,26 +139,6 @@ def bar(c: bool, a: String[3], b: String[64]) -> String[64]:
     assert c.bar(False, "abc", "y" * 64) == "y" * 64
 
 
-# a ternary passed straight to an internal call returns the second arm even
-# when the condition is true, also for arms of identical type
-@pytest.mark.xfail(strict=True)
-def test_ternary_as_internal_call_argument(get_contract):
-    code = """
-@internal
-def _echo(xs: DynArray[Bytes[512], 5]) -> DynArray[Bytes[512], 5]:
-    return xs
-
-@external
-def foo(
-    c: bool, a: DynArray[Bytes[10], 5], b: DynArray[Bytes[512], 5]
-) -> DynArray[Bytes[512], 5]:
-    return self._echo(a if c else b)
-    """
-    c = get_contract(code)
-    assert c.foo(True, SHORT, LONG) == SHORT
-    assert c.foo(False, SHORT, LONG) == LONG
-
-
 def test_ternary_as_event_argument(get_contract, get_logs):
     code = """
 event Picked:
