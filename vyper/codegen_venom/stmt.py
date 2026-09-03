@@ -1011,6 +1011,15 @@ class Stmt:
             # lower() preserves source type so return coercions can use
             # layout-aware copying when source and declared return type differ.
             ret_vv = Expr(node.value, self.ctx).lower()
+            ret_typ = func_t.return_type
+            if ret_typ is not None and self.ctx.unbounded_dynarray_element_layout_differs(
+                ret_typ, ret_vv.typ
+            ):
+                # Direct INF returns size and encode the value with the
+                # declared element stride, so widened elements (e.g.
+                # DynArray[Bytes[10], 5] -> DynArray[Bytes[512], INF]) are
+                # converted up front.
+                ret_vv = self.ctx.copy_sequence_to_scratch(ret_vv, ret_typ, annotation="return")
             ret_val = self.ctx.unwrap(ret_vv)
             ret_src_typ = ret_vv.typ
 
@@ -1258,6 +1267,17 @@ class Stmt:
                 member_ptr = normalized.operand
                 src_member_t = dst_member_t
 
+            if self.ctx.unbounded_dynarray_element_layout_differs(dst_member_t, src_member_t):
+                # Widened INF member (see lower_Return): convert the element
+                # layout so the size below uses the declared stride.
+                member_vv = self.ctx.dynamic_memory_value(member_ptr, src_member_t)
+                widened = self.ctx.copy_sequence_to_scratch(
+                    member_vv, dst_member_t, annotation="return"
+                )
+                assert isinstance(widened.operand, IRVariable)
+                member_ptr = widened.operand
+                src_member_t = dst_member_t
+
             if not dst_member_t._is_prim_word:
                 size = self._dynamic_return_member_size(member_ptr, dst_member_t, src_member_t)
                 dynamic_return_operands.extend([member_ptr, size])
@@ -1374,8 +1394,13 @@ class Stmt:
             and type_contains_unbounded_sequence(ret_src_typ)
         ):
             assert isinstance(ret_typ, TupleT)
+            assert isinstance(ret_src_typ, TupleT)
             assert isinstance(ret_val, IRVariable)
-            arg_vvs = self.ctx.dynamic_tuple_frame_values(ret_val, ret_typ, annotation="return")
+            # The frame was built by the source type's producer; read it as
+            # such. Members are encoded by their own types, so a widened INF
+            # member (DynArray[Bytes[10], INF] -> DynArray[Bytes[512], INF])
+            # keeps its source layout.
+            arg_vvs = self.ctx.dynamic_tuple_frame_values(ret_val, ret_src_typ, annotation="return")
 
             self._emit_external_dynamic_tuple_return(
                 arg_vvs, ret_typ, wrap_outer=external_return_type is not ret_typ

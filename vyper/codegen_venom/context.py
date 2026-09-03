@@ -591,12 +591,40 @@ class VenomCodegenContext:
                 size = self.unchecked_dynarray_runtime_size(src, typ)
             else:
                 size = self.dynarray_runtime_size(src, typ)
+            if self.unbounded_dynarray_element_layout_differs(typ, vv.typ):
+                # Widened elements (e.g. DynArray[Bytes[10], 5] copied into
+                # DynArray[Bytes[512], INF]) have a different memory stride,
+                # so a byte copy would misplace them.
+                assert isinstance(vv.typ, DArrayT)
+                dst = self.allocate_scratch(size)
+                length = self.builder.mload(src)
+                self.builder.mstore(dst, length)
+                self._copy_dynarray_elements_typed(
+                    self._with_byte_offset(dst, 32),
+                    typ.value_type,
+                    self._with_byte_offset(src, 32),
+                    vv.typ.value_type,
+                    length,
+                )
+                return self.dynamic_memory_value(dst, typ, annotation=annotation)
         else:
             raise CompilerPanic(f"expected unbounded sequence type, got {typ}")  # pragma: nocover
 
         dst = self.allocate_scratch(size)
         self.copy_memory_dynamic(dst, src, size)
         return self.dynamic_memory_value(dst, typ, annotation=annotation)
+
+    @staticmethod
+    def unbounded_dynarray_element_layout_differs(dst_typ: VyperType, src_typ: VyperType) -> bool:
+        """True when copying `src_typ` into the unbounded DynArray `dst_typ` must
+        convert element layout, i.e. the element type was widened (Bytes[10] ->
+        Bytes[512]) so the two memory strides differ."""
+        return (
+            isinstance(dst_typ, DArrayT)
+            and is_unbounded_dynarray_type(dst_typ)
+            and isinstance(src_typ, DArrayT)
+            and src_typ.value_type != dst_typ.value_type
+        )
 
     def materialize_value(
         self, vv: VyperValue, typ: Optional[VyperType] = None, annotation: Optional[str] = None
@@ -1002,6 +1030,21 @@ class VenomCodegenContext:
             assert isinstance(dst_data, IRVariable)
             self.copy_memory_dynamic(dst_data, src_data, data_size, self.data_size_bound(src_typ))
             return
+
+        self._copy_dynarray_elements_typed(dst_data, dst_elem_t, src_data, src_elem_t, length)
+
+    def _copy_dynarray_elements_typed(
+        self,
+        dst_data: IROperand,
+        dst_elem_t: VyperType,
+        src_data: IROperand,
+        src_elem_t: VyperType,
+        length: IROperand,
+    ) -> None:
+        """Copy `length` DynArray elements one at a time, converting layouts."""
+        b = self.builder
+        dst_elem_size = dst_elem_t.memory_bytes_required
+        src_elem_size = src_elem_t.memory_bytes_required
 
         cond_block = b.create_block("typed_dyn_copy_cond")
         body_block = b.create_block("typed_dyn_copy_body")
