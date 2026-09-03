@@ -1,3 +1,5 @@
+import pytest
+
 from vyper.compiler import compile_code
 
 SHORT = [b"a", b"0123456789", b""]
@@ -281,3 +283,89 @@ def from_locals_flipped(c: bool, a: Bytes[10], b: Bytes[40]) -> (Bytes[40], uint
     assert c.from_calls_flipped(False, b"abc", b"x" * 40) == (b"abc", 1)
     assert c.from_locals_flipped(True, b"abc", b"x" * 40) == (b"x" * 40, 2)
     assert c.from_locals_flipped(False, b"abc", b"x" * 40) == (b"abc", 1)
+
+
+def test_tuple_with_unbounded_member_ternary(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
+
+    code = """
+@internal
+def _short(a: DynArray[Bytes[10], 5]) -> (DynArray[uint256, INF], DynArray[Bytes[10], 5]):
+    return ([1, 2], a)
+
+@internal
+def _long(b: DynArray[Bytes[512], 5]) -> (DynArray[uint256, INF], DynArray[Bytes[512], 5]):
+    return ([3], b)
+
+@external
+def whole(
+    c: bool, a: DynArray[Bytes[10], 5], b: DynArray[Bytes[512], 5]
+) -> (DynArray[uint256, INF], DynArray[Bytes[512], 5]):
+    return self._short(a) if c else self._long(b)
+
+@external
+def whole_flipped(
+    c: bool, a: DynArray[Bytes[10], 5], b: DynArray[Bytes[512], 5]
+) -> (DynArray[uint256, INF], DynArray[Bytes[512], 5]):
+    return self._long(b) if c else self._short(a)
+
+@external
+def member(
+    c: bool, a: DynArray[Bytes[10], 5], b: DynArray[Bytes[512], 5]
+) -> DynArray[Bytes[512], 5]:
+    return (self._short(a) if c else self._long(b))[1]
+
+@external
+def member_flipped(
+    c: bool, a: DynArray[Bytes[10], 5], b: DynArray[Bytes[512], 5]
+) -> DynArray[Bytes[512], 5]:
+    return (self._long(b) if c else self._short(a))[1]
+    """
+    c = get_contract(code)
+    assert c.whole(True, SHORT, LONG) == ([1, 2], SHORT)
+    assert c.whole(False, SHORT, LONG) == ([3], LONG)
+    assert c.whole_flipped(True, SHORT, LONG) == ([3], LONG)
+    assert c.whole_flipped(False, SHORT, LONG) == ([1, 2], SHORT)
+    assert c.member(True, SHORT, LONG) == SHORT
+    assert c.member(False, SHORT, LONG) == LONG
+    assert c.member_flipped(True, SHORT, LONG) == LONG
+    assert c.member_flipped(False, SHORT, LONG) == SHORT
+
+
+def test_tuple_with_unbounded_member_nested_ternary(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
+
+    code = """
+@internal
+def _short(
+    a: DynArray[DynArray[uint256, 2], 3]
+) -> (DynArray[uint256, INF], DynArray[DynArray[uint256, 2], 3]):
+    return ([1], a)
+
+@internal
+def _long(
+    b: DynArray[DynArray[uint256, 4], 3]
+) -> (DynArray[uint256, INF], DynArray[DynArray[uint256, 4], 3]):
+    return ([2], b)
+
+@external
+def whole(
+    c: bool, a: DynArray[DynArray[uint256, 2], 3], b: DynArray[DynArray[uint256, 4], 3]
+) -> (DynArray[uint256, INF], DynArray[DynArray[uint256, 4], 3]):
+    return self._short(a) if c else self._long(b)
+
+@external
+def member(
+    c: bool, a: DynArray[DynArray[uint256, 2], 3], b: DynArray[DynArray[uint256, 4], 3]
+) -> DynArray[DynArray[uint256, 4], 3]:
+    return (self._long(b) if c else self._short(a))[1]
+    """
+    a = [[1, 2], [3], []]
+    b = [[4, 5, 6, 7], [], [8]]
+    c = get_contract(code)
+    assert c.whole(True, a, b) == ([1], a)
+    assert c.whole(False, a, b) == ([2], b)
+    assert c.member(True, a, b) == b
+    assert c.member(False, a, b) == a
