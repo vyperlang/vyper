@@ -850,22 +850,29 @@ class ExprVisitor(VyperNodeVisitorBase):
 
         possible_types = get_possible_types_from_node(node)
 
-        # since Never cannot be abi-encoded, use the expected type to know which element type is
-        # required
+        ret: VyperType
+
         if possible_types == [DArrayT(BottomT(), 1)]:
+            # since Never cannot be abi-encoded, use the expected type to know which element type is
+            # required
             assert isinstance(typ, DArrayT)
             v = typ.value_type.resolve_wildcard()
             DArrayT._validate_unbounded_shape(v, 1, node)
-            return DArrayT(v, 1)
+            ret = DArrayT(v, 1)
+        else:
+            # we find the one type that the expression has which is valid
+            # (guaranteed to exist since this is called after `visit_*`)
+            candidates = [t for t in possible_types if t.is_subtype_of(typ)]
+            assert len(candidates) == 1
 
-        candidates = [t for t in possible_types if t.is_subtype_of(typ)]
-        assert len(candidates) == 1
+            ret = candidates[0].resolve_wildcard()
 
-        actual_typ = candidates[0]
-        if actual_typ.has_wildcard:
-            actual_typ = actual_typ.resolve_wildcard()
+        # postcondition:
+        # expression type <: ret <: expected type
+        assert any(t.is_subtype_of(ret) for t in possible_types)
+        assert ret.is_subtype_of(typ)
 
-        return actual_typ
+        return ret
 
     def visit(self, node, typ):
         if typ is not VOID_TYPE and not isinstance(typ, TYPE_T):
