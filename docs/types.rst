@@ -586,10 +586,13 @@ may use ``INF`` as the length bound:
 ``Bytes[INF]`` and ``String[INF]`` can hold any runtime length. ``DynArray[T, INF]``
 can hold any runtime item count; ``T`` must be a bounded type, but it may be
 ABI-dynamic, such as ``Bytes[512]``, ``DynArray[uint256, 3]`` or a struct with
-bytestring members. Decoding a ``DynArray[T, INF]`` with an ABI-dynamic ``T``
-reserves memory for every claimed element before the elements themselves are
-validated, so malformed input costs the caller memory expansion gas in
-proportion to the claimed element count.
+bytestring members. Each element then occupies the full memory size of ``T``
+regardless of its actual length, and ABI buffers reserve the full encoded bound
+of ``T`` per element, so valid but non-canonical input (element offsets that
+alias one another) can cost memory proportional to the payload size times the
+memory size of ``T`` in words. ``INF`` decoders bound every element against the
+readable region (``calldatasize`` or the returndata size), so truncated trailing
+data is rejected where a bounded array in calldata would be zero-filled.
 
 Unbounded sequence values are supported for memory locals, function arguments,
 function returns, event and custom error members, ABI encoding and decoding, and

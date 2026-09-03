@@ -184,18 +184,8 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         if method_id is None:
             # Safe margin: buf is exactly `[length word] + alloc_size`, and the
             # padding zero write lands at `buf_ptr + ceil32(alloc_size)`.
-            #
-            # `alloc_size` may over-estimate the encoded length (bounded
-            # dynamic args and INF DynArrays with ABI-dynamic elements are
-            # sized by their bound). That is harmless here: `alloc_size` is a
-            # sum of word multiples, so `ceil32(alloc_size) == alloc_size` and
-            # the zeroed word is the allocation's last word; and ABI payload
-            # lengths are word multiples, so the value's real last word is
-            # written in full by the encoder and holds no padding to clean.
-            #
-            # With method_id the 4-byte prefix shifts the payload, so the
-            # value's last word does hold padding and this write can land past
-            # it; _build_abi_encoded_bytes zeroes that tail instead.
+            # `alloc_size` may over-estimate the encoded length, but it is a sum
+            # of word multiples, so the zeroed word is the allocation's last word.
             ctx.zero_bytestring_padding(buf_ptr, alloc_size)
 
         def encode_unbounded(dst: IRVariable) -> IROperand:
