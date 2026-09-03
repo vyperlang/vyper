@@ -128,6 +128,7 @@ class VenomCodegenContext:
     # Size of an unbounded (INF) local's pointer cell: two adjacent words,
     # [payload_ptr][capacity]. See `store_pointer_cell`.
     POINTER_CELL_SIZE = 64
+    POINTER_CELL_CAPACITY_OFFSET = 32
 
     def new_pointer_cell_variable(
         self, name: str, typ: VyperType, mutable: bool = True
@@ -180,7 +181,18 @@ class VenomCodegenContext:
         """
         assert isinstance(cell, IRVariable)
         self.builder.mstore(cell, ptr)
-        self.builder.mstore(self.builder.add(cell, IRLiteral(32)), capacity)
+        capacity_slot = self.builder.add(cell, IRLiteral(self.POINTER_CELL_CAPACITY_OFFSET))
+        self.builder.mstore(capacity_slot, capacity)
+
+    def load_pointer_cell(self, cell: IROperand) -> tuple[IRVariable, IRVariable]:
+        """Load `(ptr, capacity)` from a pointer cell; layout in `store_pointer_cell`."""
+        assert isinstance(cell, IRVariable)
+        ptr = self.builder.mload(cell)
+        capacity_slot = self.builder.add(cell, IRLiteral(self.POINTER_CELL_CAPACITY_OFFSET))
+        capacity = self.builder.mload(capacity_slot)
+        assert isinstance(ptr, IRVariable)
+        assert isinstance(capacity, IRVariable)
+        return ptr, capacity
 
     def register_variable(
         self, name: str, typ: VyperType, ptr: IRVariable, mutable: bool = True

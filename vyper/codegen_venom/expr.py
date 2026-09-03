@@ -1857,10 +1857,8 @@ class Expr:
 
         cell = var.value.operand
         assert isinstance(cell, IRVariable)
-        old_ptr = self.ctx.ptr_load(var.value.ptr())
-        assert isinstance(old_ptr, IRVariable)
+        old_ptr, capacity = self.ctx.load_pointer_cell(cell)
         length = b.mload(old_ptr)
-        capacity = b.mload(b.add(cell, IRLiteral(32)))
         elem_size = elem_typ.memory_bytes_required
 
         # every payload a pointer cell can reference was allocated with a
