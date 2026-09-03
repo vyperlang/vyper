@@ -173,8 +173,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         encode_type = TupleT(tuple(arg_types))
 
     if any(type_contains_unbounded_sequence(t) for t in arg_types):
-        encoded_size = runtime_abi_size_for_encode(ctx, arg_vals, encode_type)
-        alloc_size = encoded_size
+        alloc_size = runtime_abi_size_for_encode(ctx, arg_vals, encode_type)
         if method_id is not None:
             # ABI encodings are word-aligned. The 4-byte method ID therefore
             # occupies another full word in the bytestring payload allocation.

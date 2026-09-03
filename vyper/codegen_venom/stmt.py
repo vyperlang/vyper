@@ -1092,10 +1092,10 @@ class Stmt:
         if wrap_outer:
             # External returns are always ABI tuples. A declared singleton
             # tuple `-> (T,)` is therefore returned as `((T,),)`.
-            encoded_size = self.ctx.checked_add(
+            alloc_size = self.ctx.checked_add(
                 IRLiteral(32), runtime_abi_size_for_encode(self.ctx, arg_vvs, encode_typ)
             )
-            buf_ptr = self.ctx.allocate_scratch(encoded_size)
+            buf_ptr = self.ctx.allocate_scratch(alloc_size)
             self.builder.mstore(buf_ptr, IRLiteral(32))
             child_dst = self.builder.add(buf_ptr, IRLiteral(32))
             child_len = abi_encode_values_to_buf(self.ctx, child_dst, arg_vvs, encode_typ)
@@ -1103,8 +1103,8 @@ class Stmt:
             self.builder.return_(buf_ptr, encoded_len)
             return
 
-        encoded_size = runtime_abi_size_for_encode(self.ctx, arg_vvs, encode_typ)
-        buf_ptr = self.ctx.allocate_scratch(encoded_size)
+        alloc_size = runtime_abi_size_for_encode(self.ctx, arg_vvs, encode_typ)
+        buf_ptr = self.ctx.allocate_scratch(alloc_size)
         encoded_len = abi_encode_values_to_buf(self.ctx, buf_ptr, arg_vvs, encode_typ)
         self.builder.return_(buf_ptr, encoded_len)
 
@@ -1301,9 +1301,9 @@ class Stmt:
         # source layout: a widened element type (DynArray[Bytes[10], 5] ->
         # DynArray[Bytes[512], INF]) has a different memory stride.
         ret_vv = self.ctx.dynamic_memory_value(ret_val, ret_typ, annotation="return")
-        tail_len = runtime_abi_size_for_encode(self.ctx, [ret_vv], ret_typ)
-        encoded_size = self.ctx.checked_add(IRLiteral(32), tail_len)
-        buf_ptr = self.ctx.allocate_scratch(encoded_size)
+        tail_bound = runtime_abi_size_for_encode(self.ctx, [ret_vv], ret_typ)
+        alloc_size = self.ctx.checked_add(IRLiteral(32), tail_bound)
+        buf_ptr = self.ctx.allocate_scratch(alloc_size)
         encode_typ = calculate_type_for_external_return(ret_src_typ)
         encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, encode_typ)
         self.builder.return_(buf_ptr, encoded_len)
@@ -1491,8 +1491,8 @@ class Stmt:
             if type_contains_unbounded_sequence(tuple_typ):
                 # INF data has no static size bound; size the encoding
                 # buffer at runtime like external INF returns do.
-                encoded_size = runtime_abi_size_for_encode(self.ctx, data_vals, tuple_typ)
-                abi_buf_ptr = self.ctx.allocate_scratch(encoded_size)
+                alloc_size = runtime_abi_size_for_encode(self.ctx, data_vals, tuple_typ)
+                abi_buf_ptr = self.ctx.allocate_scratch(alloc_size)
             else:
                 bufsz = tuple_typ.abi_type.size_bound()
                 abi_buf_ptr = self.ctx.allocate_buffer(bufsz)._ptr
