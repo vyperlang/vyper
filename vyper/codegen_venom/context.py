@@ -597,15 +597,7 @@ class VenomCodegenContext:
                 # so a byte copy would misplace them.
                 assert isinstance(vv.typ, DArrayT)
                 dst = self.allocate_scratch(size)
-                length = self.builder.mload(src)
-                self.builder.mstore(dst, length)
-                self._copy_dynarray_elements_typed(
-                    self._with_byte_offset(dst, 32),
-                    typ.value_type,
-                    self._with_byte_offset(src, 32),
-                    vv.typ.value_type,
-                    length,
-                )
+                self._copy_dynarray_memory_typed(dst, typ, src, vv.typ)
                 return self.dynamic_memory_value(dst, typ, annotation=annotation)
         else:
             raise CompilerPanic(f"expected unbounded sequence type, got {typ}")  # pragma: nocover
@@ -617,8 +609,8 @@ class VenomCodegenContext:
     @staticmethod
     def unbounded_dynarray_element_layout_differs(dst_typ: VyperType, src_typ: VyperType) -> bool:
         """True when copying `src_typ` into the unbounded DynArray `dst_typ` must
-        convert element layout, i.e. the element type was widened (Bytes[10] ->
-        Bytes[512]) so the two memory strides differ."""
+        convert element layout. Conservatively true whenever the element types
+        differ (matches `_copy_dynarray_memory_typed`'s fast-path predicate)."""
         return (
             isinstance(dst_typ, DArrayT)
             and is_unbounded_dynarray_type(dst_typ)
@@ -968,52 +960,18 @@ class VenomCodegenContext:
             return
 
         # Slow path: runtime loop, element-by-element copy.
-        b = self.builder
-        length = IRLiteral(count)
-
-        cond_block = b.create_block("typed_sa_copy_cond")
-        body_block = b.create_block("typed_sa_copy_body")
-        exit_block = b.create_block("typed_sa_copy_exit")
-
-        counter = b.assign(IRLiteral(0))
-        b.jmp(cond_block.label)
-
-        b.append_block(cond_block)
-        b.set_block(cond_block)
-        done = b.iszero(b.lt(counter, length))
-        cond_finish = b.current_block
-
-        b.append_block(body_block)
-        b.set_block(body_block)
-
-        src_ofst = b.mul(counter, IRLiteral(src_elem_size))
-        dst_ofst = b.mul(counter, IRLiteral(dst_elem_size))
-        src_elem_ptr = b.add(src, src_ofst)
-        dst_elem_ptr = b.add(dst, dst_ofst)
-
-        self._store_memory_typed(dst_elem_ptr, dst_elem_t, src_elem_ptr, src_elem_t)
-
-        new_counter = b.add(counter, IRLiteral(1))
-        b.assign_to(new_counter, counter)
-        b.jmp(cond_block.label)
-
-        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
-        b.append_block(exit_block)
-        b.set_block(exit_block)
+        self._copy_elements_typed(dst, dst_elem_t, src, src_elem_t, IRLiteral(count))
 
     def _copy_dynarray_memory_typed(
         self, dst: IRVariable, dst_typ: DArrayT, src: IROperand, src_typ: DArrayT
     ) -> None:
         """Copy DynArray in memory when source and destination element layouts may differ."""
-        if not is_bounded_length(dst_typ.length):
-            raise CompilerPanic(
-                "unbounded DynArray memory copies should use pointer-cell assignment"
-            )  # pragma: nocover
         b = self.builder
         assert isinstance(src, IRVariable)
         length = b.mload(src)
-        # defensive: runtime length must not exceed destination capacity
-        b.assert_(b.iszero(b.gt(length, IRLiteral(dst_typ.length))))
+        if is_bounded_length(dst_typ.length):
+            # defensive: runtime length must not exceed destination capacity
+            b.assert_(b.iszero(b.gt(length, IRLiteral(dst_typ.length))))
         b.mstore(dst, length)
 
         dst_elem_t = dst_typ.value_type
@@ -1031,9 +989,9 @@ class VenomCodegenContext:
             self.copy_memory_dynamic(dst_data, src_data, data_size, self.data_size_bound(src_typ))
             return
 
-        self._copy_dynarray_elements_typed(dst_data, dst_elem_t, src_data, src_elem_t, length)
+        self._copy_elements_typed(dst_data, dst_elem_t, src_data, src_elem_t, length)
 
-    def _copy_dynarray_elements_typed(
+    def _copy_elements_typed(
         self,
         dst_data: IROperand,
         dst_elem_t: VyperType,
@@ -1041,14 +999,14 @@ class VenomCodegenContext:
         src_elem_t: VyperType,
         length: IROperand,
     ) -> None:
-        """Copy `length` DynArray elements one at a time, converting layouts."""
+        """Copy `length` array elements one at a time, converting layouts."""
         b = self.builder
         dst_elem_size = dst_elem_t.memory_bytes_required
         src_elem_size = src_elem_t.memory_bytes_required
 
-        cond_block = b.create_block("typed_dyn_copy_cond")
-        body_block = b.create_block("typed_dyn_copy_body")
-        exit_block = b.create_block("typed_dyn_copy_exit")
+        cond_block = b.create_block("typed_elem_copy_cond")
+        body_block = b.create_block("typed_elem_copy_body")
+        exit_block = b.create_block("typed_elem_copy_exit")
 
         counter = b.assign(IRLiteral(0))
         b.jmp(cond_block.label)
