@@ -584,9 +584,12 @@ may use ``INF`` as the length bound:
         return ys
 
 ``Bytes[INF]`` and ``String[INF]`` can hold any runtime length. ``DynArray[T, INF]``
-can hold any runtime item count, but ``T`` must have an ABI-static layout, such
-as ``uint256``, ``bytes32``, static arrays, or structs made only from ABI-static
-members.
+can hold any runtime item count; ``T`` must be a bounded type, but it may be
+ABI-dynamic, such as ``Bytes[512]``, ``DynArray[uint256, 3]`` or a struct with
+bytestring members. Decoding a ``DynArray[T, INF]`` with an ABI-dynamic ``T``
+reserves memory for every claimed element before the elements themselves are
+validated, so malformed input costs the caller memory expansion gas in
+proportion to the claimed element count.
 
 Unbounded sequence values are supported for memory locals, function arguments,
 function returns, event and custom error members, ABI encoding and decoding, and
@@ -597,7 +600,7 @@ for example ``(uint256, Bytes[INF])``.
 Unbounded sequences are not supported in storage, transient storage, immutable
 module variables, struct members, static arrays, mappings, or nested inside
 another dynamic layout. For example,
-``DynArray[Bytes[INF], INF]`` and ``DynArray[Bytes[10], INF]`` are rejected.
+``DynArray[Bytes[INF], INF]`` and ``DynArray[DynArray[uint256, INF], 3]`` are rejected.
 Tuple arguments and local tuple variables containing unbounded sequence members
 are also rejected.
 
