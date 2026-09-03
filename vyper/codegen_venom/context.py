@@ -133,7 +133,9 @@ class VenomCodegenContext:
     def new_pointer_cell_variable(
         self, name: str, typ: VyperType, mutable: bool = True
     ) -> LocalVariable:
-        """Register a local whose stable memory cell stores its current memory pointer."""
+        """Register a local whose stable memory cell stores its current payload
+        pointer and capacity (see `store_pointer_cell`).
+        """
         buf = self.allocate_buffer(self.POINTER_CELL_SIZE, annotation=f"{name}_ptr")
         value = VyperValue.from_ptr(buf.base_ptr(), typ)
         var = LocalVariable(
@@ -157,7 +159,9 @@ class VenomCodegenContext:
     def register_pointer_cell_variable(
         self, name: str, typ: VyperType, ptr: IRVariable, mutable: bool = True
     ) -> None:
-        """Register an existing memory cell that stores the local's current pointer."""
+        """Register an existing memory cell that stores the local's current payload
+        pointer and capacity (see `store_pointer_cell`).
+        """
         buf = Buffer(_ptr=ptr, size=self.POINTER_CELL_SIZE, annotation=f"{name}_ptr")
         value = VyperValue.from_ptr(buf.base_ptr(), typ)
         var = LocalVariable(
@@ -346,7 +350,11 @@ class VenomCodegenContext:
         return self.dynamic_tuple_frame_value(frame, typ, annotation=annotation)
 
     def load_pointer_cell_value(self, var: LocalVariable) -> VyperValue:
-        """Load the current dynamic memory pointer from a pointer-cell local."""
+        """Load the current payload pointer from a pointer-cell local.
+
+        Only the pointer word is read; the cell also carries capacity
+        (see `store_pointer_cell`).
+        """
         ptr = self.ptr_load(var.value.ptr())
         assert isinstance(ptr, IRVariable)
         return self.dynamic_memory_value(ptr, var.value.typ, annotation=var.name)
