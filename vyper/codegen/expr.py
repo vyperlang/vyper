@@ -22,8 +22,8 @@ from vyper.codegen.core import (
     make_setter,
     pop_dyn_array,
     potential_overlap,
+    punnable,
     read_write_overlap,
-    same_memory_layout,
     sar,
     shl,
     shr,
@@ -792,7 +792,7 @@ class Expr:
             # an arm can be narrower than the result type (e.g. DynArray[Bytes[10], 5]
             # for a DynArray[Bytes[512], 5] result). the result is read with the
             # result type's layout, so convert such arms element by element.
-            if same_memory_layout(arm.typ, typ):
+            if punnable(arm.typ, typ):
                 return arm
             return create_memory_copy(arm, self.context, typ=typ)
 

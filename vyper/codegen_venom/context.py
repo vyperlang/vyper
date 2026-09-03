@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, Sequence
 
-from vyper.codegen.core import same_memory_layout
+from vyper.codegen.core import punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
@@ -571,7 +571,7 @@ class VenomCodegenContext:
         self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
     ) -> VyperValue:
         """Return `vv` laid out as `typ`, copying only when the layouts differ."""
-        if same_memory_layout(vv.typ, typ):
+        if punnable(vv.typ, typ):
             return vv
 
         ret = self.new_temporary_value(typ, annotation=annotation)

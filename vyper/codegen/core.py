@@ -1224,9 +1224,9 @@ def _complex_make_setter(left, right, hi=None):
         return b1.resolve(b2.resolve(IRnode.from_list(ret)))
 
 
-def same_memory_layout(src_typ, dst_typ):
+def punnable(src_typ, dst_typ):
     """
-    Return True if memory laid out as `src_typ` reads correctly as `dst_typ`.
+    Return True if memory laid out as `src_typ` can be read (punned) as `dst_typ`.
 
     Compatible types can differ in element or member layout, e.g.
     DynArray[Bytes[10], 5] vs DynArray[Bytes[512], 5] (element stride 64
@@ -1238,15 +1238,16 @@ def same_memory_layout(src_typ, dst_typ):
         pairs = [(src_typ.value_type, dst_typ.value_type)]
     elif isinstance(dst_typ, TupleT):
         assert isinstance(src_typ, TupleT)
-        pairs = list(zip(src_typ.member_types, dst_typ.member_types))
+        n = len(dst_typ.member_types)
+        assert len(src_typ.member_types) == n
+        pairs = [(src_typ.member_types[i], dst_typ.member_types[i]) for i in range(n)]
     else:
         # primitive words, bytestrings ([length][data]) and (nominal) structs
         return True
 
     # nested values also need equal sizes: they determine strides and offsets
     return all(
-        s.memory_bytes_required == d.memory_bytes_required and same_memory_layout(s, d)
-        for s, d in pairs
+        s.memory_bytes_required == d.memory_bytes_required and punnable(s, d) for s, d in pairs
     )
 
 
