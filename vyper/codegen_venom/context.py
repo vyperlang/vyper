@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, Sequence
 
+from vyper.codegen.core import same_memory_layout
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
@@ -566,36 +567,11 @@ class VenomCodegenContext:
         self.store_vyper_value(vv, ret.operand, typ)
         return ret
 
-    @classmethod
-    def same_memory_layout(cls, src_typ: VyperType, dst_typ: VyperType) -> bool:
-        """Return True if memory laid out as `src_typ` reads correctly as `dst_typ`.
-
-        Compatible types can differ in element or member layout, e.g.
-        DynArray[Bytes[10], 5] vs DynArray[Bytes[512], 5] (element stride 64
-        vs 544). A wider bytestring bound or DynArray capacity at the top level
-        does not change the layout of the data that is present.
-        """
-        if isinstance(dst_typ, (DArrayT, SArrayT)):
-            assert isinstance(src_typ, (DArrayT, SArrayT))
-            pairs = [(src_typ.value_type, dst_typ.value_type)]
-        elif isinstance(dst_typ, TupleT):
-            assert isinstance(src_typ, TupleT)
-            pairs = list(zip(src_typ.member_types, dst_typ.member_types))
-        else:
-            # primitive words, bytestrings ([length][data]) and (nominal) structs
-            return True
-
-        # nested values also need equal sizes: they determine strides and offsets
-        return all(
-            s.memory_bytes_required == d.memory_bytes_required and cls.same_memory_layout(s, d)
-            for s, d in pairs
-        )
-
     def ensure_memory_layout(
         self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
     ) -> VyperValue:
         """Return `vv` laid out as `typ`, copying only when the layouts differ."""
-        if self.same_memory_layout(vv.typ, typ):
+        if same_memory_layout(vv.typ, typ):
             return vv
 
         ret = self.new_temporary_value(typ, annotation=annotation)
