@@ -1011,15 +1011,6 @@ class Stmt:
             # lower() preserves source type so return coercions can use
             # layout-aware copying when source and declared return type differ.
             ret_vv = Expr(node.value, self.ctx).lower()
-            ret_typ = func_t.return_type
-            if ret_typ is not None and self.ctx.unbounded_dynarray_element_layout_differs(
-                ret_typ, ret_vv.typ
-            ):
-                # Direct INF returns size and encode the value with the
-                # declared element stride, so widened elements (e.g.
-                # DynArray[Bytes[10], 5] -> DynArray[Bytes[512], INF]) are
-                # converted up front.
-                ret_vv = self.ctx.copy_sequence_to_scratch(ret_vv, ret_typ, annotation="return")
             ret_val = self.ctx.unwrap(ret_vv)
             ret_src_typ = ret_vv.typ
 
@@ -1166,6 +1157,16 @@ class Stmt:
                 return
 
             assert returns_count == 0
+            if self.ctx.unbounded_dynarray_element_layout_differs(ret_typ, ret_src_typ):
+                # dret passes the value with the declared element stride (the
+                # caller reads it as ret_typ), so widened elements (e.g.
+                # DynArray[Bytes[10], 5] -> DynArray[Bytes[512], INF]) are
+                # converted here. External returns encode from the source
+                # layout instead.
+                ret_vv = self.ctx.dynamic_memory_value(ret_val, ret_src_typ)
+                widened = self.ctx.copy_sequence_to_scratch(ret_vv, ret_typ, annotation="return")
+                assert isinstance(widened.operand, IRVariable)
+                ret_val = widened.operand
             size = self.ctx.sequence_runtime_size(ret_val, ret_typ)
             self.builder.dret(IRLiteral(dynamic_returns_count), ret_val, size, return_pc)
             return
@@ -1268,8 +1269,9 @@ class Stmt:
                 src_member_t = dst_member_t
 
             if self.ctx.unbounded_dynarray_element_layout_differs(dst_member_t, src_member_t):
-                # Widened INF member (see lower_Return): convert the element
-                # layout so the size below uses the declared stride.
+                # Widened INF member (see _lower_internal_return's direct dret
+                # case): convert the element layout so the size below uses the
+                # declared stride.
                 member_vv = self.ctx.dynamic_memory_value(member_ptr, src_member_t)
                 widened = self.ctx.copy_sequence_to_scratch(
                     member_vv, dst_member_t, annotation="return"
@@ -1291,15 +1293,19 @@ class Stmt:
         )
 
     def _emit_external_unbounded_sequence_return(
-        self, ret_val: IRVariable, ret_typ: VyperType, external_return_type: VyperType
+        self, ret_val: IRVariable, ret_typ: VyperType, ret_src_typ: VyperType
     ) -> None:
         assert is_unbounded_sequence_type(ret_typ)
 
+        # Size the buffer by the declared type's bound but encode from the
+        # source layout: a widened element type (DynArray[Bytes[10], 5] ->
+        # DynArray[Bytes[512], INF]) has a different memory stride.
         ret_vv = self.ctx.dynamic_memory_value(ret_val, ret_typ, annotation="return")
         tail_len = runtime_abi_size_for_encode(self.ctx, [ret_vv], ret_typ)
         encoded_size = self.ctx.checked_add(IRLiteral(32), tail_len)
         buf_ptr = self.ctx.allocate_scratch(encoded_size)
-        encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, external_return_type)
+        encode_typ = calculate_type_for_external_return(ret_src_typ)
+        encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, encode_typ)
         self.builder.return_(buf_ptr, encoded_len)
 
     def _lower_external_return(
@@ -1333,6 +1339,9 @@ class Stmt:
             ret_src_typ is not None
             and not ret_typ._is_prim_word
             and not (isinstance(ret_typ, _BytestringT) and isinstance(ret_src_typ, _BytestringT))
+            # INF sources have no bounded temporary; they are encoded from their
+            # own layout below
+            and not type_contains_unbounded_sequence(ret_src_typ)
             and ret_src_typ != ret_typ
             and not can_encode_from_src
             and ret_val is not None
@@ -1385,7 +1394,8 @@ class Stmt:
 
         if is_unbounded_sequence_type(ret_typ):
             assert isinstance(ret_val, IRVariable)
-            self._emit_external_unbounded_sequence_return(ret_val, ret_typ, external_return_type)
+            assert ret_src_typ is not None
+            self._emit_external_unbounded_sequence_return(ret_val, ret_typ, ret_src_typ)
             return
 
         if (
