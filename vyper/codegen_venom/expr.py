@@ -736,11 +736,13 @@ class Expr:
 
         # Case 4: Immutable - IMMUTABLES location
         if varinfo.is_immutable:
-            typ = node._metadata["type"]
+            # the node's type can be wider than the variable (e.g. when
+            # assigned to a `DynArray[Bytes[512], 5]` local), the data has
+            # the declared type's layout
             ptr = Ptr(
                 operand=IRLiteral(varinfo.position.position), location=DataLocation.IMMUTABLES
             )
-            return VyperValue.from_ptr(ptr, typ)
+            return VyperValue.from_ptr(ptr, varinfo.typ)
 
         raise CompilerPanic(f"Unknown variable: {varname}")  # pragma: nocover
 
@@ -826,17 +828,21 @@ class Expr:
             if varinfo.is_constant:
                 return Expr(varinfo.decl_node.value, self.ctx).lower()
 
+            # the node's type can be wider than the variable (e.g. when
+            # assigned to a `DynArray[Bytes[512], 5]` local); the data has
+            # the declared type's layout, so both pointers use `varinfo.typ`
+
             # Immutable state variable
             if varinfo.is_immutable:
                 ptr = Ptr(
                     operand=IRLiteral(varinfo.position.position), location=DataLocation.IMMUTABLES
                 )
-                return VyperValue.from_ptr(ptr, typ)
+                return VyperValue.from_ptr(ptr, varinfo.typ)
 
             # Regular storage/transient variable - return location, don't load!
             slot = varinfo.position.position
             ptr = Ptr(operand=IRLiteral(slot), location=varinfo.location)
-            return VyperValue.from_ptr(ptr, typ)
+            return VyperValue.from_ptr(ptr, varinfo.typ)
 
         # Case 6: Interface address (x.address where x is an interface)
         if isinstance(sub_typ, InterfaceT) and attr == "address":
