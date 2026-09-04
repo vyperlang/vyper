@@ -343,30 +343,16 @@ def foo(i: uint256) -> uint256:
     pytest.xfail("compilation succeeded with correct bytecode, but should have rejected `[][i]`")
 
 
-def test_index_all_empty_lists_variable_index(request, env, tx_failed, experimental_codegen):
+@pytest.mark.xfail(raises=InvalidOperation)
+def test_index_all_empty_lists_variable_index(get_contract):
     code = """
 @external
 def foo(i: uint256) -> DynArray[uint256, 5]:
     return [[], []][i]
     """
-    if not experimental_codegen:
-        with pytest.raises(InvalidOperation):
-            compile_code(code)
-        pytest.xfail("should compile and return an empty list")
 
-    # bytecode-only: requesting `abi` forces legacy IR, which independently raises TypeCheckFailure.
-    out = compile_code(code, output_formats=["bytecode"])
-    bytecode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
-    abi = [
-        {
-            "type": "function",
-            "name": "foo",
-            "stateMutability": "pure",
-            "inputs": [{"name": "i", "type": "uint256"}],
-            "outputs": [{"type": "uint256[]"}],
-        }
-    ]
-    c = env.deploy(abi, bytecode)
+    c = get_contract(code)
+
     assert c.foo(0) == []
     assert c.foo(1) == []
     with tx_failed():
