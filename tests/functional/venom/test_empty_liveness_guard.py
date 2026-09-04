@@ -40,5 +40,5 @@ def test_empty_liveness_param_then_revert_immediates2():
     """
     ctx = parse_venom(venom)
     flags = VenomOptimizationFlags(level=OptimizationLevel.GAS)
-    run_passes_on(ctx, flags)
+    run_passes_on(ctx, flags, disable_mem_checks=True)
     generate_assembly_experimental(ctx)

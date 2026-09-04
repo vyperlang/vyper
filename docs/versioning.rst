@@ -119,17 +119,10 @@ and eventually will publish the details of all reported vulnerabilities
 `here <https://github.com/vyperlang/vyper/security/advisories?state=published>`_.
 Fixes for these issues will also be noted in the :ref:`Release Notes<release-notes>`.
 
-Vyper *Next*
-------------
+Pre-Release Versions
+--------------------
 
-There may be multiple Major versions in the process of development.
-Work on new features that break compatibility with the existing grammar can
-be maintained on a separate branch called ``next`` and represents the next
-Major release of Vyper (provided in an unaudited state without Release Notes).
-The work on the current branch will remain on the ``master`` branch with periodic
-new releases using the process as mentioned above.
-
-Any other branches of work outside of what is being tracked via ``master``
+Any branches of work outside of what is being tracked via ``master``
 will use the ``-alpha.[release #]`` (Alpha) to denote WIP updates,
 and ``-beta.[release #]`` (Beta) to describe work that is eventually intended for release.
 ``-rc.[release #]`` (Release Candidate) will only be used to denote candidate builds
@@ -141,11 +134,7 @@ and will be made available alongside the full audit report summarizing the findi
 Pull Requests
 =============
 
-Pull Requests can be opened against either ``master`` or ``next`` branch, depending on their content.
-Changes that would increment a Minor or Patch release should target ``master``,
-whereas changes to syntax (as detailed above) should be opened against ``next``.
-The ``next`` branch will be periodically rebased against the ``master`` branch to pull in changes made
-that were added to the latest supported version of Vyper.
+Pull Requests should be opened against the ``master`` branch.
 
 Communication
 =============

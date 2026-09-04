@@ -1,3 +1,4 @@
+from .affine_folding import AffineFoldingPass
 from .algebraic_optimization import AlgebraicOptimizationPass
 from .assert_combiner import AssertCombinerPass
 from .assert_elimination import AssertEliminationPass
@@ -8,10 +9,9 @@ from .common_subexpression_elimination import CSE
 from .concretize_mem_loc import ConcretizeMemLocPass
 from .dead_store_elimination import DeadStoreElimination
 from .dft import DFTPass
-from .fix_calloca import FixCalloca
-from .fix_mem_locations import FixMemLocationsPass
-from .float_allocas import FloatAllocas
+from .fmp_lowering import DretDesugarPass, FmpLoweringPass, FmpPrunePass
 from .function_inliner import FunctionInlinerPass
+from .internal_return_copy_forwarding import InternalReturnCopyForwardingPass
 from .literals_codesize import ReduceLiteralsCodesize
 from .load_elimination import LoadElimination
 from .lower_dload import LowerDloadPass
@@ -19,10 +19,49 @@ from .make_ssa import MakeSSA
 from .mem2var import Mem2Var
 from .memmerging import MemMergePass
 from .memory_copy_elision import MemoryCopyElisionPass
+from .overflow_elimination import OverflowEliminationPass
 from .phi_elimination import PhiEliminationPass
+from .readonly_invoke_arg_copy_forwarding import ReadonlyInvokeArgCopyForwardingPass
+from .redundant_memory_copy_forwarding import RedundantMemoryCopyForwardingPass
 from .remove_unused_variables import RemoveUnusedVariablesPass
 from .revert_to_assert import RevertToAssert
 from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
 from .single_use_expansion import SingleUseExpansion
 from .loop_invariant_hosting import LoopInvariantHoisting
+from .tail_merge import TailMergePass
+
+__all__ = [
+    "AffineFoldingPass",
+    "AlgebraicOptimizationPass",
+    "AssertCombinerPass",
+    "AssertEliminationPass",
+    "AssignElimination",
+    "BranchOptimizationPass",
+    "CFGNormalization",
+    "CSE",
+    "ConcretizeMemLocPass",
+    "DFTPass",
+    "DeadStoreElimination",
+    "DretDesugarPass",
+    "FmpLoweringPass",
+    "FmpPrunePass",
+    "FunctionInlinerPass",
+    "InternalReturnCopyForwardingPass",
+    "LoadElimination",
+    "LowerDloadPass",
+    "MakeSSA",
+    "Mem2Var",
+    "MemMergePass",
+    "MemoryCopyElisionPass",
+    "OverflowEliminationPass",
+    "PhiEliminationPass",
+    "ReadonlyInvokeArgCopyForwardingPass",
+    "ReduceLiteralsCodesize",
+    "RemoveUnusedVariablesPass",
+    "RevertToAssert",
+    "SCCP",
+    "SimplifyCFGPass",
+    "SingleUseExpansion",
+    "TailMergePass",
+]

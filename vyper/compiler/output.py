@@ -6,6 +6,7 @@ from typing import Iterable
 import vyper.ast as vy_ast
 from vyper.ast.utils import ast_to_dict
 from vyper.codegen.ir_node import IRnode
+from vyper.codegen_venom.calling_convention import pass_via_stack, returns_stack_count
 from vyper.compiler.output_bundle import SolcJSONWriter, VyperArchiveWriter
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.utils import build_gas_estimates
@@ -14,9 +15,9 @@ from vyper.evm.assembler.symbols import resolve_symbols
 from vyper.exceptions import VyperException
 from vyper.ir import compile_ir
 from vyper.semantics.types.function import ContractFunctionT, FunctionVisibility, StateMutability
+from vyper.semantics.types.user import ErrorT, EventT
 from vyper.typing import StorageLayout
-from vyper.utils import safe_relpath
-from vyper.venom.ir_node_to_venom import _pass_via_stack, _returns_word
+from vyper.utils import OrderedSet, safe_relpath
 from vyper.warnings import ContractSizeLimit, vyper_warn
 
 
@@ -124,7 +125,8 @@ def build_external_interface_output(compiler_data: CompilerData) -> str:
 
 
 def build_interface_output(compiler_data: CompilerData) -> str:
-    interface = compiler_data.annotated_vyper_module._metadata["type"].interface
+    module_t = compiler_data.annotated_vyper_module._metadata["type"]
+    interface = module_t.interface
     out = ""
 
     if len(interface.structs) > 0:
@@ -143,11 +145,24 @@ def build_interface_output(compiler_data: CompilerData) -> str:
                 out += f"    {flag_value}\n"
             out += "\n\n"
 
-    if len(interface.events) > 0:
+    # include events that are transitively reachable from exposed functions
+    events: OrderedSet[EventT] = OrderedSet(interface.events.values())
+    events.update(module_t.used_events)
+
+    if len(events) > 0:
         out += "# Events\n\n"
-        for event in interface.events.values():
+        for event in events:
             encoded_args = "\n    ".join(f"{name}: {typ}" for name, typ in event.arguments.items())
             out += f"event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n\n\n"
+
+    errors: OrderedSet[ErrorT] = OrderedSet(interface.errors.values())
+    errors.update(module_t.used_errors)
+
+    if len(errors) > 0:
+        out += "# Errors\n\n"
+        for error in errors:
+            encoded_args = "\n    ".join(f"{name}: {typ}" for name, typ in error.arguments.items())
+            out += f"error {error.name}:\n    {encoded_args if error.arguments else 'pass'}\n\n\n"
 
     if len(interface.functions) > 0:
         out += "# Functions\n\n"
@@ -166,29 +181,29 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     return out
 
 
-def build_bb_output(compiler_data: CompilerData) -> IRnode:
-    return compiler_data.venom_deploytime
-
-
-def build_bb_runtime_output(compiler_data: CompilerData) -> IRnode:
-    return compiler_data.venom_runtime
-
-
 def build_cfg_output(compiler_data: CompilerData) -> str:
+    if not compiler_data.settings.experimental_codegen:
+        raise ValueError("cfg output requires --experimental-codegen")
     return compiler_data.venom_deploytime.as_graph()
 
 
 def build_cfg_runtime_output(compiler_data: CompilerData) -> str:
+    if not compiler_data.settings.experimental_codegen:
+        raise ValueError("cfg_runtime output requires --experimental-codegen")
     return compiler_data.venom_runtime.as_graph()
 
 
-def build_ir_output(compiler_data: CompilerData) -> IRnode:
+def build_ir_output(compiler_data: CompilerData):
+    if compiler_data.settings.experimental_codegen:
+        return compiler_data.venom_deploytime
     if compiler_data.show_gas_estimates:
         IRnode.repr_show_gas = True
     return compiler_data.ir_nodes
 
 
-def build_ir_runtime_output(compiler_data: CompilerData) -> IRnode:
+def build_ir_runtime_output(compiler_data: CompilerData):
+    if compiler_data.settings.experimental_codegen:
+        return compiler_data.venom_runtime
     if compiler_data.show_gas_estimates:
         IRnode.repr_show_gas = True
     return compiler_data.ir_runtime
@@ -218,7 +233,10 @@ def build_settings_output(compiler_data: CompilerData) -> dict:
 
 def build_metadata_output(compiler_data: CompilerData) -> dict:
     # need ir info to be computed
-    _ = compiler_data.function_signatures
+    if compiler_data.settings.experimental_codegen:
+        _ = compiler_data.venom_deploytime
+    else:
+        _ = compiler_data.function_signatures
     module_t = compiler_data.annotated_vyper_module._metadata["type"]
     sigs = dict[str, ContractFunctionT]()
 
@@ -226,22 +244,21 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         fn_id = fn_t._function_id
         return f"{fn_t.name} ({fn_id})"
 
-    exposed_fns = module_t.exposed_functions.copy()
-    if module_t.init_function is not None:
-        exposed_fns.append(module_t.init_function)
-
-    for fn_t in exposed_fns:
+    for fn_t in module_t.reachable_functions:
         assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
-        for rif_t in fn_t.reachable_internal_functions:
-            k = _fn_identifier(rif_t)
-            if k in sigs:
-                # sanity check that keys are injective with functions
-                assert sigs[k] == rif_t, (k, sigs[k], rif_t)
-            sigs[k] = rif_t
+        k = _fn_identifier(fn_t)
+        if k in sigs:
+            # sanity check that keys are injective with functions
+            assert sigs[k] == fn_t, (k, sigs[k], fn_t)
+        sigs[k] = fn_t
 
-        fn_id = _fn_identifier(fn_t)
-        assert fn_id not in sigs
-        sigs[fn_id] = fn_t
+    def _frame_info_to_dict(func_t):
+        frame_info = func_t._ir_info.frame_info
+        if frame_info is None:
+            return {}
+        ret = vars(frame_info).copy()
+        ret.pop("frame_vars", None)  # frame_var.pos might be IR, cannot serialize
+        return ret
 
     def _to_dict(func_t):
         ret = vars(func_t).copy()
@@ -260,20 +277,19 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
             args = ret[attr]
             ret[attr] = {arg.name: str(arg.typ) for arg in args}
 
-        ret["frame_info"] = vars(func_t._ir_info.frame_info).copy()
-        del ret["frame_info"]["frame_vars"]  # frame_var.pos might be IR, cannot serialize
+        ret["frame_info"] = _frame_info_to_dict(func_t)
 
         ret["module_path"] = safe_relpath(func_t.decl_node.module_node.resolved_path)
         ret["source_id"] = func_t.decl_node.module_node.source_id
         ret["function_id"] = func_t._function_id
 
         if func_t.is_internal and compiler_data.settings.experimental_codegen:
-            pass_via_stack = _pass_via_stack(func_t)
+            pass_via_stack_dict = pass_via_stack(func_t)
             pass_via_stack_list = [
-                arg for (arg, is_stack_arg) in pass_via_stack.items() if is_stack_arg
+                arg for (arg, is_stack_arg) in pass_via_stack_dict.items() if is_stack_arg
             ]
             ret["venom_via_stack"] = pass_via_stack_list
-            ret["venom_return_via_stack"] = _returns_word(func_t)
+            ret["venom_return_via_stack"] = returns_stack_count(func_t) > 0
 
         keep_keys = {
             "name",
@@ -308,9 +324,12 @@ def build_method_identifiers_output(compiler_data: CompilerData) -> dict:
 def build_abi_output(compiler_data: CompilerData) -> list:
     module_t = compiler_data.annotated_vyper_module._metadata["type"]
     if not compiler_data.annotated_vyper_module.is_interface:
-        _ = compiler_data.ir_runtime  # ensure _ir_info is generated
+        if compiler_data.settings.experimental_codegen:
+            _ = compiler_data.venom_runtime  # ensure _ir_info is generated
+        else:
+            _ = compiler_data.ir_runtime  # ensure _ir_info is generated
 
-    abi = module_t.interface.to_toplevel_abi_dict()
+    abi = module_t.to_toplevel_abi_dict()
     if module_t.init_function:
         abi += module_t.init_function.to_toplevel_abi_dict()
 

@@ -1,10 +1,13 @@
 import textwrap
 from dataclasses import dataclass, field
-from typing import Iterator, Optional
+from typing import TYPE_CHECKING, Iterator, Optional
 
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_allocator import MemoryAllocator
+
+if TYPE_CHECKING:
+    from vyper.venom.analysis.analysis import IRGlobalAnalysesCache
 
 
 @dataclass
@@ -44,6 +47,7 @@ class IRContext:
     last_label: int
     last_variable: int
     mem_allocator: MemoryAllocator
+    global_analyses_cache: Optional["IRGlobalAnalysesCache"]
 
     def __init__(self) -> None:
         self.functions = {}
@@ -54,6 +58,7 @@ class IRContext:
         self.last_variable = 0
 
         self.mem_allocator = MemoryAllocator()
+        self.global_analyses_cache = None
 
     def get_basic_blocks(self) -> Iterator[IRBasicBlock]:
         for fn in self.functions.values():
@@ -66,6 +71,10 @@ class IRContext:
 
     def remove_function(self, fn: IRFunction) -> None:
         del self.functions[fn.name]
+        # spill sizing takes the max over all fn_eom entries, so a stale
+        # entry for a removed function would inflate every live function's
+        # spill region (see StackSpiller.reset_for_codegen)
+        self.mem_allocator.fn_eom.pop(fn, None)
 
     def create_function(self, name: str) -> IRFunction:
         label = IRLabel(name, True)

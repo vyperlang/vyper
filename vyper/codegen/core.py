@@ -1,6 +1,6 @@
 import vyper.codegen.context as ctx
 from vyper.codegen.ir_node import Encoding, IRnode
-from vyper.compiler.settings import _opt_codesize, _opt_gas, _opt_none
+from vyper.compiler.settings import _opt_codesize, _opt_gas, _opt_lowering_only_ir
 from vyper.evm.address_space import (
     CALLDATA,
     DATA,
@@ -12,7 +12,7 @@ from vyper.evm.address_space import (
     legal_in_staticcall,
 )
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import CompilerPanic, TypeCheckFailure, TypeMismatch
+from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, TypeMismatch
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,
@@ -27,6 +27,7 @@ from vyper.semantics.types import (
     TupleT,
     VyperType,
     _BytestringT,
+    is_bounded_length,
 )
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.subscriptable import SArrayT
@@ -390,10 +391,13 @@ def copy_bytes(dst, src, length, length_bound):
     dst = IRnode.from_list(dst)
     length = IRnode.from_list(length)
 
-    with src.cache_when_complex("src") as (b1, src), length.cache_when_complex(
-        "copy_bytes_count"
-    ) as (b2, length), dst.cache_when_complex("dst") as (b3, dst):
-        assert isinstance(length_bound, int) and length_bound >= 0
+    with (
+        src.cache_when_complex("src") as (b1, src),
+        length.cache_when_complex("copy_bytes_count") as (b2, length),
+        dst.cache_when_complex("dst") as (b3, dst),
+    ):
+        if not (isinstance(length_bound, int) and length_bound >= 0):
+            raise CodegenPanic("copy_bytes: unbounded or invalid length_bound")
 
         # correctness: do not clobber dst
         if length_bound == 0:
@@ -491,6 +495,8 @@ def get_dyn_array_count(arg):
 def append_dyn_array(darray_node, elem_node):
     assert isinstance(darray_node.typ, DArrayT)
 
+    if not is_bounded_length(darray_node.typ.count):
+        raise CodegenPanic("append not yet implemented for unbounded DynArray")
     assert darray_node.typ.count > 0, "jerk boy u r out"
 
     ret = ["seq"]
@@ -1174,7 +1180,7 @@ def _complex_make_setter(left, right, hi=None):
                 # kind of arbitrary, but cut off when code used > ~160 bytes
                 should_batch_copy = len_ >= 32 * 10
             else:
-                assert _opt_none()
+                assert _opt_lowering_only_ir()
                 # don't care, just generate the most readable version
                 should_batch_copy = True
         else:
@@ -1218,6 +1224,33 @@ def _complex_make_setter(left, right, hi=None):
         return b1.resolve(b2.resolve(IRnode.from_list(ret)))
 
 
+def punnable(src_typ, dst_typ):
+    """
+    Return True if memory laid out as `src_typ` can be read (punned) as `dst_typ`.
+
+    Compatible types can differ in element or member layout, e.g.
+    DynArray[Bytes[10], 5] vs DynArray[Bytes[512], 5] (element stride 64
+    vs 544). A wider bytestring bound or DynArray capacity at the top level
+    does not change the layout of the data that is present.
+    """
+    if isinstance(dst_typ, (DArrayT, SArrayT)):
+        assert isinstance(src_typ, (DArrayT, SArrayT))
+        pairs = [(src_typ.value_type, dst_typ.value_type)]
+    elif isinstance(dst_typ, TupleT):
+        assert isinstance(src_typ, TupleT)
+        n = len(dst_typ.member_types)
+        assert len(src_typ.member_types) == n
+        pairs = [(src_typ.member_types[i], dst_typ.member_types[i]) for i in range(n)]
+    else:
+        # primitive words, bytestrings ([length][data]) and (nominal) structs
+        return True
+
+    # nested values also need equal sizes: they determine strides and offsets
+    return all(
+        s.memory_bytes_required == d.memory_bytes_required and punnable(s, d) for s, d in pairs
+    )
+
+
 def ensure_in_memory(ir_var, context):
     """
     Ensure a variable is in memory. This is useful for functions
@@ -1229,8 +1262,9 @@ def ensure_in_memory(ir_var, context):
     return create_memory_copy(ir_var, context)
 
 
-def create_memory_copy(ir_var, context):
-    typ = ir_var.typ
+def create_memory_copy(ir_var, context, typ=None):
+    if typ is None:
+        typ = ir_var.typ
     buf = context.new_internal_variable(typ)
     do_copy = make_setter(buf, ir_var)
     return IRnode.from_list(["seq", do_copy, buf], typ=typ, location=MEMORY)
@@ -1294,6 +1328,9 @@ def clamp_bytestring(ir_node, hi=None):
     if not isinstance(t, _BytestringT):  # pragma: nocover
         raise CompilerPanic(f"{t} passed to clamp_bytestring")
 
+    if not is_bounded_length(t.maxlen):
+        raise CodegenPanic("clamp_bytestring: unbounded bytestring type")
+
     # check if byte array length is within type max
     with get_bytearray_length(ir_node).cache_when_complex("length") as (b1, length):
         len_check = ["assert", ["le", length, t.maxlen]]
@@ -1318,6 +1355,9 @@ def clamp_bytestring(ir_node, hi=None):
 def clamp_dyn_array(ir_node, hi=None):
     t = ir_node.typ
     assert isinstance(t, DArrayT)
+
+    if not is_bounded_length(t.count):
+        raise CodegenPanic("clamp_dyn_array: unbounded DynArray type")
 
     len_check = ["assert", ["le", get_dyn_array_count(ir_node), t.count]]
 

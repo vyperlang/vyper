@@ -14,14 +14,37 @@ if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink"])
+BB_TERMINATORS = frozenset(
+    [
+        "jmp",
+        "djmp",
+        "jnz",
+        "ret",
+        "dret",
+        "retfmp",
+        "return",
+        "revert",
+        "stop",
+        "sink",
+        "invalid",
+        "selfdestruct",
+    ]
+)
 
 # Terminators that halt program/message call execution
-HALTING_TERMINATORS = frozenset(["return", "revert", "stop", "invalid"])
+HALTING_TERMINATORS = frozenset(["return", "revert", "stop", "invalid", "selfdestruct"])
 
-VOLATILE_INSTRUCTIONS = frozenset(
+# internal-function return terminators (subset of BB_TERMINATORS)
+RET_INSTRUCTIONS = frozenset(["ret", "dret", "retfmp"])
+
+# entry stack-slot naming instructions. `fmp_param` names the hidden FMP
+# slot and `retpc_param` the return-PC slot of the lowered internal calling
+# convention; all three assemble identically (they are names for values
+# already on the stack at function entry).
+PARAM_INSTRUCTIONS = frozenset(["param", "fmp_param", "retpc_param"])
+
+VOLATILE_INSTRUCTIONS = PARAM_INSTRUCTIONS | frozenset(
     [
-        "param",
         "call",
         "staticcall",
         "delegatecall",
@@ -40,6 +63,9 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "dloadbytes",
         "return",
         "ret",
+        "dret",
+        "retfmp",
+        "setfmp",
         "sink",
         "jmp",
         "jnz",
@@ -51,6 +77,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "assert",
         "assert_unreachable",
         "stop",
+        "dalloca",
     ]
 )
 
@@ -68,6 +95,9 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "extcodecopy",
         "return",
         "ret",
+        "dret",
+        "retfmp",
+        "setfmp",
         "sink",
         "revert",
         "assert",
@@ -174,6 +204,8 @@ class IRLiteral(IROperand):
     def __repr__(self) -> str:
         if abs(self.value) < 1024:
             return str(self.value)
+        if self.value < 0:
+            return f"-0x{abs(self.value):x}"
         return f"0x{self.value:x}"
 
 
@@ -238,6 +270,7 @@ class IRInstruction:
     annotation: Optional[str]
     ast_source: Optional[IRnode]
     error_msg: Optional[str]
+    memory_read_max_size: Optional[int]
 
     def __init__(
         self,
@@ -257,6 +290,9 @@ class IRInstruction:
 
         self.ast_source = None
         self.error_msg = None
+        # Optional frontend proof for dynamic memory reads. This is metadata,
+        # not an IR operand, so it cannot affect emitted code.
+        self.memory_read_max_size = None
 
     @property
     def is_volatile(self) -> bool:
@@ -284,7 +320,7 @@ class IRInstruction:
 
     @property
     def is_param(self) -> bool:
-        return self.opcode == "param"
+        return self.opcode in PARAM_INSTRUCTIONS
 
     @property
     def is_pseudo(self) -> bool:
@@ -360,6 +396,7 @@ class IRInstruction:
         self.opcode = "nop"
         self._outputs = []
         self.operands = []
+        self.memory_read_max_size = None
 
     def flip(self):
         """
@@ -418,10 +455,23 @@ class IRInstruction:
 
     @property
     def code_size_cost(self) -> int:
-        if self.opcode in ("ret", "param"):
+        if self.opcode in RET_INSTRUCTIONS or self.is_param:
             return 0
-        if self.opcode in ("assign", "palloca", "alloca", "calloca"):
+        if self.opcode in ("assign", "alloca", "getfmp", "setfmp"):
+            # getfmp/setfmp lower to assigns of the threaded FMP variable
             return 1
+        if self.opcode == "initial_fmp":
+            # Pure value: repeated initial_fmp instructions intentionally may
+            # CSE together. Lowers to PUSH {initial_fmp_value}; typical values
+            # fit in PUSH1 (2 bytes) but may grow for large static frames.
+            return 2
+        if self.opcode == "dalloca":
+            # `dalloca` is high-level sugar and is eliminated by FmpLoweringPass
+            # before assembly emission. The lowered generic form is:
+            #   PUSH1 31 + ADD, PUSH1 31 + NOT, AND, DUP2 + ADD
+            return 10
+        if self.opcode == "bump":
+            return 2  # DUP2 ADD
         return 2
 
     def get_ast_source(self) -> Optional[IRnode]:
@@ -438,6 +488,7 @@ class IRInstruction:
         ret.annotation = self.annotation
         ret.ast_source = self.ast_source
         ret.error_msg = self.error_msg
+        ret.memory_read_max_size = self.memory_read_max_size
         ret.parent = self.parent
         return ret
 
@@ -449,7 +500,7 @@ class IRInstruction:
         opcode = f"{self.opcode} " if self.opcode != "assign" else ""
         s += opcode
         operands = self.operands
-        if opcode not in ["jmp", "jnz", "djmp", "invoke"]:
+        if self.opcode not in ("jmp", "jnz", "djmp", "phi", "dret", "retfmp"):
             operands = list(reversed(operands))
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
         return s
@@ -464,7 +515,7 @@ class IRInstruction:
         operands = self.operands
         if self.opcode == "invoke":
             operands = [operands[0]] + list(reversed(operands[1:]))
-        elif self.opcode not in ("jmp", "jnz", "djmp", "phi"):
+        elif self.opcode not in ("jmp", "jnz", "djmp", "phi", "dret", "retfmp"):
             operands = reversed(operands)  # type: ignore
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
 
@@ -634,7 +685,7 @@ class IRBasicBlock:
             assert inst.parent == self  # sanity check
 
         def key(inst):
-            if inst.opcode in ("phi", "param"):
+            if inst.opcode == "phi" or inst.is_param:
                 return 0
             if inst.is_bb_terminator:
                 return 2
@@ -657,7 +708,7 @@ class IRBasicBlock:
     @property
     def param_instructions(self) -> Iterator[IRInstruction]:
         for inst in self.instructions:
-            if inst.opcode == "param":
+            if inst.is_param:
                 yield inst
             else:
                 return
@@ -727,13 +778,6 @@ class IRBasicBlock:
         if len(self.instructions) == 0:
             return False
         return self.instructions[-1].opcode in HALTING_TERMINATORS
-
-    def copy(self) -> IRBasicBlock:
-        bb = IRBasicBlock(self.label, self.parent)
-        bb.instructions = [inst.copy() for inst in self.instructions]
-        for inst in bb.instructions:
-            inst.parent = bb
-        return bb
 
     def __repr__(self) -> str:
         printer = ir_printer.get()

@@ -22,7 +22,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.compiler import compile_code
 from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.settings import OptimizationLevel, Settings, set_global_settings
-from vyper.exceptions import EvmVersionException
+from vyper.exceptions import EvmVersionException, StructureException
 from vyper.ir import compile_ir, optimizer
 from vyper.utils import keccak256
 
@@ -63,10 +63,17 @@ def pytest_addoption(parser):
 
 
 @pytest.fixture(scope="module")
-def output_formats():
+def output_formats(experimental_codegen):
     output_formats = compiler.OUTPUT_FORMATS.copy()
 
-    to_drop = ("bb", "bb_runtime", "cfg", "cfg_runtime", "archive", "archive_b64", "solc_json")
+    to_drop = ("cfg", "cfg_runtime", "archive", "archive_b64", "solc_json")
+    if experimental_codegen:
+        # venom bytecode does not derive from legacy IR; these formats run
+        # legacy codegen on the side, which cannot lower venom-only types
+        # (unbounded sequence types) and still panics on subscript overlaps
+        # that codegen_venom handles.
+        to_drop += ("ir_dict", "ir_runtime_dict")
+
     for s in to_drop:
         del output_formats[s]
 
@@ -93,27 +100,22 @@ def experimental_codegen(pytestconfig):
     return ret
 
 
-@pytest.fixture(autouse=True)
-def check_venom_xfail(request, experimental_codegen):
-    if not experimental_codegen:
-        return
-
-    marker = request.node.get_closest_marker("venom_xfail")
-    if marker is None:
-        return
-
-    # https://github.com/okken/pytest-runtime-xfail?tab=readme-ov-file#alternatives
-    request.node.add_marker(pytest.mark.xfail(strict=True, **marker.kwargs))
-
-
 @pytest.fixture
-def venom_xfail(request, experimental_codegen):
-    def _xfail(*args, **kwargs):
-        if not experimental_codegen:
-            return
-        request.node.add_marker(pytest.mark.xfail(*args, strict=True, **kwargs))
+def compile_inf_code(experimental_codegen):
+    """
+    Compile code that uses unbounded sequence types. Only venom can lower
+    them; legacy codegen rejects them at analysis time.
+    """
 
-    return _xfail
+    def _compile(code, **kwargs):
+        if experimental_codegen:
+            return compile_code(code, **kwargs)
+        with pytest.raises(StructureException) as e:
+            compile_code(code, **kwargs)
+        assert e.value.message == "unbounded sequence types require --experimental-codegen"
+        return None
+
+    return _compile
 
 
 @pytest.fixture(scope="session")
@@ -242,7 +244,7 @@ def env(gas_limit, evm_version, evm_backend, tracing, account_keys, exporter) ->
 def get_contract_from_ir(env, optimize):
     def ir_compiler(ir, *args, **kwargs):
         ir = IRnode.from_list(ir)
-        if kwargs.pop("optimize", optimize) != OptimizationLevel.NONE:
+        if not kwargs.pop("optimize", optimize).uses_lowering_only_ir():
             ir = optimizer.optimize(ir)
 
         assembly = compile_ir.compile_to_assembly(ir, optimize=optimize)
@@ -425,6 +427,22 @@ def pytest_fixture_setup(fixturedef: pytest.FixtureDef, request):
         return
 
     exporter.finalize_item(fixturedef)
+
+
+def pytest_runtest_setup(item):
+    marker = item.get_closest_marker("skip_at_optimization")
+    if marker is None:
+        return
+
+    assert marker.args, "skip_at_optimization requires at least one optimization level"
+    assert all(isinstance(level, OptimizationLevel) for level in marker.args)
+    assert set(marker.kwargs) == {"reason"}
+    reason = marker.kwargs["reason"]
+    assert isinstance(reason, str) and reason
+
+    level = OptimizationLevel.from_string(item.config.getoption("optimize"))
+    if level in marker.args:
+        pytest.skip(f"{reason}; skipped at --optimize {level}")
 
 
 @pytest.hookimpl(hookwrapper=True)

@@ -3,8 +3,13 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.evm.assembler.instructions import PUSHLABEL, Label
-from vyper.evm.assembler.optimizer import _merge_jumpdests
+from vyper.evm.assembler.instructions import CONST, CONSTREF, PUSH_OFST, PUSHLABEL, Label
+from vyper.evm.assembler.optimizer import (
+    _merge_jumpdests,
+    _prune_unreachable_code,
+    _prune_unused_consts,
+    optimize_assembly,
+)
 
 codes = [
     """
@@ -133,3 +138,48 @@ def test_merge_jumpdests():
     asm = [PUSHLABEL(Label("label_0")), "JUMP", "PUSH0", Label("label_0"), Label("_label_0")]
 
     assert _merge_jumpdests(asm) is False, "should not return True as no changes were made"
+
+
+def test_prune_unreachable_code_keeps_consts():
+    # CONST declarations produce no bytecode and can be referenced from
+    # reachable code, so they must not be pruned along with dead code
+    asm = ["REVERT", "PUSH0", CONST("some_const", 5), "PUSH0", Label("label_0")]
+
+    assert _prune_unreachable_code(asm) is True
+    assert asm == ["REVERT", CONST("some_const", 5), Label("label_0")]
+
+    assert _prune_unreachable_code(asm) is False, "should not return True as no changes were made"
+
+
+def test_prune_unused_consts():
+    asm = [CONST("used", 5), CONST("unused", 6), PUSH_OFST(CONSTREF("used"), 0), Label("label_0")]
+
+    assert _prune_unused_consts(asm) is True
+    assert asm == [CONST("used", 5), PUSH_OFST(CONSTREF("used"), 0), Label("label_0")]
+
+    assert _prune_unused_consts(asm) is False, "should not return True as no changes were made"
+
+
+def test_dead_consts_are_pruned():
+    # a CONST declared in unreachable code survives dead code elimination if
+    # reachable code still refers to it, and is removed otherwise
+    asm = [
+        PUSHLABEL(Label("label_0")),
+        "JUMP",
+        CONST("used", 5),
+        CONST("unused", 6),
+        Label("label_0"),
+        PUSH_OFST(CONSTREF("used"), 0),
+        "STOP",
+    ]
+
+    optimize_assembly(asm)
+
+    assert asm == [
+        PUSHLABEL(Label("label_0")),
+        "JUMP",
+        CONST("used", 5),
+        Label("label_0"),
+        PUSH_OFST(CONSTREF("used"), 0),
+        "STOP",
+    ]

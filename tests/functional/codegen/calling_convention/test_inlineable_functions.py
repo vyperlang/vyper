@@ -1,6 +1,7 @@
 """
 Test functionality of internal functions which may be inlined
 """
+
 # note for refactor: this may be able to be merged with
 # calling_convention/test_internal_call.py
 

@@ -14,8 +14,17 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 
-from .evaluators import EVAL_DISPATCH
+from .evaluators import eval_op
 from .value_range import SIGNED_MAX, SIGNED_MIN, UNSIGNED_MAX, RangeState, ValueRange
+
+
+def _operand_range(operand: IROperand, env: RangeState) -> ValueRange:
+    """Convert an IR operand to its ValueRange using the current environment."""
+    if isinstance(operand, IRLiteral):
+        return ValueRange.constant(wrap256(operand.value, signed=True))
+    if isinstance(operand, IRVariable):
+        return env.get(operand, ValueRange.top())
+    return ValueRange.top()
 
 
 class VariableRangeAnalysis(IRAnalysis):
@@ -126,14 +135,36 @@ class VariableRangeAnalysis(IRAnalysis):
     def _evaluate_inst(self, inst: IRInstruction, env: RangeState) -> ValueRange:
         """
         Return the resulting range for an instruction.
+        Converts IR operands to ranges, then delegates to eval_op.
         Unknown opcodes conservatively return TOP.
         """
         opcode = inst.opcode
 
-        handler = EVAL_DISPATCH.get(opcode)
-        if handler is None:
+        if opcode == "assign":
+            return _operand_range(inst.operands[-1], env)
+
+        if len(inst.operands) == 0:
             return ValueRange.top()
-        return handler(inst, env)
+
+        if len(inst.operands) == 1:
+            # Unary: pass lhs only, rhs is ignored by eval_op
+            lhs = _operand_range(inst.operands[-1], env)
+            return eval_op(opcode, lhs, ValueRange.top())
+
+        first_op, second_op = inst.operands[-1], inst.operands[-2]
+        lhs = _operand_range(first_op, env)
+        rhs = _operand_range(second_op, env)
+
+        # Self-xor: IR-level variable identity check
+        if (
+            opcode == "xor"
+            and isinstance(first_op, IRVariable)
+            and isinstance(second_op, IRVariable)
+            and first_op == second_op
+        ):
+            return ValueRange.empty() if lhs.is_empty else ValueRange.constant(0)
+
+        return eval_op(opcode, lhs, rhs)
 
     def _phi_range(self, inst: IRInstruction) -> ValueRange:
         assert inst.opcode == "phi"
@@ -237,7 +268,7 @@ class VariableRangeAnalysis(IRAnalysis):
             else:
                 # Range is entirely non-negative, intersect with [1, UNSIGNED_MAX]
                 # Write even if empty (BOTTOM) - means false branch is unreachable
-                nonzero_range = ValueRange((1, UNSIGNED_MAX))
+                nonzero_range = ValueRange.iv(1, UNSIGNED_MAX)
                 new_range = current.intersect(nonzero_range)
                 self._write_range(state, target, new_range)
         return state

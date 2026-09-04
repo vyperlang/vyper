@@ -166,6 +166,20 @@ def test_ternary_simple(get_contract, code, test, inputs):
     assert c.foo(test, x, y) == (x if test else y)
 
 
+@pytest.mark.parametrize("test", [True, False])
+def test_ternary_dynarray_subscript(get_contract, test):
+    code = """
+@external
+def foo(t: bool, a: DynArray[uint256, 3], b: DynArray[uint256, 3]) -> uint256:
+    return (a if t else b)[0]
+    """
+    c = get_contract(code)
+
+    a = [11, 22]
+    b = [33, 44]
+    assert c.foo(test, a, b) == (a if test else b)[0]
+
+
 tuple_codes = [
     """
 @external
@@ -197,7 +211,7 @@ def test_ternary_immutable(get_contract, test):
 IMM: public(immutable(uint256))
 @deploy
 def __init__(test: bool):
-    IMM = 1 if test else 2
+    self.IMM = 1 if test else 2
     """
     c = get_contract(code, test)
 
@@ -278,3 +292,82 @@ def foo(t: bool):
     else:
         assert c.track_taint_x() == 0
         assert c.track_taint_y() == 1
+
+
+def test_venom_ternary_with_memory_allocation(get_contract):
+    source = """
+buf: Bytes[10]
+
+@external
+def foo() -> Bytes[10]:
+    x: bool = True
+    self.buf = concat(b"\\x01", b"\\x02") if x else b""
+    return self.buf
+    """
+
+    c = get_contract(source)
+    assert c.foo() == b"\x01\x02"
+
+
+@pytest.mark.parametrize("test", [True, False])
+def test_ternary_as_internal_call_argument(get_contract, test):
+    code = """
+@internal
+def _echo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    return xs
+
+@external
+def direct(c: bool, a: DynArray[uint256, 5], b: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    return self._echo(a if c else b)
+
+@external
+def via_local(
+    c: bool, a: DynArray[uint256, 5], b: DynArray[uint256, 5]
+) -> DynArray[uint256, 5]:
+    xs: DynArray[uint256, 5] = a if c else b
+    return self._echo(xs)
+    """
+    c = get_contract(code)
+    a = [1, 2]
+    b = [3, 4, 5]
+    expected = a if test else b
+    assert c.direct(test, a, b) == expected
+    assert c.via_local(test, a, b) == expected
+
+
+@pytest.mark.parametrize("test", [True, False])
+def test_ternary_as_external_call_argument(get_contract, test):
+    code = """
+interface Echo:
+    def echo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]: view
+
+@external
+def echo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    return xs
+
+@external
+def foo(c: bool, a: DynArray[uint256, 5], b: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    return staticcall Echo(self).echo(a if c else b)
+    """
+    c = get_contract(code)
+    a = [1, 2]
+    b = [3, 4, 5]
+    assert c.foo(test, a, b) == (a if test else b)
+
+
+@pytest.mark.parametrize("test", [True, False])
+def test_ternary_as_event_argument(get_contract, get_logs, test):
+    code = """
+event Picked:
+    xs: DynArray[uint256, 5]
+
+@external
+def foo(c: bool, a: DynArray[uint256, 5], b: DynArray[uint256, 5]):
+    log Picked(xs=a if c else b)
+    """
+    c = get_contract(code)
+    a = [1, 2]
+    b = [3, 4, 5]
+    c.foo(test, a, b)
+    (log,) = get_logs(c, "Picked")
+    assert log.args.xs == (a if test else b)

@@ -2,6 +2,7 @@ import json
 from typing import Optional
 
 from lark import Lark, Transformer
+from lark.exceptions import VisitError
 
 from vyper.venom.basicblock import (
     IRBasicBlock,
@@ -12,7 +13,7 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import DataItem, DataSection, IRContext
-from vyper.venom.function import IRFunction
+from vyper.venom.function import FmpSignature, IRFunction
 
 VENOM_GRAMMAR = """
     %import common.DIGIT
@@ -29,7 +30,11 @@ VENOM_GRAMMAR = """
 
     start: function* data_segment?
 
-    function: "function" func_name "{" block_content "}"
+    function: "function" func_name annotations? "{" block_content "}"
+
+    annotations: "[" annotation ("," annotation)* "]"
+
+    annotation: IDENT ("=" CONST)?
 
     block_content: (label_decl | statement)*
 
@@ -61,7 +66,7 @@ VENOM_GRAMMAR = """
     DOUBLE_QUOTE: "\\""
     IDENT: (DIGIT|LETTER|"_")+
     HEXSTR: "x" DOUBLE_QUOTE (HEXDIGIT|"_")+ DOUBLE_QUOTE
-    CONST: SIGNED_INT | "0x" HEXDIGIT+
+    CONST: SIGNED_INT | "-"? "0x" HEXDIGIT+
 
     %ignore WS
     %ignore COMMENT
@@ -90,6 +95,64 @@ def _set_last_label(ctx: IRContext):
                 ctx.last_label = max(int(label_head), ctx.last_label)
 
 
+# the calling convention is carried only by syntax (opcodes) and the
+# explicit function-header annotation -- there is no shape inference.
+_KNOWN_FLAG_ANNOTATIONS = frozenset(["fmp_lowered", "fmp_publishes", "noinline"])
+# annotations of the form `name=<int>`
+_KNOWN_VALUED_ANNOTATIONS = frozenset(["eom"])
+
+
+def _apply_annotations(fn: IRFunction, annotations: Optional[list[tuple[str, Optional[int]]]]):
+    """
+    Apply function-header annotations and reconstruct the FMP signature from
+    its annotations and the `fmp_param` opcode.
+    """
+    if annotations is None:
+        return
+
+    attrs: dict[str, Optional[int]] = {}
+    for attr, value in annotations:
+        if attr in attrs:
+            raise ValueError(f"duplicate function annotation `{attr}` on {fn.name}")
+        if attr in _KNOWN_FLAG_ANNOTATIONS:
+            if value is not None:
+                raise ValueError(f"function annotation `{attr}` takes no value on {fn.name}")
+        elif attr in _KNOWN_VALUED_ANNOTATIONS:
+            if value is None:
+                raise ValueError(f"function annotation `{attr}` requires a value on {fn.name}")
+        else:
+            raise ValueError(f"unknown function annotation `{attr}` on {fn.name}")
+        attrs[attr] = value
+
+    fn.noinline = "noinline" in attrs
+
+    eom = attrs.get("eom")
+    if eom is not None:
+        # end of the function's static frame. Not recoverable from the
+        # instruction stream once allocas have been concretized, but codegen
+        # needs it to place spill slots above the frame, so it has to survive
+        # the round trip (see StackSpiller._get_spill_slot).
+        if eom < 0:
+            raise ValueError(f"negative `eom` annotation on {fn.name}")
+        fn.ctx.mem_allocator.fn_eom[fn] = eom
+
+    if "fmp_lowered" not in attrs:
+        if "fmp_publishes" in attrs:
+            raise ValueError(f"`fmp_publishes` requires `fmp_lowered` on {fn.name}")
+        if "eom" in attrs:
+            # `eom` is only meaningful once the function is fully lowered;
+            # otherwise ConcretizeMemLocPass would rerun and clobber it
+            # (see ConcretizeMemLocPass._is_already_concretized).
+            raise ValueError(f"`eom` requires `fmp_lowered` on {fn.name}")
+        return
+
+    publishes = "fmp_publishes" in attrs
+    has_fmp_param = any(
+        inst.opcode == "fmp_param" for bb in fn.get_basic_blocks() for inst in bb.instructions
+    )
+    fn._fmp_signature = FmpSignature(has_fmp_param=has_fmp_param, publishes=publishes)
+
+
 def _unescape(s: str) -> str:
     """
     Unescape the escaped string. This is the inverse of `IRLabel.__repr__()`.
@@ -115,6 +178,13 @@ class _LabelDecl:
         self.label = label
 
 
+class _Annotations(list):
+    """
+    Represents a function-header annotation list in the parse tree, as
+    (name, value) pairs. `value` is None for flag-style annotations.
+    """
+
+
 class VenomTransformer(Transformer):
     def start(self, children) -> IRContext:
         ctx = IRContext()
@@ -122,7 +192,7 @@ class VenomTransformer(Transformer):
             ctx.data_segment = children.pop().children
 
         funcs = children
-        for fn_name, items in funcs:
+        for fn_name, annotations, items in funcs:
             fn = ctx.create_function(fn_name)
             if ctx.entry_function is None:
                 ctx.entry_function = fn
@@ -162,14 +232,28 @@ class VenomTransformer(Transformer):
                     bb.insert_instruction(instruction)
 
             _set_last_var(fn)
+            _apply_annotations(fn, annotations)
         _set_last_label(ctx)
 
         return ctx
 
-    def function(self, children) -> tuple[str, list]:
+    def function(self, children) -> tuple[str, Optional[list[str]], list]:
         name = children[0]
-        block_content = children[1]  # this is the block_content node
-        return name, block_content
+        annotations: Optional[_Annotations] = None
+        if isinstance(children[1], _Annotations):
+            annotations = children[1]
+            block_content = children[2]
+        else:
+            block_content = children[1]  # this is the block_content node
+        return name, annotations, block_content
+
+    def annotations(self, children) -> _Annotations:
+        return _Annotations(children)
+
+    def annotation(self, children) -> tuple[str, Optional[int]]:
+        name = str(children[0])
+        value = int(str(children[1]), 0) if len(children) > 1 else None
+        return name, value
 
     def block_content(self, children) -> list:
         # children contains label_decls and statements
@@ -259,7 +343,7 @@ class VenomTransformer(Transformer):
             # invoke <target> <stack arguments>
             operands = [operands[0]] + list(reversed(operands[1:]))
         # special cases: operands with labels look better un-reversed
-        elif opcode not in ("jmp", "jnz", "djmp", "phi"):
+        elif opcode not in ("jmp", "jnz", "djmp", "phi", "dret", "retfmp"):
             operands.reverse()
         return IRInstruction(opcode, operands)
 
@@ -288,7 +372,10 @@ class VenomTransformer(Transformer):
         return IRVariable(var_ident[1:])
 
     def CONST(self, val) -> IRLiteral:
-        if str(val).startswith("0x"):
+        val = str(val)
+        if val.startswith("-0x"):
+            return IRLiteral(-int(val[1:], 16))
+        if val.startswith("0x"):
             return IRLiteral(int(val, 16))
         return IRLiteral(int(val))
 
@@ -301,6 +388,13 @@ class VenomTransformer(Transformer):
 
 def parse_venom(source: str) -> IRContext:
     tree = VENOM_PARSER.parse(source)
-    ctx = VenomTransformer().transform(tree)
+    try:
+        ctx = VenomTransformer().transform(tree)
+    except VisitError as e:
+        if isinstance(e.orig_exc, ValueError):
+            # unwrap our own validation errors (e.g. bad function
+            # annotations) from lark's transformer wrapper
+            raise e.orig_exc from None
+        raise
     assert isinstance(ctx, IRContext)  # help mypy
     return ctx

@@ -82,6 +82,6 @@ def test_labels_as_variables():
 
     opt_level = OptimizationLevel.default()
     flags = VenomOptimizationFlags(level=opt_level)
-    run_passes_on(ctx, flags)
+    run_passes_on(ctx, flags, disable_mem_checks=True)
     asm = generate_assembly_experimental(ctx)
     generate_bytecode(asm)

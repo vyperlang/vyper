@@ -17,14 +17,19 @@ from vyper.compiler.settings import (
     should_run_legacy_optimizer,
 )
 from vyper.ir import compile_ir, optimizer
-from vyper.semantics import analyze_module, set_data_positions, validate_compilation_target
+from vyper.semantics import (
+    analyze_modules,
+    set_data_positions,
+    validate_compilation_target,
+    validate_legacy_codegen_target,
+)
 from vyper.semantics.analysis.data_positions import generate_layout_export
 from vyper.semantics.analysis.imports import resolve_imports
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
 from vyper.utils import ERC5202_PREFIX, sha256sum
-from vyper.venom import DeployInfo, generate_assembly_experimental, generate_venom
+from vyper.venom import generate_assembly_experimental
 from vyper.warnings import VyperWarning, vyper_warn
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
@@ -187,10 +192,10 @@ class CompilerData:
 
     @cached_property
     def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
-        module = self._resolve_imports[0]
-        analyze_module(module)
-        nspec = natspec.parse_natspec(module)
-        return nspec, module
+        root_module, imports, _ = self._resolve_imports
+        analyze_modules(imports)
+        nspec = natspec.parse_natspec(root_module)
+        return nspec, root_module
 
     @cached_property
     def natspec(self) -> natspec.NatspecOutput:
@@ -208,7 +213,7 @@ class CompilerData:
         """
         module_t = self.annotated_vyper_module._metadata["type"]
 
-        validate_compilation_target(module_t)
+        validate_compilation_target(module_t, self.settings.experimental_codegen is True)
         return self.annotated_vyper_module
 
     @cached_property
@@ -231,6 +236,13 @@ class CompilerData:
 
     @cached_property
     def _ir_output(self):
+        if self.settings.experimental_codegen:
+            # legacy IR is still reachable under venom through the `ir_dict`
+            # outputs. legacy codegen cannot lower venom-only types, so
+            # reject them with a diagnostic instead of panicking in codegen.
+            validate_legacy_codegen_target(
+                self.global_ctx, "legacy IR output does not support unbounded sequence types"
+            )
         # fetch both deployment and runtime IR
         return generate_ir_nodes(self.global_ctx, self.settings)
 
@@ -246,33 +258,32 @@ class CompilerData:
 
     @property
     def function_signatures(self) -> dict[str, ContractFunctionT]:
-        # some metadata gets calculated during codegen, so
-        # ensure codegen is run:
-        _ = self._ir_output
+        # Some metadata gets calculated during codegen, so ensure codegen is
+        # run for contracts. Interfaces have no function bodies to generate.
+        if not self.annotated_vyper_module.is_interface:
+            if self.settings.experimental_codegen:
+                _ = self.venom_runtime
+            else:
+                _ = self._ir_output
 
         fs = self.annotated_vyper_module.get_children(vy_ast.FunctionDef)
         return {f.name: f._metadata["func_type"] for f in fs}
 
     @cached_property
     def venom_runtime(self):
-        runtime_venom = generate_venom(self.ir_runtime, self.settings)
-        return runtime_venom
+        assert self.settings.experimental_codegen
+        from vyper.codegen_venom import generate_venom_runtime
+
+        return generate_venom_runtime(self.global_ctx, self.settings)
 
     @cached_property
     def venom_deploytime(self):
-        data_sections = {"runtime_begin": self.bytecode_runtime}
-        if self.bytecode_metadata is not None:
-            data_sections["cbor_metadata"] = self.bytecode_metadata
+        assert self.settings.experimental_codegen
+        from vyper.codegen_venom import generate_venom_deploy
 
-        deploy_info = DeployInfo(
-            runtime_codesize=len(self.bytecode_runtime),
-            immutables_len=self.compilation_target._metadata["type"].immutable_section_bytes,
+        return generate_venom_deploy(
+            self.global_ctx, self.settings, self.bytecode_runtime, self.bytecode_metadata
         )
-
-        venom_ctx = generate_venom(
-            self.ir_nodes, self.settings, data_sections=data_sections, deploy_info=deploy_info
-        )
-        return venom_ctx
 
     @cached_property
     def assembly(self) -> list:

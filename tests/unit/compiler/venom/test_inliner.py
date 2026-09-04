@@ -1,6 +1,8 @@
 from tests.venom_utils import parse_venom
 from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis.fcg import FCGGlobalAnalysis
+from vyper.venom.basicblock import IRLabel
 from vyper.venom.check_venom import check_venom_ctx
 from vyper.venom.passes import FunctionInlinerPass, SimplifyCFGPass
 
@@ -109,3 +111,95 @@ def test_inliner_phi_invalidation_inner():
         SimplifyCFGPass(ac, fn).run_pass()
 
     check_venom_ctx(ctx)
+
+
+def test_fcg_analysis_remains_requestable_from_function_cache():
+    src = """
+    function main {
+    main:
+        invoke @callee
+        stop
+    }
+
+    function callee {
+    callee:
+        %retpc = param
+        ret %retpc
+    }
+    """
+
+    ctx = parse_venom(src)
+    assert ctx.entry_function is not None
+
+    fcg = IRAnalysesCache(ctx.entry_function).force_analysis(FCGGlobalAnalysis)
+
+    assert fcg.get_callees(ctx.entry_function).first() == ctx.get_function(IRLabel("callee"))
+
+
+def test_inliner_preserves_memory_read_max_size():
+    src = """
+    function main {
+    main:
+        %dst = alloca 64
+        %src = alloca 64
+        %size = 64
+        invoke @callee, %dst, %src, %size
+        stop
+    }
+
+    function callee {
+    callee:
+        %dst = param
+        %src = param
+        %size = param
+        %retpc = param
+        mcopy %dst, %src, %size
+        ret %retpc
+    }
+    """
+
+    ctx = parse_venom(src)
+    callee = ctx.get_function(IRLabel("callee"))
+    original_copy = next(inst for inst in callee.entry.instructions if inst.opcode == "mcopy")
+    original_copy.memory_read_max_size = 64
+
+    analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
+    flags = VenomOptimizationFlags(level=OptimizationLevel.CODESIZE)
+    FunctionInlinerPass(analyses, ctx, flags).run_pass()
+
+    main = ctx.get_function(IRLabel("main"))
+    inlined_copy = next(
+        inst for bb in main.get_basic_blocks() for inst in bb.instructions if inst.opcode == "mcopy"
+    )
+    assert inlined_copy.memory_read_max_size == 64
+
+
+def test_noinline_annotation():
+    src = """
+    function main {
+    main:
+        %1 = invoke @f
+        sink %1
+    }
+
+    function f [noinline] {
+    f:
+        %retpc = param
+        %1 = 42
+        ret %1, %retpc
+    }
+    """
+
+    flags = VenomOptimizationFlags(level=OptimizationLevel.CODESIZE)
+
+    def run_inliner(source):
+        ctx = parse_venom(source)
+        analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
+        FunctionInlinerPass(analyses, ctx, flags).run_pass()
+        return ctx
+
+    # a single call site would otherwise always be inlined
+    assert IRLabel("f") in run_inliner(src).functions
+
+    # sanity check: without the annotation, the function gets inlined
+    assert IRLabel("f") not in run_inliner(src.replace(" [noinline]", "")).functions

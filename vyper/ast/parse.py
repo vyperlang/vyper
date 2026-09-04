@@ -261,11 +261,10 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         return node
 
-    def _visit_docstring(self, node):
+    def _extract_docstring(self, node):
         """
         Move a node docstring from body to `doc_string` and annotate it as `DocStr`.
         """
-        self.generic_visit(node)
 
         if node.body:
             n = node.body[0]
@@ -278,8 +277,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                 n.value.ast_type = "DocStr"
                 del node.body[0]
                 node.doc_string = n.value
-
-        return node
 
     def visit_Module(self, node):
         node.lineno = 1
@@ -297,10 +294,15 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         node.resolved_path = self._resolved_path
         node.source_sha256sum = sha256sum(self._source_code)
         node.source_id = self._source_id
-        return self._visit_docstring(node)
+
+        self.generic_visit(node)
+        self._extract_docstring(node)
+        return node
 
     def visit_FunctionDef(self, node):
-        return self._visit_docstring(node)
+        self.generic_visit(node)
+        self._extract_docstring(node)
+        return node
 
     def visit_ClassDef(self, node):
         """
@@ -324,6 +326,14 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         annotation_tokens = self._pre_parser.for_loop_annotations.pop(key)
 
         if not annotation_tokens:
+            if not isinstance(node.target, python_ast.Name):
+                raise SyntaxException(
+                    "invalid for loop syntax: not a name",
+                    self._source_code,
+                    node.target.lineno,
+                    node.target.col_offset,
+                )
+
             # a common case for people migrating to 0.4.0, provide a more
             # specific error message than "invalid type annotation"
             raise SyntaxException(
@@ -401,6 +411,13 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
     def visit_Await(self, node):
         start_pos = node.lineno, node.col_offset
         self.generic_visit(node)
+        if start_pos not in self._pre_parser.keyword_translations:
+            raise SyntaxException(
+                "The `await` keyword is not allowed.",
+                self._source_code,
+                node.lineno,
+                node.col_offset,
+            )
         node.ast_type = self._pre_parser.keyword_translations[start_pos]
         return node
 
@@ -487,6 +504,9 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         # modify vyper AST type according to the format of the literal value
         self.generic_visit(node)
         value = node.node_source_code
+
+        # ignore underscores in numeric literals (PEP 515)
+        value = value.replace("_", "")
 
         # deduce non base-10 types based on prefix
         if value.lower()[:2] == "0x":
