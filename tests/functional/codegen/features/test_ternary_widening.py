@@ -23,26 +23,26 @@ def via_return(
 
 @external
 def via_local_flipped(
-    c: bool, a: DynArray[Bytes[10], 5], b: DynArray[Bytes[512], 5]
+    c: bool, a: DynArray[Bytes[512], 5], b: DynArray[Bytes[10], 5]
 ) -> DynArray[Bytes[512], 5]:
-    ys: DynArray[Bytes[512], 5] = b if c else a
+    ys: DynArray[Bytes[512], 5] = a if c else b
     return ys
 
 @external
 def via_return_flipped(
-    c: bool, a: DynArray[Bytes[10], 5], b: DynArray[Bytes[512], 5]
+    c: bool, a: DynArray[Bytes[512], 5], b: DynArray[Bytes[10], 5]
 ) -> DynArray[Bytes[512], 5]:
-    return b if c else a
+    return a if c else b
     """
     c = get_contract(code)
     assert c.via_local(True, SHORT, LONG) == SHORT
     assert c.via_local(False, SHORT, LONG) == LONG
     assert c.via_return(True, SHORT, LONG) == SHORT
     assert c.via_return(False, SHORT, LONG) == LONG
-    assert c.via_local_flipped(True, SHORT, LONG) == LONG
-    assert c.via_local_flipped(False, SHORT, LONG) == SHORT
-    assert c.via_return_flipped(True, SHORT, LONG) == LONG
-    assert c.via_return_flipped(False, SHORT, LONG) == SHORT
+    assert c.via_local_flipped(True, LONG, SHORT) == LONG
+    assert c.via_local_flipped(False, LONG, SHORT) == SHORT
+    assert c.via_return_flipped(True, LONG, SHORT) == LONG
+    assert c.via_return_flipped(False, LONG, SHORT) == SHORT
 
 
 def test_dynarray_arms_of_different_widths(get_contract):
@@ -55,17 +55,17 @@ def foo(
 
 @external
 def flipped(
-    c: bool, a: DynArray[Bytes[10], 4], b: DynArray[Bytes[40], 4]
+    c: bool, a: DynArray[Bytes[40], 4], b: DynArray[Bytes[10], 4]
 ) -> DynArray[Bytes[512], 4]:
-    return b if c else a
+    return a if c else b
     """
     a = [b"a", b"0123456789", b"", b"xyz"]
     b = [b"q" * 40, b"", b"0123456789" * 4]
     c = get_contract(code)
     assert c.foo(True, a, b) == a
     assert c.foo(False, a, b) == b
-    assert c.flipped(True, a, b) == b
-    assert c.flipped(False, a, b) == a
+    assert c.flipped(True, b, a) == b
+    assert c.flipped(False, b, a) == a
 
 
 def test_nested_dynarray_widening(get_contract):
@@ -78,17 +78,17 @@ def foo(
 
 @external
 def flipped(
-    c: bool, a: DynArray[DynArray[uint256, 2], 3], b: DynArray[DynArray[uint256, 4], 3]
+    c: bool, a: DynArray[DynArray[uint256, 4], 3], b: DynArray[DynArray[uint256, 2], 3]
 ) -> DynArray[DynArray[uint256, 4], 3]:
-    return b if c else a
+    return a if c else b
     """
     a = [[1, 2], [], [3]]
     b = [[4, 5, 6, 7], [8]]
     c = get_contract(code)
     assert c.foo(True, a, b) == a
     assert c.foo(False, a, b) == b
-    assert c.flipped(True, a, b) == b
-    assert c.flipped(False, a, b) == a
+    assert c.flipped(True, b, a) == b
+    assert c.flipped(False, b, a) == a
 
 
 def test_dynarray_string_widening(get_contract):
@@ -102,9 +102,9 @@ def foo(
 
 @external
 def flipped(
-    c: bool, a: DynArray[String[5], 3], b: DynArray[String[100], 3]
+    c: bool, a: DynArray[String[100], 3], b: DynArray[String[5], 3]
 ) -> DynArray[String[100], 3]:
-    ys: DynArray[String[100], 3] = b if c else a
+    ys: DynArray[String[100], 3] = a if c else b
     return ys
     """
     a = ["hello", "", "hi"]
@@ -112,8 +112,8 @@ def flipped(
     c = get_contract(code)
     assert c.foo(True, a, b) == a
     assert c.foo(False, a, b) == b
-    assert c.flipped(True, a, b) == b
-    assert c.flipped(False, a, b) == a
+    assert c.flipped(True, b, a) == b
+    assert c.flipped(False, b, a) == a
 
 
 def test_static_array_of_dynarray_widening(get_contract):
@@ -126,17 +126,17 @@ def foo(
 
 @external
 def flipped(
-    c: bool, a: DynArray[uint256, 2][2], b: DynArray[uint256, 4][2]
+    c: bool, a: DynArray[uint256, 4][2], b: DynArray[uint256, 2][2]
 ) -> DynArray[uint256, 4][2]:
-    return b if c else a
+    return a if c else b
     """
     a = [[1, 2], [3]]
     b = [[4, 5, 6, 7], [8]]
     c = get_contract(code)
     assert c.foo(True, a, b) == a
     assert c.foo(False, a, b) == b
-    assert c.flipped(True, a, b) == b
-    assert c.flipped(False, a, b) == a
+    assert c.flipped(True, b, a) == b
+    assert c.flipped(False, b, a) == a
 
 
 def _ternaries(ir_node, source):
@@ -193,12 +193,12 @@ def bar(c: bool, a: String[3], b: String[64]) -> String[64]:
     return s
 
 @external
-def foo_flipped(c: bool, a: Bytes[10], b: Bytes[20]) -> Bytes[20]:
-    return b if c else a
+def foo_flipped(c: bool, a: Bytes[20], b: Bytes[10]) -> Bytes[20]:
+    return a if c else b
 
 @external
-def bar_flipped(c: bool, a: String[3], b: String[64]) -> String[64]:
-    s: String[64] = b if c else a
+def bar_flipped(c: bool, a: String[64], b: String[3]) -> String[64]:
+    s: String[64] = a if c else b
     return s
     """
     c = get_contract(code)
@@ -206,10 +206,10 @@ def bar_flipped(c: bool, a: String[3], b: String[64]) -> String[64]:
     assert c.foo(False, b"0123456789", b"x" * 20) == b"x" * 20
     assert c.bar(True, "abc", "y" * 64) == "abc"
     assert c.bar(False, "abc", "y" * 64) == "y" * 64
-    assert c.foo_flipped(True, b"0123456789", b"x" * 20) == b"x" * 20
-    assert c.foo_flipped(False, b"0123456789", b"x" * 20) == b"0123456789"
-    assert c.bar_flipped(True, "abc", "y" * 64) == "y" * 64
-    assert c.bar_flipped(False, "abc", "y" * 64) == "abc"
+    assert c.foo_flipped(True, b"x" * 20, b"0123456789") == b"x" * 20
+    assert c.foo_flipped(False, b"x" * 20, b"0123456789") == b"0123456789"
+    assert c.bar_flipped(True, "y" * 64, "abc") == "y" * 64
+    assert c.bar_flipped(False, "y" * 64, "abc") == "abc"
 
 
 def test_ternary_as_event_argument(get_contract, get_logs):
@@ -222,8 +222,8 @@ def foo(c: bool, a: DynArray[Bytes[10], 5], b: DynArray[Bytes[512], 5]):
     log Picked(xs=a if c else b)
 
 @external
-def flipped(c: bool, a: DynArray[Bytes[10], 5], b: DynArray[Bytes[512], 5]):
-    log Picked(xs=b if c else a)
+def flipped(c: bool, a: DynArray[Bytes[512], 5], b: DynArray[Bytes[10], 5]):
+    log Picked(xs=a if c else b)
     """
     c = get_contract(code)
 
@@ -235,11 +235,11 @@ def flipped(c: bool, a: DynArray[Bytes[10], 5], b: DynArray[Bytes[512], 5]):
     (log,) = get_logs(c, "Picked")
     assert log.args.xs == LONG
 
-    c.flipped(True, SHORT, LONG)
+    c.flipped(True, LONG, SHORT)
     (log,) = get_logs(c, "Picked")
     assert log.args.xs == LONG
 
-    c.flipped(False, SHORT, LONG)
+    c.flipped(False, LONG, SHORT)
     (log,) = get_logs(c, "Picked")
     assert log.args.xs == SHORT
 
@@ -265,24 +265,24 @@ def from_locals(c: bool, a: Bytes[10], b: Bytes[40]) -> (Bytes[40], uint256):
     return x if c else y
 
 @external
-def from_calls_flipped(c: bool, a: Bytes[10], b: Bytes[40]) -> (Bytes[40], uint256):
-    return self._long(b) if c else self._short(a)
+def from_calls_flipped(c: bool, a: Bytes[40], b: Bytes[10]) -> (Bytes[40], uint256):
+    return self._long(a) if c else self._short(b)
 
 @external
-def from_locals_flipped(c: bool, a: Bytes[10], b: Bytes[40]) -> (Bytes[40], uint256):
-    x: (Bytes[10], uint256) = (a, 1)
-    y: (Bytes[40], uint256) = (b, 2)
-    return y if c else x
+def from_locals_flipped(c: bool, a: Bytes[40], b: Bytes[10]) -> (Bytes[40], uint256):
+    x: (Bytes[40], uint256) = (a, 2)
+    y: (Bytes[10], uint256) = (b, 1)
+    return x if c else y
     """
     c = get_contract(code)
     assert c.from_calls(True, b"abc", b"x" * 40) == (b"abc", 1)
     assert c.from_calls(False, b"abc", b"x" * 40) == (b"x" * 40, 2)
     assert c.from_locals(True, b"abc", b"x" * 40) == (b"abc", 1)
     assert c.from_locals(False, b"abc", b"x" * 40) == (b"x" * 40, 2)
-    assert c.from_calls_flipped(True, b"abc", b"x" * 40) == (b"x" * 40, 2)
-    assert c.from_calls_flipped(False, b"abc", b"x" * 40) == (b"abc", 1)
-    assert c.from_locals_flipped(True, b"abc", b"x" * 40) == (b"x" * 40, 2)
-    assert c.from_locals_flipped(False, b"abc", b"x" * 40) == (b"abc", 1)
+    assert c.from_calls_flipped(True, b"x" * 40, b"abc") == (b"x" * 40, 2)
+    assert c.from_calls_flipped(False, b"x" * 40, b"abc") == (b"abc", 1)
+    assert c.from_locals_flipped(True, b"x" * 40, b"abc") == (b"x" * 40, 2)
+    assert c.from_locals_flipped(False, b"x" * 40, b"abc") == (b"abc", 1)
 
 
 def test_tuple_with_unbounded_member_ternary(get_contract, experimental_codegen):
@@ -306,9 +306,9 @@ def whole(
 
 @external
 def whole_flipped(
-    c: bool, a: DynArray[Bytes[10], 5], b: DynArray[Bytes[512], 5]
+    c: bool, a: DynArray[Bytes[512], 5], b: DynArray[Bytes[10], 5]
 ) -> (DynArray[uint256, INF], DynArray[Bytes[512], 5]):
-    return self._long(b) if c else self._short(a)
+    return self._long(a) if c else self._short(b)
 
 @external
 def member(
@@ -318,19 +318,19 @@ def member(
 
 @external
 def member_flipped(
-    c: bool, a: DynArray[Bytes[10], 5], b: DynArray[Bytes[512], 5]
+    c: bool, a: DynArray[Bytes[512], 5], b: DynArray[Bytes[10], 5]
 ) -> DynArray[Bytes[512], 5]:
-    return (self._long(b) if c else self._short(a))[1]
+    return (self._long(a) if c else self._short(b))[1]
     """
     c = get_contract(code)
     assert c.whole(True, SHORT, LONG) == ([1, 2], SHORT)
     assert c.whole(False, SHORT, LONG) == ([3], LONG)
-    assert c.whole_flipped(True, SHORT, LONG) == ([3], LONG)
-    assert c.whole_flipped(False, SHORT, LONG) == ([1, 2], SHORT)
+    assert c.whole_flipped(True, LONG, SHORT) == ([3], LONG)
+    assert c.whole_flipped(False, LONG, SHORT) == ([1, 2], SHORT)
     assert c.member(True, SHORT, LONG) == SHORT
     assert c.member(False, SHORT, LONG) == LONG
-    assert c.member_flipped(True, SHORT, LONG) == LONG
-    assert c.member_flipped(False, SHORT, LONG) == SHORT
+    assert c.member_flipped(True, LONG, SHORT) == LONG
+    assert c.member_flipped(False, LONG, SHORT) == SHORT
 
 
 def test_tuple_with_unbounded_member_nested_ternary(get_contract, experimental_codegen):
