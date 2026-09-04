@@ -45,7 +45,7 @@ from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 from .buffer import Ptr
 from .builtins.simple import get_empty_type
 from .calling_convention import returns_dynamic_count, returns_stack_count
-from .context import Constancy, LocalVariable, VenomCodegenContext
+from .context import Constancy, LocalVariable, VenomCodegenContext, same_memory_layout
 from .eval_order import later_expressions_can_mutate_memory_or_storage
 from .expr import Expr, get_referenced_variables
 from .value import VyperValue
@@ -237,12 +237,13 @@ class Stmt:
         Only called from `_copy_complex_type` which handles staging when needed.
         """
         if (
-            src_typ != typ
-            and dst_ptr.location is not DataLocation.MEMORY
+            dst_ptr.location is not DataLocation.MEMORY
             and not (isinstance(src_typ, _BytestringT) and isinstance(typ, _BytestringT))
+            and not same_memory_layout(src_typ, typ)
         ):
             # Normalize source into destination layout before writing to
             # storage/transient/code locations that don't carry src_typ.
+            # not `src_typ != typ`: TupleT.__eq__ always returns True.
             normalized = self.ctx.new_temporary_value(typ)
             assert isinstance(normalized.operand, IRVariable)
             self.ctx.store_memory(src, normalized.operand, typ, src_typ=src_typ)
@@ -1246,10 +1247,11 @@ class Stmt:
 
             assert member_ptr is not None
             if (
-                dst_member_t != src_member_t
-                and not type_contains_unbounded_sequence(dst_member_t)
+                not type_contains_unbounded_sequence(dst_member_t)
                 and not type_contains_unbounded_sequence(src_member_t)
+                and not same_memory_layout(src_member_t, dst_member_t)
             ):
+                # not `dst_member_t != src_member_t`: TupleT.__eq__ always returns True
                 normalized = self.ctx.new_temporary_value(dst_member_t)
                 assert isinstance(normalized.operand, IRVariable)
                 self.ctx.store_memory(

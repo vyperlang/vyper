@@ -46,6 +46,19 @@ class Constancy(Enum):
     Constant = 1
 
 
+def same_memory_layout(src_typ: VyperType, dst_typ: VyperType) -> bool:
+    """Return True if `dst_typ.memory_bytes_required` bytes copied from memory
+    laid out as `src_typ` form a valid `dst_typ` value.
+
+    `punnable` accepts a wider top-level DynArray capacity in `dst_typ`
+    (the data present has the same layout), but a flat copy of the
+    destination size would then read past the source.
+    """
+    return punnable(src_typ, dst_typ) and (
+        src_typ.memory_bytes_required == dst_typ.memory_bytes_required
+    )
+
+
 @dataclass
 class LocalVariable:
     """Tracks a variable during Venom codegen."""
@@ -909,9 +922,10 @@ class VenomCodegenContext:
             else:
                 copy_len = self.unchecked_bytestring_runtime_size(val)
             self.copy_memory_dynamic(ptr, val, copy_len, self.memory_size_bound(src_typ))
-        elif src_typ != typ:
+        elif not same_memory_layout(src_typ, typ):
             # Layout-aware copy for assignments between compatible but not
             # identical memory layouts (e.g. DynArray[Bytes[540]] -> DynArray[Bytes[704]]).
+            # not `src_typ != typ`: TupleT.__eq__ always returns True.
             self._store_memory_typed(dst=ptr, dst_typ=typ, src=val, src_typ=src_typ)
         else:
             # Complex type: val is a pointer, copy memory
