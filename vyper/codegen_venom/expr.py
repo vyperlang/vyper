@@ -737,7 +737,7 @@ class Expr:
         # Case 4: Immutable - IMMUTABLES location
         if varinfo.is_immutable:
             # the node's type can be wider than the variable (e.g. when
-            # assigned to a `DynArray[Bytes[512], 5]` local), the data has
+            # assigned to a `DynArray[Bytes[512], 5]` local); the data has
             # the declared type's layout
             ptr = Ptr(
                 operand=IRLiteral(varinfo.position.position), location=DataLocation.IMMUTABLES
@@ -830,7 +830,7 @@ class Expr:
 
             # the node's type can be wider than the variable (e.g. when
             # assigned to a `DynArray[Bytes[512], 5]` local); the data has
-            # the declared type's layout, so both pointers use `varinfo.typ`
+            # the declared type's layout
 
             # Immutable state variable
             if varinfo.is_immutable:
