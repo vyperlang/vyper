@@ -853,6 +853,27 @@ def get_empty(addr: address) -> uint256:
     assert caller.get_empty(target.address) == 0
 
 
+def test_wildcard_tuple_arg_empty_list_element(get_contract):
+    target_code = """
+@external
+def sink(input: (DynArray[uint256, 3], uint256)) -> uint256:
+    return len(input[0]) + input[1]
+    """
+
+    caller_code = """
+interface Sink:
+    def sink(input: (DynArray[uint256, ...], uint256)) -> uint256: nonpayable
+
+@external
+def do_it(addr: address) -> uint256:
+    return extcall Sink(addr).sink(([], 42))
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.do_it(target.address) == 42
+
+
 def test_inf_dynarray_abi_encode_default_tuple(get_contract):
     payload = [i * 31 for i in range(2001)]
     code = """
