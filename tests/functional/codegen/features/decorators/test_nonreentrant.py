@@ -625,7 +625,7 @@ import lib1
 interface Self:
     def bar(): nonpayable
 
-initializes: lib1
+# initializes: lib1  # This would not even be allowed
 
 @external
 def foo():
@@ -658,12 +658,14 @@ def bar(end: bool):
     if not end:
         extcall Self(self).bar(True)
     """
+    # lib1 only has state (the nonreentrant lock) when its pragma is on
+    initializes_line = "initializes: lib1" if lib_pragma_state == "on" else ""
     main = f"""
 # pragma nonreentrancy {main_pragma_state}
 
 import lib1
 
-initializes: lib1
+{initializes_line}
 
 exports: lib1.bar
     """
@@ -696,12 +698,20 @@ interface Self:
     def baz(end: bool): nonpayable
 """
 
+    # lib2 has state (nonreentrant lock) iff its pragma is on;
+    # lib1 has state if either its pragma is on, or it inherits state from initializing lib2
+    lib2_stateful = lib2_pragma_state == "on"
+    lib1_stateful = lib1_pragma_state == "on" or lib2_stateful
+
+    lib1_initializes = "initializes: lib2" if lib2_stateful else ""
+    main_initializes = "initializes: lib1" if lib1_stateful else ""
+
     lib1 = f"""
 # pragma nonreentrancy {lib1_pragma_state}
 
 import lib2
 
-initializes: lib2
+{lib1_initializes}
 
 exports: lib2.baz
 
@@ -728,7 +738,7 @@ def baz(end: bool):
 import lib1
 import lib2
 
-initializes: lib1
+{main_initializes}
 
 exports: lib1.bar
 exports: lib1.baz
