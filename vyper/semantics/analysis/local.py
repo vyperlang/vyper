@@ -49,6 +49,7 @@ from vyper.semantics.types import (
     AddressT,
     BoolT,
     BottomT,
+    BytesT,
     DArrayT,
     ErrorT,
     EventT,
@@ -63,8 +64,6 @@ from vyper.semantics.types import (
     VyperType,
     is_type_t,
     map_void,
-    BytesT,
-    StringT,
 )
 from vyper.semantics.types.function import (
     ContractFunctionT,
@@ -75,8 +74,8 @@ from vyper.semantics.types.function import (
 from vyper.semantics.types.infinity import (
     INF,
     WILDCARD,
+    Inf,
     LengthUpperBound,
-    is_bounded_length,
     type_contains_nested_unbounded_sequence,
     type_contains_unbounded_sequence,
     type_contains_unsupported_unbounded_sequence,
@@ -854,6 +853,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         """
         Find the smallest type between `min_t` and `max_t` such that it contains no wildcards
         """
+
         def interpolate_length(min_l: LengthUpperBound, max_l: LengthUpperBound) -> int | Inf:
             if min_l != WILDCARD:
                 return min_l
@@ -862,13 +862,12 @@ class ExprVisitor(VyperNodeVisitorBase):
             else:
                 return INF
 
-        
         assert min_t.is_subtype_of(max_t)
 
         if isinstance(min_t, BottomT):
             return max_t.resolve_wildcard()
-        
-        assert type(min_t) == type(max_t)
+
+        assert type(min_t) is type(max_t)
 
         if isinstance(min_t, DArrayT):
             assert isinstance(max_t, DArrayT)
@@ -890,11 +889,14 @@ class ExprVisitor(VyperNodeVisitorBase):
 
         if isinstance(min_t, TupleT):
             assert isinstance(max_t, TupleT)
-            return TupleT(tuple(self._interpolate(min_mt, max_mt) for min_mt, max_mt in zip(min_t.member_types, max_t.member_types, strict=True)))
+            return TupleT(
+                tuple(
+                    self._interpolate(min_mt, max_mt)
+                    for min_mt, max_mt in zip(min_t.member_types, max_t.member_types, strict=True)
+                )
+            )
 
         return min_t
-
-
 
     def _annotation_type(self, node: vy_ast.VyperNode, typ: VyperType) -> VyperType:
         if not typ.has_wildcard:
