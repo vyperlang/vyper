@@ -49,7 +49,7 @@ BUILTIN_HANDLERS: dict = {
 }
 
 
-def lower_builtin(builtin_id: str, node, ctx) -> Union[IROperand, VyperValue]:
+def lower_builtin(builtin_id: str, node, ctx: VenomCodegenContext) -> Union[IROperand, VyperValue]:
     """
     Lower a built-in function call to Venom IR.
 

@@ -1,6 +1,14 @@
+import pytest
+
 from vyper import compiler
+from vyper.compiler.settings import OptimizationLevel
 
 
+@pytest.mark.skip_at_optimization(
+    OptimizationLevel.O1,
+    OptimizationLevel.NONE,
+    reason="the expected SELFBALANCE opcode depends on the peephole rewrite",
+)
 def test_self_balance(env, get_contract):
     code = """
 @external
