@@ -1059,6 +1059,12 @@ class ExprVisitor(VyperNodeVisitorBase):
                     except VyperException:
                         has_nested_unbounded = False
                     else:
+                        if arg_typ.has_wildcard:
+                            # a wildcard call return resolves to the parameter
+                            # type, unless the parameter is itself a wildcard,
+                            # in which case it resolves to INF (see the
+                            # external call handling below)
+                            actual_arg_typ = actual_arg_typ.resolve_wildcard()
                         has_nested_unbounded = type_contains_nested_unbounded_sequence(
                             actual_arg_typ
                         )
