@@ -33,7 +33,6 @@ from vyper.semantics.analysis.base import (
 )
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
-    empty_list_candidate_types,
     get_common_types,
     get_exact_type_from_node,
     get_expr_info,
@@ -50,6 +49,7 @@ from vyper.semantics.types import (
     AddressT,
     BoolT,
     BottomT,
+    BytesT,
     DArrayT,
     ErrorT,
     EventT,
@@ -72,6 +72,10 @@ from vyper.semantics.types.function import (
     is_ellipsis_body,
 )
 from vyper.semantics.types.infinity import (
+    INF,
+    WILDCARD,
+    Inf,
+    LengthUpperBound,
     type_contains_nested_unbounded_sequence,
     type_contains_unbounded_sequence,
     type_contains_unsupported_unbounded_sequence,
@@ -845,39 +849,78 @@ class ExprVisitor(VyperNodeVisitorBase):
             return "function"
         return "module"
 
+    def _interpolate(self, min_t: VyperType, max_t: VyperType) -> VyperType:
+        """
+        Find the smallest type between `min_t` and `max_t` such that it contains no wildcards
+        """
+
+        def interpolate_length(min_l: LengthUpperBound, max_l: LengthUpperBound) -> int | Inf:
+            if min_l != WILDCARD:
+                return min_l
+            elif max_l != WILDCARD:
+                return max_l
+            else:
+                return INF
+
+        assert min_t.is_subtype_of(max_t)
+
+        if isinstance(min_t, BottomT):
+            return max_t.resolve_wildcard()
+
+        assert type(min_t) is type(max_t)
+
+        if isinstance(min_t, DArrayT):
+            assert isinstance(max_t, DArrayT)
+            new_vt = self._interpolate(min_t.value_type, max_t.value_type)
+
+            new_l = interpolate_length(min_t.length, max_t.length)
+            DArrayT._validate_unbounded_shape(new_vt, new_l)
+            return DArrayT(new_vt, new_l)
+
+        if isinstance(min_t, BytesT):
+            assert isinstance(max_t, BytesT)
+
+            return BytesT(interpolate_length(min_t.length, max_t.length))
+
+        if isinstance(min_t, StringT):
+            assert isinstance(max_t, StringT)
+
+            return StringT(interpolate_length(min_t.length, max_t.length))
+
+        if isinstance(min_t, TupleT):
+            assert isinstance(max_t, TupleT)
+            return TupleT(
+                tuple(
+                    self._interpolate(min_mt, max_mt)
+                    for min_mt, max_mt in zip(min_t.member_types, max_t.member_types, strict=True)
+                )
+            )
+
+        return min_t
+
     def _annotation_type(self, node: vy_ast.VyperNode, typ: VyperType) -> VyperType:
-        if not getattr(typ, "has_wildcard", False):
+        if not typ.has_wildcard:
             return typ
 
-        try:
-            possible_types = get_possible_types_from_node(node)
-        except VyperException:
-            # the expression has no standalone type. it already passed
-            # `validate_expected_type`, so resolve the wildcards without
-            # a bound.
-            return typ.resolve_wildcard()
-
-        # use the expected type to disambiguate expressions which have
-        # several possible types on their own (e.g. the literal `[]`), so
-        # that provably bounded expressions get a bounded annotation.
-        if any(isinstance(getattr(t, "value_type", None), BottomT) for t in possible_types):
-            # the empty list literal infers as the single type
-            # `DynArray[Never, 1]`, which matches any expected type and so
-            # disambiguates nothing. enumerate its element types instead.
-            possible_types = empty_list_candidate_types()
+        possible_types = get_possible_types_from_node(node)
 
         candidates = [t for t in possible_types if t.is_subtype_of(typ)]
-        if len(candidates) != 1:
-            return typ.resolve_wildcard()
+        assert len(candidates) == 1
 
-        actual_typ = candidates[0]
-        if actual_typ.has_wildcard:
-            actual_typ = actual_typ.resolve_wildcard()
+        ret = self._interpolate(candidates[0], typ)
 
-        if actual_typ.is_subtype_of(typ):
-            return actual_typ
+        # postconditions:
 
-        return typ.resolve_wildcard()
+        # expression type <: ret
+        assert any(t.is_subtype_of(ret) for t in possible_types)
+
+        # ret <: expected type
+        assert ret.is_subtype_of(typ)
+
+        # ret is wildcard free
+        assert not ret.has_wildcard
+
+        return ret
 
     def visit(self, node, typ):
         if typ is not VOID_TYPE and not isinstance(typ, TYPE_T):

@@ -41,35 +41,6 @@ def _primitive_types():
     return types.PRIMITIVE_TYPES.values()
 
 
-def empty_list_candidate_types():
-    """
-    Enumerate the possible types of the empty list literal `[]`, one per
-    primitive element type.
-
-    `types_from_List` infers `[]` as the single type `DynArray[Never, 1]`,
-    which is enough to typecheck against a concrete expected type, but it
-    erases the element type. Callers which need to match `[]` against an
-    expected type that is not fully concrete (i.e. contains a wildcard) need
-    the enumeration to recover a concrete element type.
-    """
-    ret = []
-    for t in _primitive_types():
-        if isinstance(t, BottomT):
-            # `Never` is a subtype of everything, so it would match any
-            # expected type and disambiguate nothing.
-            continue
-        if not isinstance(t, VyperType):
-            # bytestring typeclasses. their generic acceptor (`BytesT.any()`)
-            # only matches on the expected side of `compare_type`, never as
-            # the given type, so as a candidate it could not match anything.
-            assert isinstance(t, type) and issubclass(t, VyperType), t
-            continue
-        # 1 is minimum possible length for dynarray,
-        # can be assigned to anything
-        ret.append(DArrayT(t, 1))
-    return ret
-
-
 def _validate_op(node, types_list, validation_fn_name):
     if not types_list:
         # TODO raise a better error here: say which types.
@@ -438,7 +409,14 @@ class _ExprAnalyser:
             ret = []
             for t in types_list:
                 t.validate_index_type(node.slice)
-                ret.append(t.get_subscripted_type(node.slice))
+                elem_t = t.get_subscripted_type(node.slice)
+
+                # skip duplicates, can happen because of `[x][0]`:
+                # `types_list` for `[x]` is `[DArray(T,1), SArray(T, 1)]`
+                # and both `DArray(T,1).get_subscripted_type` and `SArray(T,1).get_subscripted_type`
+                # will return `T`, leading to a duplicate
+                if not _is_type_in_list(elem_t, ret):
+                    ret.append(elem_t)
             return ret
 
         t = self.get_exact_type_from_node(node.value)
