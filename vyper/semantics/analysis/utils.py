@@ -20,7 +20,6 @@ from vyper.exceptions import (
     VyperException,
     ZeroDivisionException,
 )
-from vyper.semantics import types
 from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarAccess, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
@@ -34,6 +33,41 @@ from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.utils import OrderedSet, checksum_encode, int_to_fourbytes
 from vyper.warnings import Deprecation, vyper_warn
+
+
+def _primitive_types():
+    from vyper.semantics import types
+
+    return types.PRIMITIVE_TYPES.values()
+
+
+def empty_list_candidate_types():
+    """
+    Enumerate the possible types of the empty list literal `[]`, one per
+    primitive element type.
+
+    `types_from_List` infers `[]` as the single type `DynArray[Never, 1]`,
+    which is enough to typecheck against a concrete expected type, but it
+    erases the element type. Callers which need to match `[]` against an
+    expected type that is not fully concrete (i.e. contains a wildcard) need
+    the enumeration to recover a concrete element type.
+    """
+    ret = []
+    for t in _primitive_types():
+        if isinstance(t, BottomT):
+            # `Never` is a subtype of everything, so it would match any
+            # expected type and disambiguate nothing.
+            continue
+        if not isinstance(t, VyperType):
+            # bytestring typeclasses. their generic acceptor (`BytesT.any()`)
+            # only matches on the expected side of `compare_type`, never as
+            # the given type, so as a candidate it could not match anything.
+            assert isinstance(t, type) and issubclass(t, VyperType), t
+            continue
+        # 1 is minimum possible length for dynarray,
+        # can be assigned to anything
+        ret.append(DArrayT(t, 1))
+    return ret
 
 
 def _validate_op(node, types_list, validation_fn_name):
@@ -307,7 +341,7 @@ class _ExprAnalyser:
     def types_from_Constant(self, node):
         # literal value (integer, string, etc)
         types_list = []
-        for t in types.PRIMITIVE_TYPES.values():
+        for t in _primitive_types():
             try:
                 # clarity and perf note: will be better to construct a
                 # map from node types to valid vyper types

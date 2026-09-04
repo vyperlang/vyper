@@ -6,7 +6,6 @@ from eth_utils import to_wei
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code, compile_from_file_input
 from vyper.exceptions import (
-    CodegenPanic,
     DuplicateImport,
     InterfaceViolation,
     NamespaceCollision,
@@ -640,10 +639,9 @@ def test_fail2() -> Bytes[3]:
         c.test_fail2()
 
 
-# TODO: unmark once INF backend exists
-# Note: on master this doesn't compile
-@pytest.mark.xfail(raises=CodegenPanic)
-def test_json_abi_bytes_slice(get_contract, tx_failed, assert_compile_failed, make_input_bundle):
+def test_json_abi_bytes_slice(
+    get_contract, experimental_codegen, make_input_bundle, compile_inf_code
+):
     external_contract = """
 @external
 def returns_Bytes3() -> Bytes[3]:
@@ -659,6 +657,11 @@ def foo(x: JSONInterface) -> Bytes[2]:
     """
 
     input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(ext_c.abi)})
+
+    # legacy codegen has no lowering for unbounded extcall return values
+    compile_inf_code(contract, input_bundle=input_bundle)
+    if not experimental_codegen:
+        return
 
     c = get_contract(contract, input_bundle=input_bundle)
 
