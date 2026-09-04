@@ -1121,6 +1121,76 @@ def f(a: address, x: Bytes[INF]) -> uint256:
     assert e.value.message == message
 
 
+@pytest.mark.parametrize(
+    ("code", "message"),
+    [
+        (
+            """
+interface I:
+    def source() -> (Bytes[...], DynArray[uint256, ...]): nonpayable
+    def sink(x: (Bytes[10], DynArray[uint256, ...])): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).sink(extcall I(a).source())
+    """,
+            "Function arguments cannot contain unbounded sequence types inside aggregate types",
+        ),
+        (
+            """
+interface I:
+    def source() -> (Bytes[...], uint256): nonpayable
+    def sink(x: (Bytes[...], uint256)): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).sink(extcall I(a).source())
+    """,
+            "Function arguments cannot contain unbounded sequence types inside aggregate types",
+        ),
+        (
+            """
+interface I:
+    def source() -> (Bytes[...], DynArray[uint256, ...]): nonpayable
+
+@external
+def f(a: address):
+    print(extcall I(a).source())
+    """,
+            "print arguments cannot contain unbounded sequence types inside aggregate types",
+        ),
+        (
+            """
+interface I:
+    def source() -> (Bytes[...], DynArray[uint256, ...]): nonpayable
+
+@external
+def f(a: address, code: Bytes[100]) -> address:
+    return raw_create(code, extcall I(a).source())
+    """,
+            "constructor arguments cannot contain nested unbounded sequence types",
+        ),
+        (
+            """
+interface I:
+    def source() -> (Bytes[...], DynArray[uint256, ...]): nonpayable
+
+@external
+def f(a: address, target: address) -> address:
+    return create_from_blueprint(target, extcall I(a).source())
+    """,
+            "constructor arguments cannot contain nested unbounded sequence types",
+        ),
+    ],
+)
+def test_wildcard_tuple_return_rejected_as_argument(code, message):
+    # without a bounded expected type the wildcard tuple return resolves to a
+    # tuple of INF members, which is not a valid argument type
+    with pytest.raises(StructureException) as e:
+        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+    assert e.value.message == message
+
+
 def test_wildcard_tuple_return_member_access_compile():
     code = """
 interface I:
