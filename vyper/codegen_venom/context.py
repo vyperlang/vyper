@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, Sequence
 
+from vyper.codegen.core import punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
@@ -125,11 +126,18 @@ class VenomCodegenContext:
         self.variables[name] = var
         return var
 
+    # Size of an unbounded (INF) local's pointer cell: two adjacent words,
+    # [payload_ptr][capacity]. See `store_pointer_cell`.
+    POINTER_CELL_SIZE = 64
+    POINTER_CELL_CAPACITY_OFFSET = 32
+
     def new_pointer_cell_variable(
         self, name: str, typ: VyperType, mutable: bool = True
     ) -> LocalVariable:
-        """Register a local whose stable memory cell stores its current memory pointer."""
-        buf = self.allocate_buffer(32, annotation=f"{name}_ptr")
+        """Register a local whose stable memory cell stores its current payload
+        pointer and capacity (see `store_pointer_cell`).
+        """
+        buf = self.allocate_buffer(self.POINTER_CELL_SIZE, annotation=f"{name}_ptr")
         value = VyperValue.from_ptr(buf.base_ptr(), typ)
         var = LocalVariable(
             name=name,
@@ -152,8 +160,10 @@ class VenomCodegenContext:
     def register_pointer_cell_variable(
         self, name: str, typ: VyperType, ptr: IRVariable, mutable: bool = True
     ) -> None:
-        """Register an existing memory cell that stores the local's current pointer."""
-        buf = Buffer(_ptr=ptr, size=32, annotation=f"{name}_ptr")
+        """Register an existing memory cell that stores the local's current payload
+        pointer and capacity (see `store_pointer_cell`).
+        """
+        buf = Buffer(_ptr=ptr, size=self.POINTER_CELL_SIZE, annotation=f"{name}_ptr")
         value = VyperValue.from_ptr(buf.base_ptr(), typ)
         var = LocalVariable(
             name=name,
@@ -163,6 +173,31 @@ class VenomCodegenContext:
             is_pointer_cell=True,
         )
         self.variables[name] = var
+
+    def store_pointer_cell(self, cell: IROperand, ptr: IROperand, capacity: IROperand) -> None:
+        """Store a local's current memory pointer and capacity into its pointer cell.
+
+        The 64-byte cell holds two words: the payload pointer at `cell` and
+        the capacity at `cell + 32`. Capacity is the element count the owned
+        payload has room for; 0 is a sentinel meaning "no owned spare room",
+        which forces reallocation on the next append. Every store except
+        DynArray append passes 0 (Bytes[INF]/String[INF] cells keep it
+        permanently 0 — bytestrings have no append).
+        """
+        assert isinstance(cell, IRVariable)
+        self.builder.mstore(cell, ptr)
+        capacity_slot = self.builder.add(cell, IRLiteral(self.POINTER_CELL_CAPACITY_OFFSET))
+        self.builder.mstore(capacity_slot, capacity)
+
+    def load_pointer_cell(self, cell: IROperand) -> tuple[IRVariable, IRVariable]:
+        """Load `(ptr, capacity)` from a pointer cell; layout in `store_pointer_cell`."""
+        assert isinstance(cell, IRVariable)
+        ptr = self.builder.mload(cell)
+        capacity_slot = self.builder.add(cell, IRLiteral(self.POINTER_CELL_CAPACITY_OFFSET))
+        capacity = self.builder.mload(capacity_slot)
+        assert isinstance(ptr, IRVariable)
+        assert isinstance(capacity, IRVariable)
+        return ptr, capacity
 
     def register_variable(
         self, name: str, typ: VyperType, ptr: IRVariable, mutable: bool = True
@@ -280,7 +315,10 @@ class VenomCodegenContext:
         assert self.is_dynamic_tuple_frame_type(typ)
 
         if self.is_dynamic_tuple_frame_type(vv.typ):
-            return vv
+            assert isinstance(vv.typ, TupleT)
+            if self._frame_members_punnable(vv.typ, typ):
+                return vv
+            return self._dynamic_tuple_frame_from_frame(vv, typ, annotation=annotation)
 
         if not isinstance(vv.typ, TupleT):  # pragma: nocover
             raise CompilerPanic(f"expected tuple default value, got {vv.typ}")
@@ -315,8 +353,53 @@ class VenomCodegenContext:
 
         return self.dynamic_tuple_frame_value(frame, typ, annotation=annotation)
 
+    @staticmethod
+    def _frame_members_punnable(src_typ: TupleT, dst_typ: TupleT) -> bool:
+        # frame cells hold a word or a pointer, so member sizes do not matter
+        # for the frame itself, only each member's own layout
+        n = len(dst_typ.member_types)
+        assert len(src_typ.member_types) == n
+        return all(punnable(src_typ.member_types[i], dst_typ.member_types[i]) for i in range(n))
+
+    def _dynamic_tuple_frame_from_frame(
+        self, vv: VyperValue, typ: TupleT, annotation: Optional[str] = None
+    ) -> VyperValue:
+        """Rebuild a frame of a narrower tuple type in the layout of `typ`.
+
+        A member can be narrower than the corresponding member of `typ`
+        (e.g. DynArray[Bytes[10], 5] vs DynArray[Bytes[512], 5]) and its
+        data is read with the wider layout, so such members are copied.
+        """
+        assert isinstance(vv.typ, TupleT)
+        assert isinstance(vv.operand, IRVariable)
+        members = self.dynamic_tuple_frame_values(vv.operand, vv.typ, annotation=annotation)
+        frame = self.allocate_scratch(IRLiteral(self.dynamic_tuple_frame_size(typ)))
+
+        for i, dst_member_t in enumerate(typ.member_types):
+            cell = self.builder.add(frame, IRLiteral(i * 32))
+            member_vv = members[i]
+            if dst_member_t._is_prim_word:
+                value = member_vv.operand
+            else:
+                # unbounded members only have ABI-static elements, so they
+                # never need a copy
+                assert not is_unbounded_sequence_type(dst_member_t) or punnable(
+                    member_vv.typ, dst_member_t
+                )
+                member_vv = self.ensure_memory_layout(
+                    member_vv, dst_member_t, annotation=annotation
+                )
+                value = self.unwrap(member_vv)
+            self.builder.mstore(cell, value)
+
+        return self.dynamic_tuple_frame_value(frame, typ, annotation=annotation)
+
     def load_pointer_cell_value(self, var: LocalVariable) -> VyperValue:
-        """Load the current dynamic memory pointer from a pointer-cell local."""
+        """Load the current payload pointer from a pointer-cell local.
+
+        Only the pointer word is read; the cell also carries capacity
+        (see `store_pointer_cell`).
+        """
         ptr = self.ptr_load(var.value.ptr())
         assert isinstance(ptr, IRVariable)
         return self.dynamic_memory_value(ptr, var.value.typ, annotation=var.name)
@@ -564,6 +647,20 @@ class VenomCodegenContext:
         ret = self.new_temporary_value(typ, annotation=annotation)
         assert isinstance(ret.operand, IRVariable)
         self.store_vyper_value(vv, ret.operand, typ)
+        return ret
+
+    def ensure_memory_layout(
+        self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
+    ) -> VyperValue:
+        """Return `vv` laid out as `typ`, copying only when the layouts differ."""
+        if punnable(vv.typ, typ):
+            return vv
+
+        ret = self.new_temporary_value(typ, annotation=annotation)
+        assert isinstance(ret.operand, IRVariable)
+        # not store_vyper_value: its `src_typ != typ` check is always False for
+        # tuples (TupleT.__eq__ compares the empty `members` dict).
+        self._store_memory_typed(ret.operand, typ, self.unwrap(vv), vv.typ)
         return ret
 
     def snapshot_value_for_delayed_use(
