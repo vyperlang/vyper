@@ -4,7 +4,12 @@ from hexbytes import HexBytes
 from tests.utils import ZERO_ADDRESS
 from vyper import compile_code
 from vyper.builtins.functions import eip1167_bytecode
-from vyper.exceptions import ArgumentException, CompilerPanic, StateAccessViolation, TypeMismatch
+from vyper.exceptions import (
+    ArgumentException,
+    StateAccessViolation,
+    StructureException,
+    TypeMismatch,
+)
 
 
 def test_max_outsize_exceeds_returndatasize(get_contract):
@@ -784,14 +789,14 @@ def call_with_storage_bytes() -> Bytes[100]:
 
 
 @pytest.mark.parametrize("payload", ["self.code", "to.code"])
-def test_raw_call_code_payload_panics(payload):
-    # `.code` views have no raw_call lowering; only `msg.data` is
-    # supported. compilation must fail loudly instead of miscompiling
-    # to a calldata copy.
+def test_raw_call_code_payload(payload, experimental_codegen):
     code = f"""
 @external
 def foo(to: address) -> bool:
     return raw_call(to, {payload}, max_outsize=0, revert_on_failure=False)
     """
-    with pytest.raises(CompilerPanic):
+    if experimental_codegen:
         compile_code(code)
+    else:
+        with pytest.raises(StructureException, match="unbounded sequence types"):
+            compile_code(code)

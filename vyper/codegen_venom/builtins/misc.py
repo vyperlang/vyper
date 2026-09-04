@@ -5,6 +5,7 @@ Miscellaneous built-in functions.
 - blockhash, blobhash: Block info
 - floor, ceil: Decimal truncation
 - as_wei_value: Wei denomination conversion
+- min_value, max_value, epsilon: Compile-time constants
 - breakpoint: Debug interrupt
 - print: Debug logging to console.log address
 """
@@ -14,14 +15,25 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper.builtins.functions import AsWeiValue
-from vyper.codegen_venom.abi.abi_encoder import abi_encode_to_buf
-from vyper.codegen_venom.builtins._call import BuiltinLowerer, PreparedBuiltinCall
-from vyper.codegen_venom.call_args import FOLDED
+from vyper.codegen_venom.abi import (
+    abi_encode_to_buf,
+    abi_encode_values_to_buf,
+    runtime_abi_size_for_encode,
+)
+from vyper.codegen_venom.builtins._call import BuiltinCall
 from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PRECOMPILE
 from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import CompilerPanic, EvmVersionException
-from vyper.semantics.types import BytesT, DecimalT, IntegerT, StringT, TupleT
+from vyper.exceptions import EvmVersionException
+from vyper.semantics.types import (
+    INF,
+    BytesT,
+    DecimalT,
+    IntegerT,
+    StringT,
+    TupleT,
+    type_contains_unbounded_sequence,
+)
 from vyper.utils import DECIMAL_DIVISOR, method_id_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -38,7 +50,7 @@ CONSOLE_ADDRESS = 0x000000000000000000636F6E736F6C652E6C6F67
 # =============================================================================
 
 
-def lower_ecrecover(call: PreparedBuiltinCall) -> IROperand:
+def lower_ecrecover(call: BuiltinCall) -> IROperand:
     """
     ecrecover(hash, v, r, s) -> address
 
@@ -46,13 +58,15 @@ def lower_ecrecover(call: PreparedBuiltinCall) -> IROperand:
     Input: 128 bytes (hash, v, r, s)
     Output: 32 bytes (address, right-padded)
     """
+    node = call.node
     ctx = call.ctx
+
     b = ctx.builder
 
-    hash_val = call.word("hash")
-    v = call.word("v")
-    r = call.word("r")
-    s = call.word("s")
+    hash_val = call.operand(node.args[0])
+    v = call.operand(node.args[1])
+    r = call.operand(node.args[2])
+    s = call.operand(node.args[3])
 
     # Prepare input buffer (128 bytes)
     input_buf = ctx.allocate_buffer(128)
@@ -79,7 +93,7 @@ def lower_ecrecover(call: PreparedBuiltinCall) -> IROperand:
     return b.mload(output_buf._ptr)
 
 
-def lower_ecadd(call: PreparedBuiltinCall) -> VyperValue:
+def lower_ecadd(call: BuiltinCall) -> IROperand:
     """
     ecadd(a, b) -> uint256[2]
 
@@ -90,7 +104,7 @@ def lower_ecadd(call: PreparedBuiltinCall) -> VyperValue:
     return _lower_ec_arith(call, precompile=6)
 
 
-def lower_ecmul(call: PreparedBuiltinCall) -> VyperValue:
+def lower_ecmul(call: BuiltinCall) -> IROperand:
     """
     ecmul(point, scalar) -> uint256[2]
 
@@ -101,40 +115,44 @@ def lower_ecmul(call: PreparedBuiltinCall) -> VyperValue:
     return _lower_ec_arith(call, precompile=7)
 
 
-def _lower_ec_arith(call: PreparedBuiltinCall, precompile: int) -> VyperValue:
+def _lower_ec_arith(call: BuiltinCall, precompile: int) -> IROperand:
     """
     Common implementation for ecadd/ecmul.
 
     Both return a uint256[2] stored in memory.
     """
+    node = call.node
     ctx = call.ctx
+
     b = ctx.builder
 
     # Get argument types to determine input size
     # ecadd: (uint256[2], uint256[2]) = 128 bytes
     # ecmul: (uint256[2], uint256) = 96 bytes
-    args_typ = [call.arg_type(index) for index in range(call.arg_count)]
+    args_typ = [arg._metadata["type"] for arg in node.args]
     input_size = sum(t.memory_bytes_required for t in args_typ)
 
-    # Copy evaluated arguments to input buffer
+    evaluated_args = [call.operand(arg) for arg in node.args]
+
+    # Now copy evaluated arguments to input buffer
     input_buf = ctx.allocate_buffer(input_size)
     offset = 0
     for i, arg_typ in enumerate(args_typ):
+        arg_val = evaluated_args[i]
+
         if arg_typ._is_prim_word:
             # Single 32-byte value
-            b.mstore(b.add(input_buf._ptr, IRLiteral(offset)), call.word(i))
+            b.mstore(b.add(input_buf._ptr, IRLiteral(offset)), arg_val)
             offset += 32
         else:
             # Array (uint256[2]) - arg_val is now a memory pointer
-            arg_val = call.memory(i)
             for j in range(arg_typ.count):
                 word = b.mload(b.add(arg_val, IRLiteral(j * 32)))
                 b.mstore(b.add(input_buf._ptr, IRLiteral(offset)), word)
                 offset += 32
 
     # Output buffer (64 bytes for resulting point)
-    output_val = ctx.new_temporary_value(call.return_type)
-    assert isinstance(output_val.operand, IRVariable)
+    output_buf = ctx.allocate_buffer(64)
 
     # Call precompile
     success = b.staticcall(
@@ -142,13 +160,13 @@ def _lower_ec_arith(call: PreparedBuiltinCall, precompile: int) -> VyperValue:
         IRLiteral(precompile),
         input_buf._ptr,
         IRLiteral(input_size),
-        output_val.operand,
+        output_buf._ptr,
         IRLiteral(64),
     )
     b.assert_(success)
 
     # Return pointer to output buffer (it's a memory location with the result array)
-    return output_val
+    return output_buf._ptr
 
 
 # =============================================================================
@@ -156,7 +174,7 @@ def _lower_ec_arith(call: PreparedBuiltinCall, precompile: int) -> VyperValue:
 # =============================================================================
 
 
-def lower_blockhash(call: PreparedBuiltinCall) -> IROperand:
+def lower_blockhash(call: BuiltinCall) -> IROperand:
     """
     blockhash(block_num) -> bytes32
 
@@ -164,10 +182,12 @@ def lower_blockhash(call: PreparedBuiltinCall) -> IROperand:
     Only works for the 256 most recent blocks (excluding current).
     Reverts if block_num is out of valid range.
     """
+    node = call.node
     ctx = call.ctx
+
     b = ctx.builder
 
-    block_num = call.word("block_num")
+    block_num = call.operand(node.args[0])
 
     # Validate block number is in valid range:
     # block_num >= block.number - BLOCKHASH_LOOKBACK_LIMIT AND block_num < block.number
@@ -188,7 +208,7 @@ def lower_blockhash(call: PreparedBuiltinCall) -> IROperand:
     return b.blockhash(block_num)
 
 
-def lower_blobhash(call: PreparedBuiltinCall) -> IROperand:
+def lower_blobhash(call: BuiltinCall) -> IROperand:
     """
     blobhash(index) -> bytes32
 
@@ -196,12 +216,13 @@ def lower_blobhash(call: PreparedBuiltinCall) -> IROperand:
     """
     node = call.node
     ctx = call.ctx
+
     if not version_check(begin="cancun"):
         raise EvmVersionException("`blobhash` is not available pre-cancun", node)
 
     b = ctx.builder
 
-    index = call.word("index")
+    index = call.operand(node.args[0])
     return b.blobhash(index)
 
 
@@ -210,7 +231,7 @@ def lower_blobhash(call: PreparedBuiltinCall) -> IROperand:
 # =============================================================================
 
 
-def lower_floor(call: PreparedBuiltinCall) -> IROperand:
+def lower_floor(call: BuiltinCall) -> IROperand:
     """
     floor(x) -> int256
 
@@ -218,10 +239,12 @@ def lower_floor(call: PreparedBuiltinCall) -> IROperand:
     For positive: x / divisor
     For negative: (x - (divisor - 1)) / divisor
     """
+    node = call.node
     ctx = call.ctx
+
     b = ctx.builder
 
-    val = call.word("value")
+    val = call.operand(node.args[0])
     divisor = IRLiteral(DECIMAL_DIVISOR)
 
     # For negative values: subtract (divisor - 1) before dividing
@@ -233,7 +256,7 @@ def lower_floor(call: PreparedBuiltinCall) -> IROperand:
     return b.sdiv(adjusted_or_orig, divisor)
 
 
-def lower_ceil(call: PreparedBuiltinCall) -> IROperand:
+def lower_ceil(call: BuiltinCall) -> IROperand:
     """
     ceil(x) -> int256
 
@@ -241,10 +264,12 @@ def lower_ceil(call: PreparedBuiltinCall) -> IROperand:
     For positive: (x + (divisor - 1)) / divisor
     For negative: x / divisor
     """
+    node = call.node
     ctx = call.ctx
+
     b = ctx.builder
 
-    val = call.word("value")
+    val = call.operand(node.args[0])
     divisor = IRLiteral(DECIMAL_DIVISOR)
 
     # For positive values: add (divisor - 1) before dividing
@@ -261,25 +286,23 @@ def lower_ceil(call: PreparedBuiltinCall) -> IROperand:
 # =============================================================================
 
 
-# the unit is a denomination literal consumed at compile time
-def lower_as_wei_value(call: PreparedBuiltinCall) -> IROperand:
+def lower_as_wei_value(call: BuiltinCall) -> IROperand:
     """
     as_wei_value(value, unit) -> uint256
 
     Converts a value to wei based on denomination unit.
     Includes overflow check for the multiplication.
     """
+    node = call.node
     ctx = call.ctx
+
     b = ctx.builder
 
-    value = call.word("value")
-    typ = call.arg_type("value")
+    value = call.operand(node.args[0])
+    typ = node.args[0]._metadata["type"]
 
-    unit = call.folded_arg("unit")
-    try:
-        denom = next(value for aliases, value in AsWeiValue.wei_denoms.items() if unit in aliases)
-    except StopIteration:  # pragma: nocover
-        raise CompilerPanic(f"unknown wei denomination: {unit}") from None
+    # Get the denomination multiplier
+    denom = AsWeiValue().get_denomination(node)
 
     if denom == 1:
         # No multiplication needed for "wei"
@@ -321,34 +344,56 @@ def lower_as_wei_value(call: PreparedBuiltinCall) -> IROperand:
 
 
 # =============================================================================
+# Compile-time Type Constants
+# =============================================================================
+
+
+def lower_min_value(call: BuiltinCall) -> IROperand:
+    """
+    min_value(T) -> T
+
+    Returns the minimum value for a numeric type.
+    This is evaluated at compile time.
+    """
+    node = call.node
+    typ = node.args[0]._metadata["type"].typedef
+    return IRLiteral(typ.ast_bounds[0])
+
+
+def lower_max_value(call: BuiltinCall) -> IROperand:
+    """
+    max_value(T) -> T
+
+    Returns the maximum value for a numeric type.
+    This is evaluated at compile time.
+    """
+    node = call.node
+    typ = node.args[0]._metadata["type"].typedef
+    return IRLiteral(typ.ast_bounds[1])
+
+
+def lower_epsilon(call: BuiltinCall) -> IROperand:
+    """
+    epsilon(decimal) -> decimal
+
+    Returns the smallest positive decimal value (10^-10).
+    """
+    # The smallest decimal unit is 1 (representing 10^-10)
+    return IRLiteral(1)
+
+
+# =============================================================================
 # Debug
 # =============================================================================
 
 
-def _create_tuple_in_memory(
-    ctx: "VenomCodegenContext", args: list[IROperand], types: list
-) -> tuple[IROperand, TupleT]:
-    """Create a tuple in memory from individual args."""
-    b = ctx.builder
-    tuple_t = TupleT(tuple(types))
-    val = ctx.new_temporary_value(tuple_t)
-    assert isinstance(val.operand, IRVariable)
-
-    offset = 0
-    for arg, typ in zip(args, types):
-        dst = b.add(val.operand, IRLiteral(offset))
-
-        if typ._is_prim_word:
-            b.mstore(dst, arg)
-        else:
-            ctx.copy_memory(dst, arg, typ.memory_bytes_required)
-
-        offset += typ.memory_bytes_required
-
-    return val.operand, tuple_t
+def _schema_string_value(ctx: "VenomCodegenContext", schema: bytes) -> tuple[VyperValue, StringT]:
+    schema_vv = ctx.const_bytestring_value(schema, StringT, annotation="print schema")
+    assert isinstance(schema_vv.typ, StringT)
+    return schema_vv, schema_vv.typ
 
 
-def lower_print(call: PreparedBuiltinCall) -> IROperand:
+def lower_print(call: BuiltinCall) -> IROperand:
     """
     print(*args, hardhat_compat=False) -> None
 
@@ -363,21 +408,59 @@ def lower_print(call: PreparedBuiltinCall) -> IROperand:
     - Uses method_id("log(type1,type2,...)") directly
     - Args are ABI-encoded inline
     """
+    node = call.node
     ctx = call.ctx
+
     b = ctx.builder
 
     hardhat_compat = call.literal("hardhat_compat")
 
-    # Primitives are words; composite arguments are stable memory pointers.
-    arg_types = [call.arg_type(index) for index in range(call.arg_count)]
-    args = call.arg_operands()
-
-    # Create tuple type for ABI encoding
+    # Get arg types and values
+    arg_types = [arg._metadata["type"] for arg in node.args]
+    arg_vals = [call.value(arg) for arg in node.args]
     tuple_t = TupleT(tuple(arg_types))
     args_abi_t = tuple_t.abi_type
-
-    # Generate signature like "log(uint256,address)"
     sig = "log(" + ",".join([t.abi_type.selector_name() for t in arg_types]) + ")"
+
+    if any(type_contains_unbounded_sequence(t) for t in arg_types):
+        if hardhat_compat:
+            mid = method_id_int(sig)
+            encoded_size = runtime_abi_size_for_encode(ctx, arg_vals, tuple_t)
+            dyn_buf_ptr = ctx.allocate_scratch(ctx.checked_add(IRLiteral(32), encoded_size))
+            b.mstore(dyn_buf_ptr, IRLiteral(mid))
+            dyn_data_dst = b.add(dyn_buf_ptr, IRLiteral(32))
+            encoded_len = abi_encode_values_to_buf(ctx, dyn_data_dst, arg_vals, tuple_t)
+            call_start = b.add(dyn_buf_ptr, IRLiteral(28))
+            call_len = b.add(IRLiteral(4), encoded_len)
+        else:
+            mid = method_id_int("log(string,bytes)")
+            schema = args_abi_t.selector_name().encode("utf-8")
+
+            payload_len = runtime_abi_size_for_encode(ctx, arg_vals, tuple_t)
+            dyn_payload_ptr = ctx.allocate_scratch(ctx.checked_add(IRLiteral(32), payload_len))
+            payload_data_dst = b.add(dyn_payload_ptr, IRLiteral(32))
+            encoded_payload_len = abi_encode_values_to_buf(ctx, payload_data_dst, arg_vals, tuple_t)
+            b.mstore(dyn_payload_ptr, encoded_payload_len)
+
+            schema_vv, schema_t = _schema_string_value(ctx, schema)
+            payload_t = BytesT(INF)
+            payload_vv = ctx.dynamic_memory_value(dyn_payload_ptr, payload_t, annotation="print")
+            outer_tuple_t = TupleT((schema_t, payload_t))
+            outer_vals = [schema_vv, payload_vv]
+
+            outer_abi_size = runtime_abi_size_for_encode(ctx, outer_vals, outer_tuple_t)
+            dyn_buf_ptr = ctx.allocate_scratch(ctx.checked_add(IRLiteral(32), outer_abi_size))
+            b.mstore(dyn_buf_ptr, IRLiteral(mid))
+            dyn_data_dst = b.add(dyn_buf_ptr, IRLiteral(32))
+            encoded_len = abi_encode_values_to_buf(ctx, dyn_data_dst, outer_vals, outer_tuple_t)
+            call_start = b.add(dyn_buf_ptr, IRLiteral(28))
+            call_len = b.add(IRLiteral(4), encoded_len)
+
+        retptr = ctx.allocate_buffer(0)
+        b.staticcall(
+            b.gas(), IRLiteral(CONSOLE_ADDRESS), call_start, call_len, retptr._ptr, IRLiteral(0)
+        )
+        return IRLiteral(0)
 
     if hardhat_compat:
         # Direct encoding with the actual type signature
@@ -390,13 +473,8 @@ def lower_print(call: PreparedBuiltinCall) -> IROperand:
         # Store method_id so buf+28 starts at the 4-byte selector.
         b.mstore(buf._ptr, IRLiteral(mid))
 
-        # Create tuple in memory and encode starting at buf + 32
-        if len(args) > 0:
-            encode_input, encode_type = _create_tuple_in_memory(ctx, args, arg_types)
-            data_dst = b.add(buf._ptr, IRLiteral(32))
-            encoded_len = abi_encode_to_buf(ctx, data_dst, encode_input, encode_type)
-        else:
-            encoded_len = IRLiteral(0)
+        data_dst = b.add(buf._ptr, IRLiteral(32))
+        encoded_len = abi_encode_values_to_buf(ctx, data_dst, arg_vals, tuple_t)
 
         # staticcall(gas, CONSOLE_ADDRESS, buf+28, 4+encoded_len, 0, 0)
         # buf+28 positions the 4-byte method_id at the start of calldata
@@ -410,7 +488,6 @@ def lower_print(call: PreparedBuiltinCall) -> IROperand:
 
         # Schema is the ABI type selector, e.g. "(uint256,address)"
         schema = args_abi_t.selector_name().encode("utf-8")
-        schema_len = len(schema)
 
         # Encode the args to a bytes payload first
         payload_buflen = args_abi_t.size_bound()
@@ -418,38 +495,22 @@ def lower_print(call: PreparedBuiltinCall) -> IROperand:
         # Allocate payload buffer: [32 bytes length] | [data]
         payload_buf = ctx.allocate_buffer(32 + payload_buflen)
 
-        if len(args) > 0:
-            encode_input, encode_type = _create_tuple_in_memory(ctx, args, arg_types)
-            payload_data_dst = b.add(payload_buf._ptr, IRLiteral(32))
-            payload_len = abi_encode_to_buf(ctx, payload_data_dst, encode_input, encode_type)
-        else:
-            payload_len = IRLiteral(0)
+        payload_data_dst = b.add(payload_buf._ptr, IRLiteral(32))
+        payload_len = abi_encode_values_to_buf(ctx, payload_data_dst, arg_vals, tuple_t)
 
         # Store payload length
         b.mstore(payload_buf._ptr, payload_len)
 
-        # Allocate schema buffer: [32 bytes length] | [data]
-        schema_buf = ctx.allocate_buffer(32 + schema_len)
-        b.mstore(schema_buf._ptr, IRLiteral(schema_len))
-
-        # Write schema string bytes (word by word)
-        schema_data_ptr = b.add(schema_buf._ptr, IRLiteral(32))
-        for i in range(0, schema_len, 32):
-            chunk = schema[i : i + 32]
-            # Pad chunk to 32 bytes (left-aligned in word)
-            chunk_padded = chunk.ljust(32, b"\x00")
-            chunk_int = int.from_bytes(chunk_padded, "big")
-            b.mstore(b.add(schema_data_ptr, IRLiteral(i)), IRLiteral(chunk_int))
-
         # Now encode (schema_string, payload_bytes) as a tuple
-        schema_t = StringT(schema_len)
+        schema_vv, schema_t = _schema_string_value(ctx, schema)
         payload_t = BytesT(payload_buflen)
         outer_tuple_t = TupleT((schema_t, payload_t))
 
         # Create tuple in memory with pointers to schema and payload buffers
         outer_val = ctx.new_temporary_value(outer_tuple_t)
         assert isinstance(outer_val.operand, IRVariable)
-        ctx.copy_memory(outer_val.operand, schema_buf._ptr, schema_t.memory_bytes_required)
+        assert isinstance(schema_vv.operand, IRVariable)
+        ctx.copy_memory(outer_val.operand, schema_vv.operand, schema_t.memory_bytes_required)
         dst_payload = b.add(outer_val.operand, IRLiteral(schema_t.memory_bytes_required))
         ctx.copy_memory(dst_payload, payload_buf._ptr, payload_t.memory_bytes_required)
 
@@ -477,7 +538,7 @@ def lower_print(call: PreparedBuiltinCall) -> IROperand:
     return IRLiteral(0)
 
 
-def lower_breakpoint(call: PreparedBuiltinCall) -> IROperand:
+def lower_breakpoint(call: BuiltinCall) -> IROperand:
     """
     breakpoint() -> None
 
@@ -490,14 +551,17 @@ def lower_breakpoint(call: PreparedBuiltinCall) -> IROperand:
 
 # Export handlers
 HANDLERS = {
-    "ecrecover": BuiltinLowerer(lower_ecrecover),
-    "ecadd": BuiltinLowerer(lower_ecadd),
-    "ecmul": BuiltinLowerer(lower_ecmul),
-    "blockhash": BuiltinLowerer(lower_blockhash),
-    "blobhash": BuiltinLowerer(lower_blobhash),
-    "floor": BuiltinLowerer(lower_floor),
-    "ceil": BuiltinLowerer(lower_ceil),
-    "as_wei_value": BuiltinLowerer(lower_as_wei_value, arg_policies={"unit": FOLDED}),
-    "breakpoint": BuiltinLowerer(lower_breakpoint),
-    "print": BuiltinLowerer(lower_print),
+    "ecrecover": lower_ecrecover,
+    "ecadd": lower_ecadd,
+    "ecmul": lower_ecmul,
+    "blockhash": lower_blockhash,
+    "blobhash": lower_blobhash,
+    "floor": lower_floor,
+    "ceil": lower_ceil,
+    "as_wei_value": lower_as_wei_value,
+    "min_value": lower_min_value,
+    "max_value": lower_max_value,
+    "epsilon": lower_epsilon,
+    "breakpoint": lower_breakpoint,
+    "print": lower_print,
 }

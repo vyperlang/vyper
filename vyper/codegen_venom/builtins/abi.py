@@ -8,16 +8,28 @@ ABI encoding/decoding built-in functions.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Callable, Optional
 
 from vyper.codegen.core import calculate_type_for_external_return
-from vyper.codegen_venom.abi import abi_decode_to_buf, abi_encode_to_buf
+from vyper.codegen_venom.abi import (
+    abi_decode_to_buf,
+    abi_encode_values_to_buf,
+    decode_unbounded_sequence_to_scratch,
+    runtime_abi_size_for_encode,
+)
 from vyper.codegen_venom.buffer import Buffer, Ptr
-from vyper.codegen_venom.builtins._call import BuiltinLowerer, PreparedBuiltinCall
+from vyper.codegen_venom.builtins._call import BuiltinCall
 from vyper.codegen_venom.value import VyperValue
-from vyper.exceptions import StructureException
+from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types import BytesT, TupleT
+from vyper.semantics.types import (
+    BytesT,
+    TupleT,
+    VyperType,
+    is_bounded_length,
+    is_unbounded_sequence_type,
+    type_contains_unbounded_sequence,
+)
 from vyper.utils import fourbytes_to_int
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -25,41 +37,56 @@ if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def _parse_method_id(method_id: Union[str, bytes, None]) -> Optional[int]:
-    """Parse the method_id kwarg constant: a bytes4 hex literal (folded to
-    its source string, e.g. "0xa9059cbb") or a 4-byte bytes literal."""
-    if method_id is None:
+def _parse_method_id(value) -> Optional[int]:
+    if value is None:
         return None
-    if isinstance(method_id, str):
-        return fourbytes_to_int(bytes.fromhex(method_id.removeprefix("0x")))
-    assert isinstance(method_id, bytes)
-    return fourbytes_to_int(method_id)
+    if isinstance(value, str):
+        return fourbytes_to_int(bytes.fromhex(value.removeprefix("0x")))
+    if isinstance(value, bytes):
+        return fourbytes_to_int(value)
+    raise CompilerPanic("invalid prepared method_id")  # pragma: nocover
 
 
-def _create_tuple_in_memory(
-    ctx: VenomCodegenContext, args: list[IROperand], types: list
-) -> tuple[IROperand, TupleT]:
-    """Create a tuple in memory from individual args."""
+def _build_abi_encoded_bytes(
+    ctx: VenomCodegenContext,
+    buf_ptr: IRVariable,
+    method_id: Optional[int],
+    encode_fn: Callable[[IRVariable], IROperand],
+    add_fn: Callable[[IROperand, IROperand], IROperand],
+    zero_tail_padding: bool = False,
+) -> None:
+    """
+    Assemble a Bytes value in the buffer at `buf_ptr`: write the optional
+    4-byte method_id prefix, run `encode_fn` to encode the payload at the
+    appropriate offset, zero stale tail padding if requested, and store the
+    total length word.
+    """
     b = ctx.builder
-    tuple_t = TupleT(tuple(types))
-    val = ctx.new_temporary_value(tuple_t)
-    assert isinstance(val.operand, IRVariable)
+    if method_id is not None:
+        # Bytes layout is [length][payload]. method_id occupies payload[0:4],
+        # so the ABI payload begins at byte 36.
+        method_id_word = method_id << 224
+        b.mstore(b.add(buf_ptr, IRLiteral(32)), IRLiteral(method_id_word))
+        data_dst = b.add(buf_ptr, IRLiteral(36))
+        encoded_len = encode_fn(data_dst)
+        if zero_tail_padding:
+            # encoded_len is a word multiple, so with the 4-byte method_id
+            # prefix the value's last word spans [buf+32+encoded_len,
+            # buf+64+encoded_len): 4 data bytes followed by 28 padding bytes
+            # of scratch memory. Zero the padding bytes; they can hold stale
+            # data when the allocation size over-estimated encoded_len.
+            last_word_ptr = b.add(b.add(buf_ptr, IRLiteral(32)), encoded_len)
+            keep_data_mask = IRLiteral(((1 << 32) - 1) << 224)
+            b.mstore(last_word_ptr, b.and_(b.mload(last_word_ptr), keep_data_mask))
+        total_len = add_fn(encoded_len, IRLiteral(4))
+        b.mstore(buf_ptr, total_len)
+    else:
+        data_dst = b.add(buf_ptr, IRLiteral(32))
+        encoded_len = encode_fn(data_dst)
+        b.mstore(buf_ptr, encoded_len)
 
-    offset = 0
-    for arg, typ in zip(args, types):
-        dst = b.add(val.operand, IRLiteral(offset))
 
-        if typ._is_prim_word:
-            b.mstore(dst, arg)
-        else:
-            ctx.copy_memory(dst, arg, typ.memory_bytes_required)
-
-        offset += typ.memory_bytes_required
-
-    return val.operand, tuple_t
-
-
-def lower_abi_encode(call: PreparedBuiltinCall) -> VyperValue:
+def lower_abi_encode(call: BuiltinCall) -> VyperValue:
     """
     abi_encode(*args, ensure_tuple=True, method_id=None) -> Bytes[N]
 
@@ -73,63 +100,69 @@ def lower_abi_encode(call: PreparedBuiltinCall) -> VyperValue:
 
     if len(node.args) < 1:
         raise StructureException("abi_encode expects at least one argument", node)
+
     b = ctx.builder
 
+    # Parse kwargs
     ensure_tuple = call.literal("ensure_tuple")
-    method_id = _parse_method_id(call.literal("method_id"))
+    method_id_value = call.literal("method_id")
+    method_id = _parse_method_id(method_id_value)
 
-    # Primitives are words; composite arguments are stable memory pointers.
-    args = call.arg_operands()
-    arg_types = [call.arg_type(index) for index in range(call.arg_count)]
+    arg_types = [arg._metadata["type"] for arg in node.args]
+    arg_vals = [call.value(arg) for arg in node.args]
 
-    # Build input to encode
-    if len(args) == 1 and not ensure_tuple:
-        # Single arg without tuple wrapping
-        if arg_types[0]._is_prim_word:
-            # abi_encode_to_buf expects a memory pointer, not a value.
-            # Store the value to a temporary memory location.
-            tmp = ctx.new_temporary_value(arg_types[0])
-            assert isinstance(tmp.operand, IRVariable)
-            b.mstore(tmp.operand, args[0])
-            encode_input: IROperand = tmp.operand
-        else:
-            encode_input = args[0]
-        encode_type = arg_types[0]
+    if len(arg_vals) == 1 and not ensure_tuple:
+        encode_type: VyperType = arg_types[0]
     else:
-        # Create tuple from args
-        encode_input, encode_type = _create_tuple_in_memory(ctx, args, arg_types)
+        encode_type = TupleT(tuple(arg_types))
+
+    if any(type_contains_unbounded_sequence(t) for t in arg_types):
+        encoded_size = runtime_abi_size_for_encode(ctx, arg_vals, encode_type)
+        alloc_size = encoded_size
+        if method_id is not None:
+            # ABI encodings are word-aligned. The 4-byte method ID therefore
+            # occupies another full word in the bytestring payload allocation.
+            alloc_size = ctx.checked_add(alloc_size, IRLiteral(32))
+
+        buf_ptr = ctx.allocate_scratch(ctx.checked_add(alloc_size, IRLiteral(32)))
+        if method_id is None:
+            # Safe margin: buf is exactly `[length word] + alloc_size`, and the
+            # padding zero write lands at `buf_ptr + ceil32(alloc_size)`.
+            #
+            # With method_id, `alloc_size` can over-estimate the runtime
+            # encoded length (bounded dynamic args are sized by their bound),
+            # so this write can land past the value's actual last word;
+            # _build_abi_encoded_bytes zeroes the tail padding instead.
+            ctx.zero_bytestring_padding(buf_ptr, alloc_size)
+
+        def encode_unbounded(dst: IRVariable) -> IROperand:
+            return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type)
+
+        _build_abi_encoded_bytes(
+            ctx, buf_ptr, method_id, encode_unbounded, ctx.checked_add, zero_tail_padding=True
+        )
+
+        return ctx.dynamic_memory_value(buf_ptr, node._metadata["type"], annotation="abi_encode")
+
+    # Calculate buffer size
+    maxlen = encode_type.abi_type.size_bound()
+    if method_id is not None:
+        maxlen += 4
 
     # Allocate output buffer: [32-byte length] | [optional 4-byte method_id] | [data]
-    buf_t = call.return_type
-    assert isinstance(buf_t, BytesT)
+    buf_t = BytesT(maxlen)
     buf_val = ctx.new_temporary_value(buf_t)
     assert isinstance(buf_val.operand, IRVariable)
 
-    if method_id is not None:
-        # Write method_id at offset 32 (start of data area, after 32-byte length field)
-        # method_id is 4 bytes, so shift left by 28 bytes = 224 bits
-        method_id_word = method_id << 224
-        b.mstore(b.add(buf_val.operand, IRLiteral(32)), IRLiteral(method_id_word))
+    def encode_bounded(dst: IRVariable) -> IROperand:
+        return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type)
 
-        # Encode data starting at offset 36
-        data_dst = b.add(buf_val.operand, IRLiteral(36))
-        encoded_len = abi_encode_to_buf(ctx, data_dst, encode_input, encode_type)
-
-        # Write total length (encoded_len + 4) at offset 0
-        total_len = b.add(encoded_len, IRLiteral(4))
-        b.mstore(buf_val.operand, total_len)
-    else:
-        # Encode data starting at offset 32
-        data_dst = b.add(buf_val.operand, IRLiteral(32))
-        encoded_len = abi_encode_to_buf(ctx, data_dst, encode_input, encode_type)
-
-        # Write length at offset 0
-        b.mstore(buf_val.operand, encoded_len)
+    _build_abi_encoded_bytes(ctx, buf_val.operand, method_id, encode_bounded, b.add)
 
     return buf_val
 
 
-def lower_abi_decode(call: PreparedBuiltinCall) -> VyperValue:
+def lower_abi_decode(call: BuiltinCall) -> VyperValue:
     """
     abi_decode(data, output_type, unwrap_tuple=True) -> output_type
 
@@ -137,22 +170,67 @@ def lower_abi_decode(call: PreparedBuiltinCall) -> VyperValue:
 
     - unwrap_tuple: If True (default), single-element tuples are unwrapped
     """
+    node = call.node
     ctx = call.ctx
+
     b = ctx.builder
 
+    # Parse args
+    data_node = node.args[0]
+    output_type_node = node.args[1]
     unwrap_tuple = call.literal("unwrap_tuple")
 
-    output_typ = call.type_arg("output_type")
+    # Get output type from type annotation
+    output_typ = output_type_node._metadata["type"].typedef
 
     # Apply tuple wrapping if needed (for ABI conformance)
     wrapped_typ = output_typ
     if unwrap_tuple:
         wrapped_typ = calculate_type_for_external_return(output_typ)
 
+    # Reject bounded input buffers which cannot fit the decoded value. An
+    # unbounded input is checked against its runtime length below.
+    if not is_unbounded_sequence_type(output_typ):
+        abi_size_bound = wrapped_typ.abi_type.size_bound()
+        input_max_len = data_node._metadata["type"].maxlen
+        if is_bounded_length(input_max_len) and input_max_len < abi_size_bound:
+            raise StructureException(
+                (
+                    "Mismatch between size of input and size of decoded types. "
+                    f"length of ABI-encoded {wrapped_typ} must be equal to or greater "
+                    f"than {abi_size_bound}"
+                ),
+                data_node,
+            )
+
     # Get data pointer and length
-    data = call.memory("data")
+    data_vv = call.value(data_node)
+    data = data_vv.operand
+    assert isinstance(data, IRVariable)
     data_len = b.mload(data)  # Length word at start of Bytes
     data_ptr = b.add(data, IRLiteral(32))  # Data starts after length word
+    hi = b.add(data_ptr, data_len)
+
+    if is_unbounded_sequence_type(output_typ):
+        no_hi_wrap = b.iszero(b.lt(hi, data_ptr))
+        b.assert_(no_hi_wrap)
+
+        if unwrap_tuple:
+            abi_min_size = wrapped_typ.abi_type.static_size()
+            ge_min = b.iszero(b.lt(data_len, IRLiteral(abi_min_size)))
+            b.assert_(ge_min)
+
+            offset = b.mload(data_ptr)
+            src = b.add(data_ptr, offset)
+            no_src_wrap = b.iszero(b.lt(src, data_ptr))
+            b.assert_(no_src_wrap)
+            src_vv = ctx.dynamic_memory_value(src, output_typ, annotation="abi_decode_src")
+            return decode_unbounded_sequence_to_scratch(ctx, src_vv, output_typ, hi, "abi_decode")
+
+        ge_length_word = b.iszero(b.lt(data_len, IRLiteral(32)))
+        b.assert_(ge_length_word)
+        src_vv = ctx.dynamic_memory_value(data_ptr, output_typ, annotation="abi_decode_src")
+        return decode_unbounded_sequence_to_scratch(ctx, src_vv, output_typ, hi, "abi_decode")
 
     # Validate size
     abi_min_size = wrapped_typ.abi_type.static_size()
@@ -174,11 +252,10 @@ def lower_abi_decode(call: PreparedBuiltinCall) -> VyperValue:
     assert isinstance(output_val.operand, IRVariable)
 
     # Decode with bounds checking
-    hi = b.add(data_ptr, data_len)
     buf = Buffer(_ptr=data_ptr, size=wrapped_typ.memory_bytes_required, annotation="abi_decode_src")
     ptr = Ptr(operand=data_ptr, location=DataLocation.MEMORY, buf=buf)
-    src = VyperValue.from_ptr(ptr, wrapped_typ)
-    abi_decode_to_buf(ctx, output_val.operand, src, hi=hi)
+    src_vv = VyperValue.from_ptr(ptr, wrapped_typ)
+    abi_decode_to_buf(ctx, output_val.operand, src_vv, hi=hi)
 
     # Return with output_typ (unwrapped type if applicable)
     if unwrap_tuple and wrapped_typ != output_typ:
@@ -188,8 +265,8 @@ def lower_abi_decode(call: PreparedBuiltinCall) -> VyperValue:
 
 
 HANDLERS = {
-    "abi_encode": BuiltinLowerer(lower_abi_encode),
-    "abi_decode": BuiltinLowerer(lower_abi_decode),
-    "_abi_encode": BuiltinLowerer(lower_abi_encode),  # deprecated alias
-    "_abi_decode": BuiltinLowerer(lower_abi_decode),  # deprecated alias
+    "abi_encode": lower_abi_encode,
+    "abi_decode": lower_abi_decode,
+    "_abi_encode": lower_abi_encode,  # deprecated alias
+    "_abi_decode": lower_abi_decode,  # deprecated alias
 }

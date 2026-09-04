@@ -7,13 +7,13 @@ String manipulation built-in functions.
 from __future__ import annotations
 
 from vyper.codegen_venom.buffer import Buffer
-from vyper.codegen_venom.builtins._call import BuiltinLowerer, PreparedBuiltinCall
+from vyper.codegen_venom.builtins._call import BuiltinCall
 from vyper.codegen_venom.value import VyperValue
-from vyper.semantics.types import StringT
+from vyper.semantics.types import StringT, is_unbounded_bytestring_type
 from vyper.venom.basicblock import IRLiteral
 
 
-def lower_uint2str(call: PreparedBuiltinCall) -> VyperValue:
+def lower_uint2str(call: BuiltinCall) -> VyperValue:
     """
     uint2str(x) -> String[N]
 
@@ -33,13 +33,19 @@ def lower_uint2str(call: PreparedBuiltinCall) -> VyperValue:
       result_ptr[33]     = '2' (0x32)
       result_ptr[34]     = '3' (0x33)
     """
+    node = call.node
     ctx = call.ctx
+
     b = ctx.builder
 
-    val_input = call.word("x")
-    out_t = call.return_type
-    assert isinstance(out_t, StringT)
-    n_digits = out_t.maxlen
+    val_input = call.operand(node.args[0])
+    out_t = node._metadata["type"]
+    if is_unbounded_bytestring_type(out_t):
+        arg_t = node.args[0]._metadata["type"]
+        n_digits = len(str(2**arg_t.bits - 1))
+        out_t = StringT(n_digits)
+    else:
+        n_digits = out_t.maxlen
 
     # Allocate buffer
     out_val = ctx.new_temporary_value(out_t)
@@ -132,4 +138,4 @@ def lower_uint2str(call: PreparedBuiltinCall) -> VyperValue:
 
 
 # Export handlers
-HANDLERS = {"uint2str": BuiltinLowerer(lower_uint2str)}
+HANDLERS = {"uint2str": lower_uint2str}

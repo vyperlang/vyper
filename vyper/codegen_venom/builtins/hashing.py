@@ -7,25 +7,27 @@ Hashing built-in functions.
 
 from __future__ import annotations
 
-from vyper.codegen_venom.builtins._call import BuiltinLowerer, PreparedBuiltinCall
-from vyper.semantics.types import BytesM_T
-from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.codegen_venom.builtins._call import BuiltinCall
+from vyper.semantics.types import BytesM_T, _BytestringT
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 
-def _prepare_hash_input(call: PreparedBuiltinCall) -> tuple[IROperand, IROperand]:
+def _prepare_hash_input(call: BuiltinCall) -> tuple[IROperand, IROperand]:
     """Normalize hash input to memory and return (data_ptr, length)."""
+    node = call.node
     ctx = call.ctx
+
     b = ctx.builder
-    arg_t = call.arg_type("value")
-    arg = call.arg("value")
+    arg_node = node.args[0]
+    arg_t = arg_node._metadata["type"]
 
     if isinstance(arg_t, _BytestringT):
-        assert isinstance(arg.operand, IRVariable)
-        return b.add(arg.operand, IRLiteral(32)), b.mload(arg.operand)
+        arg_vv = call.value(arg_node)
+        arg_mem = ctx.ensure_bytestring_in_memory(arg_vv, arg_t)
+        return ctx.bytes_data_ptr(arg_mem), ctx.bytestring_length(arg_mem)
 
     # Fixed-size word values are hashed from a temporary 32-byte buffer.
-    arg_val = arg.word()
+    arg_val = call.operand(arg_node)
     buf = ctx.allocate_buffer(32)
     b.mstore(buf._ptr, arg_val)
 
@@ -34,19 +36,20 @@ def _prepare_hash_input(call: PreparedBuiltinCall) -> tuple[IROperand, IROperand
     return buf._ptr, IRLiteral(32)
 
 
-def lower_keccak256(call: PreparedBuiltinCall) -> IROperand:
+def lower_keccak256(call: BuiltinCall) -> IROperand:
     """
     keccak256(data) -> bytes32
 
     Computes Keccak-256 hash using native SHA3 opcode.
     Handles both variable-length bytes/string and fixed bytes32.
     """
-    b = call.ctx.builder
+    ctx = call.ctx
+    b = ctx.builder
     data_ptr, length = _prepare_hash_input(call)
     return b.sha3(data_ptr, length)
 
 
-def lower_sha256(call: PreparedBuiltinCall) -> IROperand:
+def lower_sha256(call: BuiltinCall) -> IROperand:
     """
     sha256(data) -> bytes32
 
@@ -77,4 +80,4 @@ def lower_sha256(call: PreparedBuiltinCall) -> IROperand:
 
 
 # Export handlers
-HANDLERS = {"keccak256": BuiltinLowerer(lower_keccak256), "sha256": BuiltinLowerer(lower_sha256)}
+HANDLERS = {"keccak256": lower_keccak256, "sha256": lower_sha256}

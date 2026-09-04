@@ -1,8 +1,8 @@
 import pytest
 
+from tests.evm_backends.base_env import ExecutionReverted
 from vyper import compile_code
 from vyper.compiler.settings import Settings
-from vyper.exceptions import CompilerPanic
 
 DATA_VIEW_USES = {
     "keccak256": "x: bytes32 = keccak256(__VIEW__)",
@@ -15,30 +15,15 @@ DATA_VIEW_USES = {
 }
 
 
-@pytest.mark.parametrize(
-    "view, error",
-    [
-        ("msg.data", r"msg\.data requires Slice/Len context"),
-        ("self.code", r"\.code requires slice\(\) context"),
-        ("a.code", r"\.code requires slice\(\) context"),
-    ],
-    ids=["msg.data", "self.code", "address.code"],
-)
+@pytest.mark.parametrize("view", ["msg.data", "self.code", "a.code"])
 @pytest.mark.parametrize("use", DATA_VIEW_USES.values(), ids=DATA_VIEW_USES.keys())
-def test_undeclared_data_views_fail_precisely(view, error, use):
+def test_unbounded_data_views_compile(view, use):
     source = f"""
 @external
 def foo(a: address):
     {use.replace("__VIEW__", view)}
 """
-
-    # Only len(), slice(), and raw_call() declare data-view policies. Other
-    # consumers must reach Expr's precise diagnostic instead of receiving a
-    # missing prepared argument or treating an extcode address as a Bytes ptr.
-    with pytest.raises(CompilerPanic, match=error):
-        compile_code(
-            source, output_formats=["bytecode"], settings=Settings(experimental_codegen=True)
-        )
+    compile_code(source, output_formats=["bytecode"], settings=Settings(experimental_codegen=True))
 
 
 def _runtime_opcodes(source):
@@ -129,3 +114,43 @@ def foo() -> address:
     other_opcode = "CREATE2" if create_opcode == "CREATE" else "CREATE"
     assert create_opcode in opcodes
     assert other_opcode not in opcodes
+
+
+def test_external_code_source_precedes_slice_bounds(
+    get_contract, env, experimental_codegen, request
+):
+    if not experimental_codegen:
+        request.node.add_marker(
+            pytest.mark.xfail(
+                raises=ExecutionReverted,
+                reason="legacy evaluates slice bounds before the code source",
+            )
+        )
+    target = get_contract("""
+@external
+def foo() -> uint256:
+    return 1
+""")
+    caller = get_contract("""
+target: address
+order: uint256
+
+@internal
+def source() -> address:
+    self.order = self.order * 10 + 1
+    return self.target
+
+@internal
+def start() -> uint256:
+    self.order = self.order * 10 + 2
+    self.target = empty(address)
+    return 0
+
+@external
+def foo(a: address) -> (Bytes[1], uint256):
+    self.target = a
+    self.order = 0
+    result: Bytes[1] = slice(self.source().code, self.start(), 1)
+    return result, self.order
+""")
+    assert caller.foo(target.address) == (env.get_code(target.address)[:1], 12)

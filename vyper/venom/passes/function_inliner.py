@@ -75,6 +75,9 @@ class FunctionInlinerPass(IRGlobalPass):
             if call_count == 0:
                 continue
 
+            if func.noinline:
+                continue
+
             # Always inline if there is only one call site.
             if call_count == 1:
                 return func
@@ -217,7 +220,6 @@ class FunctionInlinerPass(IRGlobalPass):
         new_func_label = IRLabel(f"{prefix}{func.name.value}")
         clone = IRFunction(new_func_label)
         # clear the bb that is added by default
-        # consider using func.copy() intead?
         clone.clear_basic_blocks()
         for bb in func.get_basic_blocks():
             clone.append_basic_block(self._clone_basic_block(clone, bb, prefix))
@@ -256,6 +258,7 @@ class FunctionInlinerPass(IRGlobalPass):
         clone.annotation = inst.annotation
         clone.ast_source = inst.ast_source
         clone.error_msg = inst.error_msg
+        clone.memory_read_max_size = inst.memory_read_max_size
 
         if inst.opcode == "alloca":
             self.ctx.mem_allocator.clone_alloca(inst, clone)

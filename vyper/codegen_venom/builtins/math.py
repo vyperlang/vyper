@@ -9,31 +9,31 @@ These operations skip overflow/underflow checks for performance.
 
 from __future__ import annotations
 
-from vyper.codegen_venom.builtins._call import BuiltinLowerer, PreparedBuiltinCall
+from vyper.codegen_venom.builtins._call import BuiltinCall
 from vyper.venom.basicblock import IRLiteral, IROperand
 
 
-def lower_unsafe_add(call: PreparedBuiltinCall) -> IROperand:
+def lower_unsafe_add(call: BuiltinCall) -> IROperand:
     """unsafe_add(a, b) - unchecked addition."""
     return _lower_unsafe_binop(call, "add")
 
 
-def lower_unsafe_sub(call: PreparedBuiltinCall) -> IROperand:
+def lower_unsafe_sub(call: BuiltinCall) -> IROperand:
     """unsafe_sub(a, b) - unchecked subtraction."""
     return _lower_unsafe_binop(call, "sub")
 
 
-def lower_unsafe_mul(call: PreparedBuiltinCall) -> IROperand:
+def lower_unsafe_mul(call: BuiltinCall) -> IROperand:
     """unsafe_mul(a, b) - unchecked multiplication."""
     return _lower_unsafe_binop(call, "mul")
 
 
-def lower_unsafe_div(call: PreparedBuiltinCall) -> IROperand:
+def lower_unsafe_div(call: BuiltinCall) -> IROperand:
     """unsafe_div(a, b) - unchecked division."""
     return _lower_unsafe_binop(call, "div")
 
 
-def _lower_unsafe_binop(call: PreparedBuiltinCall, op: str) -> IROperand:
+def _lower_unsafe_binop(call: BuiltinCall, op: str) -> IROperand:
     """
     Common implementation for unsafe binary operations.
 
@@ -41,12 +41,14 @@ def _lower_unsafe_binop(call: PreparedBuiltinCall, op: str) -> IROperand:
     - Unsigned: mask to bit width
     - Signed: sign-extend
     """
+    node = call.node
     ctx = call.ctx
+
     b = ctx.builder
 
-    a_val = call.word("a")
-    b_val = call.word("b")
-    typ = call.arg_type(0)
+    a_val = call.operand(node.args[0])
+    b_val = call.operand(node.args[1])
+    typ = node.args[0]._metadata["type"]
 
     # Use signed division for signed types
     if op == "div" and typ.is_signed:
@@ -69,34 +71,38 @@ def _lower_unsafe_binop(call: PreparedBuiltinCall, op: str) -> IROperand:
     return result
 
 
-def lower_pow_mod256(call: PreparedBuiltinCall) -> IROperand:
+def lower_pow_mod256(call: BuiltinCall) -> IROperand:
     """
     pow_mod256(base, exp) - unchecked exponentiation mod 2^256.
 
     Uses EVM EXP opcode directly with no overflow checks.
     """
+    node = call.node
     ctx = call.ctx
+
     b = ctx.builder
 
-    base = call.word("a")
-    exp = call.word("b")
+    base = call.operand(node.args[0])
+    exp = call.operand(node.args[1])
 
     return b.exp(base, exp)
 
 
-def lower_uint256_addmod(call: PreparedBuiltinCall) -> IROperand:
+def lower_uint256_addmod(call: BuiltinCall) -> IROperand:
     """
     uint256_addmod(a, b, c) - (a + b) % c without intermediate overflow.
 
     Uses EVM ADDMOD opcode which handles the 512-bit intermediate result.
     Reverts if c is zero.
     """
+    node = call.node
     ctx = call.ctx
+
     b = ctx.builder
 
-    a_val = call.word("a")
-    b_val = call.word("b")
-    c_val = call.word("c")
+    a_val = call.operand(node.args[0])
+    b_val = call.operand(node.args[1])
+    c_val = call.operand(node.args[2])
 
     # Assert divisor is non-zero (EVM ADDMOD returns 0 on div by zero)
     b.assert_(c_val)
@@ -104,19 +110,21 @@ def lower_uint256_addmod(call: PreparedBuiltinCall) -> IROperand:
     return b.addmod(a_val, b_val, c_val)
 
 
-def lower_uint256_mulmod(call: PreparedBuiltinCall) -> IROperand:
+def lower_uint256_mulmod(call: BuiltinCall) -> IROperand:
     """
     uint256_mulmod(a, b, c) - (a * b) % c without intermediate overflow.
 
     Uses EVM MULMOD opcode which handles the 512-bit intermediate result.
     Reverts if c is zero.
     """
+    node = call.node
     ctx = call.ctx
+
     b = ctx.builder
 
-    a_val = call.word("a")
-    b_val = call.word("b")
-    c_val = call.word("c")
+    a_val = call.operand(node.args[0])
+    b_val = call.operand(node.args[1])
+    c_val = call.operand(node.args[2])
 
     # Assert divisor is non-zero (EVM MULMOD returns 0 on div by zero)
     b.assert_(c_val)
@@ -124,19 +132,21 @@ def lower_uint256_mulmod(call: PreparedBuiltinCall) -> IROperand:
     return b.mulmod(a_val, b_val, c_val)
 
 
-def lower_shift(call: PreparedBuiltinCall) -> IROperand:
+def lower_shift(call: BuiltinCall) -> IROperand:
     """
     shift(x, bits) - bit shift operation (deprecated in favor of << / >> operators).
 
     If bits < 0: right shift (sar for signed, shr for unsigned)
     If bits >= 0: left shift (shl)
     """
+    node = call.node
     ctx = call.ctx
+
     b = ctx.builder
 
-    val = call.word("x")
-    bits = call.word("_shift_bits")
-    val_typ = call.arg_type(0)
+    val = call.operand(node.args[0])
+    bits = call.operand(node.args[1])
+    val_typ = node.args[0]._metadata["type"]
 
     # Generalized right shift: sar for signed, shr for unsigned
     is_signed = val_typ.is_signed
@@ -165,12 +175,12 @@ def lower_shift(call: PreparedBuiltinCall) -> IROperand:
 
 # Export handlers
 HANDLERS = {
-    "unsafe_add": BuiltinLowerer(lower_unsafe_add),
-    "unsafe_sub": BuiltinLowerer(lower_unsafe_sub),
-    "unsafe_mul": BuiltinLowerer(lower_unsafe_mul),
-    "shift": BuiltinLowerer(lower_shift),
-    "unsafe_div": BuiltinLowerer(lower_unsafe_div),
-    "pow_mod256": BuiltinLowerer(lower_pow_mod256),
-    "uint256_addmod": BuiltinLowerer(lower_uint256_addmod),
-    "uint256_mulmod": BuiltinLowerer(lower_uint256_mulmod),
+    "unsafe_add": lower_unsafe_add,
+    "unsafe_sub": lower_unsafe_sub,
+    "unsafe_mul": lower_unsafe_mul,
+    "shift": lower_shift,
+    "unsafe_div": lower_unsafe_div,
+    "pow_mod256": lower_pow_mod256,
+    "uint256_addmod": lower_uint256_addmod,
+    "uint256_mulmod": lower_uint256_mulmod,
 }
