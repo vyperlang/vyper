@@ -25,3 +25,18 @@ def test_dft():
         return %x, %y
     """
     _check_pre_post(pre, post)
+
+
+def test_dft_does_not_reorder_fmp_register_ops():
+    """
+    `setfmp` (an FMP register write) must not be reordered across `getfmp`
+    reads (and vice versa); the FMP effect row creates the ordering edges.
+    """
+    pre = """
+    main:
+        %a = getfmp
+        setfmp 128
+        %b = getfmp
+        sink %a, %b
+    """
+    _check_no_change(pre)

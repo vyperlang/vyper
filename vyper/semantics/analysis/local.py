@@ -33,6 +33,7 @@ from vyper.semantics.analysis.base import (
 )
 from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.utils import (
+    empty_list_candidate_types,
     get_common_types,
     get_exact_type_from_node,
     get_expr_info,
@@ -48,7 +49,9 @@ from vyper.semantics.types import (
     VOID_TYPE,
     AddressT,
     BoolT,
+    BottomT,
     DArrayT,
+    ErrorT,
     EventT,
     FlagT,
     HashMapT,
@@ -59,7 +62,6 @@ from vyper.semantics.types import (
     StructT,
     TupleT,
     VyperType,
-    _BytestringT,
     is_type_t,
     map_void,
 )
@@ -69,7 +71,22 @@ from vyper.semantics.types.function import (
     StateMutability,
     is_ellipsis_body,
 )
+from vyper.semantics.types.infinity import (
+    type_contains_nested_unbounded_sequence,
+    type_contains_unbounded_sequence,
+    type_contains_unsupported_unbounded_sequence,
+)
 from vyper.semantics.types.utils import type_from_annotation
+
+
+def _expr_contains_unbounded_sequence(node: vy_ast.VyperNode) -> bool:
+    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
+        return any(_expr_contains_unbounded_sequence(item) for item in node.elements)
+
+    try:
+        return type_contains_unbounded_sequence(get_exact_type_from_node(node))
+    except VyperException:
+        return False
 
 
 def analyze_functions(vy_module: vy_ast.Module) -> None:
@@ -472,6 +489,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             )
 
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
+        if type_contains_nested_unbounded_sequence(typ):
+            raise StructureException(
+                "Memory variables cannot contain unbounded sequence types inside aggregate types",
+                node.annotation,
+            )
 
         # validate the value before adding it to the namespace
         self.expr_visitor.visit(node.value, typ)
@@ -481,16 +503,27 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         self.expr_visitor.visit(node.target, typ)
 
     def _validate_revert_reason(self, msg_node: vy_ast.VyperNode) -> None:
+        if isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE":
+            return
+
+        if isinstance(msg_node, vy_ast.Call):
+            call_type = get_exact_type_from_node(msg_node.func)
+            if is_type_t(call_type, ErrorT):
+                self.expr_visitor.visit(msg_node, call_type.typedef)
+                self.func.mark_raised_error(call_type.typedef)
+                return
+
         if isinstance(msg_node, vy_ast.Str):
             if not msg_node.value.strip():
                 raise StructureException("Reason string cannot be empty", msg_node)
-            self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
-        elif not (isinstance(msg_node, vy_ast.Name) and msg_node.id == "UNREACHABLE"):
-            try:
-                validate_expected_type(msg_node, StringT(1024))
-            except TypeMismatch as e:
-                raise InvalidType("revert reason must fit within String[1024]") from e
-            self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
+            # fall through to the `String[1024]` length check below, so that an
+            # over-long string literal is rejected just like a variable would be
+
+        try:
+            validate_expected_type(msg_node, StringT(1024))
+        except TypeMismatch as e:
+            raise InvalidType("revert reason must fit within String[1024]") from e
+        self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
         # CMC 2023-10-19 nice to have: tag UNREACHABLE nodes with a special type
 
     def visit_Assert(self, node):
@@ -560,7 +593,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             raise ImmutableViolation("Constant value cannot be written to.")
 
         var_access = _get_variable_access(target)
-        assert var_access is not None
+        if var_access is None:
+            raise ImmutableViolation("Cannot modify temporary value", target)
 
         info._writes.add(var_access)
 
@@ -618,6 +652,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         if is_type_t(fn_type, EventT):
             raise StructureException("To call an event you must use the `log` statement", node)
+
+        if is_type_t(fn_type, ErrorT):
+            raise StructureException(
+                "To raise a custom error you must use `raise` or `assert`", node
+            )
 
         if is_type_t(fn_type, StructT):
             raise StructureException("Struct creation without assignment is disallowed", node)
@@ -746,6 +785,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         assert isinstance(node.value, vy_ast.Call)
 
         f = get_exact_type_from_node(node.value.func)
+        if is_type_t(f, ErrorT):
+            raise StructureException(
+                "To raise a custom error you must use `raise` or `assert`", node
+            )
         if not is_type_t(f, EventT):
             raise StructureException("Value is not an event", node.value)
         if self.func.mutability <= StateMutability.VIEW:
@@ -802,6 +845,40 @@ class ExprVisitor(VyperNodeVisitorBase):
             return "function"
         return "module"
 
+    def _annotation_type(self, node: vy_ast.VyperNode, typ: VyperType) -> VyperType:
+        if not getattr(typ, "has_wildcard", False):
+            return typ
+
+        try:
+            possible_types = get_possible_types_from_node(node)
+        except VyperException:
+            # the expression has no standalone type. it already passed
+            # `validate_expected_type`, so resolve the wildcards without
+            # a bound.
+            return typ.resolve_wildcard()
+
+        # use the expected type to disambiguate expressions which have
+        # several possible types on their own (e.g. the literal `[]`), so
+        # that provably bounded expressions get a bounded annotation.
+        if any(isinstance(getattr(t, "value_type", None), BottomT) for t in possible_types):
+            # the empty list literal infers as the single type
+            # `DynArray[Never, 1]`, which matches any expected type and so
+            # disambiguates nothing. enumerate its element types instead.
+            possible_types = empty_list_candidate_types()
+
+        candidates = [t for t in possible_types if t.is_subtype_of(typ)]
+        if len(candidates) != 1:
+            return typ.resolve_wildcard()
+
+        actual_typ = candidates[0]
+        if actual_typ.has_wildcard:
+            actual_typ = actual_typ.resolve_wildcard()
+
+        if actual_typ.is_subtype_of(typ):
+            return actual_typ
+
+        return typ.resolve_wildcard()
+
     def visit(self, node, typ):
         if typ is not VOID_TYPE and not isinstance(typ, TYPE_T):
             validate_expected_type(node, typ)
@@ -811,7 +888,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         super().visit(node, typ)
 
         # annotate
-        node._metadata["type"] = typ
+        node._metadata["type"] = self._annotation_type(node, typ)
 
         if not isinstance(typ, TYPE_T):
             info = get_expr_info(node)  # get_expr_info fills in node._expr_info
@@ -974,6 +1051,24 @@ class ExprVisitor(VyperNodeVisitorBase):
                     )
 
             for arg, arg_typ in zip(node.args, func_type.argument_types):
+                if isinstance(arg, (vy_ast.Tuple, vy_ast.List)):
+                    has_nested_unbounded = _expr_contains_unbounded_sequence(arg)
+                else:
+                    try:
+                        actual_arg_typ = get_exact_type_from_node(arg)
+                    except VyperException:
+                        has_nested_unbounded = False
+                    else:
+                        has_nested_unbounded = type_contains_nested_unbounded_sequence(
+                            actual_arg_typ
+                        )
+
+                if has_nested_unbounded:
+                    raise StructureException(
+                        "Function arguments cannot contain unbounded sequence types "
+                        "inside aggregate types",
+                        arg,
+                    )
                 self.visit(arg, arg_typ)
             for kwarg in node.keywords:
                 # We should only see special kwargs
@@ -989,6 +1084,13 @@ class ExprVisitor(VyperNodeVisitorBase):
                     else:
                         # Replace wildcards in the type by INF, since there is no expected type
                         return_t = return_t.resolve_wildcard()
+                        # unsupported INF shapes from wildcard resolution only exist per call site
+                        if type_contains_unsupported_unbounded_sequence(return_t):
+                            raise StructureException(
+                                "Function returns cannot contain unbounded sequence types "
+                                "inside aggregate types",
+                                node,
+                            )
                     # Sanity check
                     assert func_type.return_type is not None
                     assert return_t.is_subtype_of(func_type.return_type)
@@ -1066,18 +1168,9 @@ class ExprVisitor(VyperNodeVisitorBase):
         else:
             # ex. a < b
             cmp_typ = get_common_types(node.left, node.right).pop()
-            if isinstance(cmp_typ, _BytestringT):
-                # for bytestrings, get_common_types automatically downcasts
-                # to the smaller common type - that will annotate with the
-                # wrong type, instead use get_exact_type_from_node (which
-                # resolves to the right type for bytestrings anyways).
-                ltyp = get_exact_type_from_node(node.left)
-                rtyp = get_exact_type_from_node(node.right)
-            else:
-                ltyp = rtyp = cmp_typ
 
-            self.visit(node.left, ltyp)
-            self.visit(node.right, rtyp)
+            self.visit(node.left, cmp_typ)
+            self.visit(node.right, cmp_typ)
 
     def visit_Constant(self, node: vy_ast.Constant, typ: VyperType) -> None:
         pass
@@ -1106,8 +1199,9 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             for possible_type in possible_base_types:
                 if isinstance(possible_type, TupleT):
-                    assert isinstance(node.slice, vy_ast.Int)  # help mypy
-                    value_type = possible_type.member_types[node.slice.value]
+                    index = node.slice.reduced()
+                    assert isinstance(index, vy_ast.Int)  # help mypy
+                    value_type = possible_type.member_types[index.value]
                 else:
                     value_type = possible_type.value_type
 

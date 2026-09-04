@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING, Optional, Union
 from vyper import ast as vy_ast
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import ArgumentException, CompilerPanic, StateAccessViolation
-from vyper.semantics.types import BytesT, TupleT
-from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
+from vyper.semantics.types import BoolT, BytesT, TupleT
+from vyper.semantics.types.shortcuts import BYTES32_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
@@ -146,11 +146,16 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         out_val = None
         out_ptr = ctx.allocate_buffer(0)._ptr
 
-    # Copy msg.data to scratch AFTER all kwarg evaluation, so nothing
-    # else overwrites the memtop scratch region before the call.
+    # calldatasize must be computed before allocate_scratch, since the
+    # allocation is runtime-sized now. The copy stays after all kwarg
+    # evaluation, preserving the instruction order of the previous
+    # memtop (MSIZE-based) lowering, where the scratch region was
+    # genuinely unreserved and the copy had to be last; with a tracked
+    # `dalloca` buffer the ordering is no longer load-bearing, it is
+    # kept only to avoid disturbing generated code.
     if use_msg_data:
-        data_ptr = ctx.allocate_dyn()
         data_len = b.calldatasize()
+        data_ptr = ctx.allocate_scratch(data_len)
         b.calldatacopy(data_ptr, IRLiteral(0), data_len)
 
     # Build the call instruction
@@ -206,7 +211,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
             # Return (success, data) tuple with inline bytes
             # Layout: [bool (32)][bytes_len (32)][bytes_data (ceil32(max_outsize))]
             bytes_t = BytesT(max_outsize)
-            tuple_t = TupleT((UINT256_T, bytes_t))
+            tuple_t = TupleT((BoolT(), bytes_t))
             tuple_local = ctx.new_temporary_value(tuple_t)
 
             # Store success at offset 0

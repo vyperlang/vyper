@@ -373,6 +373,10 @@ class BadArchive(Exception):
     """Bad archive"""
 
 
+class BundleError(VyperException):
+    """Cannot construct an output bundle for this build."""
+
+
 class UnimplementedException(VyperException):
     """Some feature is known to be not implemented"""
 
