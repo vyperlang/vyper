@@ -63,6 +63,8 @@ from vyper.semantics.types import (
     VyperType,
     is_type_t,
     map_void,
+    BytesT,
+    StringT,
 )
 from vyper.semantics.types.function import (
     ContractFunctionT,
@@ -71,6 +73,10 @@ from vyper.semantics.types.function import (
     is_ellipsis_body,
 )
 from vyper.semantics.types.infinity import (
+    INF,
+    WILDCARD,
+    LengthUpperBound,
+    is_bounded_length,
     type_contains_nested_unbounded_sequence,
     type_contains_unbounded_sequence,
     type_contains_unsupported_unbounded_sequence,
@@ -844,33 +850,73 @@ class ExprVisitor(VyperNodeVisitorBase):
             return "function"
         return "module"
 
+    def _interpolate(self, min_t: VyperType, max_t: VyperType) -> VyperType:
+        """
+        Find the smallest type between `min_t` and `max_t` such that it contains no wildcards
+        """
+        def interpolate_length(min_l: LengthUpperBound, max_l: LengthUpperBound) -> int | Inf:
+            if min_l != WILDCARD:
+                return min_l
+            elif max_l != WILDCARD:
+                return max_l
+            else:
+                return INF
+
+        
+        assert min_t.is_subtype_of(max_t)
+
+        if isinstance(min_t, BottomT):
+            return max_t.resolve_wildcard()
+        
+        assert type(min_t) == type(max_t)
+
+        if isinstance(min_t, DArrayT):
+            assert isinstance(max_t, DArrayT)
+            new_vt = self._interpolate(min_t.value_type, max_t.value_type)
+
+            new_l = interpolate_length(min_t.length, max_t.length)
+            DArrayT._validate_unbounded_shape(new_vt, new_l)
+            return DArrayT(new_vt, new_l)
+
+        if isinstance(min_t, BytesT):
+            assert isinstance(max_t, BytesT)
+
+            return BytesT(interpolate_length(min_t.length, max_t.length))
+
+        if isinstance(min_t, StringT):
+            assert isinstance(max_t, StringT)
+
+            return StringT(interpolate_length(min_t.length, max_t.length))
+
+        if isinstance(min_t, TupleT):
+            assert isinstance(max_t, TupleT)
+            return TupleT(tuple(self._interpolate(min_mt, max_mt) for min_mt, max_mt in zip(min_t.member_types, max_t.member_types, strict=True)))
+
+        return min_t
+
+
+
     def _annotation_type(self, node: vy_ast.VyperNode, typ: VyperType) -> VyperType:
         if not typ.has_wildcard:
             return typ
 
         possible_types = get_possible_types_from_node(node)
 
-        ret: VyperType
+        candidates = [t for t in possible_types if t.is_subtype_of(typ)]
+        assert len(candidates) == 1
 
-        if possible_types == [DArrayT(BottomT(), 1)]:
-            # since Never cannot be abi-encoded, use the expected type to know which element type is
-            # required
-            assert isinstance(typ, DArrayT)
-            v = typ.value_type.resolve_wildcard()
-            DArrayT._validate_unbounded_shape(v, 1, node)
-            ret = DArrayT(v, 1)
-        else:
-            # we find the one type that the expression has which is valid
-            # (guaranteed to exist since this is called after `visit_*`)
-            candidates = [t for t in possible_types if t.is_subtype_of(typ)]
-            assert len(candidates) == 1
+        ret = self._interpolate(candidates[0], typ)
 
-            ret = candidates[0].resolve_wildcard()
+        # postconditions:
 
-        # postcondition:
-        # expression type <: ret <: expected type
+        # expression type <: ret
         assert any(t.is_subtype_of(ret) for t in possible_types)
+
+        # ret <: expected type
         assert ret.is_subtype_of(typ)
+
+        # ret is wildcard free
+        assert not ret.has_wildcard
 
         return ret
 

@@ -796,6 +796,36 @@ def get_bounded(addr: address, xs: DynArray[Bytes[10], 5]) -> uint256:
     assert caller.get_bounded(target.address, [b"abc", b"defg"]) == 2
 
 
+@pytest.mark.xfail()
+def test_wildcard_tuple_return_forwarded_to_mixed_tuple_arg(get_contract):
+    target_code = """
+seen: public(uint256)
+
+@external
+def source() -> (Bytes[10], DynArray[uint256, INF]):
+    return b"hello", [1, 2, 3]
+
+@external
+def sink(input: (Bytes[10], DynArray[uint256, INF])):
+    self.seen = len(input[0]) * 100 + len(input[1])
+    """
+
+    caller_code = """
+interface Foo:
+    def source() -> (Bytes[...], DynArray[uint256, ...]): nonpayable
+    def sink(input: (Bytes[10], DynArray[uint256, ...])): nonpayable
+
+@external
+def bar(foo: Foo):
+    extcall foo.sink(extcall foo.source())
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    caller.bar(target.address)
+    assert target.seen() == 5 * 100 + 3
+
+
 def test_wildcard_arg_user_struct_element_empty(get_contract):
     target_code = """
 struct S:
