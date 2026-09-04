@@ -31,6 +31,8 @@ class MemLivenessAnalysis(IRAnalysis):
     liveat: dict[IRInstruction, OrderedSet[Allocation]]
     used: dict[IRInstruction, OrderedSet[Allocation]]
     livesets: dict[Allocation, OrderedSet[IRInstruction]]
+    # static allocas whose pointer escapes; live to the end of the function
+    escaped: set[Allocation]
     cfg: CFGAnalysis
 
     def analyze(self):
@@ -54,6 +56,18 @@ class MemLivenessAnalysis(IRAnalysis):
                 break
         else:
             raise CompilerPanic("Uppper bound in memory liveness reached")
+
+        # an alloca whose pointer escapes SSA tracking (stored to memory as
+        # a value, passed to an invoke, ...) can be accessed through the
+        # re-entered pointer where BasePtrAnalysis cannot see it, so the
+        # reads and kills above are incomplete for it. fail closed: it is
+        # live everywhere, i.e. (intersected with `used`) from its first
+        # use to the end of the function, and never shares its slot.
+        self.escaped = {a for a in self.base_ptrs.escaping_allocations() if not a.is_dynamic}
+        if len(self.escaped) > 0:
+            for bb in self.function.get_basic_blocks():
+                for inst in bb.instructions:
+                    self.liveat[inst].update(self.escaped)
 
         for inst, mems in self.liveat.items():
             for mem in mems:

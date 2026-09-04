@@ -32,7 +32,9 @@ VENOM_GRAMMAR = """
 
     function: "function" func_name annotations? "{" block_content "}"
 
-    annotations: "[" IDENT ("," IDENT)* "]"
+    annotations: "[" annotation ("," annotation)* "]"
+
+    annotation: IDENT ("=" CONST)?
 
     block_content: (label_decl | statement)*
 
@@ -95,28 +97,56 @@ def _set_last_label(ctx: IRContext):
 
 # the calling convention is carried only by syntax (opcodes) and the
 # explicit function-header annotation -- there is no shape inference.
-_KNOWN_ANNOTATIONS = frozenset(["fmp_lowered", "fmp_publishes"])
+_KNOWN_FLAG_ANNOTATIONS = frozenset(["fmp_lowered", "fmp_publishes", "noinline"])
+# annotations of the form `name=<int>`
+_KNOWN_VALUED_ANNOTATIONS = frozenset(["eom"])
 
 
-def _apply_annotations(fn: IRFunction, annotations: Optional[list[str]]):
+def _apply_annotations(fn: IRFunction, annotations: Optional[list[tuple[str, Optional[int]]]]):
     """
-    Reconstruct `fn._fmp_signature` from the function-header annotation and
-    the `fmp_param` opcode. Raw functions carry no annotation and keep
-    `_fmp_signature is None`; the input validator (check_venom) rejects
-    un-annotated functions containing lowered FMP artifacts.
+    Apply function-header annotations and reconstruct the FMP signature from
+    its annotations and the `fmp_param` opcode.
     """
     if annotations is None:
         return
 
-    for attr in annotations:
-        if attr not in _KNOWN_ANNOTATIONS:
+    attrs: dict[str, Optional[int]] = {}
+    for attr, value in annotations:
+        if attr in attrs:
+            raise ValueError(f"duplicate function annotation `{attr}` on {fn.name}")
+        if attr in _KNOWN_FLAG_ANNOTATIONS:
+            if value is not None:
+                raise ValueError(f"function annotation `{attr}` takes no value on {fn.name}")
+        elif attr in _KNOWN_VALUED_ANNOTATIONS:
+            if value is None:
+                raise ValueError(f"function annotation `{attr}` requires a value on {fn.name}")
+        else:
             raise ValueError(f"unknown function annotation `{attr}` on {fn.name}")
-    if len(set(annotations)) != len(annotations):
-        raise ValueError(f"duplicate function annotation on {fn.name}")
-    if "fmp_lowered" not in annotations:
-        raise ValueError(f"`fmp_publishes` requires `fmp_lowered` on {fn.name}")
+        attrs[attr] = value
 
-    publishes = "fmp_publishes" in annotations
+    fn.noinline = "noinline" in attrs
+
+    eom = attrs.get("eom")
+    if eom is not None:
+        # end of the function's static frame. Not recoverable from the
+        # instruction stream once allocas have been concretized, but codegen
+        # needs it to place spill slots above the frame, so it has to survive
+        # the round trip (see StackSpiller._get_spill_slot).
+        if eom < 0:
+            raise ValueError(f"negative `eom` annotation on {fn.name}")
+        fn.ctx.mem_allocator.fn_eom[fn] = eom
+
+    if "fmp_lowered" not in attrs:
+        if "fmp_publishes" in attrs:
+            raise ValueError(f"`fmp_publishes` requires `fmp_lowered` on {fn.name}")
+        if "eom" in attrs:
+            # `eom` is only meaningful once the function is fully lowered;
+            # otherwise ConcretizeMemLocPass would rerun and clobber it
+            # (see ConcretizeMemLocPass._is_already_concretized).
+            raise ValueError(f"`eom` requires `fmp_lowered` on {fn.name}")
+        return
+
+    publishes = "fmp_publishes" in attrs
     has_fmp_param = any(
         inst.opcode == "fmp_param" for bb in fn.get_basic_blocks() for inst in bb.instructions
     )
@@ -149,7 +179,10 @@ class _LabelDecl:
 
 
 class _Annotations(list):
-    """Represents a function-header annotation list in the parse tree."""
+    """
+    Represents a function-header annotation list in the parse tree, as
+    (name, value) pairs. `value` is None for flag-style annotations.
+    """
 
 
 class VenomTransformer(Transformer):
@@ -215,7 +248,12 @@ class VenomTransformer(Transformer):
         return name, annotations, block_content
 
     def annotations(self, children) -> _Annotations:
-        return _Annotations(str(child) for child in children)
+        return _Annotations(children)
+
+    def annotation(self, children) -> tuple[str, Optional[int]]:
+        name = str(children[0])
+        value = int(str(children[1]), 0) if len(children) > 1 else None
+        return name, value
 
     def block_content(self, children) -> list:
         # children contains label_decls and statements
