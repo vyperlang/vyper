@@ -1,3 +1,5 @@
+# ruff: noqa: E501
+
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings
 from vyper.venom.basicblock import IRVariable
