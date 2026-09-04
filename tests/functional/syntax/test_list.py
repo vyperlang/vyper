@@ -1,7 +1,13 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InvalidLiteral, StructureException, TypeMismatch
+from vyper.exceptions import (
+    ArrayIndexException,
+    InvalidLiteral,
+    InvalidType,
+    StructureException,
+    TypeMismatch,
+)
 
 fail_list = [
     (
@@ -315,3 +321,25 @@ def foo():
 @pytest.mark.parametrize("good_code", valid_list)
 def test_list_success(good_code):
     assert compiler.compile_code(good_code) is not None
+
+
+def test_static_array_length_zero():
+    code = """
+@external
+def foo():
+    x: uint256[0] = []
+    """
+    with pytest.raises(InvalidType) as excinfo:
+        compiler.compile_code(code)
+    assert excinfo.value.message == "Static arrays cannot have a length of 0"
+
+
+def test_static_array_negative_length():
+    code = """
+@external
+def foo():
+    x: uint256[-1] = []
+    """
+    with pytest.raises(ArrayIndexException) as excinfo:
+        compiler.compile_code(code)
+    assert excinfo.value.message == "Subscript must be at least 0"

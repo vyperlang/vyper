@@ -3,7 +3,7 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import CompilerPanic, TypeCheckFailure
+from vyper.exceptions import CompilerPanic, InvalidOperation, TypeCheckFailure
 
 
 def test_negative_ix_access(get_contract, tx_failed):
@@ -341,3 +341,19 @@ def foo(i: uint256) -> uint256:
     with tx_failed():
         c.foo(0)
     pytest.xfail("compilation succeeded with correct bytecode, but should have rejected `[][i]`")
+
+
+@pytest.mark.xfail(raises=InvalidOperation)
+def test_index_all_empty_lists_variable_index(get_contract):
+    code = """
+@external
+def foo(i: uint256) -> DynArray[uint256, 5]:
+    return [[], []][i]
+    """
+
+    c = get_contract(code)
+
+    assert c.foo(0) == []
+    assert c.foo(1) == []
+    with tx_failed():
+        c.foo(2)

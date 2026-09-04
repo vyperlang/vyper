@@ -2382,3 +2382,89 @@ def foo() -> uint256:
 
     c = get_contract(code)
     assert c.foo() == 15
+
+
+def test_zero_length_dynarray_return_arg(get_contract):
+    code = """
+@external
+def foo(x: DynArray[uint256, 0]) -> DynArray[uint256, 0]:
+    return x
+    """
+    c = get_contract(code)
+    assert c.foo([]) == []
+
+
+def test_zero_length_dynarray_return_empty_literal(get_contract):
+    code = """
+@external
+def foo() -> DynArray[uint256, 0]:
+    return []
+    """
+    c = get_contract(code)
+    assert c.foo() == []
+
+
+def test_zero_length_dynarray_for_loop(get_contract):
+    code = """
+counter: public(uint256)
+
+@external
+def foo(x: DynArray[uint256, 0]):
+    for y: uint256 in x:
+        self.counter += 1
+    """
+    c = get_contract(code)
+    c.foo([])
+    assert c.counter() == 0
+
+
+def test_zero_length_dynarray_in_membership(get_contract):
+    code = """
+@external
+def contains(x: DynArray[uint256, 0], needle: uint256) -> bool:
+    return needle in x
+
+@external
+def not_contains(x: DynArray[uint256, 0], needle: uint256) -> bool:
+    return needle not in x
+    """
+    c = get_contract(code)
+    assert c.contains([], 5) is False
+    assert c.not_contains([], 5) is True
+
+
+def test_zero_length_dynarray_cross_size_copy(get_contract):
+    code = """
+@external
+def foo(x: DynArray[uint256, 0]) -> uint256:
+    y: DynArray[uint256, 5] = x
+    return len(y)
+    """
+    c = get_contract(code)
+    assert c.foo([]) == 0
+
+
+def test_zero_length_dynarray_nested(get_contract):
+    code = """
+@external
+def foo(
+    x: DynArray[DynArray[uint256, 5], 0]
+) -> DynArray[DynArray[uint256, 5], 0]:
+    return x
+    """
+    c = get_contract(code)
+    assert c.foo([]) == []
+
+
+def test_zero_length_dynarray_invalid_length_reverts(get_contract, tx_failed):
+    # ABI encoding with length > 0 for a DynArray[..., 0] argument must
+    # be rejected by the runtime clamp.
+    code = """
+@external
+def foo(x: DynArray[uint256, 0]) -> uint256:
+    return len(x)
+    """
+    c = get_contract(code)
+    assert c.foo([]) == 0
+    with tx_failed():
+        c.foo([1])
