@@ -926,7 +926,13 @@ class Expr:
                     arm_vv, result_typ, annotation="ternary"
                 )
                 return frame_vv.operand
-            return Expr(expr_node, self.ctx).lower_value()
+            # arms may be narrower than the result type (e.g. DynArray[Bytes[10], 5]
+            # for a DynArray[Bytes[512], 5] result), and the result pointer is read
+            # with the result type's layout
+            arm_vv = self.ctx.ensure_memory_layout(
+                Expr(expr_node, self.ctx).lower(), result_typ, annotation="ternary"
+            )
+            return self.ctx.unwrap(arm_vv)
 
         # Process then branch
         self.builder.append_block(then_block)

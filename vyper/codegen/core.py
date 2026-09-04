@@ -1224,6 +1224,33 @@ def _complex_make_setter(left, right, hi=None):
         return b1.resolve(b2.resolve(IRnode.from_list(ret)))
 
 
+def punnable(src_typ, dst_typ):
+    """
+    Return True if memory laid out as `src_typ` can be read (punned) as `dst_typ`.
+
+    Compatible types can differ in element or member layout, e.g.
+    DynArray[Bytes[10], 5] vs DynArray[Bytes[512], 5] (element stride 64
+    vs 544). A wider bytestring bound or DynArray capacity at the top level
+    does not change the layout of the data that is present.
+    """
+    if isinstance(dst_typ, (DArrayT, SArrayT)):
+        assert isinstance(src_typ, (DArrayT, SArrayT))
+        pairs = [(src_typ.value_type, dst_typ.value_type)]
+    elif isinstance(dst_typ, TupleT):
+        assert isinstance(src_typ, TupleT)
+        n = len(dst_typ.member_types)
+        assert len(src_typ.member_types) == n
+        pairs = [(src_typ.member_types[i], dst_typ.member_types[i]) for i in range(n)]
+    else:
+        # primitive words, bytestrings ([length][data]) and (nominal) structs
+        return True
+
+    # nested values also need equal sizes: they determine strides and offsets
+    return all(
+        s.memory_bytes_required == d.memory_bytes_required and punnable(s, d) for s, d in pairs
+    )
+
+
 def ensure_in_memory(ir_var, context):
     """
     Ensure a variable is in memory. This is useful for functions
@@ -1235,8 +1262,9 @@ def ensure_in_memory(ir_var, context):
     return create_memory_copy(ir_var, context)
 
 
-def create_memory_copy(ir_var, context):
-    typ = ir_var.typ
+def create_memory_copy(ir_var, context, typ=None):
+    if typ is None:
+        typ = ir_var.typ
     buf = context.new_internal_variable(typ)
     do_copy = make_setter(buf, ir_var)
     return IRnode.from_list(["seq", do_copy, buf], typ=typ, location=MEMORY)
