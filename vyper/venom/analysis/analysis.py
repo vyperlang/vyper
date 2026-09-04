@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Type, TypeVar
 
+from vyper.exceptions import CompilerPanic
+
 if TYPE_CHECKING:
     from vyper.venom.context import IRContext
     from vyper.venom.function import IRFunction
@@ -63,11 +65,16 @@ class IRAnalysesCache:
     function: IRFunction
     analyses_cache: dict[Type[IRAnalysis], IRAnalysis]
 
-    def __init__(self, function: IRFunction):
+    def __init__(self, function: IRFunction, *, isolated: bool = False):
+        # Validators need fresh local analyses even when a pass missed an
+        # invalidation. Such caches never participate in the shared registry.
+        self.isolated = isolated
         self.analyses_cache = {}
         self.function = function
 
     def _ensure_global_analyses_cache(self) -> "IRGlobalAnalysesCache":
+        if self.isolated:
+            raise CompilerPanic("isolated caches cannot request global analyses")
         global_cache = self.function.ctx.global_analyses_cache
         if global_cache is None:
             global_cache = IRGlobalAnalysesCache(self.function.ctx, {self.function: self})
@@ -75,16 +82,22 @@ class IRAnalysesCache:
         global_cache.register_function_cache(self)
         return global_cache
 
+    def _canonical_cache(self) -> "IRAnalysesCache":
+        if self.isolated:
+            return self
+        return self._ensure_global_analyses_cache().function_analyses_caches[self.function]
+
     def request_analysis(self, analysis_cls: Type[T], *args, **kwargs) -> T:
         """
         Request a specific analysis to be run on the IR. The result is cached and
         returned if the analysis has already been run.
         """
-        global_cache = self._ensure_global_analyses_cache()
         if issubclass(analysis_cls, IRGlobalAnalysis):
-            return global_cache.request_analysis(analysis_cls, *args, **kwargs)
+            return self._ensure_global_analyses_cache().request_analysis(
+                analysis_cls, *args, **kwargs
+            )
 
-        cache = global_cache.function_analyses_caches[self.function]
+        cache = self._canonical_cache()
         if cache is not self:
             return cache.request_analysis(analysis_cls, *args, **kwargs)
 
@@ -104,12 +117,12 @@ class IRAnalysesCache:
         """
         Invalidate a specific analysis. This will remove the analysis from the cache.
         """
-        global_cache = self._ensure_global_analyses_cache()
         if issubclass(analysis_cls, IRGlobalAnalysis):
-            global_cache.invalidate_analysis(analysis_cls)
+            if not self.isolated:
+                self._ensure_global_analyses_cache().invalidate_analysis(analysis_cls)
             return
 
-        cache = global_cache.function_analyses_caches[self.function]
+        cache = self._canonical_cache()
         if cache is not self:
             cache.invalidate_analysis(analysis_cls)
             return
@@ -124,11 +137,12 @@ class IRAnalysesCache:
         Force a specific analysis to be run on the IR even if it has already been run,
         and is cached.
         """
-        global_cache = self._ensure_global_analyses_cache()
         if issubclass(analysis_cls, IRGlobalAnalysis):
-            return global_cache.force_analysis(analysis_cls, *args, **kwargs)
+            return self._ensure_global_analyses_cache().force_analysis(
+                analysis_cls, *args, **kwargs
+            )
 
-        cache = global_cache.function_analyses_caches[self.function]
+        cache = self._canonical_cache()
         if cache is not self:
             return cache.force_analysis(analysis_cls, *args, **kwargs)
 
@@ -157,16 +171,21 @@ class IRGlobalAnalysesCache:
     def register_function_cache(self, cache: IRAnalysesCache) -> None:
         """Fill missing entries without replacing an existing consumer's cache.
 
-        Placeholder status belongs to this registry. A placeholder requesting
-        its own analysis remains a placeholder until a consumer supplies a cache.
+        Placeholder status belongs to this registry. An unused placeholder can
+        be replaced; a populated one retains its analyses and invalidation hooks.
         Other caches for an already registered function delegate their requests
         and invalidations to its canonical cache instead of maintaining stale
         parallel analyses.
         """
         fn = cache.function
         registered = self.function_analyses_caches.get(fn)
-        if registered is not cache and (registered is None or fn in self._placeholders):
+        if registered is None:
             self.function_analyses_caches[fn] = cache
+        elif registered is not cache and fn in self._placeholders:
+            # Once populated, this cache owns invalidation hooks used by global
+            # analyses. Keep it canonical and let the new consumer delegate.
+            if not registered.analyses_cache:
+                self.function_analyses_caches[fn] = cache
             self._placeholders.discard(fn)
         for fn in self.ctx.functions.values():
             if fn not in self.function_analyses_caches:

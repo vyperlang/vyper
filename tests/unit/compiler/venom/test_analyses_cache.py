@@ -109,7 +109,7 @@ def test_temporary_requester_and_later_consumer_share_invalidations():
     assert forced is registered.request_analysis(DFGAnalysis)
 
 
-def test_used_placeholder_can_be_replaced():
+def test_used_placeholder_remains_canonical():
     ctx = parse_venom(SRC)
     entry = ctx.get_function(IRLabel("entry"))
     fn = ctx.get_function(IRLabel("f"))
@@ -121,5 +121,48 @@ def test_used_placeholder_can_be_replaced():
 
     consumer = IRAnalysesCache(fn)
     consumer.request_analysis(DFGAnalysis)
-    assert global_cache.function_analyses_caches[fn] is consumer
+    assert global_cache.function_analyses_caches[fn] is placeholder
     assert placeholder.request_analysis(DFGAnalysis) is consumer.request_analysis(DFGAnalysis)
+
+
+def test_populated_placeholder_keeps_global_invalidation_hooks():
+    from vyper.venom.analysis import CFGAnalysis
+    from vyper.venom.stack_safety import StackCleanupSafety
+
+    ctx = parse_venom(SRC)
+    entry = ctx.get_function(IRLabel("entry"))
+    fn = ctx.get_function(IRLabel("f"))
+    first = IRAnalysesCache(entry)
+    safety = first.request_analysis(StackCleanupSafety)
+    assert safety.max_safe_current_height(fn.entry) is None
+
+    active = IRAnalysesCache(fn)
+    active.request_analysis(FCGGlobalAnalysis)
+    fn.entry.instructions[-1].opcode = "stop"
+    fn.entry.instructions[-1].operands = []
+    active.invalidate_analysis(CFGAnalysis)
+    fresh = active.request_analysis(StackCleanupSafety)
+    assert fresh is not safety
+    assert fresh.max_safe_current_height(fn.entry) is not None
+
+
+def test_semantic_validation_does_not_reuse_stale_pass_analysis():
+    from vyper.venom.analysis import VarDefinition
+    from vyper.venom.check_venom import VarNotDefined, find_semantic_errors_fn
+
+    ctx = parse_venom("""
+    function entry {
+    entry:
+        %x = 1
+        sink %x
+    }
+    """)
+    fn = ctx.entry_function
+    assert fn is not None
+    active = IRAnalysesCache(fn)
+    active.request_analysis(VarDefinition)
+    assert find_semantic_errors_fn(fn) == []
+    # Deliberately omit invalidation: the validator must catch broken mutators.
+    fn.entry.instructions.pop(0)
+    errors = find_semantic_errors_fn(fn)
+    assert any(isinstance(error, VarNotDefined) for error in errors)
