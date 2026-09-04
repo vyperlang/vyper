@@ -108,6 +108,49 @@ def via_call() -> (uint256, DynArray[Bytes[512], 3]):
     assert c.via_call() == (7, SHORT)
 
 
+def test_storage_to_storage_widening(get_contract):
+    code = """
+narrow: DynArray[Bytes[10], 3]
+wide: DynArray[Bytes[512], 3]
+
+@external
+def store(xs: DynArray[Bytes[10], 3]):
+    self.narrow = xs
+
+@external
+def widen():
+    self.wide = self.narrow
+
+@external
+def get_wide() -> DynArray[Bytes[512], 3]:
+    return self.wide
+    """
+    c = get_contract(code)
+    c.store(SHORT)
+    c.widen()
+    assert c.get_wide() == SHORT
+
+
+def test_storage_to_unbounded_local(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
+    code = """
+arr: DynArray[uint256, 3]
+
+@external
+def store(xs: DynArray[uint256, 3]):
+    self.arr = xs
+
+@external
+def via_local() -> DynArray[uint256, INF]:
+    ys: DynArray[uint256, INF] = self.arr
+    return ys
+    """
+    c = get_contract(code)
+    c.store([1, 2, 3])
+    assert c.via_local() == [1, 2, 3]
+
+
 @pytest.mark.requires_evm_version("cancun")
 def test_transient_dynarray_bytes_widening(get_contract):
     code = """
@@ -171,7 +214,8 @@ def via_call() -> DynArray[Bytes[512], 5]:
 
 @external
 def via_bare_name() -> DynArray[Bytes[512], 5]:
-    # deprecated spelling of `self.X`, still accepted
+    # `X` is a deprecated spelling of `self.X` that is lowered by a different
+    # code path; this pins that path
     return X
     """
     c = get_contract(code, SHORT)
@@ -189,6 +233,10 @@ X: immutable(DynArray[DynArray[uint256, 2], 3])
 def __init__(xs: DynArray[DynArray[uint256, 2], 3]):
     self.X = xs
 
+@internal
+def _identity(xs: DynArray[DynArray[uint256, 4], 3]) -> DynArray[DynArray[uint256, 4], 3]:
+    return xs
+
 @external
 def via_local() -> DynArray[DynArray[uint256, 4], 3]:
     ys: DynArray[DynArray[uint256, 4], 3] = self.X
@@ -197,10 +245,15 @@ def via_local() -> DynArray[DynArray[uint256, 4], 3]:
 @external
 def via_return() -> DynArray[DynArray[uint256, 4], 3]:
     return self.X
+
+@external
+def via_call() -> DynArray[DynArray[uint256, 4], 3]:
+    return self._identity(self.X)
     """
     c = get_contract(code, NESTED)
     assert c.via_local() == NESTED
     assert c.via_return() == NESTED
+    assert c.via_call() == NESTED
 
 
 def test_module_variable_widening(get_contract, make_input_bundle):
