@@ -357,15 +357,15 @@ def whole(
     return self._short(a) if c else self._long(b)
 
 @external
-def member(
-    c: bool, a: DynArray[DynArray[uint256, 2], 3], b: DynArray[DynArray[uint256, 4], 3]
+def member_flipped(
+    c: bool, a: DynArray[DynArray[uint256, 4], 3], b: DynArray[DynArray[uint256, 2], 3]
 ) -> DynArray[DynArray[uint256, 4], 3]:
-    return (self._long(b) if c else self._short(a))[1]
+    return (self._long(a) if c else self._short(b))[1]
     """
     a = [[1, 2], [3], []]
     b = [[4, 5, 6, 7], [], [8]]
     c = get_contract(code)
     assert c.whole(True, a, b) == ([1], a)
     assert c.whole(False, a, b) == ([2], b)
-    assert c.member(True, a, b) == b
-    assert c.member(False, a, b) == a
+    assert c.member_flipped(True, b, a) == b
+    assert c.member_flipped(False, b, a) == a
