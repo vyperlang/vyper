@@ -209,6 +209,7 @@ def test_noinline_annotation():
     # sanity check: without the annotation, the function gets inlined
     assert IRLabel("f") not in run_inliner(src.replace(" [noinline]", "")).functions
 
+
 def test_inliner_retpc_retain():
     code = """
     function main {
@@ -228,6 +229,7 @@ def test_inliner_retpc_retain():
     """
 
     flags = VenomOptimizationFlags(level=OptimizationLevel.CODESIZE)
+
     def run_inliner(source):
         ctx = parse_venom(source)
         analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
