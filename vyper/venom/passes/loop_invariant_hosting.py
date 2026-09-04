@@ -16,6 +16,7 @@ def _ignore_instruction(inst: IRInstruction) -> bool:
         or inst.opcode == "phi"
         or (inst.opcode == "add" and isinstance(inst.operands[1], IRLabel))
         or inst.opcode == "assign"
+        or inst.opcode == "gas"
     )
 
 
