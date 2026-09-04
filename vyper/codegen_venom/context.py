@@ -668,13 +668,7 @@ class VenomCodegenContext:
         """Return `vv` laid out as `typ`, copying only when the layouts differ."""
         if punnable(vv.typ, typ):
             return vv
-
-        ret = self.new_temporary_value(typ, annotation=annotation)
-        assert isinstance(ret.operand, IRVariable)
-        # not store_vyper_value: its `src_typ != typ` check is always False for
-        # tuples (TupleT.__eq__ compares the empty `members` dict).
-        self._store_memory_typed(ret.operand, typ, self.unwrap(vv), vv.typ)
-        return ret
+        return self.materialize_value(vv, typ, annotation=annotation)
 
     def snapshot_value_for_delayed_use(
         self,
