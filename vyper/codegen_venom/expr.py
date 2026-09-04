@@ -1821,12 +1821,17 @@ class Expr:
         return VyperValue.from_stack_op(IRLiteral(0), VOID_TYPE)
 
     def _lower_unbounded_dynarray_append(self) -> VyperValue:
-        """Lower append on exact-sized DynArray[..., INF] pointer-cell locals.
+        """Lower append on DynArray[..., INF] pointer-cell locals.
 
-        The current representation keeps no spare capacity: each append
-        allocates the exact new size and copies the old payload before writing
-        the new element. Repeated appends are therefore linear per append and
-        quadratic in aggregate.
+        The pointer cell carries the owned payload capacity next to the
+        payload pointer (see VenomCodegenContext.store_pointer_cell). When
+        the payload has spare room the element is written in place; otherwise
+        a payload of `max(2 * capacity, length + 1)` elements is allocated
+        and the old contents copied over, making repeated appends amortized
+        linear in aggregate. Non-append stores leave capacity at 0, so the
+        first append after an assignment/decode allocates the exact new size
+        (no 2x memory jump on a large ingested array) and doubling starts
+        from there.
         """
         node = self.node
         assert isinstance(node, vy_ast.Call)
@@ -1860,28 +1865,53 @@ class Expr:
         else:
             elem_val = arg_val
 
-        old_ptr = self.ctx.ptr_load(var.value.ptr())
-        assert isinstance(old_ptr, IRVariable)
-        length = self.builder.mload(old_ptr)
+        b = self.builder
+
+        cell = var.value.operand
+        assert isinstance(cell, IRVariable)
+        old_ptr, capacity = self.ctx.load_pointer_cell(cell)
+        length = b.mload(old_ptr)
         elem_size = elem_typ.memory_bytes_required
 
-        old_size = self.ctx.dynarray_runtime_size_from_length(length, darray_typ)
-        data_size = self.builder.sub(old_size, IRLiteral(32))
-        new_size = self.ctx.checked_add(old_size, IRLiteral(elem_size))
+        # every payload a pointer cell can reference was allocated with a
+        # checked `32 + length * elem_size`, so recomputing it cannot overflow
+        data_size = b.mul(length, IRLiteral(elem_size))
 
+        target_cell = self.ctx.allocate_buffer(32, annotation="append target ptr")
+        fast_bb = b.create_block("append_fast")
+        grow_bb = b.create_block("append_grow")
+        join_bb = b.create_block("append_join")
+
+        b.jnz(b.lt(length, capacity), fast_bb.label, grow_bb.label)
+
+        b.append_block(fast_bb)
+        b.set_block(fast_bb)
+        b.mstore(target_cell._ptr, old_ptr)
+        b.jmp(join_bb.label)
+
+        b.append_block(grow_bb)
+        b.set_block(grow_bb)
+        doubled = self.ctx.checked_add(capacity, capacity)
+        min_cap = self.ctx.checked_add(length, IRLiteral(1))
+        new_cap = b.select(b.lt(doubled, min_cap), min_cap, doubled)
+        new_size = self.ctx.dynarray_runtime_size_from_length(new_cap, darray_typ)
         new_ptr = self.ctx.allocate_scratch(new_size)
+        old_size = b.add(IRLiteral(32), data_size)
         self.ctx.copy_memory_dynamic(new_ptr, old_ptr, old_size)
+        self.ctx.store_pointer_cell(cell, new_ptr, new_cap)
+        b.mstore(target_cell._ptr, new_ptr)
+        b.jmp(join_bb.label)
 
-        data_ptr = self.builder.add(new_ptr, IRLiteral(32))
-        elem_ptr = self.builder.add(data_ptr, data_size)
+        b.append_block(join_bb)
+        b.set_block(join_bb)
+        target_ptr = b.mload(target_cell._ptr)
+        assert isinstance(target_ptr, IRVariable)
+        elem_ptr = b.add(b.add(target_ptr, IRLiteral(32)), data_size)
         if elem_typ._is_prim_word:
-            self.builder.mstore(elem_ptr, elem_val)
+            b.mstore(elem_ptr, elem_val)
         else:
             self.ctx.store_memory(elem_val, elem_ptr, elem_typ, src_typ=elem_typ)
-
-        new_length = self.builder.add(length, IRLiteral(1))
-        self.builder.mstore(new_ptr, new_length)
-        self.ctx.ptr_store(var.value.ptr(), new_ptr)
+        b.mstore(target_ptr, b.add(length, IRLiteral(1)))
         return VyperValue.from_stack_op(IRLiteral(0), VOID_TYPE)
 
     def _lower_dynarray_pop(self) -> VyperValue:
