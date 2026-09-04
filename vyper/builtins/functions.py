@@ -44,7 +44,6 @@ from vyper.evm.address_space import MEMORY
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     ArgumentException,
-    CodegenPanic,
     CompilerPanic,
     EvmVersionException,
     InvalidLiteral,
@@ -79,11 +78,13 @@ from vyper.semantics.types import (
     SArrayT,
     StringT,
     TupleT,
+    _BytestringT,
     is_bounded_length,
+    is_unbounded_sequence_type,
+    type_contains_nested_unbounded_sequence,
+    type_contains_unbounded_sequence,
 )
-from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT8_T, UINT256_T
-from vyper.semantics.types.user import FlagT
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import (
     DECIMAL_DIVISOR,
@@ -98,10 +99,12 @@ from vyper.utils import (
     keccak256,
     method_id,
     method_id_int,
+    wrap256,
 )
 from vyper.warnings import vyper_warn
 
 from ._convert import convert
+from ._convert_rules import validate_convertibility
 from ._signatures import BuiltinFunctionT, process_inputs
 
 SHA256_ADDRESS = 2
@@ -110,15 +113,20 @@ SHA256_PER_WORD_GAS = 12
 
 
 class FoldedFunctionT(BuiltinFunctionT):
-    # Base class for nodes which should always be folded
+    """
+    Base class for nodes which should always be folded
+    """
 
     _modifiability = Modifiability.CONSTANT
 
 
 class TypenameFoldedFunctionT(FoldedFunctionT):
-    # Base class for builtin functions that:
-    # (1) take a typename as the only argument; and
-    # (2) should always be folded.
+    """
+    Base class for builtin functions that:
+    (1) take a typename as the only argument; and
+    (2) should always be folded.
+    """
+
     _inputs = [("typename", TYPE_T.any())]
 
     def fetch_call_return(self, node):
@@ -194,103 +202,16 @@ class Ceil(BuiltinFunctionT):
 
 
 class Convert(BuiltinFunctionT):
-    """
-    Built-in type for convert(value, target_type).
-
-    The second argument's destination type determines which first-argument
-    source types it accepts.
-    """
-
     _id = "convert"
-
-    @staticmethod
-    def _convert_fail(value_type, target_type, node):
-        raise TypeMismatch(f"Can't convert {value_type} to {target_type}", node)
-
-    @staticmethod
-    def _source_types_for_target(target_type):
-        if isinstance(target_type, FlagT):
-            return (UINT256_T,)
-
-        if isinstance(target_type, AddressT):
-            # addresses are unsigned, so only unsigned integer inputs are valid
-            return (BytesM_T.any(),) + IntegerT.unsigneds() + (BytesT(32),)
-
-        if isinstance(target_type, IntegerT):
-            allowed = (IntegerT, DecimalT, BytesM_T.any(), BoolT, BytesT(32))
-            if not target_type.is_signed:
-                allowed += (AddressT,)
-            if target_type == UINT256_T:
-                # flags only convert to uint256
-                allowed += (FlagT,)
-            return allowed
-
-        if isinstance(target_type, BoolT):
-            return (IntegerT, DecimalT, BytesM_T.any(), AddressT, BoolT, BytesT(32), StringT(32))
-
-        if isinstance(target_type, DecimalT):
-            return (IntegerT, BoolT, BytesM_T.any(), BytesT(32))
-
-        if isinstance(target_type, BytesM_T):
-            allowed = [BytesM_T.any(), BytesT(target_type.m), BoolT]
-            allowed.extend(i for i in IntegerT.all() if i.bits <= target_type.m_bits)
-            if DecimalT().bits <= target_type.m_bits:
-                allowed.append(DecimalT)
-            if target_type.m_bits >= 160:
-                allowed.append(AddressT)
-            if target_type.m_bits == 256:
-                allowed.append(FlagT)
-            return tuple(allowed)
-
-        if isinstance(target_type, BytesT):
-            return (StringT, BytesT)
-
-        if isinstance(target_type, StringT):
-            return (BytesT, StringT)
-
-        return None
-
-    @staticmethod
-    def _matches_source_type(value_type, target_type, allowed_type):
-        if isinstance(allowed_type, type):
-            matched = isinstance(value_type, allowed_type)
-        else:
-            matched = value_type.is_subtype_of(allowed_type)
-
-        if not matched:
-            return False
-
-        if isinstance(target_type, _BytestringT):
-            # widening a bytestring within the same class is not a real
-            # conversion -- the assignment is already legal without convert()
-            if (
-                isinstance(value_type, type(target_type))
-                and value_type.maxlen <= target_type.maxlen
-            ):
-                return False
-
-        return True
-
-    @classmethod
-    def _validate_type_pair(cls, value_type, target_type, node):
-        allowed = cls._source_types_for_target(target_type)
-        if allowed is None:
-            raise StructureException(f"Conversion to {target_type} is invalid.", node)
-
-        if any(cls._matches_source_type(value_type, target_type, i) for i in allowed):
-            return
-
-        cls._convert_fail(value_type, target_type, node)
 
     def fetch_call_return(self, node):
         _, target_typedef = self.infer_arg_types(node)
 
-        # note: value-dependent validation (e.g. literal range checks)
-        # happens in convert.py
+        # Type-pair legality is checked by infer_arg_types; value-dependent
+        # checks (such as literal ranges) remain in codegen.
         return target_typedef.typedef
 
-    # TODO: push the literal type inference down into convert.py for
-    # more consistency
+    # TODO: push this down into convert.py for more consistency
     def infer_arg_types(self, node, expected_return_typ=None):
         validate_call_args(node, 2)
 
@@ -316,15 +237,10 @@ class Convert(BuiltinFunctionT):
             hint = "remove convert()"
             raise InvalidType(f"Already a '{target_type}' !", node, hint=hint)
 
-        if isinstance(value_type, _BytestringT) and not is_bounded_length(value_type.maxlen):
-            raise CodegenPanic("convert not yet implemented for unbounded sequence type")
-        if isinstance(value_type, DArrayT) and not is_bounded_length(value_type.count):
-            raise CodegenPanic("convert not yet implemented for unbounded sequence type")
+        if isinstance(value_type, DArrayT) or isinstance(target_type, DArrayT):
+            raise TypeMismatch(f"Can't convert {value_type} to {target_type}", node.args[0])
 
-        # Keep conversion legality in argument inference so callers cannot get
-        # a return type for an invalid source/target pair. This intentionally
-        # validates the expression's declared type before codegen constant folding.
-        self._validate_type_pair(value_type, target_type, node)
+        validate_convertibility(value_type, target_type, node.args[0])
 
         return [value_type, TYPE_T(target_type)]
 
@@ -1434,7 +1350,8 @@ class Shift(BuiltinFunctionT):
         if shift < 0:
             value = value >> -shift
         else:
-            value = (value << shift) % (2**256)
+            is_signed_shift = value < 0
+            value = wrap256(value << shift, signed=is_signed_shift)
         return vy_ast.Int.from_node(node, value=value)
 
     def fetch_call_return(self, node):
@@ -1700,11 +1617,29 @@ class _CreateBase(BuiltinFunctionT):
 
 class RawCreate(_CreateBase):
     _id = "raw_create"
-    _inputs = [("bytecode", BytesT(EIP_3860_LIMIT))]
+    _inputs = [("bytecode", BytesT.any())]
     _has_varargs = True
+
+    def fetch_call_return(self, node):
+        for arg_t in self.infer_arg_types(node):
+            # touch abi_type to reject non-encodable argument types
+            _ = arg_t.abi_type
+        return self._return_type
 
     def _add_gas_estimate(self, args, should_use_create2):
         return _create_addl_gas_estimate(EIP_170_LIMIT, should_use_create2)
+
+    def infer_arg_types(self, node, expected_return_typ=None):
+        self._validate_arg_types(node)
+        bytecode_type = get_possible_types_from_node(node.args[0]).pop()
+        if is_bounded_length(bytecode_type.length) and bytecode_type.length > EIP_3860_LIMIT:
+            raise TypeMismatch(f"initcode length cannot exceed {EIP_3860_LIMIT}", node.args[0])
+        ctor_arg_types = [get_exact_type_from_node(arg) for arg in node.args[1:]]
+        if any(type_contains_nested_unbounded_sequence(t) for t in ctor_arg_types):
+            raise StructureException(
+                "constructor arguments cannot contain nested unbounded sequence types", node
+            )
+        return [bytecode_type, *ctor_arg_types]
 
     def _build_create_IR(self, expr, args, context, value, salt, revert_on_failure):
         args = [ensure_in_memory(arg, context) for arg in args]
@@ -1861,6 +1796,34 @@ class CreateFromBlueprint(_CreateBase):
         "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
     _has_varargs = True
+
+    def fetch_call_return(self, node):
+        for arg_t in self.infer_arg_types(node):
+            # touch abi_type to reject non-encodable argument types
+            _ = arg_t.abi_type
+        return self._return_type
+
+    def infer_arg_types(self, node, expected_return_typ=None):
+        arg_types = super().infer_arg_types(node, expected_return_typ)
+        ctor_arg_types = arg_types[1:]
+
+        kwargs = {kw.arg: kw.value for kw in node.keywords}
+        raw_args = False
+        raw_args_kwarg = kwargs.get("raw_args")
+        if raw_args_kwarg is not None:
+            raw_args_kwarg = raw_args_kwarg.reduced()
+        if isinstance(raw_args_kwarg, vy_ast.NameConstant):
+            raw_args = raw_args_kwarg.value
+
+        if raw_args and not (len(ctor_arg_types) == 1 and isinstance(ctor_arg_types[0], BytesT)):
+            raise StructureException("raw_args must be used with exactly 1 bytes argument", node)
+
+        if any(type_contains_nested_unbounded_sequence(t) for t in ctor_arg_types):
+            raise StructureException(
+                "constructor arguments cannot contain nested unbounded sequence types", node
+            )
+
+        return arg_types
 
     def _add_gas_estimate(self, args, should_use_create2):
         ctor_args = ir_tuple_from_args(args[1:])
@@ -2248,6 +2211,18 @@ class Print(BuiltinFunctionT):
             vyper_warn("`print` should only be used for debugging!", node)
             self._warned = True
 
+        arg_types = self.infer_arg_types(node)
+        for arg, arg_t in zip(node.args, arg_types):
+            # touch abi_type to reject non-encodable argument types
+            _ = arg_t.abi_type
+
+            if type_contains_nested_unbounded_sequence(arg_t):
+                raise StructureException(
+                    "print arguments cannot contain unbounded sequence types "
+                    "inside aggregate types",
+                    arg,
+                )
+
         return None
 
     @process_inputs
@@ -2329,6 +2304,10 @@ class ABIEncode(BuiltinFunctionT):
         "method_id": KwargSettings((BYTES4_T, BytesT(4)), None, require_literal=True),
     }
 
+    def infer_arg_types(self, node, expected_return_typ=None):
+        arg_types = super().infer_arg_types(node, expected_return_typ)
+        return [arg_t.resolve_wildcard() for arg_t in arg_types]
+
     def infer_kwarg_types(self, node):
         ret = {}
         for kwarg in node.keywords:
@@ -2345,11 +2324,14 @@ class ABIEncode(BuiltinFunctionT):
 
     def fetch_call_return(self, node):
         self._validate_arg_types(node)
-        ensure_tuple = next(
-            (arg.value.value for arg in node.keywords if arg.arg == "ensure_tuple"), True
-        )
+        kwargs = {kw.arg: kw.value for kw in node.keywords}
+
+        if "ensure_tuple" in kwargs:
+            ensure_tuple = kwargs["ensure_tuple"].get_folded_value().value
+        else:
+            ensure_tuple = True
+
         assert isinstance(ensure_tuple, bool)
-        has_method_id = "method_id" in [arg.arg for arg in node.keywords]
 
         # figure out the output type by converting
         # the types to ABI_Types and calling size_bound API
@@ -2364,9 +2346,19 @@ class ABIEncode(BuiltinFunctionT):
         else:
             arg_abi_t = ABI_Tuple(arg_abi_types)
 
+        if any(type_contains_unbounded_sequence(t) for t in arg_types):
+            for arg, arg_t in zip(node.args, arg_types):
+                if type_contains_nested_unbounded_sequence(arg_t):
+                    raise StructureException(
+                        "abi_encode arguments cannot contain unbounded sequence types "
+                        "inside aggregate types",
+                        arg,
+                    )
+            return BytesT(INF)
+
         maxlen = arg_abi_t.size_bound()
 
-        if has_method_id:
+        if "method_id" in kwargs:
             # the output includes 4 bytes for the method_id.
             maxlen += 4
 
@@ -2451,6 +2443,13 @@ class ABIDecode(BuiltinFunctionT):
 
         data_type = get_exact_type_from_node(node.args[0])
         output_type = type_from_annotation(node.args[1])
+        if type_contains_unbounded_sequence(output_type):
+            if not is_unbounded_sequence_type(output_type):
+                raise StructureException(
+                    "abi_decode output type cannot contain unbounded sequence types "
+                    "inside aggregate types",
+                    node.args[1],
+                )
 
         return [data_type, TYPE_T(output_type)]
 

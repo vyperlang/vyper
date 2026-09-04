@@ -32,9 +32,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
 )
-from vyper.semantics.types import AddressT, BoolT, BytesT, StringT
-from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.infinity import is_bounded_length
+from vyper.semantics.types import AddressT, BoolT, BytesT, StringT, _BytestringT, is_bounded_length
 from vyper.semantics.types.shortcuts import INT256_T, UINT160_T, UINT256_T
 from vyper.utils import DECIMAL_DIVISOR, unsigned_to_signed
 

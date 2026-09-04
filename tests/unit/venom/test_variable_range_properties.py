@@ -28,6 +28,7 @@ from vyper.venom.analysis.variable_range.evaluators import (
     eval_not,
     eval_or,
     eval_sar,
+    eval_sdiv,
     eval_shl,
     eval_shr,
     eval_signextend,
@@ -721,6 +722,25 @@ class TestArithmeticSoundness:
         result_range = eval_mod(ValueRange.constant(12345), ValueRange.constant(0))
         assert value_in_range(0, result_range)
 
+    @pytest.mark.parametrize(
+        "evaluator,a,b,expected",
+        [
+            (eval_add, SIGNED_MAX, 1, SIGNED_MIN),
+            (eval_sub, 0, SIGNED_MIN, SIGNED_MIN),
+            (eval_mul, 2**254, 2, SIGNED_MIN),
+            # a dividend given as the unsigned word 2**255 is SIGNED_MIN
+            (eval_sdiv, 2**255, 2, -(2**254)),
+        ],
+    )
+    def test_constant_result_uses_signed_representation(
+        self, evaluator: Callable, a: int, b: int, expected: int
+    ) -> None:
+        """Constant results must use the same signed representation as
+        literals, so a word >= 2**255 is never stored as a positive value.
+        """
+        result_range = evaluator(ValueRange.constant(a), ValueRange.constant(b))
+        assert result_range == ValueRange.constant(expected)
+
 
 # =============================================================================
 # SOUNDNESS TESTS: COMPARISON OPERATIONS
@@ -796,6 +816,16 @@ class TestComparisonSoundness:
         result_range = eval_compare("lt", ValueRange.constant(-1), ValueRange.constant(1))
         # -1 as unsigned is MAX_UINT, MAX_UINT > 1, so lt returns 0
         assert value_in_range(0, result_range), f"lt(-1, 1) must include 0, got {result_range}"
+
+    def test_slt_range_past_signed_max_is_unknown(self) -> None:
+        """A range reaching past SIGNED_MAX contains negative words.
+
+        [0, 2**255] contains the word 2**255, which is SIGNED_MIN, so
+        slt(x, 0) can be 1 and the comparison must not fold to 0.
+        """
+        rng = ValueRange.iv(0, 2**255)
+        assert eval_compare("slt", rng, ValueRange.constant(0)) == ValueRange.bool_range()
+        assert eval_compare("sgt", ValueRange.constant(0), rng) == ValueRange.bool_range()
 
     def test_eq_minus_one_and_max_uint(self) -> None:
         """Critical: eq(-1, MAX_UINT) must be 1 (same bit pattern)."""

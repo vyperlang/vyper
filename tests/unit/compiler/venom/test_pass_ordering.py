@@ -3,6 +3,7 @@ import pytest
 import vyper.venom as venom
 from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.exceptions import CompilerPanic
+from vyper.venom.context import IRContext
 from vyper.venom.optimization_levels.pass_order import validate_pass_order
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.cfg_normalization import CFGNormalization
@@ -23,6 +24,30 @@ def test_builtin_optimization_pipelines_are_valid(level):
     flags = VenomOptimizationFlags(level=level)
     pipeline = venom._build_fn_pass_pipeline(flags)
     assert len(pipeline) > 0
+
+
+def test_none_has_an_independent_copy_of_the_o1_pipeline():
+    none_pipeline = venom.OPTIMIZATION_PASSES[OptimizationLevel.NONE]
+    o1_pipeline = venom.OPTIMIZATION_PASSES[OptimizationLevel.O1]
+
+    assert none_pipeline == o1_pipeline
+    assert none_pipeline is not o1_pipeline
+
+
+@pytest.mark.parametrize(
+    "level,no_optimize", [(OptimizationLevel.NONE, True), (OptimizationLevel.O1, False)]
+)
+def test_none_and_o1_have_distinct_assembly_optimization_policies(monkeypatch, level, no_optimize):
+    calls = []
+
+    def generate_evm_assembly(self, no_optimize=False):
+        calls.append(no_optimize)
+        return []
+
+    monkeypatch.setattr(venom.VenomCompiler, "generate_evm_assembly", generate_evm_assembly)
+
+    assert venom.generate_assembly_experimental(IRContext(), level) == []
+    assert calls == [no_optimize]
 
 
 def test_validate_requires_pass_before():
@@ -181,3 +206,14 @@ def test_error_message_stops_at_instead():
     message = str(exc.value).splitlines()[0]
     assert message.endswith("instead.")
     assert "Pipeline context:" not in message
+
+
+@pytest.mark.parametrize("level", [OptimizationLevel.NONE, OptimizationLevel.O1])
+def test_disable_simplify_cfg_is_ignored_at_lowering_only_levels(level):
+    # the lowering-only pipelines contain no optional passes; in particular
+    # venom_to_assembly requires SimplifyCFGPass to have run, so the disable
+    # flag must not remove it
+    flags = VenomOptimizationFlags(level=level, disable_simplify_cfg=True)
+    pipeline = venom._build_fn_pass_pipeline(flags)
+    pass_classes = [pass_cls for pass_cls, _ in pipeline]
+    assert SimplifyCFGPass in pass_classes

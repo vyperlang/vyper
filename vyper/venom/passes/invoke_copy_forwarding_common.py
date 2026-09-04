@@ -47,20 +47,29 @@ class InvokeCopyForwardingBase(IRPass):
         self.readonly_memory_args = self.analyses_cache.force_analysis(
             ReadonlyMemoryArgsGlobalAnalysis
         )
+        self._multi_defined_vars = self._collect_multi_defined_vars()
+
+    def _collect_multi_defined_vars(self) -> set[IRVariable]:
+        # the pre-inlining run of these passes sees pre-SSA IR, where a
+        # variable can be assigned on several paths. DFGAnalysis records a
+        # single producer per variable, so an assign chain walked through
+        # such a variable would follow just one of its definitions.
+        seen: set[IRVariable] = set()
+        multi: set[IRVariable] = set()
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                for out in inst.get_outputs():
+                    if out in seen:
+                        multi.add(out)
+                    seen.add(out)
+        return multi
 
     def _finish(self, changed: bool) -> None:
         if changed:
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _is_after(self, copy_inst: IRInstruction, use_inst: IRInstruction) -> bool:
-        copy_bb = copy_inst.parent
-        use_bb = use_inst.parent
-
-        if use_bb is copy_bb:
-            bb_insts = copy_bb.instructions
-            return bb_insts.index(use_inst) > bb_insts.index(copy_inst)
-
-        return self.domtree.dominates(copy_bb, use_bb)
+        return self.domtree.is_after(use_inst, copy_inst)
 
     def _invoke_user_arg_index(self, invoke_inst: IRInstruction, operand_idx: int) -> int | None:
         return self._invoke_layout(invoke_inst).user_arg_index(operand_idx)
@@ -114,7 +123,12 @@ class InvokeCopyForwardingBase(IRPass):
 
         return False
 
-    def _collect_assign_aliases(self, root: IRVariable) -> set[IRVariable]:
+    def _collect_assign_aliases(self, root: IRVariable) -> set[IRVariable] | None:
+        """
+        `root` and every variable assigned from it through assign chains,
+        or None when one of those variables is multiply defined and so does
+        not alias `root` on every path.
+        """
         aliases: set[IRVariable] = {root}
         worklist = deque([root])
 
@@ -124,6 +138,8 @@ class InvokeCopyForwardingBase(IRPass):
                 if use.opcode != "assign":
                     continue
                 out = use.output
+                if out in self._multi_defined_vars:
+                    return None
                 if out in aliases:
                     continue
                 aliases.add(out)
@@ -147,13 +163,20 @@ class InvokeCopyForwardingBase(IRPass):
     def _is_assign_output_use(self, use: IRInstruction, operand_pos: int) -> bool:
         return use.opcode == "assign" and operand_pos == 0
 
-    def _assign_root(self, op: IROperand) -> IROperand:
+    def _assign_root(self, op: IROperand) -> IROperand | None:
         if not isinstance(op, IRVariable):
             return op
         return self._assign_root_var(op)
 
-    def _assign_root_var(self, var: IRVariable) -> IRVariable:
+    def _assign_root_var(self, var: IRVariable) -> IRVariable | None:
+        """
+        The variable at the start of `var`'s assign chain, or None when the
+        chain passes through a multiply defined variable, whose root differs
+        per path.
+        """
         while True:
+            if var in self._multi_defined_vars:
+                return None
             inst = self.dfg.get_producing_instruction(var)
             if inst is None or inst.opcode != "assign":
                 return var

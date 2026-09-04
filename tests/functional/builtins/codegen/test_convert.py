@@ -8,7 +8,7 @@ import eth.codecs.abi.exceptions
 import pytest
 
 from tests.utils import decimal_to_int
-from vyper.builtins.functions import Convert
+from vyper.builtins._convert_rules import validate_convertibility
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings
 from vyper.exceptions import InvalidLiteral, InvalidType, StructureException, TypeMismatch
@@ -371,7 +371,7 @@ def _validate_type_pair_allows(i_typ, o_typ):
         return False
 
     try:
-        Convert._validate_type_pair(i_typ, o_typ, None)
+        validate_convertibility(i_typ, o_typ, None)
     except (StructureException, TypeMismatch):
         return False
 
@@ -386,20 +386,20 @@ def test_validate_type_pair_matches_can_convert(i_typ, o_typ):
 @pytest.mark.parametrize("i_typ", [BytesT(1), BytesT(20), BytesT(32)])
 @pytest.mark.parametrize("o_typ", [AddressT(), UINT256_T, DecimalT(), BoolT()])
 def test_bounded_dynamic_bytes_sources_allowed_for_scalar_targets(i_typ, o_typ):
-    Convert._validate_type_pair(i_typ, o_typ, None)
+    validate_convertibility(i_typ, o_typ, None)
 
 
 @pytest.mark.parametrize("i_typ", [BytesT(33), BytesT(64)])
 @pytest.mark.parametrize("o_typ", [AddressT(), UINT256_T, DecimalT(), BoolT()])
 def test_oversized_dynamic_bytes_sources_rejected_for_scalar_targets(i_typ, o_typ):
     with pytest.raises(TypeMismatch):
-        Convert._validate_type_pair(i_typ, o_typ, None)
+        validate_convertibility(i_typ, o_typ, None)
 
 
 @pytest.mark.parametrize("o_typ", BytesM_T.all())
 def test_oversized_dynamic_bytes_sources_rejected_for_bytes_m_targets(o_typ):
     with pytest.raises(TypeMismatch):
-        Convert._validate_type_pair(BytesT(33), o_typ, None)
+        validate_convertibility(BytesT(33), o_typ, None)
 
 
 # _CASES_CACHE = {}
