@@ -409,7 +409,14 @@ class _ExprAnalyser:
             ret = []
             for t in types_list:
                 t.validate_index_type(node.slice)
-                ret.append(t.get_subscripted_type(node.slice))
+                elem_t = t.get_subscripted_type(node.slice)
+
+                # skip duplicates, can happen because of `[x][0]`:
+                # `types_list` for `[x]` is `[DArray(T,1), SArray(T, 1)]`
+                # and both `DArray(T,1).get_subscripted_type` and `SArray(T,1).get_subscripted_type`
+                # will return `T`, leading to a duplicate
+                if not _is_type_in_list(elem_t, ret):
+                    ret.append(elem_t)
             return ret
 
         t = self.get_exact_type_from_node(node.value)

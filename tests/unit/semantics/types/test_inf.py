@@ -1082,6 +1082,18 @@ def f(a: address):
     compiler.compile_code(code)
 
 
+def test_wildcard_arg_subscripted_list_literal():
+    code = """
+interface I:
+    def foo(xs: DynArray[uint256, ...]): nonpayable
+
+@external
+def f(a: address, xs: DynArray[uint256, 5]):
+    extcall I(a).foo([xs][0])
+    """
+    compiler.compile_code(code)
+
+
 def test_wildcard_tuple_interface_arg_rejects_inf_source():
     code = """
 interface I:
