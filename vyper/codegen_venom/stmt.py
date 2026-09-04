@@ -187,7 +187,7 @@ class Stmt:
         if not is_unbounded_sequence_type(typ):  # pragma: nocover
             raise CompilerPanic(f"expected unbounded sequence type, got {typ}")
         value = self.ctx.copy_sequence_to_scratch(src, typ, annotation=var.name)
-        self.ctx.ptr_store(var.value.ptr(), value.operand)
+        self.ctx.store_pointer_cell(var.value.operand, value.operand, IRLiteral(0))
 
     def _assign_value(
         self, dst_ptr: Ptr, src: VyperValue, typ, *, src_node: vy_ast.VyperNode
