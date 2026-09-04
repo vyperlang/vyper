@@ -87,7 +87,7 @@ def _parse_to_ast(
 
             # adjust the column of the error if it was modified by the pre-parser
             if e.lineno is not None:  # help mypy
-                offset += pre_parser.adjustments.get((e.lineno, offset), 0)
+                offset += pre_parser.shift_for(e.lineno, offset)
 
         new_e = SyntaxException(str(e), vyper_source, e.lineno, offset)
 
@@ -193,7 +193,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         return self._source_code.splitlines(keepends=True)
 
     @cached_property
-    def line_offsets(self):
+    def line_index(self):
         ofst = 0
         # ensure line_offsets has at least 1 entry for 0-line source
         ret = {1: ofst}
@@ -216,20 +216,46 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             # a copy here.
             node = copy.copy(node)
 
-        # adapted from cpython Lib/ast.py. adds line/col info to ast,
-        # but unlike Lib/ast.py, adjusts *all* ast nodes, not just the
-        # one that python defines to have line/col info.
-        # https://github.com/python/cpython/blob/62729d79206014886f5d/Lib/ast.py#L228
-        for field in LINE_INFO_FIELDS:
-            if len(self._parents) > 0:
-                parent = self._parents[-1]
-                val = getattr(node, field, None)
-                if val is None:
-                    # try to get the field from the parent
-                    val = getattr(parent, field)
-                setattr(node, field, val)
+        # set/update source positions
+
+        if isinstance(node, python_ast.Module):
+            # Module nodes are set to span the whole file
+            node.lineno = 1
+            node.col_offset = 0
+
+            if len(self.source_lines) > 0:
+                node.end_lineno = len(self.source_lines)
+                node.end_col_offset = len(self.source_lines[-1])
             else:
-                assert hasattr(node, field), node
+                node.end_lineno = 1
+                node.end_col_offset = 0
+
+        elif hasattr(node, "lineno"):
+            assert hasattr(node, "col_offset")
+            assert hasattr(node, "end_lineno")
+            assert hasattr(node, "end_col_offset")
+            # node has the position fields, adjust them
+
+            # Modules have their positions manually set
+            if not isinstance(node, python_ast.Module):
+                node.col_offset += self._pre_parser.shift_for(node.lineno, node.col_offset)
+                node.end_col_offset += self._pre_parser.shift_for(
+                    node.end_lineno, node.end_col_offset
+                )
+        else:
+            assert not hasattr(node, "col_offset")
+            assert not hasattr(node, "end_lineno")
+            assert not hasattr(node, "end_col_offset")
+            # node doesn't have the position fields, copy from parent
+            # (they will already have been adjusted)
+
+            assert len(self._parents) > 0
+            parent = self._parents[-1]
+
+            for field_name in LINE_INFO_FIELDS:
+                parent_field = getattr(parent, field_name)
+                assert parent_field is not None
+                setattr(node, field_name, parent_field)
 
         # decorate every node with the original source code to allow
         # pretty-printing errors
@@ -238,19 +264,11 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self.counter += 1
         node.ast_type = node.__class__.__name__
 
-        adjustments = self._pre_parser.adjustments
+        start_index = self.line_index[node.lineno] + node.col_offset
+        end_index = self.line_index[node.end_lineno] + node.end_col_offset
 
-        adj = adjustments.get((node.lineno, node.col_offset), 0)
-        node.col_offset += adj
-
-        adj = adjustments.get((node.end_lineno, node.end_col_offset), 0)
-        node.end_col_offset += adj
-
-        start_pos = self.line_offsets[node.lineno] + node.col_offset
-        end_pos = self.line_offsets[node.end_lineno] + node.end_col_offset
-
-        node.src = f"{start_pos}:{end_pos-start_pos}:{self._source_id}"
-        node.node_source_code = self._source_code[start_pos:end_pos]
+        node.src = f"{start_index}:{end_index-start_index}:{self._source_id}"
+        node.node_source_code = self._source_code[start_index:end_index]
 
         # keep track of the current path thru the AST
         self._parents.append(node)
@@ -279,14 +297,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                 node.doc_string = n.value
 
     def visit_Module(self, node):
-        node.lineno = 1
-        node.col_offset = 0
-        node.end_lineno = max(1, len(self.source_lines))
-
-        if len(self.source_lines) > 0:
-            node.end_col_offset = len(self.source_lines[-1])
-        else:
-            node.end_col_offset = 0
 
         # TODO: is this the best place for these? maybe they can be on
         # CompilerData instead.

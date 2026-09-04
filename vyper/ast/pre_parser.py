@@ -1,3 +1,4 @@
+import bisect
 import enum
 import io
 import re
@@ -229,9 +230,10 @@ class PreParser:
     # A mapping of offsets to new class names
     keyword_translations: dict[tuple[int, int], str]
 
-    # Map from offsets in the original vyper source code to offsets
-    # in the new ("reformatted", i.e. python-compatible) source code
-    adjustments: dict[tuple[int, int], int]
+    # For each line, a list of at what column to start shifting, and by what amount
+    # The amounts are exact, not cumulative:
+    #   [(0, 5), (10, 2)] implies starting with line 10 we shift by 2 (and not 5+2)
+    _shift_points: dict[int, list[tuple[int, int]]]
 
     # A mapping of line/column offsets of `For` nodes to the annotation of the for loop target
     for_loop_annotations: dict[tuple[int, int], list[TokenInfo]]
@@ -269,7 +271,7 @@ class PreParser:
             raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
 
     def _parse(self, code: str):
-        adjustments: dict = {}
+        shift_points: dict[int, list[tuple[int, int]]] = defaultdict(list)
         result: list[TokenInfo] = []
         keyword_translations: dict[tuple[int, int], str] = {}
         settings = Settings()
@@ -290,11 +292,9 @@ class PreParser:
             end = token.end
             line = token.line
 
-            # handle adjustments
             lineno, col = token.start
             adj = _col_adjustments[lineno]
             newstart = lineno, col - adj
-            adjustments[lineno, col - adj] = adj
 
             if typ == COMMENT:
                 contents = string[1:].strip()
@@ -330,9 +330,11 @@ class PreParser:
                     keyword_translations[newstart] = vyper_type
 
                     adjustment = len(string) - len(new_keyword)
-                    # adjustments for following tokens
-                    lineno, col = start
                     _col_adjustments[lineno] += adjustment
+
+                    # we shift every subsequent start and end, but also the current end
+                    # therefore we set the shift point to be just after the current start
+                    shift_points[lineno].append((newstart[1] + 1, _col_adjustments[lineno]))
 
                     # a bit cursed technique to get untokenize to put
                     # the new tokens in the right place so that
@@ -351,9 +353,21 @@ class PreParser:
         for k, v in for_parser.annotations.items():
             for_loop_annotations[k] = v.copy()
 
-        self.adjustments = adjustments
+        self._shift_points = dict(shift_points)
         self.settings = settings
         self.keyword_translations = keyword_translations
         self.for_loop_annotations = for_loop_annotations
         self.hex_string_locations = hex_string_parser.locations
         self.reformatted_code = untokenize(result).decode("utf-8")  # type: ignore[union-attr]
+
+    def shift_for(self, lineno: int, col: int) -> int:
+        """
+        Given a python ast lineno and col, return the difference with the original vyper col
+        """
+        pts = self._shift_points.get(lineno)
+        if not pts:
+            return 0
+        # bisect_right on col: the last shift point with col_key <= col is at
+        # index i - 1 (0 means no shift point applies yet).
+        i = bisect.bisect_right(pts, (col, float("inf")))
+        return pts[i - 1][1] if i > 0 else 0
