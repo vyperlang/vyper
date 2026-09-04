@@ -237,13 +237,12 @@ class Stmt:
         Only called from `_copy_complex_type` which handles staging when needed.
         """
         if (
-            dst_ptr.location is not DataLocation.MEMORY
+            not same_memory_layout(src_typ, typ)
+            and dst_ptr.location is not DataLocation.MEMORY
             and not (isinstance(src_typ, _BytestringT) and isinstance(typ, _BytestringT))
-            and not same_memory_layout(src_typ, typ)
         ):
             # Normalize source into destination layout before writing to
             # storage/transient/code locations that don't carry src_typ.
-            # not `src_typ != typ`: TupleT.__eq__ always returns True.
             normalized = self.ctx.new_temporary_value(typ)
             assert isinstance(normalized.operand, IRVariable)
             self.ctx.store_memory(src, normalized.operand, typ, src_typ=src_typ)
@@ -1246,12 +1245,13 @@ class Stmt:
                 continue
 
             assert member_ptr is not None
+            # INF members have no memory size: keep the unbounded checks
+            # ahead of `same_memory_layout`
             if (
                 not type_contains_unbounded_sequence(dst_member_t)
                 and not type_contains_unbounded_sequence(src_member_t)
                 and not same_memory_layout(src_member_t, dst_member_t)
             ):
-                # not `dst_member_t != src_member_t`: TupleT.__eq__ always returns True
                 normalized = self.ctx.new_temporary_value(dst_member_t)
                 assert isinstance(normalized.operand, IRVariable)
                 self.ctx.store_memory(

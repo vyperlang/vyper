@@ -208,6 +208,8 @@ def test_unbounded_member_nested_tuple_widening(get_contract, experimental_codeg
     if not experimental_codegen:
         pytest.skip("unbounded sequence types require --experimental-codegen")
 
+    # a tuple with an unbounded member is returned from an internal function
+    # member by member. the bounded tuple member still has to be widened.
     code = """
 @internal
 def _narrow(

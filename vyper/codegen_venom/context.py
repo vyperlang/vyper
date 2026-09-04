@@ -53,6 +53,9 @@ def same_memory_layout(src_typ: VyperType, dst_typ: VyperType) -> bool:
     `punnable` accepts a wider top-level DynArray capacity in `dst_typ`
     (the data present has the same layout), but a flat copy of the
     destination size would then read past the source.
+
+    Not `src_typ != dst_typ`: `TupleT` compares by its never-populated
+    `members` dict, so any two tuple types are equal.
     """
     return punnable(src_typ, dst_typ) and (
         src_typ.memory_bytes_required == dst_typ.memory_bytes_required
@@ -919,7 +922,6 @@ class VenomCodegenContext:
         elif not same_memory_layout(src_typ, typ):
             # Layout-aware copy for assignments between compatible but not
             # identical memory layouts (e.g. DynArray[Bytes[540]] -> DynArray[Bytes[704]]).
-            # not `src_typ != typ`: TupleT.__eq__ always returns True.
             self._store_memory_typed(dst=ptr, dst_typ=typ, src=val, src_typ=src_typ)
         else:
             # Complex type: val is a pointer, copy memory
