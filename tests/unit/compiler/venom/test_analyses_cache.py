@@ -1,12 +1,13 @@
 from tests.venom_utils import parse_venom
 from vyper.venom.analysis import IRAnalysesCache
+from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.fcg import FCGGlobalAnalysis
-from vyper.venom.basicblock import IRLabel
+from vyper.venom.basicblock import IRLabel, IRVariable
 
 SRC = """
 function entry {
 entry:
-    %1 = invoke @f
+    invoke @f
     stop
 }
 
@@ -31,7 +32,8 @@ def test_global_cache_creation_registers_self():
     assert global_cache.function_analyses_caches[entry] is ac
     # other functions get fresh caches
     for fn in ctx.functions.values():
-        assert fn in global_cache.function_analyses_caches
+        if fn is not entry:
+            assert global_cache.function_analyses_caches[fn] is not ac
 
 
 def test_existing_global_cache_registers_self():
@@ -73,3 +75,51 @@ def test_existing_authoritative_cache_not_displaced():
     ac_tmp = IRAnalysesCache(entry)
     ac_tmp.request_analysis(FCGGlobalAnalysis)
     assert global_cache.function_analyses_caches[entry] is ac_entry
+
+
+def test_temporary_requester_and_later_consumer_share_invalidations():
+    ctx = parse_venom(SRC)
+    entry = ctx.get_function(IRLabel("entry"))
+    fn = ctx.get_function(IRLabel("f"))
+    IRAnalysesCache(entry).request_analysis(FCGGlobalAnalysis)
+
+    temporary = IRAnalysesCache(fn)
+    temporary.request_analysis(FCGGlobalAnalysis)
+    old = temporary.request_analysis(DFGAnalysis)
+    active = IRAnalysesCache(fn)
+    assert active.request_analysis(DFGAnalysis) is old
+
+    # Rename the return-PC parameter and its use, then invalidate only through
+    # the active consumer. The global consumer must see the updated DFG too.
+    replacement = IRVariable("new_retpc")
+    fn.entry.instructions[0].set_outputs([replacement])
+    fn.entry.instructions[1].operands = [replacement]
+    active.invalidate_analysis(DFGAnalysis)
+
+    global_cache = ctx.global_analyses_cache
+    assert global_cache is not None
+    registered = global_cache.function_analyses_caches[fn]
+    fresh = registered.request_analysis(DFGAnalysis)
+    assert fresh is not old
+    assert fresh is active.request_analysis(DFGAnalysis)
+    assert fresh.get_producing_instruction(replacement) is fn.entry.instructions[0]
+    assert fresh.get_producing_instruction(IRVariable("retpc")) is None
+    forced = active.force_analysis(DFGAnalysis)
+    assert forced is not fresh
+    assert forced is registered.request_analysis(DFGAnalysis)
+
+
+def test_used_placeholder_can_be_replaced():
+    ctx = parse_venom(SRC)
+    entry = ctx.get_function(IRLabel("entry"))
+    fn = ctx.get_function(IRLabel("f"))
+    IRAnalysesCache(entry).request_analysis(FCGGlobalAnalysis)
+    global_cache = ctx.global_analyses_cache
+    assert global_cache is not None
+    placeholder = global_cache.function_analyses_caches[fn]
+    placeholder.request_analysis(DFGAnalysis)
+
+    consumer = IRAnalysesCache(fn)
+    consumer.request_analysis(DFGAnalysis)
+    assert global_cache.function_analyses_caches[fn] is consumer
+    assert placeholder.request_analysis(DFGAnalysis) is consumer.request_analysis(DFGAnalysis)

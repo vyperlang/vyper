@@ -67,39 +67,12 @@ class IRAnalysesCache:
         self.analyses_cache = {}
         self.function = function
 
-        # marker for caches created as placeholders by
-        # `_ensure_global_analyses_cache` (as opposed to caches owned by
-        # a pass pipeline or another "real" consumer, whose invalidations
-        # downstream consumers rely on)
-        self._auto_created = False
-
-    @classmethod
-    def _placeholder(cls, function: IRFunction) -> "IRAnalysesCache":
-        ret = cls(function)
-        ret._auto_created = True
-        return ret
-
     def _ensure_global_analyses_cache(self) -> "IRGlobalAnalysesCache":
         global_cache = self.function.ctx.global_analyses_cache
         if global_cache is None:
-            function_analyses_caches = {
-                fn: IRAnalysesCache._placeholder(fn) for fn in self.function.ctx.functions.values()
-            }
-            function_analyses_caches[self.function] = self
-            global_cache = IRGlobalAnalysesCache(self.function.ctx, function_analyses_caches)
+            global_cache = IRGlobalAnalysesCache(self.function.ctx, {self.function: self})
             self.function.ctx.global_analyses_cache = global_cache
-            return global_cache
-
-        # register self, but never displace a non-placeholder cache for
-        # the same function (e.g. one registered by the pass pipeline) --
-        # its consumers rely on its invalidations.
-        caches = global_cache.function_analyses_caches
-        registered = caches.get(self.function)
-        if registered is None or registered._auto_created:
-            caches[self.function] = self
-        for fn in self.function.ctx.functions.values():
-            if fn not in caches:
-                caches[fn] = IRAnalysesCache._placeholder(fn)
+        global_cache.register_function_cache(self)
         return global_cache
 
     def request_analysis(self, analysis_cls: Type[T], *args, **kwargs) -> T:
@@ -107,10 +80,13 @@ class IRAnalysesCache:
         Request a specific analysis to be run on the IR. The result is cached and
         returned if the analysis has already been run.
         """
+        global_cache = self._ensure_global_analyses_cache()
         if issubclass(analysis_cls, IRGlobalAnalysis):
-            return self._ensure_global_analyses_cache().request_analysis(
-                analysis_cls, *args, **kwargs
-            )
+            return global_cache.request_analysis(analysis_cls, *args, **kwargs)
+
+        cache = global_cache.function_analyses_caches[self.function]
+        if cache is not self:
+            return cache.request_analysis(analysis_cls, *args, **kwargs)
 
         assert issubclass(analysis_cls, IRAnalysis), f"{analysis_cls} is not an IRAnalysis"
         if analysis_cls in self.analyses_cache:
@@ -128,10 +104,14 @@ class IRAnalysesCache:
         """
         Invalidate a specific analysis. This will remove the analysis from the cache.
         """
+        global_cache = self._ensure_global_analyses_cache()
         if issubclass(analysis_cls, IRGlobalAnalysis):
-            global_cache = self.function.ctx.global_analyses_cache
-            if global_cache is not None:
-                global_cache.invalidate_analysis(analysis_cls)
+            global_cache.invalidate_analysis(analysis_cls)
+            return
+
+        cache = global_cache.function_analyses_caches[self.function]
+        if cache is not self:
+            cache.invalidate_analysis(analysis_cls)
             return
 
         assert issubclass(analysis_cls, IRAnalysis), f"{analysis_cls} is not an IRAnalysis"
@@ -144,10 +124,13 @@ class IRAnalysesCache:
         Force a specific analysis to be run on the IR even if it has already been run,
         and is cached.
         """
+        global_cache = self._ensure_global_analyses_cache()
         if issubclass(analysis_cls, IRGlobalAnalysis):
-            return self._ensure_global_analyses_cache().force_analysis(
-                analysis_cls, *args, **kwargs
-            )
+            return global_cache.force_analysis(analysis_cls, *args, **kwargs)
+
+        cache = global_cache.function_analyses_caches[self.function]
+        if cache is not self:
+            return cache.force_analysis(analysis_cls, *args, **kwargs)
 
         assert issubclass(analysis_cls, IRAnalysis), f"{analysis_cls} is not an IRAnalysis"
         if analysis_cls in self.analyses_cache:
@@ -169,6 +152,26 @@ class IRGlobalAnalysesCache:
         self.ctx = ctx
         self.function_analyses_caches = function_analyses_caches
         self.analyses_cache = {}
+        self._placeholders: set[IRFunction] = set()
+
+    def register_function_cache(self, cache: IRAnalysesCache) -> None:
+        """Fill missing entries without replacing an existing consumer's cache.
+
+        Placeholder status belongs to this registry. A placeholder requesting
+        its own analysis remains a placeholder until a consumer supplies a cache.
+        Other caches for an already registered function delegate their requests
+        and invalidations to its canonical cache instead of maintaining stale
+        parallel analyses.
+        """
+        fn = cache.function
+        registered = self.function_analyses_caches.get(fn)
+        if registered is not cache and (registered is None or fn in self._placeholders):
+            self.function_analyses_caches[fn] = cache
+            self._placeholders.discard(fn)
+        for fn in self.ctx.functions.values():
+            if fn not in self.function_analyses_caches:
+                self.function_analyses_caches[fn] = IRAnalysesCache(fn)
+                self._placeholders.add(fn)
 
     def request_analysis(self, analysis_cls: Type[GT], *args, **kwargs) -> GT:
         assert issubclass(

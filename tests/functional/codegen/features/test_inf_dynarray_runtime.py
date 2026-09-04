@@ -207,6 +207,128 @@ def build() -> DynArray[uint256, INF]:
     assert c.build() == [i * i + 7 for i in range(64)]
 
 
+def test_inf_dynarray_append_loop_full_contents(get_contract):
+    code = """
+@external
+def build(n: uint256) -> DynArray[uint256, INF]:
+    x: DynArray[uint256, INF] = []
+    for i: uint256 in range(n, bound=100):
+        x.append(i * 3 + 1)
+    return x
+    """
+
+    c = get_contract(code)
+    for n in [0, 1, 2, 3, 5, 8, 13, 20]:
+        assert c.build(n) == [i * 3 + 1 for i in range(n)]
+
+
+def test_inf_dynarray_append_after_assignment_and_calldata(get_contract):
+    code = """
+@external
+def from_literal() -> DynArray[uint256, INF]:
+    x: DynArray[uint256, INF] = [1, 2, 3]
+    x.append(4)
+    x.append(5)
+    return x
+
+@external
+def from_calldata(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
+    y: DynArray[uint256, INF] = x
+    y.append(7)
+    y.append(8)
+    return y
+    """
+
+    c = get_contract(code)
+    assert c.from_literal() == [1, 2, 3, 4, 5]
+    assert c.from_calldata([4, 5, 6]) == [4, 5, 6, 7, 8]
+
+
+def test_inf_dynarray_append_reassign_append(get_contract):
+    code = """
+@external
+def check() -> DynArray[uint256, INF]:
+    x: DynArray[uint256, INF] = [1]
+    x.append(2)
+    x.append(3)
+    x = [10, 20]
+    x.append(30)
+    return x
+    """
+
+    c = get_contract(code)
+    assert c.check() == [10, 20, 30]
+
+
+def test_inf_dynarray_append_after_kwarg_default(get_contract):
+    code = """
+@external
+def build(x: DynArray[uint256, INF] = [12, 34]) -> DynArray[uint256, INF]:
+    y: DynArray[uint256, INF] = x
+    y.append(56)
+    return y
+    """
+
+    c = get_contract(code)
+    assert c.build() == [12, 34, 56]
+    assert c.build([1]) == [1, 56]
+
+
+def test_inf_dynarray_internal_arg_append_does_not_mutate_caller(
+    get_contract, no_inlining_settings
+):
+    code = """
+@internal
+def _extend(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
+    x.append(4)
+    x.append(5)
+    return x
+
+@external
+def check() -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+    x: DynArray[uint256, INF] = [1, 2, 3]
+    y: DynArray[uint256, INF] = self._extend(x)
+    return x, y
+    """
+
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.check() == ([1, 2, 3], [1, 2, 3, 4, 5])
+
+
+def test_inf_dynarray_two_locals_alternating_append(get_contract):
+    code = """
+@external
+def build(n: uint256) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+    a: DynArray[uint256, INF] = []
+    b: DynArray[uint256, INF] = []
+    for i: uint256 in range(n, bound=50):
+        a.append(i)
+        b.append(i * 100)
+    return a, b
+    """
+
+    c = get_contract(code)
+    for n in [0, 1, 7, 20]:
+        assert c.build(n) == (list(range(n)), [i * 100 for i in range(n)])
+
+
+def test_inf_dynarray_pop_then_append_full_contents(get_contract):
+    code = """
+@external
+def check() -> DynArray[uint256, INF]:
+    x: DynArray[uint256, INF] = []
+    for i: uint256 in range(6):
+        x.append(i)
+    y: uint256 = x.pop()
+    x.append(y + 100)
+    x.append(200)
+    return x
+    """
+
+    c = get_contract(code)
+    assert c.check() == [0, 1, 2, 3, 4, 105, 200]
+
+
 def test_inf_dynarray_indexed_store(get_contract, tx_failed):
     code = """
 @external
