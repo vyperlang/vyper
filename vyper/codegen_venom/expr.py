@@ -1009,6 +1009,13 @@ class Expr:
 
         base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
         if overlap:
+            # Storage bounds need not fit in memory. The generic materializer
+            # copies the entire declared capacity, even for a one-element
+            # array, so a single indexed read can become prohibitively costly.
+            # Keep the legacy rejection until we have a runtime-sized storage
+            # snapshot; memory values already require their declared capacity.
+            if base_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+                raise CompilerPanic("risky overlap")
             base_vv = self.ctx.materialize_value(base_vv, base_typ)
 
         base = base_vv.operand  # Extract pointer for address math
