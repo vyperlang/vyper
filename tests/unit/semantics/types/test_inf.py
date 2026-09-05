@@ -1148,6 +1148,45 @@ def f(a: address):
     """,
             "Function arguments cannot contain unbounded sequence types inside aggregate types",
         ),
+        # the wildcard call is an element of a tuple literal
+        (
+            """
+interface I:
+    def source() -> Bytes[...]: view
+    def sink(x: (Bytes[...], uint256)): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).sink((staticcall I(a).source(), 1))
+    """,
+            "Function arguments cannot contain unbounded sequence types inside aggregate types",
+        ),
+        # only the member receiving the wildcard call is a wildcard
+        (
+            """
+interface I:
+    def source() -> DynArray[uint256, ...]: view
+    def sink(x: (Bytes[10], DynArray[uint256, ...])): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).sink((b"hi", staticcall I(a).source()))
+    """,
+            "Function arguments cannot contain unbounded sequence types inside aggregate types",
+        ),
+        # the wildcard call is an element of a list literal
+        (
+            """
+interface I:
+    def source() -> Bytes[...]: view
+    def sink(xs: DynArray[Bytes[...], ...]): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).sink([staticcall I(a).source()])
+    """,
+            "Function arguments cannot contain unbounded sequence types inside aggregate types",
+        ),
         (
             """
 interface I:
@@ -1184,8 +1223,9 @@ def f(a: address, target: address) -> address:
     ],
 )
 def test_wildcard_tuple_return_rejected_as_argument(code, message):
-    # without a bounded expected type the wildcard tuple return resolves to a
-    # tuple of INF members, which is not a valid argument type
+    # without a bounded expected type a wildcard call return resolves to INF,
+    # which is not a valid argument type inside an aggregate. this holds for
+    # the call passed directly and for a call nested in a tuple or list literal
     with pytest.raises(StructureException) as e:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
     assert e.value.message == message

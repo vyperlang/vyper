@@ -79,14 +79,29 @@ from vyper.semantics.types.infinity import (
 from vyper.semantics.types.utils import type_from_annotation
 
 
-def _expr_contains_unbounded_sequence(node: vy_ast.VyperNode) -> bool:
-    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return any(_expr_contains_unbounded_sequence(item) for item in node.elements)
+def _expr_contains_unbounded_sequence(node: vy_ast.VyperNode, typ: VyperType) -> bool:
+    # walk literals alongside the expected type. a literal whose shape does
+    # not match `typ` is rejected later, when it is visited
+    if isinstance(node, vy_ast.Tuple) and isinstance(typ, TupleT):
+        return any(
+            _expr_contains_unbounded_sequence(item, item_typ)
+            for item, item_typ in zip(node.elements, typ.member_types)
+        )
+    if isinstance(node, vy_ast.List) and isinstance(typ, (SArrayT, DArrayT)):
+        return any(
+            _expr_contains_unbounded_sequence(item, typ.value_type) for item in node.elements
+        )
 
     try:
-        return type_contains_unbounded_sequence(get_exact_type_from_node(node))
+        actual_typ = get_exact_type_from_node(node)
     except VyperException:
         return False
+
+    if typ.has_wildcard:
+        # resolve a wildcard call return against the element's expected
+        # type, the same way `ExprVisitor.visit_Call` does for arguments
+        actual_typ = actual_typ.resolve_wildcard()
+    return type_contains_unbounded_sequence(actual_typ)
 
 
 def analyze_functions(vy_module: vy_ast.Module) -> None:
@@ -1052,7 +1067,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             for arg, arg_typ in zip(node.args, func_type.argument_types):
                 if isinstance(arg, (vy_ast.Tuple, vy_ast.List)):
-                    has_nested_unbounded = _expr_contains_unbounded_sequence(arg)
+                    has_nested_unbounded = _expr_contains_unbounded_sequence(arg, arg_typ)
                 else:
                     try:
                         actual_arg_typ = get_exact_type_from_node(arg)

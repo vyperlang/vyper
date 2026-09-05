@@ -915,6 +915,17 @@ def forward(addr: address):
     x: (Bytes[10], DynArray[uint256, 3]) = (b"hello", [1, 2, 3])
     extcall Target(addr).sink(x)
         """,
+        # tuple literal built inline for a wildcard parameter. the wildcard
+        # call return lands on the bounded member and resolves to it
+        """
+interface Target:
+    def source_bytes() -> Bytes[...]: nonpayable
+    def sink(x: (Bytes[10], DynArray[uint256, ...])): nonpayable
+
+@external
+def forward(addr: address):
+    extcall Target(addr).sink((extcall Target(addr).source_bytes(), [1, 2, 3]))
+        """,
         # wildcard tuple return assigned to a bounded local, then forwarded.
         # this is the supported way to pass a wildcard tuple return on to a
         # wildcard parameter, which cannot take the call directly
@@ -938,6 +949,10 @@ xs: DynArray[uint256, 3]
 @external
 def source() -> (Bytes[INF], DynArray[uint256, INF]):
     return b"hello", [1, 2, 3]
+
+@external
+def source_bytes() -> Bytes[INF]:
+    return b"hello"
 
 @external
 def sink(x: (Bytes[10], DynArray[uint256, 3])):
