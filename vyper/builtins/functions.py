@@ -1633,7 +1633,7 @@ class RawCreate(_CreateBase):
         bytecode_type = get_possible_types_from_node(node.args[0]).pop()
         if is_bounded_length(bytecode_type.length) and bytecode_type.length > EIP_3860_LIMIT:
             raise TypeMismatch(f"initcode length cannot exceed {EIP_3860_LIMIT}", node.args[0])
-        ctor_arg_types = [get_exact_type_from_node(arg) for arg in node.args[1:]]
+        ctor_arg_types = [get_exact_type_from_node(arg).resolve_wildcard() for arg in node.args[1:]]
         if any(type_contains_nested_unbounded_sequence(t) for t in ctor_arg_types):
             raise StructureException(
                 "constructor arguments cannot contain nested unbounded sequence types", node
@@ -2302,10 +2302,6 @@ class ABIEncode(BuiltinFunctionT):
         "ensure_tuple": KwargSettings(BoolT(), True, require_literal=True),
         "method_id": KwargSettings((BYTES4_T, BytesT(4)), None, require_literal=True),
     }
-
-    def infer_arg_types(self, node, expected_return_typ=None):
-        arg_types = super().infer_arg_types(node, expected_return_typ)
-        return [arg_t.resolve_wildcard() for arg_t in arg_types]
 
     def infer_kwarg_types(self, node):
         ret = {}

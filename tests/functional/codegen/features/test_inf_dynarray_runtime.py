@@ -892,6 +892,111 @@ def get_literal(addr: address) -> DynArray[uint256, 4]:
     assert caller.get_literal(target.address) == [5, 6]
 
 
+@pytest.mark.parametrize(
+    "caller_code",
+    [
+        # wildcard tuple return resolved by the bounded parameter type
+        """
+interface Target:
+    def source() -> (Bytes[...], DynArray[uint256, ...]): nonpayable
+    def sink(x: (Bytes[10], DynArray[uint256, 3])): nonpayable
+
+@external
+def forward(addr: address):
+    extcall Target(addr).sink(extcall Target(addr).source())
+        """,
+        # bounded local tuple passed to a wildcard parameter
+        """
+interface Target:
+    def sink(x: (Bytes[10], DynArray[uint256, ...])): nonpayable
+
+@external
+def forward(addr: address):
+    x: (Bytes[10], DynArray[uint256, 3]) = (b"hello", [1, 2, 3])
+    extcall Target(addr).sink(x)
+        """,
+        # tuple literal built inline for a wildcard parameter. the wildcard
+        # call return lands on the bounded member and resolves to it
+        """
+interface Target:
+    def source_bytes() -> Bytes[...]: nonpayable
+    def sink(x: (Bytes[10], DynArray[uint256, ...])): nonpayable
+
+@external
+def forward(addr: address):
+    extcall Target(addr).sink((extcall Target(addr).source_bytes(), [1, 2, 3]))
+        """,
+        # wildcard tuple return assigned to a bounded local, then forwarded.
+        # this is the supported way to pass a wildcard tuple return on to a
+        # wildcard parameter, which cannot take the call directly
+        """
+interface Target:
+    def source() -> (Bytes[...], DynArray[uint256, ...]): nonpayable
+    def sink(x: (Bytes[10], DynArray[uint256, ...])): nonpayable
+
+@external
+def forward(addr: address):
+    x: (Bytes[10], DynArray[uint256, 3]) = extcall Target(addr).source()
+    extcall Target(addr).sink(x)
+        """,
+    ],
+)
+def test_wildcard_tuple_arg_roundtrip(get_contract, caller_code):
+    target_code = """
+b: Bytes[10]
+xs: DynArray[uint256, 3]
+
+@external
+def source() -> (Bytes[INF], DynArray[uint256, INF]):
+    return b"hello", [1, 2, 3]
+
+@external
+def source_bytes() -> Bytes[INF]:
+    return b"hello"
+
+@external
+def sink(x: (Bytes[10], DynArray[uint256, 3])):
+    self.b, self.xs = x
+
+@external
+@view
+def stored() -> (Bytes[10], DynArray[uint256, 3]):
+    return self.b, self.xs
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    caller.forward(target.address)
+    assert target.stored() == (b"hello", [1, 2, 3])
+
+
+def test_wildcard_tuple_return_discarded(get_contract):
+    # with no expected type the wildcard tuple return resolves to INF members,
+    # which is a valid return shape, so the discarded call stays legal
+    target_code = """
+calls: public(uint256)
+
+@external
+def source() -> (Bytes[INF], DynArray[uint256, INF]):
+    self.calls += 1
+    return b"hello", [1, 2, 3]
+    """
+
+    caller_code = """
+interface Target:
+    def source() -> (Bytes[...], DynArray[uint256, ...]): nonpayable
+
+@external
+def call_source(addr: address):
+    extcall Target(addr).source()
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    caller.call_source(target.address)
+    assert target.calls() == 1
+
+
 def test_inf_dynarray_abi_encode_default_tuple(get_contract):
     payload = [i * 31 for i in range(2001)]
     code = """

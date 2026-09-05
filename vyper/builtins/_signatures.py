@@ -156,7 +156,9 @@ class BuiltinFunctionT(VyperType):
         varargs = node.args[n_known_args:]
         if len(varargs) > 0:
             assert self._has_varargs
-        ret.extend(get_exact_type_from_node(arg) for arg in varargs)
+        # varargs have no declared type, so a wildcard call return has no
+        # bound to resolve against and its wildcards resolve to INF
+        ret.extend(get_exact_type_from_node(arg).resolve_wildcard() for arg in varargs)
         return ret
 
     def infer_kwarg_types(self, node: vy_ast.Call) -> dict[str, VyperType]:
