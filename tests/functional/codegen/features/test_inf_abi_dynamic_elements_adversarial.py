@@ -882,6 +882,127 @@ def total(xs: DynArray[DynArray[uint256, 2], 3]) -> uint256:
     assert c.total(payload) == sum(sum(row) for row in payload)
 
 
+_WIDE = [_BIG, b"", b"wide"]
+
+
+@pytest.mark.parametrize("payload", _WIDEN_PAYLOADS)
+def test_widened_ternary_full_contents(get_contract, payload):
+    code = """
+@external
+def bounded_arm(
+    c: bool, xs: DynArray[Bytes[10], 3], ys: DynArray[Bytes[512], INF], big: Bytes[512]
+) -> DynArray[Bytes[512], INF]:
+    zs: DynArray[Bytes[512], INF] = xs if c else ys
+    zs.append(big)
+    return zs
+
+@external
+def unbounded_arm(
+    c: bool, xs: DynArray[Bytes[10], INF], ys: DynArray[Bytes[512], INF], big: Bytes[512]
+) -> DynArray[Bytes[512], INF]:
+    zs: DynArray[Bytes[512], INF] = xs if c else ys
+    zs.append(big)
+    return zs
+
+@external
+def via_return(
+    c: bool, xs: DynArray[Bytes[10], 3], ys: DynArray[Bytes[512], INF]
+) -> DynArray[Bytes[512], INF]:
+    return xs if c else ys
+
+@external
+def via_return_flipped(
+    c: bool, xs: DynArray[Bytes[512], INF], ys: DynArray[Bytes[10], 3]
+) -> DynArray[Bytes[512], INF]:
+    return xs if c else ys
+
+@external
+def nth(
+    c: bool, xs: DynArray[Bytes[10], 3], ys: DynArray[Bytes[512], INF], i: uint256
+) -> Bytes[512]:
+    zs: DynArray[Bytes[512], INF] = xs if c else ys
+    return zs[i]
+
+@external
+def same_type(
+    c: bool, xs: DynArray[Bytes[512], INF], ys: DynArray[Bytes[512], INF]
+) -> DynArray[Bytes[512], INF]:
+    return xs if c else ys
+    """
+    c = get_contract(code)
+    assert c.bounded_arm(True, payload, _WIDE, _BIG) == payload + [_BIG]
+    assert c.bounded_arm(False, payload, _WIDE, _BIG) == _WIDE + [_BIG]
+    assert c.unbounded_arm(True, payload, _WIDE, _BIG) == payload + [_BIG]
+    assert c.unbounded_arm(False, payload, _WIDE, _BIG) == _WIDE + [_BIG]
+    assert c.via_return(True, payload, _WIDE) == payload
+    assert c.via_return(False, payload, _WIDE) == _WIDE
+    assert c.via_return_flipped(True, _WIDE, payload) == _WIDE
+    assert c.via_return_flipped(False, _WIDE, payload) == payload
+    for i, x in enumerate(payload):
+        assert c.nth(True, payload, _WIDE, i) == x
+    for i, x in enumerate(_WIDE):
+        assert c.nth(False, payload, _WIDE, i) == x
+    assert c.same_type(True, payload, _WIDE) == payload
+    assert c.same_type(False, payload, _WIDE) == _WIDE
+
+
+@pytest.mark.parametrize("inline", [True, False])
+def test_widened_ternary_tuple_return_full_contents(get_contract, no_inlining_settings, inline):
+    code = """
+@internal
+def _narrow() -> (uint256, DynArray[Bytes[10], INF]):
+    return 1, [b"0123456789", b"", b"abc"]
+
+@internal
+def _narrow_bounded() -> (uint256, DynArray[Bytes[10], 3]):
+    return 2, [b"abc", b"0123456789"]
+
+@internal
+def _empty() -> (uint256, DynArray[Bytes[10], INF]):
+    return 3, []
+
+@internal
+def _wide(big: Bytes[512]) -> (uint256, DynArray[Bytes[512], INF]):
+    return 4, [big, b"wide"]
+
+@external
+def pick(c: bool, big: Bytes[512]) -> (uint256, DynArray[Bytes[512], INF]):
+    return self._narrow() if c else self._wide(big)
+
+@external
+def pick_flipped(c: bool, big: Bytes[512]) -> (uint256, DynArray[Bytes[512], INF]):
+    return self._wide(big) if c else self._narrow()
+
+@external
+def pick_bounded(c: bool, big: Bytes[512]) -> (uint256, DynArray[Bytes[512], INF]):
+    return self._narrow_bounded() if c else self._wide(big)
+
+@external
+def pick_empty(c: bool, big: Bytes[512]) -> (uint256, DynArray[Bytes[512], INF]):
+    return self._empty() if c else self._wide(big)
+
+@external
+def member(c: bool, big: Bytes[512], i: uint256) -> Bytes[512]:
+    return (self._narrow() if c else self._wide(big))[1][i]
+    """
+    kwargs = {} if inline else {"compiler_settings": no_inlining_settings}
+    c = get_contract(code, **kwargs)
+    narrow = [b"0123456789", b"", b"abc"]
+    wide = [_BIG, b"wide"]
+    assert c.pick(True, _BIG) == (1, narrow)
+    assert c.pick(False, _BIG) == (4, wide)
+    assert c.pick_flipped(True, _BIG) == (4, wide)
+    assert c.pick_flipped(False, _BIG) == (1, narrow)
+    assert c.pick_bounded(True, _BIG) == (2, [b"abc", b"0123456789"])
+    assert c.pick_bounded(False, _BIG) == (4, wide)
+    assert c.pick_empty(True, _BIG) == (3, [])
+    assert c.pick_empty(False, _BIG) == (4, wide)
+    for i, x in enumerate(narrow):
+        assert c.member(True, _BIG, i) == x
+    for i, x in enumerate(wide):
+        assert c.member(False, _BIG, i) == x
+
+
 @pytest.mark.parametrize(
     "code",
     [
