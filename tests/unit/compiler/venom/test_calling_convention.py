@@ -391,7 +391,7 @@ function f {
 main:
     %p1 = param
     %p2 = param
-    %retpc = param
+    %retpc = retpc_param
     %x = %p1
     %x = %p2
     mstore 0, %x
