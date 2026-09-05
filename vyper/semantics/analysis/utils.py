@@ -368,7 +368,8 @@ class _ExprAnalyser:
             raise OverflowException(
                 "Numeric literal is outside of allowable range for number types", node
             )
-        raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
+        value = node.original_value if isinstance(node, vy_ast.Hex) else node.value
+        raise InvalidLiteral(f"Could not determine type for literal value '{value}'", node)
 
     def types_from_IfExp(self, node):
         validate_expected_type(node.test, BoolT())
