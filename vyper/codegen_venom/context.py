@@ -381,11 +381,6 @@ class VenomCodegenContext:
             if dst_member_t._is_prim_word:
                 value = member_vv.operand
             else:
-                # unbounded members only have ABI-static elements, so they
-                # never need a copy
-                assert not is_unbounded_sequence_type(dst_member_t) or punnable(
-                    member_vv.typ, dst_member_t
-                )
                 member_vv = self.ensure_memory_layout(
                     member_vv, dst_member_t, annotation=annotation
                 )
@@ -681,6 +676,11 @@ class VenomCodegenContext:
         """Return `vv` laid out as `typ`, copying only when the layouts differ."""
         if punnable(vv.typ, typ):
             return vv
+
+        if is_unbounded_sequence_type(typ):
+            # an unbounded type has no bounded temporary; the scratch copy
+            # already converts the element layout
+            return self.copy_sequence_to_scratch(vv, typ, annotation=annotation)
 
         ret = self.new_temporary_value(typ, annotation=annotation)
         assert isinstance(ret.operand, IRVariable)
