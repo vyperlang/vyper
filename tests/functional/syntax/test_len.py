@@ -53,3 +53,31 @@ def foo() -> uint256:
 @pytest.mark.parametrize("good_code", valid_list)
 def test_list_success(good_code):
     assert compile_code(good_code) is not None
+
+
+def test_len_type_mismatch_message_uses_readable_type_names():
+    code = """
+@external
+def foo(inp: int128) -> uint256:
+    return len(inp)
+    """
+    with pytest.raises(TypeMismatch) as e:
+        compile_code(code)
+
+    assert e.value.message == (
+        "Given reference has type int128, expected one of String, Bytes, DynArray"
+    )
+
+
+def test_index_type_mismatch_message_uses_readable_type_names():
+    # `IntegerT.any()` renders its class-level `_id` (`integer`), not the
+    # applied per-instance name (`uint256`)
+    code = """
+@external
+def foo(x: DynArray[uint256, 3]) -> uint256:
+    return x[b"ab"]
+    """
+    with pytest.raises(TypeMismatch) as e:
+        compile_code(code)
+
+    assert e.value.message == "Expected integer but literal can only be cast as Bytes[2]."
