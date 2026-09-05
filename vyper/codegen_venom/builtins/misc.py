@@ -458,8 +458,8 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
     if any(type_contains_unbounded_sequence(t) for t in arg_types):
         if hardhat_compat:
             mid = method_id_int(sig)
-            encoded_size = runtime_abi_size_for_encode(ctx, arg_vals, tuple_t)
-            dyn_buf_ptr = ctx.allocate_scratch(ctx.checked_add(IRLiteral(32), encoded_size))
+            alloc_size = runtime_abi_size_for_encode(ctx, arg_vals, tuple_t)
+            dyn_buf_ptr = ctx.allocate_scratch(ctx.checked_add(IRLiteral(32), alloc_size))
             b.mstore(dyn_buf_ptr, IRLiteral(mid))
             dyn_data_dst = b.add(dyn_buf_ptr, IRLiteral(32))
             encoded_len = abi_encode_values_to_buf(ctx, dyn_data_dst, arg_vals, tuple_t)
@@ -469,8 +469,8 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
             mid = method_id_int("log(string,bytes)")
             schema = args_abi_t.selector_name().encode("utf-8")
 
-            payload_len = runtime_abi_size_for_encode(ctx, arg_vals, tuple_t)
-            dyn_payload_ptr = ctx.allocate_scratch(ctx.checked_add(IRLiteral(32), payload_len))
+            payload_bound = runtime_abi_size_for_encode(ctx, arg_vals, tuple_t)
+            dyn_payload_ptr = ctx.allocate_scratch(ctx.checked_add(IRLiteral(32), payload_bound))
             payload_data_dst = b.add(dyn_payload_ptr, IRLiteral(32))
             encoded_payload_len = abi_encode_values_to_buf(ctx, payload_data_dst, arg_vals, tuple_t)
             b.mstore(dyn_payload_ptr, encoded_payload_len)

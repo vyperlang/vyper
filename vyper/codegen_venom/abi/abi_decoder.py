@@ -374,13 +374,32 @@ def decode_unbounded_sequence_to_scratch(
         )
 
     assert isinstance(typ, DArrayT)
-    if typ.value_type.abi_type.is_dynamic():
-        raise CompilerPanic(
-            "semantic analysis should reject ABI decoding DynArray[..., INF] "
-            "with ABI-dynamic elements"
-        )  # pragma: nocover
-
     if hi is not None:
+        # Count bound, checked before the allocation below. `elem_static_size`
+        # is the head footprint every element occupies in the payload
+        # `[data_start, hi)`: its full ABI size for ABI-static elements, or the
+        # 32-byte offset word for ABI-dynamic ones (Bytes[N], String[N],
+        # DynArray[T, N], structs containing them). A well-formed encoding of
+        # `count` elements therefore needs at least `count * elem_static_size`
+        # payload bytes, so `count <= (hi - data_start) / elem_static_size` is
+        # a necessary condition and any larger count is provably a lie.
+        #
+        # For ABI-dynamic elements this bound is sound but loose. The scratch
+        # allocation is `32 + count * elem_mem_size` (elem_mem_size = padded
+        # element memory size, e.g. 544 for Bytes[512]) and is reserved before
+        # the per-element loop in _decode_dyn_array validates each element's
+        # head offset and tail (length <= maxlen, item_end <= hi). Head offsets
+        # may alias (non-canonical but in-bounds encodings are accepted), so a
+        # payload can claim close to payload/32 elements that all validate, and
+        # decoding can cost memory expansion of up to `elem_mem_size / 32`
+        # times the payload size (17x for Bytes[512], 129x for Bytes[4096]).
+        # Who pays depends on the ingress path: for calldata the sender does;
+        # for extcall returndata and abi_decode of foreign bytes the decoding
+        # contract pays for data it did not author. That is the same exposure
+        # as a bounded DynArray[T, N] return type with N = the claimed count
+        # (it reserves N * memsize(T) per call) and as Solidity's memory
+        # decoding of bytes[] (aliased heads copy per element there too), so
+        # no pre-scan of the tails is emitted here.
         elem_static_size = typ.value_type.abi_type.embedded_static_size()
         ctx.assert_abi_dynarray_payload_in_bounds(
             src.operand, length, elem_static_size, hi, data_start=data_start
@@ -469,7 +488,9 @@ def _decode_dyn_array(
             # _getelemptr_abi); calldata/code may alias earlier immutable data.
             b.assert_(b.iszero(b.lt(elem_src_ptr, src_data)))
             if type_contains_unbounded_sequence(elem_typ):
-                # See _getelemptr_abi: only INF elements keep the extra probe.
+                # INF elements only, by design (see _getelemptr_abi). Bounded
+                # elements match the bounded decoder: in a memory source a far
+                # head offset runs out of gas on the element's length load.
                 ctx.assert_abi_head_word_in_bounds(elem_src_ptr, hi)
     else:
         elem_src_ptr = b.add(src_data, b.mul(i, IRLiteral(elem_static_size)))

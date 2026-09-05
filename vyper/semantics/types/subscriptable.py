@@ -324,11 +324,6 @@ class DArrayT(_SequenceT):
                 "DynArray element types cannot contain unbounded sequence types", node
             )
 
-        if length is INF and value_type.abi_type.is_dynamic():
-            raise StructureException(
-                "DynArray[..., INF] is only supported with ABI-static element types", node
-            )
-
     def resolve_wildcard(self):
         resolved_value = self.value_type.resolve_wildcard()
         resolved_length = INF if self.length is WILDCARD else self.length
