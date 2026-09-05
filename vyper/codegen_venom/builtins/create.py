@@ -14,10 +14,8 @@ from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.abi import abi_encode_values_to_buf, runtime_abi_size_for_encode
-from vyper.codegen_venom.eval_order import later_expressions_can_mutate_memory_or_storage
-from vyper.exceptions import UnfoldableNode
+from vyper.codegen_venom.builtins._call import BuiltinCall
 from vyper.ir.compile_ir import assembly_to_evm
-from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     TupleT,
     is_unbounded_bytestring_type,
@@ -28,46 +26,6 @@ from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
-
-
-def _get_kwarg_value(node: vy_ast.Call, kwarg_name: str, default=None):
-    """Extract a keyword argument value from a Call node."""
-    for kw in node.keywords:
-        if kw.arg == kwarg_name:
-            return kw.value
-    return default
-
-
-def _get_literal_kwarg(node: vy_ast.Call, kwarg_name: str, default):
-    """Extract a literal value from a keyword argument.
-
-    Returns (value, is_literal) tuple. If is_literal is False, the value is None
-    and the caller should evaluate the kwarg at runtime.
-    """
-    kw_node = _get_kwarg_value(node, kwarg_name)
-    if kw_node is None:
-        return default, True
-    # Try to get folded value
-    try:
-        folded = kw_node.get_folded_value()
-        if isinstance(folded, vy_ast.Int):
-            return folded.value, True
-        if isinstance(folded, vy_ast.NameConstant):
-            return folded.value, True
-    except (KeyError, UnfoldableNode):
-        # Not foldable - caller needs to evaluate at runtime
-        pass
-    # Try direct value
-    if isinstance(kw_node, vy_ast.Int):
-        return kw_node.value, True
-    if isinstance(kw_node, vy_ast.NameConstant):
-        return kw_node.value, True
-    return None, False
-
-
-def _has_kwarg(node: vy_ast.Call, kwarg_name: str) -> bool:
-    """Check if a keyword argument is present."""
-    return any(kw.arg == kwarg_name for kw in node.keywords)
 
 
 def _check_create_result(
@@ -164,22 +122,13 @@ def _ctor_args_need_runtime_encoding(ctor_arg_types) -> bool:
     return any(type_contains_unbounded_sequence(t) for t in ctor_arg_types)
 
 
-def _prepare_ctor_args(ctx: VenomCodegenContext, ctor_arg_nodes: list[vy_ast.VyperNode]):
-    # Local import avoids a circular dependency: expr.py imports builtin handlers.
-    from vyper.codegen_venom.expr import Expr
+def _prepare_ctor_args(call: BuiltinCall, ctor_arg_nodes: list[vy_ast.VyperNode]):
+    ctx = call.ctx
 
     ctor_arg_types = [arg._metadata["type"] for arg in ctor_arg_nodes]
     ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
     runtime_ctor_args = _ctor_args_need_runtime_encoding(ctor_arg_types)
-    ctor_arg_vvs = []
-    for i, (arg, arg_t) in enumerate(zip(ctor_arg_nodes, ctor_arg_types)):
-        arg_vv = Expr(arg, ctx).lower()
-        copy_composites = later_expressions_can_mutate_memory_or_storage(ctor_arg_nodes[i + 1 :])
-        ctor_arg_vvs.append(
-            ctx.snapshot_value_for_delayed_use(
-                arg_vv, arg_t, annotation="ctor_arg", copy_composites=copy_composites
-            )
-        )
+    ctor_arg_vvs = [call.value(arg) for arg in ctor_arg_nodes]
 
     if runtime_ctor_args:
         ctor_abi_size = runtime_abi_size_for_encode(ctx, ctor_arg_vvs, ctor_tuple_typ)
@@ -275,7 +224,7 @@ def _create_preamble_bytes():
     return evm
 
 
-def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_raw_create(call: BuiltinCall) -> IROperand:
     """
     raw_create(bytecode, *ctor_args, value=0, salt=None, revert_on_failure=True)
 
@@ -284,7 +233,8 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     Returns deployed contract address.
     """
-    from vyper.codegen_venom.expr import Expr
+    node = call.node
+    ctx = call.ctx
 
     ctx.check_is_not_constant("use raw_create", node)
 
@@ -294,50 +244,16 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     bytecode_node = node.args[0]
     ctor_arg_nodes = node.args[1:]
 
-    # Get bytecode - may be in memory, storage, or transient
-    bytecode_vv = Expr(bytecode_node, ctx).lower()
+    # The preparation boundary has already stabilized the initcode.
+    bytecode_vv = call.value(bytecode_node)
     bytecode_typ = bytecode_node._metadata["type"]
 
     bytecode_is_unbounded = is_unbounded_bytestring_type(bytecode_typ)
 
-    # Ensure bytecode is in memory. Storage/transient data needs to be copied first.
-    # This is critical when ctor args might modify the storage location that holds
-    # the bytecode (cf. test_raw_create_change_initcode_size).
-    if bytecode_is_unbounded:
-        bytecode_copy = ctx.copy_sequence_to_scratch(
-            bytecode_vv, bytecode_typ, annotation="raw_create_initcode"
-        )
-        bytecode = bytecode_copy.operand
-    elif bytecode_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
-        assert bytecode_vv.location is not None
-        # Allocate memory buffer and copy from storage/transient
-        mem_buf = ctx.new_temporary_value(bytecode_typ)
-        ctx.slot_to_memory(
-            bytecode_vv.operand,
-            mem_buf.operand,
-            bytecode_typ.storage_size_in_words,
-            bytecode_vv.location,
-        )
-        bytecode = mem_buf.operand
-    else:
-        # Memory bytecode: copy to fresh buffer to avoid potential overlap
-        # when evaluating value, salt, or ctor_args expressions
-        # (cf. test_raw_create_memory_overlap - e.g. value=arr.pop())
-        mem_buf = ctx.new_temporary_value(bytecode_typ)
-        assert isinstance(bytecode_vv.operand, IRVariable)
-        bytecode_len_tmp = b.mload(bytecode_vv.operand)
-        # Copy length word + data
-        copy_size = b.add(bytecode_len_tmp, IRLiteral(32))
-        assert isinstance(mem_buf.operand, IRVariable)
-        ctx.copy_memory_dynamic(
-            mem_buf.operand, bytecode_vv.operand, copy_size, ctx.memory_size_bound(bytecode_typ)
-        )
-        bytecode = mem_buf.operand
+    bytecode = bytecode_vv.operand
 
     # Parse kwargs
-    value_node = _get_kwarg_value(node, "value")
-    salt_node = _get_kwarg_value(node, "salt")
-    revert_on_failure, _ = _get_literal_kwarg(node, "revert_on_failure", True)
+    revert_on_failure = call.literal("revert_on_failure")
 
     # Get bytecode length and data pointer
     assert isinstance(bytecode, IRVariable)
@@ -346,14 +262,11 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # If no constructor args, just create with bytecode
     if len(ctor_arg_nodes) == 0:
-        if value_node is not None:
-            value = Expr(value_node, ctx).lower_value()
-        else:
-            value = IRLiteral(0)
+        value = call.kwarg("value")
 
         raw_salt_op: Optional[IROperand] = None
-        if salt_node is not None:
-            raw_salt_op = Expr(salt_node, ctx).lower_value()
+        if call.was_provided("salt"):
+            raw_salt_op = call.kwarg("salt")
         check_eip_3860_limit = bytecode_is_unbounded
         return _emit_create(
             ctx,
@@ -368,7 +281,7 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # With ctor args: need to ABI-encode and append to bytecode
     ctor_tuple_typ, ctor_arg_vvs, runtime_ctor_args, ctor_abi_size = _prepare_ctor_args(
-        ctx, ctor_arg_nodes
+        call, ctor_arg_nodes
     )
 
     # Calculate buffer size: max bytecode len + ctor args size for bounded
@@ -398,21 +311,18 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         total_len = b.add(bytecode_len, args_len)
 
     # Create contract
-    if value_node is not None:
-        value = Expr(value_node, ctx).lower_value()
-    else:
-        value = IRLiteral(0)
+    value = call.kwarg("value")
 
     ctor_salt_op: Optional[IROperand] = None
-    if salt_node is not None:
-        ctor_salt_op = Expr(salt_node, ctx).lower_value()
+    if call.was_provided("salt"):
+        ctor_salt_op = call.kwarg("salt")
     check_eip_3860_limit = runtime_initcode
     return _emit_create(
         ctx, b, value, buf_ptr, total_len, ctor_salt_op, revert_on_failure, check_eip_3860_limit
     )
 
 
-def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_create_minimal_proxy_to(call: BuiltinCall) -> IROperand:
     """
     create_minimal_proxy_to(target, value=0, salt=None, revert_on_failure=True)
 
@@ -421,24 +331,20 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
 
     Returns deployed proxy address.
     """
-    from vyper.codegen_venom.expr import Expr
+    node = call.node
+    ctx = call.ctx
 
     ctx.check_is_not_constant("use create_minimal_proxy_to", node)
 
     b = ctx.builder
 
     # Parse args
-    target = Expr(node.args[0], ctx).lower_value()
+    target = call.operand(node.args[0])
 
     # Parse kwargs
-    value_node = _get_kwarg_value(node, "value")
-    salt_node = _get_kwarg_value(node, "salt")
-    revert_on_failure, _ = _get_literal_kwarg(node, "revert_on_failure", True)
+    revert_on_failure = call.literal("revert_on_failure")
 
-    if value_node is not None:
-        value = Expr(value_node, ctx).lower_value()
-    else:
-        value = IRLiteral(0)
+    value = call.kwarg("value")
 
     # Get EIP-1167 bytecode components
     loader_evm, forwarder_pre_evm, forwarder_post_evm = _eip1167_bytecode()
@@ -475,8 +381,8 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
     b.mstore(post_offset, IRLiteral(forwarder_post))
 
     # Create contract
-    if salt_node is not None:
-        salt = Expr(salt_node, ctx).lower_value()
+    if call.was_provided("salt"):
+        salt = call.kwarg("salt")
         addr = b.create2(value, buf._ptr, IRLiteral(buf_len), salt)
     else:
         addr = b.create(value, buf._ptr, IRLiteral(buf_len))
@@ -484,7 +390,7 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
     return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
-def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_create_copy_of(call: BuiltinCall) -> IROperand:
     """
     create_copy_of(target, value=0, salt=None, revert_on_failure=True)
 
@@ -493,28 +399,24 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
 
     Returns deployed contract address.
     """
-    from vyper.codegen_venom.expr import Expr
+    node = call.node
+    ctx = call.ctx
 
     ctx.check_is_not_constant("use create_copy_of", node)
 
     b = ctx.builder
 
     # Parse args
-    target = Expr(node.args[0], ctx).lower_value()
+    target = call.operand(node.args[0])
 
     # Parse kwargs
-    value_node = _get_kwarg_value(node, "value")
-    salt_node = _get_kwarg_value(node, "salt")
-    revert_on_failure, _ = _get_literal_kwarg(node, "revert_on_failure", True)
+    revert_on_failure = call.literal("revert_on_failure")
 
-    if value_node is not None:
-        value = Expr(value_node, ctx).lower_value()
-    else:
-        value = IRLiteral(0)
+    value = call.kwarg("value")
 
     salt: Optional[IROperand] = None
-    if salt_node is not None:
-        salt = Expr(salt_node, ctx).lower_value()
+    if call.was_provided("salt"):
+        salt = call.kwarg("salt")
 
     # Get target code size
     codesize = b.extcodesize(target)
@@ -564,7 +466,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
-def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_create_from_blueprint(call: BuiltinCall) -> IROperand:
     """
     create_from_blueprint(target, *ctor_args, value=0, salt=None,
                           raw_args=False, code_offset=3, revert_on_failure=True)
@@ -576,23 +478,21 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
 
     Returns deployed contract address.
     """
-    from vyper.codegen_venom.expr import Expr
+    node = call.node
+    ctx = call.ctx
 
     ctx.check_is_not_constant("use create_from_blueprint", node)
 
     b = ctx.builder
 
     # Parse args: target is first, rest are ctor_args
-    target = Expr(node.args[0], ctx).lower_value()
+    target = call.operand(node.args[0])
     ctor_arg_nodes = node.args[1:]
 
     # Parse kwargs
-    value_node = _get_kwarg_value(node, "value")
-    salt_node = _get_kwarg_value(node, "salt")
-    code_offset_node = _get_kwarg_value(node, "code_offset")
-    code_offset_lit, code_offset_is_literal = _get_literal_kwarg(node, "code_offset", 3)
-    raw_args, _ = _get_literal_kwarg(node, "raw_args", False)
-    revert_on_failure, _ = _get_literal_kwarg(node, "revert_on_failure", True)
+    code_offset = call.kwarg("code_offset")
+    raw_args = call.literal("raw_args")
+    revert_on_failure = call.literal("revert_on_failure")
 
     # Handle constructor arguments
     args_len: IROperand
@@ -607,20 +507,15 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
 
         raw_arg_typ = ctor_arg_nodes[0]._metadata["type"]
         runtime_args = type_contains_unbounded_sequence(raw_arg_typ)
-        raw_arg_vv = Expr(ctor_arg_nodes[0], ctx).lower()
-        later_nodes = [n for n in (value_node, salt_node, code_offset_node) if n is not None]
-        copy_composites = later_expressions_can_mutate_memory_or_storage(later_nodes)
-        raw_arg_vv = ctx.snapshot_value_for_delayed_use(
-            raw_arg_vv, raw_arg_typ, annotation="ctor_arg", copy_composites=copy_composites
-        )
-        raw_arg = ctx.unwrap(raw_arg_vv)
+        raw_arg_vv = call.value(ctor_arg_nodes[0])
+        raw_arg = raw_arg_vv.operand
         assert isinstance(raw_arg, IRVariable)
         args_len = b.mload(raw_arg)
         args_ptr = b.add(raw_arg, IRLiteral(32))
         args_max_size = None if runtime_args else raw_arg_typ.maxlen
     elif len(ctor_arg_nodes) > 0:
         ctor_tuple_typ, ctor_arg_vvs, runtime_ctor_args, ctor_abi_size = _prepare_ctor_args(
-            ctx, ctor_arg_nodes
+            call, ctor_arg_nodes
         )
         runtime_args = runtime_ctor_args
 
@@ -640,34 +535,16 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
         args_ptr = IRLiteral(0)
         args_max_size = 0
 
-    if value_node is not None:
-        value = Expr(value_node, ctx).lower_value()
-    else:
-        value = IRLiteral(0)
+    value = call.kwarg("value")
 
     salt: Optional[IROperand] = None
-    if salt_node is not None:
-        salt = Expr(salt_node, ctx).lower_value()
+    if call.was_provided("salt"):
+        salt = call.kwarg("salt")
 
-    # Get code_offset as IROperand (literal or runtime value)
-    code_offset: IROperand
-    if code_offset_is_literal:
-        code_offset = IRLiteral(code_offset_lit)
-    else:
-        assert code_offset_node is not None
-        code_offset = Expr(code_offset_node, ctx).lower_value()
-
-    # Get blueprint code size (minus preamble)
+    # Compare before subtraction so an oversized offset cannot wrap.
     full_codesize = b.extcodesize(target)
-
-    if code_offset_is_literal:
-        codesize = b.sub(full_codesize, code_offset)
-        has_code = b.sgt(codesize, IRLiteral(0))
-    else:
-        # Runtime offsets can be attacker-controlled. Checking the wrapped
-        # subtraction with sgt would accept offsets near 2**256.
-        has_code = b.gt(full_codesize, code_offset)
-        codesize = b.sub(full_codesize, code_offset)
+    has_code = b.gt(full_codesize, code_offset)
+    codesize = b.sub(full_codesize, code_offset)
     b.assert_(has_code)
 
     # Total length = codesize + args_len. When args_len is literal 0,
@@ -692,7 +569,6 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
 HANDLERS = {
     "raw_create": lower_raw_create,
     "create_minimal_proxy_to": lower_create_minimal_proxy_to,
-    "create_forwarder_to": lower_create_minimal_proxy_to,  # deprecated alias
     "create_copy_of": lower_create_copy_of,
     "create_from_blueprint": lower_create_from_blueprint,
 }
