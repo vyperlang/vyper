@@ -46,7 +46,7 @@ def empty_list_candidate_types():
     Enumerate the possible types of the empty list literal `[]`, one per
     primitive element type.
 
-    `types_from_List` infers `[]` as the single type `DynArray[Never, 1]`,
+    `types_from_List` infers `[]` as the single type `DynArray[Never, 0]`,
     which is enough to typecheck against a concrete expected type, but it
     erases the element type. Callers which need to match `[]` against an
     expected type that is not fully concrete (i.e. contains a wildcard) need
@@ -64,7 +64,7 @@ def empty_list_candidate_types():
             # the given type, so as a candidate it could not match anything.
             assert isinstance(t, type) and issubclass(t, VyperType), t
             continue
-        # 1 is minimum possible length for dynarray,
+        # 0 is minimum possible length for dynarray,
         # can be assigned to anything
         ret.append(DArrayT(t, 0))
     return ret

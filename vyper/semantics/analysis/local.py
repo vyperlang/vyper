@@ -868,7 +868,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         # that provably bounded expressions get a bounded annotation.
         if any(isinstance(getattr(t, "value_type", None), BottomT) for t in possible_types):
             # the empty list literal infers as the single type
-            # `DynArray[Never, 1]`, which matches any expected type and so
+            # `DynArray[Never, 0]`, which matches any expected type and so
             # disambiguates nothing. enumerate its element types instead.
             possible_types = empty_list_candidate_types()
 
