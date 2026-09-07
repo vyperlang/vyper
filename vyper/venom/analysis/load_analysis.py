@@ -20,6 +20,11 @@ from .mem_alias import (
 )
 
 _LatticeKey = IROperand | MemoryLocation
+
+# bulk memory writes whose destination is known when their size is a literal
+_MEMORY_COPY_OPS = frozenset(
+    ["mcopy", "calldatacopy", "codecopy", "dloadbytes", "returndatacopy", "extcodecopy"]
+)
 _GetMemloc = Callable[[_LatticeKey], MemoryLocation]
 
 
@@ -226,6 +231,14 @@ class LoadAnalysis(IRAnalysis):
                 return memloc
         return self._normalize_operand(inst.operands[1])
 
+    def _fixed_copy_location(self, inst: IRInstruction, eff: Effects) -> Optional[MemoryLocation]:
+        if eff != Effects.MEMORY or inst.opcode not in _MEMORY_COPY_OPS:
+            return None
+        memloc = self.base_ptrs.get_write_location(inst, self.space)
+        if not memloc.is_fixed:
+            return None
+        return memloc
+
     def _handle_bb(
         self, eff: Effects | str, load_opcode: str, store_opcode: str | None, bb: IRBasicBlock
     ) -> bool:
@@ -247,7 +260,17 @@ class LoadAnalysis(IRAnalysis):
                 lattice.remove_aliases(memloc, alias_set)
                 lattice[ptr] = OrderedSet([val])
             elif isinstance(eff, Effects) and eff in inst.get_write_effects():
-                lattice.clear()
+                # a fixed-size memory copy is a store to a known location:
+                # drop what it may alias, exactly like an mstore. anything
+                # else (calls, unknown sizes) clobbers everything
+                copy_loc = self._fixed_copy_location(inst, eff)
+                if copy_loc is None:
+                    lattice.clear()
+                else:
+                    self.mem_alias.ensure_analyzed(copy_loc)
+                    alias_set = self.mem_alias.get_alias_set(copy_loc)
+                    assert alias_set is not None
+                    lattice.remove_aliases(copy_loc, alias_set)
 
         if bb not in self.bb_to_lattice or self.bb_to_lattice[bb] != lattice:
             self.bb_to_lattice[bb] = lattice
