@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.variable_range import VariableRangeAnalysis
-from vyper.venom.analysis.variable_range.monotone_analysis import VariableRangeMonotoneAnalysis
-from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX, SIGNED_MIN
 from vyper.venom.analysis.variable_range.evaluators import eval_sdiv, eval_smod
+from vyper.venom.analysis.variable_range.monotone_analysis import VariableRangeMonotoneAnalysis
 from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX, SIGNED_MIN, ValueRange
 from vyper.venom.parser import parse_venom
 
@@ -19,8 +18,7 @@ def _analyze(source: str):
 
 
 def test_add_propagates_constant_range():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 5
@@ -47,8 +45,7 @@ def test_add_propagates_constant_range():
 
 
 def test_branch_refines_lt_bounds():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -95,8 +92,7 @@ def test_branch_refines_lt_bounds():
 
 
 def test_eq_branch_sets_constant():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -130,8 +126,7 @@ def test_eq_branch_sets_constant():
 
 def test_lt_boundary_zero_true_branch_is_bottom():
     """lt %x, 0 true means x < 0 unsigned, which is impossible → BOTTOM."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -167,8 +162,7 @@ def test_slt_boundary_signed_min_true_branch_is_bottom():
     """slt %x, SIGNED_MIN true means x < SIGNED_MIN signed, impossible → BOTTOM."""
     from vyper.venom.analysis.variable_range.value_range import SIGNED_MIN
 
-    analysis, mono, fn = _analyze(
-        f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %x = calldataload 0
@@ -198,8 +192,7 @@ def test_slt_boundary_signed_min_true_branch_is_bottom():
 
 
 def test_iszero_true_branch_forces_zero():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -232,8 +225,7 @@ def test_iszero_true_branch_forces_zero():
 
 
 def test_phi_merges_ranges():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %flag = calldataload 0
@@ -271,8 +263,7 @@ def test_phi_merges_ranges():
 
 
 def test_byte_range():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -298,8 +289,7 @@ def test_byte_range():
 
 def test_byte_out_of_range_index():
     """byte(N, x) returns 0 when N >= 32."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -322,8 +312,7 @@ def test_byte_out_of_range_index():
 
 
 def test_signextend_range():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -347,8 +336,7 @@ def test_signextend_range():
 
 
 def test_mod_literal_range():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -372,8 +360,7 @@ def test_mod_literal_range():
 
 
 def test_div_literal_range():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 50
@@ -397,8 +384,7 @@ def test_div_literal_range():
 
 
 def test_shifts_update_ranges():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 255
@@ -445,8 +431,7 @@ def test_shifts_update_ranges():
 
 
 def test_add_wraps_constants_modulo():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
@@ -470,8 +455,7 @@ def test_add_wraps_constants_modulo():
 
 
 def test_sub_wraps_constants_modulo():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0
@@ -497,8 +481,7 @@ def test_sub_wraps_constants_modulo():
 
 
 def test_add_signed_constants():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = -10
@@ -522,8 +505,7 @@ def test_add_signed_constants():
 
 
 def test_iszero_false_branch_does_not_force_positive_when_signed():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %a = calldataload 0
@@ -559,8 +541,7 @@ def test_iszero_false_branch_does_not_force_positive_when_signed():
 
 
 def test_iszero_false_branch_narrows_range_crossing_zero():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -594,8 +575,7 @@ def test_iszero_false_branch_narrows_range_crossing_zero():
 
 
 def test_iszero_false_branch_narrows_when_proven_nonnegative():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -626,8 +606,7 @@ def test_iszero_false_branch_narrows_when_proven_nonnegative():
 
 def test_iszero_false_branch_with_zero_constant_is_bottom():
     """iszero false branch with 0 input should produce BOTTOM (unreachable)."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0
@@ -656,8 +635,7 @@ def test_iszero_false_branch_with_zero_constant_is_bottom():
 
 
 def test_add_large_positive_ranges_go_to_top():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -675,8 +653,7 @@ def test_add_large_positive_ranges_go_to_top():
 
 
 def test_add_near_overflow_does_not_wrap_incorrectly():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -699,8 +676,7 @@ def test_add_near_overflow_does_not_wrap_incorrectly():
 
 
 def test_sub_can_go_negative_but_stays_sound():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 5
@@ -723,8 +699,7 @@ def test_sub_can_go_negative_but_stays_sound():
 
 
 def test_and_mask_clears_high_bits_correctly():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %addr = calldataload 0
@@ -744,8 +719,7 @@ def test_and_mask_clears_high_bits_correctly():
 
 
 def test_sar_on_negative_value_propagates_sign():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = -1                           # all bits 1
@@ -765,8 +739,7 @@ def test_sar_on_negative_value_propagates_sign():
 
 
 def test_sar_large_shift_handles_mixed_sign_correctly():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %a = calldataload 0
@@ -788,8 +761,7 @@ def test_sar_large_shift_handles_mixed_sign_correctly():
 
 def test_phi_from_signed_and_unsigned_paths():
     """Phi where one arm is known non-negative, other can be negative"""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %cond = calldataload 0
@@ -821,8 +793,7 @@ def test_phi_from_signed_and_unsigned_paths():
 
 
 def test_eq_false_branch_does_not_narrow_to_nothing():
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -855,8 +826,7 @@ def test_eq_false_branch_does_not_narrow_to_nothing():
 
 def test_mul_constants():
     """Test multiplication of two constants."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 7
@@ -881,8 +851,7 @@ def test_mul_constants():
 
 def test_mul_constant_by_range():
     """Test multiplication of a constant by a bounded range."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -908,8 +877,7 @@ def test_mul_constant_by_range():
 
 def test_mul_two_ranges():
     """Test multiplication of two bounded ranges."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw1 = calldataload 0
@@ -939,8 +907,7 @@ def test_mul_two_ranges():
 
 def test_mul_overflow_goes_to_top():
     """Test that multiplication with potential overflow returns TOP."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -962,8 +929,7 @@ def test_mul_overflow_goes_to_top():
 
 def test_mul_large_range_overflow():
     """Test that multiplication of large ranges goes to TOP due to width limit."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -986,8 +952,7 @@ def test_mul_large_range_overflow():
 
 def test_mul_by_zero():
     """Test multiplication by zero constant."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -1009,8 +974,7 @@ def test_mul_by_zero():
 
 def test_mul_by_one():
     """Test multiplication by one preserves range."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -1033,8 +997,7 @@ def test_mul_by_one():
 
 def test_mul_signed_goes_to_top():
     """Test that multiplication with signed ranges goes to TOP."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -1057,8 +1020,7 @@ def test_mul_signed_goes_to_top():
 
 def test_mul_wraps_on_overflow_constants():
     """Test that constant multiplication wraps correctly on overflow."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = -1
@@ -1087,8 +1049,7 @@ def test_mul_wraps_on_overflow_constants():
 
 def test_or_constants():
     """Test OR of two constants."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0xF0
@@ -1112,8 +1073,7 @@ def test_or_constants():
 
 def test_or_with_zero():
     """Test OR with zero returns the other operand's range."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -1138,8 +1098,7 @@ def test_or_with_zero():
 
 def test_or_with_all_ones():
     """Test OR with -1 (all bits set) returns -1."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -1163,8 +1122,7 @@ def test_or_with_all_ones():
 
 def test_xor_constants():
     """Test XOR of two constants."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0xFF
@@ -1188,8 +1146,7 @@ def test_xor_constants():
 
 def test_xor_self_is_zero():
     """Test XOR of a variable with itself is 0."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -1213,8 +1170,7 @@ def test_xor_self_is_zero():
 
 def test_xor_with_all_ones():
     """Test XOR with -1 flips all bits (same as NOT)."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0
@@ -1238,8 +1194,7 @@ def test_xor_with_all_ones():
 
 def test_not_constant():
     """Test NOT of a constant."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0
@@ -1263,8 +1218,7 @@ def test_not_constant():
 
 def test_not_all_ones():
     """Test NOT of -1 (all bits set) gives 0."""
-    analysis, _, fn = _analyze(
-        """
+    analysis, _, fn = _analyze("""
         function test {
         entry:
             %x = -1
@@ -1283,8 +1237,7 @@ def test_not_all_ones():
 
 def test_not_specific_value():
     """Test NOT of a specific non-zero value."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 255
@@ -1308,8 +1261,7 @@ def test_not_specific_value():
 
 def test_not_unknown_is_top():
     """Test NOT of unknown value gives TOP."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -1341,8 +1293,7 @@ def test_bug_lt_negative_constant_gives_wrong_result():
     because MAX_UINT > 1 in unsigned comparison.
     But the analysis returns 1 because it compares -1 < 1 using signed arithmetic.
     """
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = -1
@@ -1371,8 +1322,7 @@ def test_bug_eq_negative_constant_with_max_uint_miscompile():
     """
     from vyper.venom.passes.assert_elimination import AssertEliminationPass
 
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = -1
@@ -1419,8 +1369,7 @@ def test_bug_unsigned_lt_false_branch_excludes_negatives():
 
     The analysis should track both possibilities, but it only tracks [100, 127].
     """
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -1470,8 +1419,7 @@ def test_bug_signextend_produces_bottom_for_out_of_range_input():
     But the analysis intersects the input range [384, 384] with [-128, 127]
     which gives bottom (empty intersection).
     """
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 384
@@ -1507,8 +1455,7 @@ def test_bug_and_with_signed_range_gives_narrow_hi():
 
     So the result should be [0, 255], but analysis gives [0, 127].
     """
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -1545,8 +1492,7 @@ def test_bug_lt_false_branch_causes_assert_elimination_miscompile():
     """
     from vyper.venom.passes.assert_elimination import AssertEliminationPass
 
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -1601,8 +1547,7 @@ def test_bug_gt_true_branch_causes_assert_elimination_miscompile():
     """
     from vyper.venom.passes.assert_elimination import AssertEliminationPass
 
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -1657,8 +1602,7 @@ def test_bug_iszero_false_branch_causes_assert_elimination_miscompile():
     """
     from vyper.venom.passes.assert_elimination import AssertEliminationPass
 
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -1713,8 +1657,7 @@ def test_bug_phi_merge_with_bottom_causes_assert_elimination_miscompile():
     """
     from vyper.venom.passes.assert_elimination import AssertEliminationPass
 
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %cond = calldataload 0
@@ -1774,8 +1717,7 @@ def test_add_at_signed_min_boundary():
     """Test add with SIGNED_MIN constant (using negative literal)."""
     from vyper.venom.analysis.variable_range.value_range import SIGNED_MIN
 
-    analysis, mono, fn = _analyze(
-        f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %min = {SIGNED_MIN}
@@ -1800,8 +1742,7 @@ def test_add_at_signed_min_boundary():
 def test_sub_at_signed_min_boundary():
     """Test sub that would underflow past SIGNED_MIN."""
 
-    analysis, mono, fn = _analyze(
-        f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %min = {SIGNED_MIN}
@@ -1825,8 +1766,7 @@ def test_sub_at_signed_min_boundary():
 
 def test_add_at_unsigned_max_boundary():
     """Test add at UNSIGNED_MAX that wraps to 0."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
@@ -1848,8 +1788,7 @@ def test_shr_by_255():
     """Test SHR by 255 bits on a large positive value."""
     from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX
 
-    analysis, mono, fn = _analyze(
-        f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %x = {SIGNED_MAX}
@@ -1871,8 +1810,7 @@ def test_shr_by_255():
 
 def test_shr_by_256():
     """Test SHR by 256 bits - should always give 0."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
@@ -1894,8 +1832,7 @@ def test_shl_by_255():
     """Test SHL by 255 bits."""
     from vyper.venom.analysis.variable_range.value_range import SIGNED_MIN
 
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 1
@@ -1931,8 +1868,7 @@ def test_shl_by_255():
 
 def test_shl_by_256():
     """Test SHL by 256 bits - should always give 0."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
@@ -1952,8 +1888,7 @@ def test_shl_by_256():
 
 def test_sar_by_255():
     """Test SAR by 255 bits on negative value."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = -1
@@ -1975,8 +1910,7 @@ def test_sar_by_255():
 
 def test_sar_by_256():
     """Test SAR by 256 bits - returns 0 or -1 based on sign."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = -100
@@ -1998,8 +1932,7 @@ def test_sar_by_256():
 
 def test_div_by_zero_returns_zero():
     """Test that DIV by zero returns 0 (EVM spec)."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 12345
@@ -2019,8 +1952,7 @@ def test_div_by_zero_returns_zero():
 
 def test_mod_by_zero_returns_zero():
     """Test that MOD by zero returns 0 (EVM spec)."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 12345
@@ -2040,8 +1972,7 @@ def test_mod_by_zero_returns_zero():
 
 def test_byte_index_32():
     """Test byte with index exactly 32 (should return 0)."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
@@ -2061,8 +1992,7 @@ def test_byte_index_32():
 
 def test_byte_index_255():
     """Test byte with large index (should return 0)."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
@@ -2082,8 +2012,7 @@ def test_byte_index_255():
 
 def test_nested_conditional_refinement_3_levels():
     """Test refinement through 3 levels of nested conditionals."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -2120,8 +2049,7 @@ def test_nested_conditional_refinement_3_levels():
 
 def test_phi_merge_4_branches():
     """Test phi merging values from 4 different branches."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %sel = calldataload 0
@@ -2169,8 +2097,7 @@ def test_phi_merge_4_branches():
 
 def test_signextend_then_unsigned_comparison():
     """Test combination of signextend followed by unsigned comparison."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2210,8 +2137,7 @@ def test_signextend_then_unsigned_comparison():
 
 def test_loop_counter_bounds():
     """Test that loop counter ranges are properly tracked through back edges."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %i = 0
@@ -2275,8 +2201,7 @@ def test_soundness_literal_not_normalized_to_signed():
     # 2^255 as a literal (this is SIGNED_MIN in signed representation)
     val_2_255 = 2**255
 
-    analysis, mono, fn = _analyze(
-        f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %x = {SIGNED_MAX}
@@ -2316,8 +2241,7 @@ def test_soundness_literal_not_normalized_sgt():
 
     val_2_255 = 2**255
 
-    analysis, mono, fn = _analyze(
-        f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %x = {SIGNED_MAX}
@@ -2353,8 +2277,7 @@ def test_soundness_eq_literal_at_sign_boundary():
     """
     from vyper.venom.analysis.variable_range.value_range import UNSIGNED_MAX
 
-    analysis, mono, fn = _analyze(
-        f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %x = -1
@@ -2393,8 +2316,7 @@ def test_soundness_add_overflow_to_signed_boundary():
     # Create two ranges [0, 2^254] and add them
     bound = 2**254
 
-    analysis, mono, fn = _analyze(
-        f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %raw1 = calldataload 0
@@ -2452,8 +2374,7 @@ def test_soundness_mul_overflow_to_signed_boundary():
     # sqrt(SIGNED_MAX) ~ 2^127.5, so [0, 2^128] * [0, 2^128] can exceed SIGNED_MAX
     bound = 2**128
 
-    analysis, mono, fn = _analyze(
-        f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %raw1 = calldataload 0
@@ -2499,8 +2420,7 @@ def test_soundness_operand_range_normalizes_large_literal():
     large_val = 2**255 + 100
     expected_signed = SIGNED_MIN + 100
 
-    analysis, mono, fn = _analyze(
-        f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %x = {large_val}
@@ -2545,8 +2465,7 @@ def test_soundness_add_result_range_validity():
     # but could still overflow SIGNED_MAX when added
     bound = 2**127  # Well under RANGE_WIDTH_LIMIT
 
-    analysis, mono, fn = _analyze(
-        f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %raw1 = calldataload 0
@@ -2600,8 +2519,7 @@ def test_soundness_add_result_range_validity():
 
 def test_sdiv_positive_range():
     """Test sdiv with a positive range dividend."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2624,8 +2542,7 @@ def test_sdiv_positive_range():
 
 def test_sdiv_negative_range():
     """Test sdiv with a negative range dividend."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2649,8 +2566,7 @@ def test_sdiv_negative_range():
 
 def test_sdiv_spanning_zero():
     """Test sdiv with a range spanning zero."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2673,8 +2589,7 @@ def test_sdiv_spanning_zero():
 
 def test_sdiv_by_zero():
     """Test sdiv by zero returns 0 (EVM spec)."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2695,8 +2610,7 @@ def test_sdiv_by_zero():
 
 def test_sdiv_negative_divisor_returns_top():
     """Test sdiv with negative divisor returns TOP (conservative)."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2746,8 +2660,7 @@ def test_sdiv_of_constant_wrapped_past_signed_max():
 
 def test_smod_positive_dividend():
     """Test smod with positive dividend range."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2770,8 +2683,7 @@ def test_smod_positive_dividend():
 
 def test_smod_nonpositive_range():
     """Test smod with non-positive dividend range (including zero)."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2795,8 +2707,7 @@ def test_smod_nonpositive_range():
 
 def test_smod_spanning_zero():
     """Test smod with dividend range spanning zero."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2819,8 +2730,7 @@ def test_smod_spanning_zero():
 
 def test_smod_by_zero():
     """Test smod by zero returns 0 (EVM spec)."""
-    analysis, mono, fn = _analyze(
-        """
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2837,6 +2747,7 @@ def test_smod_by_zero():
 
     rng = mono.get_range(smod_inst.output, entry.instructions[-1])
     assert rng.lo == 0 and rng.hi == 0
+
 
 def test_smod_dividend_spanning_sign_boundary():
     """
