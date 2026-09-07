@@ -9,7 +9,7 @@ from vyper.codegen_venom.bytestring_literal import (
 from vyper.codegen_venom.module import generate_runtime_venom
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings
-from vyper.venom.basicblock import IRLabel, IRLiteral
+from vyper.venom.basicblock import IRLiteral
 from vyper.venom.effects import Effects
 
 # every word of this is dense: no NOT or SHL shortcut applies
@@ -159,7 +159,7 @@ def foo() -> String[{n}]:
 
 
 @pytest.mark.parametrize("level", [OptimizationLevel.GAS, OptimizationLevel.CODESIZE])
-def test_literal_below_gate_keeps_mstore_chain(level):
+def test_literal_below_size_threshold_keeps_mstore_chain(level):
     # two words: 73 vs 72 bytes at gas levels, 76 vs 72 at codesize levels
     code = f"""
 @external
@@ -186,11 +186,10 @@ def bar() -> String[96]:
     ctx = _runtime_venom(code, OptimizationLevel.CODESIZE)
     sections = _literal_sections(ctx)
     assert [s.data_items[0].data for s in sections] == [first.encode(), second.encode()]
-    labels = [s.label for s in sections]
-    assert len(set(labels)) == 2
-    assert all(isinstance(label, IRLabel) for label in labels)
+    first_label, second_label = [s.label for s in sections]
+    assert first_label != second_label
     copies = [inst for inst in _instructions(ctx) if inst.opcode == "codecopy"]
-    assert [inst.operands[1] for inst in copies] == labels
+    assert [inst.operands[1] for inst in copies] == [first_label, second_label]
 
 
 def test_literal_in_internal_function_single_section():

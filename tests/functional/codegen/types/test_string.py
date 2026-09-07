@@ -420,7 +420,7 @@ def foo(x: String[1000000]) -> uint256:
         c.foo(calldata, gas=gas_used)
 
 
-# literal lengths around the word boundaries and the codecopy gate
+# literal lengths around the word boundaries and the codecopy size threshold
 LITERAL_LENGTHS = [32, 33, 63, 64, 65, 96, 97, 100, 200]
 ALPHABET = "abcdefghijklmnopqrstuvwxyz" * 8
 
@@ -456,12 +456,13 @@ def set():
 
 @pytest.mark.parametrize("opt", [OptimizationLevel.GAS, OptimizationLevel.CODESIZE])
 def test_string_literal_in_constructor_and_runtime(get_contract, opt):
+    # all three literals are long enough to take the codecopy path
     greeting = ALPHABET[:100]
-    tag = ALPHABET[3:67]
+    tag = ALPHABET[3:99]
     farewell = ALPHABET[5:101]
     code = f"""
 greeting: public(String[100])
-TAG: public(immutable(String[64]))
+TAG: public(immutable(String[96]))
 
 @deploy
 def __init__():
@@ -497,3 +498,28 @@ def bar() -> String[96]:
     c = get_contract(code, override_opt_level=opt)
     assert c.foo() == s
     assert c.bar() == s
+
+
+@pytest.mark.parametrize("opt", [OptimizationLevel.GAS, OptimizationLevel.CODESIZE])
+def test_string_literal_in_internal_function_from_constructor(get_contract, opt):
+    # the internal function is lowered into both the deploy and the runtime
+    # context, each with its own data section for the literal
+    s = ALPHABET[2:98]
+    code = f"""
+s: public(String[96])
+
+@internal
+def _msg() -> String[96]:
+    return "{s}"
+
+@deploy
+def __init__():
+    self.s = self._msg()
+
+@external
+def foo() -> String[96]:
+    return self._msg()
+    """
+    c = get_contract(code, override_opt_level=opt)
+    assert c.s() == s
+    assert c.foo() == s

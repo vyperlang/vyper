@@ -170,34 +170,50 @@ def test_bytecode_signature_deployed(code, get_contract, env):
 
 _ALPHABET = "abcdefghijklmnopqrstuvwxyz" * 4
 
+# every literal is at least 96 bytes, so both optimization levels put it in
+# a data section; the constructor and runtime literals differ so that they
+# can be located in the initcode independently
+GREETING = _ALPHABET[:100]
+TAG = _ALPHABET[4:100]
+FAREWELL = _ALPHABET.upper()[:96]
+
 literals_contract_code = f"""
 greeting: public(String[100])
-TAG: public(immutable(String[64]))
+TAG: public(immutable(String[96]))
 
 @deploy
 def __init__():
-    self.greeting = "{_ALPHABET[:100]}"
-    TAG = "{_ALPHABET[3:67]}"
+    self.greeting = "{GREETING}"
+    TAG = "{TAG}"
 
 @external
-def foo() -> String[96]:
-    return "{_ALPHABET[:96]}"
+def farewell() -> String[96]:
+    return "{FAREWELL}"
 """
 
 
-def test_bytecode_literals_metadata():
-    # constructor and runtime literals may add data sections to both the
-    # deploy and the runtime code; the metadata must stay the initcode tail
+@pytest.mark.parametrize("level", [OptimizationLevel.GAS, OptimizationLevel.CODESIZE])
+def test_bytecode_literals_metadata(level):
+    # constructor and runtime literals add data sections to the deploy and
+    # the runtime code; the metadata must stay the initcode tail
+    settings = Settings(experimental_codegen=True, optimize=level)
     out = vyper.compile_code(
-        literals_contract_code, output_formats=["bytecode_runtime", "bytecode"]
+        literals_contract_code, output_formats=["bytecode_runtime", "bytecode"], settings=settings
     )
     runtime_code = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
 
+    # the runtime literal is the runtime code's only data section (linear
+    # selector dispatch has none); the constructor literals come before the
+    # embedded runtime code, the metadata after it
     assert runtime_code in initcode
+    assert FAREWELL.encode() in runtime_code
+    assert initcode.index(GREETING.encode()) < initcode.index(runtime_code)
+    assert initcode.index(TAG.encode()) < initcode.index(runtime_code)
+
     metadata = _parse_cbor_metadata(initcode)
     _, runtime_len, data_section_lengths, immutables_len, compiler = metadata
     assert runtime_len == len(runtime_code)
-    assert immutables_len == 32 + 64
+    assert data_section_lengths == [96]
+    assert immutables_len == 32 + 96
     assert compiler == {"vyper": list(vyper.version.version_tuple)}
-    assert all(0 < length < runtime_len for length in data_section_lengths)
