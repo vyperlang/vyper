@@ -123,9 +123,6 @@ class _SequenceT(_SubscriptableT):
             if not 0 <= length < 2**256:
                 raise InvalidType("Array length is invalid")
 
-            if isinstance(self, SArrayT) and length == 0:
-                raise InvalidType("Array length is invalid")
-
             if length >= 2**64:
                 vyper_warn(VyperWarning("Use of large arrays can be unsafe!"))
 
@@ -175,6 +172,9 @@ class SArrayT(_SequenceT):
     _id = "$SArray"
 
     def __init__(self, value_type: VyperType, length: int) -> None:
+        if length == 0:
+            raise InvalidType("Array length is invalid")
+
         super().__init__(value_type, length)
 
     def __repr__(self):
