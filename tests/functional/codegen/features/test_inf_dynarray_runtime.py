@@ -260,6 +260,34 @@ def check() -> DynArray[uint256, INF]:
     assert c.check() == [10, 20, 30]
 
 
+@pytest.mark.parametrize("reassign", [True, False])
+def test_inf_dynarray_internal_param_conditional_reassign_append(get_contract, reassign):
+    # after the `if`, the local's payload pointer is either the caller's `y`
+    # or a fresh buffer; the append writes through that merged pointer
+    code = """
+@internal
+def build(y: DynArray[uint256, INF], reassign: bool) -> DynArray[uint256, INF]:
+    x: DynArray[uint256, INF] = y
+    if reassign:
+        x = [1, 2, 3]
+    x.append(9)
+    return x
+
+@external
+def foo(y: DynArray[uint256, INF], reassign: bool) -> DynArray[uint256, INF]:
+    return self.build(y, reassign)
+
+@external
+def bar(y: DynArray[uint256, INF], reassign: bool) -> uint256:
+    return len(self.build(y, reassign))
+    """
+    c = get_contract(code)
+
+    expected = ([1, 2, 3] if reassign else [7, 8]) + [9]
+    assert c.foo([7, 8], reassign) == expected
+    assert c.bar([7, 8], reassign) == len(expected)
+
+
 def test_inf_dynarray_append_after_kwarg_default(get_contract):
     code = """
 @external
