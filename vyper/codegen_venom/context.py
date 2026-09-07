@@ -19,7 +19,12 @@ from vyper.codegen.core import punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.bytestring_literal import should_codecopy
 from vyper.codegen_venom.value import VyperValue
-from vyper.compiler.settings import _opt_codesize, _opt_lowering_only_ir, get_global_settings
+from vyper.compiler.settings import (
+    OptimizationLevel,
+    _opt_codesize,
+    _opt_lowering_only_ir,
+    get_global_settings,
+)
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, MemoryAllocationException, StateAccessViolation
 from vyper.semantics.data_locations import DataLocation
@@ -70,8 +75,11 @@ class LocalVariable:
 def _reduced_pushes() -> bool:
     """Whether the pipeline rewrites literals into the NOT/SHL forms (O3, Os)."""
     settings = get_global_settings()
-    assert settings is not None and settings.optimize is not None
-    passes = OPTIMIZATION_PASSES[settings.optimize]
+    level = settings.optimize if settings is not None else None
+    if level is None:
+        # unset means the default level, as for `_opt_codesize()`
+        level = OptimizationLevel.default()
+    passes = OPTIMIZATION_PASSES[level]
     return any((p[0] if isinstance(p, tuple) else p) is ReduceLiteralsCodesize for p in passes)
 
 
