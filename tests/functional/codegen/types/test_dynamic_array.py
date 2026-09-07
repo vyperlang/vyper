@@ -2404,18 +2404,16 @@ def foo() -> DynArray[uint256, 0]:
     assert c.foo() == []
 
 
-def test_zero_length_dynarray_for_loop(get_contract):
+def test_zero_length_dynarray_abi_encode(get_contract):
+    # the encoder elides its per-element loop at bound 0; the encoding must
+    # be unchanged - a 32 byte offset followed by a length word of 0.
     code = """
-counter: public(uint256)
-
 @external
-def foo(x: DynArray[uint256, 0]):
-    for y: uint256 in x:
-        self.counter += 1
+def foo() -> Bytes[64]:
+    return abi_encode(empty(DynArray[uint256, 0]))
     """
     c = get_contract(code)
-    c.foo([])
-    assert c.counter() == 0
+    assert c.foo() == (32).to_bytes(32, "big") + (0).to_bytes(32, "big")
 
 
 def test_zero_length_dynarray_in_membership(get_contract):

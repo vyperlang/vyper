@@ -357,7 +357,11 @@ def _dynarray_make_setter(dst, src, hi=None):
                 )
                 loop_body.annotation = f"{dst}[i] = {src}[i]"
 
-                ret.append(["repeat", i, 0, count, src.typ.count, loop_body])
+                if src.typ.count != 0:
+                    # a zero-length dynarray has no elements to copy; emitting
+                    # the loop would produce an unreachable body (and a bound-0
+                    # `repeat`). the length word below is still required.
+                    ret.append(["repeat", i, 0, count, src.typ.count, loop_body])
                 # write the length word after data is copied
                 ret.append(STORE(dst, count))
 

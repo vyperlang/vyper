@@ -275,9 +275,11 @@ class IRnode:
                 repeat_bound = self.args[3]
                 body = self.args[4]
 
+                # note: a bound of 0 would lower to an unguarded infinite loop
+                # (see the `rounds != rounds_bound` condition in compile_ir).
                 assert (
-                    isinstance(repeat_bound.value, int) and repeat_bound.value >= 0
-                ), f"repeat bound must be a compile-time non-negative integer: {repeat_bound}"
+                    isinstance(repeat_bound.value, int) and repeat_bound.value > 0
+                ), f"repeat bound must be a compile-time positive integer: {repeat_bound}"
                 assert repeat_count.valency == 1, repeat_count
                 assert counter_ptr.valency == 1, counter_ptr
                 assert start.valency == 1, start

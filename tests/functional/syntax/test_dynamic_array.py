@@ -314,3 +314,30 @@ def foo():
     b: DynArray[uint256, INF] = a
     """
     compile_inf_code(code)
+
+
+def test_zero_length_dynarray_for_loop_rejected():
+    for code in (
+        """
+@external
+def foo(x: DynArray[uint256, 0]):
+    for y: uint256 in x:
+        pass
+        """,
+        """
+@external
+def foo():
+    x: DynArray[uint256, 0] = []
+    for y: uint256 in x:
+        pass
+        """,
+        """
+@external
+def foo():
+    for y: uint256 in []:
+        pass
+        """,
+    ):
+        with pytest.raises(StructureException) as e:
+            compile_code(code)
+        assert e.value.message == "For loop must have at least 1 iteration"

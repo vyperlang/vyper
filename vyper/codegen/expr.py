@@ -514,9 +514,14 @@ class Expr:
                 ["eq", left, ith_element],
                 ["seq", ["mstore", found_ptr, found], "break"],  # store true.
             ]
-            loop = ["repeat", i, 0, len_, right.typ.count, loop_body]
 
-            ret.append(["seq", ["mstore", found_ptr, not_found], loop, ["mload", found_ptr]])
+            if right.typ.count == 0:
+                # Nothing to loop over
+                loop = []
+            else:
+                loop = [["repeat", i, 0, len_, right.typ.count, loop_body]]
+
+            ret.append(["seq", ["mstore", found_ptr, not_found], *loop, ["mload", found_ptr]])
 
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=BoolT())
 
