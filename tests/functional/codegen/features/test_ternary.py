@@ -393,3 +393,27 @@ def foo(c: bool, a: DynArray[uint256, 5], b: DynArray[uint256, 5]):
     c.foo(test, a, b)
     (log,) = get_logs(c, "Picked")
     assert log.args.xs == (a if test else b)
+
+
+@pytest.mark.parametrize("test", [True, False])
+def test_ternary_wildcard_arg_self_arm(get_contract, env, test):
+    target_code = """
+@external
+def sink(input: DynArray[address, 3]) -> DynArray[address, 3]:
+    return input
+    """
+
+    caller_code = """
+interface Sink:
+    def sink(input: DynArray[address, ...]) -> DynArray[address, 3]: nonpayable
+
+@external
+def do_it(addr: address, other: address, b: bool) -> DynArray[address, 3]:
+    return extcall Sink(addr).sink([self] if b else [other])
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    other = env.accounts[1]
+    expected = [caller.address if test else other]
+    assert caller.do_it(target.address, other, test) == expected

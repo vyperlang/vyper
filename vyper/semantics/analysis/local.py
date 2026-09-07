@@ -867,8 +867,6 @@ class ExprVisitor(VyperNodeVisitorBase):
         if isinstance(min_t, BottomT):
             return max_t.resolve_wildcard()
 
-        assert type(min_t) is type(max_t)
-
         if isinstance(min_t, DArrayT):
             assert isinstance(max_t, DArrayT)
             new_vt = self._interpolate(min_t.value_type, max_t.value_type)
