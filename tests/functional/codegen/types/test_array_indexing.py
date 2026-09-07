@@ -344,7 +344,7 @@ def foo(i: uint256) -> uint256:
 
 
 @pytest.mark.xfail(raises=InvalidOperation)
-def test_index_all_empty_lists_variable_index(get_contract):
+def test_index_all_empty_lists_variable_index(get_contract, tx_failed):
     code = """
 @external
 def foo(i: uint256) -> DynArray[uint256, 5]:
