@@ -4,9 +4,8 @@ a chain of `mstore`s of literal words versus a `codecopy` from a data
 section holding the bytes. Used by `VenomCodegenContext.const_bytestring_value`.
 
 The estimates are biased so that a wrong guess can only keep the chain:
-the chain is priced with the cheapest literal encoding available to
-`ReduceLiteralsCodesize` at any optimization level and PUSH1 addresses,
-the codecopy with a PUSH2 label.
+the chain is priced with the cheapest literal encoding the optimization
+level can produce and PUSH1 addresses, the codecopy with a PUSH2 label.
 """
 
 from vyper.utils import ceil32, evm_not
@@ -25,13 +24,16 @@ def _nbytes(val: int) -> int:
     return (val.bit_length() + 7) // 8
 
 
-def push_cost(word: int) -> int:
+def push_cost(word: int, reduced: bool) -> int:
     """
-    Bytes of the cheapest encoding of a word: PUSHn, PUSH + NOT, or
-    PUSH + PUSH1 + SHL (the forms `ReduceLiteralsCodesize` produces).
+    Bytes of the cheapest encoding of a word: PUSHn, and when `reduced`
+    (the level runs `ReduceLiteralsCodesize`) also PUSH + NOT or
+    PUSH + PUSH1 + SHL.
     """
     assert 0 <= word < 2**256
     cost = 1 + _nbytes(word)
+    if not reduced:
+        return cost
     cost = min(cost, 1 + _nbytes(evm_not(word)) + 1)
     if word != 0:
         trailing_zero_bytes = ((word & -word).bit_length() - 1) // 8
@@ -40,11 +42,11 @@ def push_cost(word: int) -> int:
     return cost
 
 
-def chain_bytes(data: bytes) -> int:
+def chain_bytes(data: bytes, reduced: bool) -> int:
     """Code bytes for storing `data` word by word (the length word excluded)."""
     padded = data.ljust(ceil32(len(data)), b"\x00")
     words = [int.from_bytes(padded[i : i + WORD], "big") for i in range(0, len(padded), WORD)]
-    return sum(push_cost(word) + _ADDR_COST + 1 for word in words)
+    return sum(push_cost(word, reduced) + _ADDR_COST + 1 for word in words)
 
 
 def codecopy_bytes(length: int, padded: bool) -> int:
@@ -59,10 +61,11 @@ def codecopy_bytes(length: int, padded: bool) -> int:
     return length + _CODECOPY_COST + tail_store
 
 
-def should_codecopy(data: bytes, padded: bool) -> bool:
+def should_codecopy(data: bytes, padded: bool, reduced: bool) -> bool:
     """
     Whether `data` is estimated to be smaller as a codecopy than as an
-    mstore chain. A single word is never worth a data section.
+    mstore chain (`reduced`: see `push_cost`). A single word is never
+    worth a data section.
 
     Runtime gas cannot get worse in the padded form: the chain costs at
     least 8 gas per word, the codecopy 15 + 3 gas per word, and the size
@@ -70,4 +73,4 @@ def should_codecopy(data: bytes, padded: bool) -> bool:
     """
     if len(data) <= WORD:
         return False
-    return codecopy_bytes(len(data), padded) < chain_bytes(data)
+    return codecopy_bytes(len(data), padded) < chain_bytes(data, reduced)

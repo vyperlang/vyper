@@ -18,23 +18,33 @@ DENSE = bytes(range(1, 256)) * 2
 ALPHABET = "abcdefghijklmnopqrstuvwxyz" * 8
 
 
-def test_push_cost():
-    assert push_cost(0) == 1  # PUSH0
-    assert push_cost(1) == 2  # PUSH1
-    assert push_cost(int.from_bytes(DENSE[:32], "big")) == 33  # PUSH32
-    assert push_cost(2**256 - 1) == 2  # PUSH0, NOT
-    assert push_cost(2**256 - 0x100) == 3  # PUSH1 0xff, NOT
-    assert push_cost(1 << 255) == 5  # PUSH1 1, PUSH1 255, SHL
-    assert push_cost(0x73747576 << 224) == 8  # PUSH4, PUSH1, SHL
+def test_push_cost_reduced():
+    assert push_cost(0, reduced=True) == 1  # PUSH0
+    assert push_cost(1, reduced=True) == 2  # PUSH1
+    assert push_cost(int.from_bytes(DENSE[:32], "big"), reduced=True) == 33  # PUSH32
+    assert push_cost(2**256 - 1, reduced=True) == 2  # PUSH0, NOT
+    assert push_cost(2**256 - 0x100, reduced=True) == 3  # PUSH1 0xff, NOT
+    assert push_cost(1 << 255, reduced=True) == 5  # PUSH1 1, PUSH1 255, SHL
+    assert push_cost(0x73747576 << 224, reduced=True) == 8  # PUSH4, PUSH1, SHL
+
+
+def test_push_cost_plain():
+    # without ReduceLiteralsCodesize every non-zero word is a plain PUSHn
+    assert push_cost(0, reduced=False) == 1
+    assert push_cost(2**256 - 1, reduced=False) == 33
+    assert push_cost(1 << 255, reduced=False) == 33
+    assert push_cost(0x73747576 << 224, reduced=False) == 33
 
 
 def test_chain_bytes():
     # PUSH32, PUSH1 addr, MSTORE per dense word
-    assert chain_bytes(DENSE[:64]) == 2 * 36
-    # the padded tail word is cheap: PUSH1, PUSH1, SHL, PUSH1 addr, MSTORE
-    assert chain_bytes(DENSE[:33]) == 36 + 8
+    assert chain_bytes(DENSE[:64], reduced=True) == 2 * 36
+    assert chain_bytes(DENSE[:64], reduced=False) == 2 * 36
+    # the padded tail word is cheap only with SHL: PUSH1, PUSH1, SHL, PUSH1 addr, MSTORE
+    assert chain_bytes(DENSE[:33], reduced=True) == 36 + 8
+    assert chain_bytes(DENSE[:33], reduced=False) == 36 + 36
     # zero words: PUSH0, PUSH1 addr, MSTORE
-    assert chain_bytes(b"\x00" * 96) == 3 * 4
+    assert chain_bytes(b"\x00" * 96, reduced=False) == 3 * 4
 
 
 def test_codecopy_bytes():
@@ -44,31 +54,46 @@ def test_codecopy_bytes():
     assert codecopy_bytes(100, padded=False) == 100 + 9 + 4  # plus the tail zeroing store
 
 
+# codesize levels: exact item plus tail store, chain priced with NOT/SHL forms
 @pytest.mark.parametrize(
-    "n,padded,expected",
+    "n,expected",
     [
-        (32, True, False),  # single word, never
-        (32, False, False),
-        (33, True, False),  # 73 vs 44
-        (33, False, False),  # 46 vs 44
-        (63, True, False),  # 73 vs 72
-        (63, False, False),  # 76 vs 72
-        (64, True, False),  # 73 vs 72
-        (64, False, False),  # 73 vs 72
-        (65, True, False),  # 105 vs 80
-        (65, False, True),  # 78 vs 80
-        (96, True, True),  # 105 vs 108
-        (96, False, True),  # 105 vs 108
+        (32, False),  # single word, never
+        (33, False),  # 46 vs 44
+        (63, False),  # 76 vs 72
+        (64, False),  # 73 vs 72
+        (65, True),  # 78 vs 80
+        (96, True),  # 105 vs 108
+        (97, True),  # 110 vs 116
+        (100, True),  # 113 vs 119
     ],
 )
-def test_should_codecopy(n, padded, expected):
-    assert should_codecopy(DENSE[:n], padded) is expected
+def test_should_codecopy_codesize(n, expected):
+    assert should_codecopy(DENSE[:n], padded=False, reduced=True) is expected
 
 
-@pytest.mark.parametrize("padded", [True, False])
-def test_should_codecopy_zero_words(padded):
+# gas levels: padded item, chain priced with plain PUSHn only
+@pytest.mark.parametrize(
+    "n,expected",
+    [
+        (32, False),  # single word, never
+        (33, False),  # 73 vs 72
+        (63, False),  # 73 vs 72
+        (64, False),  # 73 vs 72
+        (65, True),  # 105 vs 108
+        (96, True),  # 105 vs 108
+        (97, True),  # 137 vs 144
+        (100, True),  # 137 vs 144
+    ],
+)
+def test_should_codecopy_gas(n, expected):
+    assert should_codecopy(DENSE[:n], padded=True, reduced=False) is expected
+
+
+@pytest.mark.parametrize("padded,reduced", [(True, False), (False, True)])
+def test_should_codecopy_zero_words(padded, reduced):
     # 3 zero words cost 12 bytes as stores, 105 as a data item
-    assert not should_codecopy(b"\x00" * 96, padded)
+    assert not should_codecopy(b"\x00" * 96, padded, reduced)
 
 
 def _runtime_venom(code: str, level: OptimizationLevel):
@@ -91,6 +116,7 @@ def _instructions(ctx):
     "level,n,expected_item",
     [
         (OptimizationLevel.GAS, 96, ALPHABET[:96].encode()),
+        (OptimizationLevel.GAS, 100, ALPHABET[:100].encode().ljust(128, b"\x00")),
         (OptimizationLevel.CODESIZE, 96, ALPHABET[:96].encode()),
         (OptimizationLevel.CODESIZE, 100, ALPHABET[:100].encode()),
     ],
@@ -123,19 +149,24 @@ def foo() -> String[{n}]:
     between = bb[copy_idx + 1 : length_idx]
     assert not any(Effects.MEMORY in inst.get_write_effects() for inst in between)
 
-    # the last data word is zeroed before the copy, unless the data is
-    # word-aligned
+    # the last data word is zeroed before the copy for an exact item that
+    # is not word-aligned; a padded item needs no tail store
     tail_stores = [inst for inst in bb[:copy_idx] if inst in stores]
-    assert [inst.operands[0] for inst in tail_stores] == ([IRLiteral(0)] if n % 32 else [])
+    needs_tail_store = len(expected_item) % 32 != 0
+    assert [inst.operands[0] for inst in tail_stores] == (
+        [IRLiteral(0)] if needs_tail_store else []
+    )
 
 
-def test_literal_below_gate_keeps_mstore_chain():
+@pytest.mark.parametrize("level", [OptimizationLevel.GAS, OptimizationLevel.CODESIZE])
+def test_literal_below_gate_keeps_mstore_chain(level):
+    # two words: 73 vs 72 bytes at gas levels, 76 vs 72 at codesize levels
     code = f"""
 @external
-def foo() -> String[100]:
-    return "{ALPHABET[:100]}"
+def foo() -> String[63]:
+    return "{ALPHABET[:63]}"
     """
-    ctx = _runtime_venom(code, OptimizationLevel.GAS)
+    ctx = _runtime_venom(code, level)
     assert len(_literal_sections(ctx)) == 0
     assert not any(inst.opcode == "codecopy" for inst in _instructions(ctx))
 

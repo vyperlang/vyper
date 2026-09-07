@@ -19,7 +19,7 @@ from vyper.codegen.core import punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.bytestring_literal import should_codecopy
 from vyper.codegen_venom.value import VyperValue
-from vyper.compiler.settings import _opt_codesize, _opt_lowering_only_ir
+from vyper.compiler.settings import _opt_codesize, _opt_lowering_only_ir, get_global_settings
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, MemoryAllocationException, StateAccessViolation
 from vyper.semantics.data_locations import DataLocation
@@ -39,8 +39,10 @@ from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
 from vyper.utils import IDENTITY_PRECOMPILE, ceil32
+from vyper.venom import OPTIMIZATION_PASSES
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
+from vyper.venom.passes import ReduceLiteralsCodesize
 
 
 class Constancy(Enum):
@@ -63,6 +65,14 @@ class LocalVariable:
             raise CompilerPanic("LocalVariable.value must be located")
         if self.value.location != DataLocation.MEMORY:  # pragma: nocover
             raise CompilerPanic("LocalVariable must be in MEMORY")
+
+
+def _reduced_pushes() -> bool:
+    """Whether the pipeline rewrites literals into the NOT/SHL forms (O3, Os)."""
+    settings = get_global_settings()
+    assert settings is not None and settings.optimize is not None
+    passes = OPTIMIZATION_PASSES[settings.optimize]
+    return any((p[0] if isinstance(p, tuple) else p) is ReduceLiteralsCodesize for p in passes)
 
 
 @dataclass
@@ -239,7 +249,7 @@ class VenomCodegenContext:
         # up identical to the mstore chain. the lowering-only levels keep the
         # chain, they are not meant to optimize.
         padded = not _opt_codesize()
-        if not _opt_lowering_only_ir() and should_codecopy(data, padded):
+        if not _opt_lowering_only_ir() and should_codecopy(data, padded, _reduced_pushes()):
             self._codecopy_bytestring_literal(val.operand, data, padded)
         else:
             for i in range(0, len(data), 32):
