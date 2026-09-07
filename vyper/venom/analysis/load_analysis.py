@@ -21,7 +21,7 @@ from .mem_alias import (
 
 _LatticeKey = IROperand | MemoryLocation
 
-# bulk memory writes whose destination is known when their size is a literal
+# bulk memory writes whose destination operand names the written location
 _MEMORY_COPY_OPS = frozenset(
     ["mcopy", "calldatacopy", "codecopy", "dloadbytes", "returndatacopy", "extcodecopy"]
 )
@@ -231,13 +231,15 @@ class LoadAnalysis(IRAnalysis):
                 return memloc
         return self._normalize_operand(inst.operands[1])
 
-    def _fixed_copy_location(self, inst: IRInstruction, eff: Effects) -> Optional[MemoryLocation]:
+    def _copy_write_location(self, inst: IRInstruction, eff: Effects) -> Optional[MemoryLocation]:
+        # the alias set of a non-fixed location (unknown offset or size inside
+        # an allocation, or no allocation at all) already covers every
+        # location it may overlap, so there is no need to require a fixed
+        # location here: a dynamic-size copy into an allocation only
+        # invalidates that allocation, an unknown destination everything
         if eff != Effects.MEMORY or inst.opcode not in _MEMORY_COPY_OPS:
             return None
-        memloc = self.base_ptrs.get_write_location(inst, self.space)
-        if not memloc.is_fixed:
-            return None
-        return memloc
+        return self.base_ptrs.get_write_location(inst, self.space)
 
     def _handle_bb(
         self, eff: Effects | str, load_opcode: str, store_opcode: str | None, bb: IRBasicBlock
@@ -260,10 +262,10 @@ class LoadAnalysis(IRAnalysis):
                 lattice.remove_aliases(memloc, alias_set)
                 lattice[ptr] = OrderedSet([val])
             elif isinstance(eff, Effects) and eff in inst.get_write_effects():
-                # a fixed-size memory copy is a store to a known location:
+                # a memory copy is a store to its destination location:
                 # drop what it may alias, exactly like an mstore. anything
-                # else (calls, unknown sizes) clobbers everything
-                copy_loc = self._fixed_copy_location(inst, eff)
+                # else (calls, invokes) clobbers everything
+                copy_loc = self._copy_write_location(inst, eff)
                 if copy_loc is None:
                     lattice.clear()
                 else:
