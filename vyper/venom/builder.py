@@ -174,13 +174,14 @@ class VenomBuilder:
         """Allocate abstract memory. Returns pointer. (IR-specific)"""
         return self._emit1("alloca", size)
 
-    def memtop(self) -> IRVariable:
-        """Get address past all memory (scratch space start).
+    def dalloca(self, size: Operand) -> IRVariable:
+        """Allocate dynamic memory and return its pointer.
 
-        Lowered to EVM MSIZE at assembly time. Use for untracked scratch
-        buffers above the static frame and any spill slots.
+        The pointer is the base of a `ceil32(size)`-byte region. Reclaiming the
+        threaded FMP is compiler-owned; producers do not receive or pass an
+        explicit restore mark.
         """
-        return self._emit1("memtop")
+        return self._emit1("dalloca", size)
 
     # === Storage ===
     def sload(self, slot: Operand) -> IRVariable:
@@ -301,6 +302,10 @@ class VenomBuilder:
         """Return from internal function. Terminates block."""
         self._emit("ret", *values)
 
+    def dret(self, *values: Operand) -> None:
+        """Return dynamic memory from an internal function. Terminates block."""
+        self._emit("dret", *values)
+
     # === EVM Terminators ===
     def return_(self, offset: Operand, size: Operand) -> None:
         """Return from external call (EVM RETURN). Terminates block."""
@@ -338,6 +343,10 @@ class VenomBuilder:
     def param(self) -> IRVariable:
         """Declare function parameter (must be at block start)."""
         return self._emit1("param")
+
+    def retpc_param(self) -> IRVariable:
+        """Declare the return-PC parameter (the top-of-stack entry slot)."""
+        return self._emit1("retpc_param")
 
     # === External Calls ===
     def call(

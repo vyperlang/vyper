@@ -41,6 +41,8 @@ class InstUpdater:
         assert all(isinstance(op, IROperand) for op in new_operands)
 
         original_str = str(inst)
+        if opcode != inst.opcode:
+            inst.memory_read_max_size = None
 
         old_operands = inst.operands
 

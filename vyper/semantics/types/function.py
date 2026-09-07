@@ -36,10 +36,14 @@ from vyper.semantics.analysis.utils import (
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.bytestrings import BytesT
+from vyper.semantics.types.infinity import (
+    type_contains_nested_unbounded_sequence,
+    type_contains_unsupported_unbounded_sequence,
+)
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
-from vyper.semantics.types.user import EventT
+from vyper.semantics.types.user import ErrorT, EventT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import OrderedSet, keccak256
 from vyper.warnings import Deprecation, vyper_warn
@@ -159,6 +163,9 @@ class ContractFunctionT(VyperType):
         # events emitted by this function (populated during analysis)
         self._emitted_events: OrderedSet[EventT] = OrderedSet()
 
+        # errors raised by this function (populated during analysis)
+        self._raised_errors: OrderedSet[ErrorT] = OrderedSet()
+
         # to be populated during codegen
         self._ir_info: Any = None
         self._function_id: Optional[int] = None
@@ -231,6 +238,12 @@ class ContractFunctionT(VyperType):
     def mark_emitted_event(self, event: EventT):
         self._emitted_events.add(event)
 
+    def get_raised_errors(self):
+        return self._raised_errors
+
+    def mark_raised_error(self, error: ErrorT):
+        self._raised_errors.add(error)
+
     def mark_variable_writes(self, var_infos):
         self._variable_writes.update(var_infos)
 
@@ -284,13 +297,14 @@ class ContractFunctionT(VyperType):
         ContractFunctionT object.
         """
         positional_args = []
-        for item in abi["inputs"]:
+        for item in abi.get("inputs", []):
             positional_args.append(PositionalArg(item["name"], type_from_abi(item)))
         return_type = None
-        if len(abi["outputs"]) == 1:
-            return_type = type_from_abi(abi["outputs"][0])
-        elif len(abi["outputs"]) > 1:
-            return_type = TupleT(tuple(type_from_abi(i) for i in abi["outputs"]))
+        outputs = abi.get("outputs", [])
+        if len(outputs) == 1:
+            return_type = type_from_abi(outputs[0])
+        elif len(outputs) > 1:
+            return_type = TupleT(tuple(type_from_abi(i) for i in outputs))
         return cls(
             abi["name"],
             positional_args,
@@ -648,19 +662,24 @@ class ContractFunctionT(VyperType):
 
         assert self.visibility == other.visibility
 
-        arguments, return_type = self._iface_sig
-        other_arguments, other_return_type = other._iface_sig
+        arguments, return_t = self._iface_sig
+        other_arguments, other_return_t = other._iface_sig
 
-        # Contravariant
         if len(arguments) != len(other_arguments):
             return False
         for atyp, btyp in zip(arguments, other_arguments):
+            # argument checking is contravariant
             if not btyp.is_subtype_of(atyp):
                 return False
 
-        # Covariant
-        if return_type and not return_type.is_subtype_of(other_return_type):  # type: ignore
+        if (return_t is None) != (other_return_t is None):
             return False
+
+        # return type checking is covariant
+        if return_t is not None:
+            assert other_return_t is not None  # help mypy
+            if not return_t.is_subtype_of(other_return_t):
+                return False
 
         return self.mutability == other.mutability
 
@@ -860,7 +879,13 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
     if funcdef.returns is None:
         return None
     # note: consider, for cleanliness, adding DataLocation.RETURN_VALUE
-    return type_from_annotation(funcdef.returns, DataLocation.MEMORY)
+    ret = type_from_annotation(funcdef.returns, DataLocation.MEMORY)
+    if type_contains_unsupported_unbounded_sequence(ret):
+        raise StructureException(
+            "Function returns cannot contain unbounded sequence types inside aggregate types",
+            funcdef.returns,
+        )
+    return ret
 
 
 @dataclass
@@ -1080,6 +1105,11 @@ def _parse_args(
             raise ArgumentException(f"Function argument '{argname}' is missing a type", arg)
 
         type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
+        if type_contains_nested_unbounded_sequence(type_):
+            raise StructureException(
+                "Function arguments cannot contain unbounded sequence types inside aggregate types",
+                arg.annotation,
+            )
 
         if i < n_positional_args:
             positional_args.append(PositionalArg(argname, type_, ast_source=arg))

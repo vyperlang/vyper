@@ -3,6 +3,7 @@ import pytest
 from tests.hevm import hevm_check_venom
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis.available_expression import NONIDEMPOTENT_INSTRUCTIONS
 from vyper.venom.passes.common_subexpression_elimination import CSE
 
 pytestmark = pytest.mark.hevm
@@ -362,6 +363,24 @@ def test_cse_non_idempotent():
     _check_no_change(pre)
 
 
+def test_cse_gas_not_idempotent():
+    """
+    Test that distinct `gas` reads (and expressions built on top of them)
+    are not coalesced, since `gas` returns the remaining gas which
+    decreases as execution proceeds
+    """
+    pre = """
+    main:
+        %g1 = gas
+        %d1 = div %g1, 3
+        %g2 = gas
+        %d2 = div %g2, 3
+        sink %d1, %d2
+    """
+
+    _check_no_change(pre, hevm=False)
+
+
 @pytest.mark.xfail
 def test_cse_loop():
     """
@@ -590,3 +609,57 @@ def test_cse_different_params():
     """
 
     _check_no_change(pre)
+
+
+def test_cse_multi_output_invoke_effects():
+    """
+    A multi-output (tuple-returning) invoke has write effects like any
+    other invoke; an sload before the invoke must not be forwarded to
+    an sload after it, since the callee may write the same slot.
+    """
+    pre = """
+    main:
+        %1 = sload 0
+        %a, %b = invoke @f
+        %2 = sload 0
+        sink %1, %2, %a, %b
+    """
+
+    _check_no_change(pre, hevm=False)
+
+
+def test_cse_dalloca_not_merged():
+    # two identical `dalloca`s are distinct dynamic allocations and
+    # must not be merged by CSE
+    pre = """
+    main:
+        %p1 = dalloca 32
+        %p2 = dalloca 32
+        sink %p1, %p2
+    """
+
+    _check_no_change(pre, hevm=False)
+
+
+def test_fmp_allocation_ops_are_nonidempotent():
+    # the behavior tests above are additionally masked by CSE's multi-output
+    # skip (well-formed bump has 2 outputs), so pin the set membership
+    # directly: these derive from the Effects.FMP row and removing any of
+    # them would make identical allocations CSE-mergeable.
+    assert "bump" in NONIDEMPOTENT_INSTRUCTIONS
+    assert "dalloca" in NONIDEMPOTENT_INSTRUCTIONS
+    assert "setfmp" in NONIDEMPOTENT_INSTRUCTIONS
+
+
+def test_cse_bump_not_merged():
+    # two `bump`s with identical operands are distinct allocations in the
+    # FMP threading chain and must not be merged by CSE
+    pre = """
+    main:
+        %fmp = source
+        %p1, %f1 = bump 32, %fmp
+        %p2, %f2 = bump 32, %fmp
+        sink %p1, %p2
+    """
+
+    _check_no_change(pre, hevm=False)

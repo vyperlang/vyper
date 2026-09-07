@@ -40,9 +40,9 @@ from vyper.semantics.types import (
     FlagT,
     IntegerT,
     StringT,
+    _BytestringT,
+    is_bounded_length,
 )
-from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.infinity import is_bounded_length
 from vyper.semantics.types.shortcuts import INT256_T, UINT160_T, UINT256_T
 from vyper.utils import DECIMAL_DIVISOR, round_towards_zero, unsigned_to_signed
 
@@ -368,7 +368,7 @@ def to_decimal(expr, arg, out_typ):
         raise CompilerPanic("unreachable")
 
 
-@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BytesT, BoolT)
+@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BytesT, BoolT, FlagT)
 def to_bytes_m(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, max_bytes_allowed=out_typ.m)
 
@@ -408,6 +408,16 @@ def to_bytes_m(expr, arg, out_typ):
 
         # note: neg numbers not OOB. keep sign bit
         arg = shl(256 - out_typ.m_bits, arg)
+
+    elif is_flag_type(arg.typ):
+        if out_typ.m_bits != 256:
+            _FAIL(arg.typ, out_typ, expr)
+
+        # leave `arg` as-is, equivalent to the way we treat uin256:
+        # arg = shl(256 - out_typ.m_bits, arg)
+        # => arg = shl(256 - 256, arg)
+        # => arg = shl(0, arg)
+        # => arg = arg
 
     else:
         # bool

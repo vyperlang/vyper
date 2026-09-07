@@ -1,3 +1,5 @@
+import pytest
+
 from tests.venom_utils import assert_bb_eq, assert_ctx_eq
 from vyper.venom.basicblock import IRBasicBlock, IRLabel, IRLiteral, IRVariable
 from vyper.venom.context import DataItem, DataSection, IRContext
@@ -394,3 +396,93 @@ def test_multi_output_last_var():
 
     g_fn = parsed_ctx.get_function(IRLabel("g"))
     assert g_fn.last_variable == 0
+
+
+def test_noinline_annotation():
+    source = """
+    function main {
+        main:
+            stop
+    }
+
+    function f [noinline] {
+        f:
+            stop
+    }
+
+    function g [fmp_lowered, noinline] {
+        g:
+            stop
+    }
+    """
+
+    parsed_ctx = parse_venom(source)
+
+    assert parsed_ctx.get_function(IRLabel("main")).noinline is False
+    assert parsed_ctx.get_function(IRLabel("f")).noinline is True
+    g = parsed_ctx.get_function(IRLabel("g"))
+    assert g.noinline is True
+    assert g._fmp_signature is not None
+
+    # printer/parser round trip preserves the flag
+    assert_ctx_eq(parsed_ctx, parse_venom(str(parsed_ctx)))
+
+
+def test_eom_annotation():
+    # `eom` is the end of a function's static frame. Once allocas have been
+    # concretized it is not recoverable from the instruction stream, but the
+    # backend needs it to place spill slots above the frame, so it has to
+    # survive the text-format round trip.
+    source = """
+    function main [fmp_lowered, eom=13024] {
+        main:
+            stop
+    }
+
+    function f [fmp_lowered, eom=160] {
+        f:
+            stop
+    }
+
+    function g {
+        g:
+            stop
+    }
+    """
+
+    parsed_ctx = parse_venom(source)
+
+    fn_eom = parsed_ctx.mem_allocator.fn_eom
+    assert fn_eom[parsed_ctx.get_function(IRLabel("main"))] == 13024
+    assert fn_eom[parsed_ctx.get_function(IRLabel("f"))] == 160
+    # a function without the annotation must not get an entry -- a default of 0
+    # would silently place spill slots at the bottom of memory
+    assert parsed_ctx.get_function(IRLabel("g")) not in fn_eom
+
+    # printer/parser round trip preserves the value
+    reparsed = parse_venom(str(parsed_ctx))
+    assert_ctx_eq(parsed_ctx, reparsed)
+    assert reparsed.mem_allocator.fn_eom[reparsed.get_function(IRLabel("main"))] == 13024
+
+
+@pytest.mark.parametrize(
+    "annotation, expected_error",
+    [
+        ("[eom]", "requires a value"),
+        ("[noinline=1]", "takes no value"),
+        ("[eom=1, eom=2]", "duplicate function annotation"),
+        ("[bogus]", "unknown function annotation"),
+        ("[eom=-32]", "negative `eom` annotation"),
+        ("[eom=64]", "`eom` requires `fmp_lowered`"),
+    ],
+)
+def test_invalid_annotations(annotation, expected_error):
+    source = f"""
+    function main {annotation} {{
+        main:
+            stop
+    }}
+    """
+
+    with pytest.raises(ValueError, match=expected_error):
+        parse_venom(source)

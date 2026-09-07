@@ -3,6 +3,7 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.compiler.output import build_abi_output
 from vyper.compiler.phases import CompilerData
+from vyper.compiler.settings import Settings
 
 source_codes = [
     """
@@ -89,6 +90,106 @@ def foo(s: decimal) -> decimal:
         },
     ]
     assert out["abi"] == expected_abi
+
+
+def test_inf_abi_output_uses_experimental_codegen():
+    code = """
+@external
+def echo(x: Bytes[INF]) -> Bytes[INF]:
+    return x
+    """
+
+    abi = compile_code(code, output_formats=["abi"], settings=Settings(experimental_codegen=True))[
+        "abi"
+    ]
+
+    assert abi[0]["inputs"] == [{"name": "x", "type": "bytes"}]
+    assert abi[0]["outputs"] == [{"name": "", "type": "bytes"}]
+
+    abi_with_gas = compile_code(
+        code,
+        output_formats=["abi"],
+        settings=Settings(experimental_codegen=True),
+        show_gas_estimates=True,
+    )["abi"]
+    assert abi_with_gas[0]["gas"] is None
+
+
+def test_interface_abi_gas_estimates():
+    code = """
+@external
+@view
+def foo() -> uint256:
+    ...
+    """
+
+    abi = compile_code(
+        code, contract_path="foo.vyi", output_formats=["abi"], show_gas_estimates=True
+    )["abi"]
+
+    assert abi == [
+        {
+            "stateMutability": "view",
+            "type": "function",
+            "name": "foo",
+            "inputs": [],
+            "outputs": [{"name": "", "type": "uint256"}],
+            "gas": None,
+        }
+    ]
+
+
+def test_custom_error_abi():
+    code = """
+error Unauthorized:
+    caller: address
+
+error Simple:
+    pass
+
+@external
+def fail():
+    raise Unauthorized(caller=msg.sender)
+    """
+
+    abi = compile_code(code, output_formats=["abi"])["abi"]
+
+    unauthorized = next(
+        item for item in abi if item.get("type") == "error" and item.get("name") == "Unauthorized"
+    )
+    assert unauthorized["inputs"][0]["name"] == "caller"
+    assert unauthorized["inputs"][0]["type"] == "address"
+
+    simple = next(
+        item for item in abi if item.get("type") == "error" and item.get("name") == "Simple"
+    )
+    assert simple["inputs"] == []
+
+
+def test_exported_module_custom_error_abi(make_input_bundle):
+    lib = """
+error LibError:
+    code: uint256
+
+@external
+def fail():
+    raise LibError(1)
+    """
+    main = """
+import lib
+exports: lib.fail
+    """
+
+    input_bundle = make_input_bundle({"lib.vy": lib})
+    out = compile_code(main, input_bundle=input_bundle, output_formats=["abi", "interface"])
+
+    error_abi = next(
+        item
+        for item in out["abi"]
+        if item.get("type") == "error" and item.get("name") == "LibError"
+    )
+    assert error_abi["inputs"] == [{"name": "code", "type": "uint256"}]
+    assert "error LibError:\n    code: uint256" in out["interface"]
 
 
 def test_struct_abi():
@@ -270,8 +371,8 @@ public_constant_variable: public(constant(uint256)) = 10
 
 @deploy
 def __init__(a: uint256, b: uint256):
-    public_immutable_variable = a
-    private_immutable_variable = b
+    self.public_immutable_variable = a
+    self.private_immutable_variable = b
     """
 
     main = """

@@ -54,7 +54,7 @@ BAR: public(constant(uint256)) = 3
 @deploy
 def __init__():
     self.counter = 1
-    FOO = 2
+    self.FOO = 2
     """
     main = """
 import lib1

@@ -1,6 +1,11 @@
 import pytest
 
+from vyper.compiler import compile_code
+from vyper.compiler.phases import generate_bytecode
+from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 from vyper.ir.compile_ir import Label
+from vyper.utils import method_id
+from vyper.venom import generate_assembly_experimental, run_passes_on
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.parser import parse_venom
@@ -26,6 +31,127 @@ def _dummy_dfg():
             return False
 
     return _DummyDFG()
+
+
+def _deploy_runtime(env, runtime_bytecode):
+    bytecode_len_hex = hex(len(runtime_bytecode))[2:].rjust(6, "0")
+    initcode = bytes.fromhex("62" + bytecode_len_hex + "3d81600b3d39f3") + runtime_bytecode
+    return env.deploy([], initcode)
+
+
+def test_set_current_function_clears_missing_fn_eom() -> None:
+    ctx = parse_venom("""
+        function first {
+            main:
+                stop
+        }
+
+        function second {
+            main:
+                stop
+        }
+        """)
+    compiler = VenomCompiler(ctx)
+    first, second = list(ctx.functions.values())
+
+    ctx.mem_allocator.fn_eom[first] = 64
+    compiler.spiller.set_current_function(first)
+    assert compiler.spiller._next_spill_offset == 64
+
+    compiler.spiller.set_current_function(second)
+    assert compiler.spiller._next_spill_offset is None
+
+    compiler.spiller._next_spill_offset = 96
+    compiler.spiller.set_current_function(None)
+    assert compiler.spiller._next_spill_offset is None
+
+
+def test_function_spill_regions_are_disjoint_and_above_static_frames() -> None:
+    ctx = parse_venom("""
+        function first {
+            main:
+                stop
+        }
+
+        function second {
+            main:
+                stop
+        }
+        """)
+    compiler = VenomCompiler(ctx)
+    spiller = compiler.spiller
+    first, second = list(ctx.functions.values())
+
+    ctx.mem_allocator.fn_eom[first] = 64
+    ctx.mem_allocator.fn_eom[second] = 256
+    spiller.reset_for_codegen()
+
+    spiller.set_current_function(first)
+    assert spiller._next_spill_offset == 256
+    assert spiller._get_spill_slot(dry_run=False) == 256
+
+    spiller.set_current_function(second)
+    assert spiller._next_spill_offset == 288
+
+
+def test_removed_function_does_not_inflate_spill_offsets() -> None:
+    # spill sizing takes the max over all fn_eom entries, so a stale entry
+    # left behind when an unreachable function is removed would push every
+    # live function's spill region (and the initial FMP) up to the dead
+    # frame's end.
+    ctx = parse_venom("""
+        function main [fmp_lowered, eom=64] {
+            main:
+                stop
+        }
+
+        function dead [fmp_lowered, eom=65536] {
+            dead:
+                stop
+        }
+        """)
+    run_passes_on(ctx, VenomOptimizationFlags(level=OptimizationLevel.O1))
+
+    assert [fn.name.value for fn in ctx.functions.values()] == ["main"]
+    assert set(ctx.mem_allocator.fn_eom.keys()) == set(ctx.functions.values())
+
+    compiler = VenomCompiler(ctx)
+    compiler.spiller.reset_for_codegen()
+    assert compiler.spiller._next_function_spill_offset == 64
+
+
+def test_round_tripped_eom_survives_o1_pass_rerun(env) -> None:
+    params = ", ".join(f"a{i}: uint256" for i in range(16))
+    args = ", ".join(f"a{i}" for i in range(16))
+    total = " + ".join(f"a{i}" for i in range(16))
+    source = f"""
+@internal
+def sum_words({params}) -> uint256:
+    return {total}
+
+@external
+def foo({params}) -> uint256:
+    return self.sum_words({args})
+    """
+    settings = Settings(experimental_codegen=True, optimize=OptimizationLevel.O1)
+    lowered = compile_code(source, output_formats=["ir_runtime"], settings=settings)["ir_runtime"]
+    ctx = parse_venom(str(lowered))
+
+    eoms_before = {fn.name.value: eom for fn, eom in ctx.mem_allocator.fn_eom.items()}
+    run_passes_on(ctx, VenomOptimizationFlags(level=OptimizationLevel.O1))
+    eoms_after = {fn.name.value: eom for fn, eom in ctx.mem_allocator.fn_eom.items()}
+
+    assert eoms_after == eoms_before
+
+    asm = generate_assembly_experimental(ctx, optimize=OptimizationLevel.O1)
+    runtime_bytecode, _ = generate_bytecode(asm)
+    contract = _deploy_runtime(env, runtime_bytecode)
+
+    values = tuple(range(16))
+    signature = f"foo({','.join(['uint256'] * 16)})"
+    calldata = method_id(signature) + b"".join(value.to_bytes(32, "big") for value in values)
+    result = env.message_call(contract.address, data=calldata)
+    assert int.from_bytes(result, "big") == sum(values)
 
 
 def test_swap_spills_deep_stack() -> None:
@@ -68,16 +194,152 @@ def test_dup_spills_deep_stack() -> None:
     assert isinstance(depth, int) and depth < -16
     dup_idx = 1 - depth
 
-    compiler.spiller.dup(assembly, stack, depth)
+    cost = compiler.spiller.dup(assembly, stack, depth)
 
     expected = before.copy()
     expected.append(target)
     assert stack._stack == expected
 
     ops_str = _ops_only_strings(assembly)
-    assert ops_str.count("MSTORE") == dup_idx
-    assert ops_str.count("MLOAD") == dup_idx + 1
-    assert all(int(op[3:]) <= 16 for op in ops_str if op.startswith("DUP"))
+    spill_count = dup_idx - 16
+    assert ops_str.count("MSTORE") == spill_count
+    assert ops_str.count("MLOAD") == spill_count
+    assert [op for op in ops_str if op.startswith("SWAP")] == [f"SWAP{spill_count}"]
+    assert [op for op in ops_str if op.startswith("DUP")] == ["DUP16"]
+    assert cost == 2 + 4 * spill_count
+
+
+@pytest.mark.parametrize("dup_idx", range(16, 65))
+def test_dup_stack_model(dup_idx: int) -> None:
+    compiler = VenomCompiler(IRContext())
+    compiler.spiller._next_spill_offset = 0x10000
+    stack, ops = _build_stack(64)
+    assembly: list = []
+
+    target = ops[-dup_idx]
+    before = stack._stack.copy()
+    depth = stack.get_depth(target)
+    assert depth == 1 - dup_idx
+
+    cost = compiler.spiller.dup(assembly, stack, depth)
+
+    assert stack._stack == before + [target]
+
+    spill_count = max(0, dup_idx - 16)
+    ops_str = _ops_only_strings(assembly)
+    assert ops_str.count("MSTORE") == spill_count
+    assert ops_str.count("MLOAD") == spill_count
+    assert [op for op in ops_str if op.startswith("DUP")] == [f"DUP{min(dup_idx, 16)}"]
+
+    expected_swaps: list[str] = []
+    if 0 < spill_count <= 16:
+        expected_swaps = [f"SWAP{spill_count}"]
+    elif spill_count > 16:
+        expected_swaps = ["SWAP1"] * spill_count
+    assert [op for op in ops_str if op.startswith("SWAP")] == expected_swaps
+    assert cost == 1 + 4 * spill_count + len(expected_swaps)
+
+
+def test_deep_dup_reuses_spill_slots() -> None:
+    compiler = VenomCompiler(IRContext())
+    spiller = compiler.spiller
+    first_slot = 0x10000
+    spiller._spill_free_slots = [first_slot]
+    spiller._next_spill_offset = first_slot + 32
+    spiller.peak_spill_end = first_slot + 32
+
+    for _ in range(2):
+        stack, ops = _build_stack(18)
+        before = stack._stack.copy()
+        assembly: list = []
+
+        spiller.dup(assembly, stack, stack.get_depth(ops[0]))
+
+        assert stack._stack == before + [ops[0]]
+        assert sorted(spiller._spill_free_slots) == [first_slot, first_slot + 32]
+        assert spiller._next_spill_offset == first_slot + 64
+        assert spiller.peak_spill_end == first_slot + 64
+
+
+def test_deep_dup_dry_run_cost_matches_and_preserves_state() -> None:
+    compiler = VenomCompiler(IRContext())
+    spiller = compiler.spiller
+    first_slot = 0x10000
+    spiller._spill_free_slots = [first_slot]
+    spiller._next_spill_offset = first_slot + 32
+    spiller.peak_spill_end = first_slot + 32
+    snap = spiller.snapshot()
+
+    dry_stack, dry_ops = _build_stack(20)
+    dry_before = dry_stack._stack.copy()
+    dry_assembly: list = []
+    dry_cost = spiller.dup(dry_assembly, dry_stack, dry_stack.get_depth(dry_ops[0]), dry_run=True)
+
+    assert dry_stack._stack == dry_before + [dry_ops[0]]
+    assert spiller.snapshot() == snap
+    assert spiller.peak_spill_end == first_slot + 32
+
+    stack, ops = _build_stack(20)
+    before = stack._stack.copy()
+    assembly: list = []
+    cost = spiller.dup(assembly, stack, stack.get_depth(ops[0]))
+
+    assert stack._stack == before + [ops[0]]
+    assert cost == dry_cost == 18
+    assert _ops_only_strings(assembly) == _ops_only_strings(dry_assembly)
+    assert spiller._next_spill_offset == first_slot + 128
+    assert spiller.peak_spill_end == first_slot + 128
+
+
+def test_deep_dup_peak_spill_end_tracks_partial_prefix() -> None:
+    compiler = VenomCompiler(IRContext())
+    spiller = compiler.spiller
+    first_slot = 0x10000
+    spiller._next_spill_offset = first_slot
+    stack, ops = _build_stack(64)
+
+    spiller.dup([], stack, stack.get_depth(ops[0]))
+
+    spill_count = 64 - 16
+    expected_end = first_slot + spill_count * 32
+    assert spiller._next_spill_offset == expected_end
+    assert spiller.peak_spill_end == expected_end
+    assert len(spiller._spill_free_slots) == spill_count
+
+
+def test_partial_deep_dup_integration() -> None:
+    ctx = IRContext()
+    fn = ctx.create_function("deep_dup")
+    bb = fn.get_basic_block()
+    target = bb.append_instruction("calldataload", 0)
+    values = [bb.append_instruction("calldataload", i) for i in range(1, 17)]
+
+    # Keep the target and all intervening values live so copying target enters
+    # the deep-DUP path at DUP17.
+    acc = bb.append_instruction("add", target, 1)
+    for value in values:
+        acc = bb.append_instruction("add", acc, value)
+    bb.append_instruction("add", acc, target)
+    bb.append_instruction("stop")
+
+    ctx.mem_allocator.fn_eom[fn] = 0x10000
+    compiler = VenomCompiler(ctx)
+    asm = compiler.generate_evm_assembly(no_optimize=True)
+    opcodes = _ops_only_strings(asm)
+
+    assert opcodes.count("MSTORE") == 1
+    assert opcodes.count("MLOAD") == 1
+    assert opcodes.count("DUP16") == 1
+    store_idx = opcodes.index("MSTORE")
+    assert opcodes[store_idx - 1 : store_idx + 5] == [
+        "PUSH3",
+        "MSTORE",
+        "DUP16",
+        "PUSH3",
+        "MLOAD",
+        "SWAP1",
+    ]
+    assert compiler.spiller.peak_spill_end == 0x10020
 
 
 def test_stack_reorder_spills_before_swap() -> None:
@@ -175,7 +437,14 @@ def test_branch_spill_integration() -> None:
 
     ctx = parse_venom(venom_src)
     compiler = VenomCompiler(ctx)
-    compiler.spiller._next_spill_offset = 0x10000
+    fn = next(iter(ctx.functions.values()))
+    # generate_evm_assembly seeds the spill cursor per function via
+    # set_current_function, which clears _next_spill_offset when fn is absent
+    # from fn_eom -- presetting the private field directly would be
+    # overwritten, so seed fn_eom instead. (test_swap_spills_deep_stack above
+    # can still preset the field because it never goes through
+    # generate_evm_assembly.)
+    ctx.mem_allocator.fn_eom[fn] = 0x10000
     asm = compiler.generate_evm_assembly()
     opcodes = [op for op in asm if isinstance(op, str)]
 
