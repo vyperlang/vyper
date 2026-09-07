@@ -196,15 +196,6 @@ def generate_deploy_venom(
     # Create deploy IR context
     deploy_ctx = IRContext()
 
-    # Add runtime bytecode as data section
-    deploy_ctx.append_data_section(IRLabel("runtime_begin"))
-    deploy_ctx.append_data_item(runtime_bytecode)
-
-    # Add CBOR metadata if provided
-    if cbor_metadata is not None:
-        deploy_ctx.append_data_section(IRLabel("cbor_metadata"))
-        deploy_ctx.append_data_item(cbor_metadata)
-
     deploy_fn = deploy_ctx.create_function("deploy")
     deploy_ctx.entry_function = deploy_fn  # Mark as entry point
     deploy_builder = VenomBuilder(deploy_ctx, deploy_fn)
@@ -236,6 +227,17 @@ def generate_deploy_venom(
     else:
         # No constructor - just deploy runtime
         _generate_simple_deploy(deploy_builder, len(runtime_bytecode), immutables_len)
+
+    # Add runtime bytecode as data section. This comes after lowering, which
+    # may add data sections of its own (bytestring literals), so that the
+    # metadata stays the last bytes of the initcode.
+    deploy_ctx.append_data_section(IRLabel("runtime_begin"))
+    deploy_ctx.append_data_item(runtime_bytecode)
+
+    # Add CBOR metadata if provided
+    if cbor_metadata is not None:
+        deploy_ctx.append_data_section(IRLabel("cbor_metadata"))
+        deploy_ctx.append_data_item(cbor_metadata)
 
     return deploy_ctx
 
