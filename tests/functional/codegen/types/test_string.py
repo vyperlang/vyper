@@ -3,6 +3,7 @@ import contextlib
 import pytest
 
 from tests.utils import check_precompile_asserts
+from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import version_check
 
 
@@ -417,3 +418,82 @@ def foo(x: String[1000000]) -> uint256:
         # depends on EVM version. pre-cancun, will revert due to checking
         # success flag from identity precompile.
         c.foo(calldata, gas=gas_used)
+
+
+# literal lengths around the word boundaries and the codecopy gate
+LITERAL_LENGTHS = [32, 33, 63, 64, 65, 96, 97, 100, 200]
+ALPHABET = "abcdefghijklmnopqrstuvwxyz" * 8
+
+
+@pytest.mark.parametrize("n", LITERAL_LENGTHS)
+@pytest.mark.parametrize("opt", [OptimizationLevel.GAS, OptimizationLevel.CODESIZE])
+def test_string_literal_return(get_contract, n, opt):
+    s = ALPHABET[:n]
+    code = f"""
+@external
+def foo() -> String[{n}]:
+    return "{s}"
+    """
+    c = get_contract(code, override_opt_level=opt)
+    assert c.foo() == s
+
+
+@pytest.mark.parametrize("n", [65, 100])
+@pytest.mark.parametrize("opt", [OptimizationLevel.GAS, OptimizationLevel.CODESIZE])
+def test_string_literal_to_storage(get_contract, n, opt):
+    s = ALPHABET[:n]
+    code = f"""
+s: public(String[100])
+
+@external
+def set():
+    self.s = "{s}"
+    """
+    c = get_contract(code, override_opt_level=opt)
+    c.set()
+    assert c.s() == s
+
+
+@pytest.mark.parametrize("opt", [OptimizationLevel.GAS, OptimizationLevel.CODESIZE])
+def test_string_literal_in_constructor_and_runtime(get_contract, opt):
+    greeting = ALPHABET[:100]
+    tag = ALPHABET[3:67]
+    farewell = ALPHABET[5:101]
+    code = f"""
+greeting: public(String[100])
+TAG: public(immutable(String[64]))
+
+@deploy
+def __init__():
+    self.greeting = "{greeting}"
+    TAG = "{tag}"
+
+@external
+def farewell() -> String[96]:
+    return "{farewell}"
+    """
+    c = get_contract(code, override_opt_level=opt)
+    assert c.greeting() == greeting
+    assert c.TAG() == tag
+    assert c.farewell() == farewell
+
+
+@pytest.mark.parametrize("opt", [OptimizationLevel.GAS, OptimizationLevel.CODESIZE])
+def test_string_literal_in_internal_function(get_contract, opt):
+    s = ALPHABET[:96]
+    code = f"""
+@internal
+def _msg() -> String[96]:
+    return "{s}"
+
+@external
+def foo() -> String[96]:
+    return self._msg()
+
+@external
+def bar() -> String[96]:
+    return concat(self._msg(), "")
+    """
+    c = get_contract(code, override_opt_level=opt)
+    assert c.foo() == s
+    assert c.bar() == s

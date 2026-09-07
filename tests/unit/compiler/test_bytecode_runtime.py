@@ -166,3 +166,38 @@ def test_bytecode_signature_deployed(code, get_contract, env):
 
     # runtime_len includes data sections but not immutables
     assert len(deployed_code) == runtime_len + immutables_len
+
+
+_ALPHABET = "abcdefghijklmnopqrstuvwxyz" * 4
+
+literals_contract_code = f"""
+greeting: public(String[100])
+TAG: public(immutable(String[64]))
+
+@deploy
+def __init__():
+    self.greeting = "{_ALPHABET[:100]}"
+    TAG = "{_ALPHABET[3:67]}"
+
+@external
+def foo() -> String[96]:
+    return "{_ALPHABET[:96]}"
+"""
+
+
+def test_bytecode_literals_metadata():
+    # constructor and runtime literals may add data sections to both the
+    # deploy and the runtime code; the metadata must stay the initcode tail
+    out = vyper.compile_code(
+        literals_contract_code, output_formats=["bytecode_runtime", "bytecode"]
+    )
+    runtime_code = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+
+    assert runtime_code in initcode
+    metadata = _parse_cbor_metadata(initcode)
+    _, runtime_len, data_section_lengths, immutables_len, compiler = metadata
+    assert runtime_len == len(runtime_code)
+    assert immutables_len == 32 + 64
+    assert compiler == {"vyper": list(vyper.version.version_tuple)}
+    assert all(0 < length < runtime_len for length in data_section_lengths)

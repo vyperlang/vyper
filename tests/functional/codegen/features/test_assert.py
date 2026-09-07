@@ -1,5 +1,6 @@
 import pytest
 
+from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import InvalidType
 
 
@@ -246,3 +247,25 @@ def test() -> int128:
     c = get_contract(code)
     with tx_failed(exc_text="oops"):
         c.test()
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "the argument must be larger than ten, but it was not",
+        "the argument must be larger than ten, but it was not; please retry with a larger value",
+    ],
+)
+@pytest.mark.parametrize("opt", [OptimizationLevel.GAS, OptimizationLevel.CODESIZE])
+def test_assert_reason_long_literal(get_contract, tx_failed, reason, opt):
+    assert len(reason) > 32
+    code = f"""
+@external
+def foo(a: uint256) -> uint256:
+    assert a > 10, "{reason}"
+    return a
+    """
+    c = get_contract(code, override_opt_level=opt)
+    assert c.foo(11) == 11
+    with tx_failed(exc_text=reason):
+        c.foo(10)
