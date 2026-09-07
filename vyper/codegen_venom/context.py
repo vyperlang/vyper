@@ -266,15 +266,17 @@ class VenomCodegenContext:
                 offset = self.builder.add(val.operand, IRLiteral(32 + i))
                 self.builder.mstore(offset, IRLiteral(word))
 
-        # the length store goes last: LoadAnalysis forgets every forwardable
-        # store at a non-mstore memory write, so a codecopy after it would
-        # keep the length from being constant-folded by its consumers
+        # the length store goes last so that loads of the length stay
+        # forwardable no matter how precisely LoadAnalysis models the copy
         self.ptr_store(val.ptr(), IRLiteral(len(data)))
 
         return val
 
     def _codecopy_bytestring_literal(self, ptr: IRVariable, data: bytes, padded: bool) -> None:
         """Copy the data of a constant bytestring from a new data section."""
+        # known limitation: if the literal turns out to be dead, dead store
+        # elimination removes the codecopy but the data item stays in the
+        # bytecode
         item = data
         if padded:
             item = data.ljust(ceil32(len(data)), b"\x00")
