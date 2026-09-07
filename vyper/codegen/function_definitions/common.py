@@ -124,6 +124,7 @@ def initialize_context(
     # we start our function frame from the largest callee frame
     max_callee_frame_size = 0
     for c_func_t in callees:
+        assert not c_func_t.is_abstract
         frame_info = c_func_t._ir_info.frame_info
         max_callee_frame_size = max(max_callee_frame_size, frame_info.frame_size)
 
@@ -135,7 +136,7 @@ def initialize_context(
         vars_=None,
         module_ctx=module_ctx,
         memory_allocator=memory_allocator,
-        constancy=Constancy.Mutable if func_t.is_mutable else Constancy.Constant,
+        constancy=Constancy.Mutable if func_t.is_modifying else Constancy.Constant,
         func_t=func_t,
         is_ctor_context=is_ctor_context,
     )

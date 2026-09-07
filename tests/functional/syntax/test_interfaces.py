@@ -240,6 +240,32 @@ foo: public(constant(uint256)) = 1
         """,
         InterfaceViolation,
     ),
+    (
+        """
+interface IA:
+    def f(): nonpayable
+
+implements: IA
+
+@external
+def f() -> uint256:
+    return 1
+        """,
+        InterfaceViolation,
+    ),
+    (
+        """
+interface IA:
+    def f() -> uint256: nonpayable
+
+implements: IA
+
+@external
+def f():
+    pass
+        """,
+        InterfaceViolation,
+    ),
 ]
 
 
@@ -380,7 +406,7 @@ foo: public(immutable(uint256))
 
 @deploy
 def __init__(x: uint256):
-    foo = x
+    self.foo = x
     """,
     """
 interface Foo:
@@ -902,6 +928,7 @@ def test_ellipsis_default_param_outside_interface(decorator):
 def foo(a: uint256 = ...):
     pass
     """
+    expected = "`...` is only allowed as a default value in interfaces and for abstract methods."
 
-    with pytest.raises(InvalidLiteral, match=r"not allowed.*outside of interfaces"):
+    with pytest.raises(InvalidLiteral, match=expected):
         compiler.compile_code(code)

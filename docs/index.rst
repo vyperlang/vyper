@@ -1,10 +1,15 @@
-.. image:: logo.svg
-    :width: 140px
+.. image:: _static/logo-dark.svg
+    :class: dark-only
     :alt: Vyper logo
     :align: center
 
-Vyper
-#####
+.. image:: _static/logo-light.svg
+    :class: light-only
+    :alt: Vyper logo
+    :align: center
+
+Overview
+########
 
 Vyper is a Pythonic smart contract language that compiles to `Ethereum Virtual Machine (EVM) <https://ethereum.org/learn/#ethereum-basics>`_ bytecode.
 It prioritises **security**, **auditability**, and **simplicity**.
@@ -66,6 +71,13 @@ Vyper eliminates entire vulnerability classes by excluding features that enable 
      - Call graphs are simple and gas limits are enforceable
 
 These constraints mean developers cannot accidentally introduce dangerous patterns, even under time pressure or with limited blockchain experience.
+
+Deep Verification
+=================
+
+Vyper’s design makes **deep verification** practical on a production smart-contract language.
+
+See :doc:`deep-verification` for the full discussion of verification depth, verification gap, and the current state of Vyper’s formal semantics and compiler verification work.
 
 Decimal Fixed Point
 ===================

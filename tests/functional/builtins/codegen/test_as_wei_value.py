@@ -90,6 +90,18 @@ def foo(a: {data_type}) -> uint256:
         c.foo(value)
 
 
+def test_negative_int_wei_reverts(get_contract, tx_failed):
+    code = """
+@external
+def foo(a: int128) -> uint256:
+    return as_wei_value(a, "wei")
+    """
+
+    c = get_contract(code)
+    with tx_failed():
+        c.foo(-1)
+
+
 @pytest.mark.parametrize("denom,multiplier", wei_denoms.items())
 @pytest.mark.parametrize("data_type", ["decimal", "int128", "uint256"])
 def test_zero_value(get_contract, tx_failed, denom, multiplier, data_type):
@@ -162,15 +174,13 @@ def test_bad_as_wei_code(get_contract, assert_compile_failed, bad_code, exceptio
         compile_code(bad_code)
 
 
-valid_list = [
-    """
+valid_list = ["""
 @external
 def foo():
     a:int24 = 31
     b:uint136 = 31
     x: uint256 = as_wei_value(a, "szabo") + as_wei_value(b, "ether")
-    """
-]
+    """]
 
 
 @pytest.mark.parametrize("good_code", valid_list)

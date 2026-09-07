@@ -4,6 +4,8 @@ from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.variable_range import VariableRangeAnalysis
 from vyper.venom.analysis.variable_range.monotone_analysis import VariableRangeMonotoneAnalysis
 from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX, SIGNED_MIN
+from vyper.venom.analysis.variable_range.evaluators import eval_sdiv, eval_smod
+from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX, SIGNED_MIN, ValueRange
 from vyper.venom.parser import parse_venom
 
 
@@ -28,8 +30,7 @@ def test_add_propagates_constant_range():
         exit:
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     y_var = entry.instructions[1].output
@@ -65,8 +66,7 @@ def test_branch_refines_lt_bounds():
         end:
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     x_var = entry.instructions[0].output
@@ -110,8 +110,7 @@ def test_eq_branch_sets_constant():
         exit:
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     x_var = entry.instructions[0].output
@@ -147,8 +146,7 @@ def test_lt_boundary_zero_true_branch_is_bottom():
         exit:
             stop
         }
-        """
-    )
+        """)
 
     impossible_bb = fn.get_basic_block("impossible")
     sink_inst = impossible_bb.instructions[0]
@@ -184,8 +182,7 @@ def test_slt_boundary_signed_min_true_branch_is_bottom():
         exit:
             stop
         }}
-        """
-    )
+        """)
 
     impossible_bb = fn.get_basic_block("impossible")
     sink_inst = impossible_bb.instructions[0]
@@ -216,8 +213,7 @@ def test_iszero_true_branch_forces_zero():
         exit:
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     x_var = entry.instructions[0].output
@@ -257,8 +253,7 @@ def test_phi_merges_ranges():
             %sink = add %merged, 0
             stop
         }
-        """
-    )
+        """)
 
     merge_bb = fn.get_basic_block("merge")
     phi_inst = merge_bb.instructions[0]
@@ -287,8 +282,7 @@ def test_byte_range():
         exit:
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     byte_inst = entry.instructions[1]
@@ -315,8 +309,7 @@ def test_byte_out_of_range_index():
         exit:
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     byte_inst = entry.instructions[1]
@@ -340,8 +333,7 @@ def test_signextend_range():
         exit:
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     se_inst = entry.instructions[1]
@@ -366,8 +358,7 @@ def test_mod_literal_range():
         exit:
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     mod_inst = entry.instructions[1]
@@ -392,8 +383,7 @@ def test_div_literal_range():
         exit:
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     div_inst = entry.instructions[1]
@@ -422,8 +412,7 @@ def test_shifts_update_ranges():
         exit:
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     shr_inst = entry.instructions[1]
@@ -467,8 +456,7 @@ def test_add_wraps_constants_modulo():
         exit:
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     add_inst = entry.instructions[1]
@@ -493,8 +481,7 @@ def test_sub_wraps_constants_modulo():
         exit:
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     sub_inst = entry.instructions[1]
@@ -521,8 +508,7 @@ def test_add_signed_constants():
         exit:
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     add_inst = entry.instructions[1]
@@ -551,8 +537,7 @@ def test_iszero_false_branch_does_not_force_positive_when_signed():
         zero:
             stop
         }
-        """
-    )
+        """)
 
     nonzero_bb = fn.get_basic_block("nonzero")
     use_inst = nonzero_bb.instructions[0]
@@ -589,8 +574,7 @@ def test_iszero_false_branch_narrows_range_crossing_zero():
         zero:
             stop
         }
-        """
-    )
+        """)
 
     nonzero_bb = fn.get_basic_block("nonzero")
     use_inst = nonzero_bb.instructions[0]
@@ -625,8 +609,7 @@ def test_iszero_false_branch_narrows_when_proven_nonnegative():
         empty:
             stop
         }
-        """
-    )
+        """)
 
     loop_bb = fn.get_basic_block("loop")
     use_inst = loop_bb.instructions[0]
@@ -657,8 +640,7 @@ def test_iszero_false_branch_with_zero_constant_is_bottom():
         zero:
             stop
         }
-        """
-    )
+        """)
 
     nonzero_bb = fn.get_basic_block("nonzero")
     use_inst = nonzero_bb.instructions[0]
@@ -682,8 +664,7 @@ def test_add_large_positive_ranges_go_to_top():
             %y = add %x, 1
             stop
         }
-        """
-    )
+        """)
 
     y_var = fn.get_basic_block("entry").instructions[1].output
     rng = analysis.get_range(y_var, fn.get_basic_block("entry").instructions[-1])
@@ -703,8 +684,7 @@ def test_add_near_overflow_does_not_wrap_incorrectly():
             %y = add %x, %x  # should bail to TOP
             stop
         }
-        """
-    )
+        """)
 
     y_inst = next(inst for inst in fn.get_basic_block("entry").instructions if inst.opcode == "add")
     y_var = y_inst.output
@@ -727,8 +707,7 @@ def test_sub_can_go_negative_but_stays_sound():
             %y = sub 0, %x                    # y = -5 exactly (signed)
             stop
         }
-        """
-    )
+        """)
 
     y_inst = next(inst for inst in fn.get_basic_block("entry").instructions if inst.opcode == "sub")
     y_var = y_inst.output
@@ -752,8 +731,7 @@ def test_and_mask_clears_high_bits_correctly():
             %lower = and %addr, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
             stop
         }
-        """
-    )
+        """)
 
     lower_var = fn.get_basic_block("entry").instructions[1].output
     rng = analysis.get_range(lower_var, fn.get_basic_block("entry").instructions[-1])
@@ -774,8 +752,7 @@ def test_sar_on_negative_value_propagates_sign():
             %y = sar 8, %x                    # still -1
             stop
         }
-        """
-    )
+        """)
 
     sar_inst = next(
         inst for inst in fn.get_basic_block("entry").instructions if inst.opcode == "sar"
@@ -797,8 +774,7 @@ def test_sar_large_shift_handles_mixed_sign_correctly():
             %y = sar 40, %x
             stop
         }
-        """
-    )
+        """)
 
     sar_inst = next(
         inst for inst in fn.get_basic_block("entry").instructions if inst.opcode == "sar"
@@ -832,8 +808,7 @@ def test_phi_from_signed_and_unsigned_paths():
             %sink = add %v, 0
             stop
         }
-        """
-    )
+        """)
 
     v_var = fn.get_basic_block("merge").instructions[0].output
     rng = analysis.get_range(v_var, fn.get_basic_block("merge").instructions[1])
@@ -860,8 +835,7 @@ def test_eq_false_branch_does_not_narrow_to_nothing():
         match:
             stop
         }
-        """
-    )
+        """)
 
     cont_bb = fn.get_basic_block("continue")
     use_inst = cont_bb.instructions[0]
@@ -892,8 +866,7 @@ def test_mul_constants():
         exit:
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     mul_inst = entry.instructions[1]
@@ -920,8 +893,7 @@ def test_mul_constant_by_range():
         exit:
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     mul_inst = next(inst for inst in entry.instructions if inst.opcode == "mul")
@@ -950,8 +922,7 @@ def test_mul_two_ranges():
         exit:
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     mul_inst = next(inst for inst in entry.instructions if inst.opcode == "mul")
@@ -976,8 +947,7 @@ def test_mul_overflow_goes_to_top():
             %y = mul %x, 2
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     mul_inst = next(inst for inst in entry.instructions if inst.opcode == "mul")
@@ -1001,8 +971,7 @@ def test_mul_large_range_overflow():
             %y = mul %x, 2
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     mul_inst = next(inst for inst in entry.instructions if inst.opcode == "mul")
@@ -1025,8 +994,7 @@ def test_mul_by_zero():
             %y = mul %x, 0
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     mul_inst = next(inst for inst in entry.instructions if inst.opcode == "mul")
@@ -1050,8 +1018,7 @@ def test_mul_by_one():
             %y = mul %x, 1
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     mul_inst = next(inst for inst in entry.instructions if inst.opcode == "mul")
@@ -1075,8 +1042,7 @@ def test_mul_signed_goes_to_top():
             %y = mul %x, 2
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     mul_inst = next(inst for inst in entry.instructions if inst.opcode == "mul")
@@ -1099,8 +1065,7 @@ def test_mul_wraps_on_overflow_constants():
             %y = mul %x, 2
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     mul_inst = next(inst for inst in entry.instructions if inst.opcode == "mul")
@@ -1130,8 +1095,7 @@ def test_or_constants():
             %y = or %x, 0x0F
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     or_inst = entry.instructions[1]
@@ -1157,8 +1121,7 @@ def test_or_with_zero():
             %y = or %x, 0
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     or_inst = next(inst for inst in entry.instructions if inst.opcode == "or")
@@ -1183,8 +1146,7 @@ def test_or_with_all_ones():
             %y = or %x, -1
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     or_inst = next(inst for inst in entry.instructions if inst.opcode == "or")
@@ -1209,8 +1171,7 @@ def test_xor_constants():
             %y = xor %x, 0x0F
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     xor_inst = entry.instructions[1]
@@ -1235,8 +1196,7 @@ def test_xor_self_is_zero():
             %y = xor %x, %x
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     xor_inst = next(inst for inst in entry.instructions if inst.opcode == "xor")
@@ -1261,8 +1221,7 @@ def test_xor_with_all_ones():
             %y = xor %x, -1
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     xor_inst = next(inst for inst in entry.instructions if inst.opcode == "xor")
@@ -1287,8 +1246,7 @@ def test_not_constant():
             %y = not %x
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     not_inst = entry.instructions[1]
@@ -1313,8 +1271,7 @@ def test_not_all_ones():
             %y = not %x
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     not_inst = entry.instructions[1]
@@ -1334,8 +1291,7 @@ def test_not_specific_value():
             %y = not %x
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     not_inst = entry.instructions[1]
@@ -1360,8 +1316,7 @@ def test_not_unknown_is_top():
             %y = not %x
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     not_inst = next(inst for inst in entry.instructions if inst.opcode == "not")
@@ -1394,8 +1349,7 @@ def test_bug_lt_negative_constant_gives_wrong_result():
             %cmp = lt %x, 1
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     cmp_inst = entry.instructions[1]
@@ -1427,8 +1381,7 @@ def test_bug_eq_negative_constant_with_max_uint_miscompile():
             assert %ok
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     ok_inst = next(inst for inst in entry.instructions if inst.opcode == "iszero")
@@ -1482,8 +1435,7 @@ def test_bug_unsigned_lt_false_branch_excludes_negatives():
             %tmp = add %x, 0
             stop
         }
-        """
-    )
+        """)
 
     large_bb = fn.get_basic_block("large")
     x_var = fn.get_basic_block("entry").instructions[1].output
@@ -1526,8 +1478,7 @@ def test_bug_signextend_produces_bottom_for_out_of_range_input():
             %y = signextend 0, %x
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     se_inst = entry.instructions[1]
@@ -1565,8 +1516,7 @@ def test_bug_and_with_signed_range_gives_narrow_hi():
             %y = and %x, 255
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     and_inst = entry.instructions[2]
@@ -1612,8 +1562,7 @@ def test_bug_lt_false_branch_causes_assert_elimination_miscompile():
         under:
             stop
         }
-        """
-    )
+        """)
 
     over_bb = fn.get_basic_block("over")
     check_inst = over_bb.instructions[0]
@@ -1670,8 +1619,7 @@ def test_bug_gt_true_branch_causes_assert_elimination_miscompile():
         low:
             stop
         }
-        """
-    )
+        """)
 
     high_bb = fn.get_basic_block("high")
     ok_inst = high_bb.instructions[1]
@@ -1726,8 +1674,7 @@ def test_bug_iszero_false_branch_causes_assert_elimination_miscompile():
         zero:
             stop
         }
-        """
-    )
+        """)
 
     nonzero_bb = fn.get_basic_block("nonzero")
     add_inst = nonzero_bb.instructions[0]
@@ -1789,8 +1736,7 @@ def test_bug_phi_merge_with_bottom_causes_assert_elimination_miscompile():
             assert %check
             stop
         }
-        """
-    )
+        """)
 
     merge_bb = fn.get_basic_block("merge")
     check_inst = merge_bb.instructions[1]
@@ -1836,8 +1782,7 @@ def test_add_at_signed_min_boundary():
             %y = add %min, 1
             stop
         }}
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     add_inst = entry.instructions[1]
@@ -1863,8 +1808,7 @@ def test_sub_at_signed_min_boundary():
             %y = sub %min, 1
             stop
         }}
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     sub_inst = entry.instructions[1]
@@ -1889,8 +1833,7 @@ def test_add_at_unsigned_max_boundary():
             %y = add %x, 1
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     add_inst = entry.instructions[1]
@@ -1913,8 +1856,7 @@ def test_shr_by_255():
             %y = shr 255, %x
             stop
         }}
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     shr_inst = entry.instructions[1]
@@ -1937,8 +1879,7 @@ def test_shr_by_256():
             %y = shr 256, %x
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     shr_inst = entry.instructions[1]
@@ -1961,8 +1902,7 @@ def test_shl_by_255():
             %y = shl 255, %x
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     shl_inst = entry.instructions[1]
@@ -1999,8 +1939,7 @@ def test_shl_by_256():
             %y = shl 256, %x
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     shl_inst = entry.instructions[1]
@@ -2021,8 +1960,7 @@ def test_sar_by_255():
             %y = sar 255, %x
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     sar_inst = entry.instructions[1]
@@ -2045,8 +1983,7 @@ def test_sar_by_256():
             %y = sar 256, %x
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     sar_inst = entry.instructions[1]
@@ -2069,8 +2006,7 @@ def test_div_by_zero_returns_zero():
             %y = div %x, 0
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     div_inst = entry.instructions[1]
@@ -2091,8 +2027,7 @@ def test_mod_by_zero_returns_zero():
             %y = mod %x, 0
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     mod_inst = entry.instructions[1]
@@ -2113,8 +2048,7 @@ def test_byte_index_32():
             %b = byte 32, %x
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     byte_inst = entry.instructions[1]
@@ -2135,8 +2069,7 @@ def test_byte_index_255():
             %b = byte 255, %x
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     byte_inst = entry.instructions[1]
@@ -2172,8 +2105,7 @@ def test_nested_conditional_refinement_3_levels():
         exit:
             stop
         }
-        """
-    )
+        """)
 
     innermost_bb = fn.get_basic_block("innermost")
     x_var = fn.get_basic_block("entry").instructions[0].output
@@ -2222,8 +2154,7 @@ def test_phi_merge_4_branches():
             %sink = add %v, 0
             stop
         }
-        """
-    )
+        """)
 
     merge_bb = fn.get_basic_block("merge")
     v_var = merge_bb.instructions[0].output
@@ -2254,8 +2185,7 @@ def test_signextend_then_unsigned_comparison():
         over:
             stop
         }
-        """
-    )
+        """)
 
     under_bb = fn.get_basic_block("under")
     x_var = fn.get_basic_block("entry").instructions[1].output
@@ -2300,8 +2230,7 @@ def test_loop_counter_bounds():
             %sink = add %counter, 0
             stop
         }
-        """
-    )
+        """)
 
     # In the body, counter should be in [0, 9] (since lt 10 was true)
     body_bb = fn.get_basic_block("body")
@@ -2354,8 +2283,7 @@ def test_soundness_literal_not_normalized_to_signed():
             %cmp = slt %x, {val_2_255}
             stop
         }}
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     cmp_inst = entry.instructions[1]
@@ -2396,8 +2324,7 @@ def test_soundness_literal_not_normalized_sgt():
             %cmp = sgt %x, {val_2_255}
             stop
         }}
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     cmp_inst = entry.instructions[1]
@@ -2434,8 +2361,7 @@ def test_soundness_eq_literal_at_sign_boundary():
             %cmp = eq %x, {UNSIGNED_MAX}
             stop
         }}
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     cmp_inst = entry.instructions[1]
@@ -2478,8 +2404,7 @@ def test_soundness_add_overflow_to_signed_boundary():
             %z = add %x, %y
             stop
         }}
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     add_inst = next(inst for inst in entry.instructions if inst.opcode == "add")
@@ -2538,8 +2463,7 @@ def test_soundness_mul_overflow_to_signed_boundary():
             %z = mul %x, %y
             stop
         }}
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     mul_inst = next(inst for inst in entry.instructions if inst.opcode == "mul")
@@ -2583,8 +2507,7 @@ def test_soundness_operand_range_normalizes_large_literal():
             %y = add %x, 0
             stop
         }}
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     x_var = entry.instructions[0].output
@@ -2633,8 +2556,7 @@ def test_soundness_add_result_range_validity():
             %z = add %x, %y
             stop
         }}
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     add_inst = next(inst for inst in entry.instructions if inst.opcode == "add")
@@ -2687,8 +2609,7 @@ def test_sdiv_positive_range():
             %y = sdiv %x, 10
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     sdiv_inst = next(inst for inst in entry.instructions if inst.opcode == "sdiv")
@@ -2713,8 +2634,7 @@ def test_sdiv_negative_range():
             %y = sdiv %x, 10
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     sdiv_inst = next(inst for inst in entry.instructions if inst.opcode == "sdiv")
@@ -2738,8 +2658,7 @@ def test_sdiv_spanning_zero():
             %y = sdiv %x, 10
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     sdiv_inst = next(inst for inst in entry.instructions if inst.opcode == "sdiv")
@@ -2763,8 +2682,7 @@ def test_sdiv_by_zero():
             %y = sdiv %x, 0
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     sdiv_inst = next(inst for inst in entry.instructions if inst.opcode == "sdiv")
@@ -2786,8 +2704,7 @@ def test_sdiv_negative_divisor_returns_top():
             %y = sdiv %x, -10
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     sdiv_inst = next(inst for inst in entry.instructions if inst.opcode == "sdiv")
@@ -2798,6 +2715,30 @@ def test_sdiv_negative_divisor_returns_top():
     rng = mono.get_range(sdiv_inst.output, entry.instructions[-1])
     # Currently returns TOP for negative divisors
     assert rng.is_top
+
+
+def test_sdiv_of_constant_wrapped_past_signed_max():
+    """
+    SIGNED_MAX + 1 wraps to the word 2**255, which is SIGNED_MIN. The
+    constant must be stored as SIGNED_MIN so that sdiv sees a negative
+    dividend: sdiv(SIGNED_MIN, 2) = -2**254, not +2**254.
+    """
+    analysis, fn = _analyze(f"""
+        function test {{
+        entry:
+            %x = {SIGNED_MAX}
+            %a = add %x, 1
+            %q = sdiv %a, 2
+            stop
+        }}
+        """)
+
+    entry = fn.get_basic_block("entry")
+    add_inst = next(inst for inst in entry.instructions if inst.opcode == "add")
+    sdiv_inst = next(inst for inst in entry.instructions if inst.opcode == "sdiv")
+    stop_inst = entry.instructions[-1]
+    assert analysis.get_range(add_inst.output, stop_inst) == ValueRange.constant(SIGNED_MIN)
+    assert analysis.get_range(sdiv_inst.output, stop_inst) == ValueRange.constant(-(2**254))
 
 
 def test_smod_positive_dividend():
@@ -2811,8 +2752,7 @@ def test_smod_positive_dividend():
             %y = smod %x, 10
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     smod_inst = next(inst for inst in entry.instructions if inst.opcode == "smod")
@@ -2837,8 +2777,7 @@ def test_smod_nonpositive_range():
             %y = smod %x, 10
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     smod_inst = next(inst for inst in entry.instructions if inst.opcode == "smod")
@@ -2862,8 +2801,7 @@ def test_smod_spanning_zero():
             %y = smod %x, 10
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     smod_inst = next(inst for inst in entry.instructions if inst.opcode == "smod")
@@ -2887,8 +2825,7 @@ def test_smod_by_zero():
             %y = smod %x, 0
             stop
         }
-        """
-    )
+        """)
 
     entry = fn.get_basic_block("entry")
     smod_inst = next(inst for inst in entry.instructions if inst.opcode == "smod")
@@ -2897,3 +2834,103 @@ def test_smod_by_zero():
 
     rng = mono.get_range(smod_inst.output, entry.instructions[-1])
     assert rng.lo == 0 and rng.hi == 0
+
+def test_smod_dividend_spanning_sign_boundary():
+    """
+    Bug: smod narrowed based on raw lo/hi signs for ranges crossing the
+    signed boundary. [0, 2**256 - 32] contains the word 2**256 - 32, which
+    is -32 in signed interpretation. smod(-32, 10) = -2 (the word
+    2**256 - 2), which the old result [0, 9] excluded.
+    """
+    dividend = ValueRange.iv(0, 2**256 - 32)
+    rng = eval_smod(dividend, ValueRange.constant(10))
+    # the result must include -2 (the word 2**256 - 2)
+    assert rng.is_top or rng.lo <= -2 <= rng.hi, f"-2 excluded from {rng}"
+    assert rng.lo == -9 and rng.hi == 9
+
+
+def test_sdiv_dividend_spanning_sign_boundary_is_top():
+    """
+    Bug: sdiv narrowed based on raw lo/hi signs for ranges crossing the
+    signed boundary. [0, 2**256 - 32] contains the word 2**256 - 32, which
+    is -32 in signed interpretation. sdiv(-32, 10) = -3 (the word
+    2**256 - 3), which the old result [0, (2**256 - 32) // 10] excluded.
+    """
+    dividend = ValueRange.iv(0, 2**256 - 32)
+    rng = eval_sdiv(dividend, ValueRange.constant(10))
+    assert rng.is_top
+
+
+def test_smod_dividend_above_signed_max():
+    """A dividend range entirely above SIGNED_MAX is all negative words."""
+    dividend = ValueRange.iv(SIGNED_MAX + 1, 2**256 - 32)
+    rng = eval_smod(dividend, ValueRange.constant(10))
+    # all dividend words are negative; -2 must be included
+    assert rng.lo <= -2 <= rng.hi, f"-2 excluded from {rng}"
+
+
+def test_sdiv_dividend_above_signed_max_is_top():
+    """A dividend range entirely above SIGNED_MAX is all negative words."""
+    dividend = ValueRange.iv(SIGNED_MAX + 1, 2**256 - 32)
+    rng = eval_sdiv(dividend, ValueRange.constant(10))
+    assert rng.is_top
+
+
+def test_sdiv_all_negative_dividend():
+    """
+    [-100, -1] sdiv 3 truncates toward zero, giving [-33, 0]. The bounds
+    were computed swapped as [0, -33], which ValueRange.iv normalizes to
+    BOTTOM, so a phi union then silently dropped the sdiv path.
+    """
+    rng = eval_sdiv(ValueRange.iv(-100, -1), ValueRange.constant(3))
+    assert rng == ValueRange.iv(-33, 0)
+
+
+def test_sdiv_divisor_constant_in_unsigned_representation():
+    """
+    The word 2**256 - 2 is -2 as a signed divisor. Treating it as a huge
+    positive divisor gave {0} for [0, 99] sdiv -2, but sdiv(99, -2) = -49.
+    """
+    rng = eval_sdiv(ValueRange.iv(0, 99), ValueRange.constant(2**256 - 2))
+    assert rng.is_top or rng.lo <= -49 <= rng.hi, f"-49 excluded from {rng}"
+
+
+def test_smod_divisor_constant_in_unsigned_representation():
+    """
+    The word 2**256 - 2 is -2 as a signed divisor, so the result magnitude
+    is bounded by 1. Reading it as a huge positive divisor gave [0, 99].
+    """
+    rng = eval_smod(ValueRange.iv(0, 99), ValueRange.constant(2**256 - 2))
+    assert rng == ValueRange.iv(0, 1)
+
+
+def test_sdiv_by_divisor_narrowed_to_unsigned_constant():
+    """
+    Branch narrowing on an unsigned comparison pins %d to the word
+    2**256 - 2 on the false edge of `lt %d, 2**256 - 2`. That word is -2
+    as a signed divisor, so sdiv(%v, %d) with %v in [0, 99] can be -49.
+    """
+    word = 2**256 - 2
+    analysis, fn = _analyze(f"""
+        function test {{
+        entry:
+            %x = calldataload 0
+            %y = calldataload 32
+            %d = and %x, {word}
+            %c = lt %d, {word}
+            jnz %c, @other, @big
+        big:
+            %v = mod %y, 100
+            %q = sdiv %v, %d
+            stop
+        other:
+            stop
+        }}
+        """)
+
+    big = fn.get_basic_block("big")
+    sdiv_inst = next(inst for inst in big.instructions if inst.opcode == "sdiv")
+    d_rng = analysis.get_range(sdiv_inst.operands[-2], sdiv_inst)
+    assert d_rng == ValueRange.constant(word)
+    rng = analysis.get_range(sdiv_inst.output, big.instructions[-1])
+    assert rng.is_top or rng.lo <= -49 <= rng.hi, f"-49 excluded from {rng}"

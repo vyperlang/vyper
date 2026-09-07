@@ -118,7 +118,7 @@ def __init__(_fee_receiver: address, _owner: address):
 
     self.fee_receiver = _fee_receiver
     self.admin = msg.sender
-    deployer = msg.sender
+    self.deployer = msg.sender
 
     self.asset_types[0] = "Standard"
     self.asset_types[1] = "Oracle"
@@ -129,9 +129,9 @@ def __init__(_fee_receiver: address, _owner: address):
 @external
 def set_owner(_owner: address):
     
-    assert msg.sender == deployer
-    assert self.admin == deployer
-    assert _owner != deployer
+    assert msg.sender == self.deployer
+    assert self.admin == self.deployer
+    assert _owner != self.deployer
 
     self.admin = _owner
 

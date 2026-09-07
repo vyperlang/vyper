@@ -96,6 +96,7 @@ Internal functions (optionally marked with the ``@internal`` decorator) are only
 Or for internal functions which are defined in :ref:`imported modules <modules>`, they are invoked by prefixing the name of the module to the function name:
 
 .. code-block:: vyper
+
     import calculator_library
 
     @external
@@ -172,6 +173,8 @@ Functions marked with ``@pure`` cannot call non-``pure`` functions.
 
 Nonreentrancy Locks
 -------------------
+
+.. _reentrancy:
 
 The ``@nonreentrant`` decorator places a global nonreentrancy lock on a function. An attempt by an external contract to call back into any other ``@nonreentrant`` function causes the transaction to revert.
 
@@ -308,6 +311,8 @@ Decorator                       Description
 ``@payable``                    Function is able to receive Ether
 ``@nonreentrant``               Function cannot be called back into during an external call
 ``@raw_return``                 Function returns raw bytes without ABI-encoding (``@external`` functions only)
+``@abstract``                   Function body must be ``...``; an ``@override`` must provide the implementation (see :ref:`abstract-modules`)
+``@override(module)``           Function provides the implementation for an ``@abstract`` function in ``module`` (see :ref:`abstract-modules`)
 =============================== ===========================================================
 
 Raw Return

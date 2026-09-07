@@ -17,18 +17,18 @@ EIP712_TYPEHASH: constant(bytes32) = keccak256(
 
 @deploy
 def __init__(name_eip712_: String[50], version_eip712_: String[20]):
-    VERSION_HASH = keccak256(version_eip712_)
-    NAME_HASH = keccak256(name_eip712_)
-    DOMAIN_SEPARATOR = keccak256(
+    self.VERSION_HASH = keccak256(version_eip712_)
+    self.NAME_HASH = keccak256(name_eip712_)
+    self.DOMAIN_SEPARATOR = keccak256(
         abi_encode(
             EIP712_TYPEHASH,
-            NAME_HASH,
-            VERSION_HASH,
+            self.NAME_HASH,
+            self.VERSION_HASH,
             chain.id,
             self,
         )
     )
-    PADDING = empty(uint256[12])
+    self.PADDING = empty(uint256[12])
     """
     main = """
 import eip712

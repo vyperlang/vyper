@@ -357,7 +357,6 @@ class MemoryAllocationException(VyperException):
 
 
 class JSONError(Exception):
-
     """Invalid compiler input JSON."""
 
     def __init__(self, msg, lineno=None, col_offset=None):
@@ -372,6 +371,10 @@ class ParserException(Exception):
 
 class BadArchive(Exception):
     """Bad archive"""
+
+
+class BundleError(VyperException):
+    """Cannot construct an output bundle for this build."""
 
 
 class UnimplementedException(VyperException):

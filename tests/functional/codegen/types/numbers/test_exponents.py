@@ -1,5 +1,5 @@
 import pytest
-from hypothesis import example, given, settings
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from vyper.codegen.arithmetic import calculate_largest_base, calculate_largest_power
@@ -100,27 +100,7 @@ def foo(a: int16) -> int16:
         c.foo(min_base - 1)
 
 
-@pytest.mark.fuzzing
-@given(a=st.integers(min_value=2, max_value=2**256 - 1))
-# 8 bits
-@example(a=2**7)
-@example(a=2**7 - 1)
-# 16 bits
-@example(a=2**15)
-@example(a=2**15 - 1)
-# 32 bits
-@example(a=2**31)
-@example(a=2**31 - 1)
-# 64 bits
-@example(a=2**63)
-@example(a=2**63 - 1)
-# 128 bits
-@example(a=2**127)
-@example(a=2**127 - 1)
-# 256 bits
-@example(a=2**256 - 1)
-@settings(max_examples=200)
-def test_max_exp(get_contract, tx_failed, a):
+def _check_max_exp(get_contract, tx_failed, a):
     code = f"""
 @external
 def foo(b: uint256) -> uint256:
@@ -139,24 +119,34 @@ def foo(b: uint256) -> uint256:
         c.foo(max_power + 1)
 
 
+@pytest.mark.parametrize(
+    "a",
+    [
+        2**7,
+        2**7 - 1,
+        2**15,
+        2**15 - 1,
+        2**31,
+        2**31 - 1,
+        2**63,
+        2**63 - 1,
+        2**127,
+        2**127 - 1,
+        2**256 - 1,
+    ],
+)
+def test_max_exp(get_contract, tx_failed, a):
+    _check_max_exp(get_contract, tx_failed, a)
+
+
 @pytest.mark.fuzzing
-@given(a=st.integers(min_value=2, max_value=2**127 - 1))
-# 8 bits
-@example(a=2**7)
-@example(a=2**7 - 1)
-# 16 bits
-@example(a=2**15)
-@example(a=2**15 - 1)
-# 32 bits
-@example(a=2**31)
-@example(a=2**31 - 1)
-# 64 bits
-@example(a=2**63)
-@example(a=2**63 - 1)
-# 128 bits
-@example(a=2**127 - 1)
+@given(a=st.integers(min_value=2, max_value=2**256 - 1))
 @settings(max_examples=200)
-def test_max_exp_int128(get_contract, tx_failed, a):
+def test_max_exp_fuzz(get_contract, tx_failed, a):
+    _check_max_exp(get_contract, tx_failed, a)
+
+
+def _check_max_exp_int128(get_contract, tx_failed, a):
     code = f"""
 @external
 def foo(b: int128) -> int128:
@@ -175,13 +165,25 @@ def foo(b: int128) -> int128:
         c.foo(max_power + 1)
 
 
-valid_list = [
-    """
+@pytest.mark.parametrize(
+    "a", [2**7, 2**7 - 1, 2**15, 2**15 - 1, 2**31, 2**31 - 1, 2**63, 2**63 - 1, 2**127 - 1]
+)
+def test_max_exp_int128(get_contract, tx_failed, a):
+    _check_max_exp_int128(get_contract, tx_failed, a)
+
+
+@pytest.mark.fuzzing
+@given(a=st.integers(min_value=2, max_value=2**127 - 1))
+@settings(max_examples=200)
+def test_max_exp_int128_fuzz(get_contract, tx_failed, a):
+    _check_max_exp_int128(get_contract, tx_failed, a)
+
+
+valid_list = ["""
 @external
 def foo() -> uint256:
     return (10**18)**2
-    """
-]
+    """]
 
 
 @pytest.mark.parametrize("good_code", valid_list)

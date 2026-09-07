@@ -6,6 +6,7 @@ These operations skip overflow/underflow checks for performance.
 - pow_mod256 (unchecked exponentiation)
 - uint256_addmod, uint256_mulmod (modular arithmetic)
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

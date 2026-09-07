@@ -7,18 +7,24 @@ Contract creation built-in functions for Venom IR.
 - create_from_blueprint(target, *ctor_args, value=0, salt=None, raw_args=False,
                         code_offset=3, revert_on_failure=True)
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
 from vyper import ast as vy_ast
-from vyper.codegen_venom.abi import abi_encode_to_buf
-from vyper.exceptions import CompilerPanic, UnfoldableNode
+from vyper.codegen_venom.abi import abi_encode_values_to_buf, runtime_abi_size_for_encode
+from vyper.codegen_venom.eval_order import later_expressions_can_mutate_memory_or_storage
+from vyper.exceptions import UnfoldableNode
 from vyper.ir.compile_ir import assembly_to_evm
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types import TupleT
-from vyper.utils import bytes_to_int
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.semantics.types import (
+    TupleT,
+    is_unbounded_bytestring_type,
+    type_contains_unbounded_sequence,
+)
+from vyper.utils import EIP_3860_LIMIT, bytes_to_int
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -64,7 +70,9 @@ def _has_kwarg(node: vy_ast.Call, kwarg_name: str) -> bool:
     return any(kw.arg == kwarg_name for kw in node.keywords)
 
 
-def _check_create_result(b, addr: IROperand, revert_on_failure: bool) -> IROperand:
+def _check_create_result(
+    ctx: VenomCodegenContext, b, addr: IROperand, revert_on_failure: bool
+) -> IROperand:
     """Optionally check CREATE/CREATE2 result and revert on failure.
 
     CREATE/CREATE2 return 0 on failure (out of gas or constructor reverts).
@@ -84,12 +92,107 @@ def _check_create_result(b, addr: IROperand, revert_on_failure: bool) -> IROpera
         # Failure path: bubble up revert data
         b.set_block(fail_bb)
         revert_size = b.returndatasize()
-        b.returndatacopy(IRLiteral(0), IRLiteral(0), revert_size)
-        b.revert(IRLiteral(0), revert_size)
+        revert_buffer = ctx.allocate_buffer(0, annotation="create revert on failure buffer")
+        b.returndatacopy(revert_buffer._ptr, IRLiteral(0), revert_size)
+        b.revert(revert_buffer._ptr, revert_size)
 
         # Success path
         b.set_block(exit_bb)
     return addr
+
+
+def _emit_create(
+    ctx: VenomCodegenContext,
+    b,
+    value: IROperand,
+    initcode: IROperand,
+    initcode_len: IROperand,
+    salt: Optional[IROperand],
+    revert_on_failure: bool,
+    check_eip_3860_limit: bool = True,
+) -> IROperand:
+    """Emit CREATE/CREATE2, optionally guarding the EIP-3860 initcode limit.
+
+    Oversized initcode is an exceptional abort at CREATE, not a zero return,
+    so with revert_on_failure=False the guard skips CREATE and yields the
+    zero address; otherwise it reverts cleanly before CREATE.
+    """
+    if not check_eip_3860_limit:
+        if salt is not None:
+            addr = b.create2(value, initcode, initcode_len, salt)
+        else:
+            addr = b.create(value, initcode, initcode_len)
+        return _check_create_result(ctx, b, addr, revert_on_failure)
+
+    in_eip_3860_limit = b.iszero(b.gt(initcode_len, IRLiteral(EIP_3860_LIMIT)))
+
+    if revert_on_failure:
+        b.assert_(in_eip_3860_limit)
+        if salt is not None:
+            addr = b.create2(value, initcode, initcode_len, salt)
+        else:
+            addr = b.create(value, initcode, initcode_len)
+        return _check_create_result(ctx, b, addr, revert_on_failure)
+
+    ret_cell = ctx.allocate_buffer(32, annotation="create_result")
+    create_bb = b.create_block("create")
+    oversize_bb = b.create_block("create_oversize")
+    exit_bb = b.create_block("create_exit")
+
+    b.jnz(in_eip_3860_limit, create_bb.label, oversize_bb.label)
+
+    b.append_block(create_bb)
+    b.set_block(create_bb)
+    if salt is not None:
+        addr = b.create2(value, initcode, initcode_len, salt)
+    else:
+        addr = b.create(value, initcode, initcode_len)
+    b.mstore(ret_cell._ptr, addr)
+    b.jmp(exit_bb.label)
+
+    b.append_block(oversize_bb)
+    b.set_block(oversize_bb)
+    b.mstore(ret_cell._ptr, IRLiteral(0))
+    b.jmp(exit_bb.label)
+
+    b.append_block(exit_bb)
+    b.set_block(exit_bb)
+    return b.mload(ret_cell._ptr)
+
+
+def _ctor_args_need_runtime_encoding(ctor_arg_types) -> bool:
+    return any(type_contains_unbounded_sequence(t) for t in ctor_arg_types)
+
+
+def _prepare_ctor_args(ctx: VenomCodegenContext, ctor_arg_nodes: list[vy_ast.VyperNode]):
+    # Local import avoids a circular dependency: expr.py imports builtin handlers.
+    from vyper.codegen_venom.expr import Expr
+
+    ctor_arg_types = [arg._metadata["type"] for arg in ctor_arg_nodes]
+    ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
+    runtime_ctor_args = _ctor_args_need_runtime_encoding(ctor_arg_types)
+    ctor_arg_vvs = []
+    for i, (arg, arg_t) in enumerate(zip(ctor_arg_nodes, ctor_arg_types)):
+        arg_vv = Expr(arg, ctx).lower()
+        copy_composites = later_expressions_can_mutate_memory_or_storage(ctor_arg_nodes[i + 1 :])
+        ctor_arg_vvs.append(
+            ctx.snapshot_value_for_delayed_use(
+                arg_vv, arg_t, annotation="ctor_arg", copy_composites=copy_composites
+            )
+        )
+
+    if runtime_ctor_args:
+        ctor_abi_size = runtime_abi_size_for_encode(ctx, ctor_arg_vvs, ctor_tuple_typ)
+    else:
+        ctor_abi_size = IRLiteral(ctor_tuple_typ.abi_type.size_bound())
+
+    return ctor_tuple_typ, ctor_arg_vvs, runtime_ctor_args, ctor_abi_size
+
+
+def _encode_ctor_args_to_buf(
+    ctx: VenomCodegenContext, dst: IRVariable, ctor_tuple_typ: TupleT, ctor_arg_vvs
+) -> IROperand:
+    return abi_encode_values_to_buf(ctx, dst, ctor_arg_vvs, ctor_tuple_typ)
 
 
 # EIP-1167 bytecode components
@@ -195,10 +298,18 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     bytecode_vv = Expr(bytecode_node, ctx).lower()
     bytecode_typ = bytecode_node._metadata["type"]
 
+    bytecode_is_unbounded = is_unbounded_bytestring_type(bytecode_typ)
+
     # Ensure bytecode is in memory. Storage/transient data needs to be copied first.
     # This is critical when ctor args might modify the storage location that holds
     # the bytecode (cf. test_raw_create_change_initcode_size).
-    if bytecode_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+    if bytecode_is_unbounded:
+        bytecode_copy = ctx.copy_sequence_to_scratch(
+            bytecode_vv, bytecode_typ, annotation="raw_create_initcode"
+        )
+        bytecode = bytecode_copy.operand
+    elif bytecode_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+        assert bytecode_vv.location is not None
         # Allocate memory buffer and copy from storage/transient
         mem_buf = ctx.new_temporary_value(bytecode_typ)
         ctx.slot_to_memory(
@@ -213,10 +324,14 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         # when evaluating value, salt, or ctor_args expressions
         # (cf. test_raw_create_memory_overlap - e.g. value=arr.pop())
         mem_buf = ctx.new_temporary_value(bytecode_typ)
+        assert isinstance(bytecode_vv.operand, IRVariable)
         bytecode_len_tmp = b.mload(bytecode_vv.operand)
         # Copy length word + data
         copy_size = b.add(bytecode_len_tmp, IRLiteral(32))
-        ctx.copy_memory_dynamic(mem_buf.operand, bytecode_vv.operand, copy_size)
+        assert isinstance(mem_buf.operand, IRVariable)
+        ctx.copy_memory_dynamic(
+            mem_buf.operand, bytecode_vv.operand, copy_size, ctx.memory_size_bound(bytecode_typ)
+        )
         bytecode = mem_buf.operand
 
     # Parse kwargs
@@ -224,65 +339,77 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     salt_node = _get_kwarg_value(node, "salt")
     revert_on_failure, _ = _get_literal_kwarg(node, "revert_on_failure", True)
 
-    if value_node is not None:
-        value = Expr(value_node, ctx).lower_value()
-    else:
-        value = IRLiteral(0)
-
     # Get bytecode length and data pointer
+    assert isinstance(bytecode, IRVariable)
     bytecode_len = b.mload(bytecode)
     bytecode_ptr = b.add(bytecode, IRLiteral(32))
 
     # If no constructor args, just create with bytecode
     if len(ctor_arg_nodes) == 0:
-        if salt_node is not None:
-            salt = Expr(salt_node, ctx).lower_value()
-            addr = b.create2(value, bytecode_ptr, bytecode_len, salt)
+        if value_node is not None:
+            value = Expr(value_node, ctx).lower_value()
         else:
-            addr = b.create(value, bytecode_ptr, bytecode_len)
-        return _check_create_result(b, addr, revert_on_failure)
+            value = IRLiteral(0)
+
+        raw_salt_op: Optional[IROperand] = None
+        if salt_node is not None:
+            raw_salt_op = Expr(salt_node, ctx).lower_value()
+        check_eip_3860_limit = bytecode_is_unbounded
+        return _emit_create(
+            ctx,
+            b,
+            value,
+            bytecode_ptr,
+            bytecode_len,
+            raw_salt_op,
+            revert_on_failure,
+            check_eip_3860_limit,
+        )
 
     # With ctor args: need to ABI-encode and append to bytecode
-    # Create tuple type for encoding
-    ctor_arg_types = [arg._metadata["type"] for arg in ctor_arg_nodes]
-    ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
-    ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
+    ctor_tuple_typ, ctor_arg_vvs, runtime_ctor_args, ctor_abi_size = _prepare_ctor_args(
+        ctx, ctor_arg_nodes
+    )
 
-    # Calculate buffer size: max bytecode len + ctor args size
-    buf_size = bytecode_typ.maxlen + ctor_abi_size
-    buf = ctx.allocate_buffer(buf_size, annotation="raw_create_buf")
+    # Calculate buffer size: max bytecode len + ctor args size for bounded
+    # bytecode, or exact runtime bytecode length + ctor args size for INF.
+    runtime_initcode = bytecode_is_unbounded or runtime_ctor_args
+
+    if runtime_initcode:
+        buf_ptr = ctx.allocate_scratch(ctx.checked_add(bytecode_len, ctor_abi_size))
+    else:
+        assert isinstance(ctor_abi_size, IRLiteral)
+        buf_size = bytecode_typ.maxlen + ctor_abi_size.value
+        buf = ctx.allocate_buffer(buf_size, annotation="raw_create_buf")
+        buf_ptr = buf._ptr
 
     # Copy bytecode to buffer
-    ctx.copy_memory_dynamic(buf._ptr, bytecode_ptr, bytecode_len)
+    bytecode_max_len = None if bytecode_is_unbounded else bytecode_typ.maxlen
+    ctx.copy_memory_dynamic(buf_ptr, bytecode_ptr, bytecode_len, bytecode_max_len)
 
     # Encode ctor args after bytecode
-    # First, store ctor args to a temp buffer
-    ctor_arg_vvs = [Expr(arg, ctx).lower() for arg in ctor_arg_nodes]
-    ctor_args_val = ctx.new_temporary_value(ctor_tuple_typ)
-    offset = 0
-    for vv, arg_t in zip(ctor_arg_vvs, ctor_arg_types):
-        if offset == 0:
-            dst = ctor_args_val.operand
-        else:
-            dst = b.add(ctor_args_val.operand, IRLiteral(offset))
-        ctx.store_vyper_value(vv, dst, arg_t)
-        offset += arg_t.memory_bytes_required
-
-    # Now ABI encode from ctor_args_val to args_start
-    args_start = b.add(buf._ptr, bytecode_len)
-    args_len = abi_encode_to_buf(ctx, args_start, ctor_args_val.operand, ctor_tuple_typ)
+    args_start = b.add(buf_ptr, bytecode_len)
+    args_len = _encode_ctor_args_to_buf(ctx, args_start, ctor_tuple_typ, ctor_arg_vvs)
 
     # Total length = bytecode_len + args_len
-    total_len = b.add(bytecode_len, args_len)
+    if runtime_initcode:
+        total_len = ctx.checked_add(bytecode_len, args_len)
+    else:
+        total_len = b.add(bytecode_len, args_len)
 
     # Create contract
-    if salt_node is not None:
-        salt = Expr(salt_node, ctx).lower_value()
-        addr = b.create2(value, buf._ptr, total_len, salt)
+    if value_node is not None:
+        value = Expr(value_node, ctx).lower_value()
     else:
-        addr = b.create(value, buf._ptr, total_len)
+        value = IRLiteral(0)
 
-    return _check_create_result(b, addr, revert_on_failure)
+    ctor_salt_op: Optional[IROperand] = None
+    if salt_node is not None:
+        ctor_salt_op = Expr(salt_node, ctx).lower_value()
+    check_eip_3860_limit = runtime_initcode
+    return _emit_create(
+        ctx, b, value, buf_ptr, total_len, ctor_salt_op, revert_on_failure, check_eip_3860_limit
+    )
 
 
 def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
@@ -354,7 +481,7 @@ def lower_create_minimal_proxy_to(node: vy_ast.Call, ctx: VenomCodegenContext) -
     else:
         addr = b.create(value, buf._ptr, IRLiteral(buf_len))
 
-    return _check_create_result(b, addr, revert_on_failure)
+    return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
 def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
@@ -385,8 +512,6 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     else:
         value = IRLiteral(0)
 
-    # Evaluate salt BEFORE msize() to ensure any memory allocations
-    # (e.g., from keccak256(_abi_encode(x))) don't overwrite the initcode buffer
     salt: Optional[IROperand] = None
     if salt_node is not None:
         salt = Expr(salt_node, ctx).lower_value()
@@ -411,8 +536,9 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     shifted_codesize = b.shl(IRLiteral(shl_bits), codesize)
     preamble_with_size = b.or_(IRLiteral(preamble_base), shifted_codesize)
 
-    # Get current memory size as buffer start
-    mem_ofst = b.msize()
+    # Scratch region holds: [32-byte preamble word] [codesize bytes of target code].
+    scratch_size = b.add(codesize, IRLiteral(32))
+    mem_ofst = ctx.allocate_scratch(scratch_size)
 
     # Store preamble at mem_ofst (will be stored as 32-byte word)
     b.mstore(mem_ofst, preamble_with_size)
@@ -435,7 +561,7 @@ def lower_create_copy_of(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROpera
     else:
         addr = b.create(value, buf, buf_len)
 
-    return _check_create_result(b, addr, revert_on_failure)
+    return _check_create_result(ctx, b, addr, revert_on_failure)
 
 
 def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
@@ -468,13 +594,57 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     raw_args, _ = _get_literal_kwarg(node, "raw_args", False)
     revert_on_failure, _ = _get_literal_kwarg(node, "revert_on_failure", True)
 
+    # Handle constructor arguments
+    args_len: IROperand
+    args_ptr: IROperand
+    args_max_size: Optional[int]
+    runtime_args = False
+
+    if raw_args:
+        # raw_args=True: single bytes argument contains raw constructor args
+        # Semantic analysis validates raw_args=True has exactly one bytes argument.
+        assert len(ctor_arg_nodes) == 1
+
+        raw_arg_typ = ctor_arg_nodes[0]._metadata["type"]
+        runtime_args = type_contains_unbounded_sequence(raw_arg_typ)
+        raw_arg_vv = Expr(ctor_arg_nodes[0], ctx).lower()
+        later_nodes = [n for n in (value_node, salt_node, code_offset_node) if n is not None]
+        copy_composites = later_expressions_can_mutate_memory_or_storage(later_nodes)
+        raw_arg_vv = ctx.snapshot_value_for_delayed_use(
+            raw_arg_vv, raw_arg_typ, annotation="ctor_arg", copy_composites=copy_composites
+        )
+        raw_arg = ctx.unwrap(raw_arg_vv)
+        assert isinstance(raw_arg, IRVariable)
+        args_len = b.mload(raw_arg)
+        args_ptr = b.add(raw_arg, IRLiteral(32))
+        args_max_size = None if runtime_args else raw_arg_typ.maxlen
+    elif len(ctor_arg_nodes) > 0:
+        ctor_tuple_typ, ctor_arg_vvs, runtime_ctor_args, ctor_abi_size = _prepare_ctor_args(
+            ctx, ctor_arg_nodes
+        )
+        runtime_args = runtime_ctor_args
+
+        if runtime_ctor_args:
+            args_ptr = ctx.allocate_scratch(ctor_abi_size)
+            args_max_size = None
+        else:
+            assert isinstance(ctor_abi_size, IRLiteral)
+            args_buf = ctx.allocate_buffer(ctor_abi_size.value, annotation="ctor_args_buf")
+            args_ptr = args_buf._ptr
+            args_max_size = ctor_abi_size.value
+        assert isinstance(args_ptr, IRVariable)
+        args_len = _encode_ctor_args_to_buf(ctx, args_ptr, ctor_tuple_typ, ctor_arg_vvs)
+    else:
+        # No constructor arguments
+        args_len = IRLiteral(0)
+        args_ptr = IRLiteral(0)
+        args_max_size = 0
+
     if value_node is not None:
         value = Expr(value_node, ctx).lower_value()
     else:
         value = IRLiteral(0)
 
-    # Evaluate salt BEFORE msize() to ensure any memory allocations
-    # (e.g., from keccak256(_abi_encode(x))) don't overwrite the initcode
     salt: Optional[IROperand] = None
     if salt_node is not None:
         salt = Expr(salt_node, ctx).lower_value()
@@ -489,62 +659,21 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
 
     # Get blueprint code size (minus preamble)
     full_codesize = b.extcodesize(target)
-    codesize = b.sub(full_codesize, code_offset)
 
-    # Assert blueprint has code after preamble (codesize > 0)
-    # Use sgt since codesize could underflow if code_offset > extcodesize
-    has_code = b.sgt(codesize, IRLiteral(0))
+    if code_offset_is_literal:
+        codesize = b.sub(full_codesize, code_offset)
+        has_code = b.sgt(codesize, IRLiteral(0))
+    else:
+        # Runtime offsets can be attacker-controlled. Checking the wrapped
+        # subtraction with sgt would accept offsets near 2**256.
+        has_code = b.gt(full_codesize, code_offset)
+        codesize = b.sub(full_codesize, code_offset)
     b.assert_(has_code)
 
-    # Handle constructor arguments
-    # NOTE: ALL memory allocations (including ABI encoding) MUST happen BEFORE
-    # calling msize(). This ensures msize() returns a value past all alloca buffers.
-    args_len: IROperand
-    args_ptr: IROperand
-
-    if raw_args:
-        # raw_args=True: single bytes argument contains raw constructor args
-        if len(ctor_arg_nodes) != 1:
-            # This should be caught by type checker, but be defensive
-            raise CompilerPanic("raw_args requires exactly 1 bytes argument")
-
-        raw_arg_vv = Expr(ctor_arg_nodes[0], ctx).lower()
-        raw_arg = ctx.unwrap(raw_arg_vv)  # Copies storage/transient to memory
-        args_len = b.mload(raw_arg)
-        args_ptr = b.add(raw_arg, IRLiteral(32))
-    elif len(ctor_arg_nodes) > 0:
-        # ABI-encode constructor arguments BEFORE calling msize()
-        # This ensures all alloca buffers are written to before msize() is evaluated
-        ctor_arg_types = [arg._metadata["type"] for arg in ctor_arg_nodes]
-        ctor_tuple_typ = TupleT(tuple(ctor_arg_types))
-        ctor_abi_size = ctor_tuple_typ.abi_type.size_bound()
-
-        # Allocate buffer for encoded args
-        args_buf = ctx.allocate_buffer(ctor_abi_size, annotation="ctor_args_buf")
-
-        # Evaluate and store ctor args to temp buffer
-        ctor_arg_vvs = [Expr(arg, ctx).lower() for arg in ctor_arg_nodes]
-        ctor_args_src = ctx.new_temporary_value(ctor_tuple_typ)
-        offset = 0
-        for vv, arg_t in zip(ctor_arg_vvs, ctor_arg_types):
-            if offset == 0:
-                dst = ctor_args_src.operand
-            else:
-                dst = b.add(ctor_args_src.operand, IRLiteral(offset))
-            ctx.store_vyper_value(vv, dst, arg_t)
-            offset += arg_t.memory_bytes_required
-
-        # ABI encode from ctor_args_src to args_buf (BEFORE msize!)
-        args_len = abi_encode_to_buf(ctx, args_buf._ptr, ctor_args_src.operand, ctor_tuple_typ)
-        args_ptr = args_buf._ptr
-    else:
-        # No constructor arguments
-        args_len = IRLiteral(0)
-        args_ptr = IRLiteral(0)
-
-    # Get current memory size as buffer start
-    # This is called AFTER all memory allocations to ensure msize() is past all alloca buffers
-    mem_ofst = b.msize()
+    # Total length = codesize + args_len. When args_len is literal 0,
+    # algebraic optimization folds `add(codesize, 0) -> codesize`.
+    total_len = ctx.checked_add(codesize, args_len) if runtime_args else b.add(codesize, args_len)
+    mem_ofst = ctx.allocate_scratch(total_len)
 
     # Copy blueprint code (skipping preamble) to memory
     b.extcodecopy(target, mem_ofst, code_offset, codesize)
@@ -552,21 +681,12 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
     # Append constructor args after code (copy from pre-encoded buffer)
     if not isinstance(args_len, IRLiteral) or args_len.value > 0:
         args_dest = b.add(mem_ofst, codesize)
-        ctx.copy_memory_dynamic(args_dest, args_ptr, args_len)
+        ctx.copy_memory_dynamic(args_dest, args_ptr, args_len, args_max_size)
 
-    # Total length = codesize + args_len
-    if isinstance(args_len, IRLiteral) and args_len.value == 0:
-        total_len = codesize
-    else:
-        total_len = b.add(codesize, args_len)
-
-    # Create contract
-    if salt is not None:
-        addr = b.create2(value, mem_ofst, total_len, salt)
-    else:
-        addr = b.create(value, mem_ofst, total_len)
-
-    return _check_create_result(b, addr, revert_on_failure)
+    # Runtime-sized ctor args make total_len runtime-controlled. Oversized
+    # initcode aborts the whole frame at CREATE (EIP-3860), so pre-check the
+    # limit like raw_create does; bounded args keep the static path.
+    return _emit_create(ctx, b, value, mem_ofst, total_len, salt, revert_on_failure, runtime_args)
 
 
 HANDLERS = {

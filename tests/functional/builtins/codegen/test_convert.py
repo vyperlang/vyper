@@ -9,6 +9,7 @@ import pytest
 
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
+from vyper.compiler.settings import Settings
 from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.shortcuts import BYTES20_T, BYTES32_T, UINT, UINT160_T, UINT256_T
@@ -539,6 +540,36 @@ def foo(a: {typ}) -> Status:
         assert_compile_failed(lambda: get_contract(contract), TypeMismatch)
 
 
+def test_first_flag_member_to_bytes32(get_contract):
+    contract = """
+flag MyFlag:
+    MEMBER1
+    MEMBER2
+
+@external
+@pure
+def foo() -> bytes32:
+    return convert(MyFlag.MEMBER1, bytes32)
+    """
+    c = get_contract(contract)
+    assert c.foo() == (1).to_bytes(32, "big")
+
+
+def test_second_flag_member_to_bytes32(get_contract):
+    contract = """
+flag MyFlag:
+    MEMBER1
+    MEMBER2
+
+@external
+@pure
+def foo() -> bytes32:
+    return convert(MyFlag.MEMBER2, bytes32)
+    """
+    c = get_contract(contract)
+    assert c.foo() == (2).to_bytes(32, "big")
+
+
 # uint256 conversion is currently valid due to type inference on literals
 # not quite working yet
 same_type_conversion_blocked = sorted(TEST_TYPES - {UINT256_T})
@@ -720,6 +751,32 @@ def foo(bar: {i_typ}) -> {o_typ}:
         input_val = decimal_to_int(input_val)
     with tx_failed():
         c3.foo(input_val)
+
+
+@pytest.mark.parametrize(
+    "bad_code",
+    [
+        """
+@external
+def foo(x: uint256) -> bytes1:
+    return convert(x, bytes1)
+        """,
+        """
+@external
+def foo(x: int128) -> address:
+    return convert(x, address)
+        """,
+        """
+@external
+def foo(x: address) -> int256:
+    return convert(x, int256)
+        """,
+    ],
+)
+def test_venom_bytecode_output_rejects_invalid_conversions(bad_code):
+    settings = Settings(experimental_codegen=True)
+    with pytest.raises(TypeMismatch):
+        compile_code(bad_code, output_formats=["bytecode"], settings=settings)
 
 
 @pytest.mark.parametrize(

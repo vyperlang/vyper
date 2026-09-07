@@ -112,15 +112,15 @@ def __init__(_root_factory: address, _root_impl: address, _crv: address):
     self.manager = msg.sender
     log UpdateManager(_manager=msg.sender)
 
-    deployer = msg.sender
+    self.deployer = msg.sender
 
 
 @external
 def set_owner(_owner: address):
 
-    assert msg.sender == deployer
-    assert self.owner == deployer
-    assert _owner != deployer
+    assert msg.sender == self.deployer
+    assert self.owner == self.deployer
+    assert _owner != self.deployer
 
     log TransferOwnership(_old_owner=self.owner, _new_owner=_owner)
     self.owner = _owner

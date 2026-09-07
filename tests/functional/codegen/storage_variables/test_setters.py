@@ -148,6 +148,84 @@ def gop() -> int128:
     assert c.gop() == 87198763254321
 
 
+def test_struct_field_names_shadow_address_attrs(get_contract, env):
+    code = """
+struct Account:
+    balance: uint256
+    codesize: uint256
+    is_contract: bool
+    codehash: bytes32
+
+accounts: HashMap[address, Account]
+
+@external
+def set_account(owner: address, codehash: bytes32):
+    self.accounts[owner] = Account(
+        balance=100,
+        codesize=200,
+        is_contract=True,
+        codehash=codehash
+    )
+
+@external
+def bump_balance(owner: address, amount: uint256):
+    self.accounts[owner].balance += amount
+
+@external
+def set_codesize(owner: address, new_codesize: uint256):
+    self.accounts[owner].codesize = new_codesize
+
+@external
+def set_is_contract(owner: address, new_is_contract: bool):
+    self.accounts[owner].is_contract = new_is_contract
+
+@external
+def set_codehash(owner: address, new_codehash: bytes32):
+    self.accounts[owner].codehash = new_codehash
+
+@external
+@view
+def get_balance(owner: address) -> uint256:
+    return self.accounts[owner].balance
+
+@external
+@view
+def get_codesize(owner: address) -> uint256:
+    return self.accounts[owner].codesize
+
+@external
+@view
+def get_is_contract(owner: address) -> bool:
+    return self.accounts[owner].is_contract
+
+@external
+@view
+def get_codehash(owner: address) -> bytes32:
+    return self.accounts[owner].codehash
+    """
+
+    c = get_contract(code)
+    owner = env.accounts[1]
+    codehash = b"\x12" * 32
+    new_codehash = b"\x34" * 32
+
+    c.set_account(owner, codehash)
+    assert c.get_balance(owner) == 100
+    assert c.get_codesize(owner) == 200
+    assert c.get_is_contract(owner) is True
+    assert c.get_codehash(owner) == codehash
+
+    c.bump_balance(owner, 23)
+    c.set_codesize(owner, 456)
+    c.set_is_contract(owner, False)
+    c.set_codehash(owner, new_codehash)
+
+    assert c.get_balance(owner) == 123
+    assert c.get_codesize(owner) == 456
+    assert c.get_is_contract(owner) is False
+    assert c.get_codehash(owner) == new_codehash
+
+
 def test_struct_assignment_order(get_contract, assert_compile_failed):
     code = """
 struct Foo:

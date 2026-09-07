@@ -11,7 +11,15 @@ def foo():
     a: uint256 = pow_mod256(-1, -1)
     """,
         TypeMismatch,
-    )
+    ),
+    (
+        """
+@external
+def foo():
+    a: uint256 = pow_mod256(2, -1)
+    """,
+        TypeMismatch,
+    ),
 ]
 
 
@@ -21,8 +29,7 @@ def test_powmod_fail(bad_code, exc):
         compile_code(bad_code)
 
 
-valid_list = [
-    """
+valid_list = ["""
 FOO: constant(uint256) = 3
 BAR: constant(uint256) = 5
 BAZ: constant(uint256) = pow_mod256(FOO, BAR)
@@ -30,8 +37,7 @@ BAZ: constant(uint256) = pow_mod256(FOO, BAR)
 @external
 def foo():
     a: uint256 = BAZ
-    """
-]
+    """]
 
 
 @pytest.mark.parametrize("code", valid_list)

@@ -15,7 +15,7 @@ Source → pre_parser → Python AST → Vyper AST → semantic analysis → ann
 See [vyper/ast/README.md](../vyper/ast/README.md).
 
 - `pre_parser.py`: Vyper source → parseable Python (substitutes `struct`/`interface` → `class`, etc.)
-- `grammar.lark`: Lark grammar definition
+- `grammar.lark`: Lark grammar definition (for reference/making sure we adhere to a bnf spec)
 - `nodes.py`: Vyper AST node classes (use `__slots__`)
 - `parse.py` / `utils.py`: `parse_to_ast()` — main entry
 
@@ -35,7 +35,9 @@ Type classes live in `vyper/semantics/types/`. Convention: classes end in `T` (e
 Base classes in `bases.py`. Browse the directory for the full set — file names map to type categories
 (primitives, bytestrings, subscriptable, user-defined, function, module).
 
-Type checking is bottom-up: evaluate expression types → compare sides → validate operation.
+Type inference (aka type synthesis) is very limited and only for expressions: `(x: uint8) + 1` has type `uint8`, this is done by `_ExprAnalyser().get_possible_types_from_node`.
+Type checking is done by `ExprVisitor`.
+Those are not fully decoupled however.
 
 ## Namespace
 

@@ -8,6 +8,7 @@ The ABI encoding follows the Ethereum ABI spec:
 - Dynamic types (bytes, string, arrays) store an offset in the static section
   and the actual data in a dynamic tail section
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -15,13 +16,110 @@ from typing import TYPE_CHECKING
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.core import is_tuple_like
 from vyper.exceptions import CompilerPanic
-from vyper.semantics.types import DArrayT, SArrayT, VyperType, _BytestringT
+from vyper.semantics.types import (
+    DArrayT,
+    SArrayT,
+    TupleT,
+    VyperType,
+    _BytestringT,
+    is_unbounded_bytestring_type,
+    is_unbounded_dynarray_type,
+    type_contains_unbounded_sequence,
+)
 from vyper.semantics.types.shortcuts import UINT256_T
-from vyper.venom.basicblock import IRLiteral, IROperand
+from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
-    from vyper.codegen_venom.types import VyperValue
+    from vyper.codegen_venom.value import VyperValue
+
+
+def runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IROperand:
+    typ = arg_vv.typ
+    if isinstance(typ, _BytestringT):
+        ptr = ctx.unwrap(arg_vv)
+        assert isinstance(ptr, IRVariable)
+        if is_unbounded_bytestring_type(typ):
+            return ctx.bytestring_runtime_size(ptr)
+        return ctx.unchecked_bytestring_runtime_size(ptr)
+    if isinstance(typ, DArrayT) and is_unbounded_dynarray_type(typ):
+        ptr = ctx.unwrap(arg_vv)
+        assert isinstance(ptr, IRVariable)
+        return ctx.dynarray_runtime_abi_size(ptr, typ)
+    return IRLiteral(typ.abi_type.size_bound())
+
+
+def _abi_size_add(
+    ctx: VenomCodegenContext,
+    left: IROperand,
+    right: IROperand,
+    left_unbounded: bool,
+    right_unbounded: bool,
+) -> tuple[IROperand, bool]:
+    if left_unbounded or right_unbounded:
+        return ctx.checked_add(left, right), True
+
+    return ctx.builder.add(left, right), False
+
+
+def runtime_abi_size_for_encode(
+    ctx: VenomCodegenContext, arg_vals: list[VyperValue], encode_type: VyperType
+) -> IROperand:
+    if isinstance(encode_type, TupleT):
+        size: IROperand = IRLiteral(encode_type.abi_type.static_size())
+        size_unbounded = False
+        for arg_vv in arg_vals:
+            if arg_vv.typ.abi_type.is_dynamic():
+                arg_unbounded = type_contains_unbounded_sequence(arg_vv.typ)
+                size, size_unbounded = _abi_size_add(
+                    ctx, size, runtime_abi_size_for_arg(ctx, arg_vv), size_unbounded, arg_unbounded
+                )
+        return size
+
+    return runtime_abi_size_for_arg(ctx, arg_vals[0])
+
+
+def abi_encode_values_to_buf(
+    ctx: VenomCodegenContext, dst: IRVariable, arg_vals: list[VyperValue], encode_type: VyperType
+) -> IROperand:
+    b = ctx.builder
+
+    if not isinstance(encode_type, TupleT):
+        if encode_type._is_prim_word:
+            ctx.store_vyper_value(arg_vals[0], dst, encode_type)
+            return IRLiteral(encode_type.abi_type.static_size())
+
+        src = ctx.unwrap(arg_vals[0])
+        assert isinstance(src, IRVariable)
+        return abi_encode_to_buf(ctx, dst, src, encode_type)
+
+    dyn_ofst_val = ctx.new_temporary_value(UINT256_T)
+    ctx.ptr_store(dyn_ofst_val.ptr(), IRLiteral(encode_type.abi_type.static_size()))
+    dyn_ofst_unbounded = False
+
+    static_ofst = 0
+    for arg_vv in arg_vals:
+        typ = arg_vv.typ
+        static_loc = b.add(dst, IRLiteral(static_ofst))
+
+        if typ.abi_type.is_dynamic():
+            dyn_ofst = ctx.ptr_load(dyn_ofst_val.ptr())
+            child_dst = b.add(dst, dyn_ofst)
+            child_src = ctx.unwrap(arg_vv)
+            assert isinstance(child_src, IRVariable)
+            child_len = abi_encode_to_buf(ctx, child_dst, child_src, typ)
+            b.mstore(static_loc, dyn_ofst)
+            arg_unbounded = type_contains_unbounded_sequence(typ)
+            new_dyn_ofst, dyn_ofst_unbounded = _abi_size_add(
+                ctx, dyn_ofst, child_len, dyn_ofst_unbounded, arg_unbounded
+            )
+            ctx.ptr_store(dyn_ofst_val.ptr(), new_dyn_ofst)
+        else:
+            ctx.store_vyper_value(arg_vv, static_loc, typ)
+
+        static_ofst += typ.abi_type.embedded_static_size()
+
+    return ctx.ptr_load(dyn_ofst_val.ptr())
 
 
 def _is_complex_type(typ: VyperType) -> bool:
@@ -30,7 +128,7 @@ def _is_complex_type(typ: VyperType) -> bool:
 
 
 def _get_element_ptr(
-    ctx: VenomCodegenContext, parent_ptr: IROperand, key: IROperand, parent_typ: VyperType
+    ctx: VenomCodegenContext, parent_ptr: IROperand, key: IRLiteral, parent_typ: VyperType
 ) -> tuple[IROperand, VyperType]:
     """
     Get pointer to element and its type.
@@ -43,10 +141,7 @@ def _get_element_ptr(
     if is_tuple_like(parent_typ):
         # key is an integer index into tuple/struct
         # Calculate offset: sum of preceding element sizes
-        if isinstance(key, IRLiteral):
-            idx = key.value
-        else:
-            raise CompilerPanic("Dynamic tuple indexing not supported in ABI encode")
+        idx = key.value
 
         items = parent_typ.tuple_items()  # type: ignore[attr-defined]
         offset = 0
@@ -55,14 +150,11 @@ def _get_element_ptr(
                 elem_typ = t
                 break
             offset += t.memory_bytes_required
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"Tuple index {idx} out of range")
 
         elem_ptr: IROperand
-        if offset == 0:
-            elem_ptr = parent_ptr
-        else:
-            elem_ptr = b.add(parent_ptr, IRLiteral(offset))
+        elem_ptr = b.add(parent_ptr, IRLiteral(offset))
         return elem_ptr, elem_typ
 
     elif isinstance(parent_typ, SArrayT):
@@ -70,16 +162,8 @@ def _get_element_ptr(
         elem_typ = parent_typ.value_type
         elem_size = elem_typ.memory_bytes_required
 
-        if isinstance(key, IRLiteral):
-            offset_val = key.value * elem_size
-            if offset_val == 0:
-                sarray_elem_ptr: IROperand = parent_ptr
-            else:
-                sarray_elem_ptr = b.add(parent_ptr, IRLiteral(offset_val))
-        else:
-            # Dynamic index
-            offset_ir = b.mul(key, IRLiteral(elem_size))
-            sarray_elem_ptr = b.add(parent_ptr, offset_ir)
+        offset_val = key.value * elem_size
+        sarray_elem_ptr = b.add(parent_ptr, IRLiteral(offset_val))
         return sarray_elem_ptr, elem_typ
 
     elif isinstance(parent_typ, DArrayT):
@@ -90,40 +174,40 @@ def _get_element_ptr(
         # Skip length word (32 bytes)
         data_ptr = b.add(parent_ptr, IRLiteral(32))
 
-        if isinstance(key, IRLiteral):
-            offset_val = key.value * elem_size
-            if offset_val == 0:
-                darray_elem_ptr: IROperand = data_ptr
-            else:
-                darray_elem_ptr = b.add(data_ptr, IRLiteral(offset_val))
-        else:
-            offset_ir = b.mul(key, IRLiteral(elem_size))
-            darray_elem_ptr = b.add(data_ptr, offset_ir)
+        offset_val = key.value * elem_size
+        darray_elem_ptr = b.add(data_ptr, IRLiteral(offset_val))
         return darray_elem_ptr, elem_typ
 
-    else:
+    else:  # pragma: nocover
         raise CompilerPanic(f"Cannot get element ptr of type {parent_typ}")
 
 
-def _zero_pad(ctx: VenomCodegenContext, bytez_ptr: IROperand) -> None:
+def _pre_zero_pad(ctx: VenomCodegenContext, dst: IROperand, length: IROperand) -> None:
     """
-    Zero-pad a bytestring according to ABI spec.
+    Pre-zero-pad: write 0 to the last word of the encoding, then the
+    subsequent copy overwrites real data bytes, leaving padding zeros.
 
-    The bytestring at bytez_ptr has layout: [length_word][data...]
-    We need to zero-pad the data to a multiple of 32 bytes.
+    The encoding layout is:
+    [length(32 bytes)][data(length bytes)][zero-pad to 32-byte boundary]
+    Total size = 32 + ceil32(length).
+
+    We write 0 at offset ceil32(length) = (length + 31) & ~31.
+    The bit trick rounds up: adding 31 and clearing the low 5 bits aligns
+    to the next 32-byte boundary. This is safe because:
+      ceil32(length) <= length + 31 < length + 32
+    so the copy (which writes [0, 32+length)) always covers this word.
+    When length % 32 == 0, the zero is at offset length and fully within
+    the copy range — it gets overwritten harmlessly. When length % 32 != 0,
+    the zero covers the padding bytes beyond the data, and the copy only
+    overwrites the data portion of that word, leaving the tail zeros intact.
     """
     b = ctx.builder
 
-    # Get length
-    length = b.mload(bytez_ptr)
-
-    # dst = bytez_ptr + 32 + length (first byte after data)
-    dst = b.add(bytez_ptr, IRLiteral(32))
-    dst = b.add(dst, length)
-
-    # For simplicity, write one full 32-byte zero word which handles all cases
-    # since we're allowed to write past the buffer (it will be within ABI bounds)
-    b.mstore(dst, IRLiteral(0))
+    # Write 0 to the last word of the encoding, at offset ceil32(length)
+    inv_31 = ~31 & (2**256 - 1)
+    last_word_offset = b.and_(b.add(length, IRLiteral(31)), IRLiteral(inv_31))
+    last_word_ptr = b.add(dst, last_word_offset)
+    b.mstore(last_word_ptr, 0)
 
 
 def _encode_child(
@@ -151,10 +235,8 @@ def _encode_child(
     child_abi_t = child_typ.abi_type
 
     # Calculate static location
-    if static_ofst == 0:
-        static_loc = dst
-    else:
-        static_loc = b.add(dst, IRLiteral(static_ofst))
+    static_loc = b.add(dst, IRLiteral(static_ofst))
+    assert isinstance(static_loc, IRVariable)
 
     if not child_abi_t.is_dynamic():
         # Static type: encode directly at static location
@@ -162,18 +244,9 @@ def _encode_child(
     else:
         # Dynamic type:
         #
-        # Ordering invariant: encode child data BEFORE writing the static
-        # offset word. Backend invoke-arg forwarding may pass references
-        # directly, so `child_ptr` may alias the destination buffer.
-        # In particular `static_loc` can point into the same region as
-        # `child_ptr`. Writing the offset word first
-        # would clobber source bytes that `_abi_encode_to_buf` still
-        # needs to read, producing corrupt output.
-        #
-        # Encoding the child first is always safe: it reads from
-        # `child_ptr` and writes to the dynamic section (`dst +
-        # dyn_ofst`), which lies past the static section and therefore
-        # cannot overlap `static_loc`.
+        # ABI encoding is not alias-safe: `dst` must not overlap any source
+        # region being encoded. The child tail is emitted before its static
+        # offset; this ordering does not make overlapping encodes valid.
 
         # 1. Read current dyn_ofst
         dyn_ofst = ctx.ptr_load(dyn_ofst_val.ptr())
@@ -182,6 +255,7 @@ def _encode_child(
         child_len = _abi_encode_to_buf(ctx, child_dst, child_ptr, child_typ)
 
         # 3. Write static section offset (safe now — child data is already encoded).
+        assert isinstance(static_loc, IRVariable)
         b.mstore(static_loc, dyn_ofst)
 
         # 4. Update dyn_ofst
@@ -191,7 +265,7 @@ def _encode_child(
 
 def _encode_dyn_array(
     ctx: VenomCodegenContext,
-    dst: IROperand,
+    dst: IRVariable,
     src_ptr: IROperand,
     src_typ: DArrayT,
     dyn_ofst_val: VyperValue,
@@ -211,6 +285,7 @@ def _encode_dyn_array(
     static_elem_size = child_abi_t.embedded_static_size()
 
     # Get runtime length
+    assert isinstance(src_ptr, IRVariable)
     length = b.mload(src_ptr)
 
     # Write length word to dst
@@ -273,9 +348,8 @@ def _encode_dyn_array(
         child_dst = b.add(dst_data, dyn_ofst)
         child_len = _abi_encode_to_buf(ctx, child_dst, child_src, subtyp)
 
-        # Preserve aliasing safety: encode child data before storing static offset.
-        # If source and destination overlap, writing static_loc first can clobber
-        # bytes that _abi_encode_to_buf still needs to read.
+        # Emit the child tail before its static offset. This ordering does not
+        # make overlapping encodes valid; see _abi_encode_to_buf's contract.
         b.mstore(static_loc, dyn_ofst)
 
         new_dyn_ofst = b.add(dyn_ofst, child_len)
@@ -296,6 +370,7 @@ def _encode_dyn_array(
     # Update parent dyn_ofst
     # Total size = 32 (length word) + final child_dyn_ofst (or length * static_size for static)
     # Note: need to reload length since we're in a new block
+    assert isinstance(src_ptr, IRVariable)
     length_exit = b.mload(src_ptr)
     if child_abi_t.is_dynamic():
         assert child_dyn_ofst_val is not None
@@ -311,12 +386,16 @@ def _encode_dyn_array(
 
 
 def _abi_encode_to_buf(
-    ctx: VenomCodegenContext, dst: IROperand, src: IROperand, src_typ: VyperType
+    ctx: VenomCodegenContext, dst: IRVariable, src: IROperand, src_typ: VyperType
 ) -> IROperand:
     """
     Encode src to ABI format at dst.
 
     Port of abi_encode() from abi_encoder.py.
+
+    Precondition: dst must not overlap src or any child source region. ABI
+    encoding is not alias-safe; callers must stage through a temporary buffer
+    when overlap is possible.
 
     Args:
         ctx: Venom codegen context
@@ -336,25 +415,21 @@ def _abi_encode_to_buf(
         ctx.copy_memory(dst, src, size)
         return IRLiteral(abi_t.embedded_static_size())
 
-    # Slow path: type-specific encoding
-    if src_typ._is_prim_word:
-        # Primitive word type: direct copy
-        val = b.mload(src)
-        b.mstore(dst, val)
-        return IRLiteral(32)
-
     elif isinstance(src_typ, _BytestringT):
-        # Bytes/String: copy and zero-pad
-        # Layout: [length][data]
-        size = src_typ.memory_bytes_required
-        ctx.copy_memory(dst, src, size)
-        _zero_pad(ctx, dst)
-        # ABI length = ceil32(32 + actual_length)
-        length = b.mload(dst)
-        padded_len = b.add(IRLiteral(32), length)
-        # ceil32: ((x + 31) // 32) * 32 = (x + 31) & ~31
-        padded_len = b.and_(b.add(padded_len, IRLiteral(31)), IRLiteral(~31 & ((1 << 256) - 1)))
-        return padded_len
+        # Bytes/String: pre-zero-pad then copy
+        # Layout: [length(32)][data(length bytes)][zero-padding]
+        assert isinstance(src, IRVariable)
+        length = b.mload(src)
+        _pre_zero_pad(ctx, dst, length)
+
+        # Copy length word + data (32 + length bytes)
+        copy_len = b.add(IRLiteral(32), length)
+        ctx.copy_memory_dynamic(dst, src, copy_len, ctx.memory_size_bound(src_typ))
+
+        # Return total encoded size = ceil32(32 + length) = 32 + ceil32(length)
+        if is_unbounded_bytestring_type(src_typ):
+            return ctx.bytestring_runtime_size_from_length(length)
+        return ctx.unchecked_bytestring_runtime_size_from_length(length)
 
     elif isinstance(src_typ, DArrayT):
         # Dynamic array: use helper
@@ -395,10 +470,7 @@ def _abi_encode_to_buf(
                 _encode_child(ctx, dst, elem_ptr, elem_typ, static_ofst, dyn_ofst_val)
             else:
                 # All static, encode directly
-                if static_ofst == 0:
-                    child_dst = dst
-                else:
-                    child_dst = b.add(dst, IRLiteral(static_ofst))
+                child_dst = b.add(dst, IRLiteral(static_ofst))
                 _abi_encode_to_buf(ctx, child_dst, elem_ptr, elem_typ)
 
             static_ofst += elem_typ.abi_type.embedded_static_size()
@@ -409,17 +481,21 @@ def _abi_encode_to_buf(
         else:
             return IRLiteral(abi_t.embedded_static_size())
 
-    else:
+    else:  # pragma: nocover
         raise CompilerPanic(f"Cannot ABI encode type: {src_typ}")
 
 
 def abi_encode_to_buf(
-    ctx: VenomCodegenContext, dst: IROperand, src: IROperand, src_typ: VyperType
+    ctx: VenomCodegenContext, dst: IRVariable, src: IROperand, src_typ: VyperType
 ) -> IROperand:
     """
     Public entry point for ABI encoding.
 
     Encode src to ABI format at dst.
+
+    Precondition: dst must not overlap src or any child source region. ABI
+    encoding is not alias-safe; callers must stage through a temporary buffer
+    when overlap is possible.
 
     Args:
         ctx: Venom codegen context

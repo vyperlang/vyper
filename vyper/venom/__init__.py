@@ -8,9 +8,10 @@ from vyper.ir.compile_ir import AssemblyInstruction
 from vyper.venom.analysis import IRGlobalAnalysesCache, ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGGlobalAnalysis
-from vyper.venom.check_venom import check_calling_convention
+from vyper.venom.check_venom import check_calling_convention, check_mem_ops, check_post_lowering
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
+from vyper.venom.optimization_levels.O1 import PASSES_O1
 from vyper.venom.optimization_levels.O2 import PASSES_O2
 from vyper.venom.optimization_levels.O3 import PASSES_O3
 from vyper.venom.optimization_levels.Os import PASSES_Os
@@ -24,6 +25,7 @@ from vyper.venom.passes import (
     AssertEliminationPass,
     BranchOptimizationPass,
     DeadStoreElimination,
+    DretDesugarPass,
     FunctionInlinerPass,
     InternalReturnCopyForwardingPass,
     LoadElimination,
@@ -38,19 +40,18 @@ from vyper.venom.venom_to_assembly import VenomCompiler
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
 # Pass configuration for each optimization level
-# TODO: O1 (minimal passes) is currently disabled because it can cause
-# "stack too deep" errors. Re-enable once stack spilling machinery is
-# implemented to allow compilation with minimal optimization passes.
 OPTIMIZATION_PASSES: Dict[OptimizationLevel, List[PassConfig]] = {
+    # NONE is a distinct level even though it currently shares O1's IR
+    # pipeline. Its pass list is independent, and it alone disables the
+    # final assembly optimizer.
+    OptimizationLevel.NONE: PASSES_O1.copy(),
+    OptimizationLevel.O1: PASSES_O1,
     OptimizationLevel.O2: PASSES_O2,
     OptimizationLevel.O3: PASSES_O3,
     OptimizationLevel.Os: PASSES_Os,
 }
 
 # Legacy aliases for backwards compatibility
-OPTIMIZATION_PASSES[OptimizationLevel.NONE] = OPTIMIZATION_PASSES[
-    OptimizationLevel.O2
-]  # none -> O2
 OPTIMIZATION_PASSES[OptimizationLevel.GAS] = OPTIMIZATION_PASSES[OptimizationLevel.O2]  # gas -> O2
 OPTIMIZATION_PASSES[OptimizationLevel.CODESIZE] = OPTIMIZATION_PASSES[
     OptimizationLevel.Os
@@ -99,14 +100,19 @@ def _normalize_pass_config(pass_config: PassConfig) -> PassRunConfig:
 
 def _build_fn_pass_pipeline(flags: VenomOptimizationFlags) -> list[PassRunConfig]:
     passes = OPTIMIZATION_PASSES[flags.level]
+    # The lowering-only pipelines contain no optional passes -- every pass is
+    # required to produce legal assembly (e.g. venom_to_assembly requires
+    # SimplifyCFGPass to have run) -- so the disable flags do not apply there.
+    lowering_only = flags.level.uses_lowering_only_ir()
     pass_pipeline: list[PassRunConfig] = []
     for pass_config in passes:
         pass_cls, kwargs = _normalize_pass_config(pass_config)
 
         # Check if pass should be skipped based on user flags.
-        flag_name = PASS_FLAG_MAP.get(pass_cls)
-        if flag_name is not None and getattr(flags, flag_name):
-            continue
+        if not lowering_only:
+            flag_name = PASS_FLAG_MAP.get(pass_cls)
+            if flag_name is not None and getattr(flags, flag_name):
+                continue
 
         pass_pipeline.append((pass_cls, kwargs))
 
@@ -122,20 +128,44 @@ def _run_global_passes(
     # Clean unreachable blocks before passes that require dominator analysis
     for fn in ctx.get_functions():
         SimplifyCFGPass(ir_analyses[fn], fn).run_pass()
-    # Intentionally run invoke-copy forwarding twice in the full pipeline:
-    # 1) here (pre-inlining) to shrink obvious frontend-emitted staging copies
-    # 2) again in O2/O3/Os per-function pipelines to catch shapes created later.
-    # Keep this note in sync with optimization_levels/* where the second run is listed.
-    for fn in ctx.get_functions():
-        InternalReturnCopyForwardingPass(ir_analyses[fn], fn).run_pass()
-        ReadonlyInvokeArgCopyForwardingPass(ir_analyses[fn], fn).run_pass()
-    if not flags.disable_inlining:
+
+    # The lowering-only IR pipelines skip global optimizations and run only
+    # the desugaring that the backend requires.
+    lowering_only = flags.level.uses_lowering_only_ir()
+
+    if not lowering_only:
+        # Intentionally run invoke-copy forwarding twice in the full pipeline:
+        # 1) here (pre-inlining) to shrink obvious frontend-emitted staging copies
+        # 2) again in O2/O3/Os per-function pipelines to catch shapes created later.
+        # Keep this note in sync with optimization_levels/* where the second run is listed.
+        for fn in ctx.get_functions():
+            InternalReturnCopyForwardingPass(ir_analyses[fn], fn).run_pass()
+            ReadonlyInvokeArgCopyForwardingPass(ir_analyses[fn], fn).run_pass()
+
+    _run_pre_inline_dret_desugar(ctx, ir_analyses)
+    # the desugar rewrites callee bodies, so the readonly facts must be
+    # recomputed before the inliner reads them
+    ctx.global_analyses_cache.invalidate_analysis(ReadonlyMemoryArgsGlobalAnalysis)
+
+    if not lowering_only and not flags.disable_inlining:
         FunctionInlinerPass(ir_analyses, ctx, flags).run_pass()
 
 
-def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags) -> None:
+def _run_pre_inline_dret_desugar(
+    ctx: IRContext, ir_analyses: dict[IRFunction, IRAnalysesCache]
+) -> None:
+    # DretDesugarPass is purely local (it touches no params and no invokes),
+    # so no call-graph order is required: a plain loop over functions.
+    for fn in ctx.get_functions():
+        DretDesugarPass(ir_analyses[fn], fn).run_pass()
+
+
+def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags, disable_mem_checks=False) -> None:
     ir_analyses: dict[IRFunction, IRAnalysesCache] = {}
-    # Validate calling convention invariants before running passes
+    # Pre-SSA frontend IR can contain loop-carried values which are repaired by
+    # MakeSSA. Only validate invariants that must already hold before passes.
+    if not disable_mem_checks:
+        check_mem_ops(ctx)
     check_calling_convention(ctx)
     for fn in ctx.functions.values():
         ir_analyses[fn] = IRAnalysesCache(fn)
@@ -161,6 +191,10 @@ def run_passes_on(ctx: IRContext, flags: VenomOptimizationFlags) -> None:
     pass_pipeline = _build_fn_pass_pipeline(flags)
     _run_fn_passes(ctx, fcg, ctx.entry_function, pass_pipeline, ir_analyses)
     ctx.global_analyses_cache = None
+
+    # validate the frozen FMP calling convention (not debug-gated: this is
+    # the staleness defense for the convention registry)
+    check_post_lowering(ctx)
 
 
 def _run_fn_passes(

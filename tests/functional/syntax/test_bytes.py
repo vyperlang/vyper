@@ -104,6 +104,15 @@ def foo():
     """,
         StructureException,
     ),
+    (
+        """
+@external
+def foo() -> Bytes[10]:
+    x: Bytes[10] = msg.data
+    return x
+    """,
+        TypeMismatch,
+    ),
 ]
 
 

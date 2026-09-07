@@ -17,7 +17,7 @@ def deepequals(node: VyperNode, other: VyperNode):
 
     if getattr(node, "node_id", None) != getattr(other, "node_id", None):
         return False
-    for field_name in (i for i in node.get_fields() if i not in VyperNode.__slots__):
+    for field_name in (i for i in node.get_comparison_fields()):
         lhs = getattr(node, field_name, None)
         rhs = getattr(other, field_name, None)
         if not deepequals(lhs, rhs):

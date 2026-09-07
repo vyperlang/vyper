@@ -177,9 +177,9 @@ class BaseEnv:
                 compiler_settings_dict is not None
                 and "enable_decimals" not in compiler_settings_dict
             ):
-                compiler_settings_dict[
-                    "enable_decimals"
-                ] = compiler_settings_module.DEFAULT_ENABLE_DECIMALS
+                compiler_settings_dict["enable_decimals"] = (
+                    compiler_settings_module.DEFAULT_ENABLE_DECIMALS
+                )
 
             export_metadata = {
                 "source_code": source_code,
@@ -226,9 +226,9 @@ class BaseEnv:
                 compiler_settings_dict is not None
                 and "enable_decimals" not in compiler_settings_dict
             ):
-                compiler_settings_dict[
-                    "enable_decimals"
-                ] = compiler_settings_module.DEFAULT_ENABLE_DECIMALS
+                compiler_settings_dict["enable_decimals"] = (
+                    compiler_settings_module.DEFAULT_ENABLE_DECIMALS
+                )
 
             export_metadata = {
                 "source_code": source_code,

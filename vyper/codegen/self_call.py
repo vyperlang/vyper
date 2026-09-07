@@ -24,7 +24,7 @@ def _align_kwargs(func_t, args_ir):
     return [i.default_value for i in unprovided_kwargs]
 
 
-def ir_for_self_call(stmt_expr, context):
+def ir_for_self_call(stmt_expr: vy_ast.Call, context):
     from vyper.codegen.expr import Expr  # TODO rethink this circular import
 
     # ** Internal Call **
@@ -36,7 +36,7 @@ def ir_for_self_call(stmt_expr, context):
     # - (private function will fill return buffer and jump back)
     assert isinstance(stmt_expr.func, vy_ast.Attribute)
     method_name = stmt_expr.func.attr
-    func_t = stmt_expr.func._metadata["type"]
+    func_t = stmt_expr.func._metadata["type"].get_concrete_override()
 
     pos_args_ir = [Expr(x, context).ir_node for x in stmt_expr.args]
 
@@ -50,7 +50,7 @@ def ir_for_self_call(stmt_expr, context):
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args_ir], typ=args_tuple_t)
 
     # CMC 2023-05-17 this seems like it is already caught in typechecker
-    if context.is_constant() and func_t.is_mutable:
+    if context.is_constant() and func_t.is_modifying:
         raise StateAccessViolation(
             f"May not call state modifying function "
             f"'{method_name}' within {context.pp_constancy()}.",

@@ -67,6 +67,25 @@ def refund():
     check_selfdestruct_warning(w)
 
 
+def test_selfdestruct_preserves_prior_storage_writes(get_contract):
+    contract = """
+x: public(uint256)
+
+@external
+def boom():
+    self.x = 1
+    selfdestruct(msg.sender)
+    """
+
+    with warnings.catch_warnings(record=True) as w:
+        c = get_contract(contract)
+
+    c.boom()
+    assert c.x() == 1
+
+    check_selfdestruct_warning(w)
+
+
 def check_selfdestruct_warning(w):
     expected = "`selfdestruct` is deprecated!"
     expected += " The opcode is no longer recommended for use."

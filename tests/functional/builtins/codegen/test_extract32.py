@@ -143,6 +143,34 @@ def foo() -> bytes32:
     assert c.foo() == b"defghijklmnopqrstuvwxyz123456789"
 
 
+def test_extract32_start_overflow_reverts(get_contract, tx_failed):
+    code = """
+@external
+def foo(start: uint256) -> bytes32:
+    x: Bytes[32] = b"abcdefghijklmnopqrstuvwxyz123456"
+    return extract32(x, start, output_type=bytes32)
+    """
+
+    c = get_contract(code)
+
+    with tx_failed():
+        c.foo(2**256 - 1)
+
+
+def test_extract32_bytes_m_clamp(get_contract, tx_failed):
+    code = """
+@external
+def foo(inp: Bytes[32]) -> bytes4:
+    return extract32(inp, 0, output_type=bytes4)
+    """
+
+    c = get_contract(code)
+
+    assert c.foo(b"abcd" + b"\x00" * 28) == b"abcd"
+    with tx_failed():
+        c.foo(b"abcdX" + b"\x00" * 27)
+
+
 def test_extract32_signed_clamp_regression(get_contract, tx_failed):
     """
     Regression test: extract32 with signed output types must validate bounds.
