@@ -2723,7 +2723,7 @@ def test_sdiv_of_constant_wrapped_past_signed_max():
     constant must be stored as SIGNED_MIN so that sdiv sees a negative
     dividend: sdiv(SIGNED_MIN, 2) = -2**254, not +2**254.
     """
-    analysis, fn = _analyze(f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %x = {SIGNED_MAX}
@@ -2739,6 +2739,9 @@ def test_sdiv_of_constant_wrapped_past_signed_max():
     stop_inst = entry.instructions[-1]
     assert analysis.get_range(add_inst.output, stop_inst) == ValueRange.constant(SIGNED_MIN)
     assert analysis.get_range(sdiv_inst.output, stop_inst) == ValueRange.constant(-(2**254))
+
+    assert mono.get_range(add_inst.output, stop_inst) == ValueRange.constant(SIGNED_MIN)
+    assert mono.get_range(sdiv_inst.output, stop_inst) == ValueRange.constant(-(2**254))
 
 
 def test_smod_positive_dividend():
@@ -2911,7 +2914,7 @@ def test_sdiv_by_divisor_narrowed_to_unsigned_constant():
     as a signed divisor, so sdiv(%v, %d) with %v in [0, 99] can be -49.
     """
     word = 2**256 - 2
-    analysis, fn = _analyze(f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %x = calldataload 0
@@ -2933,4 +2936,9 @@ def test_sdiv_by_divisor_narrowed_to_unsigned_constant():
     d_rng = analysis.get_range(sdiv_inst.operands[-2], sdiv_inst)
     assert d_rng == ValueRange.constant(word)
     rng = analysis.get_range(sdiv_inst.output, big.instructions[-1])
+    assert rng.is_top or rng.lo <= -49 <= rng.hi, f"-49 excluded from {rng}"
+
+    d_rng = mono.get_range(sdiv_inst.operands[-2], sdiv_inst)
+    assert d_rng == ValueRange.constant(word)
+    rng = mono.get_range(sdiv_inst.output, big.instructions[-1])
     assert rng.is_top or rng.lo <= -49 <= rng.hi, f"-49 excluded from {rng}"
