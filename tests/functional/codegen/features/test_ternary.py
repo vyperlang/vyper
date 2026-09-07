@@ -355,6 +355,28 @@ def foo(c: bool, a: DynArray[uint256, 5], b: DynArray[uint256, 5]) -> DynArray[u
     assert c.foo(test, a, b) == (a if test else b)
 
 
+def test_ternary_wildcard_arg_empty_arm(get_contract):
+    target_code = """
+@external
+def sink(input: DynArray[Bytes[10], 3]) -> uint256:
+    return len(input)
+    """
+
+    caller_code = """
+interface Sink:
+    def sink(input: DynArray[Bytes[10], ...]) -> uint256: nonpayable
+
+@external
+def do_it(addr: address, b: bool) -> uint256:
+    return extcall Sink(addr).sink([] if b else [b"x"])
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.do_it(target.address, True) == 0
+    assert caller.do_it(target.address, False) == 1
+
+
 @pytest.mark.parametrize("test", [True, False])
 def test_ternary_as_event_argument(get_contract, get_logs, test):
     code = """
