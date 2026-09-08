@@ -101,16 +101,12 @@ def _encode_dyn_array_helper(dst, ir_node, context):
         dst = add_ofst(dst, 32)  # jump past length word
         static_elem_size = child_abi_t.embedded_static_size()
         static_ofst = ["mul", i, static_elem_size]
-        if ir_node.typ.count == 0:
-            # we know statically the loop is empty
-            # outside the efficiency reasons, there are issues with bound-0 `repeat`
-            x = ["seq", "dyn_child_ofst"]
-        else:
-            loop_body = _encode_child_helper(
-                dst, child_location, static_ofst, "dyn_child_ofst", context
-            )
-            loop = ["repeat", i, 0, len_, ir_node.typ.count, loop_body]
-            x = ["seq", loop, "dyn_child_ofst"]
+        loop_body = _encode_child_helper(
+            dst, child_location, static_ofst, "dyn_child_ofst", context
+        )
+        loop = ["repeat", i, 0, len_, ir_node.typ.count, loop_body]
+
+        x = ["seq", loop, "dyn_child_ofst"]
         start_dyn_ofst = ["mul", len_, static_elem_size]
         run_children = ["with", "dyn_child_ofst", start_dyn_ofst, x]
         new_dyn_ofst = ["add", "dyn_ofst", run_children]
