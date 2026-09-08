@@ -432,7 +432,7 @@ class ErrorT(_UserType):
                 hint = f"did you mean `{node.func.node_source_code}({correct_kwargs})` ?"
             else:
                 # Don't try to guess what the user meant
-                hint = ""
+                hint = None
 
             msg = "Instantiating errors with positional arguments is not allowed"
             raise InstantiationException(msg, node, self.decl_node, hint=hint)

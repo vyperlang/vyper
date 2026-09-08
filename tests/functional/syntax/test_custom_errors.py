@@ -71,7 +71,7 @@ def foo():
         compile_code(code)
 
     assert excinfo.value.message == "Instantiating errors with positional arguments is not allowed"
-    assert excinfo.value.hint == ""
+    assert excinfo.value.hint is None
 
 
 def test_error_hint_from_assert():
