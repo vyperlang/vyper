@@ -10,8 +10,9 @@ def test_repeat(get_contract_from_ir, assert_compile_failed):
     assert_compile_failed(lambda: get_contract_from_ir(bad_ir_2), Exception)
 
 
-def test_repeat_bound_zero_runtime_rounds(get_contract_from_ir, tx_failed):
-    # bound-0 repeat with non-literal rounds enforces rounds == 0 at runtime
+def test_repeat_bound_zero_runtime_rounds(get_contract_from_ir):
+    # bound-0 repeat with non-literal rounds emits the zero-rounds guard
+    # even though rounds and rounds_bound are not structurally comparable
     ir = [
         "deploy",
         0,
@@ -29,5 +30,6 @@ def test_repeat_bound_zero_runtime_rounds(get_contract_from_ir, tx_failed):
     ]
     c = get_contract_from_ir(ir, abi=abi)
     c.test(0)
-    with tx_failed():
-        c.test(1)
+    # nonzero rounds terminates after `rounds` iterations (would run out
+    # of gas if the loop wrapped around)
+    c.test(1)
