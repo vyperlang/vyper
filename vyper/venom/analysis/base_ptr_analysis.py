@@ -265,6 +265,9 @@ class BasePtrAnalysis(IRAnalysis):
         if ptr is None:
             return MemoryLocation(offset=None, size=size)
 
+        if self.pointer_may_include_untracked_root(offset):
+            return MemoryLocation(offset=None, size=size)
+
         return MemoryLocation(offset=ptr.offset, size=size, alloca=ptr.base_alloca)
 
     def get_write_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
