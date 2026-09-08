@@ -376,6 +376,24 @@ class _IRnodeLowerer:
 
             assert isinstance(i_name.value, str)  # help mypy
 
+            if rounds_bound.value == 0:
+                # the body can never execute; only evaluate start and
+                # rounds for their side effects, and enforce rounds == 0
+                # (the analogue of the rounds <= rounds_bound assertion
+                # below). note the loop below cannot handle bound 0: the
+                # zero-rounds guard is elided when rounds == rounds_bound,
+                # which would leave an unguarded do-while.
+                if not isinstance(start.value, int):
+                    o.extend(self._compile_r(start, height))
+                    o.extend(["POP"])
+                if isinstance(rounds.value, int):
+                    assert rounds.value == 0  # rounds <= bound, guaranteed by codegen
+                else:
+                    o.extend(self._compile_r(rounds, height))
+                    # assert rounds == 0
+                    o.extend(self._assert_false())
+                return o
+
             entry_dest = self.mksymbol("loop_start")
             continue_dest = self.mksymbol("loop_continue")
             exit_dest = self.mksymbol("loop_exit")
