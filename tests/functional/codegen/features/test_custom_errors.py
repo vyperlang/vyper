@@ -125,10 +125,7 @@ def boom():
     assert abi_decode("(string,uint256)", data[4:]) == ("hi", 3)
 
 
-@pytest.mark.parametrize("use_experimental_codegen", [False, True])
-def test_custom_error_snapshots_bounded_dynarray_before_later_mutation(
-    get_contract, use_experimental_codegen
-):
+def test_custom_error_snapshots_bounded_dynarray_before_later_mutation(get_contract):
     code = """
 error Oops:
     xs: DynArray[uint256, 3]
@@ -137,7 +134,7 @@ error Oops:
 @external
 def boom():
     x: DynArray[uint256, 3] = [1, 2, 3]
-    raise Oops(x, x.pop())
+    raise Oops(xs=x, popped=x.pop())
     """
 
     contract = get_contract(code)
