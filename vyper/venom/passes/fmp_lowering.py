@@ -20,19 +20,16 @@ from vyper.venom.analysis import (
     VarDefinition,
     VariableRangeAnalysis,
 )
+from vyper.venom.analysis.base_ptr_analysis import escaping_operands
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.call_layout import FunctionCallLayout, InvokeLayout, has_dret, parse_dret_shape
 from vyper.venom.function import FmpSignature, IRFunction
-from vyper.venom.memory_location import Allocation, memory_read_ops, memory_write_ops
+from vyper.venom.memory_location import Allocation
 from vyper.venom.passes.base_pass import IRPass, PassRef
 
-# instructions through which BasePtrAnalysis propagates pointer facts; a
-# pointer flowing into these stays visible to SSA-based liveness.
-_PTR_PROPAGATION_OPS = frozenset(["add", "sub", "assign", "phi", "bump", "dalloca", "alloca"])
-
 # instructions through which getfmp-capture derivation propagates. Unlike
-# _PTR_PROPAGATION_OPS this excludes bump/dalloca/alloca: their outputs are
-# fresh allocation bases, never capture-derived pointers.
+# base_ptr_analysis.PTR_PROPAGATION_OPS this excludes bump/dalloca/alloca:
+# their outputs are fresh allocation bases, never capture-derived pointers.
 _CAPTURE_PROPAGATION_OPS = frozenset(["add", "sub", "assign", "phi"])
 
 
@@ -228,7 +225,7 @@ class FmpLoweringPass(IRPass):
         self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
         self._invoke_callee_infos = {}
-        self._pinned_allocations = self._compute_escaping_allocations(fn, self.base_ptrs)
+        self._pinned_allocations = self._compute_escaping_allocations(self.base_ptrs)
         self._capture_derived, self._pinned_captures = self._compute_capture_facts(fn)
         self._mark_def_bbs = {
             inst.output: bb
@@ -576,56 +573,19 @@ class FmpLoweringPass(IRPass):
                     return True
         return False
 
-    def _compute_escaping_allocations(
-        self, fn: IRFunction, base_ptrs: BasePtrAnalysis
-    ) -> frozenset[Allocation]:
+    def _compute_escaping_allocations(self, base_ptrs: BasePtrAnalysis) -> frozenset[Allocation]:
         """
-        Conservatively compute the dynamic allocations whose pointer escapes
-        SSA tracking. An operand escapes when it is used outside
-        BasePtrAnalysis's propagation grammar (add/sub/assign/phi/bump/
-        dalloca/alloca) and outside the address/length positions of known
-        memory ops -- e.g. as the stored *value* of a store-family
-        instruction, or as an operand of `invoke`/`ret`/`retfmp`/`setfmp`.
-        An escaped pointer can re-enter through memory where SSA liveness
-        cannot see it, so the allocation must never be reclaimed. Fail
-        closed: anything not provably a non-escaping use pins the allocation.
+        The dynamic allocations whose pointer escapes SSA tracking (see
+        `base_ptr_analysis.escaping_operands`). An escaped pointer can
+        re-enter through memory where SSA liveness cannot see it, so the
+        allocation must never be reclaimed. Fail closed: anything not
+        provably a non-escaping use pins the allocation.
         """
-        pinned: set[Allocation] = set()
-        for bb in fn.get_basic_blocks():
-            for inst in bb.instructions:
-                for op in self._escaping_operands(inst):
-                    for ptr in base_ptrs.get_possible_ptrs(op):
-                        if ptr.base_alloca.inst.opcode == "dalloca":
-                            pinned.add(ptr.base_alloca)
-
-        return frozenset(pinned)
-
-    def _escaping_operands(self, inst: IRInstruction) -> list[IRVariable]:
-        """
-        The variable operands of `inst` that escape SSA pointer tracking:
-        occurrences not accounted for by the BasePtr propagation grammar or
-        by the known-safe (address/length) positions of the shared memory-op
-        descriptions. Fail closed.
-        """
-        if inst.opcode in _PTR_PROPAGATION_OPS:
-            return []
-
-        safe: list[IROperand] = []
-        for access_ops in (memory_read_ops(inst), memory_write_ops(inst)):
-            for op in (access_ops.ofst, access_ops.size):
-                if op is not None:
-                    safe.append(op)
-            # post_init aliases max_size to size; only count a
-            # distinct max_size to avoid inflating safe occurrences.
-            max_size = access_ops.max_size
-            if max_size is not None and max_size is not access_ops.size:
-                safe.append(max_size)
-
-        operands = [op for op in inst.operands if isinstance(op, IRVariable)]
-        # an operand escapes if it occurs more often than safe positions
-        # account for (`mstore %x, %x` stores the pointer value at its own
-        # address).
-        return [op for op in operands if operands.count(op) > safe.count(op)]
+        return frozenset(
+            allocation
+            for allocation in base_ptrs.escaping_allocations()
+            if allocation.inst.opcode == "dalloca"
+        )
 
     def _compute_capture_facts(
         self, fn: IRFunction
@@ -668,7 +628,7 @@ class FmpLoweringPass(IRPass):
 
         pinned: set[IRVariable] = set()
         for inst in insts:
-            for op in self._escaping_operands(inst):
+            for op in escaping_operands(inst):
                 pinned.update(var_roots.get(op, ()))
 
         derived: dict[IRVariable, set[IRVariable]] = {root: set() for root in roots}
@@ -800,9 +760,9 @@ class DretDesugarPass(IRPass):
     Desugar `dret` into FMP virtual-register IR before inlining.
 
     Purely local: a function containing `dret` gets `%e = getfmp` at entry,
-    and each `dret` becomes the dst-chain arithmetic rooted at `%e`, the
-    pack-by-copy memory copies, `setfmp %new_fmp` (an *advance* over the
-    packed data, never a rewind) and a `retfmp` publishing terminator.
+    and each `dret` becomes optional source staging, the dst-chain arithmetic
+    rooted at `%e`, the pack-by-copy memory copies, `setfmp %new_fmp` to
+    publish the compacted return frame, and a `retfmp` publishing terminator.
     Functions without `dret` are untouched; no params and no invokes are
     modified anywhere -- the calling convention is materialized later by
     FmpLoweringPass.
@@ -853,11 +813,22 @@ class DretDesugarPass(IRPass):
         pairs = [(pair_ops[i], pair_ops[i + 1]) for i in range(0, len(pair_ops), 2)]
 
         lowered: list[IRInstruction] = []
+        pack_pairs = pairs
+        if len(pairs) > 1:
+            pack_pairs = []
+            for src, size in pairs:
+                tmp = self.function.get_next_variable()
+                dalloca_inst = IRInstruction("dalloca", [size], [tmp])
+                _copy_metadata(inst, dalloca_inst)
+                lowered.append(dalloca_inst)
+                lowered.extend(_copy_memory(self.function, tmp, src, size, inst))
+                pack_pairs.append((tmp, size))
+
         dsts: list[IRVariable] = []
         prev_dst: IROperand = entry_fmp_var
         prev_aligned: IRVariable | None = None
 
-        for idx, (_, size) in enumerate(pairs):
+        for idx, (_, size) in enumerate(pack_pairs):
             if idx == 0:
                 dst = entry_fmp_var
             else:
@@ -879,7 +850,10 @@ class DretDesugarPass(IRPass):
         _copy_metadata(inst, new_fmp_inst)
         lowered.append(new_fmp_inst)
 
-        for dst_op, (src, size) in zip(dsts, pairs, strict=True):
+        # Pack staged sources from low to high. The pack region starts at the
+        # callee entry FMP, so arbitrary original source order can form a swap
+        # over live sources; staging breaks that aliasing before compaction.
+        for dst_op, (src, size) in zip(dsts, pack_pairs, strict=True):
             lowered.extend(_copy_memory(self.function, dst_op, src, size, inst))
 
         setfmp_inst = IRInstruction("setfmp", [new_fmp], [])

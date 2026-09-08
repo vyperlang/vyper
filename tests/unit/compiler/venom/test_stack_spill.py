@@ -1,6 +1,11 @@
 import pytest
 
+from vyper.compiler import compile_code
+from vyper.compiler.phases import generate_bytecode
+from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 from vyper.ir.compile_ir import Label
+from vyper.utils import method_id
+from vyper.venom import generate_assembly_experimental, run_passes_on
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.parser import parse_venom
@@ -28,6 +33,12 @@ def _dummy_dfg():
     return _DummyDFG()
 
 
+def _deploy_runtime(env, runtime_bytecode):
+    bytecode_len_hex = hex(len(runtime_bytecode))[2:].rjust(6, "0")
+    initcode = bytes.fromhex("62" + bytecode_len_hex + "3d81600b3d39f3") + runtime_bytecode
+    return env.deploy([], initcode)
+
+
 def test_set_current_function_clears_missing_fn_eom() -> None:
     ctx = parse_venom("""
         function first {
@@ -53,6 +64,94 @@ def test_set_current_function_clears_missing_fn_eom() -> None:
     compiler.spiller._next_spill_offset = 96
     compiler.spiller.set_current_function(None)
     assert compiler.spiller._next_spill_offset is None
+
+
+def test_function_spill_regions_are_disjoint_and_above_static_frames() -> None:
+    ctx = parse_venom("""
+        function first {
+            main:
+                stop
+        }
+
+        function second {
+            main:
+                stop
+        }
+        """)
+    compiler = VenomCompiler(ctx)
+    spiller = compiler.spiller
+    first, second = list(ctx.functions.values())
+
+    ctx.mem_allocator.fn_eom[first] = 64
+    ctx.mem_allocator.fn_eom[second] = 256
+    spiller.reset_for_codegen()
+
+    spiller.set_current_function(first)
+    assert spiller._next_spill_offset == 256
+    assert spiller._get_spill_slot(dry_run=False) == 256
+
+    spiller.set_current_function(second)
+    assert spiller._next_spill_offset == 288
+
+
+def test_removed_function_does_not_inflate_spill_offsets() -> None:
+    # spill sizing takes the max over all fn_eom entries, so a stale entry
+    # left behind when an unreachable function is removed would push every
+    # live function's spill region (and the initial FMP) up to the dead
+    # frame's end.
+    ctx = parse_venom("""
+        function main [fmp_lowered, eom=64] {
+            main:
+                stop
+        }
+
+        function dead [fmp_lowered, eom=65536] {
+            dead:
+                stop
+        }
+        """)
+    run_passes_on(ctx, VenomOptimizationFlags(level=OptimizationLevel.O1))
+
+    assert [fn.name.value for fn in ctx.functions.values()] == ["main"]
+    assert set(ctx.mem_allocator.fn_eom.keys()) == set(ctx.functions.values())
+
+    compiler = VenomCompiler(ctx)
+    compiler.spiller.reset_for_codegen()
+    assert compiler.spiller._next_function_spill_offset == 64
+
+
+def test_round_tripped_eom_survives_o1_pass_rerun(env) -> None:
+    params = ", ".join(f"a{i}: uint256" for i in range(16))
+    args = ", ".join(f"a{i}" for i in range(16))
+    total = " + ".join(f"a{i}" for i in range(16))
+    source = f"""
+@internal
+def sum_words({params}) -> uint256:
+    return {total}
+
+@external
+def foo({params}) -> uint256:
+    return self.sum_words({args})
+    """
+    settings = Settings(experimental_codegen=True, optimize=OptimizationLevel.O1)
+    lowered = compile_code(source, output_formats=["ir_runtime"], settings=settings)["ir_runtime"]
+    ctx = parse_venom(str(lowered))
+
+    eoms_before = {fn.name.value: eom for fn, eom in ctx.mem_allocator.fn_eom.items()}
+    run_passes_on(ctx, VenomOptimizationFlags(level=OptimizationLevel.O1))
+    eoms_after = {fn.name.value: eom for fn, eom in ctx.mem_allocator.fn_eom.items()}
+
+    assert eoms_after == eoms_before
+
+    asm = generate_assembly_experimental(ctx, optimize=OptimizationLevel.O1)
+    runtime_bytecode, _ = generate_bytecode(asm)
+    contract = _deploy_runtime(env, runtime_bytecode)
+
+    values = tuple(range(16))
+    signature = f"foo({','.join(['uint256'] * 16)})"
+    calldata = method_id(signature) + b"".join(value.to_bytes(32, "big") for value in values)
+    result = env.message_call(contract.address, data=calldata)
+    assert int.from_bytes(result, "big") == sum(values)
 
 
 def test_swap_spills_deep_stack() -> None:

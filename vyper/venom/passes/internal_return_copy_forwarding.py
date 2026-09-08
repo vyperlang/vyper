@@ -42,7 +42,7 @@ class InternalReturnCopyForwardingPass(InvokeCopyForwardingBase):
 
         dst_root = self._assign_root_var(dst)
         src_root = self._assign_root_var(src)
-        if dst_root == src_root:
+        if dst_root is None or src_root is None or dst_root == src_root:
             return False
 
         dst_root_inst = self.dfg.get_producing_instruction(dst_root)
@@ -60,6 +60,8 @@ class InternalReturnCopyForwardingPass(InvokeCopyForwardingBase):
             return False
 
         dst_aliases = self._collect_assign_aliases(dst_root)
+        if dst_aliases is None:
+            return False
         rewrite_insts: set[IRInstruction] = set()
 
         for _, use, pos in self._iter_alias_use_positions(dst_aliases):
@@ -109,6 +111,8 @@ class InternalReturnCopyForwardingPass(InvokeCopyForwardingBase):
         self, src_root: IRVariable, copy_inst: IRInstruction
     ) -> bool:
         aliases = self._collect_assign_aliases(src_root)
+        if aliases is None:
+            return False
         copy_seen = False
         invoke_sites: set[IRInstruction] = set()
 
