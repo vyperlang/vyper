@@ -849,9 +849,13 @@ class ExprVisitor(VyperNodeVisitorBase):
             return "function"
         return "module"
 
-    def _interpolate(self, min_t: VyperType, max_t: VyperType) -> VyperType:
+    def _interpolate(
+        self, min_t: VyperType, max_t: VyperType, *, pos: Optional[vy_ast.VyperNode] = None
+    ) -> VyperType:
         """
         Find the smallest type between `min_t` and `max_t` such that it contains no wildcards
+
+        `pos` is only used for location information in error messages (if present)
         """
 
         def interpolate_length(min_l: LengthUpperBound, max_l: LengthUpperBound) -> int | Inf:
@@ -869,15 +873,15 @@ class ExprVisitor(VyperNodeVisitorBase):
 
         if isinstance(min_t, DArrayT):
             assert isinstance(max_t, DArrayT)
-            new_vt = self._interpolate(min_t.value_type, max_t.value_type)
+            new_vt = self._interpolate(min_t.value_type, max_t.value_type, pos=pos)
 
             new_l = interpolate_length(min_t.length, max_t.length)
-            DArrayT._validate_unbounded_shape(new_vt, new_l)
+            DArrayT._validate_unbounded_shape(new_vt, new_l, node=pos)
             return DArrayT(new_vt, new_l)
 
         if isinstance(min_t, SArrayT):
             assert isinstance(max_t, SArrayT)
-            new_vt = self._interpolate(min_t.value_type, max_t.value_type)
+            new_vt = self._interpolate(min_t.value_type, max_t.value_type, pos=pos)
 
             return SArrayT(new_vt, min_t.length)
 
@@ -895,7 +899,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             assert isinstance(max_t, TupleT)
             return TupleT(
                 tuple(
-                    self._interpolate(min_mt, max_mt)
+                    self._interpolate(min_mt, max_mt, pos=pos)
                     for min_mt, max_mt in zip(min_t.member_types, max_t.member_types, strict=True)
                 )
             )
@@ -911,7 +915,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         candidates = [t for t in possible_types if t.is_subtype_of(typ)]
         assert len(candidates) == 1
 
-        ret = self._interpolate(candidates[0], typ)
+        ret = self._interpolate(candidates[0], typ, pos=node)
 
         # postconditions:
 
