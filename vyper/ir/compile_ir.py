@@ -391,11 +391,12 @@ class _IRnodeLowerer:
                 if isinstance(rounds.value, int):
                     # rounds <= rounds_bound, checked at compile time
                     assert rounds.value == 0
-                    o.extend([*JUMP(exit_dest)])
                 else:
                     # stack: i, rounds
-                    # if (0 == rounds) { goto end_dest; }
-                    o.extend(["DUP1", "ISZERO", *JUMPI(exit_dest)])
+                    # assert rounds == 0 (i.e. rounds <= rounds_bound)
+                    o.extend(["DUP1"] + self._assert_false())
+                # the loop never runs; goto end_dest
+                o.extend([*JUMP(exit_dest)])
             # assert rounds <= round_bound
             elif rounds != rounds_bound:
                 # stack: i, rounds
