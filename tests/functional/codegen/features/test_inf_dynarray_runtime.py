@@ -797,17 +797,17 @@ def get_bounded(addr: address, xs: DynArray[Bytes[10], 5]) -> uint256:
     assert caller.get_bounded(target.address, [b"abc", b"defg"]) == 2
 
 
-@pytest.mark.xfail()
+@pytest.mark.xfail(raises=CodegenPanic)
 def test_wildcard_tuple_return_forwarded_to_mixed_tuple_arg(get_contract):
     target_code = """
 seen: public(uint256)
 
 @external
-def source() -> (Bytes[10], DynArray[uint256, INF]):
+def source() -> (Bytes[10], DynArray[uint256, 5]):
     return b"hello", [1, 2, 3]
 
 @external
-def sink(input: (Bytes[10], DynArray[uint256, INF])):
+def sink(input: (Bytes[10], DynArray[uint256, 5])):
     self.seen = len(input[0]) * 100 + len(input[1])
     """
 
