@@ -387,18 +387,8 @@ class _IRnodeLowerer:
 
             # stack: i
 
-            if rounds_bound.value == 0:
-                if isinstance(rounds.value, int):
-                    # rounds <= rounds_bound, checked at compile time
-                    assert rounds.value == 0
-                else:
-                    # stack: i, rounds
-                    # assert rounds == 0 (i.e. rounds <= rounds_bound)
-                    o.extend(["DUP1"] + self._assert_false())
-                # the loop never runs; goto end_dest
-                o.extend([*JUMP(exit_dest)])
             # assert rounds <= round_bound
-            elif rounds != rounds_bound:
+            if rounds != rounds_bound or rounds_bound.value == 0:
                 # stack: i, rounds
                 o.extend(self._compile_r(rounds_bound, height + 2))
                 # stack: i, rounds, rounds_bound
