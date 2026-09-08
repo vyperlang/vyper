@@ -786,3 +786,90 @@ def test_internal_return_forwarding_ignores_hidden_fmp_arg():
     assert all(inst.opcode != "mcopy" for inst in insts)
     mload = next(inst for inst in insts if inst.opcode == "mload")
     assert mload.operands[0] == IRVariable("%src")
+
+
+def test_readonly_forwarding_keeps_copy_from_multiply_assigned_source():
+    # the input is not in SSA form: %sel is assigned on both paths, so the
+    # copy source cannot be resolved to a single allocation
+    src = """
+    function caller {
+    caller:
+        %cond = calldataload 0
+        %a = alloca 64
+        %b = alloca 64
+        %tmp = alloca 64
+        jnz %cond, @pick_a, @pick_b
+    pick_a:
+        %sel = %a
+        jmp @join
+    pick_b:
+        %sel = %b
+        jmp @join
+    join:
+        mcopy %tmp, %sel, 64
+        invoke @callee, %tmp
+        stop
+    }
+
+    function callee {
+    callee:
+        %arg = param
+        %retpc = param
+        mload %arg
+        ret %retpc
+    }
+    """
+
+    ctx = _run_copy_forwarding(src)
+    caller = ctx.get_function(IRLabel("caller"))
+    insts = [inst for bb in caller.get_basic_blocks() for inst in bb.instructions]
+
+    mcopy = next(inst for inst in insts if inst.opcode == "mcopy")
+    invoke = next(inst for inst in insts if inst.opcode == "invoke")
+    assert invoke.operands[1] == mcopy.operands[2]
+
+
+def test_internal_return_forwarding_keeps_copy_into_multiply_assigned_destination():
+    # the input is not in SSA form: %dst is assigned on both paths, so the
+    # copy destination cannot be resolved to a single allocation
+    src = """
+    function caller {
+    caller:
+        %cond = calldataload 0
+        %x = alloca 32
+        %y = alloca 32
+        %src = alloca 32
+        jnz %cond, @pick_x, @pick_y
+    pick_x:
+        %dst = %x
+        jmp @join
+    pick_y:
+        %dst = %y
+        jmp @join
+    join:
+        invoke @callee, %src
+        mcopy %dst, %src, 32
+        %v = mload %x
+        sink %v
+    }
+
+    function callee {
+    callee:
+        %retbuf = param
+        %retpc = param
+        mstore %retbuf, 7
+        ret %retpc
+    }
+    """
+
+    def _setup(ctx):
+        callee = ctx.get_function(IRLabel("callee"))
+        callee._has_memory_return_buffer_param = True
+
+    ctx = _run_copy_forwarding(src, setup=_setup)
+    caller = ctx.get_function(IRLabel("caller"))
+    insts = [inst for bb in caller.get_basic_blocks() for inst in bb.instructions]
+
+    assert any(inst.opcode == "mcopy" for inst in insts)
+    mload = next(inst for inst in insts if inst.opcode == "mload")
+    assert mload.operands[0] == IRVariable("%x")
