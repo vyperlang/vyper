@@ -875,6 +875,12 @@ class ExprVisitor(VyperNodeVisitorBase):
             DArrayT._validate_unbounded_shape(new_vt, new_l)
             return DArrayT(new_vt, new_l)
 
+        if isinstance(min_t, SArrayT):
+            assert isinstance(max_t, SArrayT)
+            new_vt = self._interpolate(min_t.value_type, max_t.value_type)
+
+            return SArrayT(new_vt, min_t.length)
+
         if isinstance(min_t, BytesT):
             assert isinstance(max_t, BytesT)
 

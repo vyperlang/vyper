@@ -2,6 +2,7 @@ import pytest
 
 from tests.evm_backends.abi import abi_decode, abi_encode
 from vyper.compiler import compile_code
+from vyper.exceptions import CodegenPanic
 from vyper.utils import method_id
 
 
@@ -872,6 +873,40 @@ def do_it(addr: address) -> uint256:
     target = get_contract(target_code)
     caller = get_contract(caller_code)
     assert caller.do_it(target.address) == 42
+
+
+@pytest.mark.xfail(raises=CodegenPanic)
+def test_wildcard_arg_ternary_sarray_element(get_contract):
+    target_code = """
+seen: public(uint256)
+
+@external
+def bar() -> DynArray[uint256, 3]:
+    return [1, 2, 3]
+
+@external
+def foo(xs: DynArray[uint256, 3][1]):
+    self.seen = len(xs[0])
+    """
+
+    caller_code = """
+interface I:
+    def bar() -> DynArray[uint256, ...]: nonpayable
+    def foo(xs: DynArray[uint256, ...][1]): nonpayable
+
+@external
+def f(a: address, c: bool, ys: DynArray[uint256, 5][1]):
+    extcall I(a).foo([extcall I(a).bar()] if c else ys)
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+
+    caller.f(target.address, True, [[9, 9]])
+    assert target.seen() == 3
+
+    caller.f(target.address, False, [[9, 9]])
+    assert target.seen() == 2
 
 
 def test_inf_dynarray_abi_encode_default_tuple(get_contract):
