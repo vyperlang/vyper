@@ -618,7 +618,7 @@ def validate_expected_type(node, expected_type):
         # throw more specific error if the cause of the failure was an incorrect checksum
         if AddressT() in expected_type and isinstance(node, vy_ast.Hex) and node.n_bytes == 20:
             assert not is_checksum_encoded(node.value)
-            AddressT().raise_bad_checksum(node)
+            AddressT.raise_bad_checksum(node)
         raise i
 
     if isinstance(node, vy_ast.List):

@@ -429,15 +429,15 @@ class AddressT(_PrimT):
         if not is_checksum_encoded(node.value):
             self.raise_bad_checksum(node)
 
-    @staticmethod
-    def _checksum_error_msg(node: vy_ast.Hex) -> str:
+    @classmethod
+    def _checksum_error_msg(cls, node: vy_ast.Hex) -> str:
         msg = "Address checksum mismatch. If you are sure this is the right "
         msg += f"address, the correct checksummed form is: {checksum_encode(node.value)}"
         return msg
 
-    @staticmethod
-    def raise_bad_checksum(node: vy_ast.Hex) -> NoReturn:
-        raise BadChecksumAddress(AddressT._checksum_error_msg(node), node)
+    @classmethod
+    def raise_bad_checksum(cls, node: vy_ast.Hex) -> NoReturn:
+        raise BadChecksumAddress(cls._checksum_error_msg(node), node)
 
 
 # type for "self"
