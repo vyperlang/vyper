@@ -1,8 +1,8 @@
-from typing import Dict, Optional
+from typing import Optional
 
 from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import CompilerPanic
-from vyper.typing import OpcodeGasCost, OpcodeMap, OpcodeRulesetMap, OpcodeRulesetValue, OpcodeValue
+from vyper.typing import OpcodeMap
 
 # EVM version rules work as follows:
 # 1. Fork rules go from oldest (lowest value) to newest (highest value).
@@ -20,8 +20,8 @@ DEFAULT_EVM_VERSION = "prague"
 # opcode as hex value
 # number of values removed from stack
 # number of values added to stack
-# gas cost (london, paris, shanghai, cancun, prague)
-OPCODES: OpcodeMap = {
+# gas cost
+BASE_OPCODES: OpcodeMap = {
     "STOP": (0x00, 0, 0, 0),
     "ADD": (0x01, 2, 1, 3),
     "MUL": (0x02, 2, 1, 5),
@@ -75,8 +75,6 @@ OPCODES: OpcodeMap = {
     "CHAINID": (0x46, 0, 1, 2),
     "SELFBALANCE": (0x47, 0, 1, 5),
     "BASEFEE": (0x48, 0, 1, 2),
-    "BLOBHASH": (0x49, 1, 1, (None, None, None, 3, 3)),
-    "BLOBBASEFEE": (0x4A, 0, 1, (None, None, None, 2, 2)),
     "POP": (0x50, 1, 0, 2),
     "MLOAD": (0x51, 1, 1, 3),
     "MSTORE": (0x52, 2, 0, 3),
@@ -89,8 +87,6 @@ OPCODES: OpcodeMap = {
     "MSIZE": (0x59, 0, 1, 2),
     "GAS": (0x5A, 0, 1, 2),
     "JUMPDEST": (0x5B, 0, 0, 1),
-    "MCOPY": (0x5E, 3, 0, (None, None, None, 3, 3)),
-    "PUSH0": (0x5F, 0, 1, 2),
     "PUSH1": (0x60, 0, 1, 3),
     "PUSH2": (0x61, 0, 1, 3),
     "PUSH3": (0x62, 0, 1, 3),
@@ -172,9 +168,25 @@ OPCODES: OpcodeMap = {
     "INVALID": (0xFE, 0, 0, 0),
     "DEBUG": (0xA5, 1, 0, 0),
     "BREAKPOINT": (0xA6, 0, 0, 0),
-    "TLOAD": (0x5C, 1, 1, (None, None, None, 100, 100)),
-    "TSTORE": (0x5D, 2, 0, (None, None, None, 100, 100)),
 }
+
+# opcodes which are introduced (or repriced) at a given fork; they are
+# applied cumulatively, oldest fork first.
+# note this scheme cannot *remove* an opcode at a fork. if that is ever
+# needed, the override mechanism has to be extended.
+OPCODE_OVERRIDES: dict[str, OpcodeMap] = {
+    "shanghai": {"PUSH0": (0x5F, 0, 1, 2)},
+    "cancun": {
+        "BLOBHASH": (0x49, 1, 1, 3),
+        "BLOBBASEFEE": (0x4A, 0, 1, 2),
+        "MCOPY": (0x5E, 3, 0, 3),
+        "TLOAD": (0x5C, 1, 1, 100),
+        "TSTORE": (0x5D, 2, 0, 100),
+    },
+}
+
+# an unrecognized fork name would silently never be applied
+assert OPCODE_OVERRIDES.keys() <= set(_evm_versions), "bad fork name in OPCODE_OVERRIDES"
 
 PSEUDO_OPCODES: OpcodeMap = {
     "CLAMP": (None, 3, 1, 70),
@@ -204,34 +216,31 @@ PSEUDO_OPCODES: OpcodeMap = {
     "DLOADBYTES": (None, 3, 0, 3),
 }
 
-IR_OPCODES: OpcodeMap = {**OPCODES, **PSEUDO_OPCODES}
+# an override sharing a name with a pseudo-opcode would silently replace
+# its metadata in the versioned IR opcode tables
+assert all(
+    ops.keys().isdisjoint(PSEUDO_OPCODES) for ops in OPCODE_OVERRIDES.values()
+), "opcode override collides with a pseudo-opcode"
+
+IR_OPCODES: OpcodeMap = {**BASE_OPCODES, **PSEUDO_OPCODES}
 
 
-def _gas(value: OpcodeValue, idx: int) -> Optional[OpcodeRulesetValue]:
-    gas: OpcodeGasCost = value[3]
-    if isinstance(gas, int):
-        return value[:3] + (gas,)
-    if len(gas) <= idx:
-        return value[:3] + (gas[-1],)
-    if gas[idx] is None:
-        return None
-    return value[:3] + (gas[idx],)
+def _mk_version_opcodes(opcodes: OpcodeMap, evm_version: str) -> OpcodeMap:
+    ret = opcodes.copy()
 
+    # apply the overrides for every fork up to and including the target
+    for forkname in _evm_versions[: EVM_VERSIONS[evm_version] + 1]:
+        ret.update(OPCODE_OVERRIDES.get(forkname, {}))
 
-def _mk_version_opcodes(opcodes: OpcodeMap, idx: int) -> OpcodeRulesetMap:
-    ret = {}
-    for k, v in opcodes.items():
-        gas = _gas(v, idx)
-        if gas is not None:
-            ret[k] = gas
     return ret
 
 
-_evm_opcodes: Dict[int, OpcodeRulesetMap] = {
-    v: _mk_version_opcodes(OPCODES, v) for v in EVM_VERSIONS.values()
+_evm_opcodes: dict[int, OpcodeMap] = {
+    i: _mk_version_opcodes(BASE_OPCODES, v) for v, i in EVM_VERSIONS.items()
 }
-_ir_opcodes: Dict[int, OpcodeRulesetMap] = {
-    v: _mk_version_opcodes(IR_OPCODES, v) for v in EVM_VERSIONS.values()
+
+_ir_opcodes: dict[int, OpcodeMap] = {
+    i: _mk_version_opcodes(IR_OPCODES, v) for v, i in EVM_VERSIONS.items()
 }
 
 
@@ -241,11 +250,11 @@ def get_active_evm_version():
     return EVM_VERSIONS[evm_version_str]
 
 
-def get_opcodes() -> OpcodeRulesetMap:
+def get_opcodes() -> OpcodeMap:
     return _evm_opcodes[get_active_evm_version()]
 
 
-def get_ir_opcodes() -> OpcodeRulesetMap:
+def get_ir_opcodes() -> OpcodeMap:
     return _ir_opcodes[get_active_evm_version()]
 
 
