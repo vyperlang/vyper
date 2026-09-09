@@ -50,9 +50,9 @@ def same_memory_layout(src_typ: VyperType, dst_typ: VyperType) -> bool:
     """Return True if `dst_typ.memory_bytes_required` bytes copied from memory
     laid out as `src_typ` form a valid `dst_typ` value.
 
-    `punnable` accepts a wider top-level DynArray capacity in `dst_typ`
-    (the data present has the same layout), but a flat copy of the
-    destination size would then read past the source.
+    `punnable` accepts a wider top-level DynArray capacity or bytestring
+    bound in `dst_typ` (the data present has the same layout), but a flat
+    copy of the destination size would then read past the source.
 
     Not `src_typ != dst_typ`: `TupleT` compares by its never-populated
     `members` dict, so any two tuple types are equal.
