@@ -72,4 +72,3 @@ def test_deterministic_literal_condition(cond):
         sink 2
     """
     _check_pre_post(pre, pre)
-
