@@ -601,8 +601,8 @@ bytes-oriented builtins such as ``concat``, ``slice``, ``convert``, ``empty`` an
 for example ``(uint256, Bytes[INF])``.
 
 Unbounded sequences are not supported in storage, transient storage, immutable
-module variables, struct members, static arrays, mappings, or nested inside
-another dynamic layout. For example,
+module variables, struct members, static arrays, mappings, or as the element
+type of another ``DynArray``, bounded or unbounded. For example,
 ``DynArray[Bytes[INF], INF]`` and ``DynArray[DynArray[uint256, INF], 3]`` are rejected.
 Tuple arguments and local tuple variables containing unbounded sequence members
 are also rejected.
