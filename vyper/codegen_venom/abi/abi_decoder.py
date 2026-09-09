@@ -375,31 +375,18 @@ def decode_unbounded_sequence_to_scratch(
 
     assert isinstance(typ, DArrayT)
     if hi is not None:
-        # Count bound, checked before the allocation below. `elem_static_size`
-        # is the head footprint every element occupies in the payload
-        # `[data_start, hi)`: its full ABI size for ABI-static elements, or the
-        # 32-byte offset word for ABI-dynamic ones (Bytes[N], String[N],
-        # DynArray[T, N], structs containing them). A well-formed encoding of
-        # `count` elements therefore needs at least `count * elem_static_size`
-        # payload bytes, so `count <= (hi - data_start) / elem_static_size` is
-        # a necessary condition and any larger count is provably a lie.
+        # Bound `count` by the payload before sizing the allocation below.
+        # `elem_static_size` is what each element occupies in the head area:
+        # its full ABI size for static elements, one offset word for dynamic
+        # ones. Any count above `(hi - data_start) / elem_static_size` is a lie.
         #
-        # For ABI-dynamic elements this bound is sound but loose. The scratch
-        # allocation is `32 + count * elem_mem_size` (elem_mem_size = padded
-        # element memory size, e.g. 544 for Bytes[512]) and is reserved before
-        # the per-element loop in _decode_dyn_array validates each element's
-        # head offset and tail (length <= maxlen, item_end <= hi). Head offsets
-        # may alias (non-canonical but in-bounds encodings are accepted), so a
-        # payload can claim close to payload/32 elements that all validate, and
-        # decoding can cost memory expansion of up to `elem_mem_size / 32`
-        # times the payload size (17x for Bytes[512], 129x for Bytes[4096]).
-        # Who pays depends on the ingress path: for calldata the sender does;
-        # for extcall returndata and abi_decode of foreign bytes the decoding
-        # contract pays for data it did not author. That is the same exposure
-        # as a bounded DynArray[T, N] return type with N = the claimed count
-        # (it reserves N * memsize(T) per call) and as Solidity's memory
-        # decoding of bytes[] (aliased heads copy per element there too), so
-        # no pre-scan of the tails is emitted here.
+        # For dynamic elements the bound is loose because head offsets may
+        # alias: a payload of P bytes can validly claim P/32 elements, each
+        # reserving the element's memory size, so decoding can expand memory
+        # to `memsize(T) / 32` times P (17x for Bytes[512]). Calldata charges
+        # that to the sender; returndata and abi_decode of foreign bytes
+        # charge the decoding contract. A bounded `DynArray[T, N]` with N
+        # equal to the claimed count costs the same, so no tail pre-scan.
         elem_static_size = typ.value_type.abi_type.embedded_static_size()
         ctx.assert_abi_dynarray_payload_in_bounds(
             src.operand, length, elem_static_size, hi, data_start=data_start
