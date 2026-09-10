@@ -23,6 +23,16 @@ def foo(i: int128) -> int128:
     false : int128 = i
     return false
     """,
+    """
+@external
+def foo():
+    convert = convert # builtin !
+    """,
+    """
+@external
+def foo():
+    as_wei_value = as_wei_value # builtin !
+    """,
 ]
 
 
