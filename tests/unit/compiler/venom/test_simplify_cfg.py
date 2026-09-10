@@ -247,6 +247,9 @@ def test_merge_jump_target_has_no_phi():
 def test_merge_jump_dedup_phi_when_direct_edge():
     """
     If the bypassed block's target is already a successor, avoid duplicating phi labels.
+    Both arms of `entry`'s `jnz` then converge on `@join`, so it must be
+    canonicalized to a `jmp` - a `jnz` with a single cfg successor breaks
+    consumers like `BranchOptimizationPass`.
     """
     pre = """
     _global:
@@ -276,7 +279,7 @@ def test_merge_jump_dedup_phi_when_direct_edge():
 
     entry:
         %x = source
-        jnz %cond, @join, @join
+        jmp @join
 
     other:
         %o = source

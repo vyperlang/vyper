@@ -115,7 +115,13 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
     ]
 )
 
-_REVERT_POSTAMBLE = [Label("revert"), *PUSH(0), "DUP1", "REVERT"]
+
+def _revert_postamble() -> list[AssemblyInstruction]:
+    # note: PUSH(0) is evm version dependent (PUSH0 is only available from
+    # shanghai on), so this must be constructed per-compilation rather than
+    # frozen into a module-level constant.
+    return [Label("revert"), *PUSH(0), "DUP1", "REVERT"]
+
 
 # Name of the assembler-level CONST used by the `initial_fmp` Venom opcode.
 # The CONST is declared at the end of assembly generation (after spill
@@ -207,7 +213,7 @@ class VenomCompiler:
     def generate_evm_assembly(self, no_optimize: bool = False) -> list[AssemblyInstruction]:
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
-        self.spiller.reset_peak_spill_end()
+        self.spiller.reset_for_codegen()
         self._uses_initial_fmp_const = False
         self._analyses_cache = None
         self._stack_cleanup_safety = None
@@ -250,7 +256,7 @@ class VenomCompiler:
         if self._uses_initial_fmp_const:
             asm = [CONST(_INITIAL_FMP_CONST, self._initial_fmp_value())] + asm
 
-        asm.extend(_REVERT_POSTAMBLE)
+        asm.extend(_revert_postamble())
         # Append data segment
         for data_section in self.ctx.data_segment:
             label = data_section.label
@@ -273,13 +279,11 @@ class VenomCompiler:
 
     def _initial_fmp_value(self) -> int:
         # Initial FMP must live above every function's static frame
-        # AND above every function's spill region. Spill slots start
-        # at fn_eom[fn] and grow upward; `peak_spill_end` tracks the
-        # maximum `fn_eom + N*32` reached across all functions during
-        # codegen. Placing the initial FMP at or above that value
-        # guarantees that the dynamic allocation region (bumped from
-        # FMP by each `bump` instruction) never aliases with any
-        # function's spill area.
+        # AND above every function's spill region. Spill regions start above
+        # the largest static frame and are disjoint between functions;
+        # `peak_spill_end` tracks the end of the last allocated region.
+        # Placing the initial FMP at or above that value guarantees that the
+        # dynamic allocation region never aliases with a spill area.
         eoms = [self.ctx.mem_allocator.fn_eom.get(fn, 0) for fn in self.ctx.functions.values()]
         max_eom = max(eoms, default=0)
         return ceil32(max(max_eom, self.spiller.peak_spill_end))

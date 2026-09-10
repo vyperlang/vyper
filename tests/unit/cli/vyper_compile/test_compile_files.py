@@ -15,7 +15,7 @@ from vyper.compiler.input_bundle import FilesystemInputBundle, JSONInputBundle
 from vyper.compiler.output_bundle import OutputBundle
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import BundleError, TypeMismatch
 from vyper.utils import sha256sum
 
 TAMPERED_INTEGRITY_SUM = sha256sum("tampered integrity sum")
@@ -606,6 +606,30 @@ def foo() -> uint256:
         _ = compile_files([archive_path], ["integrity", "bytecode", "layout"])
 
     assert e.value.message in w[0].message.message
+
+
+# test that a file which escapes all search paths (e.g. via a relative
+# import reaching above the search path root) produces a user-facing
+# error instead of a panic (GH 4706)
+def test_output_bundle_escaping_file(make_file, tmp_path, monkeypatch):
+    escaped_source = """
+x: constant(uint256) = 1
+    """
+    contract_source = """
+from .. import escaped
+
+y: constant(uint256) = escaped.x
+    """
+    make_file("escaped.vy", escaped_source)
+    contract_file = make_file("pkg/main.vy", contract_source)
+
+    monkeypatch.chdir(tmp_path / "pkg")
+
+    # sanity: compilation itself succeeds, only bundling fails
+    _ = compile_files([contract_file], ["bytecode"])
+
+    with pytest.raises(BundleError, match="escaped.vy"):
+        compile_files([contract_file], ["archive"])
 
 
 # maybe this belongs in tests/unit/compiler?

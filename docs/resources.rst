@@ -14,6 +14,12 @@ General
 - `Vyper greatest hits smart contract examples <https://github.com/pynchmeister/vyper-greatest-hits/tree/main/contracts>`_
 - `A curated list of Vyper resources, libraries, tools, and more <https://github.com/stars/pcaversaccio/lists/vyper>`_
 
+Editors
+-------
+
+- `vyper-lsp <https://github.com/vyperlang/vyper-lsp>`__ syntax highlighting and autocompletion for Visual Studio Code, Emacs, Vim and others
+- `Remix <https://remix.ethereum.org/>`__ - online environment for developing Ethereum smart contracts
+
 Frameworks and tooling
 ----------------------
 
@@ -28,6 +34,16 @@ Security
 --------
 
 - `VyperPunk – learn to secure and hack Vyper smart contracts <https://github.com/defcongroup0532/VyperPunk>`_
+
+Projects using Vyper
+--------------------
+
+- `Curve <https://github.com/curvefi/curve-stablecoin>`__
+- `Yearn <https://github.com/yearn/yearn-vaults>`__
+- `Lido <https://github.com/lidofinance/gate-seals>`__
+- `Ethereum <https://github.com/ethereum/sharding>`__
+- `Uniswap <https://github.com/Uniswap/v1-contracts> (v1)`__
+- `Cog Finance <https://github.com/CogFinance/Cog-Isolated-Lending>`
 
 Conference presentations
 ------------------------

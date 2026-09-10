@@ -261,11 +261,10 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         return node
 
-    def _visit_docstring(self, node):
+    def _extract_docstring(self, node):
         """
         Move a node docstring from body to `doc_string` and annotate it as `DocStr`.
         """
-        self.generic_visit(node)
 
         if node.body:
             n = node.body[0]
@@ -278,8 +277,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                 n.value.ast_type = "DocStr"
                 del node.body[0]
                 node.doc_string = n.value
-
-        return node
 
     def visit_Module(self, node):
         node.lineno = 1
@@ -297,10 +294,15 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         node.resolved_path = self._resolved_path
         node.source_sha256sum = sha256sum(self._source_code)
         node.source_id = self._source_id
-        return self._visit_docstring(node)
+
+        self.generic_visit(node)
+        self._extract_docstring(node)
+        return node
 
     def visit_FunctionDef(self, node):
-        return self._visit_docstring(node)
+        self.generic_visit(node)
+        self._extract_docstring(node)
+        return node
 
     def visit_ClassDef(self, node):
         """

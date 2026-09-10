@@ -2,6 +2,7 @@ from vyper.utils import SizeLimits, int_bounds, int_log2, is_power_of_two, wrap2
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.analysis.variable_range import VariableRangeAnalysis
+from vyper.venom.analysis.variable_range.evaluators import eval_compare
 from vyper.venom.basicblock import (
     COMPARATOR_INSTRUCTIONS,
     IRInstruction,
@@ -353,59 +354,6 @@ class AlgebraicOptimizationPass(IRPass):
         if inst.flippable and self._is_lit(ops[0]) and not self._is_lit(ops[1]):
             inst.flip()
 
-    def _try_range_cmp(
-        self, inst: IRInstruction, operands: list, is_gt: bool, signed: bool
-    ) -> int | None:
-        """Try to resolve a comparison to a constant using range analysis.
-        Returns 0 or 1 if resolved, None otherwise."""
-        a_op = operands[-1]  # first in text
-        b_op = operands[-2]  # second in text
-
-        # identify which operand is the literal and which is the variable
-        if self._is_lit(a_op) and not self._is_lit(b_op):
-            lit_val, var_op = a_op.value, b_op
-            lit_is_first = True
-        elif self._is_lit(b_op) and not self._is_lit(a_op):
-            lit_val, var_op = b_op.value, a_op
-            lit_is_first = False
-        else:
-            return None
-
-        var_range = self.range_analysis.get_range(var_op, inst)
-        if var_range.is_top or var_range.is_empty:
-            return None
-
-        # normalize literal to match range representation
-        if signed:
-            if var_range.hi > SizeLimits.MAX_INT256:
-                return None
-            lit_val = wrap256(lit_val, signed=True)
-        else:
-            if var_range.lo < 0:
-                return None
-            lit_val = wrap256(lit_val)
-
-        # determine effective comparison direction:
-        # lit_is_first with is_gt means "lit > var"
-        # lit_is_first without is_gt means "lit < var"
-        # flipping lit_is_first flips the direction
-        lit_gt_var = is_gt == lit_is_first
-
-        if lit_gt_var:
-            # lit > var: always true if lit > var.hi, always false if lit <= var.lo
-            if lit_val > var_range.hi:
-                return 1
-            if lit_val <= var_range.lo:
-                return 0
-        else:
-            # var > lit: always true if var.lo > lit, always false if var.hi <= lit
-            if var_range.lo > lit_val:
-                return 1
-            if var_range.hi <= lit_val:
-                return 0
-
-        return None
-
     def _optimize_comparator_instruction(self, inst, prefer_iszero):
         opcode, operands = inst.opcode, inst.operands
         assert opcode in COMPARATOR_INSTRUCTIONS  # sanity
@@ -419,10 +367,11 @@ class AlgebraicOptimizationPass(IRPass):
         is_gt = "g" in opcode
         signed = "s" in opcode
 
-        # Range-based comparison optimization.
-        # Try to resolve comparisons with one literal operand using
-        # range analysis on the other.
-        result = self._try_range_cmp(inst, operands, is_gt, signed)
+        # Range-based comparison optimization: fold if the operand ranges
+        # decide the comparison (literals are ranged as constants).
+        a_range = self.range_analysis.get_range(operands[-1], inst)  # first in text
+        b_range = self.range_analysis.get_range(operands[-2], inst)  # second in text
+        result = eval_compare(opcode, a_range, b_range).as_constant()
         if result is not None:
             self.updater.mk_assign(inst, IRLiteral(result))
             return

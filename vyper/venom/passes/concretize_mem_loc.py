@@ -1,3 +1,4 @@
+from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import BasePtrAnalysis, DFGAnalysis, MemLivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock
@@ -12,6 +13,15 @@ class ConcretizeMemLocPass(IRPass):
 
     def run_pass(self):
         self.allocator = self.function.ctx.mem_allocator
+
+        # The built-in pipelines freeze the FMP signature only after memory
+        # locations have been concretized. For text-round-tripped functions,
+        # `eom` is the authoritative record of that now-invisible static
+        # frame. Running this pass again would see no allocas and overwrite
+        # the restored EOM with zero, allowing stack spills to alias the frame.
+        if self._is_already_concretized():
+            return
+
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(self.dfg)
         self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
@@ -23,8 +33,14 @@ class ConcretizeMemLocPass(IRPass):
         already_allocated = [item for item in livesets if self.allocator.is_allocated(item[0])]
         to_allocate = [item for item in livesets if not self.allocator.is_allocated(item[0])]
         # (note this is *heuristic*; our goal is to minimize conflicts
-        # between livesets)
-        to_allocate.sort(key=lambda x: len(x[1]), reverse=False)
+        # between livesets). escaped allocas are live to the end of the
+        # function and so conflict with everything after their first use;
+        # allocate them first so they take the lowest offsets. memory
+        # expansion is paid for the highest address touched, so a small
+        # always-live alloca must not sit above a large, rarely-touched
+        # buffer.
+        escaped = self.mem_liveness.escaped
+        to_allocate.sort(key=lambda x: (x[0] not in escaped, len(x[1])))
 
         self.allocator.add_allocated([mem for mem, _ in already_allocated])
 
@@ -50,6 +66,18 @@ class ConcretizeMemLocPass(IRPass):
         self.analyses_cache.invalidate_analysis(MemLivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
+
+    def _is_already_concretized(self) -> bool:
+        fn = self.function
+        if fn._fmp_signature is None or fn not in self.allocator.fn_eom:
+            return False
+
+        if any(inst.opcode == "alloca" for bb in fn.get_basic_blocks() for inst in bb.instructions):
+            raise CompilerPanic(
+                f"Function {fn.name} is marked fmp_lowered but still contains alloca"
+            )
+
+        return True
 
     def _handle_bb(self, bb: IRBasicBlock):
         for inst in bb.instructions:
