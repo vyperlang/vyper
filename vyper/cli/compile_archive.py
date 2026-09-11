@@ -42,18 +42,21 @@ def compiler_data_from_zip(file_name, settings, no_bytecode_metadata):
         except (zipfile.BadZipFile, binascii.Error):
             raise NotZipInput() from e1
 
-    fcontents = archive.read("MANIFEST/compilation_targets").decode("utf-8")
+    input_bundle = ZipInputBundle(archive)
+    fcontents = input_bundle.read_file("MANIFEST/compilation_targets").decode("utf-8")
     compilation_targets = fcontents.splitlines()
 
     if len(compilation_targets) != 1:
         raise BadArchive("Multiple compilation targets not supported!")
 
-    input_bundle = ZipInputBundle(archive)
-
     storage_layout_path = "MANIFEST/storage_layout.json"
     storage_layout = None
-    if storage_layout_path in archive.namelist():
-        storage_layout_map = json.loads(archive.read(storage_layout_path).decode("utf-8"))
+    try:
+        storage_layout_contents = input_bundle.read_file(storage_layout_path)
+    except KeyError:
+        pass
+    else:
+        storage_layout_map = json.loads(storage_layout_contents.decode("utf-8"))
         storage_layout = input_bundle.load_json_file(storage_layout_map[compilation_targets[0]])
 
     mainpath = PurePath(compilation_targets[0])
@@ -62,10 +65,10 @@ def compiler_data_from_zip(file_name, settings, no_bytecode_metadata):
 
     settings = settings or Settings()
 
-    archive_settings_txt = archive.read("MANIFEST/settings.json").decode("utf-8")
+    archive_settings_txt = input_bundle.read_file("MANIFEST/settings.json").decode("utf-8")
     archive_settings = Settings.from_dict(json.loads(archive_settings_txt))
 
-    integrity = archive.read("MANIFEST/integrity").decode("utf-8").strip()
+    integrity = input_bundle.read_file("MANIFEST/integrity").decode("utf-8").strip()
 
     settings = merge_settings(
         settings, archive_settings, lhs_source="command line", rhs_source="archive settings"
