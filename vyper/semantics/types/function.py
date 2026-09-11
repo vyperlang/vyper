@@ -48,6 +48,10 @@ from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import OrderedSet, keccak256
 from vyper.warnings import Deprecation, vyper_warn
 
+# TODO: Forbid `self`/`Self`/... everywhere, would be a breaking change
+RESERVED_PARAM_NAMES = ["self"]
+KWARG_PARAM_NAMES = ["gas", "value", "skip_contract_check", "default_return_value"]
+
 
 @dataclass
 class _FunctionArg:
@@ -1094,7 +1098,7 @@ def _parse_args(
 
     for i, arg in enumerate(funcdef.args.args):
         argname = arg.arg
-        if argname in ("gas", "value", "skip_contract_check", "default_return_value"):
+        if argname in RESERVED_PARAM_NAMES or argname in KWARG_PARAM_NAMES:
             raise ArgumentException(
                 f"Cannot use '{argname}' as a variable name in a function input", arg
             )
