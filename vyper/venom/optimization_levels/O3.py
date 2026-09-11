@@ -1,4 +1,4 @@
-# We keep thise in separate files to allow for
+  # We keep thise in separate files to allow for
 # easier management of different optimization levels
 # and diffing between them.
 
@@ -37,6 +37,7 @@ from vyper.venom.passes import (
     RevertToAssert,
     SimplifyCFGPass,
     SingleUseExpansion,
+    LoopInvariantHoisting,
     TailMergePass,
 )
 
@@ -82,6 +83,7 @@ PASSES_O3: List[PassConfig] = [
     (DeadStoreElimination, {"addr_space": TRANSIENT}),
     AssignElimination,
     RemoveUnusedVariablesPass,
+    LoopInvariantHoisting,
     ConcretizeMemLocPass,
     FmpLoweringPass,
     # repairs the multiply-assigned FMP runner emitted by the lowering;
