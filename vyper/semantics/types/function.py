@@ -1104,10 +1104,9 @@ def _parse_args(
 
         type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
         if type_contains_nested_unbounded_sequence(type_):
-            raise StructureException(
-                "Function parameters cannot contain unbounded sequence types inside aggregate types",
-                arg.annotation,
-            )
+            msg = "Function parameters cannot contain unbounded sequence types"
+            msg += " inside aggregate types"
+            raise StructureException(msg, arg.annotation)
 
         if i < n_positional_args:
             positional_args.append(PositionalArg(argname, type_, ast_source=arg))

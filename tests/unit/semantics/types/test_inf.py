@@ -5,13 +5,7 @@ import pytest
 from vyper import ast as vy_ast
 from vyper import compiler
 from vyper.compiler.settings import Settings
-from vyper.exceptions import (
-    InvalidType,
-    StateAccessViolation,
-    StructureException,
-    TypeMismatch,
-    UndeclaredDefinition,
-)
+from vyper.exceptions import InvalidType, StructureException, TypeMismatch, UndeclaredDefinition
 from vyper.semantics.types import INF, BytesT, DArrayT, StringT
 from vyper.semantics.types.infinity import WILDCARD, Inf, Wildcard
 from vyper.semantics.types.shortcuts import UINT256_T
