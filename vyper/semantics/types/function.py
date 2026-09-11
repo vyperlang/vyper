@@ -48,8 +48,6 @@ from vyper.warnings import Deprecation, vyper_warn
 RESERVED_PARAM_NAMES = ["self"]
 KWARG_PARAM_NAMES = ["gas", "value", "skip_contract_check", "default_return_value"]
 
-FORBIDDEN_PARAM_NAMES = KWARG_PARAM_NAMES + RESERVED_PARAM_NAMES
-
 
 @dataclass
 class _FunctionArg:
@@ -1089,7 +1087,7 @@ def _parse_args(
 
     for i, arg in enumerate(funcdef.args.args):
         argname = arg.arg
-        if argname in FORBIDDEN_PARAM_NAMES:
+        if argname in RESERVED_PARAM_NAMES or argname in KWARG_PARAM_NAMES:
             raise ArgumentException(
                 f"Cannot use '{argname}' as a variable name in a function input", arg
             )
