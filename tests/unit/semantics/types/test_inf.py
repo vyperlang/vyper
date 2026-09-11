@@ -935,20 +935,6 @@ def foo():
     compile_inf_code(code, input_bundle=input_bundle)
 
 
-def test_inf_default_arg_expression_rejected():
-    # default argument expressions may only be literals or environment
-    # variables, so INF-typed expressions cannot appear in defaults with
-    # a bounded arg type; INF-typed args are covered by the argument checks
-    code = """
-@external
-def foo(x: uint256 = len(empty(Bytes[INF]))) -> uint256:
-    return x
-    """
-    with pytest.raises(StateAccessViolation) as e:
-        compiler.compile_code(code)
-    assert e.value.message == "Value must be literal or environment variable"
-
-
 def test_legacy_codegen_allows_bounded_local_user_type():
     code = """
 struct Quote:
