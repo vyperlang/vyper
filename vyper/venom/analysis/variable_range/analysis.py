@@ -114,7 +114,6 @@ class VariableRangeAnalysis(IRAnalysis):
                 break
             phi_range = self._phi_range(inst)
             self._write_range(state, inst.output, phi_range)
-
         return state
 
     def _run_block(self, bb: IRBasicBlock, entry_state: RangeState) -> RangeState:
@@ -445,7 +444,7 @@ class VariableRangeAnalysis(IRAnalysis):
         """
         result = self._copy_state(new_state)
         for var in result:
-            old_range = old_state.get(var, ValueRange.top())
+            old_range = old_state.get(var, ValueRange.empty())
             new_range = result[var]
             widened = self._widen_range(old_range, new_range)
             result[var] = widened
