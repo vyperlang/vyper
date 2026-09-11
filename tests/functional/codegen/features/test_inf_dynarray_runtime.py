@@ -2,6 +2,7 @@ import pytest
 
 from tests.evm_backends.abi import abi_decode, abi_encode
 from vyper.compiler import compile_code
+from vyper.exceptions import CodegenPanic
 from vyper.utils import method_id
 
 
@@ -918,6 +919,144 @@ def get_literal(addr: address) -> DynArray[uint256, 4]:
     caller = get_contract(caller_code)
     assert caller.get_empty(target.address) == []
     assert caller.get_literal(target.address) == [5, 6]
+
+
+def test_wildcard_arg_dynamic_element_roundtrip(get_contract):
+    target_code = """
+@external
+def data(x: DynArray[Bytes[10], 5]) -> uint256:
+    return len(x)
+    """
+
+    caller_code = """
+interface Source:
+    def data(x: DynArray[Bytes[10], ...]) -> uint256: nonpayable
+
+@external
+def get_empty(addr: address) -> uint256:
+    return extcall Source(addr).data([])
+
+@external
+def get_bounded(addr: address, xs: DynArray[Bytes[10], 5]) -> uint256:
+    return extcall Source(addr).data(xs)
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get_empty(target.address) == 0
+    assert caller.get_bounded(target.address, [b"abc", b"defg"]) == 2
+
+
+@pytest.mark.xfail(raises=CodegenPanic)
+def test_wildcard_tuple_return_forwarded_to_mixed_tuple_arg(get_contract):
+    target_code = """
+seen: public(uint256)
+
+@external
+def source() -> (Bytes[10], DynArray[uint256, 5]):
+    return b"hello", [1, 2, 3]
+
+@external
+def sink(input: (Bytes[10], DynArray[uint256, 5])):
+    self.seen = len(input[0]) * 100 + len(input[1])
+    """
+
+    caller_code = """
+interface Foo:
+    def source() -> (Bytes[...], DynArray[uint256, ...]): nonpayable
+    def sink(input: (Bytes[10], DynArray[uint256, ...])): nonpayable
+
+@external
+def bar(foo: Foo):
+    extcall foo.sink(extcall foo.source())
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    caller.bar(target.address)
+    assert target.seen() == 5 * 100 + 3
+
+
+def test_wildcard_arg_user_struct_element_empty(get_contract):
+    target_code = """
+struct S:
+    b: Bytes[10]
+
+@external
+def data(x: DynArray[S, 5]) -> uint256:
+    return len(x)
+    """
+
+    caller_code = """
+struct S:
+    b: Bytes[10]
+
+interface Source:
+    def data(x: DynArray[S, ...]) -> uint256: nonpayable
+
+@external
+def get_empty(addr: address) -> uint256:
+    return extcall Source(addr).data([])
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get_empty(target.address) == 0
+
+
+def test_wildcard_tuple_arg_empty_list_element(get_contract):
+    target_code = """
+@external
+def sink(input: (DynArray[uint256, 3], uint256)) -> uint256:
+    return len(input[0]) + input[1]
+    """
+
+    caller_code = """
+interface Sink:
+    def sink(input: (DynArray[uint256, ...], uint256)) -> uint256: nonpayable
+
+@external
+def do_it(addr: address) -> uint256:
+    return extcall Sink(addr).sink(([], 42))
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.do_it(target.address) == 42
+
+
+@pytest.mark.xfail(raises=CodegenPanic)
+def test_wildcard_arg_ternary_sarray_element(get_contract):
+    target_code = """
+seen: public(uint256)
+
+@external
+def bar() -> DynArray[uint256, 3]:
+    return [1, 2, 3]
+
+@external
+def foo(xs: DynArray[uint256, 3][1]):
+    self.seen = len(xs[0])
+    """
+
+    caller_code = """
+interface I:
+    def bar() -> DynArray[uint256, ...]: nonpayable
+    def foo(xs: DynArray[uint256, ...][1]): nonpayable
+
+@external
+def f(a: address, c: bool, ys: DynArray[uint256, 5][1]):
+    extcall I(a).foo([extcall I(a).bar()] if c else ys)
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+
+    caller.f(target.address, True, [[9, 9]])
+    assert target.seen() == 3
+
+    caller.f(target.address, False, [[9, 9]])
+    assert target.seen() == 2
 
 
 def test_inf_dynarray_abi_encode_default_tuple(get_contract):
