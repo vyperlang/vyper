@@ -78,10 +78,6 @@ class InterfaceT(_UserType):
         return TYPE_T(self._helper.get_member(attr, node))
 
     @property
-    def getter_signature(self):
-        return (), AddressT()
-
-    @property
     def abi_type(self) -> ABIType:
         return ABI_Address()
 
