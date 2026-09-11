@@ -7,6 +7,7 @@ from vyper.venom.analysis.variable_range.monotone_analysis import VariableRangeM
 from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX, SIGNED_MIN, ValueRange
 from vyper.venom.parser import parse_venom
 
+
 def _compare(fn, analysis: VariableRangeAnalysis, mono_analysis: VariableRangeMonotoneAnalysis):
     insts = []
     varz = []
@@ -17,7 +18,12 @@ def _compare(fn, analysis: VariableRangeAnalysis, mono_analysis: VariableRangeMo
 
     for inst in insts:
         for v in varz:
-            assert analysis.get_range(v, inst) == mono_analysis.get_range(v, inst), (v, inst, inst.parent)
+            assert analysis.get_range(v, inst) == mono_analysis.get_range(v, inst), (
+                v,
+                inst,
+                inst.parent,
+            )
+
 
 def _analyze(source: str):
     ctx = parse_venom(source)
