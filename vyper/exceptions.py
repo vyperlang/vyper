@@ -365,10 +365,6 @@ class JSONError(Exception):
         self.col_offset = col_offset
 
 
-class ParserException(Exception):
-    """Contract source cannot be parsed."""
-
-
 class BadArchive(Exception):
     """Bad archive"""
 

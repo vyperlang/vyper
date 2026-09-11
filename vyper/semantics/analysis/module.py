@@ -152,8 +152,22 @@ def _analyze_module_bodies(module_ast: vy_ast.Module) -> None:
     with override_global_namespace(namespace):
         analyze_functions(module_ast)
         _validate_exports_uses(module_ast, module_t)
+        _validate_initializable_modules(module_ast, module_t)
         _validate_initialized_modules(module_ast, module_t)
         _validate_used_modules(module_ast, module_t)
+
+
+def _validate_initializable_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
+    """Check all `initializes:` modules are stateful or abstract."""
+    for info in module_t.initialized_modules:
+        initialized_t = info.module_info.module_t
+        if not (initialized_t.is_stateful or initialized_t.is_abstract):
+            alias = info.module_info.alias
+            raise InitializerException(
+                f"Cannot initialize a stateless concrete module `{alias}`!",
+                info.node,
+                hint=f"remove `initializes: {alias}`",
+            )
 
 
 def _validate_used_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
@@ -414,6 +428,7 @@ def _validate_overrides(func_t: ContractFunctionT, node: vy_ast.FunctionDef):
 
         if abstract_t._overridden_by is not None:
             existing_override = abstract_t._overridden_by.ast_def
+            assert existing_override is not None
             existing_override_path = existing_override.module_node.path
             msg = f"`{module_info.alias}.{node.name}` was already overridden"
             msg += f" in `{existing_override_path}`!"
