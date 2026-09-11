@@ -1,8 +1,10 @@
+import sys
+
 import pytest
 
 from tests.ast_utils import deepequals
 from vyper.ast.parse import parse_to_ast
-from vyper.exceptions import SyntaxException
+from vyper.exceptions import CompilerPanic, SyntaxException
 
 
 def test_ast_equal():
@@ -53,3 +55,24 @@ def f():
     annotation = exc.annotations[0]
     assert (annotation.lineno, annotation.col_offset) == (3, 4)
     assert annotation.full_source_code == code
+
+
+@pytest.mark.parametrize(
+    "typ", ["uint256" + "[1]" * 500, "DynArray[" * 200 + "uint256" + ", 2]" * 200]
+)
+def test_deeply_nested_type_raises_compiler_panic(typ):
+    # py-evm, py_ecc raise the recursion limit (on import)
+    # so we lower it here so that it matches CPython's default
+    # hence restoring the behavior as it would be for users
+    old_limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(1000)
+    try:
+        code = f"x: {typ}"
+        with pytest.raises(CompilerPanic) as excinfo:
+            parse_to_ast(code)
+        assert excinfo.value.message.startswith(
+            "unhandled exception during parsing: "
+            "RecursionError: maximum recursion depth exceeded"
+        )
+    finally:
+        sys.setrecursionlimit(old_limit)
