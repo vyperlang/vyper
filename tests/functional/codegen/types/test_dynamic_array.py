@@ -1598,31 +1598,93 @@ def test_extend(get_contract, tx_failed, code, check_result, test_data):
 invalid_extend = [
     (
         """
-my_array: DynArray[uint256, 5]
-@external
-def foo(xs: DynArray[uint256, 6]) -> DynArray[uint256, 5]:
-    self.my_array.extend(xs)
-    return self.my_array
-    """,
-        TypeMismatch,  # Size of src darray is greater than dst darray
-    ),
-    (
-        """
 @external
 def foo() -> DynArray[uint256, 3]:
     x: DynArray[uint256, 3] = []
-    y: DynArray[uint256, 4] = []
+    y: DynArray[int128, 2] = [1, 2]
     x.extend(y)
     return x
     """,
-        TypeMismatch,  # Size of src darray is greater than dst darray
-    ),
+        TypeMismatch,  # value type mismatch
+    )
 ]
 
 
 @pytest.mark.parametrize("code,exception_type", invalid_extend)
 def test_invalid_extend(get_contract, assert_compile_failed, code, exception_type):
     assert_compile_failed(lambda: get_contract(code), exception_type)
+
+
+# `extend` accepts a DynArray of any length, so long as the value type is
+# identical; the capacity check happens at runtime.
+longer_src_extend_tests = [
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 6]) -> DynArray[uint256, 5]:
+    self.my_array = [1]
+    self.my_array.extend(xs)
+    return self.my_array
+    """,
+        lambda xs: [1] + xs if len(xs) <= 4 else None,
+    ),
+    (
+        """
+@external
+def foo(y: DynArray[uint256, 4]) -> DynArray[uint256, 3]:
+    x: DynArray[uint256, 3] = []
+    x.extend(y)
+    return x
+    """,
+        lambda y: y if len(y) <= 3 else None,
+    ),
+]
+
+
+@pytest.mark.parametrize("code,check_result", longer_src_extend_tests)
+@pytest.mark.parametrize("test_data", [[1, 2, 3, 4, 5, 6][:i] for i in range(7)])
+def test_extend_longer_src(get_contract, tx_failed, code, check_result, test_data):
+    c = get_contract(code)
+    expected_result = check_result(test_data)
+    if expected_result is None:
+        # None is sentinel to indicate txn should revert
+        with tx_failed():
+            c.foo(test_data)
+    else:
+        assert c.foo(test_data) == expected_result
+
+
+def test_extend_longer_src_empty(get_contract):
+    code = """
+@external
+def foo() -> DynArray[uint256, 3]:
+    x: DynArray[uint256, 3] = [1, 2, 3]
+    x.extend(empty(DynArray[uint256, 10]))
+    return x
+    """
+    c = get_contract(code)
+    assert c.foo() == [1, 2, 3]
+
+
+def test_extend_longer_src_struct(get_contract, tx_failed):
+    code = """
+struct Foo:
+    x: uint256
+
+my_array: DynArray[Foo, 2]
+
+@external
+def foo(y: DynArray[Foo, 5]) -> DynArray[Foo, 2]:
+    self.my_array = [Foo(x=1)]
+    self.my_array.extend(y)
+    return self.my_array
+    """
+    c = get_contract(code)
+    assert c.foo([]) == [(1,)]
+    assert c.foo([(2,)]) == [(1,), (2,)]
+    with tx_failed():
+        c.foo([(2,), (3,)])
 
 
 extend_complex_tests = [
