@@ -8,12 +8,12 @@ def test_minmax(get_contract):
     minmax_test = """
 @external
 def foo() -> decimal:
-    return min(3.0, 5.0) + max(10.0, 20.0) + min(200.1, 400.0) + max(3000.0, 8000.02) + min(50000.003, 70000.004)  # noqa: E501
+    return min(3.0, 5.0) + max(10.0, 20.0) + min(200.1, 400.0) + max(3000.0, 8000.02) + min(50000.003, 70000.004)
 
 @external
 def goo() -> uint256:
     return min(3, 5) + max(40, 80)
-    """
+    """  # noqa: E501
 
     c = get_contract(minmax_test)
     assert c.foo() == decimal_to_int("58223.123")
