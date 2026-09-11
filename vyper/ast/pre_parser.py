@@ -1,4 +1,3 @@
-import bisect
 import enum
 import io
 import re
@@ -367,7 +366,17 @@ class PreParser:
         pts = self._shift_points.get(lineno)
         if not pts:
             return 0
-        # bisect_right on col: the last shift point with col_key <= col is at
-        # index i - 1 (0 means no shift point applies yet).
-        i = bisect.bisect_right(pts, (col, float("inf")))
-        return pts[i - 1][1] if i > 0 else 0
+
+        # shift which applies is the closest one that is on the left
+        shift = None
+        for c, s in pts:
+            if c <= col:
+                shift = s
+            else:
+                # pts is sorted, all other points will have c > col
+                break
+
+        if shift is None:
+            return 0
+
+        return shift
