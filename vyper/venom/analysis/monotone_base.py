@@ -62,8 +62,8 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
             instructions = list(reversed(instructions))
 
         for inst in instructions:
-            current_lattice = self._transfer_function(inst, current_lattice)
             self.inst_lattice[inst] = current_lattice.copy()
+            current_lattice = self._transfer_function(inst, current_lattice)
 
         if bb not in self.bb_output or self.bb_output[bb] != current_lattice:
             self.bb_output[bb] = current_lattice
