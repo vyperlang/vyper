@@ -374,6 +374,7 @@ class _IRnodeLowerer:
             rounds_bound = code.args[3]
             body = code.args[4]
 
+            assert not (isinstance(rounds.value, int) and 0 > rounds.value)
             assert isinstance(i_name.value, str)  # help mypy
 
             entry_dest = self.mksymbol("loop_start")
@@ -387,8 +388,8 @@ class _IRnodeLowerer:
 
             # stack: i
 
-            # assert rounds <= round_bound
-            if rounds != rounds_bound or rounds_bound.value == 0:
+            # assert rounds <= rounds_bound
+            if not (isinstance(rounds.value, int) and rounds.value <= rounds_bound.value):
                 # stack: i, rounds
                 o.extend(self._compile_r(rounds_bound, height + 2))
                 # stack: i, rounds, rounds_bound
@@ -397,6 +398,8 @@ class _IRnodeLowerer:
                 # internally generated repeats.
                 o.extend(["DUP2", "GT"] + self._assert_false())
 
+            # if (0 == rounds) { goto exit_dest; }
+            if not (isinstance(rounds.value, int) and rounds.value != 0):
                 # stack: i, rounds
                 # if (0 == rounds) { goto end_dest; }
                 o.extend(["DUP1", "ISZERO", *JUMPI(exit_dest)])
