@@ -1,10 +1,11 @@
-from __future__ import annotations
-
-from collections import deque
-from typing import Iterable, Optional
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import Optional
 
 from vyper.utils import wrap256
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, IRAnalysis
+from vyper.venom.analysis import DFGAnalysis
+from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis.monotone_base import Direction, LatticeBase, MonotoneAnalysis
 from vyper.venom.basicblock import (
     IRBasicBlock,
     IRInstruction,
@@ -13,9 +14,18 @@ from vyper.venom.basicblock import (
     IROperand,
     IRVariable,
 )
+from vyper.venom.function import IRFunction
 
 from .evaluators import eval_op
 from .value_range import SIGNED_MAX, SIGNED_MIN, UNSIGNED_MAX, RangeState, ValueRange
+
+
+@dataclass
+class RangeLattice(LatticeBase):
+    data: RangeState
+
+    def copy(self):
+        return RangeLattice(self.data.copy())
 
 
 def _operand_range(operand: IROperand, env: RangeState) -> ValueRange:
@@ -27,109 +37,50 @@ def _operand_range(operand: IROperand, env: RangeState) -> ValueRange:
     return ValueRange.top()
 
 
-class VariableRangeAnalysis(IRAnalysis):
-    """
-    Flow-sensitive range analysis over Venom IR.
-
-    Keeps environments at block entries/exits plus a snapshot before every
-    instruction so clients can query ranges at arbitrary points.
-    """
-
-    cfg: CFGAnalysis
-    dfg: DFGAnalysis
-    _entry_state: dict[IRBasicBlock, Optional[RangeState]]  # range state at block entry
-    _exit_state: dict[IRBasicBlock, Optional[RangeState]]  # range state at block exit
-    _inst_entry_env: dict[IRInstruction, RangeState]  # range state before each instruction
-    _visit_count: dict[IRBasicBlock, int]  # number of times block visited (for widening)
-
+class VariableRangeMonotoneAnalysis(MonotoneAnalysis[RangeLattice]):
     # after this many visits to a block, start applying widening
     WIDEN_THRESHOLD = 2
 
-    def analyze(self) -> None:
-        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+    def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
+        super().__init__(analyses_cache, function)
+
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self._visit_count: dict[IRBasicBlock, int] = defaultdict(lambda: 0)
 
-        self._entry_state = {bb: None for bb in self.function.get_basic_blocks()}
-        self._exit_state = {bb: None for bb in self.function.get_basic_blocks()}
-        self._inst_entry_env = {}
-        self._visit_count = {bb: 0 for bb in self.function.get_basic_blocks()}
+    def _direction(self) -> Direction:
+        return Direction.Forward
 
-        worklist = deque([self.function.entry])
+    def _join(self, a: RangeLattice, b: RangeLattice) -> RangeLattice:
+        common_vars = set(a.data.keys())
+        common_vars.intersection_update(b.data.keys())
 
-        while worklist:
-            bb = worklist.popleft()
-            self._visit_count[bb] += 1
+        merged: RangeState = {}
+        for var in common_vars:
+            rng = ValueRange.empty()
+            rng = rng.union(a.data[var])
+            rng = rng.union(b.data[var])
+            if not rng.is_top:
+                merged[var] = rng
+        return RangeLattice(merged)
 
-            entry_state = self._compute_entry_state(bb)
-            if entry_state != self._entry_state[bb]:
-                self._entry_state[bb] = entry_state
-            exit_state = self._run_block(bb, entry_state)
+    def _bottom(self) -> RangeLattice:
+        return RangeLattice(dict())
 
-            if exit_state != self._exit_state[bb]:
-                self._exit_state[bb] = exit_state
-                for succ in self.cfg.cfg_out(bb):
-                    if succ not in worklist:
-                        worklist.append(succ)
+    def _transfer_function(self, inst: IRInstruction, input_lattice: RangeLattice) -> RangeLattice:
+        if inst.opcode == "phi" or not inst.has_outputs:
+            return input_lattice
 
-    def get_range(self, operand: IROperand, inst: IRInstruction) -> ValueRange:
-        """
-        Get the variable's value range of an operand at the point
-        just before a given instruction.
+        new_range = self._evaluate_inst(inst, input_lattice.data)
+        for output in inst.get_outputs():
+            self._write_range(input_lattice.data, output, new_range)
 
-        Literals are normalized to signed representation since the range system
-        uses signed bounds internally. This ensures values >= 2^255 are treated
-        as negative numbers (e.g., 2^255 becomes SIGNED_MIN).
-        """
-        if isinstance(operand, IRLiteral):
-            return ValueRange.constant(wrap256(operand.value, signed=True))
-        if not isinstance(operand, IRVariable):
-            return ValueRange.top()
+        return input_lattice
 
-        env = self._inst_entry_env.get(inst)
-        if env is None:
-            return ValueRange.top()
-        return env.get(operand, ValueRange.top())
-
-    def _compute_entry_state(self, bb: IRBasicBlock) -> RangeState:
-        """
-        Compute incoming environment for a block, handling phis and widening.
-        """
-        if len(self.cfg.cfg_in(bb)) == 0:
-            state: RangeState = {}
+    def _write_range(self, state: RangeState, var: IRVariable, rng: ValueRange) -> None:
+        if rng.is_top:
+            state.pop(var, None)
         else:
-            pred_states: dict[IRBasicBlock, RangeState] = {}
-            for pred in self.cfg.cfg_in(bb):
-                pred_states[pred] = self._edge_state(pred, bb)
-            state = self._join_states(pred_states.values())
-            state = self._normalize_state(state)
-
-            # Apply widening if visited too many times (loop back-edge)
-            if self._visit_count[bb] > self.WIDEN_THRESHOLD:
-                old_state = self._entry_state[bb]
-                if old_state is not None:
-                    state = self._widen_states(old_state, state)
-
-        for inst in bb.instructions:
-            if inst.opcode != "phi" or inst.output is None:
-                break
-            phi_range = self._phi_range(inst)
-            self._write_range(state, inst.output, phi_range)
-        return state
-
-    def _run_block(self, bb: IRBasicBlock, entry_state: RangeState) -> RangeState:
-        env = self._copy_state(entry_state)
-
-        for inst in bb.instructions:
-            self._inst_entry_env[inst] = self._copy_state(env)
-
-            if inst.opcode == "phi" or not inst.has_outputs:
-                continue
-
-            new_range = self._evaluate_inst(inst, env)
-            for output in inst.get_outputs():
-                self._write_range(env, output, new_range)
-
-        return env
+            state[var] = rng
 
     def _evaluate_inst(self, inst: IRInstruction, env: RangeState) -> ValueRange:
         """
@@ -165,37 +116,99 @@ class VariableRangeAnalysis(IRAnalysis):
 
         return eval_op(opcode, lhs, rhs)
 
-    def _phi_range(self, inst: IRInstruction) -> ValueRange:
-        assert inst.opcode == "phi"
-        phi_range = ValueRange.empty()
-        for label, var in inst.phi_operands:
-            pred_bb = self.function.get_basic_block(label.value)
-            pred_state = self._edge_state(pred_bb, inst.parent)
-            assert isinstance(var, IRVariable)  # phi operands are always variables
-            phi_range = phi_range.union(pred_state.get(var, ValueRange.top()))
-        return phi_range if not phi_range.is_empty else ValueRange.top()
-
-    def _edge_state(self, pred: IRBasicBlock, succ: IRBasicBlock) -> RangeState:
-        pred_exit = self._exit_state[pred]
-        # If predecessor hasn't been processed yet, use empty state
-        if pred_exit is None:
-            return {}
-
-        state = self._copy_state(pred_exit)
-        term = pred.instructions[-1]
+    def _edge_transfer(
+        self, source: IRBasicBlock, target: IRBasicBlock, input_lattice: RangeLattice
+    ) -> RangeLattice:
+        state = input_lattice.copy()
+        term = source.instructions[-1]
         if term.opcode != "jnz":
             return state
 
         cond, true_label, false_label = term.operands
         branch: Optional[bool] = None
-        if isinstance(true_label, IRLabel) and true_label.value == succ.label.value:
+        if isinstance(true_label, IRLabel) and true_label.value == target.label.value:
             branch = True
-        elif isinstance(false_label, IRLabel) and false_label.value == succ.label.value:
+        elif isinstance(false_label, IRLabel) and false_label.value == target.label.value:
             branch = False
 
         if branch is None:
             return state
-        return self._apply_condition(cond, branch, state)
+        new_state = self._apply_condition(cond, branch, state.data)
+        return RangeLattice(new_state)
+
+    def _pre_basicblock_transfer(
+        self, bb: IRBasicBlock, input_lattice: RangeLattice
+    ) -> RangeLattice:
+        self._normalize_state(input_lattice.data)
+        self._visit_count[bb] += 1
+
+        state = input_lattice.data
+
+        # Apply widening if visited too many times (loop back-edge)
+        if self._visit_count[bb] > self.WIDEN_THRESHOLD:
+            old_state = self.inst_lattice[bb.instructions[0]].data
+            if old_state is not None:
+                state = self._widen_states(old_state, state)
+
+        for inst in bb.instructions:
+            if inst.opcode != "phi" or inst.output is None:
+                break
+            phi_range = self._phi_range(inst)
+            self._write_range(state, inst.output, phi_range)
+
+        return RangeLattice(state)
+
+    def _widen_states(self, old_state: RangeState, new_state: RangeState) -> RangeState:
+        """
+        Widen per-variable ranges to guarantee convergence in loops
+        """
+        result = dict(new_state)
+        for var in result:
+            old_range = old_state.get(var, ValueRange.top())
+            new_range = result[var]
+            widened = self._widen_range(old_range, new_range)
+            result[var] = widened
+        return result
+
+    def _widen_range(self, old_range: ValueRange, new_range: ValueRange) -> ValueRange:
+        """
+        Return a widened range between two iterations.
+
+        If the new bounds exceed the previous ones, widen to TOP; otherwise keep
+        the new (tighter or equal) bounds.
+        """
+        if old_range.is_top or new_range.is_top:
+            return ValueRange.top()
+        if old_range.is_empty:
+            return new_range
+        if new_range.is_empty:
+            return old_range
+
+        # If the range is growing, widen to top
+        # TODO: more precise widening possible using a finite set of
+        # thresholds (e.g., powers of 2, type boundaries) instead of
+        # jumping straight to top.
+        if new_range.lo < old_range.lo or new_range.hi > old_range.hi:
+            return ValueRange.top()
+
+        return new_range
+
+    def _phi_range(self, inst: IRInstruction) -> ValueRange:
+        assert inst.opcode == "phi"
+        phi_range = ValueRange.empty()
+        for label, var in inst.phi_operands:
+            pred_bb = self.function.get_basic_block(label.value)
+            pred_lattice = self.bb_output[pred_bb]
+            pred_state = self._edge_transfer(pred_bb, inst.parent, pred_lattice).data
+            assert isinstance(var, IRVariable)  # phi operands are always variables
+            phi_range = phi_range.union(pred_state.get(var, ValueRange.top()))
+        return phi_range if not phi_range.is_empty else ValueRange.top()
+
+    def _normalize_state(self, state: RangeState) -> RangeState:
+        to_delete = [var for var, rng in state.items() if rng.is_top]
+        for var in to_delete:
+            del state[var]
+        return state
 
     def _apply_condition(self, operand: IROperand, is_true: bool, state: RangeState) -> RangeState:
         if isinstance(operand, IRLiteral):
@@ -402,73 +415,21 @@ class VariableRangeAnalysis(IRAnalysis):
                 else:
                     self._write_range(state, var, current.clamp(bound, max_bound))
 
-    def _join_states(self, states: Iterable[RangeState]) -> RangeState:
-        states = list(states)
-        if not states:
-            return {}
-
-        # Missing vars in any predecessor mean TOP; only keep vars in all preds.
-        common_vars = set(states[0].keys())
-        for state in states[1:]:
-            common_vars.intersection_update(state.keys())
-
-        merged: RangeState = {}
-        for var in common_vars:
-            rng = ValueRange.empty()
-            for state in states:
-                rng = rng.union(state[var])
-                if rng.is_top:
-                    break
-            if not rng.is_top:
-                merged[var] = rng
-        return merged
-
-    def _write_range(self, state: RangeState, var: IRVariable, rng: ValueRange) -> None:
-        if rng.is_top:
-            state.pop(var, None)
-        else:
-            state[var] = rng
-
-    def _copy_state(self, state: RangeState) -> RangeState:
-        return dict(state)
-
-    def _normalize_state(self, state: RangeState) -> RangeState:
-        to_delete = [var for var, rng in state.items() if rng.is_top]
-        for var in to_delete:
-            del state[var]
-        return state
-
-    def _widen_states(self, old_state: RangeState, new_state: RangeState) -> RangeState:
+    def get_range(self, operand: IROperand, inst: IRInstruction) -> ValueRange:
         """
-        Widen per-variable ranges to guarantee convergence in loops
-        """
-        result = self._copy_state(new_state)
-        for var in result:
-            old_range = old_state.get(var, ValueRange.empty())
-            new_range = result[var]
-            widened = self._widen_range(old_range, new_range)
-            result[var] = widened
-        return result
+        Get the variable's value range of an operand at the point
+        just before a given instruction.
 
-    def _widen_range(self, old_range: ValueRange, new_range: ValueRange) -> ValueRange:
+        Literals are normalized to signed representation since the range system
+        uses signed bounds internally. This ensures values >= 2^255 are treated
+        as negative numbers (e.g., 2^255 becomes SIGNED_MIN).
         """
-        Return a widened range between two iterations.
-
-        If the new bounds exceed the previous ones, widen to TOP; otherwise keep
-        the new (tighter or equal) bounds.
-        """
-        if old_range.is_top or new_range.is_top:
-            return ValueRange.top()
-        if old_range.is_empty:
-            return new_range
-        if new_range.is_empty:
-            return old_range
-
-        # If the range is growing, widen to top
-        # TODO: more precise widening possible using a finite set of
-        # thresholds (e.g., powers of 2, type boundaries) instead of
-        # jumping straight to top.
-        if new_range.lo < old_range.lo or new_range.hi > old_range.hi:
+        if isinstance(operand, IRLiteral):
+            return ValueRange.constant(wrap256(operand.value, signed=True))
+        if not isinstance(operand, IRVariable):
             return ValueRange.top()
 
-        return new_range
+        env = self.inst_lattice.get(inst)
+        if env is None:
+            return ValueRange.top()
+        return env.data.get(operand, ValueRange.top())
