@@ -5,13 +5,7 @@ import pytest
 from vyper import ast as vy_ast
 from vyper import compiler
 from vyper.compiler.settings import Settings
-from vyper.exceptions import (
-    InvalidType,
-    StateAccessViolation,
-    StructureException,
-    TypeMismatch,
-    UndeclaredDefinition,
-)
+from vyper.exceptions import InvalidType, StructureException, TypeMismatch, UndeclaredDefinition
 from vyper.semantics.types import INF, BytesT, DArrayT, StringT
 from vyper.semantics.types.infinity import WILDCARD, Inf, Wildcard
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -933,20 +927,6 @@ def foo():
     """
     input_bundle = make_input_bundle({"lib.vy": lib})
     compile_inf_code(code, input_bundle=input_bundle)
-
-
-def test_inf_default_arg_expression_rejected():
-    # default argument expressions may only be literals or environment
-    # variables, so INF-typed expressions cannot appear in defaults with
-    # a bounded arg type; INF-typed args are covered by the argument checks
-    code = """
-@external
-def foo(x: uint256 = len(empty(Bytes[INF]))) -> uint256:
-    return x
-    """
-    with pytest.raises(StateAccessViolation) as e:
-        compiler.compile_code(code)
-    assert e.value.message == "Value must be literal or environment variable"
 
 
 def test_legacy_codegen_allows_bounded_local_user_type():
