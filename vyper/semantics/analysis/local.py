@@ -48,6 +48,7 @@ from vyper.semantics.types import (
     VOID_TYPE,
     AddressT,
     BoolT,
+    BottomT,
     DArrayT,
     ErrorT,
     EventT,
@@ -60,6 +61,7 @@ from vyper.semantics.types import (
     StructT,
     TupleT,
     VyperType,
+    is_bounded_length,
     is_type_t,
     map_void,
 )
@@ -994,6 +996,19 @@ class ExprVisitor(VyperNodeVisitorBase):
                     )
 
             for arg, arg_typ in zip(node.args, func_type.argument_types):
+                if arg_typ.has_wildcard:
+                    # wildcard param types (only legal in interface
+                    # signatures) are not representable in node metadata --
+                    # codegen needs a concrete type to compute buffer sizes.
+                    # substitute the arg's own type when one is available.
+                    arg_typ = next(
+                        (
+                            t
+                            for t in get_possible_types_from_node(arg)
+                            if t.is_subtype_of(arg_typ) and not t.has_wildcard
+                        ),
+                        arg_typ,
+                    )
                 self.visit(arg, arg_typ)
             for kwarg in node.keywords:
                 # We should only see special kwargs
@@ -1037,6 +1052,23 @@ class ExprVisitor(VyperNodeVisitorBase):
                 self.function_analyzer._handle_modification(node.func.value)
             assert len(node.args) == len(func_type.arg_types)
             for arg, arg_type in zip(node.args, func_type.arg_types):
+                if isinstance(arg_type, DArrayT) and not is_bounded_length(arg_type.length):
+                    # unbounded-length arg types (e.g. the arg type of
+                    # `DynArray.extend()`) are not representable in node
+                    # metadata. substitute the arg's own type when it is
+                    # concrete, else the dst type (e.g. `x.extend([])`, or
+                    # `x.extend(staticcall y.bar())` with unbounded return).
+                    arg_type = next(
+                        (
+                            t
+                            for t in get_possible_types_from_node(arg)
+                            if t.is_subtype_of(arg_type)
+                            and isinstance(t, DArrayT)
+                            and is_bounded_length(t.length)
+                            and not isinstance(t.value_type, BottomT)
+                        ),
+                        func_type.underlying_type,
+                    )
                 self.visit(arg, arg_type)
         else:
             # builtin functions and interfaces

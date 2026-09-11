@@ -266,7 +266,11 @@ class DArrayT(_SequenceT):
 
         self.add_member("append", MemberFunctionT(self, "append", [self.value_type], None, True))
         self.add_member("pop", MemberFunctionT(self, "pop", [], self.value_type, True))
-        self.add_member("extend", MemberFunctionT(self, "extend", [self], None, True))
+        if length is not INF:
+            # `extend` accepts a DynArray of any length for the same value type
+            # note: skip the wildcard type itself to avoid recursion
+            any_length = DArrayT(value_type, INF)
+            self.add_member("extend", MemberFunctionT(self, "extend", [any_length], None, True))
 
     def __repr__(self):
         return f"DynArray[{self.value_type}, {self.length}]"
