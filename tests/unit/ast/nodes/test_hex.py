@@ -41,3 +41,13 @@ def test_invalid_checksum(code):
     with pytest.raises(InvalidLiteral):
         vyper_module = vy_ast.parse_to_ast(code)
         analyze_module_single(vyper_module)
+
+
+def test_invalid_hex_literal_error_preserves_source_spelling():
+    literal = "0x6b175474e89094c44da98b954eedeac495271d0F"
+    vyper_module = vy_ast.parse_to_ast(f"foo: constant(bytes20) = {literal}")
+
+    with pytest.raises(InvalidLiteral) as exc_info:
+        analyze_module_single(vyper_module)
+
+    assert f"literal value '{literal}'" in str(exc_info.value)
