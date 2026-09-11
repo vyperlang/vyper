@@ -267,6 +267,8 @@ class PreParser:
             self._parse(code)
         except TokenError as e:
             raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
+        except SyntaxError as e:
+            raise SyntaxException(e.args[0], code, e.lineno, e.offset) from e
 
     def _parse(self, code: str):
         adjustments: dict = {}
