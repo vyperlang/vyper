@@ -8,7 +8,7 @@ from typing import Optional
 
 from vyper.ast import nodes as vy_ast
 from vyper.ast.pre_parser import PreParser
-from vyper.exceptions import CompilerPanic, ParserException, SyntaxException
+from vyper.exceptions import CompilerPanic, SyntaxException
 from vyper.utils import sha256sum
 from vyper.warnings import Deprecation, vyper_warn
 
@@ -71,8 +71,6 @@ def _parse_to_ast(
     list
         Untyped, unoptimized Vyper AST nodes.
     """
-    if "\x00" in vyper_source:
-        raise ParserException("No null bytes (\\x00) allowed in the source code.")
     pre_parser = PreParser(is_interface)
     pre_parser.parse(vyper_source)
 
@@ -276,11 +274,10 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
         return node
 
-    def _visit_docstring(self, node):
+    def _extract_docstring(self, node):
         """
         Move a node docstring from body to `doc_string` and annotate it as `DocStr`.
         """
-        self.generic_visit(node)
 
         if node.body:
             n = node.body[0]
@@ -294,8 +291,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                 del node.body[0]
                 node.doc_string = n.value
 
-        return node
-
     def visit_Module(self, node):
 
         # TODO: is this the best place for these? maybe they can be on
@@ -304,10 +299,15 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         node.resolved_path = self._resolved_path
         node.source_sha256sum = sha256sum(self._source_code)
         node.source_id = self._source_id
-        return self._visit_docstring(node)
+
+        self.generic_visit(node)
+        self._extract_docstring(node)
+        return node
 
     def visit_FunctionDef(self, node):
-        return self._visit_docstring(node)
+        self.generic_visit(node)
+        self._extract_docstring(node)
+        return node
 
     def visit_ClassDef(self, node):
         """

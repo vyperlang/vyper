@@ -6,6 +6,7 @@ from vyper.exceptions import (
     CompilerPanic,
     FeatureException,
     InstantiationException,
+    InvalidReference,
     InvalidType,
     StructureException,
     UndeclaredDefinition,
@@ -14,7 +15,7 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import TYPE_T, VyperType
+from vyper.semantics.types.base import TYPE_T, BottomT, VyperType
 from vyper.semantics.types.infinity import INF, WILDCARD, LengthUpperBound
 
 # TODO maybe this should be merged with .types/base.py
@@ -102,6 +103,9 @@ def type_from_annotation(
         settings = get_global_settings()
         if settings and not settings.get_enable_decimals():
             raise FeatureException("decimals are not allowed unless `--enable-decimals` is set")
+
+    if isinstance(typ, BottomT):
+        raise InvalidType("`Never` is not allowed in user programs.", node)
 
     return typ
 
@@ -220,8 +224,10 @@ def get_index_value(node: vy_ast.VyperNode) -> LengthUpperBound:
         # this gives a more accurate error in case of e.g. a typo in a constant variable name
         try:
             get_possible_types_from_node(node)
-        except StructureException:
-            # StructureException is a very broad error, better to raise InvalidType in this case
+        except (StructureException, InvalidReference):
+            # StructureException is a very broad error, better to raise InvalidType in this case.
+            # InvalidReference is raised for a parameterized type name (e.g. `Bytes[String]`),
+            # which is the same user mistake as `Bytes[uint256]` and wants the same message.
             pass
         raise InvalidType("Subscript must be a literal integer", node)
 

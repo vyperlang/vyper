@@ -15,6 +15,7 @@ from vyper.evm.address_space import (
     AddrSpace,
 )
 from vyper.exceptions import CompilerPanic
+from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
@@ -25,6 +26,47 @@ from vyper.venom.memory_location import (
     memory_read_ops,
     memory_write_ops,
 )
+
+# instructions through which BasePtrAnalysis propagates pointer facts (see
+# `_handle_inst`); a pointer flowing into these stays visible to SSA-based
+# liveness.
+PTR_PROPAGATION_OPS = frozenset(["add", "sub", "assign", "phi", "bump", "dalloca", "alloca"])
+
+# comparisons produce a boolean, not a value derived from their operands:
+# a pointer compared here (e.g. an ABI-decode bounds check) cannot flow
+# onward, so it does not escape.
+_COMPARISON_OPS = frozenset(["lt", "gt", "slt", "sgt", "eq", "iszero"])
+
+
+def escaping_operands(inst: IRInstruction) -> list[IRVariable]:
+    """
+    The variable operands of `inst` that escape SSA pointer tracking:
+    occurrences not accounted for by the BasePtr propagation grammar or
+    by the known-safe (address/length) positions of the shared memory-op
+    descriptions -- e.g. the stored *value* of a store-family
+    instruction, or an operand of `invoke`/`ret`/`retfmp`/`setfmp`. An
+    escaped pointer can re-enter through memory where BasePtrAnalysis
+    cannot see it. Fail closed.
+    """
+    if inst.opcode in PTR_PROPAGATION_OPS or inst.opcode in _COMPARISON_OPS:
+        return []
+
+    safe: list[IROperand] = []
+    for access_ops in (memory_read_ops(inst), memory_write_ops(inst)):
+        for op in (access_ops.ofst, access_ops.size):
+            if op is not None:
+                safe.append(op)
+        # post_init aliases max_size to size; only count a
+        # distinct max_size to avoid inflating safe occurrences.
+        max_size = access_ops.max_size
+        if max_size is not None and max_size is not access_ops.size:
+            safe.append(max_size)
+
+    operands = [op for op in inst.operands if isinstance(op, IRVariable)]
+    # an operand escapes if it occurs more often than safe positions
+    # account for (`mstore %x, %x` stores the pointer value at its own
+    # address).
+    return [op for op in operands if operands.count(op) > safe.count(op)]
 
 
 @dataclass(frozen=True)
@@ -56,10 +98,15 @@ class BasePtrAnalysis(IRAnalysis):
     pointers.
     """
 
-    var_to_mem: dict[IRVariable, set[Ptr]]
+    var_to_mem: dict[IRVariable, OrderedSet[Ptr]]
+    vars_in_allocations: dict[Allocation, set[IRVariable]]
+    _untracked_root_memo: dict[IRVariable, bool]
+    _untracked_root_active: set[IRVariable]
 
     def analyze(self):
         self.var_to_mem = dict()
+        self._untracked_root_memo = dict()
+        self._untracked_root_active = set()
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
         worklist = deque(self.cfg.dfs_pre_walk)
@@ -75,6 +122,22 @@ class BasePtrAnalysis(IRAnalysis):
                 for succ in self.cfg.cfg_out(bb):
                     worklist.append(succ)
 
+        self.vars_in_allocations = dict()
+        for var, ptrs in self.var_to_mem.items():
+            for ptr in ptrs:
+                if ptr.base_alloca not in self.vars_in_allocations:
+                    self.vars_in_allocations[ptr.base_alloca] = set()
+                self.vars_in_allocations[ptr.base_alloca].add(var)
+
+    def new_gep(self, var: IRVariable, allocation: Allocation, offset: int):
+        self.new(var, Ptr(allocation, offset))
+
+    def new(self, var: IRVariable, ptr: Ptr):
+        self.var_to_mem[var] = OrderedSet([ptr])
+        if ptr.base_alloca not in self.vars_in_allocations:
+            self.vars_in_allocations[ptr.base_alloca] = set()
+        self.vars_in_allocations[ptr.base_alloca].add(var)
+
     def _handle_inst(self, inst: IRInstruction) -> bool:
         opcode = inst.opcode
 
@@ -87,7 +150,7 @@ class BasePtrAnalysis(IRAnalysis):
         # subsequent bumps/invokes and does not alias any known region.
         if opcode == "bump":
             ptr_out = inst.get_outputs()[0]
-            return self._add_possible_ptrs(ptr_out, {Ptr.from_alloca(inst)})
+            return self._add_possible_ptrs(ptr_out, OrderedSet([Ptr.from_alloca(inst)]))
 
         # `getfmp` (a read of the FMP virtual register) intentionally gets no
         # pointer facts: its output is an *untracked* base, so anything rooted
@@ -99,14 +162,14 @@ class BasePtrAnalysis(IRAnalysis):
             return False
 
         if opcode in ("alloca", "dalloca"):
-            return self._add_possible_ptrs(inst.output, {Ptr.from_alloca(inst)})
+            return self._add_possible_ptrs(inst.output, OrderedSet([Ptr.from_alloca(inst)]))
 
         elif opcode in ("add", "sub"):
             rhs, lhs = inst.operands
-            lhs_ptrs = self.get_possible_ptrs(lhs) if isinstance(lhs, IRVariable) else set()
-            rhs_ptrs = self.get_possible_ptrs(rhs) if isinstance(rhs, IRVariable) else set()
+            lhs_ptrs = self.get_possible_ptrs(lhs) if isinstance(lhs, IRVariable) else OrderedSet()
+            rhs_ptrs = self.get_possible_ptrs(rhs) if isinstance(rhs, IRVariable) else OrderedSet()
 
-            out_ptrs: set[Ptr] = set()
+            out_ptrs: OrderedSet[Ptr] = OrderedSet()
 
             # Preserve exact offsets when one side is a pointer and the other
             # is a known integer literal.
@@ -128,7 +191,7 @@ class BasePtrAnalysis(IRAnalysis):
                 return self._add_possible_ptrs(inst.output, out_ptrs)
 
         elif opcode == "phi":
-            phi_sources = set()
+            phi_sources: OrderedSet[Ptr] = OrderedSet()
             for _, var in inst.phi_operands:
                 assert isinstance(var, IRVariable)  # mypy help
                 var_sources = self.get_possible_ptrs(var)
@@ -140,7 +203,7 @@ class BasePtrAnalysis(IRAnalysis):
 
         return False
 
-    def _add_possible_ptrs(self, var: IRVariable, ptrs: set[Ptr]) -> bool:
+    def _add_possible_ptrs(self, var: IRVariable, ptrs: OrderedSet[Ptr]) -> bool:
         if len(ptrs) == 0:
             return False
 
@@ -150,7 +213,7 @@ class BasePtrAnalysis(IRAnalysis):
         # values on different paths. Keep facts monotonic so a later
         # non-pointer assignment cannot erase a base pointer that may still
         # reach a use through another path.
-        original = self.var_to_mem.get(var, set())
+        original = self.var_to_mem.get(var, OrderedSet())
         new_ptrs = self._normalize_ptrs(original | ptrs)
         if new_ptrs == original:
             return False
@@ -158,12 +221,12 @@ class BasePtrAnalysis(IRAnalysis):
         self.var_to_mem[var] = new_ptrs
         return True
 
-    def _normalize_ptrs(self, ptrs: set[Ptr]) -> set[Ptr]:
+    def _normalize_ptrs(self, ptrs: OrderedSet[Ptr]) -> OrderedSet[Ptr]:
         offsets_by_base: dict[Allocation, set[int | None]] = {}
         for ptr in ptrs:
             offsets_by_base.setdefault(ptr.base_alloca, set()).add(ptr.offset)
 
-        ret: set[Ptr] = set()
+        ret: OrderedSet[Ptr] = OrderedSet()
         for base_alloca, offsets in offsets_by_base.items():
             if len(offsets) == 1:
                 ret.add(Ptr(base_alloca, next(iter(offsets))))
@@ -200,6 +263,9 @@ class BasePtrAnalysis(IRAnalysis):
         assert isinstance(offset, IRVariable)
         ptr = self.ptr_from_op(offset)
         if ptr is None:
+            return MemoryLocation(offset=None, size=size)
+
+        if self.pointer_may_include_untracked_root(offset):
             return MemoryLocation(offset=None, size=size)
 
         return MemoryLocation(offset=ptr.offset, size=size, alloca=ptr.base_alloca)
@@ -324,5 +390,151 @@ class BasePtrAnalysis(IRAnalysis):
 
         return MemoryLocation.EMPTY
 
-    def get_possible_ptrs(self, var: IRVariable) -> set[Ptr]:
-        return self.var_to_mem.get(var, set())
+    def get_possible_ptrs(self, var: IRVariable) -> OrderedSet[Ptr]:
+        return self.var_to_mem.get(var, OrderedSet())
+
+    def escaping_allocations(self) -> OrderedSet[Allocation]:
+        """
+        The allocations whose pointer escapes SSA tracking (see
+        `escaping_operands`). Accesses through a re-entered pointer are
+        invisible to this analysis, so clients must assume the allocation
+        stays reachable: FmpLoweringPass never reclaims such a `dalloca`,
+        MemLivenessAnalysis keeps such an `alloca` live to the end of the
+        function.
+        """
+        escaped: OrderedSet[Allocation] = OrderedSet()
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                for op in escaping_operands(inst):
+                    for ptr in self.get_possible_ptrs(op):
+                        escaped.add(ptr.base_alloca)
+        return escaped
+
+    def aliases_of_allocation(self, alloca: Allocation) -> Optional[set[IRVariable]]:
+        """
+        All variables that point into `alloca`.
+
+        Returns None if any variable may point into `alloca` *and* somewhere
+        else -- another allocation, or an untracked address merged in through a
+        phi -- since callers that rewrite through these aliases cannot prove
+        every use stays within `alloca`.
+        """
+        aliases: set[IRVariable] = set()
+
+        for var, ptrs in self.var_to_mem.items():
+            if len(ptrs) == 0:
+                continue
+            if not any(ptr.base_alloca == alloca for ptr in ptrs):
+                continue
+            if any(ptr.base_alloca != alloca for ptr in ptrs):
+                return None
+            if self.pointer_may_include_untracked_root(var):
+                return None
+            aliases.add(var)
+
+        return aliases
+
+    def pointer_may_include_untracked_root(self, var: IRVariable) -> bool:
+        """
+        Return True when `var` may carry an address that is not rooted in a
+        tracked allocation on some phi/assign path (e.g. a param or
+        calldata-derived pointer). Fails closed (True) on def cycles.
+        """
+        # a variable with no pointer facts at all is itself an untracked
+        # root; the recursive walk assumes its callers guard on this.
+        if len(self.get_possible_ptrs(var)) == 0:
+            return True
+        return self._pointer_may_include_untracked_root_r(var)
+
+    def _pointer_may_include_untracked_root_r(self, var: IRVariable) -> bool:
+        # A value whose facts point only into one allocation can still carry an
+        # *untracked* address through phi/assign chains: an operand with no
+        # pointer facts (a param, a calldata-derived pointer, ...) contributes
+        # nothing to the base-pointer union, so the result looks like a clean
+        # alias while actually selecting an off-allocation address on that path.
+        # Such a value is not a provable alias of the allocation.
+        #
+        # The result is path-independent, so completed results are memoized;
+        # `_untracked_root_active` only guards against on-path cycles, which
+        # fail closed. A cycle-tainted result is always True, so memoizing the
+        # frames that complete on a cycle path stays conservative.
+        if var in self._untracked_root_memo:
+            return self._untracked_root_memo[var]
+        if var in self._untracked_root_active:
+            return True
+
+        self._untracked_root_active.add(var)
+        ret = self._untracked_root_from_def(var)
+        self._untracked_root_active.remove(var)
+        self._untracked_root_memo[var] = ret
+        return ret
+
+    def _untracked_root_from_def(self, var: IRVariable) -> bool:
+        # Keep this dependency lazy: importing DFGAnalysis at module scope
+        # creates a cycle through vyper.venom.analysis.__init__.
+        from vyper.venom.analysis.dfg import DFGAnalysis
+
+        # requested lazily (not in analyze()): this query runs after other
+        # passes may have invalidated DFGAnalysis without touching this
+        # analysis, so a reference held from analyze() could be stale.
+        dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        inst = dfg.get_producing_instruction(var)
+        # every var reaching this walk has pointer facts (callers guard on
+        # this), and facts are only ever attached to instruction outputs
+        assert inst is not None, var
+
+        if inst.opcode == "phi":
+            for _, op in inst.phi_operands:
+                assert isinstance(op, IRVariable)  # mypy help
+                if len(self.get_possible_ptrs(op)) == 0:
+                    return True
+                if self._pointer_may_include_untracked_root_r(op):
+                    return True
+            return False
+
+        if inst.opcode == "assign":
+            op = inst.operands[0]
+            if not isinstance(op, IRVariable):
+                return True
+            if len(self.get_possible_ptrs(op)) == 0:
+                return True
+            return self._pointer_may_include_untracked_root_r(op)
+
+        if inst.opcode in ("add", "sub"):
+            for op in inst.get_input_variables():
+                if len(self.get_possible_ptrs(op)) == 0:
+                    continue
+                if self._pointer_may_include_untracked_root_r(op):
+                    return True
+            return False
+
+        # Tracked roots: the pointer originates here, so no operand can
+        # smuggle in an untracked address.
+        if inst.opcode in ("bump", "alloca", "dalloca"):
+            return False
+
+        # A variable can retain pointer facts from an earlier definition in
+        # pre-SSA input. Any producer not modeled above may therefore be a
+        # non-pointer redefinition, or a new derivation form whose roots this
+        # walk does not understand. Both cases are ambiguous, so fail closed.
+        return True
+
+    def instruction_derives_pointer_from(self, inst: IRInstruction, var: IRVariable) -> bool:
+        """
+        Whether `inst` forwards pointer provenance from `var` to its output.
+
+        This intentionally asks the analysis facts instead of matching opcodes:
+        if BasePtrAnalysis learns a new pure pointer-derivation form, callers
+        that walk pointer-use graphs should inherit that knowledge.
+        """
+        if inst.num_outputs != 1:
+            return False
+        if var not in inst.get_input_variables():
+            return False
+        if len(self.get_possible_ptrs(inst.output)) == 0:
+            return False
+        if inst.get_read_effects() & effects.MEMORY != effects.EMPTY:
+            return False
+        if inst.get_write_effects() & effects.MEMORY != effects.EMPTY:
+            return False
+        return True

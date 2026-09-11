@@ -3,6 +3,7 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.compiler.output import build_abi_output
 from vyper.compiler.phases import CompilerData
+from vyper.compiler.settings import Settings
 
 source_codes = [
     """
@@ -89,6 +90,53 @@ def foo(s: decimal) -> decimal:
         },
     ]
     assert out["abi"] == expected_abi
+
+
+def test_inf_abi_output_uses_experimental_codegen():
+    code = """
+@external
+def echo(x: Bytes[INF]) -> Bytes[INF]:
+    return x
+    """
+
+    abi = compile_code(code, output_formats=["abi"], settings=Settings(experimental_codegen=True))[
+        "abi"
+    ]
+
+    assert abi[0]["inputs"] == [{"name": "x", "type": "bytes"}]
+    assert abi[0]["outputs"] == [{"name": "", "type": "bytes"}]
+
+    abi_with_gas = compile_code(
+        code,
+        output_formats=["abi"],
+        settings=Settings(experimental_codegen=True),
+        show_gas_estimates=True,
+    )["abi"]
+    assert abi_with_gas[0]["gas"] is None
+
+
+def test_interface_abi_gas_estimates():
+    code = """
+@external
+@view
+def foo() -> uint256:
+    ...
+    """
+
+    abi = compile_code(
+        code, contract_path="foo.vyi", output_formats=["abi"], show_gas_estimates=True
+    )["abi"]
+
+    assert abi == [
+        {
+            "stateMutability": "view",
+            "type": "function",
+            "name": "foo",
+            "inputs": [],
+            "outputs": [{"name": "", "type": "uint256"}],
+            "gas": None,
+        }
+    ]
 
 
 def test_custom_error_abi():
@@ -283,8 +331,6 @@ def bar():
     main = """
 import lib1
 
-initializes: lib1
-
 exports: lib1.foo
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
@@ -424,8 +470,6 @@ def foo():
     main = """
 import lib1
 
-initializes: lib1
-
 exports: lib1.foo
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
@@ -458,7 +502,6 @@ def foo():
     """
     main = """
 import lib1
-initializes: lib1
 
 # not exported/reachable from selector table
 @internal
