@@ -14,6 +14,7 @@ class Direction(Enum):
     Forward = 1
     Backwards = 2
 
+
 class LatticeBase:
     def copy(self) -> Lattice:  # type: ignore
         raise NotImplementedError()  # pragma: no cover
@@ -86,7 +87,13 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
 
         for pred in predecessors:
             lattice = self.bb_output[pred]
-            lattice = self._edge_transfer(pred, bb, lattice)
+            if self._direction() == Direction.Forward:
+                # edge goes pred -> bb
+                lattice = self._edge_transfer(pred, bb, lattice)
+            else:
+                # backwards: `pred` is actually a successor of bb,
+                # the edge goes bb -> pred
+                lattice = self._edge_transfer(bb, pred, lattice)
             input_lattices.append(lattice)
 
         if not input_lattices:
