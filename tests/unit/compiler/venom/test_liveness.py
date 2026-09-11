@@ -55,7 +55,6 @@ def test_liveness_phi_with_branching():
     # Check that both analyses give consistent results
     for bb in fn.get_basic_blocks():
         for inst in bb.instructions:
-            if inst.opcode == "phi":
-                orig_live = orig.live_vars_at(inst)
-                new_live = new.live_vars_at(inst)
-                assert orig_live == new_live, (inst, orig_live, new_live)
+            orig_live = orig.live_vars_at(inst)
+            new_live = new.live_vars_at(inst)
+            assert orig_live == new_live, (inst, orig_live, new_live)
