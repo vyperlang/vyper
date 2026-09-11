@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.arithmetic import clamp_basetype
+from vyper.codegen_venom.builtins._call import BuiltinCall, is_slice_view
 from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.types import (
-    AddressT,
     BytesM_T,
     BytesT,
     StringT,
@@ -49,8 +49,9 @@ def _new_slice_output(ctx: VenomCodegenContext, out_t, length: IROperand) -> Vyp
     return ctx.new_temporary_value(out_t)
 
 
-def _lower_concat_bounded(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
-    from vyper.codegen_venom.expr import Expr
+def _lower_concat_bounded(call: BuiltinCall) -> VyperValue:
+    node = call.node
+    ctx = call.ctx
 
     b = ctx.builder
     args = node.args
@@ -85,8 +86,8 @@ def _lower_concat_bounded(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperV
 
         if isinstance(arg_t, _BytestringT):
             # Variable-length bytes/string: copy data, advance by actual length
-            # lower_value() handles storage -> memory copy if needed
-            arg_ptr = Expr(arg_node, ctx).lower_value()
+            # The prepared input is already stable in memory.
+            arg_ptr = call.operand(arg_node)
             assert isinstance(arg_ptr, IRVariable)
             arg_len = b.mload(arg_ptr)
             arg_data = b.add(arg_ptr, IRLiteral(32))
@@ -98,7 +99,7 @@ def _lower_concat_bounded(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperV
         else:
             # Fixed bytesM: the value is already left-aligned in 32 bytes
             # Store full 32 bytes and advance by M
-            arg_val = Expr(arg_node, ctx).lower_value()
+            arg_val = call.operand(arg_node)
             m = arg_t.m
             offset = ctx.ptr_load(offset_local.ptr())
             dst = b.add(data_ptr.operand, offset)
@@ -112,7 +113,7 @@ def _lower_concat_bounded(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperV
     return out_val
 
 
-def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+def lower_concat(call: BuiltinCall) -> VyperValue:
     """
     concat(a, b, ...) -> bytes | string
 
@@ -120,7 +121,8 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     BytesM args contribute fixed M bytes, bytestring args contribute
     their dynamic length.
     """
-    from vyper.codegen_venom.expr import Expr
+    node = call.node
+    ctx = call.ctx
 
     b = ctx.builder
     args = node.args
@@ -128,7 +130,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     out_typ = node._metadata["type"]
     assert isinstance(out_typ, _BytestringT)
     if not is_unbounded_bytestring_type(out_typ):
-        return _lower_concat_bounded(node, ctx)
+        return _lower_concat_bounded(call)
 
     lowered_args: list[tuple[_BytestringT | BytesM_T, IROperand, IROperand]] = []
     total_len: IROperand = IRLiteral(0)
@@ -138,13 +140,13 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     for arg_node in args:
         arg_t = arg_node._metadata["type"]
         if isinstance(arg_t, _BytestringT):
-            arg_vv = Expr(arg_node, ctx).lower()
-            arg_ptr = ctx.unwrap(arg_vv)
+            arg_vv = call.value(arg_node)
+            arg_ptr = arg_vv.operand
             assert isinstance(arg_ptr, IRVariable)
             arg_len: IROperand = b.mload(arg_ptr)
             lowered_args.append((arg_t, arg_ptr, arg_len))
         else:  # BytesM_T
-            arg_val = Expr(arg_node, ctx).lower_value()
+            arg_val = call.operand(arg_node)
             arg_len = IRLiteral(arg_t.m)
             lowered_args.append((arg_t, arg_val, arg_len))
 
@@ -211,14 +213,15 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     return out_val
 
 
-def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+def lower_slice(call: BuiltinCall) -> VyperValue:
     """
     slice(b, start, length) -> bytes | string
 
     Extract substring from byte array or string.
     Handles special cases: msg.data, self.code, <address>.code.
     """
-    from vyper.codegen_venom.expr import Expr
+    node = call.node
+    ctx = call.ctx
 
     b = ctx.builder
 
@@ -230,22 +233,20 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     out_t = node._metadata["type"]
 
     # Check for adhoc slice macros (msg.data, self.code, <addr>.code)
-    if _is_adhoc_slice(src_node):
-        return _lower_adhoc_slice(node, ctx)
+    if is_slice_view(src_node):
+        return _lower_adhoc_slice(call)
 
-    # Evaluate arguments in left-to-right order for correct order of evaluation
-    # (src must be evaluated before start/length, since their side effects may modify src)
     src_len: IROperand
     src_data: IROperand
     if isinstance(src_t, _BytestringT):
-        # lower_value() handles storage -> memory copy if needed
-        src_ptr = Expr(src_node, ctx).lower_value()
+        # The prepared input is already stable in memory.
+        src_ptr = call.operand(src_node)
         assert isinstance(src_ptr, IRVariable)
         src_len = b.mload(src_ptr)
         src_data = b.add(src_ptr, IRLiteral(32))
     elif isinstance(src_t, BytesM_T):
         # bytesM: fixed length, value is the data (left-aligned)
-        src_val = Expr(src_node, ctx).lower_value()
+        src_val = call.operand(src_node)
         src_len = IRLiteral(src_t.m)
         # Need to store to memory first to slice from it
         tmp_buf = ctx.allocate_buffer(32)
@@ -253,15 +254,14 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         src_data = tmp_buf._ptr
     else:
         # bytes32 or other 32-byte type
-        src_val = Expr(src_node, ctx).lower_value()
+        src_val = call.operand(src_node)
         src_len = IRLiteral(32)
         tmp_buf = ctx.allocate_buffer(32)
         b.mstore(tmp_buf._ptr, src_val)
         src_data = tmp_buf._ptr
 
-    # Evaluate start and length AFTER src to maintain left-to-right evaluation order
-    start = Expr(start_node, ctx).lower_value()
-    length = Expr(length_node, ctx).lower_value()
+    start = call.operand(start_node)
+    length = call.operand(length_node)
 
     _assert_slice_bounds(ctx, start, length, src_len)
 
@@ -279,32 +279,14 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     return out_val
 
 
-def _is_adhoc_slice(node: vy_ast.VyperNode) -> bool:
-    """Check if node represents msg.data, self.code, or <addr>.code."""
-    if not isinstance(node, vy_ast.Attribute):
-        return False
-
-    # msg.data
-    if isinstance(node.value, vy_ast.Name):
-        if node.value.id == "msg" and node.attr == "data":
-            return True
-        if node.value.id == "self" and node.attr == "code":
-            return True
-
-    # <addr>.code
-    if node.attr == "code" and isinstance(node.value._metadata["type"], AddressT):
-        return True
-
-    return False
-
-
-def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+def _lower_adhoc_slice(call: BuiltinCall) -> VyperValue:
     """
     Lower slice() for special sources: msg.data, self.code, <addr>.code.
 
     These use specialized opcodes: calldatacopy, codecopy, extcodecopy.
     """
-    from vyper.codegen_venom.expr import Expr
+    node = call.node
+    ctx = call.ctx
 
     b = ctx.builder
 
@@ -312,8 +294,8 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
     start_node = node.args[1]
     length_node = node.args[2]
 
-    start = Expr(start_node, ctx).lower_value()
-    length = Expr(length_node, ctx).lower_value()
+    start = call.operand(start_node)
+    length = call.operand(length_node)
 
     out_t = node._metadata["type"]
 
@@ -346,7 +328,7 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
             return out_val
 
     # <addr>.code: use extcodecopy
-    addr = Expr(src_node.value, ctx).lower_value()
+    addr = call.operand(src_node.value)
     src_len = b.extcodesize(addr)
     _assert_slice_bounds(ctx, start, length, src_len)
     out_val, out_data = _alloc_output()
@@ -356,14 +338,15 @@ def _lower_adhoc_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValu
     return out_val
 
 
-def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_extract32(call: BuiltinCall) -> IROperand:
     """
     extract32(b, start, output_type=bytes32) -> bytes32 | int | address
 
     Extract 32 bytes from bytearray at given position.
     Result type can be specified via output_type kwarg.
     """
-    from vyper.codegen_venom.expr import Expr
+    node = call.node
+    ctx = call.ctx
 
     b = ctx.builder
 
@@ -371,26 +354,23 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     start_node = node.args[1]
     src_t = src_node._metadata["type"]
 
-    # Evaluate arguments in left-to-right order for correct order of evaluation
-    # (src must be evaluated before start, since start's side effects may modify src)
     src_len: IROperand
     src_data: IROperand
     if isinstance(src_t, _BytestringT):
-        # lower_value() handles storage -> memory copy if needed
-        src_ptr = Expr(src_node, ctx).lower_value()
+        # The prepared input is already stable in memory.
+        src_ptr = call.operand(src_node)
         assert isinstance(src_ptr, IRVariable)
         src_len = b.mload(src_ptr)
         src_data = b.add(src_ptr, IRLiteral(32))
     else:
         # bytes32 or other fixed type - shouldn't happen but handle it
-        src_val = Expr(src_node, ctx).lower_value()
+        src_val = call.operand(src_node)
         src_len = IRLiteral(32)
         tmp_buf = ctx.allocate_buffer(32)
         b.mstore(tmp_buf._ptr, src_val)
         src_data = tmp_buf._ptr
 
-    # Evaluate start AFTER src to maintain left-to-right evaluation order
-    start = Expr(start_node, ctx).lower_value()
+    start = call.operand(start_node)
 
     # Bounds check: start + 32 <= length
     _assert_slice_bounds(ctx, start, IRLiteral(32), src_len)

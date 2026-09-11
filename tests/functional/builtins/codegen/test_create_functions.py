@@ -1199,8 +1199,13 @@ def deploy_from_calldata(s: Bytes[1024], arg: uint256, salt: bytes32) -> address
 
 # evaluation of the value kwarg changes the value of the salt kwarg.
 # value kwarg comes after the salt kwarg in the source code.
-@pytest.mark.xfail(raises=AssertionError, reason="salt kwarg is evaluated after value kwarg")
-def test_raw_create_order_of_eval_of_kwargs(get_contract, env, create2_address_of, keccak):
+def test_raw_create_order_of_eval_of_kwargs(
+    get_contract, env, create2_address_of, keccak, experimental_codegen, request
+):
+    if not experimental_codegen:
+        request.node.add_marker(
+            pytest.mark.xfail(raises=AssertionError, reason="legacy evaluates salt after value")
+        )
     to_deploy_code = """
 foo: public(uint256)
 
