@@ -243,9 +243,6 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                     node.end_lineno, node.end_col_offset
                 )
         else:
-            assert not hasattr(node, "col_offset")
-            assert not hasattr(node, "end_lineno")
-            assert not hasattr(node, "end_col_offset")
             # node doesn't have the position fields, copy from parent
             # (they will already have been adjusted)
 
@@ -253,6 +250,7 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             parent = self._parents[-1]
 
             for field_name in LINE_INFO_FIELDS:
+                assert not hasattr(node, field_name)
                 parent_field = getattr(parent, field_name)
                 assert parent_field is not None
                 setattr(node, field_name, parent_field)
