@@ -137,6 +137,7 @@ def foo():
         assert c.arr(i) == i
 
 
+@pytest.mark.xfail(strict=True, raises=CompilerPanic, reason="risky storage overlap")
 def test_array_index_overlap(get_contract, experimental_codegen):
     if not experimental_codegen:
         pytest.xfail("legacy codegen still rejects risky subscript overlap")
@@ -160,6 +161,7 @@ def bar() -> uint256:
     assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
+@pytest.mark.xfail(strict=True, raises=CompilerPanic, reason="risky storage overlap")
 def test_array_index_overlap_extcall(get_contract, experimental_codegen):
     if not experimental_codegen:
         pytest.xfail("legacy codegen still rejects risky subscript overlap")
@@ -212,6 +214,7 @@ def calculate_index() -> uint256:
     assert c.bar() == 1
 
 
+@pytest.mark.xfail(strict=True, raises=CompilerPanic, reason="risky storage overlap")
 def test_array_index_overlap_attribute(get_contract, experimental_codegen):
     if not experimental_codegen:
         pytest.xfail("legacy codegen still rejects risky subscript overlap")
@@ -341,3 +344,38 @@ def foo(i: uint256) -> uint256:
     with tx_failed():
         c.foo(0)
     pytest.xfail("compilation succeeded with correct bytecode, but should have rejected `[][i]`")
+
+
+@pytest.mark.parametrize("location", ["storage", "transient"])
+@pytest.mark.parametrize("bound", [5, 100000, 2**64])
+def test_storage_overlap_rejected_without_capacity_copy(location, bound):
+    typ = f"DynArray[DynArray[uint256, {bound}], 1]"
+    if location == "transient":
+        typ = f"transient({typ})"
+    code = f"""
+a: {typ}
+
+@external
+def foo() -> uint256:
+    return self.a[0][self.bump()]
+
+@internal
+def bump() -> uint256:
+    self.a.pop()
+    return 0
+    """
+    with pytest.raises(CompilerPanic, match="risky overlap"):
+        compile_code(code, output_formats=["bytecode"])
+
+
+def test_memory_overlap_keeps_snapshot(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.xfail("legacy rejects risky subscript overlap")
+    code = """
+@external
+def foo() -> uint256:
+    a: DynArray[DynArray[uint256, 3], 2] = [[7], [0]]
+    return a[0][a.pop()[0]]
+    """
+    c = get_contract(code)
+    assert c.foo() == 7
