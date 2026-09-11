@@ -69,3 +69,15 @@ def test_undeclared_def_exception(bad_code):
     with pytest.raises(UndeclaredDefinition) as e:
         compiler.compile_code(bad_code)
     assert "(hint: )" not in str(e.value)
+
+
+def test_undeclared_name_as_subscript():
+    # get_index_value also catches InvalidReference so a parameterized type name
+    # reports as a bad subscript. that must not hide an undeclared name
+    code = """
+@external
+def foo():
+    x: uint256[NOPE] = [0]
+    """
+    with pytest.raises(UndeclaredDefinition, match="'NOPE' has not been declared"):
+        compiler.compile_code(code)
