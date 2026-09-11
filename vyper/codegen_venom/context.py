@@ -57,9 +57,9 @@ def same_memory_layout(src_typ: VyperType, dst_typ: VyperType) -> bool:
     Not `src_typ != dst_typ`: `TupleT` compares by its never-populated
     `members` dict, so any two tuple types are equal.
     """
-    return punnable(src_typ, dst_typ) and (
-        src_typ.memory_bytes_required == dst_typ.memory_bytes_required
-    )
+    if not punnable(src_typ, dst_typ):
+        return False
+    return src_typ.memory_bytes_required == dst_typ.memory_bytes_required
 
 
 @dataclass
