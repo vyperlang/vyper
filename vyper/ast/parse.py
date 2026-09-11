@@ -239,9 +239,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             # Modules have their positions manually set
             if not isinstance(node, python_ast.Module):
                 node.col_offset += self._pre_parser.shift_for(node.lineno, node.col_offset)
-                node.end_col_offset += self._pre_parser.shift_for(
-                    node.end_lineno, node.end_col_offset
-                )
+                end_shift = self._pre_parser.shift_for(node.end_lineno, node.end_col_offset)
+                node.end_col_offset += end_shift
         else:
             # node doesn't have the position fields, copy from parent
             # (they will already have been adjusted)
