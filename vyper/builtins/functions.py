@@ -1038,19 +1038,23 @@ class RawCall(BuiltinFunctionT):
     # provisional spelling of an unbounded return: `max_outsize=INF`.
     # codegen keys off the return type only, so a different spelling
     # never touches it.
-    def _is_unbounded_outsize(self, outsize: vy_ast.VyperNode) -> bool:
-        outsize = outsize.reduced()
-        return isinstance(outsize, vy_ast.Name) and outsize.id == "INF"
+    def _is_unbounded_outsize(self, kwarg: vy_ast.keyword) -> bool:
+        if kwarg.arg != "max_outsize":
+            return False
+        outsize = kwarg.value.reduced()
+        if not isinstance(outsize, vy_ast.Name):
+            return False
+        return outsize.id == "INF"
 
     def _validate_kwarg(self, kwarg) -> None:
-        if kwarg.arg == "max_outsize" and self._is_unbounded_outsize(kwarg.value):
+        if self._is_unbounded_outsize(kwarg):
             return
         super()._validate_kwarg(kwarg)
 
     def infer_kwarg_types(self, node):
         ret = super().infer_kwarg_types(node)
         for kwarg in node.keywords:
-            if kwarg.arg == "max_outsize" and self._is_unbounded_outsize(kwarg.value):
+            if self._is_unbounded_outsize(kwarg):
                 ret[kwarg.arg] = get_exact_type_from_node(kwarg.value)
         return ret
 
@@ -1059,8 +1063,8 @@ class RawCall(BuiltinFunctionT):
 
         kwargz = {i.arg: i.value for i in node.keywords}
 
+        unbounded_outsize = any(self._is_unbounded_outsize(kwarg) for kwarg in node.keywords)
         outsize = kwargz.get("max_outsize")
-        unbounded_outsize = outsize is not None and self._is_unbounded_outsize(outsize)
         if outsize is not None and not unbounded_outsize:
             outsize = outsize.get_folded_value()
 
