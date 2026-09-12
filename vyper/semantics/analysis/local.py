@@ -62,6 +62,7 @@ from vyper.semantics.types import (
     StructT,
     TupleT,
     VyperType,
+    is_bounded_length,
     is_type_t,
     map_void,
 )
@@ -1140,6 +1141,22 @@ class ExprVisitor(VyperNodeVisitorBase):
                 self.function_analyzer._handle_modification(node.func.value)
             assert len(node.args) == len(func_type.arg_types)
             for arg, arg_type in zip(node.args, func_type.arg_types):
+                if isinstance(arg_type, DArrayT) and not is_bounded_length(arg_type.length):
+                    # unbounded-length arg types (e.g. the arg type of
+                    # `DynArray.extend()`) are not representable in node
+                    # metadata. substitute the arg's own type when it is
+                    # concrete, else the dst type (e.g. `x.extend([])`, or
+                    # `x.extend(staticcall y.bar())` with unbounded return).
+                    arg_type = next(
+                        (
+                            t
+                            for t in get_possible_types_from_node(arg)
+                            if t.is_subtype_of(arg_type)
+                            and is_bounded_length(t.length)
+                            and not isinstance(t.value_type, BottomT)
+                        ),
+                        func_type.underlying_type,
+                    )
                 self.visit(arg, arg_type)
         else:
             # builtin functions and interfaces

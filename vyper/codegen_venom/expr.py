@@ -31,6 +31,7 @@ from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
+    INF,
     AddressT,
     BoolT,
     BytesM_T,
@@ -1711,6 +1712,8 @@ class Expr:
             return self._lower_dynarray_append()
         elif attr == "pop":
             return self._lower_dynarray_pop()
+        elif attr == "extend":
+            return self._lower_dynarray_extend()
         else:  # pragma: nocover
             raise CompilerPanic(f"Unknown member function: {attr}")
 
@@ -1965,6 +1968,92 @@ class Expr:
 
         # Return as location - unwrap() will load for primitives
         return self._make_ptr_value(elem_ptr, data_loc, elem_typ)
+
+    def _lower_dynarray_extend(self) -> VyperValue:
+        """Lower DynArray.extend(src).
+
+        1. Stage src to a temporary buffer (conservative alias guard)
+        2. Load dst/src lengths; assert dst_len + src_len <= dst capacity
+        3. Copy src_len elements to the end of the dst data region, skipping the length
+        4. Store the new length
+
+        Reference: vyper/codegen/core.py:extend_dyn_array
+        """
+        node = self.node
+        assert isinstance(node, vy_ast.Call)
+        assert isinstance(node.func, vy_ast.Attribute)
+        func = node.func
+        dst_darray_node = func.value  # The DynArray being extended
+        dst_darray_typ = dst_darray_node._metadata["type"]
+        elem_typ = dst_darray_typ.value_type
+
+        if not is_bounded_length(dst_darray_typ.count):
+            raise CodegenPanic("Not yet implemented for Unbounded DynArray")
+
+        # Get the array VyperValue
+        dst_darray_vv = Expr(dst_darray_node, self.ctx).lower()
+        dst_darray_ptr = dst_darray_vv.operand
+
+        # Get the src value.
+        assert len(node.args) == 1
+        src_darray_node = node.args[0]
+
+        src_darray_vv = Expr(src_darray_node, self.ctx).lower()
+        src_darray_typ = src_darray_vv.typ
+        assert isinstance(src_darray_typ, DArrayT)
+
+        # 1. Stage src to a runtime-sized scratch buffer to guard against
+        # aliasing (e.g. arr.extend(arr)).
+        staged = self.ctx.copy_sequence_to_scratch(
+            src_darray_vv, DArrayT(elem_typ, INF), annotation="extend_src"
+        )
+        src_darray_ptr = staged.operand
+        assert isinstance(src_darray_ptr, IRVariable)
+
+        # Get location from VyperValue
+        data_loc = dst_darray_vv.location
+        assert data_loc is not None
+        word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
+
+        elem_size = elem_typ.get_size_in(data_loc)
+        capacity = dst_darray_typ.count  # Maximum length
+
+        # 1. Load current lengths
+        dst_len = self.builder.load(dst_darray_ptr, data_loc)
+        src_len = self.builder.mload(src_darray_ptr)
+
+        # 2. Assert dst_len + src_len <= capacity
+        new_dst_len = self.builder.add(dst_len, src_len)
+        valid = self.builder.lt(new_dst_len, IRLiteral(capacity + 1))
+        self.builder.assert_(valid)
+
+        # 3. Copy src_len elements to the end of the dst data region.
+        src_data = self.ctx._with_byte_offset(src_darray_ptr, 32)
+        overhead = word_scale * DYNAMIC_ARRAY_OVERHEAD
+        data_ptr = self.builder.add(dst_darray_ptr, IRLiteral(overhead))
+        offset = self.builder.mul(dst_len, IRLiteral(elem_size))
+        dst_elem_base = self.builder.add(data_ptr, offset)
+        assert isinstance(dst_elem_base, IRVariable)
+
+        if data_loc == DataLocation.MEMORY:
+            # the scratch already holds dst element layout, so the element
+            # copy is a single runtime-sized mcopy
+            data_size = self.builder.mul(src_len, IRLiteral(elem_size))
+            self.ctx.copy_memory_dynamic(
+                dst_elem_base, src_data, data_size, self.ctx.data_size_bound(src_darray_typ)
+            )
+        elif data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+            self.ctx.copy_dynarray_elements_to_storage(
+                src_data, dst_elem_base, elem_typ, src_len, data_loc == DataLocation.TRANSIENT
+            )
+        else:
+            raise CompilerPanic(f"Unsupported location for extend: {data_loc}")
+
+        # 4. Store new length
+        self.builder.store(dst_darray_ptr, new_dst_len, data_loc)
+
+        # extend() returns nothing
+        return VyperValue.from_stack_op(IRLiteral(0), VOID_TYPE)
 
     # === External Calls ===
 
