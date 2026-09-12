@@ -593,9 +593,7 @@ class VenomCodegenContext:
             self.builder.extcodecopy(address, data_ptr, offset, length)
         return self.dynamic_memory_value(ptr, typ, annotation=annotation)
 
-    def materialize_returndata_bytes(
-        self, typ: VyperType, annotation: Optional[str] = None
-    ) -> VyperValue:
+    def materialize_returndata_bytes(self, typ: VyperType) -> VyperValue:
         """Copy the whole returndata into a runtime-sized bytestring memory value."""
         length = self.builder.returndatasize()
         size = self.bytestring_runtime_size_from_length(length)
@@ -604,7 +602,7 @@ class VenomCodegenContext:
         self.zero_bytestring_padding(ptr, length)
         data_ptr = self.builder.add(ptr, IRLiteral(32))
         self.builder.returndatacopy(data_ptr, IRLiteral(0), length)
-        return self.dynamic_memory_value(ptr, typ, annotation=annotation)
+        return self.dynamic_memory_value(ptr, typ)
 
     def materialize_bytes_from_location(
         self,
