@@ -1113,7 +1113,18 @@ class ExprVisitor(VyperNodeVisitorBase):
             if func_type.is_external:
                 return_t = func_type.return_type
                 if return_t is not None and return_t.has_wildcard:
-                    if not typ.has_wildcard and typ is not VOID_TYPE:
+                    if typ.has_wildcard:
+                        # a wildcard-length return value flowing into a
+                        # wildcard-length context -- there is no concrete
+                        # length available anywhere to size the return
+                        # buffer.
+                        raise StructureException(
+                            "cannot use a wildcard-length return value where a "
+                            "wildcard-length value is expected -- assign it to a "
+                            "DynArray with a concrete length first",
+                            node,
+                        )
+                    if typ is not VOID_TYPE:
                         # Replace wildcard-containing type by the concrete expected type
                         return_t = typ
                     else:

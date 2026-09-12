@@ -16,6 +16,7 @@ from vyper.exceptions import (
     ImmutableViolation,
     OverflowException,
     StateAccessViolation,
+    StructureException,
     TypeMismatch,
 )
 
@@ -1613,6 +1614,36 @@ def foo() -> DynArray[uint256, 3]:
 @pytest.mark.parametrize("code,exception_type", invalid_extend)
 def test_invalid_extend(get_contract, assert_compile_failed, code, exception_type):
     assert_compile_failed(lambda: get_contract(code), exception_type)
+
+
+def test_wildcard_darray_chained_rejected(make_input_bundle):
+    # a wildcard-length return passed directly to a wildcard-length param
+    # has no concrete length available anywhere -- reject at typecheck
+    # instead of panicking in codegen buffer allocation.
+    ifoo_code = """
+@view
+def qux() -> DynArray[uint256, ...]:
+    ...
+
+@external
+def bar(xs: DynArray[uint256, ...]) -> uint256:
+    ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": ifoo_code})
+
+    code = """
+import foo as Foo
+
+@external
+def foo() -> uint256:
+    x: Foo = Foo(0x1234567890123456789012345678901234567890)
+    return extcall x.bar(staticcall x.qux())
+"""
+
+    with pytest.raises(StructureException) as e:
+        compile_code(code, input_bundle=input_bundle)
+    assert "concrete length" in str(e.value)
 
 
 # `extend` accepts a DynArray of any length, so long as the value type is
