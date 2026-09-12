@@ -1035,14 +1035,14 @@ class RawCall(BuiltinFunctionT):
         "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
 
-    # provisional spelling of an unbounded return: `max_outsize=INF`. The
-    # return type is the only thing downstream keys off, so a different
-    # spelling only changes this method.
+    # provisional spelling of an unbounded return: `max_outsize=INF`.
+    # codegen keys off the return type only, so a different spelling
+    # never touches it.
     def _is_unbounded_outsize(self, outsize: vy_ast.VyperNode) -> bool:
         outsize = outsize.reduced()
         return isinstance(outsize, vy_ast.Name) and outsize.id == "INF"
 
-    def _validate_kwarg(self, kwarg):
+    def _validate_kwarg(self, kwarg) -> None:
         if kwarg.arg == "max_outsize" and self._is_unbounded_outsize(kwarg.value):
             return
         super()._validate_kwarg(kwarg)
