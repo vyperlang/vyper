@@ -1152,7 +1152,6 @@ class ExprVisitor(VyperNodeVisitorBase):
                             t
                             for t in get_possible_types_from_node(arg)
                             if t.is_subtype_of(arg_type)
-                            and isinstance(t, DArrayT)
                             and is_bounded_length(t.length)
                             and not isinstance(t.value_type, BottomT)
                         ),
