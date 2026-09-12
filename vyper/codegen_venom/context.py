@@ -46,6 +46,22 @@ class Constancy(Enum):
     Constant = 1
 
 
+def same_memory_layout(src_typ: VyperType, dst_typ: VyperType) -> bool:
+    """Return True if `dst_typ.memory_bytes_required` bytes copied from memory
+    laid out as `src_typ` form a valid `dst_typ` value.
+
+    `punnable` accepts a wider top-level DynArray capacity or bytestring
+    bound in `dst_typ` (the data present has the same layout), but a flat
+    copy of the destination size would then read past the source.
+
+    Not `src_typ != dst_typ`: `TupleT` compares by its never-populated
+    `members` dict, so any two tuple types are equal.
+    """
+    if not punnable(src_typ, dst_typ):
+        return False
+    return src_typ.memory_bytes_required == dst_typ.memory_bytes_required
+
+
 @dataclass
 class LocalVariable:
     """Tracks a variable during Venom codegen."""
@@ -682,12 +698,7 @@ class VenomCodegenContext:
             # already converts the element layout
             return self.copy_sequence_to_scratch(vv, typ, annotation=annotation)
 
-        ret = self.new_temporary_value(typ, annotation=annotation)
-        assert isinstance(ret.operand, IRVariable)
-        # not store_vyper_value: its `src_typ != typ` check is always False for
-        # tuples (TupleT.__eq__ compares the empty `members` dict).
-        self._store_memory_typed(ret.operand, typ, self.unwrap(vv), vv.typ)
-        return ret
+        return self.materialize_value(vv, typ, annotation=annotation)
 
     def snapshot_value_for_delayed_use(
         self,
@@ -935,7 +946,7 @@ class VenomCodegenContext:
             else:
                 copy_len = self.unchecked_bytestring_runtime_size(val)
             self.copy_memory_dynamic(ptr, val, copy_len, self.memory_size_bound(src_typ))
-        elif src_typ != typ:
+        elif not same_memory_layout(src_typ, typ):
             # Layout-aware copy for assignments between compatible but not
             # identical memory layouts (e.g. DynArray[Bytes[540]] -> DynArray[Bytes[704]]).
             self._store_memory_typed(dst=ptr, dst_typ=typ, src=val, src_typ=src_typ)
