@@ -117,6 +117,20 @@ def test_block_fail(assert_compile_failed, get_contract, bad_code, exc):
     assert_compile_failed(lambda: get_contract(bad_code), exc)
 
 
+def test_concat_type_mismatch_message_uses_readable_type_names():
+    code = """
+@external
+def foo() -> Bytes[64]:
+    return concat(123, b"x")
+    """
+    with pytest.raises(TypeMismatch) as e:
+        compiler.compile_code(code)
+
+    assert e.value.message == (
+        "Expected one of Bytes, String, bytesM but literal can only be cast as int104 or uint96."
+    )
+
+
 valid_list = [
     """
 @external
