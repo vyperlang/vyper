@@ -1,3 +1,5 @@
+import contextvars
+
 import vyper.codegen.context as ctx
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.compiler.settings import _opt_codesize, _opt_gas, _opt_lowering_only_ir
@@ -943,22 +945,19 @@ def check_assign(left, right):
         FAIL()
 
 
-_label = 0
+_label = contextvars.ContextVar("codegen_label", default=0)
 
 
 # TODO might want to coalesce with Context.fresh_varname
 def _freshname(name):
-    global _label
-    _label += 1
-    return f"{name}{_label}"
+    label = _label.get() + 1
+    _label.set(label)
+    return f"{name}{label}"
 
 
 def reset_names():
-    global _label
-    _label = 0
-
-    # could be refactored
-    ctx._alloca_id = 0
+    _label.set(0)
+    ctx.reset_alloca_id()
 
 
 # returns True if t is ABI encoded and is a type that needs any kind of
