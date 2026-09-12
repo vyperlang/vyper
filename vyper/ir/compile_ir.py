@@ -10,6 +10,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.assembler.core import assembly_to_evm, get_data_segment_lengths
 from vyper.evm.assembler.instructions import (
+    CALLSUB,
     CONST,
     DATA_ITEM,
     JUMP,
@@ -22,8 +23,8 @@ from vyper.evm.assembler.instructions import (
     TaggedInstruction,
 )
 from vyper.evm.assembler.optimizer import optimize_assembly
-from vyper.evm.assembler.symbols import CONSTREF, Label
-from vyper.evm.opcodes import get_opcodes
+from vyper.evm.assembler.symbols import CONSTREF, Label, SubroutineLabel
+from vyper.evm.opcodes import get_opcodes, version_check
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions
 from vyper.version import version_tuple
@@ -104,7 +105,7 @@ def _rewrite_return_sequences(ir_node, label_params=None):
             _t.append(["goto", dest] + more_args)
             ir_node.args = IRnode.from_list(_t, ast_source=ir_node.ast_source).args
 
-    if ir_node.value == "label":
+    if ir_node.value in ("label", "subroutine"):
         label_params = set(t.value for t in ir_node.args[1].args)
 
     for t in args:
@@ -175,6 +176,12 @@ class _IRnodeLowerer:
         self.height = 0
 
         self.global_revert_label = None
+        # EIP-7979 (with EIP-8337 validation in mind): code shared by several
+        # subroutines must be a subroutine entry (CALLDEST), and must not be
+        # shared between subroutine code and top-level code. So the shared
+        # revert block is a CALLDEST, and subroutines get their own.
+        self.subroutine_revert_label = None
+        self.in_subroutine = False
 
         self.data_segments = []
         self.freeze_data_segments = False
@@ -672,6 +679,18 @@ class _IRnodeLowerer:
             o.extend([*JUMP(Label(target))])
             return o
 
+        # EIP-7979: call a subroutine, pushing variable # of arguments onto stack
+        if code.value == "gosub":
+            o = []
+            for i, c in enumerate(reversed(code.args[1:])):
+                o.extend(self._compile_r(c, height + i))
+            target = code.args[0].value
+            assert isinstance(target, str)  # help mypy
+            o.extend([*CALLSUB(Label(target))])
+            return o
+        # EIP-7979: return from the current subroutine
+        if code.value == "retsub":
+            return ["RETURNSUB"]
         if code.value == "djump":
             o = []
             # "djump" compiles to a raw EVM jump instruction
@@ -686,7 +705,8 @@ class _IRnodeLowerer:
             return [PUSHLABEL(Label(label))]
 
         # set a symbol as a location.
-        if code.value == "label":
+        # EIP-7979: "subroutine" is a label assembled as CALLDEST.
+        if code.value in ("label", "subroutine"):
             label_name = code.args[0].value
             assert isinstance(label_name, str)
 
@@ -712,7 +732,11 @@ class _IRnodeLowerer:
                 self.withargs[arg.value] = height
                 height += 1
 
+            old_in_subroutine = self.in_subroutine
+            if code.value == "subroutine":
+                self.in_subroutine = True
             body_asm = self._compile_r(body, height)
+            self.in_subroutine = old_in_subroutine
             # pop_scoped_vars = ["POP"] * height
             # for now, _rewrite_return_sequences forces
             # label params to be consumed implicitly
@@ -720,7 +744,8 @@ class _IRnodeLowerer:
 
             self.withargs = old_withargs
 
-            return [Label(label_name)] + body_asm + pop_scoped_vars
+            label_cls = SubroutineLabel if code.value == "subroutine" else Label
+            return [label_cls(label_name)] + body_asm + pop_scoped_vars
 
         if code.value == "unique_symbol":
             symbol = code.args[0].value
@@ -748,6 +773,8 @@ class _IRnodeLowerer:
         # common revert block
         if self.global_revert_label is not None:
             ret.extend([self.global_revert_label, *PUSH(0), "DUP1", "REVERT"])
+        if self.subroutine_revert_label is not None:
+            ret.extend([self.subroutine_revert_label, *PUSH(0), "DUP1", "REVERT"])
 
         return ret
 
@@ -757,6 +784,16 @@ class _IRnodeLowerer:
         return segment
 
     def _assert_false(self):
+        if version_check(begin="future"):
+            # EIP-7979: the shared failure block is a subroutine entry, and
+            # subroutine code and top-level code do not share one.
+            if self.in_subroutine:
+                if self.subroutine_revert_label is None:
+                    self.subroutine_revert_label = SubroutineLabel(self.mksymbol("revert").label)
+                return JUMPI(self.subroutine_revert_label)
+            if self.global_revert_label is None:
+                self.global_revert_label = SubroutineLabel(self.mksymbol("revert").label)
+            return JUMPI(self.global_revert_label)
         if self.global_revert_label is None:
             self.global_revert_label = self.mksymbol("revert")
         # use a shared failure block for common case of assert(x).
