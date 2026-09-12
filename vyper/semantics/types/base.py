@@ -24,6 +24,12 @@ class _GenericTypeAcceptor:
     def __repr__(self):
         return f"GenericTypeAcceptor({self.type_})"
 
+    def __str__(self):
+        # `.any()` hands us the *class*, whose `_id` names the type family
+        # (e.g. `String`, `bytesM`, `integer`). `TYPE_T` has no `_id` but is
+        # never stringified: its call sites reject a non-type arg first.
+        return self.type_._id
+
     def __init__(self, type_):
         self.type_ = type_
 
@@ -85,7 +91,12 @@ class VyperType:
 
     typeclass: str = None  # type: ignore
 
-    _id: str  # rename to `_name`
+    # Name of the type family (e.g. `bool`, `String`, `DynArray`, `integer`,
+    # `bytesM`). Types whose applied parameters are fused into a single source
+    # token (`uint256`, `bytes4`) expose the applied name via
+    # `serialization_name`; parameterized containers (e.g. `String[5]`,
+    # `DynArray[uint256, 3]`) render the applied name in `__repr__`.
+    _id: str
     _type_members: Optional[Dict] = None
     _valid_literal: Tuple = ()
     _invalid_locations: Tuple = ()
@@ -138,11 +149,19 @@ class VyperType:
 
     def __repr__(self):
         # TODO: add `pretty()` to the VyperType API?
+        return self.serialization_name
+
+    # The name used to refer to this type as a single source token (AST
+    # `to_dict` "name", namespace key, synthesized getter annotations).
+    # Defaults to `_id`; parametric primitives that fuse the applied
+    # parameters into the name (`uint256`, `bytes4`) override it.
+    @property
+    def serialization_name(self):
         return self._id
 
     # return a dict suitable for serializing in the AST
     def to_dict(self):
-        ret = {"name": self._id}
+        ret = {"name": self.serialization_name}
         if self.decl_node is not None:
             ret["type_decl_node"] = self.decl_node.get_id_dict()
         if self.typeclass is not None:
