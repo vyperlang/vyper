@@ -485,6 +485,9 @@ VALID_IR_MACROS = {
     "label",
     "goto",
     "djump",  # "dynamic jump", i.e. constrained, multi-destination jump
+    "subroutine",  # EIP-7979: a label assembled as CALLDEST
+    "gosub",  # EIP-7979: CALLSUB with args, like goto
+    "retsub",  # EIP-7979: RETURNSUB
     "~extcode",
     "~selfcode",
     "~calldata",

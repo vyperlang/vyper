@@ -301,7 +301,7 @@ class IRnode:
             # GOTO is a jump with args
             # e.g. (goto my_label x y z) will push x y and z onto the stack,
             # then JUMP to my_label.
-            elif self.value in ("goto", "exit_to"):
+            elif self.value in ("goto", "exit_to", "gosub"):
                 for arg in self.args:
                     assert (
                         arg.valency == 1 or arg.value == "pass"
@@ -309,7 +309,10 @@ class IRnode:
 
                 self.valency = 0
                 self._gas = sum([arg.gas for arg in self.args])
-            elif self.value == "label":
+            elif self.value == "retsub":
+                self.valency = 0
+                self._gas = 5
+            elif self.value in ("label", "subroutine"):
                 assert (
                     self.args[1].value == "var_list"
                 ), f"2nd argument to label must be var_list, {self}"
