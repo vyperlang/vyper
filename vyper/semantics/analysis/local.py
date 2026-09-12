@@ -1067,19 +1067,6 @@ class ExprVisitor(VyperNodeVisitorBase):
                     )
 
             for arg, arg_typ in zip(node.args, func_type.argument_types):
-                if arg_typ.has_wildcard:
-                    # wildcard param types (only legal in interface
-                    # signatures) are not representable in node metadata --
-                    # codegen needs a concrete type to compute buffer sizes.
-                    # substitute the arg's own type when one is available.
-                    arg_typ = next(
-                        (
-                            t
-                            for t in get_possible_types_from_node(arg)
-                            if t.is_subtype_of(arg_typ) and not t.has_wildcard
-                        ),
-                        arg_typ,
-                    )
                 if isinstance(arg, (vy_ast.Tuple, vy_ast.List)):
                     has_nested_unbounded = _expr_contains_unbounded_sequence(arg, arg_typ)
                 else:
@@ -1113,18 +1100,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             if func_type.is_external:
                 return_t = func_type.return_type
                 if return_t is not None and return_t.has_wildcard:
-                    if typ.has_wildcard:
-                        # a wildcard-length return value flowing into a
-                        # wildcard-length context -- there is no concrete
-                        # length available anywhere to size the return
-                        # buffer.
-                        raise StructureException(
-                            "cannot use a wildcard-length return value where a "
-                            "wildcard-length value is expected -- assign it to a "
-                            "DynArray with a concrete length first",
-                            node,
-                        )
-                    if typ is not VOID_TYPE:
+                    if not typ.has_wildcard and typ is not VOID_TYPE:
                         # Replace wildcard-containing type by the concrete expected type
                         return_t = typ
                     else:
