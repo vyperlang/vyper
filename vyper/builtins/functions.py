@@ -1038,7 +1038,7 @@ class RawCall(BuiltinFunctionT):
     # provisional spelling of an unbounded return: `max_outsize=INF`.
     # codegen keys off the return type only, so a different spelling
     # never touches it.
-    def _is_unbounded_outsize(self, kwarg: vy_ast.keyword) -> bool:
+    def _is_unbounded_outsize(self, kwarg) -> bool:
         if kwarg.arg != "max_outsize":
             return False
         outsize = kwarg.value.reduced()
