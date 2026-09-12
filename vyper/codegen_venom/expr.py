@@ -2003,7 +2003,7 @@ class Expr:
         assert isinstance(src_darray_typ, DArrayT)
 
         # 1. Stage src to a runtime-sized scratch buffer to guard against
-        # aliasing (e.g. arr.extend(arr)). 
+        # aliasing (e.g. arr.extend(arr)).
         staged = self.ctx.copy_sequence_to_scratch(
             src_darray_vv, DArrayT(elem_typ, INF), annotation="extend_src"
         )
