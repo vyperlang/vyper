@@ -174,9 +174,6 @@ def fwd(target: address, data: Bytes[INF]) -> Bytes[INF]:
 
 
 def test_returndata_shorter_than_forwarded_calldata(env, get_contract):
-    # the forwarded calldata copy is dead once the call returns and the
-    # returndata buffer is placed on top of it, surrounded by stale
-    # calldata bytes
     code = """
 @external
 def fwd(target: address, data: Bytes[INF]) -> Bytes[INF]:
@@ -228,3 +225,27 @@ def foo(target: address, data: Bytes[INF]) -> (bool, Bytes[INF]):
     assert _call(
         env, c, "foo(address,bytes)", "(address,bytes)", (reverter.address, payload)
     ) == abi_encode("(bool,bytes)", (False, payload))
+
+
+def test_bounded_outsize_returned_as_unbounded_bytes(env, get_contract):
+    code = """
+@external
+def foo(target: address, data: Bytes[INF]) -> Bytes[INF]:
+    return raw_call(target, data, max_outsize=32)
+    """
+    echo = _deploy_echo(env)
+    c = get_contract(code)
+    payload = bytes(range(100))
+    assert c.foo(echo.address, payload) == payload[:32]
+
+
+def test_bounded_outsize_success_flag_returned_as_unbounded_bytes(env, get_contract):
+    code = """
+@external
+def foo(target: address, data: Bytes[INF]) -> (bool, Bytes[INF]):
+    return raw_call(target, data, max_outsize=32, revert_on_failure=False)
+    """
+    echo = _deploy_echo(env)
+    c = get_contract(code)
+    payload = bytes(range(100))
+    assert c.foo(echo.address, payload) == (True, payload[:32])
