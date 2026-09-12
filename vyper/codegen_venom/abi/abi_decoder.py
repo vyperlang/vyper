@@ -374,13 +374,19 @@ def decode_unbounded_sequence_to_scratch(
         )
 
     assert isinstance(typ, DArrayT)
-    if typ.value_type.abi_type.is_dynamic():
-        raise CompilerPanic(
-            "semantic analysis should reject ABI decoding DynArray[..., INF] "
-            "with ABI-dynamic elements"
-        )  # pragma: nocover
-
     if hi is not None:
+        # Bound `count` by the payload before sizing the allocation below.
+        # `elem_static_size` is what each element occupies in the head area:
+        # its full ABI size for static elements, one offset word for dynamic
+        # ones. Any count above `(hi - data_start) / elem_static_size` is a lie.
+        #
+        # For dynamic elements the bound is loose because head offsets may
+        # alias: a payload of P bytes can validly claim P/32 elements, each
+        # reserving the element's memory size, so decoding can expand memory
+        # to `memsize(T) / 32` times P (17x for Bytes[512]). Calldata charges
+        # that to the sender; returndata and abi_decode of foreign bytes
+        # charge the decoding contract. A bounded `DynArray[T, N]` with N
+        # equal to the claimed count costs the same, so no tail pre-scan.
         elem_static_size = typ.value_type.abi_type.embedded_static_size()
         ctx.assert_abi_dynarray_payload_in_bounds(
             src.operand, length, elem_static_size, hi, data_start=data_start
@@ -469,7 +475,9 @@ def _decode_dyn_array(
             # _getelemptr_abi); calldata/code may alias earlier immutable data.
             b.assert_(b.iszero(b.lt(elem_src_ptr, src_data)))
             if type_contains_unbounded_sequence(elem_typ):
-                # See _getelemptr_abi: only INF elements keep the extra probe.
+                # INF elements only, by design (see _getelemptr_abi). Bounded
+                # elements match the bounded decoder: in a memory source a far
+                # head offset runs out of gas on the element's length load.
                 ctx.assert_abi_head_word_in_bounds(elem_src_ptr, hi)
     else:
         elem_src_ptr = b.add(src_data, b.mul(i, IRLiteral(elem_static_size)))

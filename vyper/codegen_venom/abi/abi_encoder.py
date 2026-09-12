@@ -35,6 +35,14 @@ if TYPE_CHECKING:
 
 
 def runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IROperand:
+    """Return a runtime upper bound on the ABI-encoded size of `arg_vv`.
+
+    Bounded types are sized by their static bound; unbounded bytestrings and
+    unbounded DynArrays with ABI-static elements are exact; unbounded DynArrays
+    with ABI-dynamic elements are bounded per element (see
+    `VenomCodegenContext.dynarray_runtime_abi_size`). Use it only to size
+    buffers; the encoded length is the encoder's return value.
+    """
     typ = arg_vv.typ
     if isinstance(typ, _BytestringT):
         ptr = ctx.unwrap(arg_vv)
@@ -65,6 +73,11 @@ def _abi_size_add(
 def runtime_abi_size_for_encode(
     ctx: VenomCodegenContext, arg_vals: list[VyperValue], encode_type: VyperType
 ) -> IROperand:
+    """Return a runtime upper bound on the ABI-encoded size of `arg_vals` as `encode_type`.
+
+    Same contract as `runtime_abi_size_for_arg`: allocation only, the
+    encoded length is the encoder's return value.
+    """
     if isinstance(encode_type, TupleT):
         size: IROperand = IRLiteral(encode_type.abi_type.static_size())
         size_unbounded = False
