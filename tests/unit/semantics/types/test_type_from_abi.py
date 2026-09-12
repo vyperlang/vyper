@@ -32,6 +32,23 @@ def test_base_types_as_multidimensional_arrays(type_str):
     assert type_t == SArrayT(SArrayT(base_t, 3), 5)
 
 
+@pytest.mark.parametrize("type_str", ["int168[3]", "int168[3][5]"])
+def test_decimal_array_internal_type(type_str):
+    type_t = type_from_abi({"type": type_str, "internalType": "decimal"})
+
+    expected = PRIMITIVE_TYPES["decimal"]
+    for length in (3, 5)[: type_str.count("[")]:
+        expected = SArrayT(expected, length)
+
+    assert type_t == expected
+
+
+def test_int168_array_without_decimal_internal_type():
+    type_t = type_from_abi({"type": "int168[3]"})
+
+    assert type_t == SArrayT(PRIMITIVE_TYPES["int168"], 3)
+
+
 @pytest.mark.parametrize("idx", ["0", "-1", "0x00", "'1'", "foo", "[1]", "(1,)"])
 def test_invalid_index(idx):
     with pytest.raises(UnknownType):
