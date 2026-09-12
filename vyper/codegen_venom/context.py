@@ -17,7 +17,14 @@ from typing import Optional, Sequence
 
 from vyper.codegen.core import punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
+from vyper.codegen_venom.bytestring_literal import should_codecopy
 from vyper.codegen_venom.value import VyperValue
+from vyper.compiler.settings import (
+    OptimizationLevel,
+    _opt_codesize,
+    _opt_lowering_only_ir,
+    get_global_settings,
+)
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, MemoryAllocationException, StateAccessViolation
 from vyper.semantics.data_locations import DataLocation
@@ -36,9 +43,11 @@ from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
-from vyper.utils import IDENTITY_PRECOMPILE
+from vyper.utils import IDENTITY_PRECOMPILE, ceil32
+from vyper.venom import OPTIMIZATION_PASSES
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
+from vyper.venom.passes import ReduceLiteralsCodesize
 
 
 class Constancy(Enum):
@@ -61,6 +70,17 @@ class LocalVariable:
             raise CompilerPanic("LocalVariable.value must be located")
         if self.value.location != DataLocation.MEMORY:  # pragma: nocover
             raise CompilerPanic("LocalVariable must be in MEMORY")
+
+
+def _reduced_pushes() -> bool:
+    """Whether the pipeline rewrites literals into the NOT/SHL forms (O3, Os)."""
+    settings = get_global_settings()
+    level = settings.optimize if settings is not None else None
+    if level is None:
+        # unset means the default level, as for `_opt_codesize()`
+        level = OptimizationLevel.default()
+    passes = OPTIMIZATION_PASSES[level]
+    return any((p[0] if isinstance(p, tuple) else p) is ReduceLiteralsCodesize for p in passes)
 
 
 @dataclass
@@ -232,14 +252,47 @@ class VenomCodegenContext:
         val = self.new_temporary_value(typ, annotation=annotation)
         assert isinstance(val.operand, IRVariable)
 
+        # the data item is exact at codesize levels (the last word is zeroed
+        # first) and padded to whole words otherwise; either way memory ends
+        # up identical to the mstore chain. the lowering-only levels keep the
+        # chain, they are not meant to optimize.
+        padded = not _opt_codesize()
+        if not _opt_lowering_only_ir() and should_codecopy(data, padded, _reduced_pushes()):
+            self._codecopy_bytestring_literal(val.operand, data, padded)
+        else:
+            for i in range(0, len(data), 32):
+                chunk = (data + b"\x00" * 31)[i : i + 32]
+                word = int.from_bytes(chunk, "big")
+                offset = self.builder.add(val.operand, IRLiteral(32 + i))
+                self.builder.mstore(offset, IRLiteral(word))
+
+        # the length store goes last so that loads of the length stay
+        # forwardable no matter how precisely LoadAnalysis models the copy
         self.ptr_store(val.ptr(), IRLiteral(len(data)))
-        for i in range(0, len(data), 32):
-            chunk = (data + b"\x00" * 31)[i : i + 32]
-            word = int.from_bytes(chunk, "big")
-            offset = self.builder.add(val.operand, IRLiteral(32 + i))
-            self.builder.mstore(offset, IRLiteral(word))
 
         return val
+
+    def _codecopy_bytestring_literal(self, ptr: IRVariable, data: bytes, padded: bool) -> None:
+        """Copy the data of a constant bytestring from a new data section."""
+        # known limitation: if the literal turns out to be dead, dead store
+        # elimination removes the codecopy but the data item stays in the
+        # bytecode
+        item = data
+        if padded:
+            item = data.ljust(ceil32(len(data)), b"\x00")
+        elif len(data) % 32 != 0:
+            # zero the last data word before the copy so the tail padding
+            # matches what the mstore chain writes
+            last_word = self.builder.add(ptr, IRLiteral(32 + len(data) - len(data) % 32))
+            self.builder.mstore(last_word, IRLiteral(0))
+
+        ctx = self.builder.ctx
+        label = IRLabel(ctx.get_next_label("literal").value, is_symbol=True)
+        ctx.append_data_section(label)
+        ctx.append_data_item(item)
+
+        data_ptr = self.builder.add(ptr, IRLiteral(32))
+        self.builder.codecopy(data_ptr, label, IRLiteral(len(item)))
 
     def dynamic_memory_value(
         self, ptr: IRVariable, typ: VyperType, annotation: Optional[str] = None
