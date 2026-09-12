@@ -1032,7 +1032,7 @@ class VenomCodegenContext:
             # defensive: runtime length must not exceed destination capacity
             b.assert_(b.iszero(b.gt(length, IRLiteral(dst_typ.length))))
         b.mstore(dst, length)
-        
+
         dst_elem_t = dst_typ.value_type
         src_elem_t = src_typ.value_type
         dst_elem_size = dst_elem_t.memory_bytes_required
@@ -1176,55 +1176,6 @@ class VenomCodegenContext:
         success = b.staticcall(b.gas(), IRLiteral(IDENTITY_PRECOMPILE), src, length, dst, length)
         b.get_last_inst("staticcall").memory_read_max_size = max_length
         b.assert_(success)
-
-    def copy_dynarray_elements_to_memory(
-        self,
-        dst: IRVariable,
-        dst_elem_t: VyperType,
-        src: IROperand,
-        src_elem_t: VyperType,
-        length: IROperand,
-    ) -> None:
-        """Copy `length` DynArray elements between memory buffers."""
-        b = self.builder
-        dst_elem_size = dst_elem_t.memory_bytes_required
-        src_elem_size = src_elem_t.memory_bytes_required
-
-        # Fast path when element layouts match: copy exactly `length` elements.
-        if src_elem_t == dst_elem_t and src_elem_size == dst_elem_size:
-            data_size = b.mul(length, IRLiteral(dst_elem_size))
-            self.copy_memory_dynamic(dst, src, data_size)
-            return
-
-        cond_block = b.create_block("typed_dyn_copy_cond")
-        body_block = b.create_block("typed_dyn_copy_body")
-        exit_block = b.create_block("typed_dyn_copy_exit")
-
-        counter = b.assign(IRLiteral(0))
-        b.jmp(cond_block.label)
-
-        b.append_block(cond_block)
-        b.set_block(cond_block)
-        done = b.iszero(b.lt(counter, length))
-        cond_finish = b.current_block
-
-        b.append_block(body_block)
-        b.set_block(body_block)
-
-        src_ofst = b.mul(counter, IRLiteral(src_elem_size))
-        dst_ofst = b.mul(counter, IRLiteral(dst_elem_size))
-        src_elem_ptr = b.add(src, src_ofst)
-        dst_elem_ptr = b.add(dst, dst_ofst)
-
-        self._store_memory_typed(dst_elem_ptr, dst_elem_t, src_elem_ptr, src_elem_t)
-
-        new_counter = b.add(counter, IRLiteral(1))
-        b.assign_to(new_counter, counter)
-        b.jmp(cond_block.label)
-
-        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
-        b.append_block(exit_block)
-        b.set_block(exit_block)
 
     def copy_dynarray_elements_to_storage(
         self,

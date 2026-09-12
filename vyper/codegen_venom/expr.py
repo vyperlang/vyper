@@ -31,6 +31,7 @@ from vyper.semantics.analysis.base import Modifiability
 from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
+    INF,
     AddressT,
     BoolT,
     BytesM_T,
@@ -2001,28 +2002,18 @@ class Expr:
         src_darray_typ = src_darray_vv.typ
         assert isinstance(src_darray_typ, DArrayT)
 
-        # 1. Stage src darray to a temporary buffer to guard
-        # against aliasing (e.g. arr.extend(arr)).
-        # MemoryCopyElisionPass eliminates the copy when safe.
-        temp_buf = self.ctx.new_temporary_value(src_darray_typ)
-        assert isinstance(temp_buf.operand, IRVariable)
-        self.ctx.store_vyper_value(src_darray_vv, temp_buf.operand, src_darray_typ)
-        src_darray_ptr: IRVariable = temp_buf.operand
+        # 1. Stage src to a runtime-sized scratch buffer to guard against
+        # aliasing (e.g. arr.extend(arr)). 
+        staged = self.ctx.copy_sequence_to_scratch(
+            src_darray_vv, DArrayT(elem_typ, INF), annotation="extend_src"
+        )
+        src_darray_ptr = staged.operand
+        assert isinstance(src_darray_ptr, IRVariable)
 
         # Get location from VyperValue
         data_loc = dst_darray_vv.location
         assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
-
-        # Normalize source layout for locations that only understand destination layout.
-        if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT):
-            if src_darray_typ != dst_darray_typ:
-                normalized = self.ctx.new_temporary_value(dst_darray_typ)
-                assert isinstance(normalized.operand, IRVariable)
-                self.ctx.store_memory(
-                    src_darray_ptr, normalized.operand, dst_darray_typ, src_typ=src_darray_typ
-                )
-                src_darray_ptr = normalized.operand
 
         elem_size = elem_typ.get_size_in(data_loc)
         capacity = dst_darray_typ.count  # Maximum length
@@ -2045,8 +2036,11 @@ class Expr:
         assert isinstance(dst_elem_base, IRVariable)
 
         if data_loc == DataLocation.MEMORY:
-            self.ctx.copy_dynarray_elements_to_memory(
-                dst_elem_base, elem_typ, src_data, src_darray_typ.value_type, src_len
+            # the scratch already holds dst element layout, so the element
+            # copy is a single runtime-sized mcopy
+            data_size = self.builder.mul(src_len, IRLiteral(elem_size))
+            self.ctx.copy_memory_dynamic(
+                dst_elem_base, src_data, data_size, self.ctx.data_size_bound(src_darray_typ)
             )
         elif data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT):
             self.ctx.copy_dynarray_elements_to_storage(
