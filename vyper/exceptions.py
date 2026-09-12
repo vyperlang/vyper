@@ -365,12 +365,12 @@ class JSONError(Exception):
         self.col_offset = col_offset
 
 
-class ParserException(Exception):
-    """Contract source cannot be parsed."""
-
-
 class BadArchive(Exception):
     """Bad archive"""
+
+
+class BundleError(VyperException):
+    """Cannot construct an output bundle for this build."""
 
 
 class UnimplementedException(VyperException):

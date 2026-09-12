@@ -115,7 +115,13 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
     ]
 )
 
-_REVERT_POSTAMBLE = [Label("revert"), *PUSH(0), "DUP1", "REVERT"]
+
+def _revert_postamble() -> list[AssemblyInstruction]:
+    # note: PUSH(0) is evm version dependent (PUSH0 is only available from
+    # shanghai on), so this must be constructed per-compilation rather than
+    # frozen into a module-level constant.
+    return [Label("revert"), *PUSH(0), "DUP1", "REVERT"]
+
 
 # Name of the assembler-level CONST used by the `initial_fmp` Venom opcode.
 # The CONST is declared at the end of assembly generation (after spill
@@ -250,7 +256,7 @@ class VenomCompiler:
         if self._uses_initial_fmp_const:
             asm = [CONST(_INITIAL_FMP_CONST, self._initial_fmp_value())] + asm
 
-        asm.extend(_REVERT_POSTAMBLE)
+        asm.extend(_revert_postamble())
         # Append data segment
         for data_section in self.ctx.data_segment:
             label = data_section.label

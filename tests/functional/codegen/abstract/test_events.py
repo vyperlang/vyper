@@ -99,7 +99,6 @@ import abstract_module
 import helper_module
 
 initializes: abstract_module
-initializes: helper_module
 
 exports: abstract_module.exposed
 

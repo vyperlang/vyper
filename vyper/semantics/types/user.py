@@ -21,6 +21,11 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import BottomT, VyperType
+from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.types.infinity import (
+    type_contains_nested_unbounded_sequence,
+    type_contains_unbounded_sequence,
+)
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import keccak256, method_id_int
@@ -330,11 +335,25 @@ class EventT(_UserType):
                 indexed.append(False)
 
             member_type = type_from_annotation(annotation)
+            if type_contains_nested_unbounded_sequence(member_type):
+                raise StructureException(
+                    "Event members cannot contain unbounded sequence types inside aggregate types",
+                    annotation,
+                )
             _add_user_type_member(members, member_name, node, member_type)
 
         return cls(base_node.name, members, indexed, base_node)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> None:
+        # topics hold a single word: primitive words are logged as-is and
+        # bytestrings are keccak256-hashed; no other type has a topic
+        # encoding. checked at the log site (not the declaration) so that
+        # events with such members can still be declared, e.g. to compute
+        # their id, and so json abi events are covered too.
+        for is_indexed, typ in zip(self.indexed, self.arguments.values()):
+            if is_indexed and not (typ._is_prim_word or isinstance(typ, _BytestringT)):
+                raise StructureException("Event indexes may only be value types", node)
+
         # validate keyword arguments if provided
         if len(node.keywords) > 0:
             if len(node.args) > 0:
@@ -419,6 +438,12 @@ class ErrorT(_UserType):
 
         for member_name, node in _iter_user_type_members(base_node, "Error"):
             member_type = type_from_annotation(node.annotation)
+            if type_contains_nested_unbounded_sequence(member_type):
+                raise StructureException(
+                    "Custom error members cannot contain unbounded sequence types "
+                    "inside aggregate types",
+                    node.annotation,
+                )
             _add_user_type_member(members, member_name, node, member_type)
 
         return cls(base_node.name, members, base_node)
@@ -536,6 +561,10 @@ class StructT(_UserType):
                 )
 
             member_type = type_from_annotation(node.annotation)
+            if type_contains_unbounded_sequence(member_type):
+                raise StructureException(
+                    "Structs cannot contain unbounded sequence types", node.annotation
+                )
             members[member_name] = member_type
             node.target._metadata["type"] = member_type
 

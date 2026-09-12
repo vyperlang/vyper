@@ -112,6 +112,8 @@ A module's state can be directly accessed just by prefixing the name of a variab
 
 The ``initializes`` statement is also required when overriding the abstract methods of an :ref:`abstract module <abstract-modules>`.
 
+The compiler will raise an error when trying to initialize a module which has no state, and isn't abstract (since initializing it would do nothing).
+
 .. _uses-statement:
 
 The ``uses`` statement
