@@ -475,6 +475,59 @@ def _make_fake_path(base_dir: Path | None = None) -> Path:
     return path.resolve(strict=False)
 
 
+def _validate_source_map(source_map: dict, bytecode_len: int) -> None:
+    """
+    Assert basic invariants of source maps,
+    such as the facts that line and column numbers are non-negative
+    """
+    pc_pos_map = source_map["pc_pos_map"]
+    pc_ast_map = source_map["pc_ast_map"]
+    pc_jump_map = source_map["pc_jump_map"]
+    error_map = source_map["error_map"]
+    compressed = source_map["pc_pos_map_compressed"]
+
+    for m in (pc_pos_map, pc_ast_map, pc_jump_map, error_map):
+        for pc in m.keys():
+            assert isinstance(pc, int)
+            assert 0 <= pc < bytecode_len
+
+    for span in pc_pos_map.values():
+        lineno, col, end_lineno, end_col = span
+        assert lineno >= 0 and col >= 0 and end_lineno >= 0 and end_col >= 0
+        assert (lineno, col) < (end_lineno, end_col)
+
+    for ast_ref in pc_ast_map.values():
+        source_id, node_id = ast_ref
+        # -1 and BUILTIN (-2) are legitimate sentinels (see vyper/compiler/input_bundle.py).
+        assert -2 <= source_id
+        assert 0 <= node_id
+
+    for jump_type in pc_jump_map.values():
+        assert jump_type in ("o", "i", "-")
+
+    assert pc_pos_map.keys() == pc_ast_map.keys()
+
+    # _compress_source_map produces exactly `bytecode_size` `;`-joined entries.
+    entries = compressed.split(";")
+    assert len(entries) == bytecode_len
+    for pc, entry in enumerate(entries):
+        parts = entry.split(":")
+
+        assert 3 <= len(parts) <= 4
+        start, length, source_id = int(parts[0]), int(parts[1]), int(parts[2])
+
+        is_sentinel = (start, length, source_id) == (-1, -1, -1)
+        assert is_sentinel == (pc not in pc_ast_map)
+
+        if not is_sentinel:
+            assert start >= 0 and length >= 0
+            assert source_id == pc_ast_map[pc][0]
+
+        assert (len(parts) == 4) == (pc in pc_jump_map)
+        if len(parts) == 4:
+            assert parts[3] == pc_jump_map[pc]
+
+
 def _compile(
     source_code: str,
     output_formats: Iterable[str],
@@ -500,5 +553,12 @@ def _compile(
 
     parse_vyper_source(source_code)  # Test grammar.
     json.dumps(out["metadata"])  # test metadata is json serializable
+
+    for sm_key, bc_key in (("source_map", "bytecode"), ("source_map_runtime", "bytecode_runtime")):
+        if sm_key not in out:
+            continue
+        assert bc_key in out
+        bytecode_len = len(bytes.fromhex(out[bc_key].removeprefix("0x")))
+        _validate_source_map(out[sm_key], bytecode_len)
 
     return out

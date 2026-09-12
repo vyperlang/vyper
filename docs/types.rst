@@ -584,9 +584,29 @@ may use ``INF`` as the length bound:
         return ys
 
 ``Bytes[INF]`` and ``String[INF]`` can hold any runtime length. ``DynArray[T, INF]``
-can hold any runtime item count, but ``T`` must have an ABI-static layout, such
-as ``uint256``, ``bytes32``, static arrays, or structs made only from ABI-static
-members.
+can hold any runtime item count. ``T`` itself must be bounded, but it may be
+ABI-dynamic, such as ``Bytes[512]``, ``DynArray[uint256, 3]`` or a struct with
+bytestring members:
+
+.. code-block:: vyper
+
+    @external
+    def multicall(calls: DynArray[Bytes[512], INF]) -> DynArray[Bytes[512], INF]:
+        results: DynArray[Bytes[512], INF] = []
+        for data: Bytes[512] in calls:
+            results.append(raw_call(self, data, max_outsize=512, is_delegate_call=True))
+        return results
+
+Every element reserves the full memory size of ``T``, whatever its actual
+length: three 5-byte elements of ``DynArray[Bytes[512], INF]`` occupy
+``3 * 544`` bytes of memory, and encoding them reserves ``3 * 576`` bytes of
+buffer. Decoding reserves that memory from the claimed element count before
+the elements are validated, and element offsets in the input may overlap, so a
+malformed but accepted payload can cost memory expansion of up to
+``memsize(T) / 32`` times its own size (17x for ``Bytes[512]``). ``INF``
+decoders also check every element against the readable region
+(``calldatasize`` or the returndata size), so truncated trailing data is
+rejected where a bounded array in calldata would be zero-filled.
 
 Unbounded sequence values are supported for memory locals, function arguments,
 function returns, event and custom error members, ABI encoding and decoding, and
@@ -595,9 +615,9 @@ bytes-oriented builtins such as ``concat``, ``slice``, ``convert``, ``empty`` an
 for example ``(uint256, Bytes[INF])``.
 
 Unbounded sequences are not supported in storage, transient storage, immutable
-module variables, struct members, static arrays, mappings, or nested inside
-another dynamic layout. For example,
-``DynArray[Bytes[INF], INF]`` and ``DynArray[Bytes[10], INF]`` are rejected.
+module variables, struct members, static arrays, mappings, or as the element
+type of another ``DynArray``, bounded or unbounded. For example,
+``DynArray[Bytes[INF], INF]`` and ``DynArray[DynArray[uint256, INF], 3]`` are rejected.
 Tuple arguments and local tuple variables containing unbounded sequence members
 are also rejected.
 
