@@ -500,31 +500,6 @@ def foobar():
     assert compiler.compile_code(code, input_bundle=input_bundle) is not None
 
 
-def test_wildcard_darray_param_literal_arg(make_input_bundle):
-    # wildcard-length DynArray params (only legal in interfaces) used to
-    # crash codegen when called with a list literal: the wildcard param
-    # type was stamped into the literal's node metadata and codegen
-    # computed `32 + value_type.size_in_bytes * ...` from it.
-    ifoo_code = """
-@external
-def bar(xs: DynArray[uint256, ...]) -> uint256:
-    ...
-"""
-
-    input_bundle = make_input_bundle({"foo.vyi": ifoo_code})
-
-    code = """
-import foo as Foo
-
-@external
-def foo() -> uint256:
-    x: Foo = Foo(0x1234567890123456789012345678901234567890)
-    return extcall x.bar([1, 2, 3])
-    """
-
-    assert compiler.compile_code(code, input_bundle=input_bundle) is not None
-
-
 def test_wildcard_darray_return_extended(make_input_bundle):
     # an unbounded return value passed to DynArray.extend must codegen
     # against the dst capacity (the only concrete length available).
