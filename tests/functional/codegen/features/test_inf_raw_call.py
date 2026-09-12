@@ -188,3 +188,43 @@ def fwd(target: address, data: Bytes[INF]) -> Bytes[INF]:
         "(address,bytes)", (tail_echo.address, b"\xff" * 256)
     )
     assert env.message_call(c.address, data=calldata) == abi_encode("(bytes)", (calldata[64:],))
+
+
+@pytest.mark.parametrize("call_kind", _CALL_KINDS.keys())
+def test_success_flag_and_returndata(env, get_contract, call_kind):
+    decorator, call_kwargs = _CALL_KINDS[call_kind]
+    code = f"""
+@external
+{decorator}
+def foo(target: address, data: Bytes[INF]) -> (bool, Bytes[INF]):
+    ok: bool = False
+    res: Bytes[INF] = b""
+    ok, res = raw_call(target, data, max_outsize=INF, revert_on_failure=False{call_kwargs})
+    return ok, res
+    """
+    echo = _deploy_echo(env)
+    reverter = _deploy_reverting_echo(env)
+    c = get_contract(code)
+    assert c.foo(echo.address, _LARGE_PAYLOAD) == (True, _LARGE_PAYLOAD)
+    assert c.foo(echo.address, b"") == (True, b"")
+    # the revert data comes back as the bytes member instead of raising
+    assert c.foo(reverter.address, _LARGE_PAYLOAD) == (False, _LARGE_PAYLOAD)
+    assert c.foo(reverter.address, b"") == (False, b"")
+
+
+def test_success_flag_tuple_return(env, get_contract):
+    code = """
+@external
+def foo(target: address, data: Bytes[INF]) -> (bool, Bytes[INF]):
+    return raw_call(target, data, max_outsize=INF, revert_on_failure=False)
+    """
+    echo = _deploy_echo(env)
+    reverter = _deploy_reverting_echo(env)
+    c = get_contract(code)
+    payload = b"\xff" * 33
+    assert _call(env, c, "foo(address,bytes)", "(address,bytes)", (echo.address, payload)) == (
+        abi_encode("(bool,bytes)", (True, payload))
+    )
+    assert _call(
+        env, c, "foo(address,bytes)", "(address,bytes)", (reverter.address, payload)
+    ) == abi_encode("(bool,bytes)", (False, payload))

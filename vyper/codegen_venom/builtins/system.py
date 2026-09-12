@@ -217,7 +217,9 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         return IRLiteral(0)
     else:
         if unbounded_outsize:
-            raise CompilerPanic("unbounded raw_call output with revert_on_failure=False", node)
+            assert isinstance(return_t, TupleT)
+            returndata = ctx.materialize_returndata_bytes(out_t)
+            return ctx.dynamic_tuple_frame_from_outputs([success, returndata.operand], return_t)
         if max_outsize > 0:
             # Store actual return size (capped at max_outsize)
             ret_size = b.returndatasize()
