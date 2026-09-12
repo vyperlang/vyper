@@ -1035,13 +1035,33 @@ class RawCall(BuiltinFunctionT):
         "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
 
+    # provisional spelling of an unbounded return: `max_outsize=INF`. The
+    # return type is the only thing downstream keys off, so a different
+    # spelling only changes this method.
+    def _is_unbounded_outsize(self, outsize: vy_ast.VyperNode) -> bool:
+        outsize = outsize.reduced()
+        return isinstance(outsize, vy_ast.Name) and outsize.id == "INF"
+
+    def _validate_kwarg(self, kwarg):
+        if kwarg.arg == "max_outsize" and self._is_unbounded_outsize(kwarg.value):
+            return
+        super()._validate_kwarg(kwarg)
+
+    def infer_kwarg_types(self, node):
+        ret = super().infer_kwarg_types(node)
+        for kwarg in node.keywords:
+            if kwarg.arg == "max_outsize" and self._is_unbounded_outsize(kwarg.value):
+                ret[kwarg.arg] = get_exact_type_from_node(kwarg.value)
+        return ret
+
     def fetch_call_return(self, node):
         self._validate_arg_types(node)
 
         kwargz = {i.arg: i.value for i in node.keywords}
 
         outsize = kwargz.get("max_outsize")
-        if outsize is not None:
+        unbounded_outsize = outsize is not None and self._is_unbounded_outsize(outsize)
+        if outsize is not None and not unbounded_outsize:
             outsize = outsize.get_folded_value()
 
         revert_on_failure = kwargz.get("revert_on_failure")
@@ -1049,6 +1069,11 @@ class RawCall(BuiltinFunctionT):
             revert_on_failure = revert_on_failure.get_folded_value().value
         else:
             revert_on_failure = True
+
+        if unbounded_outsize:
+            if revert_on_failure:
+                return BytesT(INF)
+            return TupleT([BoolT(), BytesT(INF)])
 
         if outsize is None or outsize.value == 0:
             if revert_on_failure:
