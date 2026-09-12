@@ -1500,7 +1500,6 @@ def test_extend(get_contract, tx_failed, code, check_result, test_data):
         assert c.foo(test_data) == expected_result
 
 
-# transient storage dsts need cancun (tstore/tload)
 transient_extend_tests = [
     (
         """
