@@ -50,7 +50,6 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.base import VOID_TYPE
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
-from vyper.semantics.types.infinity import is_bounded_length
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT
 from vyper.semantics.types.user import FlagT, StructT
