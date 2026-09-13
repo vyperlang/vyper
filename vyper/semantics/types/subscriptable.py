@@ -278,7 +278,10 @@ class DArrayT(_SequenceT):
 
         self.add_member("append", MemberFunctionT(self, "append", [self.value_type], None, True))
         self.add_member("pop", MemberFunctionT(self, "pop", [], self.value_type, True))
-        # `extend` is lazily added in `get_member()` to avoid recursion for wildcard types
+        # `extend` is only valid when the destination has a concrete length;
+        # it is resolved lazily in `get_member()` so the bounded fast path and
+        # the unbounded-receiver error share one check (and no argument type
+        # is eagerly constructed for every DArrayT instance).
 
     def get_member(self, key: str, node: vy_ast.VyperNode) -> VyperType:
         if key == "extend":
