@@ -870,16 +870,14 @@ def test_adhoc_bytes_sources_allowed_in_legacy(code):
     compiler.compile_code(code, settings=Settings(experimental_codegen=False))
 
 
-@pytest.mark.parametrize(
-    "call_kwargs", ["", ", is_static_call=True", ", is_delegate_call=True"]
-)
+@pytest.mark.parametrize("call_kwargs", ["", ", is_static_call=True", ", is_delegate_call=True"])
 @pytest.mark.parametrize("revert_on_failure", [True, False])
 def test_raw_call_unbounded_outsize_return_type(call_kwargs, revert_on_failure):
     return_annotation = "Bytes[INF]" if revert_on_failure else "(bool, Bytes[INF])"
     code = f"""
 @external
-def foo(target: address) -> {return_annotation}:
-    return raw_call(target, b"", max_outsize=INF, revert_on_failure={revert_on_failure}{call_kwargs})
+def foo(a: address) -> {return_annotation}:
+    return raw_call(a, b"", max_outsize=INF, revert_on_failure={revert_on_failure}{call_kwargs})
     """
     module = compiler.CompilerData(
         code, settings=Settings(experimental_codegen=True)
