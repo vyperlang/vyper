@@ -150,9 +150,9 @@ def foo(_addr: address):
 
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
-def test_raw_call_fail(bad_code, exc, experimental_codegen):
+def test_raw_call_fail(bad_code, exc):
     with pytest.raises(exc):
-        compile_code(bad_code, settings=Settings(experimental_codegen=experimental_codegen))
+        compile_code(bad_code)
 
 
 valid_list = [
@@ -221,9 +221,8 @@ def foo():
 
 
 @pytest.mark.parametrize("good_code", valid_list)
-def test_raw_call_success(good_code, experimental_codegen):
-    settings = Settings(experimental_codegen=experimental_codegen)
-    assert compile_code(good_code, settings=settings) is not None
+def test_raw_call_success(good_code):
+    assert compile_code(good_code) is not None
 
 
 unbounded_outsize_list = [
