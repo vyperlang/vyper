@@ -1048,6 +1048,7 @@ class RawCall(BuiltinFunctionT):
             return
         super()._validate_kwarg(kwarg)
 
+    # local analysis visits each kwarg value against these types; uint256 would reject INF
     def infer_kwarg_types(self, node):
         ret = super().infer_kwarg_types(node)
         for kwarg in node.keywords:
