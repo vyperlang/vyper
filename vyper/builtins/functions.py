@@ -1035,9 +1035,6 @@ class RawCall(BuiltinFunctionT):
         "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
 
-    # provisional spelling of an unbounded return: `max_outsize=INF`.
-    # codegen keys off the return type only, so a different spelling
-    # never touches it.
     def _is_unbounded_outsize(self, kwarg) -> bool:
         if kwarg.arg != "max_outsize":
             return False
