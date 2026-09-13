@@ -1447,6 +1447,29 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
     """,
         lambda xs: [1, 2, 3] + xs if len(xs) <= 2 else None,
     ),
+    # list literal src into memory dst; the literal's length alone exceeds the
+    # dst capacity, which is not rejected at compile time but reverts at runtime
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 1]:
+    a: DynArray[uint256, 1] = []
+    a.extend([1, 2])
+    return a
+    """,
+        lambda xs: None,
+    ),
+    # boundary: list literal src exactly fills the dst capacity
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 2]:
+    a: DynArray[uint256, 2] = []
+    a.extend([1, 2])
+    return a
+    """,
+        lambda xs: [1, 2],
+    ),
     # smaller-capacity src into larger-capacity dst
     (
         """
