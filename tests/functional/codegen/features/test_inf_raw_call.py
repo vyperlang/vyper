@@ -227,6 +227,30 @@ def foo(target: address, data: Bytes[INF]) -> (bool, Bytes[INF]):
     ) == abi_encode("(bool,bytes)", (False, payload))
 
 
+def test_success_flag_tuple_subscript(env, get_contract):
+    code = """
+@external
+def flag(target: address, data: Bytes[INF]) -> bool:
+    return raw_call(target, data, max_outsize=INF, revert_on_failure=False)[0]
+
+@external
+def returndata(target: address, data: Bytes[INF]) -> Bytes[INF]:
+    return raw_call(target, data, max_outsize=INF, revert_on_failure=False)[1]
+    """
+    echo = _deploy_echo(env)
+    reverter = _deploy_reverting_echo(env)
+    c = get_contract(code)
+    assert c.flag(echo.address, _LARGE_PAYLOAD) is True
+    assert c.returndata(echo.address, _LARGE_PAYLOAD) == _LARGE_PAYLOAD
+    assert c.returndata(echo.address, b"") == b""
+    assert c.flag(reverter.address, _LARGE_PAYLOAD) is False
+    assert c.returndata(reverter.address, _LARGE_PAYLOAD) == _LARGE_PAYLOAD
+    payload = b"\xff" * 33
+    assert _call(
+        env, c, "returndata(address,bytes)", "(address,bytes)", (reverter.address, payload)
+    ) == abi_encode("(bytes)", (payload,))
+
+
 def test_bounded_outsize_returned_as_unbounded_bytes(env, get_contract):
     code = """
 @external
