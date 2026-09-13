@@ -137,15 +137,6 @@ def foo(_addr: address):
     """,
         TypeMismatch,
     ),
-    # an unbounded return does not fit a bounded buffer
-    (
-        """
-@external
-def foo(_addr: address):
-    x: Bytes[100] = raw_call(_addr, method_id("foo()"), max_outsize=INF)
-    """,
-        TypeMismatch,
-    ),
 ]
 
 
@@ -256,3 +247,32 @@ def test_raw_call_unbounded_outsize_requires_experimental_codegen(code):
         compile_code(code, settings=Settings(experimental_codegen=False))
     assert e.value.message == "unbounded sequence types require --experimental-codegen"
     assert compile_code(code, settings=Settings(experimental_codegen=True)) is not None
+
+
+narrowing_list = [
+    (
+        """
+@external
+def foo(_addr: address):
+    x: Bytes[100] = raw_call(_addr, method_id("foo()"), max_outsize=INF)
+    """,
+        "Given reference has type Bytes[INF], expected Bytes[100]",
+    ),
+    (
+        """
+@external
+def foo(_addr: address):
+    ok: bool = False
+    x: Bytes[100] = b""
+    ok, x = raw_call(_addr, method_id("foo()"), max_outsize=INF, revert_on_failure=False)
+    """,
+        "Given reference has type (bool, Bytes[INF]), expected (bool, Bytes[100])",
+    ),
+]
+
+
+@pytest.mark.parametrize("code,message", narrowing_list)
+def test_raw_call_unbounded_outsize_rejects_bounded_target(code, message):
+    with pytest.raises(TypeMismatch) as e:
+        compile_code(code, settings=Settings(experimental_codegen=True))
+    assert e.value.message == message
