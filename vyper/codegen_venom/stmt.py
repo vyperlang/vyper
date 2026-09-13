@@ -1659,8 +1659,10 @@ class Stmt:
 
         arg_nodes = self._custom_error_arg_nodes(msg, error_t)
         old_constancy = self.ctx.constancy
+        old_on_revert_path = self.ctx.on_revert_path
         try:
             self.ctx.constancy = Constancy.Constant
+            self.ctx.on_revert_path = True
             arg_vvs = []
             for i, arg_node in enumerate(arg_nodes):
                 arg_vv = Expr(arg_node, self.ctx).lower()
@@ -1672,6 +1674,7 @@ class Stmt:
                 )
         finally:
             self.ctx.constancy = old_constancy
+            self.ctx.on_revert_path = old_on_revert_path
 
         arg_types = tuple(arg_vv.typ for arg_vv in arg_vvs)
         args_tuple_t = TupleT(arg_types)
@@ -1714,11 +1717,14 @@ class Stmt:
         """
         # Evaluate message in constant context (prevent state changes)
         old_constancy = self.ctx.constancy
+        old_on_revert_path = self.ctx.on_revert_path
         try:
             self.ctx.constancy = Constancy.Constant
+            self.ctx.on_revert_path = True
             msg_vv = Expr(msg, self.ctx).lower()
         finally:
             self.ctx.constancy = old_constancy
+            self.ctx.on_revert_path = old_on_revert_path
 
         msg_typ = msg._metadata["type"]
 

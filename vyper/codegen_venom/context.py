@@ -120,6 +120,9 @@ class VenomCodegenContext:
     # Range expression context - set to True when evaluating range/iterator expressions
     in_range_expr: bool = False
 
+    # set while lowering a revert reason or custom error arguments
+    on_revert_path: bool = False
+
     # Immutables region alloca (for constructor context).
     # Reserves memory at position 0 for immutables staging;
     # used by deploy epilogue to copy staging area into bytecode.
@@ -252,11 +255,13 @@ class VenomCodegenContext:
         val = self.new_temporary_value(typ, annotation=annotation)
         assert isinstance(val.operand, IRVariable)
 
-        # the data item is exact at codesize levels (the last word is zeroed
-        # first) and padded to whole words otherwise; either way memory ends
-        # up identical to the mstore chain. the lowering-only levels keep the
-        # chain, they are not meant to optimize.
-        padded = not _opt_codesize()
+        # the data item is exact (the last word is zeroed first) at codesize
+        # levels and in revert payloads, and padded to whole words otherwise;
+        # either way memory ends up identical to the mstore chain. a revert
+        # payload is built once on a failing path, so size wins there, while
+        # other literals may be rebuilt in loops. the lowering-only levels
+        # keep the chain, they are not meant to optimize.
+        padded = not (_opt_codesize() or self.on_revert_path)
         if not _opt_lowering_only_ir() and should_codecopy(data, padded, _reduced_pushes()):
             self._codecopy_bytestring_literal(val.operand, data, padded)
         else:
