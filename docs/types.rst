@@ -553,7 +553,7 @@ Dynamic arrays represent bounded arrays whose length can be modified at runtime,
 
 
 .. note::
-    Attempting to access data past the runtime length of an array, ``pop()`` an empty array or ``append()`` to a full array will result in a runtime ``REVERT``. Attempting to pass an array in calldata which is larger than the array bound will result in a runtime ``REVERT``.
+    Attempting to access data past the runtime length of an array, ``pop()`` an empty array, ``append()`` to a full array, or ``extend()`` past the maximum length of the destination array will result in a runtime ``REVERT``. Attempting to pass an array in calldata which is larger than the array bound will result in a runtime ``REVERT``.
 
 .. note::
     To keep code easy to reason about, modifying an array while using it as an iterator is disallowed by the language. For instance, the following usage is not allowed:
