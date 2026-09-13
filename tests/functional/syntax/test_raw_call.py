@@ -1,10 +1,12 @@
 import pytest
 
 from vyper import compile_code
+from vyper.compiler.settings import Settings
 from vyper.exceptions import (
     ArgumentException,
     InvalidType,
     StateAccessViolation,
+    StructureException,
     SyntaxException,
     TypeMismatch,
 )
@@ -118,13 +120,39 @@ def foo(a: address):
     """,
         StateAccessViolation,
     ),
+    # only max_outsize accepts INF
+    (
+        """
+@external
+def foo(_addr: address):
+    raw_call(_addr, method_id("foo()"), gas=INF)
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
+@external
+def foo(_addr: address):
+    raw_call(_addr, method_id("foo()"), value=INF)
+    """,
+        TypeMismatch,
+    ),
+    # an unbounded return does not fit a bounded buffer
+    (
+        """
+@external
+def foo(_addr: address):
+    x: Bytes[100] = raw_call(_addr, method_id("foo()"), max_outsize=INF)
+    """,
+        TypeMismatch,
+    ),
 ]
 
 
 @pytest.mark.parametrize("bad_code,exc", fail_list)
-def test_raw_call_fail(bad_code, exc):
+def test_raw_call_fail(bad_code, exc, experimental_codegen):
     with pytest.raises(exc):
-        compile_code(bad_code)
+        compile_code(bad_code, settings=Settings(experimental_codegen=experimental_codegen))
 
 
 valid_list = [
@@ -193,5 +221,39 @@ def foo():
 
 
 @pytest.mark.parametrize("good_code", valid_list)
-def test_raw_call_success(good_code):
-    assert compile_code(good_code) is not None
+def test_raw_call_success(good_code, experimental_codegen):
+    settings = Settings(experimental_codegen=experimental_codegen)
+    assert compile_code(good_code, settings=settings) is not None
+
+
+unbounded_outsize_list = [
+    """
+@external
+def foo(target: address) -> Bytes[INF]:
+    x: Bytes[INF] = raw_call(target, b"", max_outsize=INF)
+    return x
+    """,
+    """
+@external
+def foo(target: address) -> uint256:
+    return len(raw_call(target, b"", max_outsize=INF))
+    """,
+    """
+@external
+def foo(target: address) -> bytes32:
+    return keccak256(raw_call(target, b"", max_outsize=INF))
+    """,
+    """
+@external
+def foo(target: address) -> bool:
+    return raw_call(target, b"", max_outsize=INF, revert_on_failure=False)[0]
+    """,
+]
+
+
+@pytest.mark.parametrize("code", unbounded_outsize_list)
+def test_raw_call_unbounded_outsize_requires_experimental_codegen(code):
+    with pytest.raises(StructureException) as e:
+        compile_code(code, settings=Settings(experimental_codegen=False))
+    assert e.value.message == "unbounded sequence types require --experimental-codegen"
+    assert compile_code(code, settings=Settings(experimental_codegen=True)) is not None
