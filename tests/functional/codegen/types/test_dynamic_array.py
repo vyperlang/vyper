@@ -17,6 +17,7 @@ from vyper.exceptions import (
     OverflowException,
     StateAccessViolation,
     TypeMismatch,
+    UnknownAttribute,
 )
 
 
@@ -1587,13 +1588,59 @@ def foo() -> DynArray[uint256, 3]:
     return x
     """,
         TypeMismatch,  # value type mismatch
-    )
+    ),
+    (
+        """
+@external
+def foo():
+    x: DynArray[uint256, 3] = []
+    x.extend()
+    """,
+        ArgumentException,
+    ),
+    (
+        """
+@external
+def foo():
+    x: DynArray[uint256, 3] = []
+    x.extend([1], [2])
+    """,
+        ArgumentException,
+    ),
 ]
 
 
 @pytest.mark.parametrize("code,exception_type", invalid_extend)
 def test_invalid_extend(get_contract, assert_compile_failed, code, exception_type):
     assert_compile_failed(lambda: get_contract(code), exception_type)
+
+
+def test_extend_unbounded_receiver(make_input_bundle):
+    # `extend` exists only on bounded DynArrays; an unbounded receiver from a
+    # staticcall has no concrete capacity to check against.
+    ifoo_code = """
+@view
+def bar() -> DynArray[uint256, ...]:
+    ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": ifoo_code})
+
+    code = """
+import foo as Foo
+
+@external
+def foo() -> DynArray[uint256, 5]:
+    x: Foo = Foo(0x1234567890123456789012345678901234567890)
+    arr: DynArray[uint256, 5] = []
+    x.bar().extend([1])
+    return arr
+"""
+
+    with pytest.raises(UnknownAttribute) as exc_info:
+        compile_code(code, input_bundle=input_bundle)
+    assert "concrete length" in exc_info.value.message
+    assert "x.bar()" in exc_info.value.message
 
 
 # `extend` accepts a DynArray of any length, so long as the value type is
