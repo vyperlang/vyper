@@ -9,6 +9,7 @@ from vyper.codegen_venom.bytestring_literal import (
 from vyper.codegen_venom.module import generate_runtime_venom
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings
+from vyper.utils import ceil32
 from vyper.venom.basicblock import IRLiteral
 from vyper.venom.effects import Effects
 
@@ -130,14 +131,19 @@ def foo() -> String[{n}]:
     ctx = _runtime_venom(code, level)
 
     (section,) = _literal_sections(ctx)
+    _check_literal_copy(ctx, section, n, expected_item)
+
+
+def _check_literal_copy(ctx, section, n, expected_item):
     (item,) = section.data_items
     assert item.data == expected_item
 
     insts = _instructions(ctx)
-    (codecopy,) = [inst for inst in insts if inst.opcode == "codecopy"]
-    size, label, _ = codecopy.operands
+    (codecopy,) = [
+        inst for inst in insts if inst.opcode == "codecopy" and inst.operands[1] == section.label
+    ]
+    size, _, _ = codecopy.operands
     assert size == IRLiteral(len(expected_item))
-    assert label == section.label
 
     bb = codecopy.parent.instructions
     stores = [inst for inst in bb if inst.opcode == "mstore"]
@@ -156,6 +162,38 @@ def foo() -> String[{n}]:
     assert [inst.operands[0] for inst in tail_stores] == (
         [IRLiteral(0)] if needs_tail_store else []
     )
+
+
+# revert reasons use the exact item even at gas levels, other literals keep
+# the padded one
+@pytest.mark.parametrize("revert_kind", ["assert", "raise", "custom_error"])
+# 40 bytes: the returned literal stays a chain (73 vs 72 bytes)
+@pytest.mark.parametrize("n,returned_copied", [(40, False), (100, True)])
+def test_revert_reason_literal_exact_item_at_gas_level(revert_kind, n, returned_copied):
+    msg = ALPHABET[:n]
+    revert_stmt = {
+        "assert": f'assert x == 0, "{msg}"',
+        "raise": f'if x != 0:\n        raise "{msg}"',
+        "custom_error": f'assert x == 0, Failed(reason="{msg}")',
+    }[revert_kind]
+    code = f"""
+error Failed:
+    reason: String[{n}]
+
+@external
+def foo(x: uint256) -> String[{n}]:
+    {revert_stmt}
+    return "{msg}"
+    """
+    ctx = _runtime_venom(code, OptimizationLevel.GAS)
+
+    expected_items = [msg.encode()]
+    if returned_copied:
+        expected_items.append(msg.encode().ljust(ceil32(n), b"\x00"))
+    sections = _literal_sections(ctx)
+    assert len(sections) == len(expected_items)
+    for section, expected_item in zip(sections, expected_items):
+        _check_literal_copy(ctx, section, n, expected_item)
 
 
 @pytest.mark.parametrize("level", [OptimizationLevel.GAS, OptimizationLevel.CODESIZE])
