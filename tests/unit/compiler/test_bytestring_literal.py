@@ -246,6 +246,10 @@ def _check_literal_chain(length_store, data):
     offsets = [inst.output for inst in bb if inst.opcode == "add" and inst.operands[1] == ptr]
     data_stores = [inst for inst in bb if inst.opcode == "mstore" and inst.operands[1] in offsets]
     assert data_stores == stores
+    # nothing of the copy survives the rewrite: every offset into the
+    # buffer has a use
+    used = {op for inst in bb for op in inst.operands}
+    assert all(offset in used for offset in offsets)
 
 
 # revert reasons use the exact item even at gas levels, other literals keep
@@ -317,14 +321,43 @@ def foo() -> String[63]:
     _check_literal_chain(length_store, s.encode())
 
 
-# 8 bytes, used three times: 8 + 3 * 13 bytes as copies of one exact item
-# against three chains of 36 (PUSH32) at gas levels, but of 15 (PUSH8,
-# PUSH1, SHL) at codesize levels
+def test_empty_literal_keeps_only_its_length_store():
+    # no data words: the rewrite leaves nothing of the copy behind
+    code = """
+@external
+def foo():
+    x: Bytes[32] = b""
+    """
+    ctx = _runtime_venom(code, OptimizationLevel.GAS)
+    assert len(_literal_sections(ctx)) == 0
+    assert not any(inst.opcode == "codecopy" for inst in _instructions(ctx))
+    # the literal's buffer holds the length word only
+    (buffer,) = [
+        inst
+        for inst in _instructions(ctx)
+        if inst.opcode == "alloca" and inst.operands == [IRLiteral(32)]
+    ]
+    (length_store,) = [inst for inst in _length_stores(ctx, 0) if inst.operands[1] == buffer.output]
+    _check_literal_chain(length_store, b"")
+
+
+# a reason used three times: len + 3 * 13 bytes as copies of one exact
+# item against three chains
 @pytest.mark.parametrize(
-    "level,copied", [(OptimizationLevel.GAS, True), (OptimizationLevel.CODESIZE, False)]
+    "msg,level,copied",
+    [
+        # 8 bytes: chains of 36 (PUSH32) at gas levels, of 15 (PUSH8, PUSH1,
+        # SHL) at codesize levels
+        ("overflow", OptimizationLevel.GAS, True),
+        ("overflow", OptimizationLevel.CODESIZE, False),
+        # 15 bytes: chains of 22 (PUSH15, PUSH1, SHL). O3 merges the three
+        # identical revert tails into one site, so the item is priced for
+        # one copy: 28 against 22
+        (ALPHABET[:15], OptimizationLevel.CODESIZE, True),
+        (ALPHABET[:15], OptimizationLevel.O3, False),
+    ],
 )
-def test_short_revert_reason_used_three_times(level, copied):
-    msg = "overflow"
+def test_short_revert_reason_used_three_times(msg, level, copied):
     code = f"""
 @external
 def foo(x: uint256) -> uint256:

@@ -255,7 +255,7 @@ class VenomCodegenContext:
             # rebuilt in loops.
             padded = not (_opt_codesize() or self.on_revert_path)
             assert self.literal_pool is not None
-            self.literal_pool.use(self.builder, val.operand, data, padded)
+            self.literal_pool.use(self.builder, val.operand, data, padded, self.on_revert_path)
 
         # the length store goes last so that loads of the length stay
         # forwardable no matter how precisely LoadAnalysis models the copy

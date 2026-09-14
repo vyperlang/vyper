@@ -10,7 +10,6 @@ level can produce and PUSH1 addresses, the codecopy with a PUSH2 label.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 from vyper.compiler.settings import OptimizationLevel, get_global_settings
 from vyper.utils import ceil32, evm_not
@@ -19,7 +18,8 @@ from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.builder import VenomBuilder
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
-from vyper.venom.passes import ReduceLiteralsCodesize
+from vyper.venom.passes import ReduceLiteralsCodesize, TailMergePass
+from vyper.venom.passes.base_pass import IRPass
 
 WORD = 32
 
@@ -106,8 +106,7 @@ def should_codecopy(data: bytes, padded: bool, reduced: bool, uses: int) -> bool
     return codecopy_bytes(len(data), padded, uses) < uses * chain_bytes(data, reduced)
 
 
-def reduced_pushes() -> bool:
-    """Whether the pipeline rewrites literals into the NOT/SHL forms (O3, Os)."""
+def _level_runs(pass_cls: type[IRPass]) -> bool:
     settings = get_global_settings()
     assert settings is not None
     level = settings.optimize
@@ -115,15 +114,26 @@ def reduced_pushes() -> bool:
         # unset means the default level
         level = OptimizationLevel.default()
     passes = OPTIMIZATION_PASSES[level]
-    return any((p[0] if isinstance(p, tuple) else p) is ReduceLiteralsCodesize for p in passes)
+    return any((p[0] if isinstance(p, tuple) else p) is pass_cls for p in passes)
+
+
+def reduced_pushes() -> bool:
+    """Whether the pipeline rewrites literals into the NOT/SHL forms (O3, Os)."""
+    return _level_runs(ReduceLiteralsCodesize)
+
+
+def merges_tails() -> bool:
+    """Whether the pipeline merges identical revert tails into one site (O3)."""
+    return _level_runs(TailMergePass)
 
 
 @dataclass
 class _LiteralUse:
     # the literal's buffer, the length word included
     ptr: IRVariable
-    codecopy: IRInstruction
-    tail_store: Optional[IRInstruction]
+    # the copy as emitted, contiguous in one block: the tail store (if
+    # any), the data pointer and the codecopy
+    instructions: list[IRInstruction]
 
 
 @dataclass
@@ -131,6 +141,7 @@ class _LiteralEntry:
     label: IRLabel
     item: bytes
     padded: bool
+    revert_path: bool
     uses: list[_LiteralUse] = field(default_factory=list)
 
 
@@ -148,10 +159,13 @@ class LiteralPool:
         self._entries: dict[bytes, _LiteralEntry] = {}
         self._finalized = False
 
-    def use(self, builder: VenomBuilder, ptr: IRVariable, data: bytes, padded: bool) -> None:
+    def use(
+        self, builder: VenomBuilder, ptr: IRVariable, data: bytes, padded: bool, revert_path: bool
+    ) -> None:
         """
         Copy `data` behind the length word of the buffer at `ptr` from
-        its data item, `padded` to whole words or exact.
+        its data item, `padded` to whole words or exact. `revert_path`:
+        the copy builds a revert payload.
         """
         assert not self._finalized
         item = data
@@ -160,20 +174,20 @@ class LiteralPool:
         entry = self._entries.get(item)
         if entry is None:
             label = IRLabel(builder.ctx.get_next_label("literal").value, is_symbol=True)
-            entry = _LiteralEntry(label, item, padded)
+            entry = _LiteralEntry(label, item, padded, revert_path)
             self._entries[item] = entry
 
-        tail_store = None
+        bb = builder.current_block
+        start = len(bb.instructions)
         if len(item) % WORD != 0:
             # zero the last data word before the copy so the tail padding
             # matches what the mstore chain writes
             last_word = builder.add(ptr, IRLiteral(WORD + len(item) - len(item) % WORD))
             builder.mstore(last_word, IRLiteral(0))
-            tail_store = builder.get_last_inst("mstore")
 
         data_ptr = builder.add(ptr, IRLiteral(WORD))
         builder.codecopy(data_ptr, entry.label, IRLiteral(len(item)))
-        entry.uses.append(_LiteralUse(ptr, builder.get_last_inst("codecopy"), tail_store))
+        entry.uses.append(_LiteralUse(ptr, bb.instructions[start:]))
 
     def finalize(self, ctx: IRContext) -> None:
         """
@@ -184,8 +198,14 @@ class LiteralPool:
         assert not self._finalized
         self._finalized = True
         reduced = reduced_pushes()
+        merged_tails = merges_tails()
         for entry in self._entries.values():
-            if should_codecopy(entry.item, entry.padded, reduced, len(entry.uses)):
+            uses = len(entry.uses)
+            if entry.revert_path and merged_tails:
+                # identical revert tails are merged into one site, so a
+                # repeated reason is copied once
+                uses = 1
+            if should_codecopy(entry.item, entry.padded, reduced, uses):
                 # known limitation: an item whose uses are all dead code
                 # stays in the bytecode, and so do its copies
                 ctx.append_data_section(entry.label)
@@ -196,17 +216,18 @@ class LiteralPool:
 
 
 def _rewrite_as_chain(use: _LiteralUse, data: bytes) -> None:
-    """Replace the copy (and tail store) of a use with the mstore chain."""
-    bb = use.codecopy.parent
-    assert use.codecopy in bb.instructions
-    index = bb.instructions.index(use.codecopy)
+    """Replace the copy of a use with the mstore chain."""
+    copy = use.instructions
+    codecopy = copy[-1]
+    assert codecopy.opcode == "codecopy"
+    bb = codecopy.parent
+    index = bb.instructions.index(copy[0])
+    assert bb.instructions[index : index + len(copy)] == copy
+    for inst in copy:
+        bb.remove_instruction(inst)
     for inst in chain_instructions(bb.parent, use.ptr, data):
         bb.insert_instruction(inst, index)
         # the chain takes over the source position of the copy
-        inst.ast_source = use.codecopy.ast_source
-        inst.error_msg = use.codecopy.error_msg
+        inst.ast_source = codecopy.ast_source
+        inst.error_msg = codecopy.error_msg
         index += 1
-    bb.remove_instruction(use.codecopy)
-    if use.tail_store is not None:
-        assert use.tail_store.parent is bb
-        bb.remove_instruction(use.tail_store)
