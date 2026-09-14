@@ -6,7 +6,8 @@ its item versus a chain of `mstore`s of literal words. Used by
 
 The estimates are biased so that a wrong guess can only keep the chain:
 the chain is priced with the cheapest literal encoding the optimization
-level can produce and PUSH1 addresses, the codecopy with a PUSH2 label.
+level can produce and PUSH1 addresses, the codecopy with a PUSH2 label
+and the item with a two-byte metadata length entry.
 """
 
 from dataclasses import dataclass, field
@@ -29,6 +30,9 @@ _ADDR_COST = 2
 _CODECOPY_COST = 2 + 2 + 3 + 1 + 1
 # PUSH0, PUSH1 <address>, MSTORE zeroing the last data word
 _TAIL_STORE_COST = 4
+# the item's length as a CBOR uint in the metadata: 1 to 3 bytes, 2 for
+# items up to 255 bytes and past that erring towards the chain
+_METADATA_ENTRY_COST = 2
 
 
 def _nbytes(val: int) -> int:
@@ -79,22 +83,22 @@ def chain_instructions(fn: IRFunction, ptr: IRVariable, data: bytes) -> list[IRI
 
 def codecopy_bytes(length: int, padded: bool, uses: int) -> int:
     """
-    Code plus data bytes for copying a `length`-byte literal from its
-    data item `uses` times. `padded` items hold whole words; exact items
-    need the last word zeroed before each copy unless the length is
-    word-aligned.
+    Code, data and metadata bytes for copying a `length`-byte literal
+    from its data item `uses` times. `padded` items hold whole words;
+    exact items need the last word zeroed before each copy unless the
+    length is word-aligned.
     """
     if padded:
-        return ceil32(length) + uses * _CODECOPY_COST
+        return ceil32(length) + _METADATA_ENTRY_COST + uses * _CODECOPY_COST
     tail_store = _TAIL_STORE_COST if length % WORD != 0 else 0
-    return length + uses * (_CODECOPY_COST + tail_store)
+    return length + _METADATA_ENTRY_COST + uses * (_CODECOPY_COST + tail_store)
 
 
 def should_codecopy(data: bytes, padded: bool, reduced: bool, uses: int) -> bool:
     """
     Whether `data`, materialized `uses` times, is estimated to be smaller
-    as codecopies from one data item than as mstore chains (`reduced`:
-    see `push_cost`).
+    as codecopies from one data item, its metadata entry included, than
+    as mstore chains (`reduced`: see `push_cost`).
 
     Runtime gas: the chain costs at least 8 gas per word, the codecopy
     15 + 3 gas per word, so from 3 words up the padded copy is never
@@ -107,6 +111,7 @@ def should_codecopy(data: bytes, padded: bool, reduced: bool, uses: int) -> bool
 
 
 def _level_runs(pass_cls: type[IRPass]) -> bool:
+    """Whether the optimization level in effect runs `pass_cls`."""
     settings = get_global_settings()
     assert settings is not None
     level = settings.optimize
@@ -133,7 +138,9 @@ class _LiteralUse:
     ptr: IRVariable
     # the copy as emitted, contiguous in one block: the tail store (if
     # any), the data pointer and the codecopy
-    instructions: list[IRInstruction]
+    copy: list[IRInstruction]
+    # the copy builds a revert payload
+    revert_path: bool
 
 
 @dataclass
@@ -141,7 +148,6 @@ class _LiteralEntry:
     label: IRLabel
     item: bytes
     padded: bool
-    revert_path: bool
     uses: list[_LiteralUse] = field(default_factory=list)
 
 
@@ -174,7 +180,7 @@ class LiteralPool:
         entry = self._entries.get(item)
         if entry is None:
             label = IRLabel(builder.ctx.get_next_label("literal").value, is_symbol=True)
-            entry = _LiteralEntry(label, item, padded, revert_path)
+            entry = _LiteralEntry(label, item, padded=padded)
             self._entries[item] = entry
 
         bb = builder.current_block
@@ -187,7 +193,7 @@ class LiteralPool:
 
         data_ptr = builder.add(ptr, IRLiteral(WORD))
         builder.codecopy(data_ptr, entry.label, IRLiteral(len(item)))
-        entry.uses.append(_LiteralUse(ptr, bb.instructions[start:]))
+        entry.uses.append(_LiteralUse(ptr, bb.instructions[start:], revert_path=revert_path))
 
     def finalize(self, ctx: IRContext) -> None:
         """
@@ -200,11 +206,14 @@ class LiteralPool:
         reduced = reduced_pushes()
         merged_tails = merges_tails()
         for entry in self._entries.values():
-            uses = len(entry.uses)
-            if entry.revert_path and merged_tails:
+            if merged_tails:
                 # identical revert tails are merged into one site, so a
-                # repeated reason is copied once
-                uses = 1
+                # repeated reason is copied once; the other uses are not
+                revert_uses = sum(1 for use in entry.uses if use.revert_path)
+                value_uses = len(entry.uses) - revert_uses
+                uses = value_uses + min(revert_uses, 1)
+            else:
+                uses = len(entry.uses)
             if should_codecopy(entry.item, entry.padded, reduced, uses):
                 # known limitation: an item whose uses are all dead code
                 # stays in the bytecode, and so do its copies
@@ -217,7 +226,7 @@ class LiteralPool:
 
 def _rewrite_as_chain(use: _LiteralUse, data: bytes) -> None:
     """Replace the copy of a use with the mstore chain."""
-    copy = use.instructions
+    copy = use.copy
     codecopy = copy[-1]
     assert codecopy.opcode == "codecopy"
     bb = codecopy.parent

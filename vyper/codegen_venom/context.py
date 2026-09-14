@@ -243,7 +243,8 @@ class VenomCodegenContext:
 
         if _opt_lowering_only_ir():
             # the lowering-only levels keep the chain, they are not meant
-            # to optimize
+            # to optimize; `chain_instructions` is also what the pool's
+            # rewrite emits, so the two chains cannot drift apart
             for inst in chain_instructions(self.builder.fn, val.operand, data):
                 self.builder.current_block.insert_instruction(inst)
         else:
@@ -255,7 +256,9 @@ class VenomCodegenContext:
             # rebuilt in loops.
             padded = not (_opt_codesize() or self.on_revert_path)
             assert self.literal_pool is not None
-            self.literal_pool.use(self.builder, val.operand, data, padded, self.on_revert_path)
+            self.literal_pool.use(
+                self.builder, val.operand, data, padded=padded, revert_path=self.on_revert_path
+            )
 
         # the length store goes last so that loads of the length stay
         # forwardable no matter how precisely LoadAnalysis models the copy

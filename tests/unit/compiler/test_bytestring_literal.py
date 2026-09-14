@@ -49,27 +49,29 @@ def test_chain_bytes():
 
 
 def test_codecopy_bytes():
-    assert codecopy_bytes(96, padded=True, uses=1) == 96 + 9
-    assert codecopy_bytes(100, padded=True, uses=1) == 128 + 9
-    assert codecopy_bytes(96, padded=False, uses=1) == 96 + 9
-    assert codecopy_bytes(100, padded=False, uses=1) == 100 + 9 + 4  # plus the tail zeroing store
-    # the item is shared, the copy (and the tail store) is paid per use
-    assert codecopy_bytes(100, padded=True, uses=3) == 128 + 3 * 9
-    assert codecopy_bytes(100, padded=False, uses=3) == 100 + 3 * (9 + 4)
+    # the item, 2 for its metadata length entry, 9 per copy
+    assert codecopy_bytes(96, padded=True, uses=1) == 96 + 2 + 9
+    assert codecopy_bytes(100, padded=True, uses=1) == 128 + 2 + 9
+    assert codecopy_bytes(96, padded=False, uses=1) == 96 + 2 + 9
+    assert codecopy_bytes(100, padded=False, uses=1) == 100 + 2 + 9 + 4  # plus the tail store
+    # the item and its entry are shared, the copy (and the tail store) is paid per use
+    assert codecopy_bytes(100, padded=True, uses=3) == 128 + 2 + 3 * 9
+    assert codecopy_bytes(100, padded=False, uses=3) == 100 + 2 + 3 * (9 + 4)
 
 
-# codesize levels: exact item plus tail store, chain priced with NOT/SHL forms
+# codesize levels: exact item plus metadata entry and tail store, chain
+# priced with NOT/SHL forms
 @pytest.mark.parametrize(
     "n,expected",
     [
-        (32, False),  # 41 vs 36
-        (33, False),  # 46 vs 44
-        (63, False),  # 76 vs 72
-        (64, False),  # 73 vs 72
-        (65, True),  # 78 vs 80
-        (96, True),  # 105 vs 108
-        (97, True),  # 110 vs 116
-        (100, True),  # 113 vs 119
+        (32, False),  # 43 vs 36
+        (33, False),  # 48 vs 44
+        (63, False),  # 78 vs 72
+        (64, False),  # 75 vs 72
+        (65, False),  # 80 vs 80, a tie keeps the chain
+        (96, True),  # 107 vs 108
+        (97, True),  # 112 vs 116
+        (100, True),  # 115 vs 119
     ],
 )
 def test_should_codecopy_codesize(n, expected):
@@ -80,14 +82,14 @@ def test_should_codecopy_codesize(n, expected):
 @pytest.mark.parametrize(
     "n,expected",
     [
-        (32, False),  # 41 vs 36
-        (33, False),  # 73 vs 72
-        (63, False),  # 73 vs 72
-        (64, False),  # 73 vs 72
-        (65, True),  # 105 vs 108
-        (96, True),  # 105 vs 108
-        (97, True),  # 137 vs 144
-        (100, True),  # 137 vs 144
+        (32, False),  # 43 vs 36
+        (33, False),  # 75 vs 72
+        (63, False),  # 75 vs 72
+        (64, False),  # 75 vs 72
+        (65, True),  # 107 vs 108
+        (96, True),  # 107 vs 108
+        (97, True),  # 139 vs 144
+        (100, True),  # 139 vs 144
     ],
 )
 def test_should_codecopy_gas(n, expected):
@@ -96,39 +98,43 @@ def test_should_codecopy_gas(n, expected):
 
 @pytest.mark.parametrize("padded,reduced", [(True, False), (False, True)])
 def test_should_codecopy_zero_words(padded, reduced):
-    # 3 zero words cost 12 bytes as stores, 105 as a data item
+    # 3 zero words cost 12 bytes as stores, 107 as a data item
     assert not should_codecopy(b"\x00" * 96, padded, reduced, uses=1)
 
 
 # one data item against one chain per use; expected for 1, 2 and 3 uses.
-# the comments give the copy costs (item plus 9 per use, 13 with a tail
-# store) against the chain costs (per use: 36 for a dense word, the
-# partial word PUSHn, PUSH1, SHL when reduced)
+# the comments give the copy costs (item plus 2 for its metadata entry
+# plus 9 per use, 13 with a tail store) against the chain costs (per use:
+# 36 for a dense word, the partial word PUSHn, PUSH1, SHL when reduced)
 @pytest.mark.parametrize(
     "n,padded,reduced,expected",
     [
         # one word of 8 bytes: chain 36 plain, 15 reduced
-        (8, True, False, (False, True, True)),  # 41, 50, 59 vs 36, 72, 108
-        (8, True, True, (False, False, False)),  # 41, 50, 59 vs 15, 30, 45
-        (8, False, False, (True, True, True)),  # 21, 34, 47 vs 36, 72, 108
-        (8, False, True, (False, False, False)),  # 21, 34, 47 vs 15, 30, 45
+        (8, True, False, (False, True, True)),  # 43, 52, 61 vs 36, 72, 108
+        (8, True, True, (False, False, False)),  # 43, 52, 61 vs 15, 30, 45
+        (8, False, False, (True, True, True)),  # 23, 36, 49 vs 36, 72, 108
+        (8, False, True, (False, False, False)),  # 23, 36, 49 vs 15, 30, 45
         # one word of 15 bytes: chain 36 plain, 22 reduced
-        (15, True, False, (False, True, True)),  # 41, 50, 59 vs 36, 72, 108
-        (15, True, True, (False, False, True)),  # 41, 50, 59 vs 22, 44, 66
-        (15, False, False, (True, True, True)),  # 28, 41, 54 vs 36, 72, 108
-        (15, False, True, (False, True, True)),  # 28, 41, 54 vs 22, 44, 66
+        (15, True, False, (False, True, True)),  # 43, 52, 61 vs 36, 72, 108
+        (15, True, True, (False, False, True)),  # 43, 52, 61 vs 22, 44, 66
+        (15, False, False, (True, True, True)),  # 30, 43, 56 vs 36, 72, 108
+        (15, False, True, (False, True, True)),  # 30, 43, 56 vs 22, 44, 66
+        # one word of 20 and 22 bytes: against a PUSH32 chain the exact
+        # single-use item pays for itself up to 20 bytes
+        (20, False, False, (True, True, True)),  # 35, 48, 61 vs 36, 72, 108
+        (22, False, False, (False, True, True)),  # 37, 50, 63 vs 36, 72, 108
         # a dense word and a one-byte word: chain 72 plain, 44 reduced
-        (33, True, False, (False, True, True)),  # 73, 82, 91 vs 72, 144, 216
-        (33, True, True, (False, True, True)),  # 73, 82, 91 vs 44, 88, 132
-        (33, False, False, (True, True, True)),  # 46, 59, 72 vs 72, 144, 216
-        (33, False, True, (False, True, True)),  # 46, 59, 72 vs 44, 88, 132
+        (33, True, False, (False, True, True)),  # 75, 84, 93 vs 72, 144, 216
+        (33, True, True, (False, True, True)),  # 75, 84, 93 vs 44, 88, 132
+        (33, False, False, (True, True, True)),  # 48, 61, 74 vs 72, 144, 216
+        (33, False, True, (False, True, True)),  # 48, 61, 74 vs 44, 88, 132
         # two dense words: chain 72; the exact item is word-aligned, no tail store
-        (64, True, False, (False, True, True)),  # 73, 82, 91 vs 72, 144, 216
+        (64, True, False, (False, True, True)),  # 75, 84, 93 vs 72, 144, 216
         (64, True, True, (False, True, True)),
         (64, False, False, (False, True, True)),
         (64, False, True, (False, True, True)),
         # three dense words: chain 108
-        (96, True, False, (True, True, True)),  # 105, 114, 123 vs 108, 216, 324
+        (96, True, False, (True, True, True)),  # 107, 116, 125 vs 108, 216, 324
         (96, True, True, (True, True, True)),
         (96, False, False, (True, True, True)),
         (96, False, True, (True, True, True)),
@@ -255,7 +261,7 @@ def _check_literal_chain(length_store, data):
 # revert reasons use the exact item even at gas levels, other literals keep
 # the padded one
 @pytest.mark.parametrize("revert_kind", ["assert", "raise", "custom_error"])
-# 40 bytes: the returned literal stays a chain (73 vs 72 bytes)
+# 40 bytes: the returned literal stays a chain (75 vs 72 bytes)
 @pytest.mark.parametrize("n,returned_copied", [(40, False), (100, True)])
 def test_revert_reason_literal_exact_item_at_gas_level(revert_kind, n, returned_copied):
     msg = ALPHABET[:n]
@@ -306,7 +312,7 @@ def foo(x: uint256) -> String[100]:
 
 @pytest.mark.parametrize("level", [OptimizationLevel.GAS, OptimizationLevel.CODESIZE])
 def test_literal_below_size_threshold_keeps_mstore_chain(level):
-    # two words: 73 vs 72 bytes at gas levels, 76 vs 72 at codesize levels;
+    # two words: 75 vs 72 bytes at gas levels, 78 vs 72 at codesize levels;
     # the copy is rewritten into the chain and its item is not kept
     s = ALPHABET[:63]
     code = f"""
@@ -341,8 +347,8 @@ def foo():
     _check_literal_chain(length_store, b"")
 
 
-# a reason used three times: len + 3 * 13 bytes as copies of one exact
-# item against three chains
+# a reason used three times: len + 2 + 3 * 13 bytes as copies of one
+# exact item against three chains
 @pytest.mark.parametrize(
     "msg,level,copied",
     [
@@ -352,7 +358,7 @@ def foo():
         ("overflow", OptimizationLevel.CODESIZE, False),
         # 15 bytes: chains of 22 (PUSH15, PUSH1, SHL). O3 merges the three
         # identical revert tails into one site, so the item is priced for
-        # one copy: 28 against 22
+        # one copy: 30 against 22
         (ALPHABET[:15], OptimizationLevel.CODESIZE, True),
         (ALPHABET[:15], OptimizationLevel.O3, False),
     ],
@@ -382,6 +388,30 @@ def foo(x: uint256) -> uint256:
         assert len(copies) == 0
         for length_store in length_stores:
             _check_literal_chain(length_store, msg.encode())
+
+
+@pytest.mark.parametrize("value_first", [True, False])
+def test_revert_uses_of_one_item_are_counted_per_use(value_first):
+    # a word-aligned 32-byte string: the padded item of the value use and
+    # the exact item of the reasons are the same bytes, so the three uses
+    # share one entry. O3 merges the two revert tails into one site, so
+    # the entry is priced for 1 + 1 copies: 32 + 2 + 2 * 9 = 52 against
+    # two chains of 36, whichever use is lowered first
+    s = ALPHABET[:32]
+    value = f's: String[32] = "{s}"'
+    reverts = f'assert x != 1, "{s}"\n    assert x != 2, "{s}"'
+    first, second = (value, reverts) if value_first else (reverts, value)
+    code = f"""
+@external
+def foo(x: uint256) -> String[32]:
+    {first}
+    {second}
+    return s
+    """
+    ctx = _runtime_venom(code, OptimizationLevel.O3)
+    (section,) = _literal_sections(ctx)
+    assert section.data_items[0].data == s.encode()
+    assert len(_codecopies(ctx, section)) == 3
 
 
 def test_same_literal_in_two_functions_shares_one_section():
