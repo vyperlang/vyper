@@ -3,6 +3,7 @@ import io
 import re
 from collections import defaultdict
 from tokenize import COMMENT, NAME, OP, STRING, TokenError, TokenInfo, tokenize, untokenize
+from typing import Optional
 
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
@@ -270,7 +271,17 @@ class PreParser:
         except TokenError as e:
             raise SyntaxException(e.args[0], code, e.args[1][0], e.args[1][1]) from e
         except SyntaxError as e:
-            offset = get_syntax_error_offset(e)
+            offset: Optional[int]
+
+            if isinstance(e, IndentationError):
+                # Compensate for the python 3.12 regression
+                # see https://github.com/python/cpython/issues/153837
+                assert e.text is not None
+                indent = len(e.text) - len(e.text.lstrip())
+                offset = max(indent - 1, 0)
+            else:
+                offset = get_syntax_error_offset(e)
+
             raise SyntaxException(e.msg, code, e.lineno, offset) from e
 
     def _parse(self, code: str):

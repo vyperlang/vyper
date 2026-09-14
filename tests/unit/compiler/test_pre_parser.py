@@ -222,5 +222,17 @@ def foo():
     with pytest.raises(SyntaxException) as excinfo:
         compile_code(code)
     annotation = excinfo.value.annotations[0]
-    assert annotation.lineno == 3
-    assert 0 <= annotation.col_offset < 10
+    assert (annotation.lineno, annotation.col_offset) == (3, 10)
+
+
+def test_missing_nested_body_reports_correct_offset():
+    code = """
+@external
+def foo():
+    if True:
+"""
+
+    with pytest.raises(SyntaxException) as excinfo:
+        compile_code(code)
+    annotation = excinfo.value.annotations[0]
+    assert (annotation.lineno, annotation.col_offset) == (4, 12)

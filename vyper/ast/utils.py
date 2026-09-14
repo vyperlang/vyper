@@ -34,12 +34,6 @@ def get_syntax_error_offset(e: SyntaxError) -> Optional[int]:
     Get the 0-based column offset of a python SyntaxError, or None if
     the exception carries no offset information.
     """
-    if isinstance(e, IndentationError) and e.text is not None:
-        # Compensate for the python 3.12 regression
-        # see https://github.com/python/cpython/issues/153837
-        indent = len(e.text) - len(e.text.lstrip())
-        return max(indent - 1, 0)
-
     if e.offset is None:
         return None
 
