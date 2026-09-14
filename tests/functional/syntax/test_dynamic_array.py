@@ -308,28 +308,31 @@ def foo():
     compile_inf_code(code)
 
 
-def test_zero_length_dynarray_for_loop_rejected():
-    for code in (
-        """
+zero_length_for_loop_list = [
+    """
 @external
 def foo(x: DynArray[uint256, 0]):
     for y: uint256 in x:
         pass
-        """,
-        """
+    """,
+    """
 @external
 def foo():
     x: DynArray[uint256, 0] = []
     for y: uint256 in x:
         pass
-        """,
-        """
+    """,
+    """
 @external
 def foo():
     for y: uint256 in []:
         pass
-        """,
-    ):
-        with pytest.raises(StructureException) as e:
-            compile_code(code)
-        assert e.value.message == "For loop must have at least 1 iteration"
+    """,
+]
+
+
+@pytest.mark.parametrize("bad_code", zero_length_for_loop_list)
+def test_zero_length_dynarray_for_loop_rejected(bad_code):
+    with pytest.raises(StructureException) as e:
+        compile_code(bad_code)
+    assert e.value.message == "For loop must have at least 1 iteration"
