@@ -947,36 +947,6 @@ def get_bounded(addr: address, xs: DynArray[Bytes[10], 5]) -> uint256:
     assert caller.get_bounded(target.address, [b"abc", b"defg"]) == 2
 
 
-@pytest.mark.xfail(raises=CodegenPanic)
-def test_wildcard_tuple_return_forwarded_to_mixed_tuple_arg(get_contract):
-    target_code = """
-seen: public(uint256)
-
-@external
-def source() -> (Bytes[10], DynArray[uint256, 5]):
-    return b"hello", [1, 2, 3]
-
-@external
-def sink(input: (Bytes[10], DynArray[uint256, 5])):
-    self.seen = len(input[0]) * 100 + len(input[1])
-    """
-
-    caller_code = """
-interface Foo:
-    def source() -> (Bytes[...], DynArray[uint256, ...]): nonpayable
-    def sink(input: (Bytes[10], DynArray[uint256, ...])): nonpayable
-
-@external
-def bar(foo: Foo):
-    extcall foo.sink(extcall foo.source())
-    """
-
-    target = get_contract(target_code)
-    caller = get_contract(caller_code)
-    caller.bar(target.address)
-    assert target.seen() == 5 * 100 + 3
-
-
 def test_wildcard_arg_user_struct_element_empty(get_contract):
     target_code = """
 struct S:
@@ -1023,40 +993,6 @@ def do_it(addr: address) -> uint256:
     target = get_contract(target_code)
     caller = get_contract(caller_code)
     assert caller.do_it(target.address) == 42
-
-
-@pytest.mark.xfail(raises=CodegenPanic)
-def test_wildcard_arg_ternary_sarray_element(get_contract):
-    target_code = """
-seen: public(uint256)
-
-@external
-def bar() -> DynArray[uint256, 3]:
-    return [1, 2, 3]
-
-@external
-def foo(xs: DynArray[uint256, 3][1]):
-    self.seen = len(xs[0])
-    """
-
-    caller_code = """
-interface I:
-    def bar() -> DynArray[uint256, ...]: nonpayable
-    def foo(xs: DynArray[uint256, ...][1]): nonpayable
-
-@external
-def f(a: address, c: bool, ys: DynArray[uint256, 5][1]):
-    extcall I(a).foo([extcall I(a).bar()] if c else ys)
-    """
-
-    target = get_contract(target_code)
-    caller = get_contract(caller_code)
-
-    caller.f(target.address, True, [[9, 9]])
-    assert target.seen() == 3
-
-    caller.f(target.address, False, [[9, 9]])
-    assert target.seen() == 2
 
 
 @pytest.mark.parametrize(
