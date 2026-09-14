@@ -14,8 +14,7 @@ from typing import TYPE_CHECKING, Optional, Union
 from vyper import ast as vy_ast
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import ArgumentException, CompilerPanic, StateAccessViolation
-from vyper.semantics.types import BoolT, BytesT, TupleT
-from vyper.semantics.types.infinity import is_unbounded_bytestring_type
+from vyper.semantics.types import BoolT, BytesT, TupleT, is_unbounded_bytestring_type
 from vyper.semantics.types.shortcuts import BYTES32_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
