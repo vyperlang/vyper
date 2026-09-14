@@ -92,10 +92,41 @@ def runtime_abi_size_for_encode(
     return runtime_abi_size_for_arg(ctx, arg_vals[0])
 
 
+def _check_buffer_size(typ: VyperType, bufsz: int | None) -> None:
+    """Check that `bufsz` bytes at the destination can hold an encoding of `typ`.
+
+    `bufsz` is None for runtime-sized buffers, which have no static bound.
+    """
+    if bufsz is None:
+        return
+
+    if type_contains_unbounded_sequence(typ):
+        raise CompilerPanic(f"static buffer provided to abi_encode for unbounded type {typ}")
+
+    size_bound = typ.abi_type.size_bound()
+    if bufsz < size_bound:
+        raise CompilerPanic("buffer provided to abi_encode not large enough")
+
+    if size_bound < typ.memory_bytes_required:
+        raise CompilerPanic("Bad ABI size calc")
+
+
 def abi_encode_values_to_buf(
-    ctx: VenomCodegenContext, dst: IRVariable, arg_vals: list[VyperValue], encode_type: VyperType
+    ctx: VenomCodegenContext,
+    dst: IRVariable,
+    arg_vals: list[VyperValue],
+    encode_type: VyperType,
+    bufsz: int | None,
 ) -> IROperand:
+    """
+    Encode `arg_vals` to ABI format at dst as a value of `encode_type`.
+
+    `bufsz` is the number of bytes available at dst (the allocation size
+    minus any prefix before dst), or None for a runtime-sized buffer.
+    """
     b = ctx.builder
+
+    _check_buffer_size(encode_type, bufsz)
 
     if not isinstance(encode_type, TupleT):
         if encode_type._is_prim_word:
@@ -104,7 +135,7 @@ def abi_encode_values_to_buf(
 
         src = ctx.unwrap(arg_vals[0])
         assert isinstance(src, IRVariable)
-        return abi_encode_to_buf(ctx, dst, src, encode_type)
+        return abi_encode_to_buf(ctx, dst, src, encode_type, bufsz)
 
     dyn_ofst_val = ctx.new_temporary_value(UINT256_T)
     ctx.ptr_store(dyn_ofst_val.ptr(), IRLiteral(encode_type.abi_type.static_size()))
@@ -120,7 +151,7 @@ def abi_encode_values_to_buf(
             child_dst = b.add(dst, dyn_ofst)
             child_src = ctx.unwrap(arg_vv)
             assert isinstance(child_src, IRVariable)
-            child_len = abi_encode_to_buf(ctx, child_dst, child_src, typ)
+            child_len = _abi_encode_to_buf(ctx, child_dst, child_src, typ)
             b.mstore(static_loc, dyn_ofst)
             arg_unbounded = type_contains_unbounded_sequence(typ)
             new_dyn_ofst, dyn_ofst_unbounded = _abi_size_add(
@@ -425,6 +456,7 @@ def _abi_encode_to_buf(
     # Fast path: if ABI encoding matches Vyper memory layout, just copy
     if abi_encoding_matches_vyper(src_typ):
         size = src_typ.memory_bytes_required
+        assert abi_t.embedded_static_size() == size
         ctx.copy_memory(dst, src, size)
         return IRLiteral(abi_t.embedded_static_size())
 
@@ -499,7 +531,7 @@ def _abi_encode_to_buf(
 
 
 def abi_encode_to_buf(
-    ctx: VenomCodegenContext, dst: IRVariable, src: IROperand, src_typ: VyperType
+    ctx: VenomCodegenContext, dst: IRVariable, src: IROperand, src_typ: VyperType, bufsz: int | None
 ) -> IROperand:
     """
     Public entry point for ABI encoding.
@@ -515,8 +547,11 @@ def abi_encode_to_buf(
         dst: Destination buffer pointer (in memory)
         src: Source value/pointer
         src_typ: Type of source
+        bufsz: Bytes available at dst (the allocation size minus any prefix
+            before dst), or None for a runtime-sized buffer
 
     Returns:
         Encoded length (dead variable elimination cleans up if unused)
     """
+    _check_buffer_size(src_typ, bufsz)
     return _abi_encode_to_buf(ctx, dst, src, src_typ)
