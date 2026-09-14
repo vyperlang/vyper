@@ -135,7 +135,7 @@ def abi_encode_values_to_buf(
 
         src = ctx.unwrap(arg_vals[0])
         assert isinstance(src, IRVariable)
-        return abi_encode_to_buf(ctx, dst, src, encode_type, bufsz)
+        return _abi_encode_to_buf(ctx, dst, src, encode_type)
 
     dyn_ofst_val = ctx.new_temporary_value(UINT256_T)
     ctx.ptr_store(dyn_ofst_val.ptr(), IRLiteral(encode_type.abi_type.static_size()))

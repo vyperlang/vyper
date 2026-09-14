@@ -20,7 +20,8 @@ def ctx():
 
 def _encode(ctx, typ, bufsz):
     b = ctx.builder
-    return abi_encode_to_buf(ctx, b.alloca(64), b.alloca(64), typ, bufsz)
+    dst = b.alloca(bufsz if bufsz is not None else 96)
+    return abi_encode_to_buf(ctx, dst, b.alloca(64), typ, bufsz)
 
 
 def _encode_values(ctx, typ, bufsz):
@@ -30,7 +31,8 @@ def _encode_values(ctx, typ, bufsz):
         member = ctx.dynamic_memory_value(b.alloca(64), member_t)
     else:
         member = ctx.new_temporary_value(member_t)
-    return abi_encode_values_to_buf(ctx, b.alloca(64), [member], typ, bufsz)
+    dst = b.alloca(bufsz if bufsz is not None else 96)
+    return abi_encode_values_to_buf(ctx, dst, [member], typ, bufsz)
 
 
 @pytest.mark.parametrize("encode", [_encode, _encode_values])
