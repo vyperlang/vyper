@@ -173,8 +173,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         encode_type = TupleT(tuple(arg_types))
 
     if any(type_contains_unbounded_sequence(t) for t in arg_types):
-        encoded_size = runtime_abi_size_for_encode(ctx, arg_vals, encode_type)
-        alloc_size = encoded_size
+        alloc_size = runtime_abi_size_for_encode(ctx, arg_vals, encode_type)
         if method_id is not None:
             # ABI encodings are word-aligned. The 4-byte method ID therefore
             # occupies another full word in the bytestring payload allocation.
@@ -184,11 +183,8 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         if method_id is None:
             # Safe margin: buf is exactly `[length word] + alloc_size`, and the
             # padding zero write lands at `buf_ptr + ceil32(alloc_size)`.
-            #
-            # With method_id, `alloc_size` can over-estimate the runtime
-            # encoded length (bounded dynamic args are sized by their bound),
-            # so this write can land past the value's actual last word;
-            # _build_abi_encoded_bytes zeroes the tail padding instead.
+            # `alloc_size` may over-estimate the encoded length, but it is a sum
+            # of word multiples, so the zeroed word is the allocation's last word.
             ctx.zero_bytestring_padding(buf_ptr, alloc_size)
 
         def encode_unbounded(dst: IRVariable) -> IROperand:
