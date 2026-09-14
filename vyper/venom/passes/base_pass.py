@@ -41,10 +41,16 @@ class IRPass:
     # - required_successors: passes that must appear after this pass.
     # - required_immediate_predecessors: pass immediately before this pass.
     # - required_immediate_successors: pass immediately after this pass.
+    # - ordered_after: ordering-only. If any of these passes is in the
+    #   pipeline it must appear before this pass, but none of them has to be
+    #   present. Use this (rather than required_predecessors) when the
+    #   constraint exists to preserve an optimization opportunity rather than
+    #   to satisfy a real dependency, so that minimal pipelines can drop it.
     required_predecessors: ClassVar[tuple[PassRef, ...]] = ()
     required_successors: ClassVar[tuple[PassRef, ...]] = ()
     required_immediate_predecessors: ClassVar[tuple[PassRef, ...]] = ()
     required_immediate_successors: ClassVar[tuple[PassRef, ...]] = ()
+    ordered_after: ClassVar[tuple[PassRef, ...]] = ()
 
     def __init__(self, analyses_cache: IRAnalysesCache, function: IRFunction):
         self.function = function

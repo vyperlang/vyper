@@ -21,17 +21,33 @@ class StackSpiller:
         self.ctx = ctx
         self._spill_free_slots: list[int] = []
         self._next_spill_offset: Optional[int] = None
+        self._next_function_spill_offset = 0
         self._current_function: Optional[IRFunction] = None
         self.peak_spill_end = 0
 
-    def reset_peak_spill_end(self) -> None:
+    def reset_for_codegen(self) -> None:
+        self._spill_free_slots = []
+        self._next_spill_offset = None
         self.peak_spill_end = 0
+        self._next_function_spill_offset = max(self.ctx.mem_allocator.fn_eom.values(), default=0)
+        self._current_function = None
 
     def set_current_function(self, fn: Optional[IRFunction]) -> None:
         """Set the current function being processed."""
+        # A caller's static frame and live spills remain accessible to its
+        # callees. In particular, memory-passed arguments are pointers into
+        # the caller's frame. Give every function a disjoint spill region
+        # above every static frame so callee spills cannot clobber either.
+        if self._current_function is not None and self._next_spill_offset is not None:
+            self._next_function_spill_offset = max(
+                self._next_function_spill_offset, self._next_spill_offset
+            )
+
         self._current_function = fn
         if fn is not None and fn in self.ctx.mem_allocator.fn_eom:
-            self._next_spill_offset = self.ctx.mem_allocator.fn_eom[fn]
+            static_eom = max(self.ctx.mem_allocator.fn_eom.values(), default=0)
+            self._next_function_spill_offset = max(self._next_function_spill_offset, static_eom)
+            self._next_spill_offset = self._next_function_spill_offset
         else:
             # reset on function exit / unknown fn: a stale offset from the
             # previous function would let a spill land in that function's

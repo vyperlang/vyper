@@ -442,7 +442,7 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
 
     # TODO: add option to specifically force linear selector section,
     # useful for testing and downstream tooling.
-    if core._opt_none():
+    if core._opt_lowering_only_ir():
         selector_section = _selector_section_linear(external_functions, module_t)
     # dense vs sparse global overhead is amortized after about 4 methods.
     # (--debug will force dense selector table anyway if _opt_codesize is selected.)

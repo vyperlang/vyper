@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InvalidLiteral, TypeMismatch
+from vyper.exceptions import InvalidLiteral, InvalidOperation, TypeMismatch, UnfoldableNode
 
 fail_list = [
     (
@@ -81,6 +81,17 @@ def test_abi_encode_fail(bad_code, exc):
         compiler.compile_code(bad_code)
 
 
+def test_abi_encode_empty_list():
+    code = """
+@external
+def foo():
+    tmp: Bytes[100] = abi_encode([])
+    """
+    with pytest.raises(InvalidOperation) as excinfo:
+        compiler.compile_code(code)
+    assert excinfo.value.message == "`Never` does not have an abi encoding"
+
+
 valid_list = [
     """
 @external
@@ -119,9 +130,24 @@ BAR: constant(DynArray[uint256, 5]) = [1, 2, 3, 4, 5]
 def foo() -> Bytes[224]:
     return _abi_encode(BAR)
     """,
+    """
+@external
+def foo(x: Bytes[1]) -> Bytes[96]:
+    return _abi_encode(x, ensure_tuple=(0 < 1))
+    """,
 ]
 
 
 @pytest.mark.parametrize("good_code", valid_list)
 def test_abi_encode_success(good_code):
     assert compiler.compile_code(good_code) is not None
+
+
+@pytest.mark.xfail(raises=UnfoldableNode)
+def test_abi_encode_ensure_tuple_foldable_expr():
+    code = """
+@external
+def f(x: uint256) -> Bytes[64]:
+    return abi_encode(x, ensure_tuple=empty(bool))
+    """
+    assert compiler.compile_code(code) is not None

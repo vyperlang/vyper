@@ -163,3 +163,28 @@ def boom():
     data = _revert_data(excinfo)
     assert data[:4] == method_id("Fancy(string,uint256)")
     assert abi_decode("(string,uint256)", data[4:]) == ("hi", 3)
+
+
+@pytest.mark.parametrize("use_experimental_codegen", [False, True])
+def test_custom_error_snapshots_bounded_dynarray_before_later_mutation(
+    get_contract, use_experimental_codegen
+):
+    code = """
+error Oops:
+    xs: DynArray[uint256, 3]
+    popped: uint256
+
+@external
+def boom():
+    x: DynArray[uint256, 3] = [1, 2, 3]
+    raise Oops(x, x.pop())
+    """
+
+    contract = _deploy(get_contract, code, use_experimental_codegen)
+
+    with pytest.raises(ExecutionReverted) as excinfo:
+        contract.boom()
+
+    data = _revert_data(excinfo)
+    assert data[:4] == method_id("Oops(uint256[],uint256)")
+    assert abi_decode("(uint256[],uint256)", data[4:]) == ([1, 2, 3], 3)
