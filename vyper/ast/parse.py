@@ -8,6 +8,7 @@ from typing import Optional
 
 from vyper.ast import nodes as vy_ast
 from vyper.ast.pre_parser import PreParser
+from vyper.ast.utils import get_syntax_error_offset
 from vyper.exceptions import CompilerPanic, ParserException, SyntaxException, _BaseVyperException
 from vyper.utils import sha256sum
 from vyper.warnings import Deprecation, vyper_warn
@@ -81,18 +82,7 @@ def _parse_to_ast(
     try:
         py_ast = python_ast.parse(pre_parser.reformatted_code)
     except SyntaxError as e:
-        offset: Optional[int]
-        if isinstance(e, IndentationError) and e.text is not None:
-            # Compensate for the python 3.12 regression
-            # see https://github.com/python/cpython/issues/153837
-            indent = len(e.text) - len(e.text.lstrip())
-            offset = max(indent - 1, 0)
-        else:
-            offset = e.offset
-            if offset is not None:
-                # SyntaxError offset is 1-based, not 0-based (see:
-                # https://docs.python.org/3/library/exceptions.html#SyntaxError.offset)
-                offset -= 1
+        offset = get_syntax_error_offset(e)
 
         # adjust the column of the error if it was modified by the pre-parser
         if offset is not None and e.lineno is not None:  # help mypy
