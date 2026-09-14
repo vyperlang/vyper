@@ -426,6 +426,13 @@ class _ExprAnalyser:
                 # attribute conditions, like Flag.foo or MyStruct({...})
                 return [TYPE_T(t)]
 
+            if isinstance(t, type) and issubclass(t, VyperType):
+                # parameterized types (`Bytes`, `String`, `DynArray`, `HashMap`)
+                # are in the namespace as the class, not an instance, so they
+                # reach here instead of the TYPE_T branch above. they are type
+                # constructors, not values.
+                raise InvalidReference(f"not a variable or literal: '{node.id}'", node)
+
             return [t.typ]
 
         except VyperException as exc:
