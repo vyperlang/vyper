@@ -289,7 +289,9 @@ class IRnode:
                 int_bound = int(repeat_bound.value)
                 self._gas += int_bound * (body.gas + 50) + 30
 
-                if repeat_count != repeat_bound:
+                if not (
+                    isinstance(repeat_count.value, int) and repeat_count.value <= repeat_bound.value
+                ):
                     # gas for assert(repeat_count <= repeat_bound)
                     self._gas += 18
 
