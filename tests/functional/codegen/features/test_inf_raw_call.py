@@ -179,6 +179,8 @@ def test_returndata_shorter_than_forwarded_calldata(env, get_contract):
 def fwd(target: address, data: Bytes[INF]) -> Bytes[INF]:
     return raw_call(target, msg.data, max_outsize=INF)
     """
+    # the returndata is shorter than the forwarded calldata and not
+    # word-aligned; its buffer can land on the memory that held the calldata
     tail_echo = _deploy_tail_echo(env)
     c = get_contract(code)
     calldata = method_id("fwd(address,bytes)") + abi_encode(
@@ -251,6 +253,8 @@ def returndata(target: address, data: Bytes[INF]) -> Bytes[INF]:
     ) == abi_encode("(bytes)", (payload,))
 
 
+# a bounded raw_call consumed as Bytes[INF]: the call node is annotated with the
+# widened type, so the cap must still come from max_outsize
 def test_bounded_outsize_returned_as_unbounded_bytes(env, get_contract):
     code = """
 @external
