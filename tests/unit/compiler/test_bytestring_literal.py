@@ -6,7 +6,7 @@ from vyper.codegen_venom.bytestring_literal import (
     push_cost,
     should_codecopy,
 )
-from vyper.codegen_venom.module import generate_runtime_venom
+from vyper.codegen_venom.module import generate_deploy_venom, generate_runtime_venom
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings
 from vyper.utils import ceil32
@@ -49,17 +49,20 @@ def test_chain_bytes():
 
 
 def test_codecopy_bytes():
-    assert codecopy_bytes(96, padded=True) == 96 + 9
-    assert codecopy_bytes(100, padded=True) == 128 + 9
-    assert codecopy_bytes(96, padded=False) == 96 + 9
-    assert codecopy_bytes(100, padded=False) == 100 + 9 + 4  # plus the tail zeroing store
+    assert codecopy_bytes(96, padded=True, uses=1) == 96 + 9
+    assert codecopy_bytes(100, padded=True, uses=1) == 128 + 9
+    assert codecopy_bytes(96, padded=False, uses=1) == 96 + 9
+    assert codecopy_bytes(100, padded=False, uses=1) == 100 + 9 + 4  # plus the tail zeroing store
+    # the item is shared, the copy (and the tail store) is paid per use
+    assert codecopy_bytes(100, padded=True, uses=3) == 128 + 3 * 9
+    assert codecopy_bytes(100, padded=False, uses=3) == 100 + 3 * (9 + 4)
 
 
 # codesize levels: exact item plus tail store, chain priced with NOT/SHL forms
 @pytest.mark.parametrize(
     "n,expected",
     [
-        (32, False),  # single word, never
+        (32, False),  # 41 vs 36
         (33, False),  # 46 vs 44
         (63, False),  # 76 vs 72
         (64, False),  # 73 vs 72
@@ -70,14 +73,14 @@ def test_codecopy_bytes():
     ],
 )
 def test_should_codecopy_codesize(n, expected):
-    assert should_codecopy(DENSE[:n], padded=False, reduced=True) is expected
+    assert should_codecopy(DENSE[:n], padded=False, reduced=True, uses=1) is expected
 
 
 # gas levels: padded item, chain priced with plain PUSHn only
 @pytest.mark.parametrize(
     "n,expected",
     [
-        (32, False),  # single word, never
+        (32, False),  # 41 vs 36
         (33, False),  # 73 vs 72
         (63, False),  # 73 vs 72
         (64, False),  # 73 vs 72
@@ -88,13 +91,52 @@ def test_should_codecopy_codesize(n, expected):
     ],
 )
 def test_should_codecopy_gas(n, expected):
-    assert should_codecopy(DENSE[:n], padded=True, reduced=False) is expected
+    assert should_codecopy(DENSE[:n], padded=True, reduced=False, uses=1) is expected
 
 
 @pytest.mark.parametrize("padded,reduced", [(True, False), (False, True)])
 def test_should_codecopy_zero_words(padded, reduced):
     # 3 zero words cost 12 bytes as stores, 105 as a data item
-    assert not should_codecopy(b"\x00" * 96, padded, reduced)
+    assert not should_codecopy(b"\x00" * 96, padded, reduced, uses=1)
+
+
+# one data item against one chain per use; expected for 1, 2 and 3 uses.
+# the comments give the copy costs (item plus 9 per use, 13 with a tail
+# store) against the chain costs (per use: 36 for a dense word, the
+# partial word PUSHn, PUSH1, SHL when reduced)
+@pytest.mark.parametrize(
+    "n,padded,reduced,expected",
+    [
+        # one word of 8 bytes: chain 36 plain, 15 reduced
+        (8, True, False, (False, True, True)),  # 41, 50, 59 vs 36, 72, 108
+        (8, True, True, (False, False, False)),  # 41, 50, 59 vs 15, 30, 45
+        (8, False, False, (True, True, True)),  # 21, 34, 47 vs 36, 72, 108
+        (8, False, True, (False, False, False)),  # 21, 34, 47 vs 15, 30, 45
+        # one word of 15 bytes: chain 36 plain, 22 reduced
+        (15, True, False, (False, True, True)),  # 41, 50, 59 vs 36, 72, 108
+        (15, True, True, (False, False, True)),  # 41, 50, 59 vs 22, 44, 66
+        (15, False, False, (True, True, True)),  # 28, 41, 54 vs 36, 72, 108
+        (15, False, True, (False, True, True)),  # 28, 41, 54 vs 22, 44, 66
+        # a dense word and a one-byte word: chain 72 plain, 44 reduced
+        (33, True, False, (False, True, True)),  # 73, 82, 91 vs 72, 144, 216
+        (33, True, True, (False, True, True)),  # 73, 82, 91 vs 44, 88, 132
+        (33, False, False, (True, True, True)),  # 46, 59, 72 vs 72, 144, 216
+        (33, False, True, (False, True, True)),  # 46, 59, 72 vs 44, 88, 132
+        # two dense words: chain 72; the exact item is word-aligned, no tail store
+        (64, True, False, (False, True, True)),  # 73, 82, 91 vs 72, 144, 216
+        (64, True, True, (False, True, True)),
+        (64, False, False, (False, True, True)),
+        (64, False, True, (False, True, True)),
+        # three dense words: chain 108
+        (96, True, False, (True, True, True)),  # 105, 114, 123 vs 108, 216, 324
+        (96, True, True, (True, True, True)),
+        (96, False, False, (True, True, True)),
+        (96, False, True, (True, True, True)),
+    ],
+)
+def test_should_codecopy_by_uses(n, padded, reduced, expected):
+    for uses, expected_for_uses in enumerate(expected, start=1):
+        assert should_codecopy(DENSE[:n], padded, reduced, uses) is expected_for_uses
 
 
 def _runtime_venom(code: str, level: OptimizationLevel):
@@ -105,12 +147,36 @@ def _runtime_venom(code: str, level: OptimizationLevel):
         return generate_runtime_venom(compiler_data.global_ctx, compiler_data.settings)
 
 
+def _deploy_venom(code: str, level: OptimizationLevel):
+    settings = Settings(experimental_codegen=True, optimize=level)
+    compiler_data = CompilerData(code, settings=settings)
+    with anchor_settings(compiler_data.settings):
+        return generate_deploy_venom(
+            compiler_data.global_ctx, compiler_data.settings, b"\x00" * 32, 0
+        )
+
+
 def _literal_sections(ctx):
     return [s for s in ctx.data_segment if s.label.value.endswith("_literal")]
 
 
 def _instructions(ctx):
     return [inst for bb in ctx.get_basic_blocks() for inst in bb.instructions]
+
+
+def _codecopies(ctx, section):
+    copies = [inst for inst in _instructions(ctx) if inst.opcode == "codecopy"]
+    return [inst for inst in copies if inst.operands[1] == section.label]
+
+
+def _length_stores(ctx, n):
+    stores = [inst for inst in _instructions(ctx) if inst.opcode == "mstore"]
+    return [inst for inst in stores if inst.operands[0] == IRLiteral(n)]
+
+
+def _words(data):
+    padded = data.ljust(ceil32(len(data)), b"\x00")
+    return [int.from_bytes(padded[i : i + 32], "big") for i in range(0, len(padded), 32)]
 
 
 @pytest.mark.parametrize(
@@ -131,17 +197,13 @@ def foo() -> String[{n}]:
     ctx = _runtime_venom(code, level)
 
     (section,) = _literal_sections(ctx)
-    _check_literal_copy(ctx, section, n, expected_item)
-
-
-def _check_literal_copy(ctx, section, n, expected_item):
     (item,) = section.data_items
     assert item.data == expected_item
+    (codecopy,) = _codecopies(ctx, section)
+    _check_literal_copy(codecopy, n, expected_item)
 
-    insts = _instructions(ctx)
-    (codecopy,) = [
-        inst for inst in insts if inst.opcode == "codecopy" and inst.operands[1] == section.label
-    ]
+
+def _check_literal_copy(codecopy, n, expected_item):
     size, _, _ = codecopy.operands
     assert size == IRLiteral(len(expected_item))
 
@@ -162,6 +224,28 @@ def _check_literal_copy(ctx, section, n, expected_item):
     assert [inst.operands[0] for inst in tail_stores] == (
         [IRLiteral(0)] if needs_tail_store else []
     )
+
+
+def _check_literal_chain(length_store, data):
+    # the chain sits right before the length store: `add ptr, 32 + i`
+    # then the `mstore` of the word, for every word of the padded data
+    words = _words(data)
+    bb = length_store.parent.instructions
+    idx = bb.index(length_store)
+    chain = bb[idx - 2 * len(words) : idx]
+    ptr = length_store.operands[1]
+    assert [inst.opcode for inst in chain] == ["add", "mstore"] * len(words)
+    adds, stores = chain[0::2], chain[1::2]
+    assert [inst.operands for inst in adds] == [
+        [IRLiteral(32 + i), ptr] for i in range(0, len(words) * 32, 32)
+    ]
+    assert [inst.operands for inst in stores] == [
+        [IRLiteral(word), add.output] for word, add in zip(words, adds)
+    ]
+    # nothing else writes into the literal's data (the tail store is gone)
+    offsets = [inst.output for inst in bb if inst.opcode == "add" and inst.operands[1] == ptr]
+    data_stores = [inst for inst in bb if inst.opcode == "mstore" and inst.operands[1] in offsets]
+    assert data_stores == stores
 
 
 # revert reasons use the exact item even at gas levels, other literals keep
@@ -191,22 +275,102 @@ def foo(x: uint256) -> String[{n}]:
     if returned_copied:
         expected_items.append(msg.encode().ljust(ceil32(n), b"\x00"))
     sections = _literal_sections(ctx)
-    assert len(sections) == len(expected_items)
+    assert [s.data_items[0].data for s in sections] == expected_items
     for section, expected_item in zip(sections, expected_items):
-        _check_literal_copy(ctx, section, n, expected_item)
+        (codecopy,) = _codecopies(ctx, section)
+        _check_literal_copy(codecopy, n, expected_item)
+
+
+def test_padded_and_exact_items_of_one_literal_do_not_share():
+    # the revert payload copies the exact bytes and the returned value the
+    # word-padded ones; the items differ, so each gets its own section
+    msg = ALPHABET[:100]
+    code = f"""
+@external
+def foo(x: uint256) -> String[100]:
+    assert x == 0, "{msg}"
+    return "{msg}"
+    """
+    ctx = _runtime_venom(code, OptimizationLevel.GAS)
+    exact, padded = _literal_sections(ctx)
+    assert exact.data_items[0].data == msg.encode()
+    assert padded.data_items[0].data == msg.encode().ljust(128, b"\x00")
+    (exact_copy,) = _codecopies(ctx, exact)
+    (padded_copy,) = _codecopies(ctx, padded)
+    assert exact_copy is not padded_copy
 
 
 @pytest.mark.parametrize("level", [OptimizationLevel.GAS, OptimizationLevel.CODESIZE])
 def test_literal_below_size_threshold_keeps_mstore_chain(level):
-    # two words: 73 vs 72 bytes at gas levels, 76 vs 72 at codesize levels
+    # two words: 73 vs 72 bytes at gas levels, 76 vs 72 at codesize levels;
+    # the copy is rewritten into the chain and its item is not kept
+    s = ALPHABET[:63]
     code = f"""
 @external
 def foo() -> String[63]:
-    return "{ALPHABET[:63]}"
+    return "{s}"
     """
     ctx = _runtime_venom(code, level)
     assert len(_literal_sections(ctx)) == 0
     assert not any(inst.opcode == "codecopy" for inst in _instructions(ctx))
+    (length_store,) = _length_stores(ctx, 63)
+    _check_literal_chain(length_store, s.encode())
+
+
+# 8 bytes, used three times: 8 + 3 * 13 bytes as copies of one exact item
+# against three chains of 36 (PUSH32) at gas levels, but of 15 (PUSH8,
+# PUSH1, SHL) at codesize levels
+@pytest.mark.parametrize(
+    "level,copied", [(OptimizationLevel.GAS, True), (OptimizationLevel.CODESIZE, False)]
+)
+def test_short_revert_reason_used_three_times(level, copied):
+    msg = "overflow"
+    code = f"""
+@external
+def foo(x: uint256) -> uint256:
+    assert x != 1, "{msg}"
+    assert x != 2, "{msg}"
+    assert x != 3, "{msg}"
+    return x
+    """
+    ctx = _runtime_venom(code, level)
+    copies = [inst for inst in _instructions(ctx) if inst.opcode == "codecopy"]
+    length_stores = _length_stores(ctx, len(msg))
+    assert len(length_stores) == 3
+    if copied:
+        (section,) = _literal_sections(ctx)
+        assert section.data_items[0].data == msg.encode()
+        assert len(copies) == 3
+        assert _codecopies(ctx, section) == copies
+        for codecopy in copies:
+            _check_literal_copy(codecopy, len(msg), msg.encode())
+    else:
+        assert len(_literal_sections(ctx)) == 0
+        assert len(copies) == 0
+        for length_store in length_stores:
+            _check_literal_chain(length_store, msg.encode())
+
+
+def test_same_literal_in_two_functions_shares_one_section():
+    s = ALPHABET[:96]
+    code = f"""
+@external
+def foo() -> String[96]:
+    return "{s}"
+
+@external
+def bar() -> String[96]:
+    return "{s}"
+    """
+    ctx = _runtime_venom(code, OptimizationLevel.CODESIZE)
+    (section,) = _literal_sections(ctx)
+    (item,) = section.data_items
+    assert item.data == s.encode()
+    copies = [inst for inst in _instructions(ctx) if inst.opcode == "codecopy"]
+    assert len(copies) == 2
+    assert _codecopies(ctx, section) == copies
+    for codecopy in copies:
+        _check_literal_copy(codecopy, 96, s.encode())
 
 
 def test_two_literals_two_sections():
@@ -248,3 +412,25 @@ def bar() -> String[96]:
     """
     ctx = _runtime_venom(code, OptimizationLevel.CODESIZE)
     assert len(_literal_sections(ctx)) == 1
+
+
+def test_literal_in_constructor_and_runtime_one_item_per_segment():
+    # deploy and runtime code are separate segments with separate pools
+    s = ALPHABET[:96]
+    code = f"""
+s: public(String[96])
+
+@deploy
+def __init__():
+    self.s = "{s}"
+
+@external
+def foo() -> String[96]:
+    return "{s}"
+    """
+    level = OptimizationLevel.CODESIZE
+    for ctx in (_runtime_venom(code, level), _deploy_venom(code, level)):
+        (section,) = _literal_sections(ctx)
+        assert section.data_items[0].data == s.encode()
+        (codecopy,) = _codecopies(ctx, section)
+        _check_literal_copy(codecopy, 96, s.encode())
