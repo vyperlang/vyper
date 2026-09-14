@@ -168,14 +168,14 @@ def test_bytecode_signature_deployed(code, get_contract, env):
     assert len(deployed_code) == runtime_len + immutables_len
 
 
-_ALPHABET = "abcdefghijklmnopqrstuvwxyz" * 4
+alphabet = "abcdefghijklmnopqrstuvwxyz" * 4
 
 # every literal is at least 96 bytes, so both optimization levels put it in
 # a data section; the constructor and runtime literals differ so that they
 # can be located in the initcode independently
-GREETING = _ALPHABET[:100]
-TAG = _ALPHABET[4:100]
-FAREWELL = _ALPHABET.upper()[:96]
+greeting = alphabet[:100]
+tag = alphabet[4:100]
+farewell = alphabet.upper()[:96]
 
 literals_contract_code = f"""
 greeting: public(String[100])
@@ -183,12 +183,12 @@ TAG: public(immutable(String[96]))
 
 @deploy
 def __init__():
-    self.greeting = "{GREETING}"
-    TAG = "{TAG}"
+    self.greeting = "{greeting}"
+    TAG = "{tag}"
 
 @external
 def farewell() -> String[96]:
-    return "{FAREWELL}"
+    return "{farewell}"
 """
 
 
@@ -207,9 +207,9 @@ def test_bytecode_literals_metadata(level):
     # selector dispatch has none); the constructor literals come before the
     # embedded runtime code, the metadata after it
     assert runtime_code in initcode
-    assert FAREWELL.encode() in runtime_code
-    assert initcode.index(GREETING.encode()) < initcode.index(runtime_code)
-    assert initcode.index(TAG.encode()) < initcode.index(runtime_code)
+    assert farewell.encode() in runtime_code
+    assert initcode.index(greeting.encode()) < initcode.index(runtime_code)
+    assert initcode.index(tag.encode()) < initcode.index(runtime_code)
 
     metadata = _parse_cbor_metadata(initcode)
     _, runtime_len, data_section_lengths, immutables_len, compiler = metadata

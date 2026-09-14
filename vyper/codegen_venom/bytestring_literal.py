@@ -22,8 +22,6 @@ from vyper.venom.function import IRFunction
 from vyper.venom.passes import ReduceLiteralsCodesize, TailMergePass
 from vyper.venom.passes.base_pass import IRPass
 
-WORD = 32
-
 # PUSH1 <address> for every store in the chain
 _ADDR_COST = 2
 # PUSH1 <size>, PUSH1 <dst>, PUSH2 <label>, SWAP1, CODECOPY
@@ -39,7 +37,7 @@ def _nbytes(val: int) -> int:
     return (val.bit_length() + 7) // 8
 
 
-def push_cost(word: int, reduced: bool) -> int:
+def push_bytes(word: int, reduced: bool) -> int:
     """
     Bytes of the cheapest encoding of a word: PUSHn, and when `reduced`
     (the level runs `ReduceLiteralsCodesize`) also PUSH + NOT or
@@ -59,12 +57,12 @@ def push_cost(word: int, reduced: bool) -> int:
 
 def _words(data: bytes) -> list[int]:
     padded = data.ljust(ceil32(len(data)), b"\x00")
-    return [int.from_bytes(padded[i : i + WORD], "big") for i in range(0, len(padded), WORD)]
+    return [int.from_bytes(padded[i : i + 32], "big") for i in range(0, len(padded), 32)]
 
 
 def chain_bytes(data: bytes, reduced: bool) -> int:
     """Code bytes for storing `data` word by word (the length word excluded)."""
-    return sum(push_cost(word, reduced) + _ADDR_COST + 1 for word in _words(data))
+    return sum(push_bytes(word, reduced) + _ADDR_COST + 1 for word in _words(data))
 
 
 def chain_instructions(fn: IRFunction, ptr: IRVariable, data: bytes) -> list[IRInstruction]:
@@ -76,7 +74,7 @@ def chain_instructions(fn: IRFunction, ptr: IRVariable, data: bytes) -> list[IRI
     instructions: list[IRInstruction] = []
     for i, word in enumerate(_words(data)):
         offset = fn.get_next_variable()
-        instructions.append(IRInstruction("add", [IRLiteral(WORD + WORD * i), ptr], [offset]))
+        instructions.append(IRInstruction("add", [IRLiteral(32 + 32 * i), ptr], [offset]))
         instructions.append(IRInstruction("mstore", [IRLiteral(word), offset]))
     return instructions
 
@@ -90,7 +88,7 @@ def codecopy_bytes(length: int, padded: bool, uses: int) -> int:
     """
     if padded:
         return ceil32(length) + _METADATA_ENTRY_COST + uses * _CODECOPY_COST
-    tail_store = _TAIL_STORE_COST if length % WORD != 0 else 0
+    tail_store = _TAIL_STORE_COST if length % 32 != 0 else 0
     return length + _METADATA_ENTRY_COST + uses * (_CODECOPY_COST + tail_store)
 
 
@@ -98,7 +96,7 @@ def should_codecopy(data: bytes, padded: bool, reduced: bool, uses: int) -> bool
     """
     Whether `data`, materialized `uses` times, is estimated to be smaller
     as codecopies from one data item, its metadata entry included, than
-    as mstore chains (`reduced`: see `push_cost`).
+    as mstore chains (`reduced`: see `push_bytes`).
 
     Runtime gas: the chain costs at least 8 gas per word, the codecopy
     15 + 3 gas per word, so from 3 words up the padded copy is never
@@ -179,19 +177,19 @@ class LiteralPool:
             item = data.ljust(ceil32(len(data)), b"\x00")
         entry = self._entries.get(item)
         if entry is None:
-            label = IRLabel(builder.ctx.get_next_label("literal").value, is_symbol=True)
+            label = builder.ctx.get_next_label("literal")
             entry = _LiteralEntry(label, item, padded=padded)
             self._entries[item] = entry
 
         bb = builder.current_block
         start = len(bb.instructions)
-        if len(item) % WORD != 0:
+        if len(item) % 32 != 0:
             # zero the last data word before the copy so the tail padding
             # matches what the mstore chain writes
-            last_word = builder.add(ptr, IRLiteral(WORD + len(item) - len(item) % WORD))
+            last_word = builder.add(ptr, IRLiteral(ceil32(len(item))))
             builder.mstore(last_word, IRLiteral(0))
 
-        data_ptr = builder.add(ptr, IRLiteral(WORD))
+        data_ptr = builder.add(ptr, IRLiteral(32))
         builder.codecopy(data_ptr, entry.label, IRLiteral(len(item)))
         entry.uses.append(_LiteralUse(ptr, bb.instructions[start:], revert_path=revert_path))
 

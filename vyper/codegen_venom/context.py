@@ -872,6 +872,15 @@ class VenomCodegenContext:
         finally:
             self.in_range_expr = prev_value
 
+    @contextmanager
+    def revert_scope(self):
+        old_constancy, old_on_revert_path = self.constancy, self.on_revert_path
+        self.constancy, self.on_revert_path = Constancy.Constant, True
+        try:
+            yield
+        finally:
+            self.constancy, self.on_revert_path = old_constancy, old_on_revert_path
+
     # === Nonreentrant Lock Support ===
 
     def emit_nonreentrant_lock(self, func_t: ContractFunctionT) -> None:

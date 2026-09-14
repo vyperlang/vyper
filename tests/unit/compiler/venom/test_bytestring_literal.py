@@ -3,7 +3,7 @@ import pytest
 from vyper.codegen_venom.bytestring_literal import (
     chain_bytes,
     codecopy_bytes,
-    push_cost,
+    push_bytes,
     should_codecopy,
 )
 from vyper.codegen_venom.module import generate_deploy_venom, generate_runtime_venom
@@ -19,22 +19,22 @@ DENSE = bytes(range(1, 256)) * 2
 ALPHABET = "abcdefghijklmnopqrstuvwxyz" * 8
 
 
-def test_push_cost_reduced():
-    assert push_cost(0, reduced=True) == 1  # PUSH0
-    assert push_cost(1, reduced=True) == 2  # PUSH1
-    assert push_cost(int.from_bytes(DENSE[:32], "big"), reduced=True) == 33  # PUSH32
-    assert push_cost(2**256 - 1, reduced=True) == 2  # PUSH0, NOT
-    assert push_cost(2**256 - 0x100, reduced=True) == 3  # PUSH1 0xff, NOT
-    assert push_cost(1 << 255, reduced=True) == 5  # PUSH1 1, PUSH1 255, SHL
-    assert push_cost(0x73747576 << 224, reduced=True) == 8  # PUSH4, PUSH1, SHL
+def test_push_bytes_reduced():
+    assert push_bytes(0, reduced=True) == 1  # PUSH0
+    assert push_bytes(1, reduced=True) == 2  # PUSH1
+    assert push_bytes(int.from_bytes(DENSE[:32], "big"), reduced=True) == 33  # PUSH32
+    assert push_bytes(2**256 - 1, reduced=True) == 2  # PUSH0, NOT
+    assert push_bytes(2**256 - 0x100, reduced=True) == 3  # PUSH1 0xff, NOT
+    assert push_bytes(1 << 255, reduced=True) == 5  # PUSH1 1, PUSH1 255, SHL
+    assert push_bytes(0x73747576 << 224, reduced=True) == 8  # PUSH4, PUSH1, SHL
 
 
-def test_push_cost_plain():
+def test_push_bytes_plain():
     # without ReduceLiteralsCodesize every non-zero word is a plain PUSHn
-    assert push_cost(0, reduced=False) == 1
-    assert push_cost(2**256 - 1, reduced=False) == 33
-    assert push_cost(1 << 255, reduced=False) == 33
-    assert push_cost(0x73747576 << 224, reduced=False) == 33
+    assert push_bytes(0, reduced=False) == 1
+    assert push_bytes(2**256 - 1, reduced=False) == 33
+    assert push_bytes(1 << 255, reduced=False) == 33
+    assert push_bytes(0x73747576 << 224, reduced=False) == 33
 
 
 def test_chain_bytes():
@@ -96,7 +96,10 @@ def test_should_codecopy_gas(n, expected):
     assert should_codecopy(DENSE[:n], padded=True, reduced=False, uses=1) is expected
 
 
-@pytest.mark.parametrize("padded,reduced", [(True, False), (False, True)])
+@pytest.mark.parametrize(
+    "padded,reduced",
+    [pytest.param(True, False, id="gas"), pytest.param(False, True, id="codesize")],
+)
 def test_should_codecopy_zero_words(padded, reduced):
     # 3 zero words cost 12 bytes as stores, 107 as a data item
     assert not should_codecopy(b"\x00" * 96, padded, reduced, uses=1)
@@ -188,10 +191,12 @@ def _words(data):
 @pytest.mark.parametrize(
     "level,n,expected_item",
     [
-        (OptimizationLevel.GAS, 96, ALPHABET[:96].encode()),
-        (OptimizationLevel.GAS, 100, ALPHABET[:100].encode().ljust(128, b"\x00")),
-        (OptimizationLevel.CODESIZE, 96, ALPHABET[:96].encode()),
-        (OptimizationLevel.CODESIZE, 100, ALPHABET[:100].encode()),
+        pytest.param(OptimizationLevel.GAS, 96, ALPHABET[:96].encode(), id="gas-96"),
+        pytest.param(
+            OptimizationLevel.GAS, 100, ALPHABET[:100].encode().ljust(128, b"\x00"), id="gas-100"
+        ),
+        pytest.param(OptimizationLevel.CODESIZE, 96, ALPHABET[:96].encode(), id="codesize-96"),
+        pytest.param(OptimizationLevel.CODESIZE, 100, ALPHABET[:100].encode(), id="codesize-100"),
     ],
 )
 def test_literal_codecopy_ir(level, n, expected_item):
