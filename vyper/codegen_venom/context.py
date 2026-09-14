@@ -17,7 +17,7 @@ from typing import Optional, Sequence
 
 from vyper.codegen.core import punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
-from vyper.codegen_venom.bytestring_literal import LiteralPool
+from vyper.codegen_venom.bytestring_literal import LiteralPool, chain_instructions
 from vyper.codegen_venom.value import VyperValue
 from vyper.compiler.settings import _opt_codesize, _opt_lowering_only_ir
 from vyper.evm.opcodes import version_check
@@ -105,7 +105,8 @@ class VenomCodegenContext:
     # set while lowering a revert reason or custom error arguments
     on_revert_path: bool = False
 
-    # the literal data items of the code segment being lowered
+    # the literal data items of the code segment being lowered; None only
+    # for the dispatcher contexts, which lower no expressions
     literal_pool: Optional[LiteralPool] = None
 
     # Immutables region alloca (for constructor context).
@@ -243,11 +244,8 @@ class VenomCodegenContext:
         if _opt_lowering_only_ir():
             # the lowering-only levels keep the chain, they are not meant
             # to optimize
-            for i in range(0, len(data), 32):
-                chunk = (data + b"\x00" * 31)[i : i + 32]
-                word = int.from_bytes(chunk, "big")
-                offset = self.builder.add(val.operand, IRLiteral(32 + i))
-                self.builder.mstore(offset, IRLiteral(word))
+            for inst in chain_instructions(self.builder.fn, val.operand, data):
+                self.builder.current_block.insert_instruction(inst)
         else:
             # the data item is exact (the last word is zeroed first) at
             # codesize levels and in revert payloads, and padded to whole

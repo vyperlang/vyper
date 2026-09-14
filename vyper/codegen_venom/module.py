@@ -24,7 +24,7 @@ from vyper.codegen_venom.abi.abi_decoder import (
     decode_unbounded_sequence_to_scratch,
 )
 from vyper.codegen_venom.buffer import Ptr
-from vyper.codegen_venom.bytestring_literal import LiteralPool, reduced_pushes
+from vyper.codegen_venom.bytestring_literal import LiteralPool
 from vyper.codegen_venom.constants import SELECTOR_BYTES, SELECTOR_SHIFT_BITS
 from vyper.codegen_venom.value import VyperValue
 from vyper.compiler.settings import Settings, _opt_codesize, _opt_lowering_only_ir
@@ -171,7 +171,7 @@ def generate_runtime_venom(module_t: ModuleT, settings: Settings) -> IRContext:
             runtime_ctx, module_t, literal_pool, func_ast, is_ctor_context=False
         )
 
-    literal_pool.finalize(runtime_ctx, reduced_pushes())
+    literal_pool.finalize(runtime_ctx)
 
     return runtime_ctx
 
@@ -241,7 +241,7 @@ def generate_deploy_venom(
         # No constructor - just deploy runtime
         _generate_simple_deploy(deploy_builder, len(runtime_bytecode), immutables_len)
 
-    literal_pool.finalize(deploy_ctx, reduced_pushes())
+    literal_pool.finalize(deploy_ctx)
 
     # Add runtime bytecode as data section. This comes after the literal
     # data sections so that the metadata stays the last bytes of the initcode.

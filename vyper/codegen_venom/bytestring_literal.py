@@ -18,6 +18,7 @@ from vyper.venom import OPTIMIZATION_PASSES
 from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IRVariable
 from vyper.venom.builder import VenomBuilder
 from vyper.venom.context import IRContext
+from vyper.venom.function import IRFunction
 from vyper.venom.passes import ReduceLiteralsCodesize
 
 WORD = 32
@@ -62,6 +63,20 @@ def chain_bytes(data: bytes, reduced: bool) -> int:
     return sum(push_cost(word, reduced) + _ADDR_COST + 1 for word in _words(data))
 
 
+def chain_instructions(fn: IRFunction, ptr: IRVariable, data: bytes) -> list[IRInstruction]:
+    """
+    The `add`/`mstore` pairs storing `data` word by word behind the
+    length word of the buffer at `ptr`, to be inserted into a block of
+    `fn`.
+    """
+    instructions: list[IRInstruction] = []
+    for i, word in enumerate(_words(data)):
+        offset = fn.get_next_variable()
+        instructions.append(IRInstruction("add", [IRLiteral(WORD + WORD * i), ptr], [offset]))
+        instructions.append(IRInstruction("mstore", [IRLiteral(word), offset]))
+    return instructions
+
+
 def codecopy_bytes(length: int, padded: bool, uses: int) -> int:
     """
     Code plus data bytes for copying a `length`-byte literal from its
@@ -83,8 +98,10 @@ def should_codecopy(data: bytes, padded: bool, reduced: bool, uses: int) -> bool
 
     Runtime gas: the chain costs at least 8 gas per word, the codecopy
     15 + 3 gas per word, so from 3 words up the padded copy is never
-    worse. A shorter literal passes the size gate only when it is used
-    more than once, and then costs up to 10 gas more per use.
+    worse. A shorter padded item passes the size gate only when it is
+    used more than once, and then costs up to 10 gas more per use than
+    the chain; an exact item pays 8 more per use for the tail store on
+    top.
     """
     return codecopy_bytes(len(data), padded, uses) < uses * chain_bytes(data, reduced)
 
@@ -113,7 +130,6 @@ class _LiteralUse:
 class _LiteralEntry:
     label: IRLabel
     item: bytes
-    data: bytes
     padded: bool
     uses: list[_LiteralUse] = field(default_factory=list)
 
@@ -144,7 +160,7 @@ class LiteralPool:
         entry = self._entries.get(item)
         if entry is None:
             label = IRLabel(builder.ctx.get_next_label("literal").value, is_symbol=True)
-            entry = _LiteralEntry(label, item, data, padded)
+            entry = _LiteralEntry(label, item, padded)
             self._entries[item] = entry
 
         tail_store = None
@@ -159,24 +175,24 @@ class LiteralPool:
         builder.codecopy(data_ptr, entry.label, IRLiteral(len(item)))
         entry.uses.append(_LiteralUse(ptr, builder.get_last_inst("codecopy"), tail_store))
 
-    def finalize(self, ctx: IRContext, reduced: bool) -> None:
+    def finalize(self, ctx: IRContext) -> None:
         """
         Append the data sections of the items whose copies are smaller
         than the chains they replace and rewrite the other copies into
-        chains (`reduced`: see `push_cost`).
+        chains.
         """
         assert not self._finalized
         self._finalized = True
+        reduced = reduced_pushes()
         for entry in self._entries.values():
-            if should_codecopy(entry.data, entry.padded, reduced, len(entry.uses)):
-                # known limitation: if every use of the item turns out to
-                # be dead, dead store elimination removes the codecopies
-                # but the item stays in the bytecode
+            if should_codecopy(entry.item, entry.padded, reduced, len(entry.uses)):
+                # known limitation: an item whose uses are all dead code
+                # stays in the bytecode, and so do its copies
                 ctx.append_data_section(entry.label)
                 ctx.append_data_item(entry.item)
             else:
                 for use in entry.uses:
-                    _rewrite_as_chain(use, entry.data)
+                    _rewrite_as_chain(use, entry.item)
 
 
 def _rewrite_as_chain(use: _LiteralUse, data: bytes) -> None:
@@ -184,16 +200,12 @@ def _rewrite_as_chain(use: _LiteralUse, data: bytes) -> None:
     bb = use.codecopy.parent
     assert use.codecopy in bb.instructions
     index = bb.instructions.index(use.codecopy)
-    for i, word in enumerate(_words(data)):
-        offset = bb.parent.get_next_variable()
-        add = IRInstruction("add", [IRLiteral(WORD + WORD * i), use.ptr], [offset])
-        mstore = IRInstruction("mstore", [IRLiteral(word), offset])
-        for inst in (add, mstore):
-            bb.insert_instruction(inst, index)
-            # the chain takes over the source position of the copy
-            inst.ast_source = use.codecopy.ast_source
-            inst.error_msg = use.codecopy.error_msg
-            index += 1
+    for inst in chain_instructions(bb.parent, use.ptr, data):
+        bb.insert_instruction(inst, index)
+        # the chain takes over the source position of the copy
+        inst.ast_source = use.codecopy.ast_source
+        inst.error_msg = use.codecopy.error_msg
+        index += 1
     bb.remove_instruction(use.codecopy)
     if use.tail_store is not None:
         assert use.tail_store.parent is bb
