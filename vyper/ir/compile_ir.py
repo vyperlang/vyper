@@ -405,7 +405,7 @@ class _IRnodeLowerer:
             # if (0 == rounds) { goto exit_dest; }
             if not (isinstance(rounds.value, int) and rounds.value != 0):
                 # stack: i, rounds
-                # if (0 == rounds) { goto end_dest; }
+                # if (0 == rounds) { goto exit_dest; }
                 o.extend(["DUP1", "ISZERO", *JUMPI(exit_dest)])
 
             # stack: start, rounds
