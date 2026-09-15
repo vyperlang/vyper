@@ -388,7 +388,7 @@ class _IRnodeLowerer:
 
             o.extend(self._compile_r(rounds, height + 1))
 
-            # stack: i
+            # stack: i, rounds
 
             # assert rounds <= rounds_bound
             if not isinstance(rounds.value, int):
@@ -399,12 +399,14 @@ class _IRnodeLowerer:
                 # TODO this runtime assertion shouldn't fail for
                 # internally generated repeats.
                 o.extend(["DUP2", "GT"] + self._assert_false())
+                # stack: i, rounds
 
             # if (0 == rounds) { goto exit_dest; }
             if not (isinstance(rounds.value, int) and rounds.value != 0):
                 # stack: i, rounds
                 # if (0 == rounds) { goto exit_dest; }
                 o.extend(["DUP1", "ISZERO", *JUMPI(exit_dest)])
+                # stack: i, rounds
 
             # stack: start, rounds
             if start.value != 0:
