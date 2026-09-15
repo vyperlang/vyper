@@ -10,8 +10,33 @@ from .load_analysis import LoadAnalysis
 from .mem_alias import MemoryAliasAnalysis
 from .mem_liveness import MemLivenessAnalysis
 from .mem_ssa import MemSSA
+from .must_halt import MustHaltAnalysis
 from .reachable import ReachableAnalysis
 from .readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
 from .stack_order import StackOrderAnalysis
 from .var_definition import VarDefinition
 from .variable_range import VariableRangeAnalysis
+
+__all__ = [
+    "BasePtrAnalysis",
+    "CFGAnalysis",
+    "DFGAnalysis",
+    "DominatorTreeAnalysis",
+    "DynamicMemoryAnalysis",
+    "DynamicMemoryInfo",
+    "FCGGlobalAnalysis",
+    "IRAnalysesCache",
+    "IRAnalysis",
+    "IRGlobalAnalysesCache",
+    "IRGlobalAnalysis",
+    "LivenessAnalysis",
+    "LoadAnalysis",
+    "MemLivenessAnalysis",
+    "MemSSA",
+    "MemoryAliasAnalysis",
+    "ReachableAnalysis",
+    "ReadonlyMemoryArgsGlobalAnalysis",
+    "StackOrderAnalysis",
+    "VarDefinition",
+    "VariableRangeAnalysis",
+]

@@ -171,18 +171,6 @@ class IRFunction:
     def error_msg(self) -> Optional[str]:
         return self._error_msg_stack[-1] if len(self._error_msg_stack) > 0 else None
 
-    def copy(self):
-        new = IRFunction(self.name)
-        new._has_memory_return_buffer_param = self._has_memory_return_buffer_param
-        new._return_value_count = self._return_value_count
-        new._fmp_signature = self._fmp_signature
-        new.noinline = self.noinline
-        for bb in self.get_basic_blocks():
-            new_bb = bb.copy()
-            new.append_basic_block(new_bb)
-
-        return new
-
     def as_graph(self, only_subgraph=False) -> str:
         """
         Return the function as a graphviz dot string. If only_subgraph is True, only return the
@@ -224,6 +212,12 @@ class IRFunction:
         attrs = self._fmp_signature.attrs if self._fmp_signature is not None else []
         if self.noinline:
             attrs.append("noinline")
+        # the end of this function's static frame, once it is known (i.e. after
+        # ConcretizeMemLocPass). Codegen places spill slots above it, and it
+        # cannot be recovered from the instruction stream, so it has to be
+        # written out for the text format to round-trip.
+        if self.ctx is not None and (eom := self.ctx.mem_allocator.fn_eom.get(self)) is not None:
+            attrs.append(f"eom={eom}")
         annotation = f" [{', '.join(attrs)}]" if attrs else ""
         ret = f"function {self.name}{annotation} {{\n"
         for bb in self.get_basic_blocks():

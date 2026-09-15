@@ -3,7 +3,7 @@ from typing import Iterator
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, IRAnalysis
-from vyper.venom.basicblock import IRBasicBlock
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 from vyper.venom.function import IRFunction
 
 
@@ -60,6 +60,19 @@ class DominatorTreeAnalysis(IRAnalysis):
         Check if `dom` dominates `sub`.
         """
         return dom in self.dominators[sub]
+
+    def is_after(self, inst: IRInstruction, other: IRInstruction) -> bool:
+        """
+        Instruction-granularity dominance: does `inst` definitely execute
+        after `other`? Within a single block this means `inst` comes after
+        `other` in instruction order. Across blocks, `other`'s block must
+        dominate `inst`'s block.
+        """
+        if inst.parent is other.parent:
+            bb_insts = inst.parent.instructions
+            return bb_insts.index(inst) > bb_insts.index(other)
+
+        return self.dominates(other.parent, inst.parent)
 
     def immediate_dominator(self, bb):
         """

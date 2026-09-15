@@ -5,6 +5,7 @@ import random
 import pytest
 
 from vyper import compile_code
+from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import (
     InvalidOperation,
     OverflowException,
@@ -88,6 +89,11 @@ def bar(negative:int16) -> int16:
         c.bar(-2)
 
 
+@pytest.mark.skip_at_optimization(
+    OptimizationLevel.O1,
+    OptimizationLevel.NONE,
+    reason="the expected compile-time failure depends on constant folding",
+)
 @pytest.mark.parametrize("base", (0, 1))
 def test_exponent_negative_power_compile_time_check(
     get_contract, tx_failed, base, experimental_codegen

@@ -49,6 +49,15 @@ def foo(x: int128[2][2]) -> int128:
     """,
         TypeMismatch,
     ),
+    (
+        """
+bar: int128[2][2]
+@external
+def foo():
+    self.bar = [[], [1, 2]]
+    """,
+        TypeMismatch,
+    ),
 ]
 
 
@@ -56,6 +65,22 @@ def foo(x: int128[2][2]) -> int128:
 def test_nested_list_fail(bad_code, exc):
     with pytest.raises(exc):
         compiler.compile_code(bad_code)
+
+
+def test_nested_dynarray_mismatched_inner_bytes():
+    code = """
+@external
+def foo():
+    tmp1: DynArray[Bytes[3], 5] = []
+    tmp2: DynArray[Bytes[5], 5] = []
+    tmp: DynArray[DynArray[Bytes[3], 5], 5] = [tmp1, tmp2]
+    """
+    with pytest.raises(TypeMismatch) as excinfo:
+        compiler.compile_code(code)
+    assert excinfo.value.message == (
+        "Expected DynArray[DynArray[Bytes[3], 5], 5] but literal can only be cast as"
+        " DynArray[Bytes[5], 5][2] or DynArray[DynArray[Bytes[5], 5], 2]."
+    )
 
 
 valid_list = [
@@ -66,10 +91,40 @@ def foo():
     self.bar = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
     """,
     """
+bar: int128[3][3][3]
+@external
+def foo():
+    self.bar = [
+        [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+        [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+        [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+    ]
+    """,
+    """
 bar: decimal[3][3]
 @external
 def foo():
     self.bar = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]
+    """,
+    """
+@external
+def foo():
+    tmp: uint256 = [[], [1]][1][0]
+    """,
+    """
+@external
+def foo():
+    tmp: DynArray[DynArray[int128, 1], 2] = [[1], []]
+    """,
+    """
+@external
+def foo():
+    tmp: DynArray[DynArray[int128, 1], 2] = [[], [1]]
+    """,
+    """
+@external
+def foo():
+    tmp: DynArray[DynArray[int128, 1], 3] = [[], [1], [-1]]
     """,
 ]
 
