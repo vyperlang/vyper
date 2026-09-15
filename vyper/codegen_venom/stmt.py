@@ -18,13 +18,7 @@ from vyper.codegen_venom.abi import (
     runtime_abi_size_for_encode,
 )
 from vyper.codegen_venom.arithmetic import apply_binop
-from vyper.exceptions import (
-    CodegenPanic,
-    CompilerPanic,
-    TypeCheckFailure,
-    TypeMismatch,
-    tag_exceptions,
-)
+from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
 from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
