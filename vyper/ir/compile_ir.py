@@ -374,7 +374,9 @@ class _IRnodeLowerer:
             rounds_bound = code.args[3]
             body = code.args[4]
 
-            assert not (isinstance(rounds.value, int) and 0 > rounds.value)
+            if isinstance(rounds.value, int):
+                assert isinstance(rounds_bound.value, int)
+                assert 0 <= rounds.value <= rounds_bound.value
             assert isinstance(i_name.value, str)  # help mypy
 
             entry_dest = self.mksymbol("loop_start")
@@ -389,11 +391,7 @@ class _IRnodeLowerer:
             # stack: i
 
             # assert rounds <= rounds_bound
-            if not (
-                isinstance(rounds.value, int)
-                and isinstance(rounds_bound.value, int)
-                and rounds.value <= rounds_bound.value
-            ):
+            if not isinstance(rounds.value, int):
                 # stack: i, rounds
                 o.extend(self._compile_r(rounds_bound, height + 2))
                 # stack: i, rounds, rounds_bound
