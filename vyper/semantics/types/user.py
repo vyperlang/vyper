@@ -261,10 +261,9 @@ class EventT(_UserType):
         self.name = name
         self.indexed = indexed
         self.is_anonymous = is_anonymous
-        assert len(self.indexed) == len(self.arguments)
 
         indexed_count = 0
-        for is_indexed, typ in zip(self.indexed, self.arguments.values()):
+        for is_indexed, typ in zip(self.indexed, self.arguments.values(), strict=True):
             if not is_indexed:
                 continue
             if not typ._as_event_index:
@@ -294,7 +293,7 @@ class EventT(_UserType):
 
     def __repr__(self):
         args = []
-        for is_indexed, (_, argtype) in zip(self.indexed, self.arguments.items()):
+        for is_indexed, (_, argtype) in zip(self.indexed, self.arguments.items(), strict=True):
             argtype_str = repr(argtype)
             if is_indexed:
                 argtype_str = f"indexed({argtype_str})"
