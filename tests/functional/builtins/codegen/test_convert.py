@@ -1,3 +1,4 @@
+import dataclasses
 import enum
 import itertools
 import math
@@ -10,7 +11,7 @@ import pytest
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings
-from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
+from vyper.exceptions import InvalidLiteral, InvalidType, StaticAssertionException, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.shortcuts import BYTES20_T, BYTES32_T, UINT, UINT160_T, UINT256_T
 from vyper.utils import (
@@ -693,9 +694,59 @@ def foo() -> {t_bytes}:
     assert c2.foo() == test_data
 
 
+def test_conversion_tmp_negative_int_to_decimal_bounds(
+    get_contract, tx_failed, compiler_settings, assert_compile_failed
+):
+    code = """
+@external
+def foo():
+    bar: int136 = -18707220957835557353007165858768422651596
+    foobar: decimal = convert(bar, decimal)
+    """
+
+    compiler_settings = dataclasses.replace(compiler_settings, disable_static_exceptions=True)
+
+    c = get_contract(code, compiler_settings=compiler_settings)
+
+    with tx_failed():
+        c.foo()
+
+    code = """
+@external
+def foo():
+    foobar: decimal = convert(-18707220957835557353007165858768422651596, decimal)
+    """
+
+    assert_compile_failed(lambda: get_contract(code), InvalidLiteral)
+
+
+def test_conversion_hex(get_contract, assert_compile_failed):
+    code = """
+@external
+def foo() -> uint8:
+    return convert(0xffff, uint8)
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidLiteral)
+
+
+def test_conversion_constant_different_leghts(get_contract):
+    code = r"""
+FOO: constant(Bytes[2]) = b'\xff'
+
+@external
+def foo() -> int16:
+    return convert(FOO, int16)
+    """
+
+    c = get_contract(code)
+    assert c.foo() == -1
+
+
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_reverting_cases())
 @pytest.mark.fuzzing
-def test_conversion_failures(get_contract, assert_compile_failed, tx_failed, i_typ, o_typ, val):
+def test_conversion_failures(
+    get_contract, assert_compile_failed, tx_failed, compiler_settings, i_typ, o_typ, val
+):
     """
     Test multiple contracts and check for a specific exception.
     If no exception is provided, a runtime revert is expected (e.g. clamping).
@@ -735,9 +786,15 @@ def foo():
     foobar: {o_typ} = convert(bar, {o_typ})
     """
 
-    c2 = get_contract(contract_2)
+    compiler_settings_no_static = dataclasses.replace(
+        compiler_settings, disable_static_exceptions=True
+    )
+    c2 = get_contract(contract_2, compiler_settings=compiler_settings_no_static)
     with tx_failed():
         c2.foo()
+
+    if compiler_settings.experimental_codegen:
+        assert_compile_failed(lambda: get_contract(contract_2), StaticAssertionException)
 
     contract_3 = f"""
 @external
@@ -745,7 +802,7 @@ def foo(bar: {i_typ}) -> {o_typ}:
     return convert(bar, {o_typ})
     """
 
-    c3 = get_contract(contract_3)
+    c3 = get_contract(contract_3, compiler_settings=compiler_settings_no_static)
     input_val = val
     if isinstance(i_typ, DecimalT):
         input_val = decimal_to_int(input_val)
