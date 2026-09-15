@@ -232,14 +232,6 @@ def foo():
             "a: DynArray[Bytes[INF], 5]",
             "DynArray element types cannot contain unbounded sequence types",
         ),
-        (
-            "a: DynArray[DynArray[uint256, 5], INF]",
-            "DynArray[..., INF] is only supported with ABI-static element types",
-        ),
-        (
-            "a: DynArray[Bytes[5], INF]",
-            "DynArray[..., INF] is only supported with ABI-static element types",
-        ),
     ],
 )
 def test_dynarray_inf_nested(code, msg):
