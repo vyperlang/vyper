@@ -2,7 +2,6 @@ import pytest
 
 from tests.evm_backends.abi import abi_decode, abi_encode
 from vyper.compiler import compile_code
-from vyper.exceptions import CodegenPanic
 from vyper.utils import method_id
 
 
