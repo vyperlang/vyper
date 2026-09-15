@@ -402,7 +402,14 @@ class _IRnodeLowerer:
                 # stack: i, rounds
 
             # if (0 == rounds) { goto exit_dest; }
-            if not (isinstance(rounds.value, int) and rounds.value != 0):
+            if rounds.value == 0:
+                # true at compile-time: unconditional jump
+                o.extend(JUMP(exit_dest))
+            elif isinstance(rounds.value, int):
+                # value is known at compile-time not to be 0, no code to emit
+                pass
+            else:
+                # we know nothing, emit conditional
                 # stack: i, rounds
                 # if (0 == rounds) { goto exit_dest; }
                 o.extend(["DUP1", "ISZERO", *JUMPI(exit_dest)])
