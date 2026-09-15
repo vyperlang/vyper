@@ -1,7 +1,6 @@
 import pytest
 
-from vyper.exceptions import EventDeclarationException, TypeMismatch
-from vyper.semantics.types.module import InterfaceT
+from vyper.exceptions import EventDeclarationException
 from vyper.semantics.types.user import EventT
 from vyper.utils import keccak256
 
@@ -113,13 +112,6 @@ def _event_abi(*inputs):
     }
 
 
-@pytest.mark.parametrize("bad_type", ["uint256[3]", "uint256[2][2]"])
-def test_from_abi_indexed_non_value_type_rejected(bad_type):
-    with pytest.raises(TypeMismatch) as excinfo:
-        EventT.from_abi(_event_abi((bad_type, True)))
-    assert excinfo.value.message == "Event indexes may only be value types"
-
-
 @pytest.mark.parametrize(
     "good_type", ["uint256", "int128", "address", "bool", "bytes32", "bytes", "string"]
 )
@@ -154,10 +146,3 @@ def test_from_abi_anonymous_more_than_four_indexed_rejected():
     with pytest.raises(EventDeclarationException) as excinfo:
         EventT.from_abi(abi)
     assert excinfo.value.message == "Anonymous event cannot have more than four indexed arguments"
-
-
-def test_from_json_abi_surfaces_indexed_type_error():
-    abi = [_event_abi(("uint256[3]", True))]
-    with pytest.raises(TypeMismatch) as excinfo:
-        InterfaceT.from_json_abi("I", abi)
-    assert excinfo.value.message == "Event indexes may only be value types"

@@ -3,12 +3,7 @@ import json
 import pytest
 
 from vyper.compiler import compile_code, compile_from_file_input
-from vyper.exceptions import (
-    EventDeclarationException,
-    StructureException,
-    TypeMismatch,
-    UnimplementedException,
-)
+from vyper.exceptions import EventDeclarationException, StructureException, UnimplementedException
 
 
 def test_event_with_module_as_member_errors(make_input_bundle):
@@ -60,9 +55,9 @@ struct MyStruct:
 event E:
     a: indexed({bad_type})
     """
-    with pytest.raises(TypeMismatch) as e:
+    with pytest.raises(StructureException) as excinfo:
         compile_code(code)
-    assert "Event indexes may only be value types" in str(e.value)
+    assert excinfo.value.message == "Event indexes may only be value types"
 
 
 @pytest.mark.parametrize(
@@ -80,7 +75,8 @@ event E:
     assert compile_code(code) is not None
 
 
-def test_json_abi_indexed_non_value_type_rejected(make_input_bundle):
+def test_json_abi_indexed_non_value_type_checked_lazily(make_input_bundle):
+    # solidity-valid but vyper-invalid
     abi = json.dumps(
         [
             {
@@ -91,15 +87,29 @@ def test_json_abi_indexed_non_value_type_rejected(make_input_bundle):
             }
         ]
     )
-    main = """
+
+    # json abi events are checked lazily, so an un-loggable event can still be imported
+    importing = """
 import iface
     """
-    input_bundle = make_input_bundle({"iface.json": abi, "main.vy": main})
+    input_bundle = make_input_bundle({"iface.json": abi, "main.vy": importing})
     file_input = input_bundle.load_file("main.vy")
 
-    with pytest.raises(TypeMismatch) as e:
+    assert compile_from_file_input(file_input, input_bundle=input_bundle) is not None
+
+    logging = """
+import iface
+
+@external
+def foo():
+    log iface.E(a=[1, 2, 3])
+    """
+    input_bundle = make_input_bundle({"iface.json": abi, "main.vy": logging})
+    file_input = input_bundle.load_file("main.vy")
+
+    with pytest.raises(StructureException) as excinfo:
         compile_from_file_input(file_input, input_bundle=input_bundle)
-    assert "Event indexes may only be value types" in str(e.value)
+    assert excinfo.value.message == "Event indexes may only be value types"
 
 
 def test_json_abi_anonymous_four_indexed_accepted(make_input_bundle):
