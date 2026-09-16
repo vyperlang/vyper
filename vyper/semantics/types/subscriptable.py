@@ -171,6 +171,8 @@ class SArrayT(_SequenceT):
 
     _id = "$SArray"
 
+    length: int  # narrows type from parent
+
     def __init__(self, value_type: VyperType, length: int) -> None:
         super().__init__(value_type, length)
 

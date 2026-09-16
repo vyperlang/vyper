@@ -799,11 +799,14 @@ class Expr:
         body = parse_arm(self.expr.body)
         orelse = parse_arm(self.expr.orelse)
 
+        def _needs_memory(ir_node: IRnode) -> bool:
+            return ir_node.value == "multi" or ir_node.is_empty_intrinsic
+
         # if they are in the same location, we can skip copying
         # into memory. also for the case where either body or orelse are
-        # literal `multi` values (ex. for tuple or arrays), copy to
-        # memory (to avoid crashing in make_setter, XXX fixme).
-        if body.location != orelse.location or body.value == "multi":
+        # literal `multi`/`~empty` values (ex. for tuple or arrays), copy to
+        # memory (to avoid crashing in make_setter).
+        if body.location != orelse.location or _needs_memory(body) or _needs_memory(orelse):
             body = ensure_in_memory(body, self.context)
             orelse = ensure_in_memory(orelse, self.context)
 

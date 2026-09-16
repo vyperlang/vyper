@@ -1071,33 +1071,6 @@ def f(a: address) -> DynArray[Bytes[10], 5]:
     compiler.compile_code(accepted)
 
 
-def test_wildcard_arg_dynamic_element_resolves_to_inf():
-    # no expected bound: the wildcard resolves to DynArray[Bytes[10], INF]
-    inf_code = """
-interface I:
-    def foo(xs: DynArray[Bytes[10], ...]): nonpayable
-
-@external
-def f(a: address):
-    extcall I(a).foo([])
-    """
-    module = compiler.CompilerData(
-        inf_code, settings=Settings(experimental_codegen=True)
-    ).annotated_vyper_module
-    (arg,) = module.get_descendants(vy_ast.List)
-    assert arg._metadata["type"] == DArrayT(BytesT(10), INF)
-
-    accepted = """
-interface I:
-    def foo(xs: DynArray[Bytes[10], ...]): nonpayable
-
-@external
-def f(a: address, xs: DynArray[Bytes[10], 5]):
-    extcall I(a).foo(xs)
-    """
-    compiler.compile_code(accepted)
-
-
 @pytest.mark.parametrize("element_type", ["Bytes[...]", "DynArray[uint256, ...]"])
 def test_wildcard_arg_rejects_resolved_unbounded_element(element_type):
     code = f"""
@@ -1126,6 +1099,35 @@ def f(a: address):
     extcall I(a).foo({arg_source})
     """
     compiler.compile_code(code)
+
+
+def test_wildcard_arg_subscripted_list_literal():
+    code = """
+interface I:
+    def foo(xs: DynArray[uint256, ...]): nonpayable
+
+@external
+def f(a: address, xs: DynArray[uint256, 5]):
+    extcall I(a).foo([xs][0])
+    """
+    compiler.compile_code(code)
+
+
+def test_wildcard_arg_ternary_sarray_element():
+    # Note: this should pass once we use expected type typing
+    code = """
+interface I:
+    def bar() -> DynArray[uint256, ...]: nonpayable
+    def foo(xs: DynArray[uint256, ...][1]): nonpayable
+
+@external
+def f(a: address, c: bool, ys: DynArray[uint256, 5][1]):
+    extcall I(a).foo([extcall I(a).bar()] if c else ys)
+    """
+    with pytest.raises(StructureException) as e:
+        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+    message = "Function arguments cannot contain unbounded sequence types inside aggregate types"
+    assert e.value.message == message
 
 
 def test_wildcard_tuple_interface_arg_rejects_inf_source():
