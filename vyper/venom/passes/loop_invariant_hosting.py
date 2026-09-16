@@ -32,6 +32,7 @@ UNINTERESTING_OPCODES = frozenset(
     ]
 )
 
+
 def _ignore_instruction(inst: IRInstruction) -> bool:
     if inst.is_param:
         return True

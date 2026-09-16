@@ -14,6 +14,7 @@ from .function_inliner import FunctionInlinerPass
 from .internal_return_copy_forwarding import InternalReturnCopyForwardingPass
 from .literals_codesize import ReduceLiteralsCodesize
 from .load_elimination import LoadElimination
+from .loop_invariant_hosting import LoopInvariantHoisting
 from .lower_dload import LowerDloadPass
 from .make_ssa import MakeSSA
 from .mem2var import Mem2Var
@@ -28,7 +29,6 @@ from .revert_to_assert import RevertToAssert
 from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
 from .single_use_expansion import SingleUseExpansion
-from .loop_invariant_hosting import LoopInvariantHoisting
 from .tail_merge import TailMergePass
 
 __all__ = [

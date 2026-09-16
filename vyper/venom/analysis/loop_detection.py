@@ -1,6 +1,6 @@
 from vyper.utils import OrderedSet
-from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis import CFGAnalysis, DominatorTreeAnalysis
+from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.basicblock import IRBasicBlock
 
 
@@ -18,7 +18,7 @@ class NaturalLoopDetectionAnalysis(IRAnalysis):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
         self._find_loops()
-    
+
     def _find_loops(self):
         self.loops = dict()
 
@@ -45,9 +45,8 @@ class NaturalLoopDetectionAnalysis(IRAnalysis):
             return None
         return preds.first()
 
-
     def _collect(self, start: IRBasicBlock, header: IRBasicBlock) -> OrderedSet[IRBasicBlock]:
-        nodes = OrderedSet()
+        nodes: OrderedSet[IRBasicBlock] = OrderedSet()
 
         def dfs(bb: IRBasicBlock):
             if bb in nodes:
@@ -59,8 +58,7 @@ class NaturalLoopDetectionAnalysis(IRAnalysis):
 
             for pred in self.cfg.cfg_in(bb):
                 dfs(pred)
-        
+
         dfs(start)
 
         return nodes
-

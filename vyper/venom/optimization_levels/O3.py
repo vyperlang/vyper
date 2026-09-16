@@ -1,4 +1,4 @@
-  # We keep thise in separate files to allow for
+# We keep thise in separate files to allow for
 # easier management of different optimization levels
 # and diffing between them.
 
@@ -23,6 +23,7 @@ from vyper.venom.passes import (
     FmpPrunePass,
     InternalReturnCopyForwardingPass,
     LoadElimination,
+    LoopInvariantHoisting,
     LowerDloadPass,
     MakeSSA,
     Mem2Var,
@@ -37,7 +38,6 @@ from vyper.venom.passes import (
     RevertToAssert,
     SimplifyCFGPass,
     SingleUseExpansion,
-    LoopInvariantHoisting,
     TailMergePass,
 )
 
