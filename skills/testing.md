@@ -12,6 +12,15 @@
 
 `quicktest.sh` wraps pytest with `-q -s --instafail -x` (bail on first failure).
 
+CI runs the fuzzing matrix on both legacy and Venom codegen, using 120 duration-based
+shards per backend. To run fuzzing locally, use `pytest -m fuzzing`; add
+`--experimental-codegen` for Venom.
+
+Conversion fuzzing distinguishes compile-time rejection from runtime clamping. Literal
+conversions may be rejected by constant folding or Venom's SCCP. The constant-local
+runtime case sets `disable_static_exceptions=True` to retain the failing assertion in
+bytecode; the calldata-input case uses the normal compiler settings.
+
 ## Test Organization
 
 ```
