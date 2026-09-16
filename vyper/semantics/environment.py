@@ -1,7 +1,7 @@
 from typing import Dict
 
 from vyper.semantics.analysis.base import Modifiability, VarInfo
-from vyper.semantics.types import AddressT, BytesT, SelfT, VyperType
+from vyper.semantics.types import INF_T, AddressT, BytesT, SelfT, VyperType
 from vyper.semantics.types.infinity import INF
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 
@@ -44,15 +44,6 @@ class _Msg(_EnvType):
         "sender": AddressT(),
         "value": UINT256_T,
     }
-
-
-# TODO: Is more of a built-in Constant, and should be Modifiability.CONSTANT
-class _Inf(_EnvType):
-    _id = "INF"
-
-
-# TODO: Remove, see other todos
-INF_T = _Inf()
 
 
 class _Tx(_EnvType):

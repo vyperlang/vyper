@@ -63,9 +63,9 @@ from vyper.semantics.analysis.utils import (
     get_possible_types_from_node,
     validate_expected_type,
 )
-from vyper.semantics.environment import INF_T
 from vyper.semantics.types import (
     INF,
+    INF_T,
     TYPE_T,
     AddressT,
     BoolT,
