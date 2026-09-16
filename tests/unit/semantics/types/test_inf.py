@@ -1113,6 +1113,23 @@ def f(a: address, xs: DynArray[uint256, 5]):
     compiler.compile_code(code)
 
 
+def test_wildcard_arg_ternary_sarray_element():
+    # Note: this should pass once we use expected type typing
+    code = """
+interface I:
+    def bar() -> DynArray[uint256, ...]: nonpayable
+    def foo(xs: DynArray[uint256, ...][1]): nonpayable
+
+@external
+def f(a: address, c: bool, ys: DynArray[uint256, 5][1]):
+    extcall I(a).foo([extcall I(a).bar()] if c else ys)
+    """
+    with pytest.raises(StructureException) as e:
+        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+    message = "Function arguments cannot contain unbounded sequence types inside aggregate types"
+    assert e.value.message == message
+
+
 def test_wildcard_tuple_interface_arg_rejects_inf_source():
     code = """
 interface I:
