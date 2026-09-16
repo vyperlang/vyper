@@ -30,6 +30,7 @@ from vyper.venom.passes import (
     PhiEliminationPass,
     ReadonlyInvokeArgCopyForwardingPass,
     ReduceLiteralsCodesize,
+    RedundantMemoryCopyForwardingPass,
     RemoveUnusedVariablesPass,
     RevertToAssert,
     SimplifyCFGPass,
@@ -67,6 +68,7 @@ PASSES_Os: List[PassConfig] = [
     # run memmerge before LowerDload
     (MemMergePass, {"memory_abstract": True}),
     MemoryCopyElisionPass,
+    RedundantMemoryCopyForwardingPass,
     LoadElimination,
     LowerDloadPass,
     RemoveUnusedVariablesPass,

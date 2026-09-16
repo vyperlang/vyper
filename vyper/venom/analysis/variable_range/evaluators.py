@@ -24,10 +24,8 @@ def eval_add(lhs: ValueRange, rhs: ValueRange) -> ValueRange:
     if lhs.is_empty or rhs.is_empty:
         return ValueRange.empty()
     if lhs.is_constant and rhs.is_constant:
-        result = lhs.lo + rhs.lo
-        if result < SIGNED_MIN or result > UNSIGNED_MAX:
-            result = wrap256(result)
-        return ValueRange.constant(result)
+        # constants are kept in signed representation, like literals
+        return ValueRange.constant(wrap256(lhs.lo + rhs.lo, signed=True))
     # TODO: could be more precise for negative operands when ranges don't wrap
     if lhs.lo < 0 or rhs.lo < 0:
         return ValueRange.top()
@@ -46,10 +44,8 @@ def eval_sub(lhs: ValueRange, rhs: ValueRange) -> ValueRange:
     if lhs.is_empty or rhs.is_empty:
         return ValueRange.empty()
     if lhs.is_constant and rhs.is_constant:
-        result = lhs.lo - rhs.lo
-        if result < SIGNED_MIN or result > UNSIGNED_MAX:
-            result = wrap256(result)
-        return ValueRange.constant(result)
+        # constants are kept in signed representation, like literals
+        return ValueRange.constant(wrap256(lhs.lo - rhs.lo, signed=True))
     if (lhs.hi - lhs.lo) > RANGE_WIDTH_LIMIT or (rhs.hi - rhs.lo) > RANGE_WIDTH_LIMIT:
         return ValueRange.top()
 
@@ -72,10 +68,8 @@ def eval_mul(lhs: ValueRange, rhs: ValueRange) -> ValueRange:
         return ValueRange.constant(0)
 
     if lhs.is_constant and rhs.is_constant:
-        result = lhs.lo * rhs.lo
-        if result < SIGNED_MIN or result > UNSIGNED_MAX:
-            result = wrap256(result)
-        return ValueRange.constant(result)
+        # constants are kept in signed representation, like literals
+        return ValueRange.constant(wrap256(lhs.lo * rhs.lo, signed=True))
     # For non-constant ranges, only handle non-negative values
     if lhs.lo < 0 or rhs.lo < 0:
         return ValueRange.top()
@@ -341,15 +335,17 @@ def eval_sdiv(dividend: ValueRange, divisor: ValueRange) -> ValueRange:
     if dividend.is_empty or divisor.is_empty:
         return ValueRange.empty()
     d = divisor.as_constant()
-    # d is already signed from as_constant()
     if d is None:
         return ValueRange.top()
+    # constants can arrive in unsigned representation (e.g. from branch
+    # narrowing on an unsigned comparison), so read the divisor as signed
+    d = wrap256(d, signed=True)
     if d == 0:
         return ValueRange.constant(0)
 
     # For constant dividend, compute exact result
     if dividend.is_constant:
-        dv = dividend.lo
+        dv = wrap256(dividend.lo, signed=True)
         # Special case: SIGNED_MIN / -1 = SIGNED_MIN (no negation due to overflow)
         if dv == SIGNED_MIN and d == -1:
             return ValueRange.constant(SIGNED_MIN)
@@ -376,8 +372,8 @@ def eval_sdiv(dividend: ValueRange, divisor: ValueRange) -> ValueRange:
         elif dividend.hi < 0:
             # Both negative: division truncates toward zero
             # -7 // 3 in EVM = -2 (truncate), in Python = -3 (floor)
-            result_hi = -(abs(dividend.lo) // d)
-            result_lo = -(abs(dividend.hi) // d)
+            result_lo = -(abs(dividend.lo) // d)
+            result_hi = -(abs(dividend.hi) // d)
         else:
             # Range spans zero - result spans from negative to positive
             result_lo = -(abs(dividend.lo) // d)
@@ -387,6 +383,8 @@ def eval_sdiv(dividend: ValueRange, divisor: ValueRange) -> ValueRange:
         # TODO: could be more precise for negative divisors
         return ValueRange.top()
 
+    # iv() would silently turn swapped bounds into BOTTOM
+    assert result_lo <= result_hi, (result_lo, result_hi)
     return ValueRange.iv(result_lo, result_hi)
 
 
@@ -399,9 +397,11 @@ def eval_smod(dividend: ValueRange, divisor: ValueRange) -> ValueRange:
     if dividend.is_empty or divisor.is_empty:
         return ValueRange.empty()
     d = divisor.as_constant()
-    # d is already signed from as_constant()
     if d is None:
         return ValueRange.top()
+    # constants can arrive in unsigned representation (e.g. from branch
+    # narrowing on an unsigned comparison), so read the divisor as signed
+    d = wrap256(d, signed=True)
     if d == 0:
         return ValueRange.constant(0)
     limit = abs(d) - 1
@@ -470,6 +470,12 @@ def eval_compare(opcode: str, lhs: ValueRange, rhs: ValueRange) -> ValueRange:
                     return ValueRange.constant(1)
                 else:  # gt
                     return ValueRange.constant(0)
+            return ValueRange.bool_range()
+    else:
+        # Ranges extending above SIGNED_MAX contain values that are negative
+        # words in the signed interpretation, so comparing the raw lo/hi
+        # bounds below would be unsound (same guard as eval_sdiv/eval_smod).
+        if lhs.hi > SIGNED_MAX or rhs.hi > SIGNED_MAX:
             return ValueRange.bool_range()
 
     # Now we can use signed comparison logic (works for both signed ops

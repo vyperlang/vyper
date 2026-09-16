@@ -59,6 +59,10 @@ from vyper.semantics.types import (
     is_type_t,
 )
 from vyper.semantics.types.function import ContractFunctionT, KeywordArg, _FunctionArg
+from vyper.semantics.types.infinity import (
+    type_contains_unbounded_sequence,
+    type_contains_unsupported_unbounded_sequence,
+)
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import OrderedSet
@@ -148,8 +152,22 @@ def _analyze_module_bodies(module_ast: vy_ast.Module) -> None:
     with override_global_namespace(namespace):
         analyze_functions(module_ast)
         _validate_exports_uses(module_ast, module_t)
+        _validate_initializable_modules(module_ast, module_t)
         _validate_initialized_modules(module_ast, module_t)
         _validate_used_modules(module_ast, module_t)
+
+
+def _validate_initializable_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
+    """Check all `initializes:` modules are stateful or abstract."""
+    for info in module_t.initialized_modules:
+        initialized_t = info.module_info.module_t
+        if not (initialized_t.is_stateful or initialized_t.is_abstract):
+            alias = info.module_info.alias
+            raise InitializerException(
+                f"Cannot initialize a stateless concrete module `{alias}`!",
+                info.node,
+                hint=f"remove `initializes: {alias}`",
+            )
 
 
 def _validate_used_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
@@ -410,6 +428,7 @@ def _validate_overrides(func_t: ContractFunctionT, node: vy_ast.FunctionDef):
 
         if abstract_t._overridden_by is not None:
             existing_override = abstract_t._overridden_by.ast_def
+            assert existing_override is not None
             existing_override_path = existing_override.module_node.path
             msg = f"`{module_info.alias}.{node.name}` was already overridden"
             msg += f" in `{existing_override_path}`!"
@@ -805,6 +824,20 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         )
 
         type_ = type_from_annotation(node.annotation, location)
+        if node.is_constant and type_contains_unsupported_unbounded_sequence(type_):
+            raise StructureException(
+                "Constants cannot contain unbounded sequence types inside aggregate types",
+                node.annotation,
+            )
+
+        if type_contains_unbounded_sequence(type_) and location in (
+            DataLocation.STORAGE,
+            DataLocation.TRANSIENT,
+            DataLocation.CODE,
+        ):
+            raise StructureException(
+                "Module variables cannot use unbounded sequence types", node.annotation
+            )
 
         if node.is_transient and not version_check(begin="cancun"):
             raise EvmVersionException("`transient` is not available pre-cancun", node.annotation)

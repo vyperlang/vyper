@@ -2,6 +2,7 @@ import pytest
 
 from vyper import compiler
 from vyper.compiler.settings import Settings
+from vyper.exceptions import InvalidOperation
 from vyper.utils import method_id_int
 
 valid_list = [
@@ -125,3 +126,14 @@ def foo(x: uint256):
 
     assert f"0x{method_id_int('log(uint256)'):08x}" in ir_runtime
     assert f"0x{method_id_int('log(string,bytes)'):08x}" not in ir_runtime
+
+
+def test_print_empty_list():
+    code = """
+@external
+def foo():
+    print([])
+    """
+    with pytest.raises(InvalidOperation) as excinfo:
+        compiler.compile_code(code)
+    assert excinfo.value.message == "`Never` does not have an abi encoding"

@@ -1,5 +1,5 @@
 import contextlib
-from typing import Iterable, Optional
+from typing import Collection, Iterable, Optional
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
@@ -10,6 +10,7 @@ from vyper.venom.analysis.mem_alias import (
     StorageAliasAnalysis,
     TransientAliasAnalysis,
 )
+from vyper.venom.analysis.reachable import ReachableAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
 from vyper.venom.memory_location import MemoryLocation
 
@@ -323,6 +324,22 @@ class MemSSAAbstract(IRAnalysis):
         query_loc = access.loc
         return self._walk_for_aliased_access(access, query_loc, OrderedSet())
 
+    def get_aliased_memory_accesses_before(
+        self, inst: IRInstruction, query_loc: MemoryLocation
+    ) -> OrderedSet[MemoryAccess]:
+        """
+        Get memory definitions that may alias `query_loc` and reach `inst`.
+
+        This is useful when a pass wants to ask about a location different from
+        the location read by `inst`, while still using MemorySSA's reaching-def
+        chain at that program point.
+        """
+        mem_use = self.get_memory_use(inst)
+        if mem_use is None:
+            return OrderedSet()
+
+        return self._walk_for_aliased_access(mem_use.reaching_def, query_loc, OrderedSet())
+
     def _walk_for_aliased_access(
         self,
         current: Optional[MemoryAccess],
@@ -353,6 +370,59 @@ class MemSSAAbstract(IRAnalysis):
             current = current.reaching_def
 
         return aliased_accesses
+
+    def clobbering_accesses_between(
+        self,
+        start_inst: IRInstruction,
+        end_insts: Collection[IRInstruction],
+        loc: MemoryLocation,
+        *,
+        ignore: Collection[IRInstruction] = (),
+    ) -> OrderedSet[MemoryAccess]:
+        """
+        Memory defs that may-alias `loc` and lie strictly between `start_inst`
+        and any instruction in `end_insts` (i.e. are reachable from
+        `start_inst`).
+
+        This is the reachability-filtered companion to
+        `get_aliased_memory_accesses_before`, letting callers reason about
+        clobbers on a path between two program points. Instructions in
+        `ignore` are excluded from the result.
+
+        Precondition: every instruction in `end_insts` must have a MemoryUse;
+        otherwise its reaching-def chain is invisible here and the query would
+        silently report "no clobber".
+        """
+        reachable = self.analyses_cache.request_analysis(ReachableAnalysis)
+        ret: OrderedSet[MemoryAccess] = OrderedSet()
+        for end_inst in end_insts:
+            assert self.get_memory_use(end_inst) is not None, f"no MemoryUse: {end_inst}"
+            for access in self.get_aliased_memory_accesses_before(end_inst, loc):
+                if access.inst in ignore:
+                    continue
+                if reachable.is_reachable_from(access.inst, start_inst):
+                    ret.add(access)
+        return ret
+
+    def is_clobbered_between(
+        self,
+        start_inst: IRInstruction,
+        end_insts: Collection[IRInstruction],
+        loc: MemoryLocation,
+        *,
+        ignore: Collection[IRInstruction] = (),
+    ) -> bool:
+        """
+        True if any memory write that may-alias `loc` lies on a path strictly
+        between `start_inst` and any instruction in `end_insts`.
+
+        Precondition (unless `loc` is empty): every instruction in `end_insts`
+        must have a MemoryUse -- see `clobbering_accesses_between`.
+        """
+        if loc.is_empty():
+            return False
+        clobbers = self.clobbering_accesses_between(start_inst, end_insts, loc, ignore=ignore)
+        return len(clobbers) > 0
 
     def get_clobbered_memory_access(self, access: MemoryAccess) -> Optional[MemoryAccess]:
         """

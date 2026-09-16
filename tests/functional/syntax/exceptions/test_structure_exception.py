@@ -114,3 +114,18 @@ interface Bar:
         arg1 = 3
     """,
 ]
+
+
+# a parameterized type name is only a bad reference in value position. in type
+# position it keeps its own message, which says how to parameterize it
+@pytest.mark.parametrize(
+    "bad_code,expected",
+    [
+        ('@external\ndef foo():\n    x: Bytes = b""\n', "without a maximum length"),
+        ("@external\ndef foo():\n    x: DynArray = []\n", "base type and max length"),
+        ("m: HashMap\n", "key type and a value type"),
+    ],
+)
+def test_unparameterized_type_annotation(bad_code, expected):
+    with pytest.raises(StructureException, match=expected):
+        compiler.compile_code(bad_code)
