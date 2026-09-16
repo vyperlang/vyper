@@ -8,16 +8,37 @@ from vyper.venom.effects import EMPTY, Effects
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
+UNINTERESTING_OPCODES = frozenset(
+    [
+        "calldatasize",
+        "gaslimit",
+        "address",
+        "codesize",
+        "assign",
+        "phi",
+        "source",
+        "nop",
+        "returndatasize",
+        "gasprice",
+        "origin",
+        "coinbase",
+        "timestamp",
+        "number",
+        "prevrandao",
+        "chainid",
+        "basefee",
+        "blobbasefee",
+        "pc",
+    ]
+)
 
 def _ignore_instruction(inst: IRInstruction) -> bool:
-    return (
-        inst.is_bb_terminator
-        or inst.opcode == "returndatasize"
-        or inst.opcode == "phi"
-        or (inst.opcode == "add" and isinstance(inst.operands[1], IRLabel))
-        or inst.opcode == "assign"
-        or inst.opcode == "gas"
-    )
+    if inst.is_param:
+        return True
+    if inst.opcode in UNINTERESTING_OPCODES:
+        return True
+    else:
+        return inst.opcode == "add" and isinstance(inst.operands[1], IRLabel)
 
 
 # must check if it has as operand as literal because
