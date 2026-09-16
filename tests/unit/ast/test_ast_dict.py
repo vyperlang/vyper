@@ -7,6 +7,7 @@ from vyper import compiler
 from vyper.ast.nodes import NODE_SRC_ATTRIBUTES
 from vyper.ast.parse import parse_to_ast
 from vyper.ast.utils import ast_to_dict, dict_to_ast
+from vyper.semantics.types import AddressT
 
 
 def get_node_ids(ast_struct, ids=None):
@@ -174,10 +175,23 @@ def test() -> address:
 
     original_hex = original_ast.get_descendants(vy_ast.Hex)[0]
     new_hex = new_ast.get_descendants(vy_ast.Hex)[0]
-    assert original_hex.value == address
-    assert out_dict["body"][0]["body"][0]["value"]["value"] == address
-    assert new_hex.value == address
+    assert original_hex.value == address.lower()
+    assert original_hex.original_value == address
+    serialized_hex = out_dict["body"][0]["body"][0]["value"]
+    assert serialized_hex["value"] == original_hex.value
+    assert serialized_hex["original_value"] == original_hex.original_value
+    assert new_hex.value == original_hex.value
+    assert new_hex.original_value == original_hex.original_value
+    AddressT().validate_literal(new_hex)
     assert deepequals(new_ast, original_ast)
+
+
+def test_checksum_address_legacy_dict_input():
+    address = "0x6B175474E89094C44Da98b954EedeAC495271d0F"
+    node = dict_to_ast({"ast_type": "Hex", "value": address})
+    assert node.value == address.lower()
+    assert node.original_value == address
+    AddressT().validate_literal(node)
 
 
 # strip source annotations like lineno, we don't care for inspecting

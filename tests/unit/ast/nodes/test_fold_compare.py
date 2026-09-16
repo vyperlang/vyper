@@ -156,13 +156,19 @@ def foo(a: bytes4, b: bytes4[{len(right)}]) -> bool:
     assert contract.foo(left, right) == new_node.value
 
 
-def test_hex_comparison_preserves_source_spelling():
+def test_hex_comparison_normalizes_values_and_preserves_source_spelling():
     vyper_ast = parse_and_fold("0xA1AAB33F == 0xa1aab33f")
-    old_node = vyper_ast.body[0].value
+    comparison = vyper_ast.body[0].value
 
-    assert old_node.left.value == "0xA1AAB33F"
-    assert old_node.left.to_dict()["value"] == "0xA1AAB33F"
-    assert old_node.get_folded_value().value is True
+    assert comparison.left.value == "0xa1aab33f"
+    assert comparison.left.original_value == "0xA1AAB33F"
+    assert comparison.left.to_dict()["value"] == comparison.left.value
+    assert comparison.left.to_dict()["original_value"] == comparison.left.original_value
+    assert comparison.right.value == "0xa1aab33f"
+    assert comparison.right.original_value == "0xa1aab33f"
+    assert comparison.right.to_dict()["value"] == comparison.right.value
+    assert comparison.right.to_dict()["original_value"] == comparison.right.original_value
+    assert comparison.get_folded_value().value is True
 
 
 @pytest.mark.parametrize("op", ["<", "<=", ">=", ">"])
