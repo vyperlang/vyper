@@ -244,11 +244,6 @@ def _to_int(
         val = b.sdiv(val, IRLiteral(in_t.divisor))
         return val
 
-    # From flag: the conversion matrix guarantees out_t is uint256,
-    # so this is a no-op
-    if isinstance(in_t, FlagT):
-        return val
-
     # From address: treat as uint160 (the conversion matrix guarantees
     # out_t is unsigned)
     if in_t == AddressT():
@@ -260,8 +255,8 @@ def _to_int(
     if isinstance(in_t, IntegerT):
         return _int_to_int(val, in_t, out_t, ctx)
 
-    # From bool: the value is already 0 or 1 and fits in any integer
-    if isinstance(in_t, BoolT):
+    # Booleans fit in any integer; flags only convert to uint256.
+    if isinstance(in_t, (BoolT, FlagT)):
         return val
 
     raise CompilerPanic(f"Unsupported conversion: {in_t} to {out_t}")  # pragma: nocover
