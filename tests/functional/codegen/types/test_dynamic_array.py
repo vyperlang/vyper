@@ -1710,8 +1710,8 @@ def __init__():
     """
     c = get_contract(code)
 
-    for i, l in enumerate([[1, 2, 3]]):
-        for j, t in enumerate(l):
+    for i, row in enumerate([[1, 2, 3]]):
+        for j, t in enumerate(row):
             assert c.my_list(i, j) == t
 
 
@@ -1912,8 +1912,7 @@ def boo() -> uint256:
     assert c.foo() == [1, 2, 3, 4]
 
 
-@pytest.mark.xfail(raises=CompilerPanic)
-def test_dangling_reference(get_contract, tx_failed):
+def test_dangling_reference(get_contract):
     code = """
 a: DynArray[DynArray[uint256, 5], 5]
 
@@ -1922,9 +1921,9 @@ def foo():
     self.a = [[1]]
     self.a.pop().append(2)
     """
-    c = get_contract(code)
-    with tx_failed():
-        c.foo()
+    with pytest.raises(ImmutableViolation) as e:
+        get_contract(code)
+    assert e.value.message == "Cannot modify temporary value"
 
 
 def test_dynarray_append_single_field_struct_storage(get_contract):
@@ -2360,3 +2359,26 @@ def foo():
     assert len(logs) == 1
     expected = [b"\xee\xb5", b"\xee\xb5", b"\xee\xb5", b"\xee\xb5"]
     assert logs[0].args.data == expected
+
+
+def test_double_eval_pop(get_contract, experimental_codegen):
+    # GH issue #4072
+    code = """
+m: HashMap[uint256, String[33]]
+
+@external
+def foo() -> uint256:
+    x: DynArray[uint256, 16] = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    self.m[x.pop()] = "Hello world"
+    return len(x)
+"""
+
+    if not experimental_codegen:
+        # legacy codegen evaluates the `pop()` twice, which emits the
+        # `pop_dynarray` unique symbol twice.
+        with pytest.raises(CompilerPanic):
+            get_contract(code)
+        return
+
+    c = get_contract(code)
+    assert c.foo() == 15

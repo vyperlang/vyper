@@ -222,6 +222,26 @@ def foo():
     assert log.args.arg1 == 123
 
 
+def test_event_logging_snapshots_bounded_dynarray_before_later_mutation(get_logs, get_contract):
+    loggy_code = """
+event MyLog:
+    xs: DynArray[uint256, 3]
+    popped: uint256
+
+@external
+def foo():
+    x: DynArray[uint256, 3] = [1, 2, 3]
+    log MyLog(xs=x, popped=x.pop())
+    """
+
+    c = get_contract(loggy_code)
+    c.foo()
+
+    (log,) = get_logs(c, "MyLog")
+    assert log.args.xs == [1, 2, 3]
+    assert log.args.popped == 3
+
+
 def test_event_logging_with_fixed_array_data(env, keccak, get_logs, get_contract):
     loggy_code = """
 event MyLog:
