@@ -476,7 +476,7 @@ error Mixed:
 
 @external
 def boom(words: DynArray[String[64], INF]):
-    raise Words(words)
+    raise Words(words=words)
 
 @external
 def boom_mixed(words: DynArray[String[64], INF]):
@@ -802,7 +802,7 @@ def emit_event(xs: DynArray[Bytes[10], 3]):
 
 @external
 def boom(xs: DynArray[Bytes[10], 3]):
-    raise Oops(len(xs), xs)
+    raise Oops(n=len(xs), xs=xs)
     """
     c = get_contract(code)
     c.emit_event(payload)
