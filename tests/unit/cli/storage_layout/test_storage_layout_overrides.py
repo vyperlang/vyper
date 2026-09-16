@@ -551,9 +551,7 @@ a: uint256
             output_formats=["layout"],
             storage_layout_override=json_input(storage_layout_override),
         )
-    assert exc_info.value.message == (
-        "invalid storage slot for a: expected a dict, got a <class 'int'>: 5"
-    )
+    assert exc_info.value.message == ("invalid storage slot for a: expected a dict, got a int: 5")
 
 
 def test_override_nonreentrant_key_missing_slot():

@@ -166,7 +166,7 @@ def _fetch_path(path: list[str], layout: StorageLayout, node: vy_ast.VyperNode):
         if not isinstance(tmp, dict):
             raise StorageLayoutException(
                 f"invalid storage slot for {qualified_path}: "
-                f"expected a dict, got a {type(tmp)}: {tmp}",
+                f"expected a dict, got a {type(tmp).__name__}: {tmp}",
                 node,
             )
 
