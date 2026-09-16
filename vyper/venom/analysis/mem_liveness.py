@@ -32,7 +32,7 @@ class MemLivenessAnalysis(IRAnalysis):
     used: dict[IRInstruction, OrderedSet[Allocation]]
     livesets: dict[Allocation, OrderedSet[IRInstruction]]
     # static allocas whose pointer escapes; live to the end of the function
-    escaped: set[Allocation]
+    escaped: OrderedSet[Allocation]
     cfg: CFGAnalysis
 
     def analyze(self):
@@ -63,7 +63,9 @@ class MemLivenessAnalysis(IRAnalysis):
         # reads and kills above are incomplete for it. fail closed: it is
         # live everywhere, i.e. (intersected with `used`) from its first
         # use to the end of the function, and never shares its slot.
-        self.escaped = {a for a in self.base_ptrs.escaping_allocations() if not a.is_dynamic}
+        self.escaped = OrderedSet(
+            a for a in self.base_ptrs.escaping_allocations() if not a.is_dynamic
+        )
         if len(self.escaped) > 0:
             for bb in self.function.get_basic_blocks():
                 for inst in bb.instructions:
@@ -147,12 +149,14 @@ class MemLivenessAnalysis(IRAnalysis):
             self.used[inst] = used.copy()
         return before != used
 
-    def _find_base_ptrs(self, op: Optional[IROperand]) -> set[Ptr]:
+    def _find_base_ptrs(self, op: Optional[IROperand]) -> OrderedSet[Ptr]:
         if op is None or not isinstance(op, IRVariable):
-            return set()
+            return OrderedSet()
         # only static allocas need concretization; dalloca regions live
         # above the static frame and are not tracked by the allocator.
-        return {p for p in self.base_ptrs.get_possible_ptrs(op) if not p.base_alloca.is_dynamic}
+        return OrderedSet(
+            p for p in self.base_ptrs.get_possible_ptrs(op) if not p.base_alloca.is_dynamic
+        )
 
     def _mark_store_locations_live(self):
         # DSE may preserve stores whose liveness it can't disprove (e.g.,

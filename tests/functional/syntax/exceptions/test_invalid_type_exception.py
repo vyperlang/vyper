@@ -145,3 +145,15 @@ def foo():
     """
     with pytest.raises(InvalidType, match="is not a type"):
         compile_code(code)
+
+
+def test_parameterized_type_as_subscript():
+    # a parameterized type name as a subscript is the same user mistake as any
+    # other non-integer subscript, so it gets the same message
+    code = """
+@external
+def foo():
+    x: Bytes[String] = b""
+    """
+    with pytest.raises(InvalidType, match="Subscript must be a literal integer"):
+        compile_code(code)
