@@ -20,6 +20,7 @@ UNINTERESTING_OPCODES = frozenset(
         "nop",
         "returndatasize",
         "gasprice",
+        "gas",
         "origin",
         "coinbase",
         "timestamp",
