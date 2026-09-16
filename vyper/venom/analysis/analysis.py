@@ -71,6 +71,8 @@ class IRAnalysesCache:
         self.isolated = isolated
         self.analyses_cache = {}
         self.function = function
+        self._global_cache: IRGlobalAnalysesCache | None = None
+        self._canonical: IRAnalysesCache = self
 
     def _ensure_global_analyses_cache(self) -> "IRGlobalAnalysesCache":
         if self.isolated:
@@ -79,13 +81,18 @@ class IRAnalysesCache:
         if global_cache is None:
             global_cache = IRGlobalAnalysesCache(self.function.ctx, {self.function: self})
             self.function.ctx.global_analyses_cache = global_cache
-        global_cache.register_function_cache(self)
+        # Compiler phases replace the registry. Bind once per registry so local
+        # cache hits do not scan functions or repeatedly register consumers.
+        if self._global_cache is not global_cache:
+            self._canonical = global_cache.register_function_cache(self)
+            self._global_cache = global_cache
         return global_cache
 
     def _canonical_cache(self) -> "IRAnalysesCache":
         if self.isolated:
             return self
-        return self._ensure_global_analyses_cache().function_analyses_caches[self.function]
+        self._ensure_global_analyses_cache()
+        return self._canonical
 
     def request_analysis(self, analysis_cls: Type[T], *args, **kwargs) -> T:
         """
@@ -166,31 +173,20 @@ class IRGlobalAnalysesCache:
         self.ctx = ctx
         self.function_analyses_caches = function_analyses_caches
         self.analyses_cache = {}
-        self._placeholders: set[IRFunction] = set()
+        self._ensure_function_caches()
 
-    def register_function_cache(self, cache: IRAnalysesCache) -> None:
-        """Fill missing entries without replacing an existing consumer's cache.
-
-        Placeholder status belongs to this registry. An unused placeholder can
-        be replaced; a populated one retains its analyses and invalidation hooks.
-        Other caches for an already registered function delegate their requests
-        and invalidations to its canonical cache instead of maintaining stale
-        parallel analyses.
-        """
-        fn = cache.function
-        registered = self.function_analyses_caches.get(fn)
-        if registered is None:
-            self.function_analyses_caches[fn] = cache
-        elif registered is not cache and fn in self._placeholders:
-            # Once populated, this cache owns invalidation hooks used by global
-            # analyses. Keep it canonical and let the new consumer delegate.
-            if not registered.analyses_cache:
-                self.function_analyses_caches[fn] = cache
-            self._placeholders.discard(fn)
+    def _ensure_function_caches(self) -> None:
         for fn in self.ctx.functions.values():
             if fn not in self.function_analyses_caches:
                 self.function_analyses_caches[fn] = IRAnalysesCache(fn)
-                self._placeholders.add(fn)
+
+    def register_function_cache(self, cache: IRAnalysesCache) -> IRAnalysesCache:
+        """Return this registry's stable cache for the function.
+
+        A cache keeps its identity for the lifetime of the registry, including
+        analyses and their invalidation hooks. Later consumers delegate to it.
+        """
+        return self.function_analyses_caches.setdefault(cache.function, cache)
 
     def request_analysis(self, analysis_cls: Type[GT], *args, **kwargs) -> GT:
         assert issubclass(
@@ -201,6 +197,9 @@ class IRGlobalAnalysesCache:
             assert isinstance(ret, analysis_cls)
             return ret
 
+        # Passes may add functions after this registry was created. Populate
+        # their caches before constructing a fresh context-wide analysis.
+        self._ensure_function_caches()
         analysis = analysis_cls(self, self.ctx)
         self.analyses_cache[analysis_cls] = analysis
         analysis.analyze(*args, **kwargs)

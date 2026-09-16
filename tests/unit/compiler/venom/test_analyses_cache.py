@@ -36,7 +36,7 @@ def test_global_cache_creation_registers_self():
             assert global_cache.function_analyses_caches[fn] is not ac
 
 
-def test_existing_global_cache_registers_self():
+def test_existing_global_cache_uses_canonical_function_cache():
     # regression test for https://github.com/vyperlang/vyper/issues/5046
     ctx = parse_venom(SRC)
     entry = ctx.get_function(IRLabel("entry"))
@@ -47,13 +47,14 @@ def test_existing_global_cache_registers_self():
     ac_entry.request_analysis(FCGGlobalAnalysis)
 
     # second request from a different function's cache takes the fallback path;
-    # it must register itself in the global cache, not a parallel cache
+    # it must use the registered cache, not keep parallel analysis state
     ac_f = IRAnalysesCache(f)
     ac_f.request_analysis(FCGGlobalAnalysis)
 
     global_cache = ctx.global_analyses_cache
     assert global_cache is not None
-    assert global_cache.function_analyses_caches[f] is ac_f
+    canonical = global_cache.function_analyses_caches[f]
+    assert ac_f.request_analysis(DFGAnalysis) is canonical.request_analysis(DFGAnalysis)
 
 
 def test_existing_authoritative_cache_not_displaced():
@@ -109,7 +110,7 @@ def test_temporary_requester_and_later_consumer_share_invalidations():
     assert forced is registered.request_analysis(DFGAnalysis)
 
 
-def test_used_placeholder_remains_canonical():
+def test_registered_cache_remains_canonical():
     ctx = parse_venom(SRC)
     entry = ctx.get_function(IRLabel("entry"))
     fn = ctx.get_function(IRLabel("f"))
@@ -125,7 +126,7 @@ def test_used_placeholder_remains_canonical():
     assert placeholder.request_analysis(DFGAnalysis) is consumer.request_analysis(DFGAnalysis)
 
 
-def test_populated_placeholder_keeps_global_invalidation_hooks():
+def test_registered_cache_keeps_global_invalidation_hooks():
     from vyper.venom.analysis import CFGAnalysis
     from vyper.venom.stack_safety import StackCleanupSafety
 
@@ -166,3 +167,37 @@ def test_semantic_validation_does_not_reuse_stale_pass_analysis():
     fn.entry.instructions.pop(0)
     errors = find_semantic_errors_fn(fn)
     assert any(isinstance(error, VarNotDefined) for error in errors)
+
+
+def test_existing_consumer_rebinds_after_registry_replacement():
+    from vyper.venom.analysis import IRGlobalAnalysesCache
+
+    ctx = parse_venom(SRC)
+    fn = ctx.entry_function
+    assert fn is not None
+    consumer = IRAnalysesCache(fn)
+    old = consumer.request_analysis(DFGAnalysis)
+    current = IRAnalysesCache(fn)
+    ctx.global_analyses_cache = IRGlobalAnalysesCache(ctx, {fn: current})
+    fresh = current.request_analysis(DFGAnalysis)
+    assert fresh is not old
+    assert consumer.request_analysis(DFGAnalysis) is fresh
+    consumer.invalidate_analysis(DFGAnalysis)
+    assert current.request_analysis(DFGAnalysis) is not fresh
+
+
+def test_global_analysis_registers_new_functions():
+    ctx = parse_venom(SRC)
+    fn = ctx.entry_function
+    assert fn is not None
+    consumer = IRAnalysesCache(fn)
+    consumer.request_analysis(FCGGlobalAnalysis)
+    new_fn = ctx.create_function("new_function")
+    new_fn.entry.append_instruction("stop")
+    consumer.force_analysis(FCGGlobalAnalysis)
+    global_cache = ctx.global_analyses_cache
+    assert global_cache is not None
+    canonical = global_cache.function_analyses_caches[new_fn]
+    assert IRAnalysesCache(new_fn).request_analysis(DFGAnalysis) is canonical.request_analysis(
+        DFGAnalysis
+    )
