@@ -102,6 +102,67 @@ def foo(target: address, data: Bytes[INF]) -> Bytes[INF]:
     assert c.foo(echo.address, _LARGE_PAYLOAD) == _LARGE_PAYLOAD
 
 
+@pytest.mark.parametrize("lengths", [(0, 33), (33, 0), (31, 65), (32, 32), (65, 31), (1024, 33)])
+def test_multiple_live_return_buffers(env, get_contract, lengths):
+    code = """
+@external
+def foo(target: address, x: Bytes[INF], y: Bytes[INF]) -> (Bytes[INF], Bytes[INF]):
+    return raw_call(target, x, max_outsize=INF), raw_call(target, y, max_outsize=INF)
+    """
+    echo = _deploy_echo(env)
+    c = get_contract(code)
+    x = b"\xff" * lengths[0]
+    y = b"\x7f" * lengths[1]
+    # The first result must survive the second call and its allocation.
+    assert _call(
+        env, c, "foo(address,bytes,bytes)", "(address,bytes,bytes)", (echo.address, x, y)
+    ) == abi_encode("(bytes,bytes)", (x, y))
+
+
+@pytest.mark.parametrize("length", [0, 31, 32, 33, 1024])
+def test_return_buffer_reassigned_in_loop(env, get_contract, length):
+    code = """
+@external
+def foo(target: address, data: Bytes[INF], n: uint256) -> Bytes[INF]:
+    result: Bytes[INF] = data
+    for i: uint256 in range(n, bound=5):
+        result = raw_call(target, concat(result, b"!"), max_outsize=INF)
+    return result
+    """
+    echo = _deploy_echo(env)
+    c = get_contract(code)
+    payload = b"\xff" * length
+    # Grow through word boundaries while feeding each result into the next call.
+    for n in (0, 1, 5):
+        assert c.foo(echo.address, payload, n) == payload + b"!" * n
+
+
+@pytest.mark.parametrize("length", [0, 31, 32, 33, 1024])
+def test_internal_tuple_return_buffer_in_loop(env, get_contract, no_inlining_settings, length):
+    code = """
+@internal
+def _fetch(target: address, data: Bytes[INF]) -> (bool, Bytes[INF]):
+    return raw_call(target, data, max_outsize=INF, revert_on_failure=False)
+
+@external
+def foo(target: address, data: Bytes[INF], n: uint256) -> (bool, Bytes[INF]):
+    result: Bytes[INF] = data
+    ok: bool = False
+    for i: uint256 in range(n, bound=5):
+        ok, result = self._fetch(target, concat(result, b"!"))
+    return ok, result
+    """
+    echo = _deploy_echo(env)
+    reverter = _deploy_reverting_echo(env)
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    payload = b"\xff" * length
+    # Keep the returned bytes alive across the internal call's allocation scope.
+    for n in (0, 1, 5):
+        expected = payload + b"!" * n
+        assert c.foo(echo.address, payload, n) == (n > 0, expected)
+        assert c.foo(reverter.address, payload, n) == (False, expected)
+
+
 def test_internal_forwarding(env, get_contract, no_inlining_settings):
     code = """
 @internal
