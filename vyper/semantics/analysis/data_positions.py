@@ -164,14 +164,19 @@ def _fetch_path(path: list[str], layout: StorageLayout, node: vy_ast.VyperNode):
             )
         tmp = tmp[segment]
         if not isinstance(tmp, dict):
-            raise StorageLayoutException(f"no storage slot for {qualified_path}", node)
+            raise StorageLayoutException(
+                f"invalid storage slot for {qualified_path}: "
+                f"expected a dict, got a {type(tmp)}: {tmp}",
+                node,
+            )
 
     if "slot" not in tmp:
         raise StorageLayoutException(f"no storage slot for {qualified_path}", node)
 
     ret = tmp["slot"]
     # bool is an instance of int, disallow it explicitly
-    if isinstance(ret, bool) or not isinstance(ret, int):
+    proper_int = isinstance(ret, int) and not isinstance(ret, bool)
+    if not proper_int:
         raise StorageLayoutException(
             f"invalid storage slot for {qualified_path}, expected int: {json.dumps(ret)}", node
         )
