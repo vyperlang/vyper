@@ -188,7 +188,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             ctx.zero_bytestring_padding(buf_ptr, alloc_size)
 
         def encode_unbounded(dst: IRVariable) -> IROperand:
-            return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type)
+            return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type, None)
 
         _build_abi_encoded_bytes(
             ctx, buf_ptr, method_id, encode_unbounded, ctx.checked_add, zero_tail_padding=True
@@ -197,7 +197,8 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         return ctx.dynamic_memory_value(buf_ptr, node._metadata["type"], annotation="abi_encode")
 
     # Calculate buffer size
-    maxlen = encode_type.abi_type.size_bound()
+    bufsz = encode_type.abi_type.size_bound()
+    maxlen = bufsz
     if method_id is not None:
         maxlen += 4
 
@@ -207,7 +208,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     assert isinstance(buf_val.operand, IRVariable)
 
     def encode_bounded(dst: IRVariable) -> IROperand:
-        return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type)
+        return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type, bufsz)
 
     _build_abi_encoded_bytes(ctx, buf_val.operand, method_id, encode_bounded, b.add)
 
