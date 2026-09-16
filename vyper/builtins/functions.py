@@ -63,6 +63,7 @@ from vyper.semantics.analysis.utils import (
     get_possible_types_from_node,
     validate_expected_type,
 )
+from vyper.semantics.environment import INF_T
 from vyper.semantics.types import (
     INF,
     TYPE_T,
@@ -1027,7 +1028,7 @@ class RawCall(BuiltinFunctionT):
     _id = "raw_call"
     _inputs = [("to", AddressT()), ("data", BytesT.any())]
     _kwargs = {
-        "max_outsize": KwargSettings(UINT256_T, 0, require_literal=True),
+        "max_outsize": KwargSettings((UINT256_T, INF_T), 0, require_literal=True),
         "gas": KwargSettings(UINT256_T, "gas"),
         "value": KwargSettings(UINT256_T, zero_value),
         "is_delegate_call": KwargSettings(BoolT(), False, require_literal=True),
@@ -1043,17 +1044,14 @@ class RawCall(BuiltinFunctionT):
             return False
         return outsize.id == "INF"
 
-    def _validate_kwarg(self, kwarg) -> None:
-        if self._is_unbounded_outsize(kwarg):
-            return
-        super()._validate_kwarg(kwarg)
-
-    # local analysis visits each kwarg value against these types; uint256 would reject INF
+    # `max_outsize` declares a pair of accepted types; local analysis annotates
+    # the kwarg value with the inferred type, so narrow it to the one in use
     def infer_kwarg_types(self, node):
         ret = super().infer_kwarg_types(node)
         for kwarg in node.keywords:
-            if self._is_unbounded_outsize(kwarg):
-                ret[kwarg.arg] = get_exact_type_from_node(kwarg.value)
+            if kwarg.arg != "max_outsize":
+                continue
+            ret[kwarg.arg] = INF_T if self._is_unbounded_outsize(kwarg) else UINT256_T
         return ret
 
     def fetch_call_return(self, node):

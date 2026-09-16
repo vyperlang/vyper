@@ -120,7 +120,14 @@ class BuiltinFunctionT(VyperType):
             self._validate_single(arg, expected)
 
         for kwarg in node.keywords:
-            self._validate_kwarg(kwarg)
+            kwarg_settings = self._kwargs[kwarg.arg]
+            if kwarg_settings.require_literal and not check_modifiability(
+                kwarg.value, Modifiability.CONSTANT
+            ):
+                raise TypeMismatch("Value must be literal", kwarg.value)
+            # `kwarg_settings.typ` is sometimes not a VyperType
+            # This violates the contract of _validate_single, but it still works
+            self._validate_single(kwarg.value, kwarg_settings.typ)
 
         # typecheck varargs. we don't have type info from the signature,
         # so ensure that the types of the args can be inferred exactly.
@@ -131,16 +138,6 @@ class BuiltinFunctionT(VyperType):
             # call get_exact_type_from_node for its side effects -
             # ensures the type can be inferred exactly.
             get_exact_type_from_node(arg)
-
-    def _validate_kwarg(self, kwarg) -> None:
-        kwarg_settings = self._kwargs[kwarg.arg]
-        if kwarg_settings.require_literal and not check_modifiability(
-            kwarg.value, Modifiability.CONSTANT
-        ):
-            raise TypeMismatch("Value must be literal", kwarg.value)
-        # `kwarg_settings.typ` is sometimes not a VyperType
-        # This violates the contract of _validate_single, but it still works
-        self._validate_single(kwarg.value, kwarg_settings.typ)
 
     def check_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
         return self._modifiability <= modifiability
