@@ -169,7 +169,14 @@ class ConstantFolder(VyperNodeVisitorBase):
                 raise UnfoldableNode("Node contains invalid field(s) for evaluation")
             if len(set([type(i) for i in right.elements])) > 1:
                 raise UnfoldableNode("List contains multiple literal types")
-            value = node.op._op(left.value, [i.value for i in right.elements])
+            lvalue = left.value
+            rvalues = [i.value for i in right.elements]
+            if isinstance(left, vy_ast.Hex) and all(
+                isinstance(i, vy_ast.Hex) for i in right.elements
+            ):
+                lvalue = lvalue.lower()
+                rvalues = [i.lower() for i in rvalues]
+            value = node.op._op(lvalue, rvalues)
             return vy_ast.NameConstant.from_node(node, value=value)
 
         if not isinstance(left, type(right)):
@@ -181,6 +188,9 @@ class ConstantFolder(VyperNodeVisitorBase):
                 f"Invalid literal types for {node.op.description} comparison", node
             )
         lvalue, rvalue = left.value, right.value
+        if isinstance(left, vy_ast.Hex):
+            # Hex values are str, convert to be case-unsensitive.
+            lvalue, rvalue = lvalue.lower(), rvalue.lower()
         value = node.op._op(lvalue, rvalue)
         return vy_ast.NameConstant.from_node(node, value=value)
 

@@ -174,9 +174,9 @@ def test() -> address:
 
     original_hex = original_ast.get_descendants(vy_ast.Hex)[0]
     new_hex = new_ast.get_descendants(vy_ast.Hex)[0]
-    assert original_hex.value == address.lower()
+    assert original_hex.value == address
     assert out_dict["body"][0]["body"][0]["value"]["value"] == address
-    assert new_hex.original_value == address
+    assert new_hex.value == address
     assert deepequals(new_ast, original_ast)
 
 

@@ -156,12 +156,12 @@ def foo(a: bytes4, b: bytes4[{len(right)}]) -> bool:
     assert contract.foo(left, right) == new_node.value
 
 
-def test_hex_literal_value_normalized_after_preserving_original():
+def test_hex_comparison_preserves_source_spelling():
     vyper_ast = parse_and_fold("0xA1AAB33F == 0xa1aab33f")
     old_node = vyper_ast.body[0].value
 
-    assert old_node.left.value == "0xa1aab33f"
-    assert old_node.left.original_value == "0xA1AAB33F"
+    assert old_node.left.value == "0xA1AAB33F"
+    assert old_node.left.to_dict()["value"] == "0xA1AAB33F"
     assert old_node.get_folded_value().value is True
 
 
