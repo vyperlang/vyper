@@ -120,7 +120,7 @@ class _SequenceT(_SubscriptableT):
 
     def __init__(self, value_type: VyperType, length: LengthUpperBound):
         if is_bounded_length(length):
-            if not 0 < length < 2**256:
+            if not 0 <= length < 2**256:
                 raise InvalidType("Array length is invalid")
 
             if length >= 2**64:
@@ -172,6 +172,9 @@ class SArrayT(_SequenceT):
     _id = "$SArray"
 
     def __init__(self, value_type: VyperType, length: int) -> None:
+        if length == 0:
+            raise InvalidType("Array length is invalid")
+
         super().__init__(value_type, length)
 
     def __repr__(self):
@@ -246,6 +249,9 @@ class SArrayT(_SequenceT):
 
         # note: validates index
         length = get_index_value(node.slice)
+
+        if length == 0:
+            raise InvalidType("Static arrays cannot have a length of 0", node.slice)
 
         if not is_bounded_length(length):
             raise InvalidType("Static arrays cannot have unbounded length", node.slice)
