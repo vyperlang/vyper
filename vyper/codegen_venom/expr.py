@@ -736,11 +736,13 @@ class Expr:
 
         # Case 4: Immutable - IMMUTABLES location
         if varinfo.is_immutable:
-            typ = node._metadata["type"]
+            # the node's type can be wider than the variable (e.g. when
+            # assigned to a `DynArray[Bytes[512], 5]` local); the data has
+            # the declared type's layout
             ptr = Ptr(
                 operand=IRLiteral(varinfo.position.position), location=DataLocation.IMMUTABLES
             )
-            return VyperValue.from_ptr(ptr, typ)
+            return VyperValue.from_ptr(ptr, varinfo.typ)
 
         raise CompilerPanic(f"Unknown variable: {varname}")  # pragma: nocover
 
@@ -826,17 +828,21 @@ class Expr:
             if varinfo.is_constant:
                 return Expr(varinfo.decl_node.value, self.ctx).lower()
 
+            # the node's type can be wider than the variable (e.g. when
+            # assigned to a `DynArray[Bytes[512], 5]` local); the data has
+            # the declared type's layout
+
             # Immutable state variable
             if varinfo.is_immutable:
                 ptr = Ptr(
                     operand=IRLiteral(varinfo.position.position), location=DataLocation.IMMUTABLES
                 )
-                return VyperValue.from_ptr(ptr, typ)
+                return VyperValue.from_ptr(ptr, varinfo.typ)
 
             # Regular storage/transient variable - return location, don't load!
             slot = varinfo.position.position
             ptr = Ptr(operand=IRLiteral(slot), location=varinfo.location)
-            return VyperValue.from_ptr(ptr, typ)
+            return VyperValue.from_ptr(ptr, varinfo.typ)
 
         # Case 6: Interface address (x.address where x is an interface)
         if isinstance(sub_typ, InterfaceT) and attr == "address":
@@ -2126,10 +2132,12 @@ class Expr:
             buf_ptr = self.ctx.allocate_scratch(
                 self.ctx.checked_add(buf_payload_size, IRLiteral(32))
             )
+            bufsz = None
         else:
             buf_size = max(args_abi_size, return_abi_size) + 32
             buf = self.ctx.allocate_buffer(buf_size, annotation="external_call_buf")
             buf_ptr = buf._ptr
+            bufsz = buf_size - 32
 
         # === Pack Arguments ===
         # Store method ID at buf (right-aligned in 32-byte word, so selector at buf+28)
@@ -2141,7 +2149,9 @@ class Expr:
         # ABI-encode arguments starting at buf+32
         if len(arg_vals) > 0:
             encode_dst = b.add(buf_ptr, IRLiteral(32))
-            args_abi_len = abi_encode_values_to_buf(self.ctx, encode_dst, arg_vals, args_tuple_t)
+            args_abi_len = abi_encode_values_to_buf(
+                self.ctx, encode_dst, arg_vals, args_tuple_t, bufsz
+            )
             if dynamic_args:
                 args_len = self.ctx.checked_add(args_abi_len, IRLiteral(4))
             else:
