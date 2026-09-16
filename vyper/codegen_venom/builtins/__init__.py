@@ -2,7 +2,9 @@
 Built-in function lowering for Venom IR.
 
 Each submodule exports a HANDLERS dict mapping builtin_id -> handler function.
-Handler signature: (node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand | VyperValue
+Handler signature: (call: BuiltinCall) -> IROperand | VyperValue
+
+Runtime arguments are prepared in source order before dispatch.
 
 Builtins that return memory-located data (abi_decode, concat, slice, etc.)
 should return VyperValue.from_ptr() to preserve location info. Builtins that return
@@ -15,6 +17,8 @@ from typing import TYPE_CHECKING, Union
 
 from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import IROperand
+
+from ._call import BuiltinCall
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
@@ -34,19 +38,28 @@ from .system import HANDLERS as SYSTEM_HANDLERS
 
 __all__ = ["BUILTIN_HANDLERS", "lower_builtin"]
 
-# Combine all handlers
-BUILTIN_HANDLERS: dict = {
-    **SIMPLE_HANDLERS,
-    **MATH_HANDLERS,
-    **HASHING_HANDLERS,
-    **BYTES_HANDLERS,
-    **CONVERT_HANDLERS,
-    **ABI_HANDLERS,
-    **SYSTEM_HANDLERS,
-    **CREATE_HANDLERS,
-    **MISC_HANDLERS,
-    **STRINGS_HANDLERS,
-}
+
+def _merge_handlers(*maps):
+    handlers = {}
+    for mapping in maps:
+        if handlers.keys() & mapping.keys():
+            raise CompilerPanic("duplicate Venom builtin handlers")
+        handlers.update(mapping)
+    return handlers
+
+
+BUILTIN_HANDLERS = _merge_handlers(
+    SIMPLE_HANDLERS,
+    MATH_HANDLERS,
+    HASHING_HANDLERS,
+    BYTES_HANDLERS,
+    CONVERT_HANDLERS,
+    ABI_HANDLERS,
+    SYSTEM_HANDLERS,
+    CREATE_HANDLERS,
+    MISC_HANDLERS,
+    STRINGS_HANDLERS,
+)
 
 
 def lower_builtin(builtin_id: str, node, ctx: VenomCodegenContext) -> Union[IROperand, VyperValue]:
@@ -64,4 +77,8 @@ def lower_builtin(builtin_id: str, node, ctx: VenomCodegenContext) -> Union[IROp
     handler = BUILTIN_HANDLERS.get(builtin_id)
     if handler is None:  # pragma: nocover
         raise CompilerPanic(f"Built-in '{builtin_id}' not yet implemented in venom codegen")
-    return handler(node, ctx)
+    call = BuiltinCall(node, ctx)
+    result = handler(call)
+    if isinstance(result, VyperValue) and not node._metadata["type"].compare_type(result.typ):
+        raise CompilerPanic(f"Builtin '{builtin_id}' returned the wrong type")
+    return result

@@ -6,19 +6,14 @@ String manipulation built-in functions.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from vyper import ast as vy_ast
 from vyper.codegen_venom.buffer import Buffer
+from vyper.codegen_venom.builtins._call import BuiltinCall
 from vyper.codegen_venom.value import VyperValue
 from vyper.semantics.types import StringT, is_unbounded_bytestring_type
 from vyper.venom.basicblock import IRLiteral
 
-if TYPE_CHECKING:
-    from vyper.codegen_venom.context import VenomCodegenContext
 
-
-def lower_uint2str(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
+def lower_uint2str(call: BuiltinCall) -> VyperValue:
     """
     uint2str(x) -> String[N]
 
@@ -38,11 +33,12 @@ def lower_uint2str(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
       result_ptr[33]     = '2' (0x32)
       result_ptr[34]     = '3' (0x33)
     """
-    from vyper.codegen_venom.expr import Expr
+    node = call.node
+    ctx = call.ctx
 
     b = ctx.builder
 
-    val_input = Expr(node.args[0], ctx).lower_value()
+    val_input = call.operand(node.args[0])
     out_t = node._metadata["type"]
     if is_unbounded_bytestring_type(out_t):
         arg_t = node.args[0]._metadata["type"]

@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
 from vyper.codegen_venom.buffer import Buffer
+from vyper.codegen_venom.builtins._call import BuiltinCall
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic, InvalidLiteral, TypeMismatch
 from vyper.semantics.types import (
@@ -39,13 +40,14 @@ if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand | VyperValue:
+def lower_convert(call: BuiltinCall) -> IROperand | VyperValue:
     """
     convert(value, type) - type conversion.
 
     Dispatches to type-specific conversion based on output type.
     """
-    from vyper.codegen_venom.expr import Expr
+    node = call.node
+    ctx = call.ctx
 
     arg_node = node.args[0]
     in_t = arg_node._metadata["type"]
@@ -53,10 +55,10 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand | Vy
 
     # For bytestrings we need pointer, for primitives we need value
     if isinstance(in_t, _BytestringT):
-        arg_vv = Expr(arg_node, ctx).lower()
-        arg = ctx.unwrap(arg_vv)  # Copies storage/transient to memory
+        arg_vv = call.value(arg_node)
+        arg = arg_vv.operand
     else:
-        arg = Expr(arg_node, ctx).lower_value()
+        arg = call.operand(arg_node)
 
     # Dispatch based on output type
     if out_t == BoolT():
