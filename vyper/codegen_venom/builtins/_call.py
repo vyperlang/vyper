@@ -62,6 +62,8 @@ class BuiltinCall:
         self._literals: dict[str, Any] = {}
         self.provided_kwargs = {kw.arg for kw in node.keywords}
         self.length: IROperand | None = None
+        self.slice_source_length: IROperand | None = None
+        code_address = None
         nodes = []
 
         for i, arg in enumerate(node.args):
@@ -87,7 +89,8 @@ class BuiltinCall:
                 if not is_msg_data(arg) and not (
                     isinstance(arg.value, vy_ast.Name) and arg.value.id == "self"
                 ):
-                    nodes.append(arg.value)  # external code address precedes slice bounds
+                    code_address = arg.value
+                    nodes.append(code_address)
                 continue
             if self.func_t._id == "raw_call" and i == 1 and is_msg_data(arg):
                 continue  # immutable calldata is copied by the handler
@@ -133,6 +136,10 @@ class BuiltinCall:
             ):  # pragma: nocover
                 raise CompilerPanic("builtin input must be decoded before preparation", arg)
             self._values[arg] = value
+            if arg is code_address:
+                # Bounds may create code at an initially empty address. Capture
+                # its length now; existing code cannot change within execution.
+                self.slice_source_length = ctx.builder.extcodesize(value.operand)
 
         # Explicit runtime kwargs were evaluated in source order above. Missing
         # defaults follow them, and their values come from the semantic signature.

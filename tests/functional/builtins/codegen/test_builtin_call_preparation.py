@@ -1,4 +1,6 @@
 import pytest
+import rlp
+from eth_utils import keccak, to_checksum_address
 
 from tests.evm_backends.base_env import ExecutionReverted
 from vyper import compile_code
@@ -154,3 +156,25 @@ def foo(a: address) -> (Bytes[1], uint256):
     return result, self.order
 """)
     assert caller.foo(target.address) == (env.get_code(target.address)[:1], 12)
+
+
+def test_external_code_created_by_slice_bounds(get_contract, env, experimental_codegen, request):
+    if not experimental_codegen:
+        request.node.add_marker(
+            pytest.mark.xfail(reason="legacy reads the code length after slice bounds")
+        )
+    caller = get_contract(r"""
+@internal
+def start() -> uint256:
+    # Deploy one byte of runtime code at this contract's next CREATE address.
+    created: address = raw_create(b"\x60\x01\x60\x00\x53\x60\x01\x60\x00\xf3")
+    return 0
+
+@external
+def foo(a: address) -> Bytes[1]:
+    return slice(a.code, self.start(), 1)
+""")
+    target = to_checksum_address(keccak(rlp.encode([bytes.fromhex(caller.address[2:]), 1]))[-20:])
+    assert env.get_code(target) == b""
+    with pytest.raises(ExecutionReverted):
+        caller.foo(target)

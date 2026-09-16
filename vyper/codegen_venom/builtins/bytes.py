@@ -329,8 +329,9 @@ def _lower_adhoc_slice(call: BuiltinCall) -> VyperValue:
 
     # <addr>.code: use extcodecopy
     addr = call.operand(src_node.value)
-    src_len = b.extcodesize(addr)
-    _assert_slice_bounds(ctx, start, length, src_len)
+    code_len = call.slice_source_length
+    assert code_len is not None
+    _assert_slice_bounds(ctx, start, length, code_len)
     out_val, out_data = _alloc_output()
     # extcodecopy(address, destOffset, offset, size)
     b.extcodecopy(addr, out_data, start, length)
