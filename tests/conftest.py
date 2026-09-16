@@ -68,10 +68,8 @@ def output_formats(experimental_codegen):
 
     to_drop = ("cfg", "cfg_runtime", "archive", "archive_b64", "solc_json")
     if experimental_codegen:
-        # venom bytecode does not derive from legacy IR; these formats run
-        # legacy codegen on the side, which cannot lower venom-only types
-        # (unbounded sequence types) and still panics on subscript overlaps
-        # that codegen_venom handles.
+        # The dictionary formats describe legacy IR and are unsupported by
+        # Venom. The ir/ir_runtime formats above exercise the selected backend.
         to_drop += ("ir_dict", "ir_runtime_dict")
 
     for s in to_drop:

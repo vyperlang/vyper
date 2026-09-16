@@ -40,6 +40,7 @@ TRANSLATE_MAP = {
 }
 
 VENOM_KEYS = ("cfg", "cfg_runtime")
+LEGACY_IR_KEYS = ("ir_dict", "ir_runtime_dict")
 
 
 def _parse_cli_args():
@@ -265,7 +266,9 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
 
         if "*" in outputs:
             outputs = TRANSLATE_MAP.values()
-            if not should_output_venom:
+            if should_output_venom:
+                outputs = [k for k in outputs if k not in LEGACY_IR_KEYS]
+            else:
                 outputs = [k for k in outputs if k not in VENOM_KEYS]
         else:
             try:
@@ -274,6 +277,12 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
                 raise JSONError(f"Invalid outputSelection - {e}")
 
         outputs = sorted(list(outputs))
+
+        if should_output_venom and any(k in outputs for k in LEGACY_IR_KEYS):
+            raise JSONError(
+                "ir and ir_runtime outputs are not supported with experimentalCodegen; "
+                "use cfg or cfg_runtime instead"
+            )
 
         if not should_output_venom and any(k in outputs for k in VENOM_KEYS):
             selected_venom_keys = [k for k in outputs if k in VENOM_KEYS]

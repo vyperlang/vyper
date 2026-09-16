@@ -154,6 +154,9 @@ def test_compile_json(input_json, input_bundle, experimental_codegen):
     if not experimental_codegen:
         output_formats.pop("cfg", None)
         output_formats.pop("cfg_runtime", None)
+    else:
+        output_formats.pop("ir_dict", None)
+        output_formats.pop("ir_runtime_dict", None)
     foo = compile_from_file_input(
         foo_input,
         output_formats=output_formats,
@@ -202,7 +205,6 @@ def test_compile_json(input_json, input_bundle, experimental_codegen):
             "abi": data["abi"],
             "devdoc": data["devdoc"],
             "interface": data["interface"],
-            "ir": data["ir_dict"],
             "userdoc": data["userdoc"],
             "layout": data["layout"],
             "metadata": data["metadata"],
@@ -224,6 +226,8 @@ def test_compile_json(input_json, input_bundle, experimental_codegen):
         }
         if experimental_codegen:
             expected["venom"] = {"cfg": data["cfg"], "cfg_runtime": data["cfg_runtime"]}
+        else:
+            expected["ir"] = data["ir_dict"]
         assert output_json["contracts"][path][contract_name] == expected
 
 
@@ -259,6 +263,7 @@ def test_different_outputs(input_bundle, input_json, experimental_codegen):
     bar = contracts["contracts/bar.vy"]["bar"]
     expected_keys = ["abi", "devdoc", "evm", "interface", "ir", "layout", "metadata", "userdoc"]
     if experimental_codegen:
+        expected_keys.remove("ir")
         expected_keys.append("venom")
         expected_keys.sort()
     assert sorted(bar.keys()) == expected_keys
@@ -273,6 +278,22 @@ def test_different_outputs(input_bundle, input_json, experimental_codegen):
         input_bundle=input_bundle,
     )["method_identifiers"]
     assert foo["evm"]["methodIdentifiers"] == method_identifiers
+
+
+def test_venom_wildcard_does_not_compile_legacy_ir():
+    input_json = {
+        "language": "Vyper",
+        "sources": {
+            "unbounded.vy": {
+                "content": "@external\ndef echo(x: Bytes[INF]) -> Bytes[INF]:\n    return x\n"
+            }
+        },
+        "settings": {"experimentalCodegen": True, "outputSelection": {"*": ["*"]}},
+    }
+    output = compile_json(input_json)["contracts"]["unbounded.vy"]["unbounded"]
+    assert "ir" not in output
+    assert "venom" in output
+    assert output["evm"]["bytecode"]["object"]
 
 
 def test_wrong_language():

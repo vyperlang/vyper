@@ -3,7 +3,7 @@ from pathlib import PurePath
 import pytest
 
 from vyper import compiler
-from vyper.cli.vyper_json import TRANSLATE_MAP, VENOM_KEYS, get_output_formats
+from vyper.cli.vyper_json import LEGACY_IR_KEYS, TRANSLATE_MAP, VENOM_KEYS, get_output_formats
 from vyper.exceptions import JSONError
 
 
@@ -46,7 +46,11 @@ def test_translate_map_with_venom_flag(output):
         "sources": {"foo.vy": ""},
         "settings": {"venomExperimental": True, "outputSelection": {"foo.vy": [output[0]]}},
     }
-    assert get_output_formats(input_json) == {PurePath("foo.vy"): [output[1]]}
+    if output[1] in LEGACY_IR_KEYS:
+        with pytest.raises(JSONError, match="outputs are not supported with experimentalCodegen"):
+            get_output_formats(input_json)
+    else:
+        assert get_output_formats(input_json) == {PurePath("foo.vy"): [output[1]]}
 
 
 def test_star():
@@ -70,6 +74,7 @@ def test_star_with_venom_flag():
         "settings": {"venomExperimental": True, "outputSelection": {"*": ["*"]}},
     }
     translate_map = set(TRANSLATE_MAP.values())
+    translate_map.difference_update(LEGACY_IR_KEYS)
     expected = sorted(translate_map)
     result = get_output_formats(input_json)
     assert result == {PurePath("foo.vy"): expected, PurePath("bar.vy"): expected}
