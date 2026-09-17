@@ -505,6 +505,14 @@ class BottomT(VyperType):
         raise InvalidOperation(f"`{self._id}` does not have an abi encoding")
 
 
+class _Inf(VyperType):
+    _id = "INF"
+    _equality_attrs = ()
+
+
+INF_T = _Inf()
+
+
 class _VoidType(VyperType):
     _id = "(void)"
 
