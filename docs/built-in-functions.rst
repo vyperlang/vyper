@@ -222,7 +222,7 @@ Vyper has four built-ins for contract creation; the first three contract creatio
 
     .. note::
 
-        With the experimental code generator, ``max_outsize=INF`` returns the whole returned call data as ``Bytes[INF]`` (or ``(bool, Bytes[INF])`` if ``revert_on_failure`` is ``False``), sized to the actual length and never truncated. See :ref:`types-unbounded`.
+        With the experimental code generator, ``max_outsize=INF`` returns the whole returned call data as ``Bytes[INF]`` (or ``(bool, Bytes[INF])`` if ``revert_on_failure`` is ``False``), sized to the actual length and never truncated. See :ref:`unbounded_types`.
 
     .. code-block:: vyper
 

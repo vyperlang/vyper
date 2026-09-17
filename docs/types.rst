@@ -563,7 +563,7 @@ In the ABI, they are represented as ``_Type[]``. For instance, ``DynArray[int128
 
 .. index:: unbounded sequences, INF
 
-.. _types-unbounded:
+.. _unbounded_types:
 
 Unbounded Sequence Types
 ------------------------
