@@ -242,11 +242,13 @@ def foo(target: address) -> bool:
 
 
 @pytest.mark.parametrize("code", unbounded_outsize_list)
-def test_raw_call_unbounded_outsize_requires_experimental_codegen(code):
-    with pytest.raises(StructureException) as e:
-        compile_code(code, settings=Settings(experimental_codegen=False))
-    assert e.value.message == "unbounded sequence types require --experimental-codegen"
-    assert compile_code(code, settings=Settings(experimental_codegen=True)) is not None
+def test_raw_call_unbounded_outsize_requires_experimental_codegen(code, experimental_codegen):
+    if not experimental_codegen:
+        with pytest.raises(StructureException) as e:
+            compile_code(code)
+        assert e.value.message == "unbounded sequence types require --experimental-codegen"
+    else:
+        assert compile_code(code) is not None
 
 
 narrowing_list = [
