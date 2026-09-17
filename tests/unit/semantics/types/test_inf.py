@@ -477,7 +477,7 @@ error E:
 
 @external
 def boom(x: Bytes[INF]):
-    raise E(x)
+    raise E(x=x)
     """,
     ],
 )
@@ -919,7 +919,7 @@ event E:
 error E:
     x: Bytes[INF]
     """,
-            "raise lib.E(b'abc')",
+            "raise lib.E(x=b'abc')",
         ),
     ],
 )
@@ -1357,7 +1357,7 @@ def emit(a: address):
         ),
         (
             {"inputs": [{"name": "x", "type": "bytes"}], "name": "Oops", "type": "error"},
-            "raise JSONInterface.Oops(staticcall JSONInterface(a).returns_bytes())",
+            "raise JSONInterface.Oops(x=staticcall JSONInterface(a).returns_bytes())",
         ),
     ],
 )
@@ -1421,7 +1421,7 @@ import JSONInterface
 
 @external
 def boom(x: Bytes[10]):
-    raise JSONInterface.Oops(x)
+    raise JSONInterface.Oops(x=x)
     """
     input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
     compiler.compile_code(
@@ -1439,7 +1439,7 @@ import JSONInterface
 
 @external
 def boom(x: Bytes[INF]):
-    raise JSONInterface.Oops(x)
+    raise JSONInterface.Oops(x=x)
     """
     input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
     compiler.compile_code(
