@@ -187,7 +187,7 @@ class Stmt:
         if not is_unbounded_sequence_type(typ):  # pragma: nocover
             raise CompilerPanic(f"expected unbounded sequence type, got {typ}")
         value = self.ctx.copy_sequence_to_scratch(src, typ, annotation=var.name)
-        self.ctx.ptr_store(var.value.ptr(), value.operand)
+        self.ctx.store_pointer_cell(var.value.operand, value.operand, IRLiteral(0))
 
     def _assign_value(
         self, dst_ptr: Ptr, src: VyperValue, typ, *, src_node: vy_ast.VyperNode
@@ -1092,20 +1092,20 @@ class Stmt:
         if wrap_outer:
             # External returns are always ABI tuples. A declared singleton
             # tuple `-> (T,)` is therefore returned as `((T,),)`.
-            encoded_size = self.ctx.checked_add(
+            alloc_size = self.ctx.checked_add(
                 IRLiteral(32), runtime_abi_size_for_encode(self.ctx, arg_vvs, encode_typ)
             )
-            buf_ptr = self.ctx.allocate_scratch(encoded_size)
+            buf_ptr = self.ctx.allocate_scratch(alloc_size)
             self.builder.mstore(buf_ptr, IRLiteral(32))
             child_dst = self.builder.add(buf_ptr, IRLiteral(32))
-            child_len = abi_encode_values_to_buf(self.ctx, child_dst, arg_vvs, encode_typ)
+            child_len = abi_encode_values_to_buf(self.ctx, child_dst, arg_vvs, encode_typ, None)
             encoded_len = self.ctx.checked_add(IRLiteral(32), child_len)
             self.builder.return_(buf_ptr, encoded_len)
             return
 
-        encoded_size = runtime_abi_size_for_encode(self.ctx, arg_vvs, encode_typ)
-        buf_ptr = self.ctx.allocate_scratch(encoded_size)
-        encoded_len = abi_encode_values_to_buf(self.ctx, buf_ptr, arg_vvs, encode_typ)
+        alloc_size = runtime_abi_size_for_encode(self.ctx, arg_vvs, encode_typ)
+        buf_ptr = self.ctx.allocate_scratch(alloc_size)
+        encoded_len = abi_encode_values_to_buf(self.ctx, buf_ptr, arg_vvs, encode_typ, None)
         self.builder.return_(buf_ptr, encoded_len)
 
     def _lower_ctor_return(self, ret_val: Optional[IROperand]) -> None:
@@ -1157,6 +1157,16 @@ class Stmt:
                 return
 
             assert returns_count == 0
+            if self.ctx.unbounded_dynarray_element_layout_differs(ret_typ, ret_src_typ):
+                # dret passes the value with the declared element stride (the
+                # caller reads it as ret_typ), so widened elements (e.g.
+                # DynArray[Bytes[10], 5] -> DynArray[Bytes[512], INF]) are
+                # converted here. External returns encode from the source
+                # layout instead.
+                ret_vv = self.ctx.dynamic_memory_value(ret_val, ret_src_typ)
+                widened = self.ctx.copy_sequence_to_scratch(ret_vv, ret_typ, annotation="return")
+                assert isinstance(widened.operand, IRVariable)
+                ret_val = widened.operand
             size = self.ctx.sequence_runtime_size(ret_val, ret_typ)
             self.builder.dret(IRLiteral(dynamic_returns_count), ret_val, size, return_pc)
             return
@@ -1258,6 +1268,18 @@ class Stmt:
                 member_ptr = normalized.operand
                 src_member_t = dst_member_t
 
+            if self.ctx.unbounded_dynarray_element_layout_differs(dst_member_t, src_member_t):
+                # Widened INF member (see _lower_internal_return's direct dret
+                # case): convert the element layout so the size below uses the
+                # declared stride.
+                member_vv = self.ctx.dynamic_memory_value(member_ptr, src_member_t)
+                widened = self.ctx.copy_sequence_to_scratch(
+                    member_vv, dst_member_t, annotation="return"
+                )
+                assert isinstance(widened.operand, IRVariable)
+                member_ptr = widened.operand
+                src_member_t = dst_member_t
+
             if not dst_member_t._is_prim_word:
                 size = self._dynamic_return_member_size(member_ptr, dst_member_t, src_member_t)
                 dynamic_return_operands.extend([member_ptr, size])
@@ -1271,15 +1293,19 @@ class Stmt:
         )
 
     def _emit_external_unbounded_sequence_return(
-        self, ret_val: IRVariable, ret_typ: VyperType, external_return_type: VyperType
+        self, ret_val: IRVariable, ret_typ: VyperType, ret_src_typ: VyperType
     ) -> None:
         assert is_unbounded_sequence_type(ret_typ)
 
+        # Size the buffer by the declared type's bound but encode from the
+        # source layout: a widened element type (DynArray[Bytes[10], 5] ->
+        # DynArray[Bytes[512], INF]) has a different memory stride.
         ret_vv = self.ctx.dynamic_memory_value(ret_val, ret_typ, annotation="return")
-        tail_len = runtime_abi_size_for_encode(self.ctx, [ret_vv], ret_typ)
-        encoded_size = self.ctx.checked_add(IRLiteral(32), tail_len)
-        buf_ptr = self.ctx.allocate_scratch(encoded_size)
-        encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, external_return_type)
+        tail_bound = runtime_abi_size_for_encode(self.ctx, [ret_vv], ret_typ)
+        alloc_size = self.ctx.checked_add(IRLiteral(32), tail_bound)
+        buf_ptr = self.ctx.allocate_scratch(alloc_size)
+        encode_typ = calculate_type_for_external_return(ret_src_typ)
+        encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, encode_typ, None)
         self.builder.return_(buf_ptr, encoded_len)
 
     def _lower_external_return(
@@ -1313,6 +1339,9 @@ class Stmt:
             ret_src_typ is not None
             and not ret_typ._is_prim_word
             and not (isinstance(ret_typ, _BytestringT) and isinstance(ret_src_typ, _BytestringT))
+            # INF sources have no bounded temporary; they are encoded from their
+            # own layout below
+            and not type_contains_unbounded_sequence(ret_src_typ)
             and ret_src_typ != ret_typ
             and not can_encode_from_src
             and ret_val is not None
@@ -1365,7 +1394,8 @@ class Stmt:
 
         if is_unbounded_sequence_type(ret_typ):
             assert isinstance(ret_val, IRVariable)
-            self._emit_external_unbounded_sequence_return(ret_val, ret_typ, external_return_type)
+            assert ret_src_typ is not None
+            self._emit_external_unbounded_sequence_return(ret_val, ret_typ, ret_src_typ)
             return
 
         if (
@@ -1374,8 +1404,13 @@ class Stmt:
             and type_contains_unbounded_sequence(ret_src_typ)
         ):
             assert isinstance(ret_typ, TupleT)
+            assert isinstance(ret_src_typ, TupleT)
             assert isinstance(ret_val, IRVariable)
-            arg_vvs = self.ctx.dynamic_tuple_frame_values(ret_val, ret_typ, annotation="return")
+            # The frame was built by the source type's producer; read it as
+            # such. Members are encoded by their own types, so a widened INF
+            # member (DynArray[Bytes[10], INF] -> DynArray[Bytes[512], INF])
+            # keeps its source layout.
+            arg_vvs = self.ctx.dynamic_tuple_frame_values(ret_val, ret_src_typ, annotation="return")
 
             self._emit_external_dynamic_tuple_return(
                 arg_vvs, ret_typ, wrap_outer=external_return_type is not ret_typ
@@ -1389,7 +1424,7 @@ class Stmt:
 
         # ABI encode using the declared return ABI shape, or a compatible
         # bounded source layout when returning through an INF supertype.
-        encoded_len = abi_encode_to_buf(self.ctx, buf._ptr, ret_val, encode_typ)
+        encoded_len = abi_encode_to_buf(self.ctx, buf._ptr, ret_val, encode_typ, maxlen)
 
         # Return encoded data
         self.builder.return_(buf._ptr, encoded_len)
@@ -1456,14 +1491,17 @@ class Stmt:
             if type_contains_unbounded_sequence(tuple_typ):
                 # INF data has no static size bound; size the encoding
                 # buffer at runtime like external INF returns do.
-                encoded_size = runtime_abi_size_for_encode(self.ctx, data_vals, tuple_typ)
-                abi_buf_ptr = self.ctx.allocate_scratch(encoded_size)
+                alloc_size = runtime_abi_size_for_encode(self.ctx, data_vals, tuple_typ)
+                abi_buf_ptr = self.ctx.allocate_scratch(alloc_size)
+                bufsz = None
             else:
                 bufsz = tuple_typ.abi_type.size_bound()
                 abi_buf_ptr = self.ctx.allocate_buffer(bufsz)._ptr
 
             # ABI encode the tuple
-            encoded_len = abi_encode_values_to_buf(self.ctx, abi_buf_ptr, data_vals, tuple_typ)
+            encoded_len = abi_encode_values_to_buf(
+                self.ctx, abi_buf_ptr, data_vals, tuple_typ, bufsz
+            )
         else:
             # No data - use zero size
             log_buf = self.ctx.allocate_buffer(0, annotation="log empty buffer")
@@ -1647,9 +1685,11 @@ class Stmt:
             # at runtime like external INF returns do.
             payload_size = runtime_abi_size_for_encode(self.ctx, arg_vvs, args_tuple_t)
             buf_ptr = self.ctx.allocate_scratch(self.ctx.checked_add(IRLiteral(32), payload_size))
+            payload_bufsz = None
         else:
             bufsz = args_tuple_t.abi_type.size_bound() + 32
             buf_ptr = self.ctx.allocate_buffer(bufsz, annotation="custom error revert buffer")._ptr
+            payload_bufsz = bufsz - 32
         self.builder.mstore(buf_ptr, IRLiteral(error_t.selector))
 
         if len(arg_nodes) == 0:
@@ -1659,7 +1699,9 @@ class Stmt:
             return
 
         payload_buf = self.builder.add(buf_ptr, IRLiteral(32))
-        encoded_len = abi_encode_values_to_buf(self.ctx, payload_buf, arg_vvs, args_tuple_t)
+        encoded_len = abi_encode_values_to_buf(
+            self.ctx, payload_buf, arg_vvs, args_tuple_t, payload_bufsz
+        )
 
         revert_offset = self.builder.add(buf_ptr, IRLiteral(28))
         revert_len = self.builder.add(IRLiteral(4), encoded_len)
@@ -1713,7 +1755,9 @@ class Stmt:
         self.ctx.store_vyper_value(msg_vv, tuple_buf._ptr, msg_typ)
 
         # ABI encode the wrapped message to payload buffer
-        encoded_len = abi_encode_to_buf(self.ctx, payload_buf, tuple_buf._ptr, wrapped_typ)
+        encoded_len = abi_encode_to_buf(
+            self.ctx, payload_buf, tuple_buf._ptr, wrapped_typ, bufsz - 32
+        )
 
         # Revert from buf+28 (so selector is at bytes 0-3) with length 4 + encoded_len
         revert_offset = self.builder.add(buf._ptr, IRLiteral(28))

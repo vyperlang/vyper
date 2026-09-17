@@ -516,19 +516,19 @@ class ModuleT(VyperType):
                 return s
         return None
 
-    @property
+    @cached_property
     def variable_decls(self):
         return self._module.get_children(vy_ast.VariableDecl)
 
-    @property
+    @cached_property
     def uses_decls(self):
         return self._module.get_children(vy_ast.UsesDecl)
 
-    @property
+    @cached_property
     def initializes_decls(self):
         return self._module.get_children(vy_ast.InitializesDecl)
 
-    @property
+    @cached_property
     def exports_decls(self):
         return self._module.get_children(vy_ast.ExportsDecl)
 
@@ -541,7 +541,7 @@ class ModuleT(VyperType):
                 ret.append(used_module)
         return ret
 
-    @property
+    @cached_property
     def initialized_modules(self):
         # modules which are initialized to
         ret = []
@@ -580,7 +580,7 @@ class ModuleT(VyperType):
         return {k: v for (k, v) in self.variables.items() if v.is_public}
 
     @cached_property
-    def functions(self):
+    def functions(self) -> dict[str, ContractFunctionT]:
         return {f.name: f._metadata["func_type"] for f in self.function_defs}
 
     @cached_property
@@ -694,3 +694,36 @@ class ModuleT(VyperType):
     @cached_property
     def interface(self):
         return InterfaceT.from_ModuleT(self)
+
+    @cached_property
+    def is_stateful(self):
+        """
+        Whether this module contains state.
+
+        A module has state if it contains storage variables, transient
+        variables, immutables, or any nonreentrancy locks. A module is
+        also considered stateful if it has an `initializes` or `uses`
+        declaration or an `__init__()` function; these do not hold state
+        themselves, but require the module to be initialized.
+        """
+        if len(self.initializes_decls) > 0 or len(self.uses_decls) > 0:
+            return True
+        if any(not v.is_constant for v in self.variable_decls):
+            return True
+        if self.init_function is not None:
+            return True
+
+        for fn_t in self.functions.values():
+            if fn_t.nonreentrant:
+                return True
+
+        return False
+
+    @cached_property
+    def is_abstract(self):
+        """
+        Whether this module is abstract.
+
+        A module is abstract if it contains at least one abstract method.
+        """
+        return any(f.is_abstract for f in self.functions.values())
