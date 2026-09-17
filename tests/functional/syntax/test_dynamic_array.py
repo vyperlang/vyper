@@ -116,6 +116,17 @@ def foo():
     assert excinfo.value.message == "Cannot perform membership comparison between dislike types"
 
 
+def test_dynarray_negative_length():
+    code = """
+@external
+def foo():
+    x: DynArray[uint256, -1] = []
+    """
+    with pytest.raises(ArrayIndexException) as excinfo:
+        compile_code(code)
+    assert excinfo.value.message == "Subscript must be at least 0"
+
+
 valid_list = [
     """
 flag Foo:
@@ -182,6 +193,16 @@ def foo():
 @external
 def foo():
     x: uint256 = len([])
+    """,
+    """
+@external
+def foo():
+    x: DynArray[uint256, 0] = []
+    """,
+    """
+@external
+def foo():
+    x: DynArray[uint256, 4] = []
     """,
 ]
 
@@ -285,3 +306,33 @@ def foo():
     b: DynArray[uint256, INF] = a
     """
     compile_inf_code(code)
+
+
+zero_length_for_loop_list = [
+    """
+@external
+def foo(x: DynArray[uint256, 0]):
+    for y: uint256 in x:
+        pass
+    """,
+    """
+@external
+def foo():
+    x: DynArray[uint256, 0] = []
+    for y: uint256 in x:
+        pass
+    """,
+    """
+@external
+def foo():
+    for y: uint256 in []:
+        pass
+    """,
+]
+
+
+@pytest.mark.parametrize("bad_code", zero_length_for_loop_list)
+def test_zero_length_dynarray_for_loop_rejected(bad_code):
+    with pytest.raises(StructureException) as e:
+        compile_code(bad_code)
+    assert e.value.message == "For loop must have at least 1 iteration"
