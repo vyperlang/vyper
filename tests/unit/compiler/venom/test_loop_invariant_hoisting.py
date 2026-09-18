@@ -130,7 +130,7 @@ def test_loop_invariant_hoisting_simple(depth, count):
 
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
-        LoopInvariantHoisting(ac, fn).run_pass()
+        LoopInvariantHoisting(ac, fn).run_pass(gas_heuristic = 0)
         _helper_reorder(fn)
 
     post_ctx = parse_from_basic_block(post)
@@ -173,7 +173,7 @@ def test_loop_invariant_hoisting_dependant(depth, count):
 
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
-        LoopInvariantHoisting(ac, fn).run_pass()
+        LoopInvariantHoisting(ac, fn).run_pass(gas_heuristic = 0)
         _helper_reorder(fn)
 
     post_ctx = parse_from_basic_block(post)
@@ -209,7 +209,7 @@ def test_loop_invariant_hoisting_unhoistable(depth, count):
 
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
-        LoopInvariantHoisting(ac, fn).run_pass()
+        LoopInvariantHoisting(ac, fn).run_pass(gas_heuristic = 0)
 
     orig = parse_from_basic_block(pre)
 

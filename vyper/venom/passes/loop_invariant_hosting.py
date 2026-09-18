@@ -56,8 +56,10 @@ class LoopInvariantHoisting(IRPass):
     function: IRFunction
     loops: dict[IRBasicBlock, OrderedSet[IRBasicBlock]]
     dfg: DFGAnalysis
+    gas_heuristic: int
 
-    def run_pass(self):
+    def run_pass(self, / , gas_heuristic: int = 10):
+        self.gas_heuristic = gas_heuristic
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
         self.loop_analysis = self.analyses_cache.request_analysis(NaturalLoopDetectionAnalysis)
@@ -112,12 +114,20 @@ class LoopInvariantHoisting(IRPass):
                 if _ignore_instruction(inst):
                     continue
                 if inst not in cannot_hoist_insts:
+                    tmp = []
+                    cost: int = inst.gas_cost
                     dependecies = self._get_dependencies(inst, cannot_hoist_insts, loop)
                     for dep in dependecies:
-                        if dep in result:
+                        cost += dep.gas_cost
+                        if dep in result or dep in tmp:
                             continue
-                        result.append(dep)
-                    result.append(inst)
+                        tmp.append(dep)
+                    if cost >= self.gas_heuristic:
+                        print(inst)
+                        for d in tmp:
+                            print("\t", d)
+                        result.extend(tmp)
+                        result.append(inst)
         return result
 
     def _get_dependencies(
@@ -125,8 +135,8 @@ class LoopInvariantHoisting(IRPass):
         inst: IRInstruction,
         cannot_hoists_insts: set[IRInstruction],
         loop: OrderedSet[IRBasicBlock],
-    ) -> set[IRInstruction]:
-        res = set()
+    ) -> OrderedSet[IRInstruction]:
+        res = OrderedSet()
         for op in inst.operands:
             if not isinstance(op, IRVariable):
                 continue
