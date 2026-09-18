@@ -57,7 +57,7 @@ class LoopInvariantHoisting(IRPass):
     dfg: DFGAnalysis
 
     def run_pass(self):
-        print(self.function)
+        #print(self.function)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
         self.loop_analysis = self.analyses_cache.request_analysis(NaturalLoopDetectionAnalysis)
@@ -66,6 +66,9 @@ class LoopInvariantHoisting(IRPass):
         while True:
             change = False
             for header, loop in self.loops.items():
+                #print(header.label)
+                #for bb in loop:
+                    #print("\t", bb.label)
                 hoistable: list[IRInstruction] = self._get_hoistable_loop(loop)
                 if len(hoistable) == 0:
                     continue
@@ -79,15 +82,13 @@ class LoopInvariantHoisting(IRPass):
         if invalidate:
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
-        print(self.function)
+        #print(self.function)
 
     def _hoist(self, header: IRBasicBlock, hoistable: list[IRInstruction]):
         target_bb = self.loop_analysis.get_pre_header(header)
         assert target_bb is not None
         for inst in hoistable:
             bb = inst.parent
-            if target_bb == bb:
-                continue
             bb.remove_instruction(inst)
             target_bb.insert_instruction(inst, index=len(target_bb.instructions) - 1)
 
@@ -118,7 +119,7 @@ class LoopInvariantHoisting(IRPass):
                 if _ignore_instruction(inst):
                     continue
                 if inst not in cannot_hoist_insts:
-                    dependecies = self._get_dependencies(inst, cannot_hoist_insts)
+                    dependecies = self._get_dependencies(inst, cannot_hoist_insts, loop)
                     for dep in dependecies:
                         if dep in result:
                             continue
@@ -126,12 +127,15 @@ class LoopInvariantHoisting(IRPass):
                     result.append(inst)
         return result
 
-    def _get_dependencies(self, inst: IRInstruction, cannot_hoists_insts: set[IRInstruction]) -> set[IRInstruction]:
+    def _get_dependencies(self, inst: IRInstruction, cannot_hoists_insts: set[IRInstruction], loop: OrderedSet[IRBasicBlock]) -> set[IRInstruction]:
         res = set()
         for op in inst.operands:
             if not isinstance(op, IRVariable):
                 continue
             source = self.dfg.get_producing_instruction(op)
+            assert source is not None
+            if source.parent not in loop:
+                continue
             assert source not in cannot_hoists_insts
             res.add(source)
         return res
