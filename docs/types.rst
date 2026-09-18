@@ -532,9 +532,17 @@ Dynamic arrays represent bounded arrays whose length can be modified at runtime,
     exampleList = []
     # exampleList.pop()  # would revert!
     exampleList.append(42)  # exampleList now has length 1
+    shortList: DynArray[int128, 2] = []
+    shortList.extend(exampleList)  # shortList now has length 1
     exampleList.append(120)  # exampleList now has length 2
     exampleList.append(356)  # exampleList now has length 3
     # exampleList.append(1)  # would revert!
+    anotherList: DynArray[int128, 3] = []
+    anotherList.extend(exampleList)  # anotherList now has length 3
+    longerList: DynArray[int128, 5] = [1]
+    longerList.extend(exampleList)  # longerList now has length 4
+    failList: DynArray[int128, 3] = [1]
+    failList.extend(exampleList)  # would revert because max length of failList is exceeded!
 
     myValue: int128 = exampleList.pop()  # myValue == 356, exampleList now has length 2
 
@@ -545,7 +553,7 @@ Dynamic arrays represent bounded arrays whose length can be modified at runtime,
 
 
 .. note::
-    Attempting to access data past the runtime length of an array, ``pop()`` an empty array or ``append()`` to a full array will result in a runtime ``REVERT``. Attempting to pass an array in calldata which is larger than the array bound will result in a runtime ``REVERT``.
+    Attempting to access data past the runtime length of an array, ``pop()`` an empty array, ``append()`` to a full array, or ``extend()`` past the maximum length of the destination array will result in a runtime ``REVERT``. Attempting to pass an array in calldata which is larger than the array bound will result in a runtime ``REVERT``.
 
 .. note::
     To keep code easy to reason about, modifying an array while using it as an iterator is disallowed by the language. For instance, the following usage is not allowed:
