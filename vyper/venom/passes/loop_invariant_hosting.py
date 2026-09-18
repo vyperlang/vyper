@@ -123,9 +123,6 @@ class LoopInvariantHoisting(IRPass):
                             continue
                         tmp.append(dep)
                     if cost >= self.gas_heuristic:
-                        print(inst)
-                        for d in tmp:
-                            print("\t", d)
                         result.extend(tmp)
                         result.append(inst)
         return result
@@ -144,6 +141,9 @@ class LoopInvariantHoisting(IRPass):
             assert source is not None
             if source.parent not in loop:
                 continue
+            # should not create any trees since we can hoist it
+            source_deps = self._get_dependencies(source, cannot_hoists_insts, loop)
+            res.addmany(source_deps)
             assert source not in cannot_hoists_insts
             res.add(source)
         return res
