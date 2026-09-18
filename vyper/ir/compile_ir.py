@@ -20,10 +20,11 @@ from vyper.evm.assembler.instructions import (
     PUSHLABEL,
     AssemblyInstruction,
     DataHeader,
+    SubroutineLabel,
     TaggedInstruction,
 )
 from vyper.evm.assembler.optimizer import optimize_assembly
-from vyper.evm.assembler.symbols import CONSTREF, Label, SubroutineLabel
+from vyper.evm.assembler.symbols import CONSTREF, Label
 from vyper.evm.opcodes import get_opcodes, version_check
 from vyper.exceptions import CodegenPanic, CompilerPanic
 from vyper.utils import MemoryPositions
