@@ -284,10 +284,16 @@ class DArrayT(_SequenceT):
 
         self.add_member("append", MemberFunctionT(self, "append", [self.value_type], None, True))
         self.add_member("pop", MemberFunctionT(self, "pop", [], self.value_type, True))
-        # `extend` is only valid when the destination has a concrete length;
-        # it is resolved lazily in `get_member()` so the bounded fast path and
-        # the unbounded-receiver error share one check (and no argument type
-        # is eagerly constructed for every DArrayT instance).
+        # `extend` is only valid when the destination has a concrete length,
+        # so unlike `append`/`pop` above, it is not registered eagerly in
+        # `__init__`. Instead it is resolved in `get_member()` below, where a
+        # single `is_bounded_length()` check handles both cases: on a bounded
+        # receiver it constructs and returns the member type, and on an
+        # unbounded receiver it raises a targeted error suggesting a
+        # concrete-length variable. (Doing this lazily also means the
+        # unbounded `DArrayT` argument type is only constructed when source
+        # code actually calls `.extend()`, rather than for every `DArrayT`
+        # instance.)
 
     def get_member(self, key: str, node: vy_ast.VyperNode) -> VyperType:
         if key == "extend":
