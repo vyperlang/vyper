@@ -34,6 +34,9 @@ UNINTERESTING_OPCODES = frozenset(
 )
 
 
+def cannot_hoist(inst: IRInstruction) -> bool:
+    return inst.is_param or inst.is_phi or inst.is_volatile
+
 def _ignore_instruction(inst: IRInstruction) -> bool:
     if inst.is_param:
         return True
@@ -41,13 +44,6 @@ def _ignore_instruction(inst: IRInstruction) -> bool:
         return True
     else:
         return inst.opcode == "add" and isinstance(inst.operands[1], IRLabel)
-
-
-# must check if it has as operand as literal because
-# there are cases when the assign just moves value
-# from one variable to another
-def _is_correct_assign(inst: IRInstruction) -> bool:
-    return inst.opcode == "assign" and isinstance(inst.operands[0], IRLiteral)
 
 
 class LoopInvariantHoisting(IRPass):
@@ -61,6 +57,7 @@ class LoopInvariantHoisting(IRPass):
     dfg: DFGAnalysis
 
     def run_pass(self):
+        print(self.function)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
         self.loop_analysis = self.analyses_cache.request_analysis(NaturalLoopDetectionAnalysis)
@@ -69,7 +66,7 @@ class LoopInvariantHoisting(IRPass):
         while True:
             change = False
             for header, loop in self.loops.items():
-                hoistable: list[IRInstruction] = self._get_hoistable_loop(header, loop)
+                hoistable: list[IRInstruction] = self._get_hoistable_loop(loop)
                 if len(hoistable) == 0:
                     continue
                 change |= True
@@ -82,11 +79,15 @@ class LoopInvariantHoisting(IRPass):
         if invalidate:
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
+        print(self.function)
+
     def _hoist(self, header: IRBasicBlock, hoistable: list[IRInstruction]):
         target_bb = self.loop_analysis.get_pre_header(header)
         assert target_bb is not None
         for inst in hoistable:
             bb = inst.parent
+            if target_bb == bb:
+                continue
             bb.remove_instruction(inst)
             target_bb.insert_instruction(inst, index=len(target_bb.instructions) - 1)
 
@@ -99,67 +100,62 @@ class LoopInvariantHoisting(IRPass):
         return res
 
     def _get_hoistable_loop(
-        self, from_bb: IRBasicBlock, loop: OrderedSet[IRBasicBlock]
+        self, loop: OrderedSet[IRBasicBlock]
     ) -> list[IRInstruction]:
-        result: list[IRInstruction] = []
+        cannot_hoist_insts: set[IRInstruction] = set()
         loop_effects = self._get_loop_effects_write(loop)
+        while True:
+            orig = cannot_hoist_insts.copy()
+            for bb in loop:
+                self._handle_bb(bb, loop_effects, cannot_hoist_insts)
+
+            if orig == cannot_hoist_insts:
+                break
+
+        result = list()
         for bb in loop:
-            result.extend(self._get_hoistable_bb(bb, from_bb, loop_effects))
+            for inst in bb.instructions:
+                if _ignore_instruction(inst):
+                    continue
+                if inst not in cannot_hoist_insts:
+                    dependecies = self._get_dependencies(inst, cannot_hoist_insts)
+                    for dep in dependecies:
+                        if dep in result:
+                            continue
+                        result.append(dep)
+                    result.append(inst)
         return result
 
-    def _get_hoistable_bb(
-        self, bb: IRBasicBlock, loop_idx: IRBasicBlock, loop_effects: Effects
-    ) -> list[IRInstruction]:
-        result: list[IRInstruction] = []
-        for inst in bb.instructions:
-            if self._can_hoist_instruction_ignore_assign(inst, self.loops[loop_idx], loop_effects):
-                result.extend(self._assign_dependencies(inst, loop_idx))
-                result.append(inst)
-
-        return result
-
-    # query assign dependacies of instruction (they are not handled otherwise)
-    def _assign_dependencies(
-        self, inst: IRInstruction, loop_idx: IRBasicBlock
-    ) -> list[IRInstruction]:
-        result: list[IRInstruction] = []
-        for var in inst.get_input_variables():
-            source_inst = self.dfg.get_producing_instruction(var)
-            assert isinstance(source_inst, IRInstruction)
-            if not _is_correct_assign(source_inst):
+    def _get_dependencies(self, inst: IRInstruction, cannot_hoists_insts: set[IRInstruction]) -> set[IRInstruction]:
+        res = set()
+        for op in inst.operands:
+            if not isinstance(op, IRVariable):
                 continue
-            for bb in self.loops[loop_idx]:
-                if source_inst.parent == bb:
-                    result.append(source_inst)
-        return result
+            source = self.dfg.get_producing_instruction(op)
+            assert source not in cannot_hoists_insts
+            res.add(source)
+        return res
 
-    # since the assigns are always hoistable this ignores
-    # assigns in analysis (their are hoisted if some instrution is dependent on them)
+    def _handle_bb(
+        self, bb: IRBasicBlock, loop_effects: Effects, cannot_hoist_insts: set[IRInstruction]
+    ):
+        for inst in bb.instructions:
+            if not self._can_hoist_instruction_ignore_assign(inst, loop_effects, cannot_hoist_insts):
+                cannot_hoist_insts.add(inst)
+
+
     def _can_hoist_instruction_ignore_assign(
-        self, inst: IRInstruction, loop: OrderedSet[IRBasicBlock], loop_effects: Effects
+        self, inst: IRInstruction, loop_effects: Effects, cannot_hoist_insts: set[IRInstruction],
     ) -> bool:
-        if inst.is_volatile:
+        if cannot_hoist(inst):
             return False
         if (inst.get_read_effects() & loop_effects) != EMPTY:
             return False
-        if _ignore_instruction(inst):
-            return False
-        for bb in loop:
-            if self._dependent_in_bb(inst, bb):
+        for op in inst.operands:
+            if not isinstance(op, IRVariable):
+                continue
+            source = self.dfg.get_producing_instruction(op)
+            if source in cannot_hoist_insts:
                 return False
         return True
 
-    def _dependent_in_bb(self, inst: IRInstruction, bb: IRBasicBlock):
-        for in_var in inst.get_input_variables():
-            assert isinstance(in_var, IRVariable)
-            source_ins = self.dfg.get_producing_instruction(in_var)
-            assert isinstance(source_ins, IRInstruction)
-
-            # ignores assign since all assigns are independant
-            # and can be always hoisted
-            if _is_correct_assign(source_ins):
-                continue
-
-            if source_ins.parent == bb:
-                return True
-        return False
