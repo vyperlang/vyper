@@ -23,6 +23,7 @@ from vyper.venom.passes import (
     FmpPrunePass,
     InternalReturnCopyForwardingPass,
     LoadElimination,
+    LoopInvariantHoisting,
     LowerDloadPass,
     MakeSSA,
     Mem2Var,
@@ -82,6 +83,7 @@ PASSES_O3: List[PassConfig] = [
     (DeadStoreElimination, {"addr_space": TRANSIENT}),
     AssignElimination,
     RemoveUnusedVariablesPass,
+    LoopInvariantHoisting,
     ConcretizeMemLocPass,
     FmpLoweringPass,
     # repairs the multiply-assigned FMP runner emitted by the lowering;
