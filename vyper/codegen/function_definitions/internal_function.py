@@ -7,6 +7,7 @@ from vyper.codegen.function_definitions.common import (
 )
 from vyper.codegen.ir_node import IRnode
 from vyper.codegen.stmt import parse_body
+from vyper.evm.opcodes import version_check
 
 
 def generate_ir_for_internal_function(
@@ -58,24 +59,38 @@ def generate_ir_for_internal_function(
     function_entry_label = func_t._ir_info.internal_function_label(context.is_ctor_context)
     cleanup_label = func_t._ir_info.exit_sequence_label
 
+    # EIP-7979: with subroutines, the return address lives on the return
+    # stack: the entry is a CALLDEST, no return_pc is passed on the data
+    # stack, and the cleanup routine ends with RETURNSUB.
+    use_subroutines = version_check(begin="future")
+
     stack_args = ["var_list"]
     if func_t.return_type:
         stack_args += ["return_buffer"]
-    stack_args += ["return_pc"]
+    if not use_subroutines:
+        stack_args += ["return_pc"]
 
     body = [
-        "label",
+        "subroutine" if use_subroutines else "label",
         function_entry_label,
         stack_args,
         ["seq"] + nonreentrant_pre + [parse_body(code.body, context, ensure_terminated=True)],
     ]
 
-    cleanup_routine = [
-        "label",
-        cleanup_label,
-        ["var_list", "return_pc"],
-        ["seq"] + nonreentrant_post + [["exit_to", "return_pc"]],
-    ]
+    if use_subroutines:
+        cleanup_routine = [
+            "label",
+            cleanup_label,
+            ["var_list"],
+            ["seq"] + nonreentrant_post + [["retsub"]],
+        ]
+    else:
+        cleanup_routine = [
+            "label",
+            cleanup_label,
+            ["var_list", "return_pc"],
+            ["seq"] + nonreentrant_post + [["exit_to", "return_pc"]],
+        ]
 
     ir_node = IRnode.from_list(["seq", body, cleanup_routine])
 
