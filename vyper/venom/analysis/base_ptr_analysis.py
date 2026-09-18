@@ -1,5 +1,4 @@
 import dataclasses as dc
-from collections import deque
 from dataclasses import dataclass
 from typing import Optional
 
@@ -18,7 +17,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.memory_location import (
     Allocation,
     InstAccessOps,
@@ -109,18 +108,18 @@ class BasePtrAnalysis(IRAnalysis):
         self._untracked_root_active = set()
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
-        worklist = deque(self.cfg.dfs_pre_walk)
-
-        while len(worklist) > 0:
-            bb: IRBasicBlock = worklist.popleft()
-
+        # facts are per variable, not per program point: a use can sit any
+        # number of blocks below the definition (e.g. a phi operand from a
+        # predecessor visited after the join, read in a loop body behind a
+        # header with no pointer instructions), so re-visiting only the
+        # successors of a changed block can miss it. sweep every block until
+        # nothing changes; facts only grow, so this terminates.
+        changed = True
+        while changed:
             changed = False
-            for inst in bb.instructions:
-                changed |= self._handle_inst(inst)
-
-            if changed:
-                for succ in self.cfg.cfg_out(bb):
-                    worklist.append(succ)
+            for bb in self.cfg.dfs_pre_walk:
+                for inst in bb.instructions:
+                    changed |= self._handle_inst(inst)
 
         self.vars_in_allocations = dict()
         for var, ptrs in self.var_to_mem.items():
