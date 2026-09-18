@@ -113,11 +113,14 @@ class BasePtrAnalysis(IRAnalysis):
         # predecessor visited after the join, read in a loop body behind a
         # header with no pointer instructions), so re-visiting only the
         # successors of a changed block can miss it. sweep every block until
-        # nothing changes; facts only grow, so this terminates.
+        # nothing changes. facts only grow, and there are finitely many
+        # variables and allocations; conflicting offsets for an allocation
+        # collapse to None, so this terminates.
+        blocks = list(self.cfg.dfs_pre_walk)
         changed = True
         while changed:
             changed = False
-            for bb in self.cfg.dfs_pre_walk:
+            for bb in blocks:
                 for inst in bb.instructions:
                     changed |= self._handle_inst(inst)
 
