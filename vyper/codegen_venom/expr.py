@@ -2221,10 +2221,12 @@ class Expr:
             buf_ptr = self.ctx.allocate_scratch(
                 self.ctx.checked_add(buf_payload_size, IRLiteral(32))
             )
+            bufsz = None
         else:
             buf_size = max(args_abi_size, return_abi_size) + 32
             buf = self.ctx.allocate_buffer(buf_size, annotation="external_call_buf")
             buf_ptr = buf._ptr
+            bufsz = buf_size - 32
 
         # === Pack Arguments ===
         # Store method ID at buf (right-aligned in 32-byte word, so selector at buf+28)
@@ -2236,7 +2238,9 @@ class Expr:
         # ABI-encode arguments starting at buf+32
         if len(arg_vals) > 0:
             encode_dst = b.add(buf_ptr, IRLiteral(32))
-            args_abi_len = abi_encode_values_to_buf(self.ctx, encode_dst, arg_vals, args_tuple_t)
+            args_abi_len = abi_encode_values_to_buf(
+                self.ctx, encode_dst, arg_vals, args_tuple_t, bufsz
+            )
             if dynamic_args:
                 args_len = self.ctx.checked_add(args_abi_len, IRLiteral(4))
             else:
