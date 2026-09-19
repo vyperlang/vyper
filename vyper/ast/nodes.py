@@ -866,17 +866,26 @@ class Hex(Constant):
     Attributes
     ----------
     value : str
+        Value of the node, represented as a normalized lowercase string.
+    original_value : str
         Value of the node, represented as a string taken directly from the contract source.
     """
 
-    __slots__ = ()
+    __slots__ = ("original_value",)
+
+    def __init__(self, parent: Optional["VyperNode"] = None, **kwargs: dict):
+        super().__init__(parent, **kwargs)
+        # AST copies and folded-value snapshots can rebuild Hex from existing fields.
+        # Preserve the source spelling when it is already available.
+        self.original_value = getattr(self, "original_value", self.value)
+        self.value = self.value.lower()
 
     def validate(self):
-        if len(self.value) % 2:
+        if len(self.original_value) % 2:
             raise InvalidLiteral("Hex notation requires an even number of digits", self)
 
-        if self.value.startswith("0X"):
-            hint = f"Did you mean `0x{self.value[2:]}`?"
+        if self.original_value.startswith("0X"):
+            hint = f"Did you mean `0x{self.original_value[2:]}`?"
             raise InvalidLiteral("Hex literal begins with 0X!", self, hint=hint)
 
     @property
