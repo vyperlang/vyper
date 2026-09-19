@@ -96,7 +96,7 @@ valid_list = [
     """
 @external
 def foo():
-    x: uint256 = as_wei_value(5, "finney") + as_wei_value(2, "babbage") + as_wei_value(8, "shannon")  # noqa: E501
+    x: uint256 = as_wei_value(5, "finney") + as_wei_value(2, "babbage") + as_wei_value(8, "shannon")
     """,
     """
 @external
