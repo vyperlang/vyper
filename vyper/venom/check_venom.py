@@ -371,7 +371,7 @@ def find_semantic_errors_fn(fn: IRFunction) -> list[VenomError]:
     if len(errors) > 0:
         return errors
 
-    ac = IRAnalysesCache(fn)
+    ac = IRAnalysesCache(fn, isolated=True)
     var_def: VarDefinition = ac.request_analysis(VarDefinition)
     for bb in fn.get_basic_blocks():
         e = _handle_var_definition(fn, bb, var_def)
@@ -889,7 +889,7 @@ def _find_fmp_rootedness_errors(fn: IRFunction) -> list[VenomError]:
             if inst.opcode == "initial_fmp" and inst.num_outputs == 1:
                 roots.add(inst.output)
 
-    dfg = IRAnalysesCache(fn).request_analysis(DFGAnalysis)
+    dfg = IRAnalysesCache(fn, isolated=True).request_analysis(DFGAnalysis)
     for inst, operand in checks:
         if not _is_fmp_rooted(operand, roots, dfg):
             what = "bump base" if inst.opcode == "bump" else "hidden invoke operand"
