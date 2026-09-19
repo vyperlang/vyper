@@ -705,6 +705,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         iter_val = iter_node.reduced()
 
         if isinstance(iter_val, vy_ast.List):
+            # TODO: This branch only exists because get_exact_type_from_node on e.g. `[1, 2]`
+            # raises, once every node has a single type, remove this branch
             len_ = len(iter_val.elements)
             if len_ == 0:
                 raise StructureException("For loop must have at least 1 iteration", iter_node)
@@ -720,6 +722,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         # with generic length.
         if not isinstance(iter_type, (DArrayT, SArrayT)):
             raise InvalidType("Not an iterable type", iter_node)
+
+        # lint as error: the loop will never run
+        if iter_type.count == 0:
+            raise StructureException("For loop must have at least 1 iteration", iter_node)
 
         if not iter_type.value_type.is_subtype_of(target_type):
             # Isn't the expected type the target type ?
@@ -877,7 +883,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         # that provably bounded expressions get a bounded annotation.
         if any(isinstance(getattr(t, "value_type", None), BottomT) for t in possible_types):
             # the empty list literal infers as the single type
-            # `DynArray[Never, 1]`, which matches any expected type and so
+            # `DynArray[Never, 0]`, which matches any expected type and so
             # disambiguates nothing. enumerate its element types instead.
             possible_types = empty_list_candidate_types()
 
