@@ -45,7 +45,7 @@ from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 from .buffer import Ptr
 from .builtins.simple import get_empty_type
 from .calling_convention import returns_dynamic_count, returns_stack_count
-from .context import Constancy, LocalVariable, VenomCodegenContext
+from .context import LocalVariable, VenomCodegenContext
 from .eval_order import later_expressions_can_mutate_memory_or_storage
 from .expr import Expr, get_referenced_variables
 from .value import VyperValue
@@ -1661,9 +1661,7 @@ class Stmt:
         assert isinstance(msg, vy_ast.Call)
 
         arg_nodes = self._custom_error_arg_nodes(msg, error_t)
-        old_constancy = self.ctx.constancy
-        try:
-            self.ctx.constancy = Constancy.Constant
+        with self.ctx.revert_scope():
             arg_vvs = []
             for i, arg_node in enumerate(arg_nodes):
                 arg_vv = Expr(arg_node, self.ctx).lower()
@@ -1673,8 +1671,6 @@ class Stmt:
                         arg_vv, annotation="custom error", copy_composites=copy_composites
                     )
                 )
-        finally:
-            self.ctx.constancy = old_constancy
 
         arg_types = tuple(arg_vv.typ for arg_vv in arg_vvs)
         args_tuple_t = TupleT(arg_types)
@@ -1720,12 +1716,8 @@ class Stmt:
         Source: vyper/codegen/stmt.py:_assert_reason
         """
         # Evaluate message in constant context (prevent state changes)
-        old_constancy = self.ctx.constancy
-        try:
-            self.ctx.constancy = Constancy.Constant
+        with self.ctx.revert_scope():
             msg_vv = Expr(msg, self.ctx).lower()
-        finally:
-            self.ctx.constancy = old_constancy
 
         msg_typ = msg._metadata["type"]
 
