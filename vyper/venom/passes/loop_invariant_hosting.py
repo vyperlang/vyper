@@ -1,4 +1,8 @@
+from dataclasses import dataclass
+
+from vyper.evm.address_space import MEMORY
 from vyper.utils import OrderedSet
+from vyper.venom.analysis.base_ptr_analysis import BasePtrAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
@@ -6,6 +10,7 @@ from vyper.venom.analysis.loop_detection import NaturalLoopDetectionAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRVariable
 from vyper.venom.effects import EMPTY, Effects
 from vyper.venom.function import IRFunction
+from vyper.venom.memory_location import Allocation
 from vyper.venom.passes.base_pass import IRPass
 
 UNINTERESTING_OPCODES = frozenset(
@@ -47,6 +52,13 @@ def _ignore_instruction(inst: IRInstruction) -> bool:
         return inst.opcode == "add" and isinstance(inst.operands[1], IRLabel)
 
 
+@dataclass
+class _LoopEffects:
+    writes: Effects
+    # None represents a write not confined to a known allocation.
+    memory_writes: set[Allocation | None]
+
+
 class LoopInvariantHoisting(IRPass):
     """
     This pass detects invariants in loops and hoists them above the loop body.
@@ -62,6 +74,7 @@ class LoopInvariantHoisting(IRPass):
         self.gas_heuristic = gas_heuristic
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
+        self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.loop_analysis = self.analyses_cache.request_analysis(NaturalLoopDetectionAnalysis)
         self.loops = self.loop_analysis.loops
         invalidate = False
@@ -89,12 +102,16 @@ class LoopInvariantHoisting(IRPass):
             bb.remove_instruction(inst)
             target_bb.insert_instruction(inst, index=len(target_bb.instructions) - 1)
 
-    def _get_loop_effects_write(self, loop: OrderedSet[IRBasicBlock]) -> Effects:
-        res: Effects = EMPTY
+    def _get_loop_effects_write(self, loop: OrderedSet[IRBasicBlock]) -> _LoopEffects:
+        res = _LoopEffects(EMPTY, set())
         for bb in loop:
             assert isinstance(bb, IRBasicBlock)  # help mypy
             for inst in bb.instructions:
-                res |= inst.get_write_effects()
+                writes = inst.get_write_effects()
+                res.writes |= writes
+                if writes & Effects.MEMORY != EMPTY:
+                    loc = self.base_ptr.get_write_location(inst, MEMORY)
+                    res.memory_writes.add(loc.alloca)
         return res
 
     def _get_hoistable_loop(self, loop: OrderedSet[IRBasicBlock]) -> list[IRInstruction]:
@@ -149,7 +166,7 @@ class LoopInvariantHoisting(IRPass):
         return res
 
     def _handle_bb(
-        self, bb: IRBasicBlock, loop_effects: Effects, cannot_hoist_insts: set[IRInstruction]
+        self, bb: IRBasicBlock, loop_effects: _LoopEffects, cannot_hoist_insts: set[IRInstruction]
     ):
         for inst in bb.instructions:
             if not self._can_hoist_instruction_ignore_assign(
@@ -158,12 +175,24 @@ class LoopInvariantHoisting(IRPass):
                 cannot_hoist_insts.add(inst)
 
     def _can_hoist_instruction_ignore_assign(
-        self, inst: IRInstruction, loop_effects: Effects, cannot_hoist_insts: set[IRInstruction]
+        self,
+        inst: IRInstruction,
+        loop_effects: _LoopEffects,
+        cannot_hoist_insts: set[IRInstruction],
     ) -> bool:
         if cannot_hoist(inst):
             return False
-        if (inst.get_read_effects() & loop_effects) != EMPTY:
+        conflicts = inst.get_read_effects() & loop_effects.writes
+        if conflicts & ~Effects.MEMORY != EMPTY:
             return False
+        if conflicts & Effects.MEMORY != EMPTY:
+            alloca = self.base_ptr.get_read_location(inst, MEMORY).alloca
+            # Distinct abstract allocations cannot alias. Unknown reads or
+            # writes still conflict with every allocation.
+            if alloca is None or None in loop_effects.memory_writes:
+                return False
+            if alloca in loop_effects.memory_writes:
+                return False
         for op in inst.operands:
             if not isinstance(op, IRVariable):
                 continue
