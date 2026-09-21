@@ -8,8 +8,8 @@ This module handles:
 - Constructor (deploy) code generation
 
 Two-phase compilation:
-1. generate_runtime_venom() - generates runtime code (deployed bytecode)
-2. generate_deploy_venom() - generates deploy code with runtime bytecode embedded
+1. generate_venom_runtime() - generates runtime code (deployed bytecode)
+2. generate_venom_deploy() - generates deploy code with runtime bytecode embedded
 """
 
 from __future__ import annotations
@@ -113,7 +113,7 @@ def _init_ir_info(func_t: ContractFunctionT) -> None:
 # =============================================================================
 
 
-def generate_runtime_venom(module_t: ModuleT, settings: Settings) -> IRContext:
+def generate_venom_runtime(module_t: ModuleT, settings: Settings) -> IRContext:
     """
     Generate runtime Venom IR directly from annotated AST.
 
@@ -170,7 +170,7 @@ def generate_runtime_venom(module_t: ModuleT, settings: Settings) -> IRContext:
     return runtime_ctx
 
 
-def generate_deploy_venom(
+def generate_venom_deploy(
     module_t: ModuleT,
     settings: Settings,
     runtime_bytecode: bytes,
