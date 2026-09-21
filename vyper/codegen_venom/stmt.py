@@ -203,33 +203,20 @@ class Stmt:
             self.ctx.ptr_store(dst_ptr, IRLiteral(0))
             return
 
-        if typ._is_prim_word:
-            self.ctx.ptr_store(dst_ptr, self.ctx.unwrap(src))
-        else:
-            self._copy_complex_type(dst_ptr, src, typ)
-
-    def _copy_complex_type(self, dst_ptr: Ptr, src_vv: VyperValue, typ) -> None:
-        """Copy complex type into `dst_ptr`.
-
-        Materializes `src_vv` to memory (via unwrap), then stages through a
-        temporary buffer when source and destination are both in memory
-        (potential aliasing).  MemoryCopyElisionPass eliminates the staging
-        copy when src/dst are provably non-overlapping.
-        """
-        src_loc = src_vv.location  # None for stack values, else DataLocation
-        src_typ = src_vv.typ
-        src = self.ctx.unwrap(src_vv)  # always a memory ptr for complex types
-
         # Stage when both src and dst are in memory to guard against aliasing.
         # MemoryCopyElisionPass will eliminate the redundant copy when
         # src/dst are provably non-overlapping (different allocas).
-        if src_loc is DataLocation.MEMORY and dst_ptr.location is DataLocation.MEMORY:
-            tmp_val = self.ctx.new_temporary_value(src_typ)
+        if (
+            not typ._is_prim_word
+            and src.location is DataLocation.MEMORY
+            and dst_ptr.location is DataLocation.MEMORY
+        ):
+            tmp_val = self.ctx.new_temporary_value(src.typ)
             assert isinstance(tmp_val.operand, IRVariable)
-            self.ctx.copy_memory(tmp_val.operand, src, src_typ.memory_bytes_required)
-            src = tmp_val.operand
+            self.ctx.copy_memory(tmp_val.operand, src.operand, src.typ.memory_bytes_required)
+            src = tmp_val
 
-        self.ctx._store_complex_type(dst_ptr, src, typ, src_typ)
+        self.ctx.make_setter(dst_ptr, typ, src)
 
     def _lower_tuple_unpack(self) -> None:
         """Lower tuple unpacking assignment: a, b = expr.
