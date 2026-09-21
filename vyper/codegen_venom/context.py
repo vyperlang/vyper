@@ -17,7 +17,9 @@ from typing import Optional, Sequence
 
 from vyper.codegen.core import punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
+from vyper.codegen_venom.bytestring_literal import LiteralPool, chain_instructions
 from vyper.codegen_venom.value import VyperValue
+from vyper.compiler.settings import _opt_codesize, _opt_lowering_only_ir
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, MemoryAllocationException, StateAccessViolation
 from vyper.semantics.data_locations import DataLocation
@@ -99,6 +101,13 @@ class VenomCodegenContext:
 
     # Range expression context - set to True when evaluating range/iterator expressions
     in_range_expr: bool = False
+
+    # set while lowering a revert reason or custom error arguments
+    on_revert_path: bool = False
+
+    # the literal data items of the code segment being lowered; None only
+    # for the dispatcher contexts, which lower no expressions
+    literal_pool: Optional[LiteralPool] = None
 
     # Immutables region alloca (for constructor context).
     # Reserves memory at position 0 for immutables staging;
@@ -232,12 +241,28 @@ class VenomCodegenContext:
         val = self.new_temporary_value(typ, annotation=annotation)
         assert isinstance(val.operand, IRVariable)
 
+        if _opt_lowering_only_ir():
+            # the lowering-only levels keep the chain, they are not meant
+            # to optimize; `chain_instructions` is also what the pool's
+            # rewrite emits, so the two chains cannot drift apart
+            for inst in chain_instructions(self.builder.fn, val.operand, data):
+                self.builder.current_block.insert_instruction(inst)
+        else:
+            # the data item is exact (the last word is zeroed first) at
+            # codesize levels and in revert payloads, and padded to whole
+            # words otherwise; either way memory ends up identical to the
+            # mstore chain. a revert payload is built once on a failing
+            # path, so size wins there, while other literals may be
+            # rebuilt in loops.
+            padded = not (_opt_codesize() or self.on_revert_path)
+            assert self.literal_pool is not None
+            self.literal_pool.use(
+                self.builder, val.operand, data, padded=padded, revert_path=self.on_revert_path
+            )
+
+        # the length store goes last so that loads of the length stay
+        # forwardable no matter how precisely LoadAnalysis models the copy
         self.ptr_store(val.ptr(), IRLiteral(len(data)))
-        for i in range(0, len(data), 32):
-            chunk = (data + b"\x00" * 31)[i : i + 32]
-            word = int.from_bytes(chunk, "big")
-            offset = self.builder.add(val.operand, IRLiteral(32 + i))
-            self.builder.mstore(offset, IRLiteral(word))
 
         return val
 
@@ -593,6 +618,17 @@ class VenomCodegenContext:
             self.builder.extcodecopy(address, data_ptr, offset, length)
         return self.dynamic_memory_value(ptr, typ, annotation=annotation)
 
+    def materialize_returndata_bytes(self, typ: VyperType) -> VyperValue:
+        """Copy the whole returndata into a runtime-sized bytestring memory value."""
+        length = self.builder.returndatasize()
+        size = self.bytestring_runtime_size_from_length(length)
+        ptr = self.allocate_scratch(size)
+        self.builder.mstore(ptr, length)
+        self.zero_bytestring_padding(ptr, length)
+        data_ptr = self.builder.add(ptr, IRLiteral(32))
+        self.builder.returndatacopy(data_ptr, IRLiteral(0), length)
+        return self.dynamic_memory_value(ptr, typ)
+
     def materialize_bytes_from_location(
         self,
         offset: IROperand,
@@ -846,6 +882,15 @@ class VenomCodegenContext:
             yield
         finally:
             self.in_range_expr = prev_value
+
+    @contextmanager
+    def revert_scope(self):
+        old_constancy, old_on_revert_path = self.constancy, self.on_revert_path
+        self.constancy, self.on_revert_path = Constancy.Constant, True
+        try:
+            yield
+        finally:
+            self.constancy, self.on_revert_path = old_constancy, old_on_revert_path
 
     # === Nonreentrant Lock Support ===
 
