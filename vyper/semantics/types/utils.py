@@ -198,9 +198,8 @@ def get_index_value(node: vy_ast.VyperNode) -> LengthUpperBound:
 
     Returns
     -------
-    int
-        Literal integer value.
-        In the future, will return `None` if the subscript is an Ellipsis
+    LengthUpperBound
+        Either an integer, INF or Wildcard (for `...`)
     """
     # this is imported to improve error messages
     # TODO: revisit this!
@@ -231,7 +230,7 @@ def get_index_value(node: vy_ast.VyperNode) -> LengthUpperBound:
             pass
         raise InvalidType("Subscript must be a literal integer", node)
 
-    if node.value <= 0:
-        raise ArrayIndexException("Subscript must be greater than 0", node)
+    if node.value < 0:
+        raise ArrayIndexException("Subscript must be at least 0", node)
 
     return node.value
