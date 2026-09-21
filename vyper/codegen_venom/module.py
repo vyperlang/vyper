@@ -1156,7 +1156,14 @@ def _register_default_arg(ctx: VenomCodegenContext, arg, default_node: vy_ast.Vy
         return
 
     var = ctx.new_variable(arg.name, arg.typ, mutable=False)
-    ctx.make_setter(var.value.ptr(), arg.typ, Expr(default_node, ctx).lower())
+    assert isinstance(var.value.operand, IRVariable)
+
+    if arg.typ._is_prim_word:
+        default_val = Expr(default_node, ctx).lower_value()
+        ctx.ptr_store(var.value.ptr(), default_val)
+    else:
+        default_vv = Expr(default_node, ctx).lower()
+        ctx.store_vyper_value(default_vv, var.value.operand, arg.typ)
 
 
 def _store_default_arg_to_existing_ptr(
