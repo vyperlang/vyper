@@ -750,7 +750,8 @@ class Stmt:
                     raise CompilerPanic("range() with non-literal args requires bound=")
 
         # Allocate counter variable in memory for user access
-        counter_local = self.ctx.new_variable(varname, target_type, mutable=False)
+        counter_value = self.ctx.new_temporary_value(target_type, annotation=varname)
+        assert isinstance(counter_value.operand, IRVariable)
         self.ctx.forvars[varname] = True
 
         # Create blocks
@@ -796,10 +797,11 @@ class Stmt:
 
         # Set up loop targets for break/continue using context manager
         with self.ctx.loop_scope(exit_block.label, incr_block.label):
+            self.ctx.register_variable(varname, target_type, counter_value.operand, mutable=False)
             # Body block: store counter to user var, execute body
             self.builder.append_block(body_block)
             self.builder.set_block(body_block)
-            self.ctx.ptr_store(counter_local.value.ptr(), counter_var)
+            self.ctx.ptr_store(counter_value.ptr(), counter_var)
             self._lower_body(node.body)
             body_finish = self.builder.current_block
             if not body_finish.is_terminated:
@@ -866,8 +868,8 @@ class Stmt:
         elem_size = array_typ.value_type.get_size_in(location)
 
         # Allocate loop variable (copy of element, not reference)
-        item_local = self.ctx.new_variable(varname, target_type, mutable=False)
-        assert isinstance(item_local.value.operand, IRVariable)
+        item_value = self.ctx.new_temporary_value(target_type, annotation=varname)
+        assert isinstance(item_value.operand, IRVariable)
         self.ctx.forvars[varname] = True
 
         # Create blocks
@@ -901,6 +903,7 @@ class Stmt:
 
         # Set up loop targets
         with self.ctx.loop_scope(exit_block.label, incr_block.label):
+            self.ctx.register_variable(varname, target_type, item_value.operand, mutable=False)
             # Body block: compute element address, copy to loop var
             self.builder.append_block(body_block)
             self.builder.set_block(body_block)
@@ -924,7 +927,7 @@ class Stmt:
             # sources, the linear copy is safe for flat types since the
             # source is smaller than the destination buffer. Only the
             # memory path uses type-aware copying (store_memory).
-            dst = item_local.value.operand
+            dst = item_value.operand
             if is_slot_addressed:
                 # Word-addressed (STORAGE, TRANSIENT)
                 self.ctx.slot_to_memory(elem_addr, dst, elem_size, location)
