@@ -1544,8 +1544,10 @@ class VenomCodegenContext:
     def make_setter(self, dst_ptr: Ptr, typ: VyperType, src_vv: VyperValue) -> None:
         """Store `src_vv` into `dst_ptr` as `typ`.
 
-        Like legacy make_setter, this has no overlap guard: callers stage
-        the source when it may alias `dst_ptr` (see `Stmt._assign_value`).
+        Like legacy make_setter, this does not stage the source: callers
+        copy it to a temporary when it may alias `dst_ptr` (see
+        `Stmt._assign_value`). `src_vv` is a stack value or located in
+        memory, storage, transient storage or immutables.
         """
         if typ._is_prim_word:
             self.ptr_store(dst_ptr, self.unwrap(src_vv))
