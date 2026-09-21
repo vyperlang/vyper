@@ -177,7 +177,7 @@ def _get_element_ptr(
     """
     Get pointer to element and its type.
 
-    For tuples/structs, key is an index/name, for arrays key is an index.
+    The key is an integer index for tuples, structs, and static arrays.
     Returns (element_ptr, element_type).
     """
     b = ctx.builder
@@ -209,18 +209,6 @@ def _get_element_ptr(
         offset_val = key.value * elem_size
         sarray_elem_ptr = b.add(parent_ptr, IRLiteral(offset_val))
         return sarray_elem_ptr, elem_typ
-
-    elif isinstance(parent_typ, DArrayT):
-        # Dynamic array: skip length word, then index * elem_size
-        elem_typ = parent_typ.value_type
-        elem_size = elem_typ.memory_bytes_required
-
-        # Skip length word (32 bytes)
-        data_ptr = b.add(parent_ptr, IRLiteral(32))
-
-        offset_val = key.value * elem_size
-        darray_elem_ptr = b.add(data_ptr, IRLiteral(offset_val))
-        return darray_elem_ptr, elem_typ
 
     else:  # pragma: nocover
         raise CompilerPanic(f"Cannot get element ptr of type {parent_typ}")
@@ -273,7 +261,7 @@ def _encode_child(
         child_ptr: Pointer to child data in memory
         child_typ: Type of child
         static_ofst: Compile-time offset in static section
-        dyn_ofst_ptr: Pointer to memory variable tracking dynamic section offset
+        dyn_ofst_val: Memory value tracking the dynamic section offset
     """
     b = ctx.builder
     child_abi_t = child_typ.abi_type
@@ -299,7 +287,6 @@ def _encode_child(
         child_len = _abi_encode_to_buf(ctx, child_dst, child_ptr, child_typ)
 
         # 3. Write static section offset (safe now — child data is already encoded).
-        assert isinstance(static_loc, IRVariable)
         b.mstore(static_loc, dyn_ofst)
 
         # 4. Update dyn_ofst
@@ -456,7 +443,6 @@ def _abi_encode_to_buf(
     # Fast path: if ABI encoding matches Vyper memory layout, just copy
     if abi_encoding_matches_vyper(src_typ):
         size = src_typ.memory_bytes_required
-        assert abi_t.embedded_static_size() == size
         ctx.copy_memory(dst, src, size)
         return IRLiteral(abi_t.embedded_static_size())
 
@@ -503,12 +489,8 @@ def _abi_encode_to_buf(
             dyn_ofst_val = None
 
         static_ofst = 0
-        for idx, (key, elem_typ) in enumerate(items):
-            # Get source element pointer
-            if is_tuple_like(src_typ):
-                elem_ptr, _ = _get_element_ptr(ctx, src, IRLiteral(idx), src_typ)
-            else:
-                elem_ptr, _ = _get_element_ptr(ctx, src, IRLiteral(key), src_typ)
+        for idx, (_key, elem_typ) in enumerate(items):
+            elem_ptr, _ = _get_element_ptr(ctx, src, IRLiteral(idx), src_typ)
 
             if has_dynamic:
                 assert dyn_ofst_val is not None
