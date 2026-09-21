@@ -188,7 +188,7 @@ class Expr:
         self.node = node.reduced()
         self.ctx = ctx
         self.builder = ctx.builder
-        self.as_ptr = as_ptr  # True = return pointer, False = return value (load if needed)
+        self.as_ptr = as_ptr  # Assignment targets must retain their original location.
 
     def lower(self) -> VyperValue:
         """Dispatch to type-specific lowering method.
@@ -1227,7 +1227,9 @@ class Expr:
 
         return self._make_ptr_value(field_ptr, data_loc, field_typ)
 
-    def _make_ptr_value(self, operand: IROperand, location: DataLocation, typ) -> VyperValue:
+    def _make_ptr_value(
+        self, operand: IROperand, location: DataLocation, typ: VyperType
+    ) -> VyperValue:
         """Create a VyperValue with Ptr for a computed pointer.
 
         For MEMORY locations, creates a dummy buffer since we don't track buffer provenance
@@ -1237,6 +1239,7 @@ class Expr:
             # Buffer requires IRVariable; memory pointers from arithmetic ops are always IRVariables
             assert isinstance(operand, IRVariable)
             if self.ctx.is_dynamic_tuple_frame_type(typ):
+                assert isinstance(typ, TupleT)
                 return self.ctx.dynamic_tuple_frame_value(operand, typ, annotation="computed_ptr")
             size = None if is_unbounded_sequence_type(typ) else typ.memory_bytes_required
             buf = Buffer(_ptr=operand, size=size, annotation="computed_ptr")
@@ -1296,7 +1299,11 @@ class Expr:
         return result
 
     def _lower_array_membership(
-        self, needle: IROperand, haystack_vv: VyperValue, haystack_typ, is_in: bool
+        self,
+        needle: IROperand,
+        haystack_vv: VyperValue,
+        haystack_typ: DArrayT | SArrayT,
+        is_in: bool,
     ) -> IRVariable:
         """Lower array membership test: x in array or x not in array.
 

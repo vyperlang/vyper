@@ -248,7 +248,7 @@ def generate_venom_deploy(
 def _generate_selector_section_linear(
     builder: VenomBuilder,
     module_t: ModuleT,
-    external_functions: list,
+    external_functions: list[vy_ast.FunctionDef],
     default_function: Optional[vy_ast.FunctionDef],
 ) -> None:
     """Generate O(n) linear selector dispatch.
@@ -371,7 +371,7 @@ def _generate_selector_section_linear(
 def _generate_selector_section_sparse(
     builder: VenomBuilder,
     module_t: ModuleT,
-    external_functions: list,
+    external_functions: list[vy_ast.FunctionDef],
     default_function: Optional[vy_ast.FunctionDef],
 ) -> None:
     """Generate O(1) average-case sparse jumptable selector dispatch.
@@ -573,7 +573,7 @@ def _generate_selector_section_sparse(
 def _generate_selector_section_dense(
     builder: VenomBuilder,
     module_t: ModuleT,
-    external_functions: list,
+    external_functions: list[vy_ast.FunctionDef],
     default_function: Optional[vy_ast.FunctionDef],
 ) -> None:
     """Generate O(1) dense jumptable selector dispatch.

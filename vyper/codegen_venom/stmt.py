@@ -190,7 +190,7 @@ class Stmt:
         self.ctx.store_pointer_cell(var.value.operand, value.operand, IRLiteral(0))
 
     def _assign_value(
-        self, dst_ptr: Ptr, src: VyperValue, typ, *, src_node: vy_ast.VyperNode
+        self, dst_ptr: Ptr, src: VyperValue, typ: VyperType, *, src_node: vy_ast.VyperNode
     ) -> None:
         """Assign a VyperValue to a destination pointer.
 
@@ -208,7 +208,7 @@ class Stmt:
         else:
             self._copy_complex_type(dst_ptr, src, typ)
 
-    def _copy_complex_type(self, dst_ptr: Ptr, src_vv: VyperValue, typ) -> None:
+    def _copy_complex_type(self, dst_ptr: Ptr, src_vv: VyperValue, typ: VyperType) -> None:
         """Copy complex type into `dst_ptr`.
 
         Materializes `src_vv` to memory (via unwrap), then stages through a
@@ -231,7 +231,9 @@ class Stmt:
 
         self._store_complex_type(dst_ptr, src, typ, src_typ)
 
-    def _store_complex_type(self, dst_ptr: Ptr, src: IROperand, typ, src_typ) -> None:
+    def _store_complex_type(
+        self, dst_ptr: Ptr, src: IROperand, typ: VyperType, src_typ: VyperType
+    ) -> None:
         """Store complex value from memory `src` into `dst_ptr` (no overlap guard).
 
         Only called from `_copy_complex_type` which handles staging when needed.
@@ -1126,7 +1128,10 @@ class Stmt:
         self.builder.jmp(exit_label)
 
     def _lower_internal_return(
-        self, ret_val: Optional[IROperand], func_t: ContractFunctionT, ret_src_typ=None
+        self,
+        ret_val: Optional[IROperand],
+        func_t: ContractFunctionT,
+        ret_src_typ: Optional[VyperType] = None,
     ) -> None:
         """Lower internal function return.
 
@@ -1160,6 +1165,7 @@ class Stmt:
                 return
 
             assert returns_count == 0
+            assert ret_src_typ is not None
             if self.ctx.unbounded_dynarray_element_layout_differs(ret_typ, ret_src_typ):
                 # dret passes the value with the declared element stride (the
                 # caller reads it as ret_typ), so widened elements (e.g.
@@ -1312,7 +1318,10 @@ class Stmt:
         self.builder.return_(buf_ptr, encoded_len)
 
     def _lower_external_return(
-        self, ret_val: Optional[IROperand], func_t: ContractFunctionT, ret_src_typ=None
+        self,
+        ret_val: Optional[IROperand],
+        func_t: ContractFunctionT,
+        ret_src_typ: Optional[VyperType] = None,
     ) -> None:
         """Lower external function return.
 
@@ -1516,7 +1525,7 @@ class Stmt:
 
         self.builder.log(len(topics), abi_buf_ptr, encoded_len, *topics)
 
-    def _encode_log_topic(self, val: IROperand, typ) -> IROperand:
+    def _encode_log_topic(self, val: IROperand, typ: VyperType) -> IROperand:
         """Encode a single indexed topic value.
 
         Per Solidity ABI spec for indexed event encoding:
