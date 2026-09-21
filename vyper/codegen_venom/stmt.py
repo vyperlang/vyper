@@ -45,7 +45,7 @@ from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 from .buffer import Ptr
 from .builtins.simple import get_empty_type
 from .calling_convention import returns_dynamic_count, returns_stack_count
-from .context import Constancy, LocalVariable, VenomCodegenContext
+from .context import LocalVariable, VenomCodegenContext, same_memory_layout
 from .eval_order import later_expressions_can_mutate_memory_or_storage
 from .expr import Expr, get_referenced_variables
 from .value import VyperValue
@@ -237,7 +237,7 @@ class Stmt:
         Only called from `_copy_complex_type` which handles staging when needed.
         """
         if (
-            src_typ != typ
+            not same_memory_layout(src_typ, typ)
             and dst_ptr.location is not DataLocation.MEMORY
             and not (isinstance(src_typ, _BytestringT) and isinstance(typ, _BytestringT))
         ):
@@ -1098,14 +1098,14 @@ class Stmt:
             buf_ptr = self.ctx.allocate_scratch(alloc_size)
             self.builder.mstore(buf_ptr, IRLiteral(32))
             child_dst = self.builder.add(buf_ptr, IRLiteral(32))
-            child_len = abi_encode_values_to_buf(self.ctx, child_dst, arg_vvs, encode_typ)
+            child_len = abi_encode_values_to_buf(self.ctx, child_dst, arg_vvs, encode_typ, None)
             encoded_len = self.ctx.checked_add(IRLiteral(32), child_len)
             self.builder.return_(buf_ptr, encoded_len)
             return
 
         alloc_size = runtime_abi_size_for_encode(self.ctx, arg_vvs, encode_typ)
         buf_ptr = self.ctx.allocate_scratch(alloc_size)
-        encoded_len = abi_encode_values_to_buf(self.ctx, buf_ptr, arg_vvs, encode_typ)
+        encoded_len = abi_encode_values_to_buf(self.ctx, buf_ptr, arg_vvs, encode_typ, None)
         self.builder.return_(buf_ptr, encoded_len)
 
     def _lower_ctor_return(self, ret_val: Optional[IROperand]) -> None:
@@ -1255,10 +1255,12 @@ class Stmt:
                 continue
 
             assert member_ptr is not None
+            # INF members have no memory size: keep the unbounded checks
+            # ahead of `same_memory_layout`
             if (
-                dst_member_t != src_member_t
-                and not type_contains_unbounded_sequence(dst_member_t)
+                not type_contains_unbounded_sequence(dst_member_t)
                 and not type_contains_unbounded_sequence(src_member_t)
+                and not same_memory_layout(src_member_t, dst_member_t)
             ):
                 normalized = self.ctx.new_temporary_value(dst_member_t)
                 assert isinstance(normalized.operand, IRVariable)
@@ -1305,7 +1307,7 @@ class Stmt:
         alloc_size = self.ctx.checked_add(IRLiteral(32), tail_bound)
         buf_ptr = self.ctx.allocate_scratch(alloc_size)
         encode_typ = calculate_type_for_external_return(ret_src_typ)
-        encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, encode_typ)
+        encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, encode_typ, None)
         self.builder.return_(buf_ptr, encoded_len)
 
     def _lower_external_return(
@@ -1424,7 +1426,7 @@ class Stmt:
 
         # ABI encode using the declared return ABI shape, or a compatible
         # bounded source layout when returning through an INF supertype.
-        encoded_len = abi_encode_to_buf(self.ctx, buf._ptr, ret_val, encode_typ)
+        encoded_len = abi_encode_to_buf(self.ctx, buf._ptr, ret_val, encode_typ, maxlen)
 
         # Return encoded data
         self.builder.return_(buf._ptr, encoded_len)
@@ -1493,12 +1495,15 @@ class Stmt:
                 # buffer at runtime like external INF returns do.
                 alloc_size = runtime_abi_size_for_encode(self.ctx, data_vals, tuple_typ)
                 abi_buf_ptr = self.ctx.allocate_scratch(alloc_size)
+                bufsz = None
             else:
                 bufsz = tuple_typ.abi_type.size_bound()
                 abi_buf_ptr = self.ctx.allocate_buffer(bufsz)._ptr
 
             # ABI encode the tuple
-            encoded_len = abi_encode_values_to_buf(self.ctx, abi_buf_ptr, data_vals, tuple_typ)
+            encoded_len = abi_encode_values_to_buf(
+                self.ctx, abi_buf_ptr, data_vals, tuple_typ, bufsz
+            )
         else:
             # No data - use zero size
             log_buf = self.ctx.allocate_buffer(0, annotation="log empty buffer")
@@ -1658,9 +1663,7 @@ class Stmt:
         assert isinstance(msg, vy_ast.Call)
 
         arg_nodes = self._custom_error_arg_nodes(msg, error_t)
-        old_constancy = self.ctx.constancy
-        try:
-            self.ctx.constancy = Constancy.Constant
+        with self.ctx.revert_scope():
             arg_vvs = []
             for i, arg_node in enumerate(arg_nodes):
                 arg_vv = Expr(arg_node, self.ctx).lower()
@@ -1670,8 +1673,6 @@ class Stmt:
                         arg_vv, annotation="custom error", copy_composites=copy_composites
                     )
                 )
-        finally:
-            self.ctx.constancy = old_constancy
 
         arg_types = tuple(arg_vv.typ for arg_vv in arg_vvs)
         args_tuple_t = TupleT(arg_types)
@@ -1682,9 +1683,11 @@ class Stmt:
             # at runtime like external INF returns do.
             payload_size = runtime_abi_size_for_encode(self.ctx, arg_vvs, args_tuple_t)
             buf_ptr = self.ctx.allocate_scratch(self.ctx.checked_add(IRLiteral(32), payload_size))
+            payload_bufsz = None
         else:
             bufsz = args_tuple_t.abi_type.size_bound() + 32
             buf_ptr = self.ctx.allocate_buffer(bufsz, annotation="custom error revert buffer")._ptr
+            payload_bufsz = bufsz - 32
         self.builder.mstore(buf_ptr, IRLiteral(error_t.selector))
 
         if len(arg_nodes) == 0:
@@ -1694,7 +1697,9 @@ class Stmt:
             return
 
         payload_buf = self.builder.add(buf_ptr, IRLiteral(32))
-        encoded_len = abi_encode_values_to_buf(self.ctx, payload_buf, arg_vvs, args_tuple_t)
+        encoded_len = abi_encode_values_to_buf(
+            self.ctx, payload_buf, arg_vvs, args_tuple_t, payload_bufsz
+        )
 
         revert_offset = self.builder.add(buf_ptr, IRLiteral(28))
         revert_len = self.builder.add(IRLiteral(4), encoded_len)
@@ -1713,12 +1718,8 @@ class Stmt:
         Source: vyper/codegen/stmt.py:_assert_reason
         """
         # Evaluate message in constant context (prevent state changes)
-        old_constancy = self.ctx.constancy
-        try:
-            self.ctx.constancy = Constancy.Constant
+        with self.ctx.revert_scope():
             msg_vv = Expr(msg, self.ctx).lower()
-        finally:
-            self.ctx.constancy = old_constancy
 
         msg_typ = msg._metadata["type"]
 
@@ -1748,7 +1749,9 @@ class Stmt:
         self.ctx.store_vyper_value(msg_vv, tuple_buf._ptr, msg_typ)
 
         # ABI encode the wrapped message to payload buffer
-        encoded_len = abi_encode_to_buf(self.ctx, payload_buf, tuple_buf._ptr, wrapped_typ)
+        encoded_len = abi_encode_to_buf(
+            self.ctx, payload_buf, tuple_buf._ptr, wrapped_typ, bufsz - 32
+        )
 
         # Revert from buf+28 (so selector is at bytes 0-3) with length 4 + encoded_len
         revert_offset = self.builder.add(buf._ptr, IRLiteral(28))
