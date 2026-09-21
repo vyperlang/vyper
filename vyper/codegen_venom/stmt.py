@@ -294,11 +294,13 @@ class Stmt:
 
             target_ptr = self._get_target_ptr(target_node)
 
-            if dst_elem_typ._is_prim_word:
-                self.ctx.ptr_store(target_ptr, val)
+            if src_elem_typ._is_prim_word:
+                elem_vv = VyperValue.from_stack_op(val, src_elem_typ)
             else:
                 # Complex element type: val is a memory pointer in source layout.
-                self.ctx._store_complex_type(target_ptr, val, dst_elem_typ, src_elem_typ)
+                assert isinstance(val, IRVariable)
+                elem_vv = self.ctx.dynamic_memory_value(val, src_elem_typ)
+            self.ctx.make_setter(target_ptr, dst_elem_typ, elem_vv)
 
     def _lower_dynamic_tuple_frame_unpack(
         self,
@@ -311,8 +313,6 @@ class Stmt:
         dst_member_types = dst_tuple_typ.member_types
 
         for src_vv, dst_elem_typ, target_node in zip(src_values, dst_member_types, targets):
-            src_elem_typ = src_vv.typ
-
             if isinstance(target_node, vy_ast.Name) and target_node.id in self.ctx.variables:
                 var = self.ctx.lookup(target_node.id)
                 if var.is_pointer_cell:
@@ -321,12 +321,7 @@ class Stmt:
                     continue
 
             target_ptr = self._get_target_ptr(target_node)
-            if dst_elem_typ._is_prim_word:
-                self.ctx.ptr_store(target_ptr, self.ctx.unwrap(src_vv))
-            else:
-                self.ctx._store_complex_type(
-                    target_ptr, self.ctx.unwrap(src_vv), dst_elem_typ, src_elem_typ
-                )
+            self.ctx.make_setter(target_ptr, dst_elem_typ, src_vv)
 
     def lower_AugAssign(self) -> None:
         """Lower augmented assignment.

@@ -1538,23 +1538,19 @@ class VenomCodegenContext:
         else:  # pragma: nocover
             raise CompilerPanic(f"cannot store to: {location}")
 
-    def make_setter(self, dst: Ptr, typ: VyperType, src: VyperValue) -> None:
-        """Store `src` into `dst` as `typ`.
+    def make_setter(self, dst_ptr: Ptr, typ: VyperType, src_vv: VyperValue) -> None:
+        """Store `src_vv` into `dst_ptr` as `typ`.
 
         Like legacy make_setter, this has no overlap guard: callers stage
-        the source when it may alias `dst` (see `Stmt._assign_value`).
+        the source when it may alias `dst_ptr` (see `Stmt._assign_value`).
         """
         if typ._is_prim_word:
-            self.ptr_store(dst, self.unwrap(src))
+            self.ptr_store(dst_ptr, self.unwrap(src_vv))
             return
 
-        self._store_complex_type(dst, self.unwrap(src), typ, src.typ)
+        src_typ = src_vv.typ
+        src = self.unwrap(src_vv)  # always a memory ptr for complex types
 
-    def _store_complex_type(self, dst_ptr: Ptr, src: IROperand, typ, src_typ) -> None:
-        """Store complex value from memory `src` into `dst_ptr` (no overlap guard).
-
-        Only called from `_copy_complex_type` which handles staging when needed.
-        """
         if (
             not same_memory_layout(src_typ, typ)
             and dst_ptr.location is not DataLocation.MEMORY
