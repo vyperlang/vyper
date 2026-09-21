@@ -469,7 +469,10 @@ class VenomCodegenContext:
         return self.load_word(vv.operand, vv.location)
 
     def store_vyper_value(self, vv: VyperValue, ptr: IRVariable, typ: VyperType) -> None:
-        """Store a VyperValue into memory, preserving its source layout."""
+        """Store a VyperValue into memory, preserving its source layout.
+
+        This is `make_setter` for a destination given as a bare memory pointer.
+        """
         self.store_memory(self.unwrap(vv), ptr, typ, src_typ=vv.typ)
 
     def ceil32(self, size: IROperand) -> IROperand:
