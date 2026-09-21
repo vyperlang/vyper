@@ -1047,13 +1047,11 @@ class VenomCodegenContext:
         dst_elem_t = dst_typ.value_type
         src_elem_t = src_typ.value_type
         dst_elem_size = dst_elem_t.memory_bytes_required
-        src_elem_size = src_elem_t.memory_bytes_required
-
         src_data = self._with_byte_offset(src, 32)
         dst_data = self._with_byte_offset(dst, 32)
 
         # Fast path when element layouts match: copy exactly `length` elements.
-        if src_elem_t == dst_elem_t and src_elem_size == dst_elem_size:
+        if src_elem_t == dst_elem_t:
             data_size = b.mul(length, IRLiteral(dst_elem_size))
             assert isinstance(dst_data, IRVariable)
             self.copy_memory_dynamic(dst_data, src_data, data_size, self.data_size_bound(src_typ))
