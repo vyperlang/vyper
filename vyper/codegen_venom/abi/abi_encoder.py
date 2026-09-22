@@ -443,6 +443,7 @@ def _abi_encode_to_buf(
     # Fast path: if ABI encoding matches Vyper memory layout, just copy
     if abi_encoding_matches_vyper(src_typ):
         size = src_typ.memory_bytes_required
+        assert abi_t.embedded_static_size() == size
         ctx.copy_memory(dst, src, size)
         return IRLiteral(abi_t.embedded_static_size())
 
