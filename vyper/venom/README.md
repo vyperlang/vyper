@@ -239,11 +239,10 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
 - FMP virtual-register opcodes (eliminated by `FmpLoweringPass`)
   - `%v = getfmp` reads the FMP virtual register; `setfmp %v` writes it.
     Besides return packing, unbounded-array append uses these to extend an owned
-    payload whose end equals the current FMP. Growth advances the FMP by the checked
-    size difference and invalidates old reclaim marks, so subsequent rewinds cannot
-    discard the extension. Other live captures (including surrounding return-pack
-    anchors) continue to veto reclaim across the write. A capture used only to update
-    the FMP does not escape into memory.
+    payload whose end equals the current FMP: growth reads its own capture and advances
+    the FMP by the checked size difference. A `setfmp` closes only the captures its
+    operand derives from, so a surrounding return-pack anchor keeps vetoing reclaim
+    across the write. A capture used only to update the FMP does not escape into memory.
   - ```
     retfmp <ordinary returns...>, <packed dst ptrs...>, return_pc
     ```
