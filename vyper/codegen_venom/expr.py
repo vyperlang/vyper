@@ -1572,6 +1572,7 @@ class Expr:
             arg_t = func_t.arguments[i]
 
             if pass_via_stack_dict[arg_t.name]:
+                assert arg_t.typ._is_prim_word
                 # Only primitive word types are passed on the stack.
                 invoke_args.append(self.ctx.unwrap(arg_val))
             else:
