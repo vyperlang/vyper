@@ -1826,10 +1826,11 @@ class Expr:
         The pointer cell carries the owned payload capacity next to the
         payload pointer (see VenomCodegenContext.store_pointer_cell). When
         the payload has spare room the element is written in place; otherwise
-        a payload of `max(2 * capacity, length + 1)` elements is allocated
-        and the old contents copied over, making repeated appends amortized
-        linear in aggregate. Non-append stores leave capacity at 0, so the
-        first append after an assignment/decode allocates the exact new size
+        the payload grows to `max(2 * capacity, length + 1)` elements, in
+        place if it is owned and ends at the FMP, otherwise by copying to a
+        new allocation. Repeated appends are amortized linear in aggregate.
+        Non-append stores leave capacity at 0, so the first append after an
+        assignment/decode allocates the exact new size
         (no 2x memory jump on a large ingested array) and doubling starts
         from there.
         """
@@ -1895,8 +1896,32 @@ class Expr:
         min_cap = self.ctx.checked_add(length, IRLiteral(1))
         new_cap = b.select(b.lt(doubled, min_cap), min_cap, doubled)
         new_size = self.ctx.dynarray_runtime_size_from_length(new_cap, darray_typ)
-        new_ptr = self.ctx.allocate_scratch(new_size)
         old_size = b.add(IRLiteral(32), data_size)
+
+        # At capacity, old_size is the full owned allocation size. Extending
+        # a top-most payload preserves all its aliases and avoids retaining
+        # a superseded buffer. Capacity zero denotes a borrowed payload and
+        # must take the copy path even if it happens to end at the FMP.
+        extend_bb = b.create_block("append_extend")
+        copy_bb = b.create_block("append_copy")
+        old_end = b.add(old_ptr, old_size)
+        fmp = b.getfmp()
+        can_extend = b.and_(b.iszero(b.iszero(capacity)), b.eq(old_end, fmp))
+        b.jnz(can_extend, extend_bb.label, copy_bb.label)
+
+        b.append_block(extend_bb)
+        b.set_block(extend_bb)
+        # Keep the captured FMP live through the branch, preventing a
+        # synthesized rewind between the top-most check and the advance.
+        new_end = self.ctx.checked_add(fmp, b.sub(new_size, old_size))
+        b.setfmp(new_end)
+        self.ctx.store_pointer_cell(cell, old_ptr, new_cap)
+        b.mstore(target_cell._ptr, old_ptr)
+        b.jmp(join_bb.label)
+
+        b.append_block(copy_bb)
+        b.set_block(copy_bb)
+        new_ptr = self.ctx.allocate_scratch(new_size)
         self.ctx.copy_memory_dynamic(new_ptr, old_ptr, old_size)
         self.ctx.store_pointer_cell(cell, new_ptr, new_cap)
         b.mstore(target_cell._ptr, new_ptr)
