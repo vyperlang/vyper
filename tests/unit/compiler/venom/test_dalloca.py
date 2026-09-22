@@ -1706,6 +1706,66 @@ def test_getfmp_capture_allows_reclaim_after_death(env):
     assert _word(out, 1) == 5
 
 
+def test_in_place_growth_preserves_extent_and_reclaims_later_scratch(env):
+    # Extending the first allocation invalidates its old reclaim mark.
+    # The numeric getfmp/setfmp pair must not pin subsequent scratch space.
+    out = _run_program(
+        env,
+        """
+        function main {
+            main:
+                %p = dalloca 32
+                mstore %p, 5
+                %end = getfmp
+                %grown = add %end, 32
+                setfmp %grown
+                %tail = add %p, 32
+                mstore %tail, 7
+                %tmp = dalloca 32
+                mstore %tmp, 8
+                %v = mload %tmp
+                %q = dalloca 32
+                mstore %q, 9
+                %w = mload %tail
+                mstore 0, %q
+                mstore 32, %v
+                mstore 64, %w
+                return 0, 96
+        }
+        """,
+    )
+    assert _word(out, 0) == 64
+    assert _word(out, 1) == 8
+    assert _word(out, 2) == 7
+
+
+def test_in_place_growth_keeps_surrounding_capture_live(env):
+    # A surrounding dret pack anchor can still address memory above the
+    # advanced FMP. Clearing it at setfmp would reclaim %p under that alias.
+    out = _run_program(
+        env,
+        """
+        function main {
+            main:
+                %anchor = getfmp
+                %end = add %anchor, 32
+                setfmp %end
+                %p = dalloca 32
+                mstore %p, 5
+                %q = dalloca 32
+                mstore %q, 9
+                %alias = add %anchor, 32
+                %v = mload %alias
+                mstore 0, %q
+                mstore 32, %v
+                return 0, 64
+        }
+        """,
+    )
+    assert _word(out, 0) == 64
+    assert _word(out, 1) == 5
+
+
 def test_escaped_getfmp_capture_pins_reclaim(env):
     # the capture escapes SSA tracking (stored to memory as a value), so
     # derived pointers can re-enter where liveness cannot see them: the
