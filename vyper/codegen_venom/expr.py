@@ -1197,12 +1197,10 @@ class Expr:
 
         return self._make_ptr_value(elem_ptr, data_loc, elem_typ)
 
-    def _lower_struct_field(self) -> VyperValue:
-        """Lower struct.field access.
+    def _struct_member_ptr(self) -> tuple[IROperand, DataLocation, VyperType]:
+        """Compute a struct member's pointer by summing the sizes of the members before it.
 
-        Computes field pointer by summing sizes of preceding fields.
-
-        Returns VyperValue.from_ptr() with field pointer and inherited location.
+        Returns the pointer, the location inherited from the base and the member type.
         """
         node = self.node
         assert isinstance(node, vy_ast.Attribute)
@@ -1232,7 +1230,27 @@ class Expr:
             else:
                 offset += t.get_size_in(data_loc)
 
-        field_ptr = self.builder.add(base, IRLiteral(offset))
+        return self.builder.add(base, IRLiteral(offset)), data_loc, field_typ
+
+    def struct_member_cell_ptr(self) -> IRVariable:
+        """Return the pointer cell of an unbounded struct member (see
+        `VenomCodegenContext.store_pointer_cell`).
+        """
+        field_ptr, data_loc, field_typ = self._struct_member_ptr()
+        assert is_unbounded_sequence_type(field_typ)
+        assert data_loc == DataLocation.MEMORY
+        assert isinstance(field_ptr, IRVariable)
+        return field_ptr
+
+    def _lower_struct_field(self) -> VyperValue:
+        """Lower struct.field access.
+
+        Returns VyperValue.from_ptr() with field pointer and inherited location.
+        """
+        node = self.node
+        assert isinstance(node, vy_ast.Attribute)
+        attr = node.attr
+        field_ptr, data_loc, field_typ = self._struct_member_ptr()
 
         if is_unbounded_sequence_type(field_typ):
             # The member is a pointer cell, not the value: reading it as the

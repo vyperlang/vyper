@@ -208,9 +208,16 @@ class VenomCodegenContext:
         The 64-byte cell holds two words: the payload pointer at `cell` and
         the capacity at `cell + 32`. Capacity is the element count the owned
         payload has room for; 0 is a sentinel meaning "no owned spare room",
-        which forces reallocation on the next append. Every store except
-        DynArray append passes 0 (Bytes[INF]/String[INF] cells keep it
-        permanently 0 — bytestrings have no append).
+        which forces reallocation on the next append. For a struct member it
+        also means the payload may not be owned at all: a struct copy shares
+        the payload between the cells of both structs (see
+        `zero_pointer_cell_capacities`), so a write through a member cell at
+        capacity 0 copies the payload first
+        (`materialize_owned_dynarray_cell`). A local's payload is never
+        shared, so its element stores and pops stay in place at capacity 0.
+        Every store except DynArray append and the materializing copy passes
+        0 (Bytes[INF]/String[INF] cells keep it permanently 0 — bytestrings
+        have no append).
         """
         assert isinstance(cell, IRVariable)
         self.builder.mstore(cell, ptr)
@@ -240,6 +247,38 @@ class VenomCodegenContext:
                 struct_ptr, IRLiteral(offset + self.POINTER_CELL_CAPACITY_OFFSET)
             )
             self.builder.mstore(capacity_slot, IRLiteral(0))
+
+    def materialize_owned_dynarray_cell(self, cell: IRVariable, typ: DArrayT) -> IRVariable:
+        """Return the payload pointer of a member cell that may be written in place.
+
+        A cell with capacity 0 may share its payload with other cells (see
+        `zero_pointer_cell_capacities`), so its payload is first copied into
+        a fresh buffer with capacity equal to the length. From then on the
+        cell is the only reference to that payload.
+        """
+        b = self.builder
+        ptr, capacity = self.load_pointer_cell(cell)
+
+        copy_bb = b.create_block("cell_copy")
+        owned_bb = b.create_block("cell_owned")
+        b.jnz(capacity, owned_bb.label, copy_bb.label)
+
+        b.append_block(copy_bb)
+        b.set_block(copy_bb)
+        length = b.mload(ptr)
+        # the payload was allocated with a checked size, so recomputing it
+        # cannot overflow
+        size = self.unchecked_dynarray_runtime_size_from_length(length, typ)
+        new_ptr = self.allocate_scratch(size)
+        self.copy_memory_dynamic(new_ptr, ptr, size)
+        self.store_pointer_cell(cell, new_ptr, length)
+        b.jmp(owned_bb.label)
+
+        b.append_block(owned_bb)
+        b.set_block(owned_bb)
+        payload = b.mload(cell)
+        assert isinstance(payload, IRVariable)
+        return payload
 
     def register_variable(
         self, name: str, typ: VyperType, ptr: IRVariable, mutable: bool = True
