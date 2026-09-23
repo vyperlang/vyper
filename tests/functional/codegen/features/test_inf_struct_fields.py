@@ -2,6 +2,7 @@ import pytest
 from eth_abi import decode as eth_abi_decode
 from eth_abi import encode as eth_abi_encode
 
+from tests.evm_backends.abi import abi_decode
 from tests.evm_backends.base_env import ExecutionReverted
 from tests.utils import deploy_raw_returner, word
 from vyper.codegen_venom.module import generate_venom_runtime
@@ -1852,37 +1853,6 @@ def f(target: address, b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, I
     )
 
 
-def test_staticcall_struct_return_rejects_malformed_returndata(env, get_contract, tx_failed):
-    caller_code = BATCH + """
-interface Maker:
-    def make() -> Batch: view
-
-@external
-def f(target: address) -> uint256:
-    b: Batch = staticcall Maker(target).make()
-    return len(b.values)
-    """
-
-    caller = get_contract(caller_code)
-
-    valid = word(32) + word(0) + word(64) + word(1) + word(9)
-    assert caller.f(deploy_raw_returner(env, valid).address) == 1
-
-    malformed_payloads = [
-        b"",  # no returndata and no default
-        word(32),  # offset word without the struct head
-        word(32) + word(0) + word(64),  # member offset without its length word
-        word(32) + word(0) + word(64) + word(2**32),  # element count past the end
-        word(32) + word(0) + word(96),  # member offset outside the returndata
-        word(2**256 - 31),  # struct offset wraps
-        word(32) + word(0) + word(2**256 - 63),  # member offset wraps
-    ]
-    for payload in malformed_payloads:
-        target = deploy_raw_returner(env, payload)
-        with tx_failed():
-            caller.f(target.address)
-
-
 # abi_encode / abi_decode. The encoding buffer is sized at runtime; the
 # decoder bounds every member by the end of the input instead of by a size
 # bound of the type.
@@ -1983,41 +1953,166 @@ def dec(d: Bytes[INF]) -> Outer:
     assert c.dec(eth_abi_encode(["(uint256,(address,uint256[]),(uint256,bytes))"], [o])) == o
 
 
-def test_abi_decode_struct_rejects_malformed_payload(get_contract, tx_failed):
-    code = BATCH + """
-@external
-def dec(d: Bytes[INF]) -> uint256:
-    b: Batch = abi_decode(d, Batch)
-    return len(b.values)
+# Malformed and non-canonical input. Every ingress path (calldata argument,
+# external call return, abi_decode in both unwrap modes) runs the calldata
+# decoder over a copy of the bytes, so each case must have the same outcome
+# on every path: the decoded value, or a revert.
+
+_INGRESS_CODE = """
+struct Msg:
+    owner: address
+    values: DynArray[uint256, INF]
+    payload: Bytes[INF]
+
+interface Source:
+    def data() -> Msg: view
 
 @external
-def dec_no_tuple(d: Bytes[INF]) -> uint256:
-    b: Batch = abi_decode(d, Batch, unwrap_tuple=False)
-    return len(b.values)
-    """
+def from_calldata(m: Msg) -> Msg:
+    return m
 
-    c = get_contract(code)
+@external
+def from_returndata(addr: address) -> Msg:
+    return staticcall Source(addr).data()
 
-    head = word(32) + word(0) + word(64)
-    assert c.dec(head + word(1) + word(9)) == 1
-    assert c.dec_no_tuple(word(0) + word(64) + word(2) + word(9) + word(8)) == 2
+@external
+def from_bytes(d: Bytes[INF]) -> Msg:
+    return abi_decode(d, Msg)
 
-    malformed_payloads = [
-        b"",
-        word(32),  # offset word without the struct head
-        head,  # member offset without its length word
-        head + word(2**32),  # element count past the end
-        head + word(2) + word(9),  # one element short
-        word(32) + word(0) + word(96),  # member offset outside the input
-        word(2**256 - 31),  # struct offset wraps
-    ]
-    for payload in malformed_payloads:
+@external
+def from_bytes_no_tuple(d: Bytes[INF]) -> Msg:
+    return abi_decode(d, Msg, unwrap_tuple=False)
+"""
+
+_INGRESS_PATHS = ("calldata", "returndata", "abi_decode", "abi_decode_no_tuple")
+
+# the struct head is three words: owner, values offset, payload offset
+_HEAD_SIZE = 96
+_VALUES_TAIL = word(1) + word(9)
+_PAYLOAD_TAIL = word(5) + b"hello".ljust(32, b"\0")
+
+
+def _msg_body(values_offset, payload_offset, tail=b""):
+    """Encoding of a Msg starting at its head; offsets are relative to the head."""
+    return word(int(OWNER, 16)) + word(values_offset) + word(payload_offset) + tail
+
+
+_CANONICAL = (OWNER, [9], b"hello")
+
+# (name, body, expected): `body` starts at the struct head, `expected` is
+# None when decoding must be rejected
+_MALFORMED_CASES = [
+    ("canonical", _msg_body(96, 160, _VALUES_TAIL + _PAYLOAD_TAIL), _CANONICAL),
+    ("empty", b"", None),
+    ("head_truncated_after_owner", word(int(OWNER, 16)), None),
+    ("head_truncated_before_payload_offset", word(int(OWNER, 16)) + word(96), None),
+    ("values_offset_without_length_word", _msg_body(96, 96), None),
+    ("values_count_past_end", _msg_body(96, 160, word(2**32) + _PAYLOAD_TAIL), None),
+    ("values_one_element_short", _msg_body(160, 96, _PAYLOAD_TAIL + word(2) + word(9)), None),
+    ("values_offset_outside_body", _msg_body(224, 96, _PAYLOAD_TAIL), None),
+    ("values_offset_wraps", _msg_body(2**256 - 32, 96, _PAYLOAD_TAIL), None),
+    # the count word is the payload offset word
+    ("values_offset_points_into_head", _msg_body(32, 96, _PAYLOAD_TAIL), None),
+    ("payload_offset_outside_body", _msg_body(96, 224, _VALUES_TAIL), None),
+    ("payload_length_past_end", _msg_body(96, 160, _VALUES_TAIL + word(64)), None),
+    # the length word is the owner word
+    ("payload_offset_points_at_head", _msg_body(96, 0, _VALUES_TAIL), None),
+    # accepted non-canonical encodings
+    (
+        "payload_length_5_unpadded",
+        _msg_body(96, 160, _VALUES_TAIL + word(5) + b"hello"),
+        _CANONICAL,
+    ),
+    (
+        "values_length_zero_with_trailing_word",
+        _msg_body(96, 160, word(0) + word(7) + _PAYLOAD_TAIL),
+        (OWNER, [], b"hello"),
+    ),
+    ("trailing_garbage", _msg_body(96, 160, _VALUES_TAIL + _PAYLOAD_TAIL + b"garbage"), _CANONICAL),
+    (
+        "values_offset_skips_a_word",
+        _msg_body(128, 192, word(0xDEAD) + _VALUES_TAIL + _PAYLOAD_TAIL),
+        _CANONICAL,
+    ),
+    (
+        "member_offsets_unaligned",
+        _msg_body(97, 161, b"\0" + _VALUES_TAIL + _PAYLOAD_TAIL),
+        _CANONICAL,
+    ),
+    (
+        "values_tail_overlaps_payload_tail",
+        _msg_body(96, 160, word(2) + word(9) + _PAYLOAD_TAIL),
+        (OWNER, [9, 5], b"hello"),
+    ),
+    # the payload's length word is the element count, its data the first element
+    (
+        "both_members_alias_the_same_tail",
+        _msg_body(96, 96, word(2) + word(9) + word(8)),
+        (OWNER, [9, 8], b"\0\0"),
+    ),
+]
+
+# (name, payload, expected): cases about the offset word that wraps the
+# struct, which only the tuple-wrapped paths read
+_MALFORMED_WRAPPED_CASES = [
+    ("wrapped_empty", b"", None),
+    ("struct_offset_word_only", word(32), None),
+    ("struct_offset_outside_payload", word(1000) + _MALFORMED_CASES[0][1], None),
+    ("struct_offset_wraps", word(2**256 - 31) + _MALFORMED_CASES[0][1], None),
+    ("struct_offset_skips_a_word", word(64) + word(0xDEAD) + _MALFORMED_CASES[0][1], _CANONICAL),
+]
+
+
+@pytest.fixture(scope="module")
+def ingress(get_contract):
+    return get_contract(_INGRESS_CODE)
+
+
+def _run_ingress(env, c, path, payload):
+    if path == "calldata":
+        selector = method_id("from_calldata((address,uint256[],bytes))")
+        ret = env.message_call(c.address, data=selector + payload)
+        return abi_decode("((address,uint256[],bytes))", ret)[0]
+    if path == "returndata":
+        return c.from_returndata(deploy_raw_returner(env, payload).address)
+    if path == "abi_decode":
+        return c.from_bytes(payload)
+    assert path == "abi_decode_no_tuple"
+    return c.from_bytes_no_tuple(payload)
+
+
+def _check_ingress(env, ingress, tx_failed, path, payload, expected):
+    if expected is None:
         with tx_failed():
-            c.dec(payload)
+            _run_ingress(env, ingress, path, payload)
+    else:
+        assert _run_ingress(env, ingress, path, payload) == expected, path
 
-    for payload in [b"", word(0), word(0) + word(64), word(0) + word(64) + word(2**32)]:
-        with tx_failed():
-            c.dec_no_tuple(payload)
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [pytest.param(body, expected, id=name) for name, body, expected in _MALFORMED_CASES],
+)
+def test_malformed_struct_same_outcome_on_every_ingress_path(
+    env, ingress, tx_failed, body, expected
+):
+    for path in _INGRESS_PATHS:
+        payload = body if path == "abi_decode_no_tuple" else word(32) + body
+        _check_ingress(env, ingress, tx_failed, path, payload, expected)
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        pytest.param(payload, expected, id=name)
+        for name, payload, expected in _MALFORMED_WRAPPED_CASES
+    ],
+)
+def test_malformed_struct_offset_same_outcome_on_every_wrapped_path(
+    env, ingress, tx_failed, payload, expected
+):
+    for path in _INGRESS_PATHS[:-1]:
+        _check_ingress(env, ingress, tx_failed, path, payload, expected)
 
 
 # Events, custom errors, print and create_*: the same runtime-sized encoding
