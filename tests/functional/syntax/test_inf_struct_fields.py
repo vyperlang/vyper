@@ -147,17 +147,6 @@ def f(b: Batch) -> (uint256, Batch):
     (
         BATCH + """
 interface I:
-    def take(b: Batch): nonpayable
-
-@external
-def f(a: address, b: Batch):
-    extcall I(a).take(b)
-    """,
-        "Function arguments cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-interface I:
     def take(bs: DynArray[Batch, 3]): nonpayable
 
 @external
@@ -165,18 +154,6 @@ def f(a: address, b: Batch):
     extcall I(a).take([b])
     """,
         "Function arguments cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-interface I:
-    def make() -> Batch: view
-
-@external
-def f(a: address) -> uint256:
-    b: Batch = staticcall I(a).make()
-    return len(b.values)
-    """,
-        "External call returns cannot contain unbounded sequence types",
     ),
     (
         BATCH + """
@@ -250,6 +227,13 @@ def f(bs: DynArray[Batch, INF]) -> (uint256, DynArray[Batch, INF]):
         BATCH + """
 interface I:
     def make() -> DynArray[Batch, INF]: view
+    """,
+        "Function returns cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+interface I:
+    def make() -> DynArray[Batch, 3]: view
     """,
         "Function returns cannot contain unbounded sequence types",
     ),

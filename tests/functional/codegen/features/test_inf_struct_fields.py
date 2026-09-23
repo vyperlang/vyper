@@ -6,7 +6,7 @@ from vyper.codegen_venom.module import generate_venom_runtime
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import anchor_settings
-from vyper.utils import method_id
+from vyper.utils import keccak256, method_id
 
 
 @pytest.fixture(autouse=True)
@@ -1488,3 +1488,269 @@ def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF], DynArray[uin
 
     c = get_contract(code)
     assert c.f((OWNER, [1, 2, 3])) == ([100, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5])
+
+
+# External calls. The encoded size of such a struct has no static bound: the
+# argument buffer is sized at runtime, and the returndata is copied to
+# scratch and decoded like a calldata argument.
+
+SUMMER = BATCH + """
+@external
+def take(b: Batch) -> (uint256, uint256):
+    acc: uint256 = 0
+    for v: uint256 in b.values:
+        acc += v
+    return acc, len(b.values)
+"""
+
+MAKER = BATCH + """
+@external
+@view
+def make(owner: address, n: uint256) -> Batch:
+    b: Batch = Batch(owner=owner, values=[])
+    for i: uint256 in range(n, bound=100):
+        b.values.append(i + 1)
+    return b
+"""
+
+
+def _deploy_raw_returner(env, payload):
+    assert len(payload) < 256
+    runtime = bytes(
+        [0x60, len(payload), 0x60, 12, 0x60, 0, 0x39, 0x60, len(payload), 0x60, 0, 0xF3]
+    )
+    runtime += payload
+    initcode = bytes.fromhex(f"61{len(runtime):04x}3d81600a3d39f3") + runtime
+    return env.deploy([], initcode)
+
+
+def _word(value):
+    return value.to_bytes(32, "big")
+
+
+@pytest.mark.parametrize("n", LENGTHS)
+def test_extcall_struct_arg(get_contract, n):
+    caller_code = BATCH + """
+interface Summer:
+    def take(b: Batch) -> (uint256, uint256): nonpayable
+
+@external
+def f(target: address, b: Batch) -> (uint256, uint256, uint256):
+    c: Batch = b
+    total: uint256 = 0
+    count: uint256 = 0
+    total, count = extcall Summer(target).take(c)
+    c.values.append(100)
+    return total, count, len(c.values)
+    """
+
+    summer = get_contract(SUMMER)
+    caller = get_contract(caller_code)
+    values = list(range(1, n + 1))
+    assert caller.f(summer.address, (OWNER, values)) == (sum(values), n, n + 1)
+
+
+def test_extcall_struct_arg_with_other_args(get_contract):
+    callee_code = BATCH + """
+@external
+def take(x: uint256, b: Batch, s: String[8]) -> (uint256, address, String[8]):
+    return x + len(b.values), b.owner, s
+    """
+    caller_code = BATCH + """
+interface Callee:
+    def take(x: uint256, b: Batch, s: String[8]) -> (uint256, address, String[8]): nonpayable
+
+@external
+def f(target: address, b: Batch) -> (uint256, address, String[8]):
+    return extcall Callee(target).take(10, b, "tail")
+    """
+
+    callee = get_contract(callee_code)
+    caller = get_contract(caller_code)
+    assert caller.f(callee.address, (OWNER, [1, 2, 3])) == (13, OWNER, "tail")
+
+
+@pytest.mark.parametrize("n", [0, 1, 32, 100])
+def test_extcall_bytes_member_arg(get_contract, n):
+    msg = """
+struct Msg:
+    kind: uint256
+    payload: Bytes[INF]
+"""
+    callee_code = msg + """
+@external
+def take(m: Msg) -> (uint256, uint256, bytes32):
+    return m.kind, len(m.payload), keccak256(m.payload)
+    """
+    caller_code = msg + """
+interface Callee:
+    def take(m: Msg) -> (uint256, uint256, bytes32): nonpayable
+
+@external
+def f(target: address, m: Msg) -> (uint256, uint256, bytes32):
+    return extcall Callee(target).take(m)
+    """
+
+    callee = get_contract(callee_code)
+    caller = get_contract(caller_code)
+    payload = bytes(range(256))[:n]
+    assert caller.f(callee.address, (7, payload)) == (7, n, keccak256(payload))
+
+
+def test_extcall_nested_struct_arg(get_contract):
+    outer = BATCH + """
+struct Outer:
+    tag: uint256
+    inner: Batch
+"""
+    callee_code = outer + """
+@external
+def take(o: Outer) -> (uint256, uint256, uint256):
+    return o.tag, len(o.inner.values), o.inner.values[1]
+    """
+    caller_code = outer + """
+interface Callee:
+    def take(o: Outer) -> (uint256, uint256, uint256): nonpayable
+
+@external
+def f(target: address, b: Batch) -> (uint256, uint256, uint256):
+    o: Outer = Outer(tag=5, inner=b)
+    return extcall Callee(target).take(o)
+    """
+
+    callee = get_contract(callee_code)
+    caller = get_contract(caller_code)
+    assert caller.f(callee.address, (OWNER, [1, 2, 3])) == (5, 3, 2)
+
+
+@pytest.mark.parametrize("n", LENGTHS)
+def test_staticcall_struct_return(get_contract, n):
+    caller_code = BATCH + """
+interface Maker:
+    def make(owner: address, n: uint256) -> Batch: view
+
+@external
+def f(target: address, owner: address, n: uint256) -> (address, uint256, uint256):
+    b: Batch = staticcall Maker(target).make(owner, n)
+    last: uint256 = 0
+    if len(b.values) > 0:
+        last = b.values[len(b.values) - 1]
+    return b.owner, len(b.values), last
+    """
+
+    maker = get_contract(MAKER)
+    caller = get_contract(caller_code)
+    assert caller.f(maker.address, OWNER, n) == (OWNER, n, n)
+
+
+def test_staticcall_struct_return_echo(get_contract):
+    caller_code = BATCH + """
+interface Maker:
+    def make(owner: address, n: uint256) -> Batch: view
+
+@external
+def f(target: address, owner: address, n: uint256) -> Batch:
+    return staticcall Maker(target).make(owner, n)
+    """
+
+    maker = get_contract(MAKER)
+    caller = get_contract(caller_code)
+    assert caller.f(maker.address, OWNER, 3) == (OWNER, [1, 2, 3])
+
+
+def test_staticcall_struct_return_survives_second_call(get_contract):
+    caller_code = BATCH + """
+interface Maker:
+    def make(owner: address, n: uint256) -> Batch: view
+
+@external
+def f(target: address) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+    first: Batch = staticcall Maker(target).make(self, 2)
+    first.values.append(50)
+    second: Batch = staticcall Maker(target).make(self, 3)
+    second.values[0] = 60
+    return first.values, second.values
+    """
+
+    maker = get_contract(MAKER)
+    caller = get_contract(caller_code)
+    assert caller.f(maker.address) == ([1, 2, 50], [60, 2, 3])
+
+
+def test_staticcall_struct_return_with_default(env, get_contract):
+    caller_code = BATCH + """
+interface Maker:
+    def make() -> Batch: view
+
+@external
+def f(target: address) -> Batch:
+    return staticcall Maker(target).make(default_return_value=Batch(owner=self, values=[7, 8]))
+    """
+
+    caller = get_contract(caller_code)
+    empty_target = _deploy_raw_returner(env, b"")
+    assert caller.f(empty_target.address) == (caller.address, [7, 8])
+
+    target = _deploy_raw_returner(
+        env, eth_abi_encode(["(address,uint256[])"], [(OWNER, [1, 2, 3])])
+    )
+    assert caller.f(target.address) == (OWNER, [1, 2, 3])
+
+
+def test_staticcall_struct_return_default_is_independent(env, get_contract):
+    # the default keeps room for in-place appends; neither the result nor
+    # the default may observe a write through the other
+    caller_code = BATCH + """
+interface Maker:
+    def make() -> Batch: view
+
+@external
+def f(target: address, b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+    fallback: Batch = b
+    fallback.values.append(4)
+    fallback.values.append(5)
+    r: Batch = staticcall Maker(target).make(default_return_value=fallback)
+    r.values.append(9)
+    r.values[0] = 100
+    fallback.values.append(6)
+    fallback.values[1] = 200
+    return r.values, fallback.values
+    """
+
+    caller = get_contract(caller_code)
+    empty_target = _deploy_raw_returner(env, b"")
+    assert caller.f(empty_target.address, (OWNER, [1, 2, 3])) == (
+        [100, 2, 3, 4, 5, 9],
+        [1, 200, 3, 4, 5, 6],
+    )
+
+
+def test_staticcall_struct_return_rejects_malformed_returndata(env, get_contract, tx_failed):
+    caller_code = BATCH + """
+interface Maker:
+    def make() -> Batch: view
+
+@external
+def f(target: address) -> uint256:
+    b: Batch = staticcall Maker(target).make()
+    return len(b.values)
+    """
+
+    caller = get_contract(caller_code)
+
+    valid = _word(32) + _word(0) + _word(64) + _word(1) + _word(9)
+    assert caller.f(_deploy_raw_returner(env, valid).address) == 1
+
+    malformed_payloads = [
+        b"",  # no returndata and no default
+        _word(32),  # offset word without the struct head
+        _word(32) + _word(0) + _word(64),  # member offset without its length word
+        _word(32) + _word(0) + _word(64) + _word(2**32),  # element count past the end
+        _word(32) + _word(0) + _word(96),  # member offset outside the returndata
+        _word(2**256 - 31),  # struct offset wraps
+        _word(32) + _word(0) + _word(2**256 - 63),  # member offset wraps
+    ]
+    for payload in malformed_payloads:
+        target = _deploy_raw_returner(env, payload)
+        with tx_failed():
+            caller.f(target.address)

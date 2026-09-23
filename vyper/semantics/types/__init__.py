@@ -18,6 +18,7 @@ from .infinity import (
     member_slot_size,
     type_contains_nested_unbounded_sequence,
     type_contains_unbounded_sequence,
+    type_contains_unencodable_unbounded_return,
     type_contains_unencodable_unbounded_sequence,
     type_contains_unrepresentable_unbounded_sequence,
     type_contains_unsupported_unbounded_sequence,

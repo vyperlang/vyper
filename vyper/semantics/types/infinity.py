@@ -162,12 +162,12 @@ def type_contains_unsupported_unbounded_sequence(typ) -> bool:
     )
 
 
-def type_contains_unencodable_unbounded_sequence(typ) -> bool:
-    """Return True if a value of `typ` has no supported ABI encoding.
+def type_contains_unencodable_unbounded_return(typ) -> bool:
+    """Return True if a return of `typ` has no supported encoding.
 
     Accepts everything `type_contains_unsupported_unbounded_sequence` does,
     plus a struct with pointer-cell members. A DynArray of such structs stays
-    rejected: sizing an encoding buffer would mean walking every element's
+    rejected: sizing the return buffer would mean walking every element's
     cells, which the per-element bound used for INF DynArrays cannot do.
     """
     if not type_contains_unbounded_sequence(typ):
@@ -180,6 +180,20 @@ def type_contains_unencodable_unbounded_sequence(typ) -> bool:
         return False
 
     return type_contains_unsupported_unbounded_sequence(typ)
+
+
+def type_contains_unencodable_unbounded_sequence(typ) -> bool:
+    """Return True if a memory value of `typ` cannot be ABI encoded or decoded.
+
+    External call arguments, event and error members and the builtins that
+    encode or decode a value hold it in memory first, so a tuple with an INF
+    member is rejected here (its frame exists only as a return value) on top
+    of what `type_contains_unencodable_unbounded_return` rejects.
+    """
+    if type_contains_unrepresentable_unbounded_sequence(typ):
+        return True
+
+    return type_contains_unencodable_unbounded_return(typ)
 
 
 def length_to_json(length: LengthUpperBound) -> int | str:

@@ -74,10 +74,10 @@ from vyper.semantics.types.function import (
 from vyper.semantics.types.infinity import (
     is_supported_unbounded_struct_type,
     is_unbounded_sequence_type,
-    type_contains_nested_unbounded_sequence,
     type_contains_unbounded_sequence,
+    type_contains_unencodable_unbounded_return,
+    type_contains_unencodable_unbounded_sequence,
     type_contains_unrepresentable_unbounded_sequence,
-    type_contains_unsupported_unbounded_sequence,
 )
 from vyper.semantics.types.utils import type_from_annotation
 
@@ -156,11 +156,10 @@ def _call_arg_is_unsupported(func_type, arg_typ: VyperType) -> bool:
 
     An internal call hands the callee a memory pointer, so it accepts any
     type memory can hold. An external call ABI-encodes the argument into a
-    buffer that has to be sized before the encode, which is only implemented
-    for a top-level unbounded sequence.
+    buffer that has to be sized before the encode.
     """
     if func_type.is_external:
-        return type_contains_nested_unbounded_sequence(arg_typ)
+        return type_contains_unencodable_unbounded_sequence(arg_typ)
 
     return type_contains_unrepresentable_unbounded_sequence(arg_typ)
 
@@ -1172,9 +1171,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             if func_type.is_external:
                 return_t = func_type.return_type
-                if return_t is not None and type_contains_unsupported_unbounded_sequence(return_t):
-                    # decoding the returndata would have to rebuild the
-                    # value's pointer cells; only top-level INF is supported
+                if return_t is not None and type_contains_unencodable_unbounded_return(return_t):
                     raise StructureException(
                         "External call returns cannot contain unbounded sequence types "
                         "inside aggregate types",
@@ -1188,7 +1185,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                         # Replace wildcards in the type by INF, since there is no expected type
                         return_t = return_t.resolve_wildcard()
                         # unsupported INF shapes from wildcard resolution only exist per call site
-                        if type_contains_unsupported_unbounded_sequence(return_t):
+                        if type_contains_unencodable_unbounded_return(return_t):
                             raise StructureException(
                                 "Function returns cannot contain unbounded sequence types "
                                 "inside aggregate types",

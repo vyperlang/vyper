@@ -2105,7 +2105,7 @@ class Expr:
         )
 
     def _external_call_args_need_runtime_encoding(self, arg_vals: list[VyperValue]) -> bool:
-        return any(is_unbounded_sequence_type(arg_vv.typ) for arg_vv in arg_vals)
+        return any(type_contains_unbounded_sequence(arg_vv.typ) for arg_vv in arg_vals)
 
     def _lower_external_call(self) -> VyperValue:
         """Lower external call (extcall/staticcall).
@@ -2136,6 +2136,9 @@ class Expr:
         has_dynamic_tuple_return = return_t is not None and self.ctx.is_dynamic_tuple_frame_type(
             return_t
         )
+        has_pointer_cell_struct_return = False
+        if isinstance(return_t, StructT):
+            has_pointer_cell_struct_return = type_contains_unbounded_sequence(return_t)
 
         # Evaluate contract address (the interface value)
         contract_address = Expr(call_node.func.value, self.ctx).lower_value()
@@ -2168,7 +2171,7 @@ class Expr:
             args_abi_size = args_abi_t.size_bound()
 
         if return_t is not None:
-            if has_unbounded_return or has_dynamic_tuple_return:
+            if has_unbounded_return or has_dynamic_tuple_return or has_pointer_cell_struct_return:
                 return_abi_size = 0
             else:
                 return_abi_t = calculate_type_for_external_return(return_t).abi_type
@@ -2280,6 +2283,11 @@ class Expr:
         if has_dynamic_tuple_return:
             assert isinstance(return_t, TupleT)
             return self._unpack_dynamic_tuple_external_call_return(
+                call_kwargs, contract_address, return_t
+            )
+        if has_pointer_cell_struct_return:
+            assert isinstance(return_t, StructT)
+            return self._unpack_pointer_cell_struct_external_call_return(
                 call_kwargs, contract_address, return_t
             )
 
@@ -2521,6 +2529,72 @@ class Expr:
         ret_ptr = b.mload(ret_cell._ptr)
         assert isinstance(ret_ptr, IRVariable)
         return self.ctx.dynamic_memory_value(ret_ptr, return_t, annotation="external call return")
+
+    def _decode_pointer_cell_struct_external_call_return(
+        self, dst: IRVariable, wrapped_return_t: TupleT
+    ) -> None:
+        b = self.builder
+        rds = b.returndatasize()
+        min_return_size = wrapped_return_t.abi_type.static_size()
+        ok = b.iszero(b.lt(rds, IRLiteral(min_return_size)))
+        b.assert_(ok)
+
+        returndata_ptr, hi = self._copy_returndata_to_scratch(rds)
+        src = self._make_ptr_value(returndata_ptr, DataLocation.MEMORY, wrapped_return_t)
+        abi_decode_to_buf(self.ctx, dst, src, hi=hi)
+
+    def _unpack_pointer_cell_struct_external_call_return(
+        self, call_kwargs: _CallKwargs, contract_address: IROperand, return_t: StructT
+    ) -> VyperValue:
+        """Unpack a returned struct with unbounded members.
+
+        Its encoded size has no static bound, so the call wrote nothing into
+        the call buffer. The returndata is copied to scratch and decoded like
+        a calldata argument, every member bounded by the end of the copy.
+        """
+        b = self.builder
+        wrapped_return_t = calculate_type_for_external_return(return_t)
+        assert isinstance(wrapped_return_t, TupleT)
+
+        result_val = self.ctx.new_temporary_value(wrapped_return_t)
+        assert isinstance(result_val.operand, IRVariable)
+
+        if call_kwargs.default_return_value is None:
+            self._decode_pointer_cell_struct_external_call_return(
+                result_val.operand, wrapped_return_t
+            )
+            return VyperValue.from_ptr(result_val.ptr(), return_t)
+
+        rds = b.returndatasize()
+        default_bb = b.create_block("extcall_default")
+        decode_bb = b.create_block("extcall_decode")
+        exit_bb = b.create_block("extcall_exit")
+
+        b.jnz(b.iszero(rds), default_bb.label, decode_bb.label)
+
+        b.append_block(default_bb)
+        b.set_block(default_bb)
+
+        default_vv = call_kwargs.default_return_value
+        assert default_vv is not None
+        self.ctx.store_vyper_value(default_vv, result_val.operand, return_t)
+
+        if not call_kwargs.skip_contract_check:
+            codesize = b.extcodesize(contract_address)
+            b.assert_(codesize)
+
+        b.jmp(exit_bb.label)
+
+        b.append_block(decode_bb)
+        b.set_block(decode_bb)
+
+        self._decode_pointer_cell_struct_external_call_return(result_val.operand, wrapped_return_t)
+        b.jmp(exit_bb.label)
+
+        b.append_block(exit_bb)
+        b.set_block(exit_bb)
+
+        return VyperValue.from_ptr(result_val.ptr(), return_t)
 
     def _unpack_dynamic_tuple_external_call_return(
         self, call_kwargs: _CallKwargs, contract_address: IROperand, return_t: TupleT
