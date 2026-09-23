@@ -2285,18 +2285,43 @@ class Expr:
             return self._unpack_dynamic_tuple_external_call_return(
                 call_kwargs, contract_address, return_t
             )
-        if has_pointer_cell_struct_return:
-            assert isinstance(return_t, StructT)
-            return self._unpack_pointer_cell_struct_external_call_return(
-                call_kwargs, contract_address, return_t
-            )
 
         wrapped_return_t = calculate_type_for_external_return(return_t)
         min_return_size = wrapped_return_t.abi_type.static_size()
 
         # Allocate result buffer
         result_val = self.ctx.new_temporary_value(wrapped_return_t)
-        assert isinstance(result_val.operand, IRVariable)
+        result_ptr = result_val.operand
+        assert isinstance(result_ptr, IRVariable)
+
+        def decode_return() -> None:
+            # Check returndatasize >= min_return_size
+            rds = b.returndatasize()
+            ok = b.iszero(b.lt(rds, IRLiteral(min_return_size)))
+            b.assert_(ok)
+
+            if has_pointer_cell_struct_return:
+                # The encoded size has no static bound, so the call wrote
+                # nothing into the call buffer (ret_len is 0). Copy the
+                # returndata to scratch and decode it like a calldata
+                # argument, every member bounded by the end of the copy.
+                src_ptr, hi = self._copy_returndata_to_scratch(rds)
+            else:
+                # No returndatacopy needed: staticcall/call already wrote
+                # min(returndatasize, ret_len) bytes to buf_ptr, and
+                # payload_bound caps reads at ret_len (== size_bound()).
+
+                # Compute hi bound for decode (prevents overread)
+                # Cap at return_abi_size to handle truncation case
+                max_return_size = wrapped_return_t.abi_type.size_bound()
+                payload_bound = b.select(
+                    b.lt(rds, IRLiteral(max_return_size)), rds, IRLiteral(max_return_size)
+                )
+                src_ptr = buf_ptr
+                hi = b.add(buf_ptr, payload_bound)
+
+            src = self._make_ptr_value(src_ptr, DataLocation.MEMORY, wrapped_return_t)
+            abi_decode_to_buf(self.ctx, result_ptr, src, hi=hi)
 
         # Handle default_return_value
         if call_kwargs.default_return_value is not None:
@@ -2317,7 +2342,7 @@ class Expr:
             # Store default value
             default_vv = call_kwargs.default_return_value
             assert default_vv is not None
-            self.ctx.store_vyper_value(default_vv, result_val.operand, return_t)
+            self.ctx.store_vyper_value(default_vv, result_ptr, return_t)
 
             # Check extcodesize if not skipped (contract might have selfdestructed)
             if not call_kwargs.skip_contract_check:
@@ -2330,24 +2355,7 @@ class Expr:
             b.append_block(decode_bb)
             b.set_block(decode_bb)
 
-            # Check returndatasize >= min_return_size
-            rds = b.returndatasize()
-            ok = b.iszero(b.lt(rds, IRLiteral(min_return_size)))
-            b.assert_(ok)
-
-            # No returndatacopy needed: staticcall/call already wrote
-            # min(returndatasize, ret_len) bytes to buf_ptr, and
-            # payload_bound caps reads at ret_len (== size_bound()).
-
-            # Compute hi bound for decode (prevents overread)
-            # Cap at return_abi_size to handle truncation case
-            max_return_size = wrapped_return_t.abi_type.size_bound()
-            payload_bound = b.select(
-                b.lt(rds, IRLiteral(max_return_size)), rds, IRLiteral(max_return_size)
-            )
-            hi = b.add(buf_ptr, payload_bound)
-            src = self._make_ptr_value(buf_ptr, DataLocation.MEMORY, wrapped_return_t)
-            abi_decode_to_buf(self.ctx, result_val.operand, src, hi=hi)
+            decode_return()
 
             b.jmp(exit_bb.label)
 
@@ -2357,24 +2365,7 @@ class Expr:
 
         else:
             # No default_return_value - simple decode path
-            # Check returndatasize >= min_return_size
-            rds = b.returndatasize()
-            ok = b.iszero(b.lt(rds, IRLiteral(min_return_size)))
-            b.assert_(ok)
-
-            # No returndatacopy needed: staticcall/call already wrote
-            # min(returndatasize, ret_len) bytes to buf_ptr, and
-            # payload_bound caps reads at ret_len (== size_bound()).
-
-            # Compute hi bound for decode (prevents overread)
-            # Cap at return_abi_size to handle truncation case
-            max_return_size = wrapped_return_t.abi_type.size_bound()
-            payload_bound = b.select(
-                b.lt(rds, IRLiteral(max_return_size)), rds, IRLiteral(max_return_size)
-            )
-            hi = b.add(buf_ptr, payload_bound)
-            src = self._make_ptr_value(buf_ptr, DataLocation.MEMORY, wrapped_return_t)
-            abi_decode_to_buf(self.ctx, result_val.operand, src, hi=hi)
+            decode_return()
 
         # Return as location in memory with unwrapped type
         # The data is at offset 0 in the wrapped tuple, so pointer is correct
@@ -2529,72 +2520,6 @@ class Expr:
         ret_ptr = b.mload(ret_cell._ptr)
         assert isinstance(ret_ptr, IRVariable)
         return self.ctx.dynamic_memory_value(ret_ptr, return_t, annotation="external call return")
-
-    def _decode_pointer_cell_struct_external_call_return(
-        self, dst: IRVariable, wrapped_return_t: TupleT
-    ) -> None:
-        b = self.builder
-        rds = b.returndatasize()
-        min_return_size = wrapped_return_t.abi_type.static_size()
-        ok = b.iszero(b.lt(rds, IRLiteral(min_return_size)))
-        b.assert_(ok)
-
-        returndata_ptr, hi = self._copy_returndata_to_scratch(rds)
-        src = self._make_ptr_value(returndata_ptr, DataLocation.MEMORY, wrapped_return_t)
-        abi_decode_to_buf(self.ctx, dst, src, hi=hi)
-
-    def _unpack_pointer_cell_struct_external_call_return(
-        self, call_kwargs: _CallKwargs, contract_address: IROperand, return_t: StructT
-    ) -> VyperValue:
-        """Unpack a returned struct with unbounded members.
-
-        Its encoded size has no static bound, so the call wrote nothing into
-        the call buffer. The returndata is copied to scratch and decoded like
-        a calldata argument, every member bounded by the end of the copy.
-        """
-        b = self.builder
-        wrapped_return_t = calculate_type_for_external_return(return_t)
-        assert isinstance(wrapped_return_t, TupleT)
-
-        result_val = self.ctx.new_temporary_value(wrapped_return_t)
-        assert isinstance(result_val.operand, IRVariable)
-
-        if call_kwargs.default_return_value is None:
-            self._decode_pointer_cell_struct_external_call_return(
-                result_val.operand, wrapped_return_t
-            )
-            return VyperValue.from_ptr(result_val.ptr(), return_t)
-
-        rds = b.returndatasize()
-        default_bb = b.create_block("extcall_default")
-        decode_bb = b.create_block("extcall_decode")
-        exit_bb = b.create_block("extcall_exit")
-
-        b.jnz(b.iszero(rds), default_bb.label, decode_bb.label)
-
-        b.append_block(default_bb)
-        b.set_block(default_bb)
-
-        default_vv = call_kwargs.default_return_value
-        assert default_vv is not None
-        self.ctx.store_vyper_value(default_vv, result_val.operand, return_t)
-
-        if not call_kwargs.skip_contract_check:
-            codesize = b.extcodesize(contract_address)
-            b.assert_(codesize)
-
-        b.jmp(exit_bb.label)
-
-        b.append_block(decode_bb)
-        b.set_block(decode_bb)
-
-        self._decode_pointer_cell_struct_external_call_return(result_val.operand, wrapped_return_t)
-        b.jmp(exit_bb.label)
-
-        b.append_block(exit_bb)
-        b.set_block(exit_bb)
-
-        return VyperValue.from_ptr(result_val.ptr(), return_t)
 
     def _unpack_dynamic_tuple_external_call_return(
         self, call_kwargs: _CallKwargs, contract_address: IROperand, return_t: TupleT
