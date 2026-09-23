@@ -1158,3 +1158,240 @@ def f(b: Batch, i: uint256) -> (uint256, uint256):
 
     ir = compile_code(code, output_formats=["ir_runtime"], settings=compiler_settings)
     assert "cell_copy" not in str(ir["ir_runtime"])
+
+
+# Copies of a struct never observe each other's member mutation. A struct
+# copy leaves both structs at capacity 0, so the first write through either
+# side copies the shared payload. Every source below is appended to twice
+# before it is copied, so that its cell owns spare room (capacity above the
+# length) and an in-place write into the shared payload would be possible.
+# (A struct returned from an internal call has capacity 0 again, so the
+# appends are inline.)
+
+PREPARE = """
+    src: Batch = b
+    src.values.append(4)
+    src.values.append(5)
+"""
+
+
+def test_copy_then_mutate_copy(get_contract):
+    code = BATCH + """
+@external
+def declared(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+""" + PREPARE + """
+    copy: Batch = src
+    copy.values.append(8)
+    copy.values[0] = 100
+    return src.values, copy.values
+
+@external
+def reassigned(b: Batch, other: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+""" + PREPARE + """
+    copy: Batch = other
+    copy = src
+    copy.values.append(8)
+    copy.values[0] = 100
+    return src.values, copy.values
+    """
+
+    c = get_contract(code)
+    b = (OWNER, [1, 2, 3])
+    assert c.declared(b) == ([1, 2, 3, 4, 5], [100, 2, 3, 4, 5, 8])
+    assert c.reassigned(b, (OWNER, [9])) == ([1, 2, 3, 4, 5], [100, 2, 3, 4, 5, 8])
+
+
+def test_copy_then_mutate_source(get_contract):
+    # fails if a struct copy leaves the source's capacity in place: the
+    # source then appends into the payload the copy still references
+    code = BATCH + """
+@external
+def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+""" + PREPARE + """
+    copy: Batch = src
+    src.values.append(8)
+    src.values[0] = 100
+    return src.values, copy.values
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1, 2, 3])) == ([100, 2, 3, 4, 5, 8], [1, 2, 3, 4, 5])
+
+
+def test_copy_then_store_member_element(get_contract):
+    # fails if an element store goes into the payload the cell does not own
+    code = BATCH + """
+@external
+def into_copy(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+""" + PREPARE + """
+    copy: Batch = src
+    copy.values[0] = 100
+    copy.values[1] += 100
+    return src.values, copy.values
+
+@external
+def into_source(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+""" + PREPARE + """
+    copy: Batch = src
+    src.values[0] = 100
+    src.values[1] += 100
+    return src.values, copy.values
+    """
+
+    c = get_contract(code)
+    assert c.into_copy((OWNER, [1, 2, 3])) == ([1, 2, 3, 4, 5], [100, 102, 3, 4, 5])
+    assert c.into_source((OWNER, [1, 2, 3])) == ([100, 102, 3, 4, 5], [1, 2, 3, 4, 5])
+
+
+def test_copy_then_assign_empty_member(get_contract):
+    # fails if the empty-value fast path zeroes the length word of the
+    # payload the copy shares with its source
+    code = BATCH + """
+@external
+def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+    src: Batch = b
+    copy: Batch = src
+    copy.values = []
+    return src.values, copy.values
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1, 2, 3])) == ([1, 2, 3], [])
+
+
+def test_copy_then_pop_member(get_contract):
+    # fails if pop decrements the length of the shared payload in place
+    code = BATCH + """
+@external
+def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF], uint256):
+    src: Batch = b
+    copy: Batch = src
+    x: uint256 = copy.values.pop()
+    return src.values, copy.values, x
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1, 2, 3])) == ([1, 2, 3], [1, 2], 3)
+
+
+def test_member_copy_to_local_is_independent(get_contract):
+    code = BATCH + """
+@external
+def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+""" + PREPARE + """
+    v: DynArray[uint256, INF] = src.values
+    v.append(6)
+    src.values.append(7)
+    v[0] = 100
+    src.values[1] = 200
+    return src.values, v
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1, 2, 3])) == ([1, 200, 3, 4, 5, 7], [100, 2, 3, 4, 5, 6])
+
+
+@pytest.mark.parametrize("inlining", [True, False])
+def test_internal_call_arg_mutation_stays_in_callee(
+    get_contract, compiler_settings, no_inlining_settings, inlining
+):
+    code = BATCH + """
+@internal
+def mutate(b: Batch) -> Batch:
+    b.values.append(9)
+    b.values[0] = 100
+    return b
+
+@external
+def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+""" + PREPARE + """
+    out: Batch = self.mutate(src)
+    src.values.append(6)
+    return src.values, out.values
+    """
+
+    settings = compiler_settings if inlining else no_inlining_settings
+    c = get_contract(code, compiler_settings=settings)
+    assert c.f((OWNER, [1, 2, 3])) == ([1, 2, 3, 4, 5, 6], [100, 2, 3, 4, 5, 9])
+
+
+@pytest.mark.parametrize("bound", ["3", "INF"])
+def test_array_element_copy_then_mutate(get_contract, bound):
+    code = BATCH + f"""
+@external
+def f(bs: DynArray[Batch, {bound}]) -> (
+    DynArray[uint256, INF], DynArray[uint256, INF], DynArray[uint256, INF], uint256
+):
+    xs: DynArray[Batch, {bound}] = bs
+    b: Batch = xs[1]
+    b.values.append(9)
+    b.values.append(10)
+    xs[1] = b
+    b.values.append(11)
+    b.values[0] = 100
+    ys: DynArray[Batch, {bound}] = xs
+    ys[0] = b
+    b.values.append(12)
+    acc: uint256 = 0
+    for e: Batch in xs:
+        acc += len(e.values)
+    return xs[1].values, ys[0].values, b.values, acc
+    """
+
+    c = get_contract(code)
+    bs = [(OWNER, [1]), (OWNER, [2, 3]), (OWNER, [4, 5, 6])]
+    assert c.f(bs) == ([2, 3, 9, 10], [100, 3, 9, 10, 11], [100, 3, 9, 10, 11, 12], 8)
+
+
+def test_internal_return_then_mutate(get_contract):
+    code = BATCH + """
+@internal
+def g(x: uint256) -> Batch:
+    return Batch(owner=self, values=[x, x + 1])
+
+@external
+def f() -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+    first: Batch = self.g(1)
+    first.values.append(3)
+    first.values[0] = 10
+    second: Batch = self.g(99)
+    second.values.pop()
+    return first.values, second.values
+    """
+
+    c = get_contract(code)
+    assert c.f() == ([10, 2, 3], [99])
+
+
+def test_struct_constructor_member_copy_then_mutate(get_contract):
+    code = BATCH + """
+struct Outer:
+    tag: uint256
+    inner: Batch
+
+@external
+def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+""" + PREPARE + """
+    o: Outer = Outer(tag=1, inner=src)
+    src.values.append(6)
+    o.inner.values.append(7)
+    return src.values, o.inner.values
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1, 2, 3])) == ([1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 7])
+
+
+def test_list_literal_copy_then_mutate(get_contract):
+    code = BATCH + """
+@external
+def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF], DynArray[uint256, INF]):
+""" + PREPARE + """
+    xs: DynArray[Batch, 2] = [src, src]
+    src.values.append(6)
+    src.values[0] = 100
+    return src.values, xs[0].values, xs[1].values
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1, 2, 3])) == ([100, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5])
