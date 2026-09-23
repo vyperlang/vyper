@@ -8,8 +8,8 @@ This module handles:
 - Constructor (deploy) code generation
 
 Two-phase compilation:
-1. generate_runtime_venom() - generates runtime code (deployed bytecode)
-2. generate_deploy_venom() - generates deploy code with runtime bytecode embedded
+1. generate_venom_runtime() - generates runtime code (deployed bytecode)
+2. generate_venom_deploy() - generates deploy code with runtime bytecode embedded
 """
 
 from __future__ import annotations
@@ -114,7 +114,7 @@ def _init_ir_info(func_t: ContractFunctionT) -> None:
 # =============================================================================
 
 
-def generate_runtime_venom(module_t: ModuleT, settings: Settings) -> IRContext:
+def generate_venom_runtime(module_t: ModuleT, settings: Settings) -> IRContext:
     """
     Generate runtime Venom IR directly from annotated AST.
 
@@ -176,7 +176,7 @@ def generate_runtime_venom(module_t: ModuleT, settings: Settings) -> IRContext:
     return runtime_ctx
 
 
-def generate_deploy_venom(
+def generate_venom_deploy(
     module_t: ModuleT,
     settings: Settings,
     runtime_bytecode: bytes,
@@ -265,7 +265,7 @@ def _generate_selector_section_linear(
     builder: VenomBuilder,
     module_t: ModuleT,
     literal_pool: LiteralPool,
-    external_functions: list,
+    external_functions: list[vy_ast.FunctionDef],
     default_function: Optional[vy_ast.FunctionDef],
 ) -> None:
     """Generate O(n) linear selector dispatch.
@@ -393,7 +393,7 @@ def _generate_selector_section_sparse(
     builder: VenomBuilder,
     module_t: ModuleT,
     literal_pool: LiteralPool,
-    external_functions: list,
+    external_functions: list[vy_ast.FunctionDef],
     default_function: Optional[vy_ast.FunctionDef],
 ) -> None:
     """Generate O(1) average-case sparse jumptable selector dispatch.
@@ -596,7 +596,7 @@ def _generate_selector_section_dense(
     builder: VenomBuilder,
     module_t: ModuleT,
     literal_pool: LiteralPool,
-    external_functions: list,
+    external_functions: list[vy_ast.FunctionDef],
     default_function: Optional[vy_ast.FunctionDef],
 ) -> None:
     """Generate O(1) dense jumptable selector dispatch.

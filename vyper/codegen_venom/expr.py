@@ -188,7 +188,7 @@ class Expr:
         self.node = node.reduced()
         self.ctx = ctx
         self.builder = ctx.builder
-        self.as_ptr = as_ptr  # True = return pointer, False = return value (load if needed)
+        self.as_ptr = as_ptr  # Assignment targets must retain their original location.
 
     def lower(self) -> VyperValue:
         """Dispatch to type-specific lowering method.
@@ -990,7 +990,7 @@ class Expr:
         else:  # pragma: nocover
             raise CompilerPanic(f"Unsupported subscript on {base_typ}")
 
-    def _lower_array_subscript(self, bounds_check: bool = True) -> VyperValue:
+    def _lower_array_subscript(self) -> VyperValue:
         """Lower array[index] access.
 
         Computes element pointer with bounds checking:
@@ -1031,29 +1031,28 @@ class Expr:
         elem_size = elem_typ.get_size_in(data_loc)
 
         # Bounds checking
-        if bounds_check:
-            length: IROperand = IRLiteral(0)
-            if isinstance(base_typ, DArrayT):
-                # Dynamic array: load length from first word.
-                length = self.ctx.load_word(base, data_loc)
-            else:
-                # Static array: compile-time length
-                length = IRLiteral(base_typ.count)
+        length: IROperand
+        if isinstance(base_typ, DArrayT):
+            # Dynamic array: load length from first word.
+            length = self.ctx.load_word(base, data_loc)
+        else:
+            # Static array: compile-time length
+            length = IRLiteral(base_typ.count)
 
-            # Check: not (index < 0) and not (index >= length)
-            # For signed indices, check negativity; for unsigned, skip
-            is_neg: IROperand
-            if isinstance(index_typ, IntegerT) and index_typ.is_signed:
-                is_neg = self.builder.slt(index, IRLiteral(0))
-            else:
-                is_neg = IRLiteral(0)
+        # Check: not (index < 0) and not (index >= length)
+        # For signed indices, check negativity; for unsigned, skip
+        is_neg: IROperand
+        if isinstance(index_typ, IntegerT) and index_typ.is_signed:
+            is_neg = self.builder.slt(index, IRLiteral(0))
+        else:
+            is_neg = IRLiteral(0)
 
-            # Always use unsigned comparison for out-of-bounds
-            # ge(a, b) = not lt(a, b)
-            is_oob = self.builder.iszero(self.builder.lt(index, length))
-            invalid = self.builder.or_(is_neg, is_oob)
-            valid = self.builder.iszero(invalid)
-            self.builder.assert_(valid)
+        # Always use unsigned comparison for out-of-bounds
+        # ge(a, b) = not lt(a, b)
+        is_oob = self.builder.iszero(self.builder.lt(index, length))
+        invalid = self.builder.or_(is_neg, is_oob)
+        valid = self.builder.iszero(invalid)
+        self.builder.assert_(valid)
 
         # Compute data pointer (skip length word for dynamic arrays)
         data_ptr: IROperand
@@ -1108,20 +1107,7 @@ class Expr:
         return VyperValue.from_ptr(ptr, value_typ)
 
     def _lower_keccak256_key(self, key_node: vy_ast.VyperNode) -> IROperand:
-        """Hash a bytes/string key for use as mapping key.
-
-        For bytes32: mstore to scratch, sha3
-        For bytes/string: ensure in memory, sha3 data portion
-        """
-        key_typ = key_node._metadata["type"]
-
-        if key_typ == BYTES32_T:
-            # bytes32: mstore to temp buffer and hash
-            key = Expr(key_node, self.ctx).lower_value()
-            buf = self.ctx.allocate_buffer(32, "mapping_key")
-            self.ctx.ptr_store(buf.base_ptr(), key)
-            return self.builder.sha3(buf._ptr, IRLiteral(32))
-
+        """Hash the data portion of a bytes/string mapping key."""
         # bytes/string: get pointer, hash the data portion
         # sha3 only works on memory - copy non-memory data first
         key_vv = Expr(key_node, self.ctx).lower()
@@ -1241,7 +1227,9 @@ class Expr:
 
         return self._make_ptr_value(field_ptr, data_loc, field_typ)
 
-    def _make_ptr_value(self, operand: IROperand, location: DataLocation, typ) -> VyperValue:
+    def _make_ptr_value(
+        self, operand: IROperand, location: DataLocation, typ: VyperType
+    ) -> VyperValue:
         """Create a VyperValue with Ptr for a computed pointer.
 
         For MEMORY locations, creates a dummy buffer since we don't track buffer provenance
@@ -1251,6 +1239,7 @@ class Expr:
             # Buffer requires IRVariable; memory pointers from arithmetic ops are always IRVariables
             assert isinstance(operand, IRVariable)
             if self.ctx.is_dynamic_tuple_frame_type(typ):
+                assert isinstance(typ, TupleT)
                 return self.ctx.dynamic_tuple_frame_value(operand, typ, annotation="computed_ptr")
             size = None if is_unbounded_sequence_type(typ) else typ.memory_bytes_required
             buf = Buffer(_ptr=operand, size=size, annotation="computed_ptr")
@@ -1285,9 +1274,8 @@ class Expr:
 
         b = self.builder
 
-        if not list_node.elements:
-            # Empty list: x in [] is always False, x not in [] is always True
-            return IRLiteral(0 if is_in else 1)
+        # Semantic analysis rejects membership tests against empty list literals.
+        assert list_node.elements
 
         # Evaluate ALL elements first to preserve side effects
         elem_vals = [Expr(elem, self.ctx).lower_value() for elem in list_node.elements]
@@ -1311,7 +1299,11 @@ class Expr:
         return result
 
     def _lower_array_membership(
-        self, needle: IROperand, haystack_vv: VyperValue, haystack_typ, is_in: bool
+        self,
+        needle: IROperand,
+        haystack_vv: VyperValue,
+        haystack_typ: DArrayT | SArrayT,
+        is_in: bool,
     ) -> IRVariable:
         """Lower array membership test: x in array or x not in array.
 
@@ -1580,14 +1572,9 @@ class Expr:
             arg_t = func_t.arguments[i]
 
             if pass_via_stack_dict[arg_t.name]:
-                # Stack-passed arg: use value directly
-                # For struct/tuple types that fit in one word, arg_val is a memory
-                # pointer (from unwrap), so we need to load the actual value
-                arg_op = self.ctx.unwrap(arg_val)
-                if hasattr(arg_t.typ, "tuple_items"):
-                    assert isinstance(arg_op, IRVariable)
-                    arg_op = self.builder.mload(arg_op)
-                invoke_args.append(arg_op)
+                assert arg_t.typ._is_prim_word
+                # Only primitive word types are passed on the stack.
+                invoke_args.append(self.ctx.unwrap(arg_val))
             else:
                 # Memory-passed arg: pointer to the owned snapshot staged above.
                 # Must not go through `unwrap`: a word-typed arg is memory-passed
@@ -1769,18 +1756,6 @@ class Expr:
         data_loc = darray_vv.location
         assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
-
-        if (
-            data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT)
-            and not elem_typ._is_prim_word
-            and elem_src_typ != elem_typ
-        ):
-            # Normalize source layout for locations that only understand destination layout.
-            normalized = self.ctx.new_temporary_value(elem_typ)
-            assert isinstance(normalized.operand, IRVariable)
-            self.ctx.store_memory(elem_val, normalized.operand, elem_typ, src_typ=elem_src_typ)
-            elem_val = normalized.operand
-            elem_src_typ = elem_typ
 
         elem_size = elem_typ.get_size_in(data_loc)
         capacity = darray_typ.count  # Maximum length
@@ -2177,7 +2152,7 @@ class Expr:
 
         # Return buffer location and size
         ret_ofst = buf_ptr
-        ret_len = IRLiteral(return_abi_size) if return_abi_size > 0 else IRLiteral(0)
+        ret_len = IRLiteral(return_abi_size)
 
         if use_staticcall:
             success = b.staticcall(
