@@ -491,7 +491,7 @@ class BottomT(VyperType):
     Bottom type, the ultimate subtype: is a subtype of every other type.
     It is uninhabited: no value has this type.
 
-    It is for example the element type for empty lists: `[]: DynArray[Never, 1]`
+    It is for example the element type for empty lists: `[]: DynArray[Never, 0]`
     """
 
     _id = "Never"  # see python's typing.Never
@@ -503,6 +503,14 @@ class BottomT(VyperType):
         The ABI type corresponding to this type
         """
         raise InvalidOperation(f"`{self._id}` does not have an abi encoding")
+
+
+class _Inf(VyperType):
+    _id = "INF"
+    _equality_attrs = ()
+
+
+INF_T = _Inf()
 
 
 class _VoidType(VyperType):

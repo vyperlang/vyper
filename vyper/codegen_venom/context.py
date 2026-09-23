@@ -13,10 +13,13 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Sequence
+from typing import ClassVar, Optional, Sequence
 
+from vyper.codegen.core import punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
+from vyper.codegen_venom.bytestring_literal import LiteralPool, chain_instructions
 from vyper.codegen_venom.value import VyperValue
+from vyper.compiler.settings import _opt_codesize, _opt_lowering_only_ir
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, MemoryAllocationException, StateAccessViolation
 from vyper.semantics.data_locations import DataLocation
@@ -45,6 +48,22 @@ class Constancy(Enum):
     Constant = 1
 
 
+def same_memory_layout(src_typ: VyperType, dst_typ: VyperType) -> bool:
+    """Return True if `dst_typ.memory_bytes_required` bytes copied from memory
+    laid out as `src_typ` form a valid `dst_typ` value.
+
+    `punnable` accepts a wider top-level DynArray capacity or bytestring
+    bound in `dst_typ` (the data present has the same layout), but a flat
+    copy of the destination size would then read past the source.
+
+    Not `src_typ != dst_typ`: `TupleT` compares by its never-populated
+    `members` dict, so any two tuple types are equal.
+    """
+    if not punnable(src_typ, dst_typ):
+        return False
+    return src_typ.memory_bytes_required == dst_typ.memory_bytes_required
+
+
 @dataclass
 class LocalVariable:
     """Tracks a variable during Venom codegen."""
@@ -52,7 +71,7 @@ class LocalVariable:
     name: str
     value: VyperValue  # must be located in MEMORY
     mutable: bool = True
-    scopes: set = field(default_factory=set)
+    scopes: set[int] = field(default_factory=set)
     is_pointer_cell: bool = False
 
     def __post_init__(self):
@@ -99,6 +118,13 @@ class VenomCodegenContext:
     # Range expression context - set to True when evaluating range/iterator expressions
     in_range_expr: bool = False
 
+    # set while lowering a revert reason or custom error arguments
+    on_revert_path: bool = False
+
+    # the literal data items of the code segment being lowered; None only
+    # for the dispatcher contexts, which lower no expressions
+    literal_pool: Optional[LiteralPool] = None
+
     # Immutables region alloca (for constructor context).
     # Reserves memory at position 0 for immutables staging;
     # used by deploy epilogue to copy staging area into bytecode.
@@ -125,11 +151,18 @@ class VenomCodegenContext:
         self.variables[name] = var
         return var
 
+    # Size of an unbounded (INF) local's pointer cell: two adjacent words,
+    # [payload_ptr][capacity]. See `store_pointer_cell`.
+    POINTER_CELL_SIZE = 64
+    POINTER_CELL_CAPACITY_OFFSET = 32
+
     def new_pointer_cell_variable(
         self, name: str, typ: VyperType, mutable: bool = True
     ) -> LocalVariable:
-        """Register a local whose stable memory cell stores its current memory pointer."""
-        buf = self.allocate_buffer(32, annotation=f"{name}_ptr")
+        """Register a local whose stable memory cell stores its current payload
+        pointer and capacity (see `store_pointer_cell`).
+        """
+        buf = self.allocate_buffer(self.POINTER_CELL_SIZE, annotation=f"{name}_ptr")
         value = VyperValue.from_ptr(buf.base_ptr(), typ)
         var = LocalVariable(
             name=name,
@@ -152,8 +185,10 @@ class VenomCodegenContext:
     def register_pointer_cell_variable(
         self, name: str, typ: VyperType, ptr: IRVariable, mutable: bool = True
     ) -> None:
-        """Register an existing memory cell that stores the local's current pointer."""
-        buf = Buffer(_ptr=ptr, size=32, annotation=f"{name}_ptr")
+        """Register an existing memory cell that stores the local's current payload
+        pointer and capacity (see `store_pointer_cell`).
+        """
+        buf = Buffer(_ptr=ptr, size=self.POINTER_CELL_SIZE, annotation=f"{name}_ptr")
         value = VyperValue.from_ptr(buf.base_ptr(), typ)
         var = LocalVariable(
             name=name,
@@ -163,6 +198,31 @@ class VenomCodegenContext:
             is_pointer_cell=True,
         )
         self.variables[name] = var
+
+    def store_pointer_cell(self, cell: IROperand, ptr: IROperand, capacity: IROperand) -> None:
+        """Store a local's current memory pointer and capacity into its pointer cell.
+
+        The 64-byte cell holds two words: the payload pointer at `cell` and
+        the capacity at `cell + 32`. Capacity is the element count the owned
+        payload has room for; 0 is a sentinel meaning "no owned spare room",
+        which forces reallocation on the next append. Every store except
+        DynArray append passes 0 (Bytes[INF]/String[INF] cells keep it
+        permanently 0 — bytestrings have no append).
+        """
+        assert isinstance(cell, IRVariable)
+        self.builder.mstore(cell, ptr)
+        capacity_slot = self.builder.add(cell, IRLiteral(self.POINTER_CELL_CAPACITY_OFFSET))
+        self.builder.mstore(capacity_slot, capacity)
+
+    def load_pointer_cell(self, cell: IROperand) -> tuple[IRVariable, IRVariable]:
+        """Load `(ptr, capacity)` from a pointer cell; layout in `store_pointer_cell`."""
+        assert isinstance(cell, IRVariable)
+        ptr = self.builder.mload(cell)
+        capacity_slot = self.builder.add(cell, IRLiteral(self.POINTER_CELL_CAPACITY_OFFSET))
+        capacity = self.builder.mload(capacity_slot)
+        assert isinstance(ptr, IRVariable)
+        assert isinstance(capacity, IRVariable)
+        return ptr, capacity
 
     def register_variable(
         self, name: str, typ: VyperType, ptr: IRVariable, mutable: bool = True
@@ -197,12 +257,28 @@ class VenomCodegenContext:
         val = self.new_temporary_value(typ, annotation=annotation)
         assert isinstance(val.operand, IRVariable)
 
+        if _opt_lowering_only_ir():
+            # the lowering-only levels keep the chain, they are not meant
+            # to optimize; `chain_instructions` is also what the pool's
+            # rewrite emits, so the two chains cannot drift apart
+            for inst in chain_instructions(self.builder.fn, val.operand, data):
+                self.builder.current_block.insert_instruction(inst)
+        else:
+            # the data item is exact (the last word is zeroed first) at
+            # codesize levels and in revert payloads, and padded to whole
+            # words otherwise; either way memory ends up identical to the
+            # mstore chain. a revert payload is built once on a failing
+            # path, so size wins there, while other literals may be
+            # rebuilt in loops.
+            padded = not (_opt_codesize() or self.on_revert_path)
+            assert self.literal_pool is not None
+            self.literal_pool.use(
+                self.builder, val.operand, data, padded=padded, revert_path=self.on_revert_path
+            )
+
+        # the length store goes last so that loads of the length stay
+        # forwardable no matter how precisely LoadAnalysis models the copy
         self.ptr_store(val.ptr(), IRLiteral(len(data)))
-        for i in range(0, len(data), 32):
-            chunk = (data + b"\x00" * 31)[i : i + 32]
-            word = int.from_bytes(chunk, "big")
-            offset = self.builder.add(val.operand, IRLiteral(32 + i))
-            self.builder.mstore(offset, IRLiteral(word))
 
         return val
 
@@ -280,7 +356,10 @@ class VenomCodegenContext:
         assert self.is_dynamic_tuple_frame_type(typ)
 
         if self.is_dynamic_tuple_frame_type(vv.typ):
-            return vv
+            assert isinstance(vv.typ, TupleT)
+            if self._frame_members_punnable(vv.typ, typ):
+                return vv
+            return self._dynamic_tuple_frame_from_frame(vv, typ, annotation=annotation)
 
         if not isinstance(vv.typ, TupleT):  # pragma: nocover
             raise CompilerPanic(f"expected tuple default value, got {vv.typ}")
@@ -315,14 +394,54 @@ class VenomCodegenContext:
 
         return self.dynamic_tuple_frame_value(frame, typ, annotation=annotation)
 
+    @staticmethod
+    def _frame_members_punnable(src_typ: TupleT, dst_typ: TupleT) -> bool:
+        # frame cells hold a word or a pointer, so member sizes do not matter
+        # for the frame itself, only each member's own layout
+        n = len(dst_typ.member_types)
+        assert len(src_typ.member_types) == n
+        return all(punnable(src_typ.member_types[i], dst_typ.member_types[i]) for i in range(n))
+
+    def _dynamic_tuple_frame_from_frame(
+        self, vv: VyperValue, typ: TupleT, annotation: Optional[str] = None
+    ) -> VyperValue:
+        """Rebuild a frame of a narrower tuple type in the layout of `typ`.
+
+        A member can be narrower than the corresponding member of `typ`
+        (e.g. DynArray[Bytes[10], 5] vs DynArray[Bytes[512], 5]) and its
+        data is read with the wider layout, so such members are copied.
+        """
+        assert isinstance(vv.typ, TupleT)
+        assert isinstance(vv.operand, IRVariable)
+        members = self.dynamic_tuple_frame_values(vv.operand, vv.typ, annotation=annotation)
+        frame = self.allocate_scratch(IRLiteral(self.dynamic_tuple_frame_size(typ)))
+
+        for i, dst_member_t in enumerate(typ.member_types):
+            cell = self.builder.add(frame, IRLiteral(i * 32))
+            member_vv = members[i]
+            if dst_member_t._is_prim_word:
+                value = member_vv.operand
+            else:
+                member_vv = self.ensure_memory_layout(
+                    member_vv, dst_member_t, annotation=annotation
+                )
+                value = self.unwrap(member_vv)
+            self.builder.mstore(cell, value)
+
+        return self.dynamic_tuple_frame_value(frame, typ, annotation=annotation)
+
     def load_pointer_cell_value(self, var: LocalVariable) -> VyperValue:
-        """Load the current dynamic memory pointer from a pointer-cell local."""
+        """Load the current payload pointer from a pointer-cell local.
+
+        Only the pointer word is read; the cell also carries capacity
+        (see `store_pointer_cell`).
+        """
         ptr = self.ptr_load(var.value.ptr())
         assert isinstance(ptr, IRVariable)
         return self.dynamic_memory_value(ptr, var.value.typ, annotation=var.name)
 
     def lookup(self, name: str) -> LocalVariable:
-        """Get variable by name."""
+        """Get a local registered in the current scope, as guaranteed by semantic analysis."""
         return self.variables[name]
 
     def unwrap(self, vv: VyperValue) -> IROperand:
@@ -462,14 +581,20 @@ class VenomCodegenContext:
         return self.unchecked_dynarray_runtime_size_from_length(length, typ)
 
     def dynarray_runtime_abi_size(self, ptr: IRVariable, typ: DArrayT) -> IROperand:
-        """Return runtime ABI size for an unbounded DynArray with static ABI elements."""
-        if typ.value_type.abi_type.is_dynamic():
-            raise CompilerPanic(
-                "semantic analysis should reject DynArray[..., INF] with ABI-dynamic elements"
-            )  # pragma: nocover
+        """Return a runtime bound on the ABI-encoded size of an unbounded DynArray.
+
+        The result is exact for ABI-static elements. For ABI-dynamic elements
+        (e.g. `DynArray[Bytes[512], INF]`) every element is charged its full
+        head + tail bound, so the result is an upper bound on the encoded size,
+        not the encoded length. Callers may use it only to size buffers and
+        must take the real length from the encoder's return value.
+        """
         length = self.builder.mload(ptr)
-        elem_size = typ.value_type.abi_type.embedded_static_size()
-        data_size = self.checked_mul(length, IRLiteral(elem_size))
+        elem_abi_t = typ.value_type.abi_type
+        # Element types are bounded (semantic analysis rejects nested INF), so
+        # the per-element bound is a compile-time constant.
+        elem_bound = elem_abi_t.embedded_static_size() + elem_abi_t.embedded_dynamic_size_bound()
+        data_size = self.checked_mul(length, IRLiteral(elem_bound))
         return self.checked_add(IRLiteral(32), data_size)
 
     def sequence_runtime_size(self, ptr: IRVariable, typ: VyperType) -> IROperand:
@@ -509,6 +634,17 @@ class VenomCodegenContext:
             self.builder.extcodecopy(address, data_ptr, offset, length)
         return self.dynamic_memory_value(ptr, typ, annotation=annotation)
 
+    def materialize_returndata_bytes(self, typ: VyperType) -> VyperValue:
+        """Copy the whole returndata into a runtime-sized bytestring memory value."""
+        length = self.builder.returndatasize()
+        size = self.bytestring_runtime_size_from_length(length)
+        ptr = self.allocate_scratch(size)
+        self.builder.mstore(ptr, length)
+        self.zero_bytestring_padding(ptr, length)
+        data_ptr = self.builder.add(ptr, IRLiteral(32))
+        self.builder.returndatacopy(data_ptr, IRLiteral(0), length)
+        return self.dynamic_memory_value(ptr, typ)
+
     def materialize_bytes_from_location(
         self,
         offset: IROperand,
@@ -547,12 +683,32 @@ class VenomCodegenContext:
                 size = self.unchecked_dynarray_runtime_size(src, typ)
             else:
                 size = self.dynarray_runtime_size(src, typ)
+            if self.unbounded_dynarray_element_layout_differs(typ, vv.typ):
+                # Widened elements (e.g. DynArray[Bytes[10], 5] copied into
+                # DynArray[Bytes[512], INF]) have a different memory stride,
+                # so a byte copy would misplace them.
+                assert isinstance(vv.typ, DArrayT)
+                dst = self.allocate_scratch(size)
+                self._copy_dynarray_memory_typed(dst, typ, src, vv.typ)
+                return self.dynamic_memory_value(dst, typ, annotation=annotation)
         else:
             raise CompilerPanic(f"expected unbounded sequence type, got {typ}")  # pragma: nocover
 
         dst = self.allocate_scratch(size)
         self.copy_memory_dynamic(dst, src, size)
         return self.dynamic_memory_value(dst, typ, annotation=annotation)
+
+    @staticmethod
+    def unbounded_dynarray_element_layout_differs(dst_typ: VyperType, src_typ: VyperType) -> bool:
+        """True when copying `src_typ` into the unbounded DynArray `dst_typ` must
+        convert element layout. Conservatively true whenever the element types
+        differ (matches `_copy_dynarray_memory_typed`'s fast-path predicate)."""
+        return (
+            isinstance(dst_typ, DArrayT)
+            and is_unbounded_dynarray_type(dst_typ)
+            and isinstance(src_typ, DArrayT)
+            and src_typ.value_type != dst_typ.value_type
+        )
 
     def materialize_value(
         self, vv: VyperValue, typ: Optional[VyperType] = None, annotation: Optional[str] = None
@@ -565,6 +721,20 @@ class VenomCodegenContext:
         assert isinstance(ret.operand, IRVariable)
         self.store_vyper_value(vv, ret.operand, typ)
         return ret
+
+    def ensure_memory_layout(
+        self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
+    ) -> VyperValue:
+        """Return `vv` laid out as `typ`, copying only when the layouts differ."""
+        if punnable(vv.typ, typ):
+            return vv
+
+        if is_unbounded_sequence_type(typ):
+            # an unbounded type has no bounded temporary; the scratch copy
+            # already converts the element layout
+            return self.copy_sequence_to_scratch(vv, typ, annotation=annotation)
+
+        return self.materialize_value(vv, typ, annotation=annotation)
 
     def snapshot_value_for_delayed_use(
         self,
@@ -724,6 +894,15 @@ class VenomCodegenContext:
         finally:
             self.in_range_expr = prev_value
 
+    @contextmanager
+    def revert_scope(self):
+        old_constancy, old_on_revert_path = self.constancy, self.on_revert_path
+        self.constancy, self.on_revert_path = Constancy.Constant, True
+        try:
+            yield
+        finally:
+            self.constancy, self.on_revert_path = old_constancy, old_on_revert_path
+
     # === Nonreentrant Lock Support ===
 
     def emit_nonreentrant_lock(self, func_t: ContractFunctionT) -> None:
@@ -812,7 +991,7 @@ class VenomCodegenContext:
             else:
                 copy_len = self.unchecked_bytestring_runtime_size(val)
             self.copy_memory_dynamic(ptr, val, copy_len, self.memory_size_bound(src_typ))
-        elif src_typ != typ:
+        elif not same_memory_layout(src_typ, typ):
             # Layout-aware copy for assignments between compatible but not
             # identical memory layouts (e.g. DynArray[Bytes[540]] -> DynArray[Bytes[704]]).
             self._store_memory_typed(dst=ptr, dst_typ=typ, src=val, src_typ=src_typ)
@@ -896,72 +1075,51 @@ class VenomCodegenContext:
             return
 
         # Slow path: runtime loop, element-by-element copy.
-        b = self.builder
-        length = IRLiteral(count)
-
-        cond_block = b.create_block("typed_sa_copy_cond")
-        body_block = b.create_block("typed_sa_copy_body")
-        exit_block = b.create_block("typed_sa_copy_exit")
-
-        counter = b.assign(IRLiteral(0))
-        b.jmp(cond_block.label)
-
-        b.append_block(cond_block)
-        b.set_block(cond_block)
-        done = b.iszero(b.lt(counter, length))
-        cond_finish = b.current_block
-
-        b.append_block(body_block)
-        b.set_block(body_block)
-
-        src_ofst = b.mul(counter, IRLiteral(src_elem_size))
-        dst_ofst = b.mul(counter, IRLiteral(dst_elem_size))
-        src_elem_ptr = b.add(src, src_ofst)
-        dst_elem_ptr = b.add(dst, dst_ofst)
-
-        self._store_memory_typed(dst_elem_ptr, dst_elem_t, src_elem_ptr, src_elem_t)
-
-        new_counter = b.add(counter, IRLiteral(1))
-        b.assign_to(new_counter, counter)
-        b.jmp(cond_block.label)
-
-        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
-        b.append_block(exit_block)
-        b.set_block(exit_block)
+        self._copy_elements_typed(dst, dst_elem_t, src, src_elem_t, IRLiteral(count))
 
     def _copy_dynarray_memory_typed(
         self, dst: IRVariable, dst_typ: DArrayT, src: IROperand, src_typ: DArrayT
     ) -> None:
         """Copy DynArray in memory when source and destination element layouts may differ."""
-        if not is_bounded_length(dst_typ.length):
-            raise CompilerPanic(
-                "unbounded DynArray memory copies should use pointer-cell assignment"
-            )  # pragma: nocover
         b = self.builder
         assert isinstance(src, IRVariable)
         length = b.mload(src)
-        # defensive: runtime length must not exceed destination capacity
-        b.assert_(b.iszero(b.gt(length, IRLiteral(dst_typ.length))))
+        if is_bounded_length(dst_typ.length):
+            # defensive: runtime length must not exceed destination capacity
+            b.assert_(b.iszero(b.gt(length, IRLiteral(dst_typ.length))))
         b.mstore(dst, length)
 
         dst_elem_t = dst_typ.value_type
         src_elem_t = src_typ.value_type
         dst_elem_size = dst_elem_t.memory_bytes_required
-        src_elem_size = src_elem_t.memory_bytes_required
-
         src_data = self._with_byte_offset(src, 32)
         dst_data = self._with_byte_offset(dst, 32)
 
         # Fast path when element layouts match: copy exactly `length` elements.
-        if src_elem_t == dst_elem_t and src_elem_size == dst_elem_size:
+        if src_elem_t == dst_elem_t:
             data_size = b.mul(length, IRLiteral(dst_elem_size))
             assert isinstance(dst_data, IRVariable)
             self.copy_memory_dynamic(dst_data, src_data, data_size, self.data_size_bound(src_typ))
             return
 
-        cond_block = b.create_block("typed_dyn_copy_cond")
-        body_block = b.create_block("typed_dyn_copy_body")
-        exit_block = b.create_block("typed_dyn_copy_exit")
+        self._copy_elements_typed(dst_data, dst_elem_t, src_data, src_elem_t, length)
+
+    def _copy_elements_typed(
+        self,
+        dst_data: IROperand,
+        dst_elem_t: VyperType,
+        src_data: IROperand,
+        src_elem_t: VyperType,
+        length: IROperand,
+    ) -> None:
+        """Copy `length` array elements one at a time, converting layouts."""
+        b = self.builder
+        dst_elem_size = dst_elem_t.memory_bytes_required
+        src_elem_size = src_elem_t.memory_bytes_required
+
+        cond_block = b.create_block("typed_elem_copy_cond")
+        body_block = b.create_block("typed_elem_copy_body")
+        exit_block = b.create_block("typed_elem_copy_exit")
 
         counter = b.assign(IRLiteral(0))
         b.jmp(cond_block.label)
@@ -1073,7 +1231,7 @@ class VenomCodegenContext:
         b.get_last_inst("staticcall").memory_read_max_size = max_length
         b.assert_(success)
 
-    _ALLOCATION_LIMIT: int = 2**64
+    _ALLOCATION_LIMIT: ClassVar[int] = 2**64
 
     def allocate_buffer(self, size: int, annotation: Optional[str] = None) -> Buffer:
         """Allocate anonymous memory buffer. Use buf.base_ptr() to get a Ptr."""
@@ -1199,7 +1357,6 @@ class VenomCodegenContext:
         Byte-addressed spaces (memory) use scale=32.
 
         Used for storage↔memory and transient↔memory bulk copies.
-        One parameterized loop → one HOL inductive proof covers all 4 directions.
         """
         b = self.builder
 

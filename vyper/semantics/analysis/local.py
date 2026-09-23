@@ -79,14 +79,29 @@ from vyper.semantics.types.infinity import (
 from vyper.semantics.types.utils import type_from_annotation
 
 
-def _expr_contains_unbounded_sequence(node: vy_ast.VyperNode) -> bool:
-    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return any(_expr_contains_unbounded_sequence(item) for item in node.elements)
+def _expr_contains_unbounded_sequence(node: vy_ast.VyperNode, typ: VyperType) -> bool:
+    # walk literals alongside the expected type. a literal whose shape does
+    # not match `typ` is rejected later, when it is visited
+    if isinstance(node, vy_ast.Tuple) and isinstance(typ, TupleT):
+        return any(
+            _expr_contains_unbounded_sequence(item, item_typ)
+            for item, item_typ in zip(node.elements, typ.member_types)
+        )
+    if isinstance(node, vy_ast.List) and isinstance(typ, (SArrayT, DArrayT)):
+        return any(
+            _expr_contains_unbounded_sequence(item, typ.value_type) for item in node.elements
+        )
 
     try:
-        return type_contains_unbounded_sequence(get_exact_type_from_node(node))
+        actual_typ = get_exact_type_from_node(node)
     except VyperException:
         return False
+
+    if typ.has_wildcard:
+        # resolve a wildcard call return against the element's expected
+        # type, the same way `ExprVisitor.visit_Call` does for arguments
+        actual_typ = actual_typ.resolve_wildcard()
+    return type_contains_unbounded_sequence(actual_typ)
 
 
 def analyze_functions(vy_module: vy_ast.Module) -> None:
@@ -689,6 +704,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
         iter_val = iter_node.reduced()
 
         if isinstance(iter_val, vy_ast.List):
+            # TODO: This branch only exists because get_exact_type_from_node on e.g. `[1, 2]`
+            # raises, once every node has a single type, remove this branch
             len_ = len(iter_val.elements)
             if len_ == 0:
                 raise StructureException("For loop must have at least 1 iteration", iter_node)
@@ -704,6 +721,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
         # with generic length.
         if not isinstance(iter_type, (DArrayT, SArrayT)):
             raise InvalidType("Not an iterable type", iter_node)
+
+        # lint as error: the loop will never run
+        if iter_type.count == 0:
+            raise StructureException("For loop must have at least 1 iteration", iter_node)
 
         if not iter_type.value_type.is_subtype_of(target_type):
             # Isn't the expected type the target type ?
@@ -864,7 +885,7 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
         # that provably bounded expressions get a bounded annotation.
         if any(isinstance(getattr(t, "value_type", None), BottomT) for t in possible_types):
             # the empty list literal infers as the single type
-            # `DynArray[Never, 1]`, which matches any expected type and so
+            # `DynArray[Never, 0]`, which matches any expected type and so
             # disambiguates nothing. enumerate its element types instead.
             possible_types = empty_list_candidate_types()
 
@@ -1054,13 +1075,19 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
 
             for arg, arg_typ in zip(node.args, func_type.argument_types):
                 if isinstance(arg, (vy_ast.Tuple, vy_ast.List)):
-                    has_nested_unbounded = _expr_contains_unbounded_sequence(arg)
+                    has_nested_unbounded = _expr_contains_unbounded_sequence(arg, arg_typ)
                 else:
                     try:
                         actual_arg_typ = get_exact_type_from_node(arg)
                     except VyperException:
                         has_nested_unbounded = False
                     else:
+                        if arg_typ.has_wildcard:
+                            # a wildcard call return resolves to the parameter
+                            # type, unless the parameter is itself a wildcard,
+                            # in which case it resolves to INF (see the
+                            # external call handling below)
+                            actual_arg_typ = actual_arg_typ.resolve_wildcard()
                         has_nested_unbounded = type_contains_nested_unbounded_sequence(
                             actual_arg_typ
                         )
