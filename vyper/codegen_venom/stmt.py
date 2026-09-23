@@ -48,7 +48,7 @@ from .builtins.simple import get_empty_type
 from .calling_convention import returns_dynamic_count, returns_stack_count
 from .context import LocalVariable, VenomCodegenContext, same_memory_layout
 from .eval_order import later_expressions_can_mutate_memory_or_storage
-from .expr import Expr, get_referenced_variables
+from .expr import Expr, get_referenced_variables, is_unbounded_struct_member
 from .value import VyperValue
 
 
@@ -168,6 +168,16 @@ class Stmt:
                 self._assign_unbounded_sequence_local(var, src, target_typ)
                 return
 
+        if is_unbounded_struct_member(target):
+            # the member's cell is rebound to a fresh payload; the empty
+            # fast path below would instead write into the current payload,
+            # which the struct may share with its copies
+            assert isinstance(target, vy_ast.Attribute)
+            src = Expr(node.value, self.ctx).lower()
+            cell = Expr(target, self.ctx).struct_member_cell_ptr()
+            self._assign_unbounded_sequence_cell(cell, src, target_typ, annotation=target.attr)
+            return
+
         # Special case: empty Bytestring/DynArray assignment — just zero the
         # length word.
         if has_length_word(target_typ) and self._is_empty_value(node.value):
@@ -185,10 +195,16 @@ class Stmt:
     def _assign_unbounded_sequence_local(self, var: LocalVariable, src: VyperValue, typ: VyperType):
         if not var.is_pointer_cell:  # pragma: nocover
             raise CompilerPanic("unbounded sequence local requires pointer-cell storage")
+        self._assign_unbounded_sequence_cell(var.value.operand, src, typ, annotation=var.name)
+
+    def _assign_unbounded_sequence_cell(
+        self, cell: IROperand, src: VyperValue, typ: VyperType, annotation: str
+    ) -> None:
+        """Rebind a pointer cell to an exact-sized copy of `src`."""
         if not is_unbounded_sequence_type(typ):  # pragma: nocover
             raise CompilerPanic(f"expected unbounded sequence type, got {typ}")
-        value = self.ctx.copy_sequence_to_scratch(src, typ, annotation=var.name)
-        self.ctx.store_pointer_cell(var.value.operand, value.operand, IRLiteral(0))
+        value = self.ctx.copy_sequence_to_scratch(src, typ, annotation=annotation)
+        self.ctx.store_pointer_cell(cell, value.operand, IRLiteral(0))
 
     def _assign_value(
         self, dst_ptr: Ptr, src: VyperValue, typ: VyperType, *, src_node: vy_ast.VyperNode
@@ -360,6 +376,18 @@ class Stmt:
                     self._assign_unbounded_sequence_local(var, src_vv, dst_elem_typ)
                     continue
 
+            if is_unbounded_struct_member(target_node):
+                assert isinstance(target_node, vy_ast.Attribute)
+                assert isinstance(val, IRVariable)
+                src_vv = self.ctx.dynamic_memory_value(
+                    val, src_elem_typ, annotation=target_node.attr
+                )
+                cell = Expr(target_node, self.ctx).struct_member_cell_ptr()
+                self._assign_unbounded_sequence_cell(
+                    cell, src_vv, dst_elem_typ, annotation=target_node.attr
+                )
+                continue
+
             target_ptr = self._get_target_ptr(target_node)
 
             if dst_elem_typ._is_prim_word:
@@ -387,6 +415,14 @@ class Stmt:
                     assert is_unbounded_sequence_type(dst_elem_typ)
                     self._assign_unbounded_sequence_local(var, src_vv, dst_elem_typ)
                     continue
+
+            if is_unbounded_struct_member(target_node):
+                assert isinstance(target_node, vy_ast.Attribute)
+                cell = Expr(target_node, self.ctx).struct_member_cell_ptr()
+                self._assign_unbounded_sequence_cell(
+                    cell, src_vv, dst_elem_typ, annotation=target_node.attr
+                )
+                continue
 
             target_ptr = self._get_target_ptr(target_node)
             if dst_elem_typ._is_prim_word:

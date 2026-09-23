@@ -164,6 +164,17 @@ def _subscript_read_write_overlap(
     return _contains_risky_call(index_node)
 
 
+def is_unbounded_struct_member(node: vy_ast.VyperNode) -> bool:
+    """Return True if `node` is an unbounded member of a struct value, which
+    a pointer cell represents (see `VenomCodegenContext.store_pointer_cell`).
+    """
+    if not isinstance(node, vy_ast.Attribute):
+        return False
+    if not isinstance(node.value._metadata.get("type"), StructT):
+        return False
+    return is_unbounded_sequence_type(node._metadata["type"])
+
+
 def _subscript_base_length_can_stale(base_node: vy_ast.VyperNode) -> bool:
     # A pointer which passes through a dynamic array element anywhere in its
     # derivation chain can be invalidated by resizing the enclosing array.
@@ -1258,7 +1269,14 @@ class Expr:
             # `VenomCodegenContext.store_pointer_cell`).
             assert data_loc == DataLocation.MEMORY
             assert isinstance(field_ptr, IRVariable)
-            payload = self.builder.mload(field_ptr)
+            if self.as_ptr:
+                # an assignment target writes into the payload, which the
+                # cell has to own; a bytestring member has no element writes
+                if not isinstance(field_typ, DArrayT):  # pragma: nocover
+                    raise CompilerPanic(f"no in-place write into {field_typ}")
+                payload = self.ctx.materialize_owned_dynarray_cell(field_ptr, field_typ)
+            else:
+                payload = self.builder.mload(field_ptr)
             assert isinstance(payload, IRVariable)
             return self.ctx.dynamic_memory_value(payload, field_typ, annotation=attr)
 
@@ -1877,17 +1895,8 @@ class Expr:
         assert isinstance(darray_typ, DArrayT)
         elem_typ = darray_typ.value_type
 
-        if not isinstance(darray_node, vy_ast.Name):
-            raise CompilerPanic(
-                "semantic analysis should reject append() on non-local DynArray[..., INF]"
-            )  # pragma: nocover
-
-        var = self.ctx.lookup(darray_node.id)
-        if not var.is_pointer_cell:
-            raise CompilerPanic(
-                "unbounded DynArray append expects pointer-cell storage"
-            )  # pragma: nocover
-
+        # the element is read before the receiver's cell so that
+        # `xs.append(xs[0])` reads the payload the append then replaces
         arg_vv = Expr(node.args[0], self.ctx).lower()
         arg_val = self.ctx.unwrap(arg_vv)
 
@@ -1901,7 +1910,19 @@ class Expr:
 
         b = self.builder
 
-        cell = var.value.operand
+        if isinstance(darray_node, vy_ast.Name):
+            var = self.ctx.lookup(darray_node.id)
+            if not var.is_pointer_cell:
+                raise CompilerPanic(
+                    "unbounded DynArray append expects pointer-cell storage"
+                )  # pragma: nocover
+            cell = var.value.operand
+        elif is_unbounded_struct_member(darray_node):
+            cell = Expr(darray_node, self.ctx).struct_member_cell_ptr()
+        else:
+            raise CompilerPanic(
+                "semantic analysis should reject append() on this DynArray[..., INF]"
+            )  # pragma: nocover
         assert isinstance(cell, IRVariable)
         old_ptr, capacity = self.ctx.load_pointer_cell(cell)
         length = b.mload(old_ptr)
@@ -1967,8 +1988,10 @@ class Expr:
         darray_typ = darray_node._metadata["type"]
         elem_typ = darray_typ.value_type
 
-        # Get the array VyperValue
-        darray_vv = Expr(darray_node, self.ctx).lower()
+        # Get the array VyperValue. An unbounded struct member is written
+        # through a payload its cell owns (see `_lower_struct_field`).
+        as_ptr = is_unbounded_struct_member(darray_node)
+        darray_vv = Expr(darray_node, self.ctx, as_ptr=as_ptr).lower()
         darray_ptr = darray_vv.operand
 
         # Get location from VyperValue

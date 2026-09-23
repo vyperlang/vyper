@@ -754,3 +754,407 @@ def f(s: S) -> (uint256, uint256, uint256):
 
     c = get_contract(code)
     assert c.f(([1, 2], 3)) == (1, 2, 3)
+
+
+# Mutation of an unbounded member. The struct holds a pointer cell for the
+# member; a member assignment rebinds the cell to a fresh payload, and an
+# element store, append or pop first copies a payload the cell does not own
+# (capacity 0) so that no other struct observes the write.
+
+BATCH = """
+struct Batch:
+    owner: address
+    values: DynArray[uint256, INF]
+"""
+
+OWNER = "0x" + "12" * 20
+
+
+def test_member_assign_from_local(get_contract):
+    code = BATCH + """
+@external
+def f(b: Batch) -> (address, DynArray[uint256, INF], uint256):
+    c: Batch = b
+    v: DynArray[uint256, INF] = [7, 8, 9]
+    c.values = v
+    v.append(10)
+    return c.owner, c.values, len(c.values)
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1, 2])) == (OWNER, [7, 8, 9], 3)
+
+
+def test_member_assign_from_other_member(get_contract):
+    code = BATCH + """
+@external
+def f(b: Batch, d: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+    c: Batch = b
+    e: Batch = d
+    c.values = e.values
+    e.values.append(100)
+    return c.values, e.values
+    """
+
+    c = get_contract(code)
+    other = "0x" + "34" * 20
+    assert c.f((OWNER, [1, 2]), (other, [5, 6, 7])) == ([5, 6, 7], [5, 6, 7, 100])
+
+
+def test_member_assign_from_external_arg_member(get_contract):
+    code = BATCH + """
+@external
+def f(b: Batch, d: Batch) -> Batch:
+    c: Batch = b
+    c.values = d.values
+    return c
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1, 2]), ("0x" + "34" * 20, [5, 6, 7])) == (OWNER, [5, 6, 7])
+
+
+def test_member_assign_from_literal(get_contract):
+    code = BATCH + """
+@external
+def f(b: Batch) -> (DynArray[uint256, INF], uint256):
+    c: Batch = b
+    c.values = [7, 8, 9, 10]
+    return c.values, len(c.values)
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1])) == ([7, 8, 9, 10], 4)
+
+
+@pytest.mark.parametrize("empty_value", ["[]", "empty(DynArray[uint256, INF])"])
+def test_member_assign_empty(get_contract, empty_value):
+    code = BATCH + f"""
+@external
+def f(b: Batch) -> (DynArray[uint256, INF], uint256):
+    c: Batch = b
+    c.values = {empty_value}
+    return c.values, len(c.values)
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1, 2, 3])) == ([], 0)
+
+
+def test_member_assign_from_internal_call(get_contract):
+    code = BATCH + """
+@internal
+def make(n: uint256) -> DynArray[uint256, INF]:
+    xs: DynArray[uint256, INF] = []
+    for i: uint256 in range(n, bound=100):
+        xs.append(i * 10)
+    return xs
+
+@external
+def f(b: Batch, n: uint256) -> (DynArray[uint256, INF], uint256):
+    c: Batch = b
+    c.values = self.make(n)
+    return c.values, len(c.values)
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1, 2, 3]), 5) == ([0, 10, 20, 30, 40], 5)
+    assert c.f((OWNER, [1, 2, 3]), 0) == ([], 0)
+
+
+def test_member_assign_to_itself(get_contract):
+    code = BATCH + """
+@external
+def f(b: Batch) -> (DynArray[uint256, INF], uint256):
+    c: Batch = b
+    c.values = c.values
+    c.values.append(4)
+    return c.values, len(c.values)
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1, 2, 3])) == ([1, 2, 3, 4], 4)
+
+
+def test_member_element_store(get_contract):
+    code = BATCH + """
+@external
+def f(b: Batch, i: uint256, x: uint256) -> (DynArray[uint256, INF], uint256):
+    c: Batch = b
+    c.values[i] = x
+    c.values[i] += 1
+    return c.values, len(c.values)
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1, 2, 3]), 1, 20) == ([1, 21, 3], 3)
+    assert c.f((OWNER, [1, 2, 3]), 2, 0) == ([1, 2, 1], 3)
+
+
+def test_member_element_store_out_of_bounds_reverts(get_contract, tx_failed):
+    code = BATCH + """
+@external
+def f(b: Batch, i: uint256):
+    c: Batch = b
+    c.values[i] = 1
+    """
+
+    c = get_contract(code)
+    with tx_failed():
+        c.f((OWNER, [1, 2, 3]), 3)
+    with tx_failed():
+        c.f((OWNER, []), 0)
+
+
+def test_member_element_store_from_pop(get_contract):
+    code = BATCH + """
+@external
+def f(b: Batch) -> (DynArray[uint256, INF], uint256):
+    c: Batch = b
+    c.values[0] = c.values.pop()
+    return c.values, len(c.values)
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1, 2, 3])) == ([3, 2], 2)
+
+
+def test_member_element_store_from_own_element(get_contract):
+    code = """
+struct Blob:
+    tag: uint256
+    chunks: DynArray[Bytes[32], INF]
+
+@external
+def f(b: Blob, i: uint256, j: uint256) -> (DynArray[Bytes[32], INF], uint256):
+    c: Blob = b
+    c.chunks[i] = c.chunks[j]
+    return c.chunks, len(c.chunks)
+    """
+
+    c = get_contract(code)
+    chunks = [b"a" * 32, b"bb", b"ccc"]
+    assert c.f((1, chunks), 0, 2) == ([b"ccc", b"bb", b"ccc"], 3)
+    assert c.f((1, chunks), 2, 0) == ([b"a" * 32, b"bb", b"a" * 32], 3)
+
+
+def test_member_element_field_store(get_contract):
+    code = """
+struct Point:
+    x: uint256
+    y: uint256
+
+struct Path:
+    name: String[8]
+    points: DynArray[Point, INF]
+
+@external
+def f(p: Path, i: uint256) -> Path:
+    c: Path = p
+    c.points[i].y = 99
+    return c
+    """
+
+    c = get_contract(code)
+    assert c.f(("p", [(1, 2), (3, 4)]), 1) == ("p", [(1, 2), (3, 99)])
+
+
+def test_member_append_from_empty(get_contract):
+    code = BATCH + """
+@external
+def f(n: uint256) -> (DynArray[uint256, INF], uint256):
+    c: Batch = Batch(owner=self, values=[])
+    for i: uint256 in range(n, bound=64):
+        c.values.append(i)
+    return c.values, len(c.values)
+    """
+
+    c = get_contract(code)
+    for n in [0, 1, 2, 3, 40]:
+        assert c.f(n) == (list(range(n)), n)
+
+
+def test_member_append_own_element(get_contract):
+    code = BATCH + """
+@external
+def f(b: Batch) -> (DynArray[uint256, INF], uint256):
+    c: Batch = b
+    c.values.append(c.values[0])
+    c.values.append(c.values[0])
+    return c.values, len(c.values)
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [7, 8])) == ([7, 8, 7, 7], 4)
+
+
+def test_member_pop_then_append(get_contract):
+    code = BATCH + """
+@external
+def f(b: Batch) -> (DynArray[uint256, INF], uint256, uint256, uint256):
+    c: Batch = b
+    first: uint256 = c.values.pop()
+    second: uint256 = c.values.pop()
+    n: uint256 = len(c.values)
+    c.values.append(30)
+    return c.values, first, second, n
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1, 2])) == ([30], 2, 1, 0)
+
+
+def test_member_pop_empty_reverts(get_contract, tx_failed):
+    code = BATCH + """
+@external
+def f(b: Batch) -> uint256:
+    c: Batch = b
+    return c.values.pop()
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [5])) == 5
+    with tx_failed():
+        c.f((OWNER, []))
+
+
+def test_nested_member_mutation(get_contract):
+    code = BATCH + """
+struct Outer:
+    tag: uint256
+    inner: Batch
+
+@external
+def assign(o: Outer) -> (uint256, DynArray[uint256, INF], uint256):
+    c: Outer = o
+    c.inner.values = [7, 8]
+    return c.tag, c.inner.values, len(c.inner.values)
+
+@external
+def store(o: Outer, i: uint256, x: uint256) -> Outer:
+    c: Outer = o
+    c.inner.values[i] = x
+    c.inner.values[i] += 1
+    return c
+
+@external
+def append(o: Outer, n: uint256) -> (DynArray[uint256, INF], uint256):
+    c: Outer = o
+    for i: uint256 in range(n, bound=40):
+        c.inner.values.append(i)
+    return c.inner.values, len(c.inner.values)
+
+@external
+def pop(o: Outer) -> (DynArray[uint256, INF], uint256, uint256):
+    c: Outer = o
+    x: uint256 = c.inner.values.pop()
+    return c.inner.values, x, len(c.inner.values)
+    """
+
+    c = get_contract(code)
+    o = (9, (OWNER, [1, 2, 3]))
+    assert c.assign(o) == (9, [7, 8], 2)
+    assert c.store(o, 0, 10) == (9, (OWNER, [11, 2, 3]))
+    assert c.append(o, 3) == ([1, 2, 3, 0, 1, 2], 6)
+    assert c.append(o, 20) == ([1, 2, 3] + list(range(20)), 23)
+    assert c.pop(o) == ([1, 2], 3, 2)
+
+
+def test_bytestring_member_assign(get_contract):
+    code = """
+struct Msg:
+    payload: Bytes[INF]
+    name: String[INF]
+
+@external
+def literal(m: Msg) -> Msg:
+    c: Msg = m
+    c.payload = b"new payload"
+    c.name = "new name"
+    return c
+
+@external
+def local(m: Msg, data: Bytes[INF], name: String[INF]) -> (Bytes[INF], String[INF], uint256):
+    c: Msg = m
+    d: Bytes[INF] = data
+    s: String[INF] = name
+    c.payload = d
+    c.name = s
+    return c.payload, c.name, len(c.payload)
+
+@external
+def combined(m: Msg) -> Msg:
+    c: Msg = m
+    c.payload = concat(c.payload, b"-tail")
+    c.name = slice(c.name, 0, 3)
+    return c
+
+@external
+def emptied(m: Msg) -> (Bytes[INF], String[INF], uint256):
+    c: Msg = m
+    c.payload = b""
+    c.name = ""
+    return c.payload, c.name, len(c.payload)
+    """
+
+    c = get_contract(code)
+    m = (b"payload", "longname")
+    assert c.literal(m) == (b"new payload", "new name")
+    assert c.local(m, b"x" * 70, "y" * 40) == (b"x" * 70, "y" * 40, 70)
+    assert c.combined(m) == (b"payload-tail", "lon")
+    assert c.emptied(m) == (b"", "", 0)
+
+
+def test_member_assign_from_tuple_unpack(get_contract):
+    code = BATCH + """
+@internal
+def g() -> (uint256, DynArray[uint256, INF]):
+    return 7, [8, 9]
+
+@external
+def f(b: Batch) -> (uint256, DynArray[uint256, INF], uint256):
+    c: Batch = b
+    x: uint256 = 0
+    x, c.values = self.g()
+    c.values.append(10)
+    return x, c.values, len(c.values)
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1, 2, 3])) == (7, [8, 9, 10], 3)
+
+
+def test_mutated_struct_abi_roundtrip(get_contract, env):
+    code = BATCH + """
+@external
+def f(b: Batch) -> Batch:
+    c: Batch = b
+    c.values.append(4)
+    c.values[0] = 10
+    return c
+    """
+
+    c = get_contract(code)
+    calldata = method_id("f((address,uint256[]))") + eth_abi_encode(
+        ["(address,uint256[])"], [(OWNER, [1, 2, 3])]
+    )
+    output = env.message_call(c.address, data=calldata)
+    decoded_owner, decoded_values = eth_abi_decode(["(address,uint256[])"], output)[0]
+    assert decoded_owner == OWNER
+    assert list(decoded_values) == [10, 2, 3, 4]
+
+
+def test_member_read_does_not_copy_payload(compiler_settings):
+    # only a write through the member copies a payload the cell does not own
+    code = BATCH + """
+@external
+def f(b: Batch, i: uint256) -> (uint256, uint256):
+    c: Batch = b
+    acc: uint256 = 0
+    for v: uint256 in c.values:
+        acc += v
+    return acc, c.values[i]
+    """
+
+    ir = compile_code(code, output_formats=["ir_runtime"], settings=compiler_settings)
+    assert "cell_copy" not in str(ir["ir_runtime"])

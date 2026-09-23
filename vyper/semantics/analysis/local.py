@@ -119,12 +119,14 @@ def _expr_contains_unbounded_sequence(
     return not is_supported_unbounded_struct_type(actual_typ)
 
 
-def _reaches_through_unbounded_member(target: vy_ast.ExprNode) -> bool:
-    """Return True if the lvalue `target` goes through a struct's INF member.
+def _modifies_unbounded_member_through_subscript(target: vy_ast.ExprNode) -> bool:
+    """Return True if the lvalue `target` writes a struct's INF member of an
+    array element.
 
-    The member holds a pointer to its payload, and copying the struct copies
-    the pointer, so a write through it would also be visible through every
-    copy made so far.
+    The member holds a pointer to its payload. Array elements are written
+    only by whole-struct copies, which is what lets an array of such structs
+    be copied flat (see `VenomCodegenContext.zero_pointer_cell_capacities`);
+    a write through an element's member would break that.
     """
     node: vy_ast.VyperNode = target
     while isinstance(node, (vy_ast.Attribute, vy_ast.Subscript)):
@@ -134,7 +136,16 @@ def _reaches_through_unbounded_member(target: vy_ast.ExprNode) -> bool:
             if isinstance(get_expr_info(node.value).typ, StructT) and is_unbounded_sequence_type(
                 get_expr_info(node).typ
             ):
-                return True
+                return _reaches_through_subscript(node.value)
+        node = node.value
+
+    return False
+
+
+def _reaches_through_subscript(node: vy_ast.VyperNode) -> bool:
+    while isinstance(node, (vy_ast.Attribute, vy_ast.Subscript)):
+        if isinstance(node, vy_ast.Subscript):
+            return True
         node = node.value
 
     return False
@@ -616,11 +627,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 self._handle_modification(item)
             return
 
-        if _reaches_through_unbounded_member(target):
+        if _modifies_unbounded_member_through_subscript(target):
             raise StructureException(
-                "Cannot modify an unbounded sequence member of a struct",
+                "Cannot modify an unbounded sequence member through an array element",
                 target,
-                hint="build a new struct value instead",
+                hint="copy the element to a local, modify it, then store it back",
             )
 
         # check a modification of `target`. validate the modification is

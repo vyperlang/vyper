@@ -32,42 +32,42 @@ struct S:
     """,
         "Struct members cannot contain unbounded sequence types",
     ),
-    # mutation of a member would also be visible through every struct copy
+    # an array element's member is written only by whole-struct copies
     (
         BATCH + """
 @external
-def f(b: Batch, v: DynArray[uint256, INF]):
-    c: Batch = b
-    c.values = v
+def f(xs: DynArray[Batch, 3], v: DynArray[uint256, INF]):
+    ys: DynArray[Batch, 3] = xs
+    ys[0].values = v
     """,
-        "Cannot modify an unbounded sequence member of a struct",
+        "Cannot modify an unbounded sequence member through an array element",
     ),
     (
         BATCH + """
 @external
-def f(b: Batch):
-    c: Batch = b
-    c.values[0] = 5
+def f(xs: DynArray[Batch, 3], i: uint256):
+    ys: DynArray[Batch, 3] = xs
+    ys[i].values[0] = 1
     """,
-        "Cannot modify an unbounded sequence member of a struct",
+        "Cannot modify an unbounded sequence member through an array element",
     ),
     (
         BATCH + """
 @external
-def f(b: Batch):
-    c: Batch = b
-    c.values.append(1)
+def f(xs: DynArray[Batch, 3], i: uint256):
+    ys: DynArray[Batch, 3] = xs
+    ys[i].values.append(1)
     """,
-        "Cannot modify an unbounded sequence member of a struct",
+        "Cannot modify an unbounded sequence member through an array element",
     ),
     (
         BATCH + """
 @external
-def f(b: Batch) -> uint256:
-    c: Batch = b
-    return c.values.pop()
+def f(xs: DynArray[Batch, 3], i: uint256) -> uint256:
+    ys: DynArray[Batch, 3] = xs
+    return ys[i].values.pop()
     """,
-        "Cannot modify an unbounded sequence member of a struct",
+        "Cannot modify an unbounded sequence member through an array element",
     ),
     (
         BATCH + """
@@ -75,11 +75,11 @@ struct Outer:
     inner: Batch
 
 @external
-def f(o: Outer):
-    c: Outer = o
-    c.inner.values.append(1)
+def f(xs: DynArray[Outer, INF], i: uint256):
+    ys: DynArray[Outer, INF] = xs
+    ys[i].inner.values.append(1)
     """,
-        "Cannot modify an unbounded sequence member of a struct",
+        "Cannot modify an unbounded sequence member through an array element",
     ),
     # state variables of every word-addressed location stay rejected
     (BATCH + "\ns: Batch\n", "Module variables cannot use unbounded sequence types"),
@@ -319,6 +319,57 @@ def test_inf_struct_field_fail(bad_code, message):
         compile_code(bad_code, settings=Settings(experimental_codegen=True))
 
     assert isinstance(e.value, StructureException)
+    assert message in str(e.value)
+
+
+immutable_receivers = [
+    (
+        BATCH + """
+@external
+def f(xs: DynArray[Batch, 3]):
+    for b: Batch in xs:
+        b.values.append(1)
+    """,
+        "Environment variable cannot be written to",
+    ),
+    (
+        BATCH + """
+@external
+def f(b: Batch):
+    c: Batch = b
+    for v: uint256 in c.values:
+        c.values.append(1)
+    """,
+        "Cannot modify loop variable `c`",
+    ),
+    (
+        BATCH + """
+@external
+def f(b: Batch):
+    b.values.append(1)
+    """,
+        "Cannot write to calldata",
+    ),
+    (
+        BATCH + """
+@internal
+def g() -> Batch:
+    return Batch(owner=self, values=[])
+
+@external
+def f():
+    self.g().values.append(1)
+    """,
+        "Cannot modify temporary value",
+    ),
+]
+
+
+@pytest.mark.parametrize("bad_code,message", immutable_receivers)
+def test_inf_struct_member_immutable_receiver(bad_code, message):
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(bad_code, settings=Settings(experimental_codegen=True))
+
     assert message in str(e.value)
 
 
