@@ -649,11 +649,14 @@ field cap:
 
 Such a struct can be read, copied, passed to internal functions, built with the
 struct constructor, returned from external and internal functions, and used as
-the element type of a ``DynArray``. The member of a struct held in a local
-variable (or an internal function argument) can be assigned, indexed, appended
-to and popped from, also through nested struct members; copies of a struct
-never share a member with each other, so a write through one struct is not
-visible through another:
+the element type of a ``DynArray``. It can be passed to and returned from
+external calls, encoded and decoded with ``abi_encode`` and ``abi_decode``, used
+as an event or custom error member, printed, and passed as a ``create_*``
+constructor argument. The member of a struct held in a local variable (or an
+internal function argument) can be assigned, indexed, appended to and popped
+from, also through nested struct members; copies of a struct never share a
+member with each other, so a write through one struct is not visible through
+another:
 
 .. code-block:: vyper
 
@@ -678,11 +681,11 @@ The member must be a direct unbounded sequence, or another struct that
 satisfies the same rule; ``x: (Bytes[INF], uint256)`` and
 ``xs: DynArray[Batch, 3]`` are rejected as struct members. A struct with an
 unbounded member is also rejected in storage, transient storage, immutable and
-constant declarations, static arrays, mappings, events, custom errors,
-``print``, ``empty``, ``abi_encode``, ``abi_decode``, ``create_*``
-constructor arguments, and in the arguments and return values of external
-calls. It may not be returned inside a tuple, and ``DynArray`` of such structs
-may not be returned or encoded.
+constant declarations, static arrays, mappings and ``empty``. It may not be
+returned inside a tuple, and a ``DynArray`` of such structs may not be
+returned, encoded or decoded: not in external call arguments and return
+values, ``abi_encode``, ``abi_decode``, events, custom errors, ``print`` or
+``create_*`` constructor arguments.
 
 .. note::
     ``INF`` sequence types require ``#pragma experimental-codegen`` or compiling
