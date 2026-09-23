@@ -1272,8 +1272,7 @@ class Expr:
             if self.as_ptr:
                 # an assignment target writes into the payload, which the
                 # cell has to own; a bytestring member has no element writes
-                if not isinstance(field_typ, DArrayT):  # pragma: nocover
-                    raise CompilerPanic(f"no in-place write into {field_typ}")
+                assert isinstance(field_typ, DArrayT)
                 payload = self.ctx.materialize_owned_dynarray_cell(field_ptr, field_typ)
             else:
                 payload = self.builder.mload(field_ptr)
