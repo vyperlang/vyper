@@ -1124,6 +1124,27 @@ def f(b: Batch) -> (uint256, DynArray[uint256, INF], uint256):
     assert c.f((OWNER, [1, 2, 3])) == (7, [8, 9, 10], 3)
 
 
+def test_member_assign_from_bounded_tuple_unpack(get_contract):
+    # a source tuple without unbounded members is unpacked member by member
+    code = BATCH + """
+@internal
+def g() -> (uint256, DynArray[uint256, 3]):
+    return 7, [8, 9]
+
+@external
+def f(b: Batch) -> (uint256, DynArray[uint256, INF], uint256, uint256):
+    c: Batch = b
+    d: Batch = c
+    x: uint256 = 0
+    x, c.values = self.g()
+    c.values.append(10)
+    return x, c.values, len(c.values), len(d.values)
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1, 2, 3])) == (7, [8, 9, 10], 3, 3)
+
+
 def test_mutated_struct_abi_roundtrip(get_contract, env):
     code = BATCH + """
 @external
@@ -1176,10 +1197,14 @@ PREPARE = """
 
 
 def test_copy_then_mutate_copy(get_contract):
-    code = BATCH + """
+    code = (
+        BATCH
+        + """
 @external
 def declared(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
-""" + PREPARE + """
+"""
+        + PREPARE
+        + """
     copy: Batch = src
     copy.values.append(8)
     copy.values[0] = 100
@@ -1187,13 +1212,16 @@ def declared(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
 
 @external
 def reassigned(b: Batch, other: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
-""" + PREPARE + """
+"""
+        + PREPARE
+        + """
     copy: Batch = other
     copy = src
     copy.values.append(8)
     copy.values[0] = 100
     return src.values, copy.values
     """
+    )
 
     c = get_contract(code)
     b = (OWNER, [1, 2, 3])
@@ -1204,15 +1232,20 @@ def reassigned(b: Batch, other: Batch) -> (DynArray[uint256, INF], DynArray[uint
 def test_copy_then_mutate_source(get_contract):
     # fails if a struct copy leaves the source's capacity in place: the
     # source then appends into the payload the copy still references
-    code = BATCH + """
+    code = (
+        BATCH
+        + """
 @external
 def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
-""" + PREPARE + """
+"""
+        + PREPARE
+        + """
     copy: Batch = src
     src.values.append(8)
     src.values[0] = 100
     return src.values, copy.values
     """
+    )
 
     c = get_contract(code)
     assert c.f((OWNER, [1, 2, 3])) == ([100, 2, 3, 4, 5, 8], [1, 2, 3, 4, 5])
@@ -1220,10 +1253,14 @@ def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
 
 def test_copy_then_store_member_element(get_contract):
     # fails if an element store goes into the payload the cell does not own
-    code = BATCH + """
+    code = (
+        BATCH
+        + """
 @external
 def into_copy(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
-""" + PREPARE + """
+"""
+        + PREPARE
+        + """
     copy: Batch = src
     copy.values[0] = 100
     copy.values[1] += 100
@@ -1231,12 +1268,15 @@ def into_copy(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
 
 @external
 def into_source(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
-""" + PREPARE + """
+"""
+        + PREPARE
+        + """
     copy: Batch = src
     src.values[0] = 100
     src.values[1] += 100
     return src.values, copy.values
     """
+    )
 
     c = get_contract(code)
     assert c.into_copy((OWNER, [1, 2, 3])) == ([1, 2, 3, 4, 5], [100, 102, 3, 4, 5])
@@ -1275,10 +1315,14 @@ def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF], uint256):
 
 
 def test_member_copy_to_local_is_independent(get_contract):
-    code = BATCH + """
+    code = (
+        BATCH
+        + """
 @external
 def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
-""" + PREPARE + """
+"""
+        + PREPARE
+        + """
     v: DynArray[uint256, INF] = src.values
     v.append(6)
     src.values.append(7)
@@ -1286,6 +1330,7 @@ def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
     src.values[1] = 200
     return src.values, v
     """
+    )
 
     c = get_contract(code)
     assert c.f((OWNER, [1, 2, 3])) == ([1, 200, 3, 4, 5, 7], [100, 2, 3, 4, 5, 6])
@@ -1295,7 +1340,9 @@ def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
 def test_internal_call_arg_mutation_stays_in_callee(
     get_contract, compiler_settings, no_inlining_settings, inlining
 ):
-    code = BATCH + """
+    code = (
+        BATCH
+        + """
 @internal
 def mutate(b: Batch) -> Batch:
     b.values.append(9)
@@ -1304,11 +1351,14 @@ def mutate(b: Batch) -> Batch:
 
 @external
 def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
-""" + PREPARE + """
+"""
+        + PREPARE
+        + """
     out: Batch = self.mutate(src)
     src.values.append(6)
     return src.values, out.values
     """
+    )
 
     settings = compiler_settings if inlining else no_inlining_settings
     c = get_contract(code, compiler_settings=settings)
@@ -1364,34 +1414,44 @@ def f() -> (DynArray[uint256, INF], DynArray[uint256, INF]):
 
 
 def test_struct_constructor_member_copy_then_mutate(get_contract):
-    code = BATCH + """
+    code = (
+        BATCH
+        + """
 struct Outer:
     tag: uint256
     inner: Batch
 
 @external
 def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
-""" + PREPARE + """
+"""
+        + PREPARE
+        + """
     o: Outer = Outer(tag=1, inner=src)
     src.values.append(6)
     o.inner.values.append(7)
     return src.values, o.inner.values
     """
+    )
 
     c = get_contract(code)
     assert c.f((OWNER, [1, 2, 3])) == ([1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 7])
 
 
 def test_list_literal_copy_then_mutate(get_contract):
-    code = BATCH + """
+    code = (
+        BATCH
+        + """
 @external
 def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF], DynArray[uint256, INF]):
-""" + PREPARE + """
+"""
+        + PREPARE
+        + """
     xs: DynArray[Batch, 2] = [src, src]
     src.values.append(6)
     src.values[0] = 100
     return src.values, xs[0].values, xs[1].values
     """
+    )
 
     c = get_contract(code)
     assert c.f((OWNER, [1, 2, 3])) == ([100, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5])
