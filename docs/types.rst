@@ -617,11 +617,59 @@ bytes-oriented builtins such as ``concat``, ``slice``, ``convert``, ``empty`` an
 for example ``(uint256, Bytes[INF])``.
 
 Unbounded sequences are not supported in storage, transient storage, immutable
-module variables, struct members, static arrays, mappings, or as the element
-type of another ``DynArray``, bounded or unbounded. For example,
-``DynArray[Bytes[INF], INF]`` and ``DynArray[DynArray[uint256, INF], 3]`` are rejected.
-Tuple arguments and local tuple variables containing unbounded sequence members
-are also rejected.
+module variables, static arrays, mappings, or as the element type of another
+``DynArray``, bounded or unbounded. For example, ``DynArray[Bytes[INF], INF]``
+and ``DynArray[DynArray[uint256, INF], 3]`` are rejected. Tuple arguments and
+local tuple variables containing unbounded sequence members are also rejected.
+
+.. _unbounded_struct_members:
+
+Unbounded Struct Members
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+A struct member may itself be an unbounded sequence. Such a struct keeps its
+usual ABI encoding -- ``Batch`` below is the ABI tuple ``(address,uint256[])``
+-- so a signed batch or configuration struct does not have to pick an arbitrary
+field cap:
+
+.. code-block:: vyper
+
+    #pragma experimental-codegen
+
+    struct Batch:
+        owner: address
+        values: DynArray[uint256, INF]
+
+    @external
+    def total(b: Batch) -> uint256:
+        acc: uint256 = 0
+        for v: uint256 in b.values:
+            acc += v
+        return acc
+
+Such a struct can be read, copied, passed to internal functions, built with the
+struct constructor, returned from external and internal functions, and used as
+the element type of a ``DynArray``. The member itself may only be read -- the
+struct holds a reference to its payload, and copying the struct copies that
+reference, so writes through the member are rejected:
+
+.. code-block:: vyper
+
+    c: Batch = b
+    c.values = [1, 2]     # rejected
+    c.values[0] = 1       # rejected
+    c.values.append(1)    # rejected
+    c.values.pop()        # rejected
+
+The member must be a direct unbounded sequence, or another struct that
+satisfies the same rule; ``x: (Bytes[INF], uint256)`` and
+``xs: DynArray[Batch, 3]`` are rejected as struct members. A struct with an
+unbounded member is also rejected in storage, transient storage, immutable and
+constant declarations, static arrays, mappings, events, custom errors,
+``print``, ``empty``, ``abi_encode``, ``abi_decode``, ``create_*``
+constructor arguments, and in the arguments and return values of external
+calls. It may not be returned inside a tuple, and ``DynArray`` of such structs
+may not be returned.
 
 .. note::
     ``INF`` sequence types require ``#pragma experimental-codegen`` or compiling
