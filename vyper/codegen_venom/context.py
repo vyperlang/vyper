@@ -35,6 +35,7 @@ from vyper.semantics.types import (
     is_unbounded_dynarray_type,
     is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
+    unbounded_member_cells,
 )
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
@@ -225,6 +226,20 @@ class VenomCodegenContext:
         assert isinstance(ptr, IRVariable)
         assert isinstance(capacity, IRVariable)
         return ptr, capacity
+
+    def zero_pointer_cell_capacities(self, struct_ptr: IROperand, typ: StructT) -> None:
+        """Mark every pointer cell of a struct as sharing its payload.
+
+        A flat copy of the struct copies the cells, so both structs then
+        reference the same payloads. With capacity 0 on both sides the next
+        write through either cell reallocates instead of writing into the
+        shared payload.
+        """
+        for offset, _ in unbounded_member_cells(typ):
+            capacity_slot = self.builder.add(
+                struct_ptr, IRLiteral(offset + self.POINTER_CELL_CAPACITY_OFFSET)
+            )
+            self.builder.mstore(capacity_slot, IRLiteral(0))
 
     def register_variable(
         self, name: str, typ: VyperType, ptr: IRVariable, mutable: bool = True
@@ -999,6 +1014,8 @@ class VenomCodegenContext:
             self._store_memory_typed(dst=ptr, dst_typ=typ, src=val, src_typ=src_typ)
         else:
             # Complex type: val is a pointer, copy memory
+            if isinstance(typ, StructT) and type_contains_unbounded_sequence(typ):
+                self.zero_pointer_cell_capacities(val, typ)
             self.copy_memory(ptr, val, typ.memory_bytes_required)
 
     def _store_memory_typed(

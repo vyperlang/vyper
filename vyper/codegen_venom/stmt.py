@@ -225,6 +225,10 @@ class Stmt:
         # MemoryCopyElisionPass will eliminate the redundant copy when
         # src/dst are provably non-overlapping (different allocas).
         if src_loc is DataLocation.MEMORY and dst_ptr.location is DataLocation.MEMORY:
+            if isinstance(src_typ, StructT) and type_contains_unbounded_sequence(src_typ):
+                # the staging copy shares the payloads with the source, so
+                # the source gives up its spare room here, not only the copy
+                self.ctx.zero_pointer_cell_capacities(src, src_typ)
             tmp_val = self.ctx.new_temporary_value(src_typ)
             assert isinstance(tmp_val.operand, IRVariable)
             self.ctx.copy_memory(tmp_val.operand, src, src_typ.memory_bytes_required)
