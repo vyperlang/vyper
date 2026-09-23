@@ -23,8 +23,9 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import BottomT, VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.infinity import (
+    is_supported_unbounded_struct_member,
+    member_slot_size,
     type_contains_nested_unbounded_sequence,
-    type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
@@ -565,9 +566,11 @@ class StructT(_UserType):
                 )
 
             member_type = type_from_annotation(node.annotation)
-            if type_contains_unbounded_sequence(member_type):
+            if not is_supported_unbounded_struct_member(member_type):
                 raise StructureException(
-                    "Structs cannot contain unbounded sequence types", node.annotation
+                    "Struct members cannot contain unbounded sequence types "
+                    "inside aggregate types",
+                    node.annotation,
                 )
             members[member_name] = member_type
             node.target._metadata["type"] = member_type
@@ -598,7 +601,9 @@ class StructT(_UserType):
 
     @property
     def size_in_bytes(self):
-        return sum(i.size_in_bytes for i in self.member_types.values())
+        # an INF member occupies a pointer cell rather than an inline payload,
+        # so a struct always has a compile-time size (see `member_slot_size`)
+        return sum(member_slot_size(t) for t in self.member_types.values())
 
     @property
     def abi_type(self) -> ABIType:

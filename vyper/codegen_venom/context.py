@@ -24,6 +24,8 @@ from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, MemoryAllocationException, StateAccessViolation
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
+    POINTER_CELL_CAPACITY_OFFSET,
+    POINTER_CELL_SIZE,
     TupleT,
     VyperType,
     _BytestringT,
@@ -151,10 +153,10 @@ class VenomCodegenContext:
         self.variables[name] = var
         return var
 
-    # Size of an unbounded (INF) local's pointer cell: two adjacent words,
-    # [payload_ptr][capacity]. See `store_pointer_cell`.
-    POINTER_CELL_SIZE = 64
-    POINTER_CELL_CAPACITY_OFFSET = 32
+    # Layout of the cell holding an unbounded (INF) value's payload pointer
+    # and capacity; defined next to the struct member sizing that shares it.
+    POINTER_CELL_SIZE = POINTER_CELL_SIZE
+    POINTER_CELL_CAPACITY_OFFSET = POINTER_CELL_CAPACITY_OFFSET
 
     def new_pointer_cell_variable(
         self, name: str, typ: VyperType, mutable: bool = True

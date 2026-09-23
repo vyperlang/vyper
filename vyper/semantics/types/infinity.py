@@ -16,6 +16,12 @@ class Inf(enum.Enum):
 
 INF = Inf.INF
 
+# An unbounded (INF) value has no inline representation, so a struct member or
+# a local of an INF type occupies a fixed-size cell holding its current payload
+# pointer and capacity instead. See `VenomCodegenContext.store_pointer_cell`.
+POINTER_CELL_SIZE = 64
+POINTER_CELL_CAPACITY_OFFSET = 32
+
 
 class Wildcard(enum.Enum):
     """Singleton representing a wildcard length (matches any length)."""
@@ -68,9 +74,65 @@ def is_supported_unbounded_tuple_type(typ) -> bool:
     return True
 
 
+def is_supported_unbounded_struct_member(typ) -> bool:
+    """Return True if a struct member may have type `typ`.
+
+    An INF member has no inline representation, so it occupies a
+    `POINTER_CELL_SIZE` cell holding a pointer to its payload (see
+    `VenomCodegenContext.store_pointer_cell`). That keeps the struct's size a
+    compile-time constant, but only for the shapes one cell can describe: a
+    direct INF sequence of bounded elements, or another such struct inline.
+    """
+    if not type_contains_unbounded_sequence(typ):
+        return True
+
+    if is_unbounded_bytestring_type(typ):
+        return True
+
+    if is_unbounded_dynarray_type(typ):
+        # an INF element would need a cell of its own inside the payload
+        return not type_contains_unbounded_sequence(typ.value_type)
+
+    return is_supported_unbounded_struct_type(typ)
+
+
+def is_supported_unbounded_struct_type(typ) -> bool:
+    """Return True for structs whose INF members occupy pointer cells.
+
+    Returns True for a struct with no INF member at all; callers pair it with
+    `type_contains_unbounded_sequence`.
+    """
+    if getattr(typ, "typeclass", None) != "struct":
+        return False
+
+    return all(is_supported_unbounded_struct_member(t) for t in typ.members.values())
+
+
 def type_contains_nested_unbounded_sequence(typ) -> bool:
     """Return True if `typ` contains INF below a direct top-level sequence."""
     return type_contains_unbounded_sequence(typ) and not is_unbounded_sequence_type(typ)
+
+
+def type_contains_unrepresentable_unbounded_sequence(typ) -> bool:
+    """Return True if INF appears in `typ` where memory has no room for it.
+
+    A value held in memory (an argument, a local, an internal call argument)
+    can carry INF as the value itself (a runtime-sized buffer) or as a struct
+    member (a pointer cell), including in the elements of a DynArray, whose
+    stride stays a compile-time constant. Anywhere else the offsets after the
+    INF value would be runtime values, which struct/tuple/array addressing
+    cannot express.
+    """
+    if not type_contains_unbounded_sequence(typ):
+        return False
+
+    if is_supported_unbounded_struct_type(typ):
+        return False
+
+    if getattr(typ, "typeclass", None) == "dynamic_array":
+        return type_contains_unrepresentable_unbounded_sequence(typ.value_type)
+
+    return not is_unbounded_sequence_type(typ)
 
 
 def type_contains_unsupported_unbounded_sequence(typ) -> bool:
@@ -80,11 +142,38 @@ def type_contains_unsupported_unbounded_sequence(typ) -> bool:
     )
 
 
+def type_contains_unsupported_unbounded_return(typ) -> bool:
+    """Return True if a return of `typ` has no supported encoding.
+
+    Accepts everything `type_contains_unsupported_unbounded_sequence` does,
+    plus a struct with pointer-cell members. A DynArray of such structs stays
+    rejected: sizing the return buffer would mean walking every element's
+    cells, which the per-element bound used for INF DynArrays cannot do.
+    """
+    if not type_contains_unbounded_sequence(typ):
+        return False
+
+    if is_unbounded_dynarray_type(typ):
+        return type_contains_unbounded_sequence(typ.value_type)
+
+    if is_supported_unbounded_struct_type(typ):
+        return False
+
+    return type_contains_unsupported_unbounded_sequence(typ)
+
+
 def length_to_json(length: LengthUpperBound) -> int | str:
     """Return a JSON-serializable representation of a length value."""
     if length is INF or length is WILDCARD:
         return str(length)
     return length
+
+
+def member_slot_size(typ) -> int:
+    """Return the bytes a struct member occupies inline in the struct."""
+    if is_unbounded_sequence_type(typ):
+        return POINTER_CELL_SIZE
+    return typ.size_in_bytes
 
 
 def type_contains_unbounded_sequence(typ) -> bool:
