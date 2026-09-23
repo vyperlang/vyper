@@ -562,7 +562,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                         )
                     info.var_info._modification_count += 1
             else:
-                raise ImmutableViolation("Environment variable cannot be written to")
+                raise ImmutableViolation("Expression is immutable, and cannot be written to")
 
         if info.modifiability == Modifiability.CONSTANT:
             raise ImmutableViolation("Constant value cannot be written to.")

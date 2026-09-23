@@ -31,6 +31,7 @@ class InterfaceT(_UserType):
     typeclass = "interface"
 
     _builtin_members = {"address": AddressT()}
+    _view_builtin_members = ("address",)
     _is_prim_word = True
     is_valid_element_type = True
     _as_hashmap_key = True

@@ -412,10 +412,10 @@ def test_invalid_assign_to_self_balance(assert_compile_failed, get_contract):
 def f():
     self.balance = 100
 """
-    with pytest.raises(StructureException) as e:
+    with pytest.raises(ImmutableViolation) as e:
         get_contract(code)
 
-    assert e.value.message == "`self.balance` is not a valid assignment target"
+    assert e.value.message == "Expression is immutable, and cannot be written to"
 
 
 def test_invalid_assign_to_storage_addr_balance(assert_compile_failed, get_contract):
@@ -426,10 +426,10 @@ addr: address
 def f():
     self.addr.balance = 1
 """
-    with pytest.raises(StructureException) as e:
+    with pytest.raises(ImmutableViolation) as e:
         get_contract(code)
 
-    assert e.value.message == "`self.addr.balance` is not a valid assignment target"
+    assert e.value.message == "Expression is immutable, and cannot be written to"
 
 
 def test_invalid_assign_to_storage_addr_codehash(assert_compile_failed, get_contract):
@@ -440,10 +440,10 @@ addr: address
 def f():
     self.addr.codehash = empty(bytes32)
 """
-    with pytest.raises(StructureException) as e:
+    with pytest.raises(ImmutableViolation) as e:
         get_contract(code)
 
-    assert e.value.message == "`self.addr.codehash` is not a valid assignment target"
+    assert e.value.message == "Expression is immutable, and cannot be written to"
 
 
 def test_invalid_assign_to_iface_address(assert_compile_failed, get_contract):
@@ -457,10 +457,10 @@ f: IFoo
 def g():
     self.f.address = empty(address)
 """
-    with pytest.raises(StructureException) as e:
+    with pytest.raises(ImmutableViolation) as e:
         get_contract(code)
 
-    assert e.value.message == "`self.f.address` is not a valid assignment target"
+    assert e.value.message == "Expression is immutable, and cannot be written to"
 
 
 def test_read_addr_balance_still_works(get_contract):

@@ -78,12 +78,17 @@ class VyperType:
         Whether or not this type can be attributed in a type
         annotation, like IFoo.SomeType. Currently limited to
         `InterfaceT`s.
+    _view_builtin_members: Tuple, optional
+        Builtin members which display the same data in a different type.
+        For example an interface member `foo` is internally just an address,
+        so `foo.address`has the same data (and therefore shares properties such as modifiability).
     """
 
     typeclass: str = None  # type: ignore
 
     _id: str  # rename to `_name`
     _builtin_members: Optional[Dict] = None
+    _view_builtin_members: Tuple = ()
     _valid_literal: Tuple = ()
     _invalid_locations: Tuple = ()
     _is_prim_word: bool = False

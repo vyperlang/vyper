@@ -112,10 +112,17 @@ class _ExprAnalyser:
                 return ExprInfo.from_moduleinfo(t, attr=attr)
 
             if info.typ._builtin_members and attr in info.typ._builtin_members:
-                # things like `addr.balance` should not inherit the location of `addr`
-                # since `addr` can be assignable, while `addr.balance` never is
+                # built-in members are special in that they are not assignable
+
+                modifiability = Modifiability.RUNTIME_CONSTANT
+                if attr in info.typ._view_builtin_members:
+                    # if the base is constant, then the view member also should be:
+                    # foo: constant(Foo) = Foo(<addr>)
+                    # x: constant(address) = foo.address
+
+                    modifiability = min(modifiability, info.modifiability)
                 return ExprInfo(
-                    t, attr=attr, location=DataLocation.UNSET, modifiability=info.modifiability
+                    t, attr=attr, location=DataLocation.UNSET, modifiability=modifiability
                 )
 
             return info.copy_with_type(t, attr=attr)

@@ -184,6 +184,19 @@ def test_constants_fail(bad_code):
             compiler.compile_code(bad_code)
 
 
+def test_constant_address_member_not_constant():
+    code = """
+FOO: constant(address) = 0x1234567890123456789012345678901234567890
+
+B: constant(uint256) = FOO.balance
+    """
+    with raises(StateAccessViolation) as e:
+        compiler.compile_code(code)
+
+    # TODO: better error message
+    assert e.value.message == "Value must be a literal"
+
+
 valid_list = [
     """
 VAL: constant(uint256) = 123
@@ -323,6 +336,13 @@ interface Foo:
 
 FOO: constant(Foo) = Foo(BAR)
 BAR: constant(address) = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF
+    """,
+    """
+interface Foo:
+    def foo(): nonpayable
+
+FOO: constant(Foo) = Foo(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)
+BAR: constant(address) = FOO.address
     """,
 ]
 
