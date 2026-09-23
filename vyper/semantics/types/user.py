@@ -25,7 +25,7 @@ from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.infinity import (
     is_supported_unbounded_struct_member,
     member_slot_size,
-    type_contains_nested_unbounded_sequence,
+    type_contains_unencodable_unbounded_sequence,
 )
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
@@ -336,7 +336,7 @@ class EventT(_UserType):
                 indexed.append(False)
 
             member_type = type_from_annotation(annotation)
-            if type_contains_nested_unbounded_sequence(member_type):
+            if type_contains_unencodable_unbounded_sequence(member_type):
                 raise StructureException(
                     "Event members cannot contain unbounded sequence types inside aggregate types",
                     annotation,
@@ -439,7 +439,7 @@ class ErrorT(_UserType):
 
         for member_name, node in _iter_user_type_members(base_node, "Error"):
             member_type = type_from_annotation(node.annotation)
-            if type_contains_nested_unbounded_sequence(member_type):
+            if type_contains_unencodable_unbounded_sequence(member_type):
                 raise StructureException(
                     "Custom error members cannot contain unbounded sequence types "
                     "inside aggregate types",

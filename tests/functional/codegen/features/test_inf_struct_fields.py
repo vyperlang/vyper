@@ -2,6 +2,7 @@ import pytest
 from eth_abi import decode as eth_abi_decode
 from eth_abi import encode as eth_abi_encode
 
+from tests.evm_backends.base_env import ExecutionReverted
 from vyper.codegen_venom.module import generate_venom_runtime
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
@@ -1891,3 +1892,113 @@ def dec_no_tuple(d: Bytes[INF]) -> uint256:
     for payload in [b"", _word(0), _word(0) + _word(64), _word(0) + _word(64) + _word(2**32)]:
         with tx_failed():
             c.dec_no_tuple(payload)
+
+
+# Events, custom errors, print and create_*: the same runtime-sized encoding
+# as external call arguments.
+
+
+@pytest.mark.parametrize("n", LENGTHS)
+def test_event_with_struct_member(env, get_contract, n):
+    code = BATCH + """
+event Submitted:
+    sender: indexed(address)
+    batch: Batch
+    nonce: uint256
+
+@external
+def submit(b: Batch, nonce: uint256):
+    log Submitted(sender=msg.sender, batch=b, nonce=nonce)
+    """
+
+    c = get_contract(code)
+    values = list(range(1, n + 1))
+    c.submit((OWNER, values), 7)
+    topics, data = env.get_logs(c, raw=True)[0]
+    assert len(topics) == 2
+    assert data == eth_abi_encode(["(address,uint256[])", "uint256"], [(OWNER, values), 7])
+
+
+def test_event_with_nested_struct_member(env, get_contract):
+    code = BATCH + """
+struct Outer:
+    tag: uint256
+    inner: Batch
+
+event E:
+    o: Outer
+
+@external
+def emit_it(b: Batch):
+    log E(o=Outer(tag=3, inner=b))
+    """
+
+    c = get_contract(code)
+    c.emit_it((OWNER, [4, 5]))
+    assert env.get_logs(c, raw=True)[0][1] == eth_abi_encode(
+        ["(uint256,(address,uint256[]))"], [(3, (OWNER, [4, 5]))]
+    )
+
+
+@pytest.mark.parametrize("n", LENGTHS)
+def test_custom_error_with_struct_member(get_contract, n):
+    code = BATCH + """
+error Rejected:
+    batch: Batch
+    reason: uint256
+
+@external
+def boom(b: Batch):
+    raise Rejected(batch=b, reason=42)
+    """
+
+    c = get_contract(code)
+    values = list(range(1, n + 1))
+    with pytest.raises(ExecutionReverted) as excinfo:
+        c.boom((OWNER, values))
+    revert_hex = excinfo.value.args[0]
+    assert bytes.fromhex(revert_hex.removeprefix("0x")) == method_id(
+        "Rejected((address,uint256[]),uint256)"
+    ) + eth_abi_encode(["(address,uint256[])", "uint256"], [(OWNER, values), 42])
+
+
+def test_print_struct(get_contract):
+    code = BATCH + """
+@external
+def f(b: Batch) -> uint256:
+    print(b)
+    print(b, hardhat_compat=True)
+    return len(b.values)
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1, 2, 3])) == 3
+
+
+def test_create_from_blueprint_with_struct_arg(env, get_contract, deploy_blueprint_for):
+    child_code = BATCH + """
+count: public(uint256)
+last: public(uint256)
+owner: public(address)
+
+@deploy
+def __init__(b: Batch, tag: uint256):
+    self.count = len(b.values)
+    self.last = b.values[len(b.values) - 1] + tag
+    self.owner = b.owner
+    """
+    blueprint, _ = deploy_blueprint_for(child_code)
+
+    deployer_code = BATCH + """
+@external
+def deploy(target: address, b: Batch, tag: uint256) -> address:
+    return create_from_blueprint(target, b, tag)
+    """
+
+    deployer = get_contract(deployer_code)
+    addr = deployer.deploy(blueprint.address, (OWNER, [5, 6, 7]), 100)
+    assert eth_abi_decode(["uint256"], env.message_call(addr, data=method_id("count()"))) == (3,)
+    assert eth_abi_decode(["uint256"], env.message_call(addr, data=method_id("last()"))) == (107,)
+    assert eth_abi_decode(["address"], env.message_call(addr, data=method_id("owner()"))) == (
+        OWNER.lower(),
+    )

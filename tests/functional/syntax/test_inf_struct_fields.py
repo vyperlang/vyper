@@ -140,36 +140,6 @@ def f(a: address, b: Batch):
     (
         BATCH + """
 @external
-def f(t: address, b: Batch) -> address:
-    return create_from_blueprint(t, b, code_offset=3)
-    """,
-        "constructor arguments cannot contain nested unbounded sequence types",
-    ),
-    (
-        BATCH + """
-event E:
-    b: Batch
-    """,
-        "Event members cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-error E:
-    b: Batch
-    """,
-        "Custom error members cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-@external
-def f(b: Batch):
-    print(b)
-    """,
-        "print arguments cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-@external
 def f() -> uint256:
     b: Batch = empty(Batch)
     return len(b.values)
@@ -293,6 +263,36 @@ def f(bs: DynArray[Batch, 3]) -> (uint256, DynArray[Batch, 3]):
     return 1, bs
     """,
         "Function returns cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+event E:
+    bs: DynArray[Batch, 3]
+    """,
+        "Event members cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+error E:
+    bs: DynArray[Batch, 3]
+    """,
+        "Custom error members cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+@external
+def f(bs: DynArray[Batch, 3]):
+    print(bs)
+    """,
+        "print arguments cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+@external
+def f(t: address, bs: DynArray[Batch, 3]) -> address:
+    return create_from_blueprint(t, bs, code_offset=3)
+    """,
+        "constructor arguments cannot contain nested unbounded sequence types",
     ),
 ]
 

@@ -81,7 +81,6 @@ from vyper.semantics.types import (
     TupleT,
     _BytestringT,
     is_bounded_length,
-    type_contains_nested_unbounded_sequence,
     type_contains_unbounded_sequence,
     type_contains_unencodable_unbounded_sequence,
 )
@@ -1659,7 +1658,7 @@ class RawCreate(_CreateBase):
         if is_bounded_length(bytecode_type.length) and bytecode_type.length > EIP_3860_LIMIT:
             raise TypeMismatch(f"initcode length cannot exceed {EIP_3860_LIMIT}", node.args[0])
         ctor_arg_types = [get_exact_type_from_node(arg).resolve_wildcard() for arg in node.args[1:]]
-        if any(type_contains_nested_unbounded_sequence(t) for t in ctor_arg_types):
+        if any(type_contains_unencodable_unbounded_sequence(t) for t in ctor_arg_types):
             raise StructureException(
                 "constructor arguments cannot contain nested unbounded sequence types", node
             )
@@ -1842,7 +1841,7 @@ class CreateFromBlueprint(_CreateBase):
         if raw_args and not (len(ctor_arg_types) == 1 and isinstance(ctor_arg_types[0], BytesT)):
             raise StructureException("raw_args must be used with exactly 1 bytes argument", node)
 
-        if any(type_contains_nested_unbounded_sequence(t) for t in ctor_arg_types):
+        if any(type_contains_unencodable_unbounded_sequence(t) for t in ctor_arg_types):
             raise StructureException(
                 "constructor arguments cannot contain nested unbounded sequence types", node
             )
@@ -2240,7 +2239,7 @@ class Print(BuiltinFunctionT):
             # touch abi_type to reject non-encodable argument types
             _ = arg_t.abi_type
 
-            if type_contains_nested_unbounded_sequence(arg_t):
+            if type_contains_unencodable_unbounded_sequence(arg_t):
                 raise StructureException(
                     "print arguments cannot contain unbounded sequence types "
                     "inside aggregate types",
