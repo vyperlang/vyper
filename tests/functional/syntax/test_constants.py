@@ -139,6 +139,25 @@ CONST_BAR: constant(Foo) = Foo(a=1, b=block.number)
     """,
         StateAccessViolation,
     ),
+    # non-constant index into a constant list, see GH issue 5275
+    (
+        """
+A: constant(uint256[2]) = [1, 2]
+B: constant(uint256) = A[block.number]
+    """,
+        StateAccessViolation,
+    ),
+    # non-constant index into a list member of a constant struct, see GH issue 5275
+    (
+        """
+struct S:
+    xs: uint256[2]
+
+A: constant(S) = S(xs=[1, 2])
+B: constant(uint256) = A.xs[block.number]
+    """,
+        StateAccessViolation,
+    ),
     # cannot assign function result to a constant
     (
         """

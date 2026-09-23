@@ -130,7 +130,21 @@ class _ExprAnalyser:
         # If it's a Subscript, propagate the subscriptable varinfo
         if isinstance(node, vy_ast.Subscript):
             info = self.get_expr_info(node.value)
-            return info.copy_with_type(t)
+
+            index = node.slice
+            if index.is_literal_value or index.has_folded_value:
+                # since literals often have more than one type, they fail get_expr_info
+                # instead hardcode the modifiability
+                # TODO: Remove this branching once every expression has a single type
+                index_modifiability = Modifiability.CONSTANT
+            else:
+                index_modifiability = self.get_expr_info(index).modifiability
+
+            # the expression is only as modifiable as its most modifiable
+            # part. e.g. `A[block.number]` is not a compile-time constant,
+            # even when `A` is.
+            modifiability = max(info.modifiability, index_modifiability)
+            return ExprInfo(t, location=info.location, modifiability=modifiability)
 
         return ExprInfo(t)
 
