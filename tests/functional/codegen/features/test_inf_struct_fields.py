@@ -2183,7 +2183,10 @@ def boom(b: Batch):
     ) + eth_abi_encode(["(address,uint256[])", "uint256"], [(OWNER, values), 42])
 
 
-def test_print_struct(get_contract):
+def test_print_struct(get_contract, compiler_settings):
+    # the console call cannot be observed by the test harness; the runtime
+    # code is checked for the wire format instead: the `log(string,bytes)`
+    # selector with the struct's ABI schema, and the hardhat selector
     code = BATCH + """
 @external
 def f(b: Batch) -> uint256:
@@ -2194,6 +2197,12 @@ def f(b: Batch) -> uint256:
 
     c = get_contract(code)
     assert c.f((OWNER, [1, 2, 3])) == 3
+
+    out = compile_code(code, output_formats=["bytecode_runtime"], settings=compiler_settings)
+    runtime = out["bytecode_runtime"]
+    assert method_id("log(string,bytes)").hex() in runtime
+    assert b"((address,uint256[]))".hex() in runtime
+    assert method_id("log((address,uint256[]))").hex() in runtime
 
 
 def test_create_from_blueprint_with_struct_arg(env, get_contract, deploy_blueprint_for):
