@@ -5,6 +5,7 @@ from vyper.exceptions import (
     ArrayIndexException,
     CompilerPanic,
     ImmutableViolation,
+    InvalidOperation,
     StructureException,
     TypeMismatch,
     UndeclaredDefinition,
@@ -105,15 +106,17 @@ def test_block_fail(bad_code, exc):
         compile_code(bad_code)
 
 
-def test_membership_in_empty_list():
-    code = """
+@pytest.mark.parametrize("op,always", [("in", "False"), ("not in", "True")])
+def test_membership_in_empty_list(op, always):
+    code = f"""
 @external
 def foo():
-    x: bool = 1 in []
+    x: bool = 1 {op} []
     """
-    with pytest.raises(TypeMismatch) as excinfo:
+    with pytest.raises(InvalidOperation) as excinfo:
         compile_code(code)
-    assert excinfo.value.message == "Cannot perform membership comparison between dislike types"
+    assert excinfo.value.message == "Cannot perform membership comparison against an empty list"
+    assert excinfo.value.hint == f"the result is always `{always}`"
 
 
 def test_dynarray_negative_length():

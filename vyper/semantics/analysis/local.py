@@ -12,6 +12,7 @@ from vyper.exceptions import (
     ExceptionList,
     FunctionDeclarationException,
     ImmutableViolation,
+    InvalidOperation,
     InvalidType,
     IteratorException,
     NonPayableViolation,
@@ -1180,6 +1181,13 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
                 ltyp = get_common_types(node.left, *node.right.elements).pop()
 
                 rlen = len(node.right.elements)
+                if rlen == 0:
+                    always = isinstance(node.op, vy_ast.NotIn)
+                    raise InvalidOperation(
+                        "Cannot perform membership comparison against an empty list",
+                        node.right,
+                        hint=f"the result is always `{always}`",
+                    )
                 rtyp: VyperType = SArrayT(ltyp, rlen)
             else:
                 rtyp = get_exact_type_from_node(node.right)
