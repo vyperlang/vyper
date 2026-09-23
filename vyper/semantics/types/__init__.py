@@ -21,6 +21,7 @@ from .infinity import (
     type_contains_unrepresentable_unbounded_sequence,
     type_contains_unsupported_unbounded_return,
     type_contains_unsupported_unbounded_sequence,
+    unbounded_member_cells,
 )
 from .module import InterfaceT, ModuleT
 from .primitives import AddressT, BoolT, BytesM_T, DecimalT, IntegerT, SelfT

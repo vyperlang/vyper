@@ -35,6 +35,7 @@ from vyper.semantics.types import (
     is_unbounded_dynarray_type,
     is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
+    unbounded_member_cells,
 )
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
@@ -1166,6 +1167,12 @@ class Stmt:
 
             assert returns_count == 0
             assert ret_src_typ is not None
+            if isinstance(ret_typ, StructT):
+                # structs are nominal, so the source has the declared layout
+                assert ret_src_typ == ret_typ
+                self._emit_pointer_cell_struct_internal_return(ret_val, ret_typ, return_pc)
+                return
+
             if self.ctx.unbounded_dynarray_element_layout_differs(ret_typ, ret_src_typ):
                 # dret passes the value with the declared element stride (the
                 # caller reads it as ret_typ), so widened elements (e.g.
@@ -1203,6 +1210,26 @@ class Stmt:
 
         else:  # pragma: nocover
             raise CompilerPanic("Internal function missing return mechanism")
+
+    def _emit_pointer_cell_struct_internal_return(
+        self, ret_val: IRVariable, ret_typ: StructT, return_pc: IRVariable
+    ) -> None:
+        """Return a struct with pointer-cell members through `dret`.
+
+        The struct is the first pair and each cell's payload follows, so
+        every payload is packed into the caller's frame instead of being left
+        in this frame, which the plain `ret` reclaims. The cells in the packed
+        struct still hold this frame's pointers; the caller rewrites them
+        from the payload outputs.
+        """
+        cells = unbounded_member_cells(ret_typ)
+        pairs: list[IROperand] = [ret_val, IRLiteral(ret_typ.memory_bytes_required)]
+        for offset, member_t in cells:
+            cell = self.builder.add(ret_val, IRLiteral(offset))
+            payload = self.builder.mload(cell)
+            assert isinstance(payload, IRVariable)
+            pairs += [payload, self.ctx.sequence_runtime_size(payload, member_t)]
+        self.builder.dret(IRLiteral(1 + len(cells)), *pairs, return_pc)
 
     def _dynamic_return_member_size(
         self, member_ptr: IRVariable, dst_typ: VyperType, src_typ: VyperType

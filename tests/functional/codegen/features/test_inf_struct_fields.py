@@ -524,3 +524,231 @@ def source_after_call(b: Batch) -> uint256:
     assert c.two((a, [10, 20, 30]), (a, [5])) == 2065
     assert c.constructed() == 2006
     assert c.source_after_call((a, [10, 20, 30])) == 1063
+
+
+# An internal function returning a struct with INF members hands its payloads
+# to the caller through `dret`, so they outlive the callee frame. Each
+# producer is called twice from one external function: a payload left in the
+# callee frame is overwritten by the second call, and a single call site is
+# inlined at -O gas, which would hide that.
+def test_internal_return_survives_second_call(get_contract):
+    code = """
+struct S:
+    a: DynArray[uint256, INF]
+    n: uint256
+
+@internal
+def g(x: uint256) -> S:
+    return S(a=[x, x + 1], n=x)
+
+@external
+def f() -> (uint256, uint256, uint256):
+    first: S = self.g(1)
+    second: S = self.g(99)
+    return first.a[0], first.a[1], first.n
+    """
+
+    c = get_contract(code)
+    assert c.f() == (1, 2, 1)
+
+
+def test_internal_return_rebuilt_from_arg(get_contract):
+    code = """
+struct S:
+    a: DynArray[uint256, INF]
+    n: uint256
+
+@internal
+def rebuild(s: S) -> S:
+    return S(a=s.a, n=s.n)
+
+@external
+def f() -> (uint256, uint256, uint256):
+    first: S = self.rebuild(S(a=[1, 2], n=7))
+    second: S = self.rebuild(S(a=[99, 100], n=8))
+    return first.a[0], first.a[1], first.n
+    """
+
+    c = get_contract(code)
+    assert c.f() == (1, 2, 7)
+
+
+def test_internal_return_nested_struct(get_contract):
+    code = """
+struct S:
+    a: DynArray[uint256, INF]
+    n: uint256
+
+struct Outer:
+    k: uint256
+    b: S
+
+@internal
+def g(x: uint256) -> Outer:
+    return Outer(k=x, b=S(a=[x, x + 1], n=x))
+
+@external
+def f() -> (uint256, uint256, uint256, uint256):
+    first: Outer = self.g(1)
+    second: Outer = self.g(99)
+    return first.k, first.b.a[0], first.b.a[1], first.b.n
+    """
+
+    c = get_contract(code)
+    assert c.f() == (1, 1, 2, 1)
+
+
+def test_internal_return_then_unrelated_allocation(get_contract):
+    code = """
+struct S:
+    a: DynArray[uint256, INF]
+    n: uint256
+
+@internal
+def g(x: uint256) -> S:
+    return S(a=[x, x + 1], n=x)
+
+@internal
+def noise() -> uint256:
+    z: DynArray[uint256, INF] = [7, 7, 7, 7]
+    return len(z)
+
+@external
+def f() -> (uint256, uint256, uint256):
+    first: S = self.g(1)
+    k: uint256 = self.noise()
+    second: S = self.g(k)
+    return first.a[0], first.a[1], second.a[0]
+    """
+
+    c = get_contract(code)
+    assert c.f() == (1, 2, 4)
+
+
+def test_internal_return_copied_then_second_call(get_contract):
+    code = """
+struct S:
+    a: DynArray[uint256, INF]
+    n: uint256
+
+@internal
+def g(x: uint256) -> S:
+    return S(a=[x, x + 1], n=x)
+
+@external
+def f() -> (uint256, uint256, uint256):
+    first: S = self.g(1)
+    cp: S = first
+    second: S = self.g(99)
+    return cp.a[0], cp.a[1], cp.n
+    """
+
+    c = get_contract(code)
+    assert c.f() == (1, 2, 1)
+
+
+def test_internal_return_with_live_caller_local(get_contract):
+    code = """
+struct S:
+    a: DynArray[uint256, INF]
+    n: uint256
+
+@internal
+def g(x: uint256) -> S:
+    return S(a=[x, x + 1], n=x)
+
+@external
+def f() -> (uint256, uint256, uint256, uint256):
+    z: DynArray[uint256, INF] = [5, 6, 7]
+    first: S = self.g(1)
+    second: S = self.g(99)
+    return first.a[0], first.a[1], z[0], len(z)
+    """
+
+    c = get_contract(code)
+    assert c.f() == (1, 2, 5, 3)
+
+
+def test_internal_return_of_arg(get_contract):
+    code = """
+struct S:
+    a: DynArray[uint256, INF]
+    n: uint256
+
+@internal
+def ident(s: S) -> S:
+    return s
+
+@external
+def f(s: S) -> (uint256, uint256, uint256):
+    first: S = self.ident(s)
+    second: S = self.ident(S(a=[99, 100], n=99))
+    return first.a[0], first.a[1], first.n
+    """
+
+    c = get_contract(code)
+    assert c.f(([1, 2], 3)) == (1, 2, 3)
+
+
+def test_internal_return_empty_payload(get_contract):
+    code = """
+struct S:
+    a: DynArray[uint256, INF]
+    n: uint256
+
+@internal
+def g(x: uint256) -> S:
+    return S(a=[], n=x)
+
+@external
+def f() -> (uint256, uint256, uint256):
+    first: S = self.g(1)
+    second: S = self.g(99)
+    return len(first.a), first.n, second.n
+    """
+
+    c = get_contract(code)
+    assert c.f() == (0, 1, 99)
+
+
+def test_internal_return_bytestring_members(get_contract):
+    code = """
+struct Msg:
+    payload: Bytes[INF]
+    name: String[INF]
+
+@internal
+def g(tag: Bytes[4]) -> Msg:
+    return Msg(payload=concat(tag, b"-payload"), name="named")
+
+@external
+def f() -> (Bytes[INF], String[INF]):
+    first: Msg = self.g(b"aaaa")
+    second: Msg = self.g(b"zzzz")
+    return first.payload, first.name
+    """
+
+    c = get_contract(code)
+    assert c.f() == (b"aaaa-payload", "named")
+
+
+def test_internal_return_mixed_members(get_contract):
+    code = """
+struct Rec:
+    values: DynArray[uint256, INF]
+    tag: uint256
+    data: Bytes[INF]
+
+@internal
+def g(x: uint256, tag: Bytes[4]) -> Rec:
+    return Rec(values=[x, x + 1, x + 2], tag=x, data=tag)
+
+@external
+def f() -> (uint256, uint256, uint256, uint256, Bytes[INF]):
+    first: Rec = self.g(1, b"abcd")
+    second: Rec = self.g(99, b"wxyz")
+    return first.values[0], first.values[2], len(first.values), first.tag, first.data
+    """
+
+    c = get_contract(code)
+    assert c.f() == (1, 3, 3, 1, b"abcd")

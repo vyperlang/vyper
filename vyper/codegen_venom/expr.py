@@ -48,6 +48,7 @@ from vyper.semantics.types import (
     is_unbounded_sequence_type,
     member_slot_size,
     type_contains_unbounded_sequence,
+    unbounded_member_cells,
 )
 from vyper.semantics.types.base import VOID_TYPE
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, StateMutability
@@ -1245,6 +1246,16 @@ class Expr:
 
         return self._make_ptr_value(field_ptr, data_loc, field_typ)
 
+    def _pointer_cell_struct_from_outputs(self, outs: list[IRVariable], typ: StructT) -> VyperValue:
+        """Rebind the cells of a struct returned through `dret` to its packed payloads."""
+        cells = unbounded_member_cells(typ)
+        assert len(outs) == 1 + len(cells)
+        struct_ptr = outs[0]
+        for payload, (offset, _) in zip(outs[1:], cells, strict=True):
+            cell = self.builder.add(struct_ptr, IRLiteral(offset))
+            self.ctx.store_pointer_cell(cell, payload, IRLiteral(0))
+        return self._make_ptr_value(struct_ptr, DataLocation.MEMORY, typ)
+
     def _make_ptr_value(
         self, operand: IROperand, location: DataLocation, typ: VyperType
     ) -> VyperValue:
@@ -1618,6 +1629,9 @@ class Expr:
                     )
 
                 assert returns_count == 0
+                if isinstance(func_t.return_type, StructT):
+                    return self._pointer_cell_struct_from_outputs(outs, func_t.return_type)
+
                 assert len(outs) == 1
                 # Dynamic internal returns publish a runtime memory pointer directly.
                 return self.ctx.dynamic_memory_value(

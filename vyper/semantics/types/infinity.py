@@ -1,5 +1,5 @@
 import enum
-from typing import TypeAlias, TypeGuard
+from typing import Any, TypeAlias, TypeGuard
 
 
 class Inf(enum.Enum):
@@ -194,6 +194,22 @@ def member_slot_size(typ) -> int:
     if is_unbounded_sequence_type(typ):
         return POINTER_CELL_SIZE
     return typ.size_in_bytes
+
+
+def unbounded_member_cells(struct_t) -> list[tuple[int, Any]]:
+    """Return `(byte offset, member type)` for every pointer cell in a struct.
+
+    Cells of nested structs are included at their offset in the outer struct.
+    """
+    cells = []
+    offset = 0
+    for member_t in struct_t.member_types.values():
+        if is_unbounded_sequence_type(member_t):
+            cells.append((offset, member_t))
+        elif getattr(member_t, "typeclass", None) == "struct":
+            cells.extend((offset + off, t) for off, t in unbounded_member_cells(member_t))
+        offset += member_slot_size(member_t)
+    return cells
 
 
 def type_contains_unbounded_sequence(typ) -> bool:
