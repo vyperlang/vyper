@@ -242,7 +242,7 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     # Reject bounded input buffers which cannot fit the decoded value. An
     # unbounded input is checked against its runtime length below.
-    if not is_unbounded_sequence_type(output_typ):
+    if not type_contains_unbounded_sequence(output_typ):
         abi_size_bound = wrapped_typ.abi_type.size_bound()
         input_max_len = data_node._metadata["type"].maxlen
         if is_bounded_length(input_max_len) and input_max_len < abi_size_bound:
@@ -286,18 +286,23 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     # Validate size
     abi_min_size = wrapped_typ.abi_type.static_size()
-    abi_max_size = wrapped_typ.abi_type.size_bound()
-
-    if abi_min_size == abi_max_size:
-        # Fixed size: assert exact match
-        b.assert_(b.eq(data_len, IRLiteral(abi_min_size)))
-    else:
-        # Variable size: assert min <= len <= max
-        # ge(a, b) = iszero(lt(a, b))
-        # le(a, b) = iszero(gt(a, b))
+    if type_contains_unbounded_sequence(output_typ):
+        # a struct with unbounded members has no size bound; the decoder
+        # checks every member against `hi` instead
         ge_min = b.iszero(b.lt(data_len, IRLiteral(abi_min_size)))
-        le_max = b.iszero(b.gt(data_len, IRLiteral(abi_max_size)))
-        b.assert_(b.and_(ge_min, le_max))
+        b.assert_(ge_min)
+    else:
+        abi_max_size = wrapped_typ.abi_type.size_bound()
+        if abi_min_size == abi_max_size:
+            # Fixed size: assert exact match
+            b.assert_(b.eq(data_len, IRLiteral(abi_min_size)))
+        else:
+            # Variable size: assert min <= len <= max
+            # ge(a, b) = iszero(lt(a, b))
+            # le(a, b) = iszero(gt(a, b))
+            ge_min = b.iszero(b.lt(data_len, IRLiteral(abi_min_size)))
+            le_max = b.iszero(b.gt(data_len, IRLiteral(abi_max_size)))
+            b.assert_(b.and_(ge_min, le_max))
 
     # Allocate output buffer
     output_val = ctx.new_temporary_value(wrapped_typ)

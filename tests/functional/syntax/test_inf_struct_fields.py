@@ -109,25 +109,7 @@ def f(bs: Batch[2]) -> uint256:
     """,
         "Static arrays of unbounded sequence types are not supported",
     ),
-    # decoding would have to rebuild the pointer cells
-    (
-        BATCH + """
-@external
-def f(d: Bytes[1024]) -> uint256:
-    b: Batch = abi_decode(d, Batch)
-    return len(b.values)
-    """,
-        "abi_decode output type cannot contain unbounded sequence types",
-    ),
     # the encoded size has no static bound, so these buffers cannot be sized
-    (
-        BATCH + """
-@external
-def f(b: Batch) -> Bytes[INF]:
-    return abi_encode(b)
-    """,
-        "abi_encode arguments cannot contain unbounded sequence types",
-    ),
     (
         BATCH + """
 @external
@@ -274,6 +256,24 @@ def f(bs: DynArray[Batch, 3]) -> Bytes[INF]:
     return abi_encode(bs)
     """,
         "abi_encode arguments cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+@external
+def f(d: Bytes[INF]) -> uint256:
+    bs: DynArray[Batch, 3] = abi_decode(d, DynArray[Batch, 3])
+    return len(bs)
+    """,
+        "abi_decode output type cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+@external
+def f(d: Bytes[INF]) -> uint256:
+    bs: DynArray[Batch, INF] = abi_decode(d, DynArray[Batch, INF])
+    return len(bs)
+    """,
+        "abi_decode output type cannot contain unbounded sequence types",
     ),
     (
         BATCH + """

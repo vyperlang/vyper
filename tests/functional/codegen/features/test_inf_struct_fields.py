@@ -1754,3 +1754,140 @@ def f(target: address) -> uint256:
         target = _deploy_raw_returner(env, payload)
         with tx_failed():
             caller.f(target.address)
+
+
+# abi_encode / abi_decode. The encoding buffer is sized at runtime; the
+# decoder bounds every member by the end of the input instead of by a size
+# bound of the type.
+
+
+@pytest.mark.parametrize("n", LENGTHS)
+def test_abi_encode_struct(get_contract, n):
+    code = BATCH + """
+@external
+def enc(b: Batch) -> Bytes[INF]:
+    return abi_encode(b)
+
+@external
+def enc_no_tuple(b: Batch) -> Bytes[INF]:
+    return abi_encode(b, ensure_tuple=False)
+
+@external
+def enc_method_id(b: Batch, x: uint256) -> Bytes[INF]:
+    return abi_encode(b, x, method_id=method_id("take((address,uint256[]),uint256)"))
+    """
+
+    c = get_contract(code)
+    values = list(range(1, n + 1))
+    b = (OWNER, values)
+    assert c.enc(b) == eth_abi_encode(["(address,uint256[])"], [b])
+    assert c.enc_no_tuple(b) == eth_abi_encode(["address", "uint256[]"], list(b))
+    assert c.enc_method_id(b, 7) == method_id("take((address,uint256[]),uint256)") + eth_abi_encode(
+        ["(address,uint256[])", "uint256"], [b, 7]
+    )
+
+
+def test_abi_encode_struct_bytes_and_nested_members(get_contract):
+    code = BATCH + """
+struct Msg:
+    kind: uint256
+    payload: Bytes[INF]
+
+struct Outer:
+    tag: uint256
+    inner: Batch
+    msg: Msg
+
+@external
+def enc(o: Outer) -> Bytes[INF]:
+    return abi_encode(o)
+    """
+
+    c = get_contract(code)
+    o = (5, (OWNER, [1, 2, 3]), (9, b"hello unbounded world"))
+    assert c.enc(o) == eth_abi_encode(["(uint256,(address,uint256[]),(uint256,bytes))"], [o])
+
+
+@pytest.mark.parametrize("n", LENGTHS)
+def test_abi_decode_struct(get_contract, n):
+    code = BATCH + """
+@external
+def dec(d: Bytes[INF]) -> Batch:
+    return abi_decode(d, Batch)
+
+@external
+def dec_no_tuple(d: Bytes[INF]) -> Batch:
+    return abi_decode(d, Batch, unwrap_tuple=False)
+
+@external
+def roundtrip(b: Batch) -> (address, uint256, uint256):
+    d: Bytes[INF] = abi_encode(b)
+    c: Batch = abi_decode(d, Batch)
+    c.values.append(100)
+    return c.owner, len(c.values), c.values[len(c.values) - 1]
+    """
+
+    c = get_contract(code)
+    values = list(range(1, n + 1))
+    b = (OWNER, values)
+    assert c.dec(eth_abi_encode(["(address,uint256[])"], [b])) == b
+    assert c.dec_no_tuple(eth_abi_encode(["address", "uint256[]"], list(b))) == b
+    assert c.roundtrip(b) == (OWNER, n + 1, 100)
+
+
+def test_abi_decode_struct_bytes_and_nested_members(get_contract):
+    code = BATCH + """
+struct Msg:
+    kind: uint256
+    payload: Bytes[INF]
+
+struct Outer:
+    tag: uint256
+    inner: Batch
+    msg: Msg
+
+@external
+def dec(d: Bytes[INF]) -> Outer:
+    return abi_decode(d, Outer)
+    """
+
+    c = get_contract(code)
+    o = (5, (OWNER, [1, 2, 3]), (9, b"hello unbounded world"))
+    assert c.dec(eth_abi_encode(["(uint256,(address,uint256[]),(uint256,bytes))"], [o])) == o
+
+
+def test_abi_decode_struct_rejects_malformed_payload(get_contract, tx_failed):
+    code = BATCH + """
+@external
+def dec(d: Bytes[INF]) -> uint256:
+    b: Batch = abi_decode(d, Batch)
+    return len(b.values)
+
+@external
+def dec_no_tuple(d: Bytes[INF]) -> uint256:
+    b: Batch = abi_decode(d, Batch, unwrap_tuple=False)
+    return len(b.values)
+    """
+
+    c = get_contract(code)
+
+    head = _word(32) + _word(0) + _word(64)
+    assert c.dec(head + _word(1) + _word(9)) == 1
+    assert c.dec_no_tuple(_word(0) + _word(64) + _word(2) + _word(9) + _word(8)) == 2
+
+    malformed_payloads = [
+        b"",
+        _word(32),  # offset word without the struct head
+        head,  # member offset without its length word
+        head + _word(2**32),  # element count past the end
+        head + _word(2) + _word(9),  # one element short
+        _word(32) + _word(0) + _word(96),  # member offset outside the input
+        _word(2**256 - 31),  # struct offset wraps
+    ]
+    for payload in malformed_payloads:
+        with tx_failed():
+            c.dec(payload)
+
+    for payload in [b"", _word(0), _word(0) + _word(64), _word(0) + _word(64) + _word(2**32)]:
+        with tx_failed():
+            c.dec_no_tuple(payload)
