@@ -141,7 +141,7 @@ def type_contains_unrepresentable_unbounded_sequence(typ) -> bool:
     cannot express.
 
     Having a memory layout does not make a type encodable; positions that
-    encode use `type_contains_unsupported_unbounded_return` instead.
+    encode use `type_contains_unencodable_unbounded_sequence` instead.
     """
     if not type_contains_unbounded_sequence(typ):
         return False
@@ -162,12 +162,12 @@ def type_contains_unsupported_unbounded_sequence(typ) -> bool:
     )
 
 
-def type_contains_unsupported_unbounded_return(typ) -> bool:
-    """Return True if a return of `typ` has no supported encoding.
+def type_contains_unencodable_unbounded_sequence(typ) -> bool:
+    """Return True if a value of `typ` has no supported ABI encoding.
 
     Accepts everything `type_contains_unsupported_unbounded_sequence` does,
     plus a struct with pointer-cell members. A DynArray of such structs stays
-    rejected: sizing the return buffer would mean walking every element's
+    rejected: sizing an encoding buffer would mean walking every element's
     cells, which the per-element bound used for INF DynArrays cannot do.
     """
     if not type_contains_unbounded_sequence(typ):
