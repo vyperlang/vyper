@@ -760,9 +760,10 @@ def f(s: S) -> (uint256, uint256, uint256):
 
 
 # Mutation of an unbounded member. The struct holds a pointer cell for the
-# member; a member assignment rebinds the cell to a fresh payload, and an
-# element store, append or pop first copies a payload the cell does not own
-# (capacity 0) so that no other struct observes the write.
+# member, and a copied struct shares the member's payload with its source
+# until the first write: a member assignment points the cell at a fresh
+# payload, and an element store, append or pop first copies a shared payload
+# so that no other struct observes the write.
 
 BATCH = """
 struct Batch:
@@ -1195,13 +1196,13 @@ def f(b: Batch, i: uint256) -> (uint256, uint256):
     assert len(dallocas) == 1
 
 
-# Copies of a struct never observe each other's member mutation. A struct
-# copy leaves both structs at capacity 0, so the first write through either
-# side copies the shared payload. Every source below is appended to twice
-# before it is copied, so that its cell owns spare room (capacity above the
-# length) and an in-place write into the shared payload would be possible.
-# (A struct returned from an internal call has capacity 0 again, so the
-# appends are inline.)
+# Copies of a struct never observe each other's member mutation. After a
+# struct copy both structs share the member's payload, so the first write
+# through either side copies it. Every source below is appended to twice
+# before it is copied, so that its array has room to grow in place and an
+# in-place write into the shared payload would be possible. (A struct
+# returned from an internal call has no such room, so the appends are
+# inline.)
 
 PREPARE = """
     src: Batch = b
@@ -1244,7 +1245,7 @@ def reassigned(b: Batch, other: Batch) -> (DynArray[uint256, INF], DynArray[uint
 
 
 def test_copy_then_mutate_source(get_contract):
-    # fails if a struct copy leaves the source's capacity in place: the
+    # fails if a struct copy leaves the source's room to grow in place: the
     # source then appends into the payload the copy still references
     code = (
         BATCH
@@ -1266,7 +1267,7 @@ def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
 
 
 def test_copy_then_store_member_element(get_contract):
-    # fails if an element store goes into the payload the cell does not own
+    # fails if an element store goes into a payload the struct shares
     code = (
         BATCH
         + """
