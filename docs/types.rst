@@ -649,17 +649,30 @@ field cap:
 
 Such a struct can be read, copied, passed to internal functions, built with the
 struct constructor, returned from external and internal functions, and used as
-the element type of a ``DynArray``. The member itself may only be read -- the
-struct holds a reference to its payload, and copying the struct copies that
-reference, so writes through the member are rejected:
+the element type of a ``DynArray``. The member of a struct held in a local
+variable (or an internal function argument) can be assigned, indexed, appended
+to and popped from, also through nested struct members; copies of a struct
+never share a member with each other, so a write through one struct is not
+visible through another:
 
 .. code-block:: vyper
 
     c: Batch = b
-    c.values = [1, 2]     # rejected
-    c.values[0] = 1       # rejected
-    c.values.append(1)    # rejected
-    c.values.pop()        # rejected
+    c.values = [1, 2]
+    c.values[0] += 1
+    c.values.append(3)
+    c.values.pop()
+    # b.values is unchanged
+
+Writing the member of an array element is rejected; copy the element to a
+local variable, modify it, then store it back:
+
+.. code-block:: vyper
+
+    xs[i].values.append(1)  # rejected
+    b: Batch = xs[i]
+    b.values.append(1)
+    xs[i] = b
 
 The member must be a direct unbounded sequence, or another struct that
 satisfies the same rule; ``x: (Bytes[INF], uint256)`` and
