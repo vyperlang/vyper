@@ -483,3 +483,44 @@ def size(b: Batch) -> uint256:
 
     with tx_failed():
         env.message_call(c.address, data=calldata)
+
+
+def test_internal_call_with_list_literal_of_inf_structs(get_contract):
+    code = """
+struct Batch:
+    owner: address
+    values: DynArray[uint256, INF]
+
+@internal
+def _total(bs: DynArray[Batch, 3]) -> uint256:
+    acc: uint256 = len(bs) * 1000
+    for b: Batch in bs:
+        for v: uint256 in b.values:
+            acc += v
+    return acc
+
+@external
+def one(b: Batch) -> uint256:
+    return self._total([b])
+
+@external
+def two(b: Batch, c: Batch) -> uint256:
+    return self._total([b, c])
+
+@external
+def constructed() -> uint256:
+    return self._total([Batch(owner=self, values=[1, 2]), Batch(owner=self, values=[3])])
+
+@external
+def source_after_call(b: Batch) -> uint256:
+    r: uint256 = self._total([b])
+    return r + len(b.values)
+    """
+
+    c = get_contract(code)
+    a = "0x" + "99" * 20
+    assert c.one((a, [10, 20, 30])) == 1060
+    assert c.one((a, [])) == 1000
+    assert c.two((a, [10, 20, 30]), (a, [5])) == 2065
+    assert c.constructed() == 2006
+    assert c.source_after_call((a, [10, 20, 30])) == 1063

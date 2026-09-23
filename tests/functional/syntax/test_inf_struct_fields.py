@@ -158,6 +158,17 @@ def f(a: address, b: Batch):
     (
         BATCH + """
 interface I:
+    def take(bs: DynArray[Batch, 3]): nonpayable
+
+@external
+def f(a: address, b: Batch):
+    extcall I(a).take([b])
+    """,
+        "Function arguments cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+interface I:
     def make() -> Batch: view
 
 @external

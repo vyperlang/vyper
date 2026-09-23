@@ -72,6 +72,7 @@ from vyper.semantics.types.function import (
     is_ellipsis_body,
 )
 from vyper.semantics.types.infinity import (
+    is_supported_unbounded_struct_type,
     is_unbounded_sequence_type,
     type_contains_nested_unbounded_sequence,
     type_contains_unbounded_sequence,
@@ -81,17 +82,20 @@ from vyper.semantics.types.infinity import (
 from vyper.semantics.types.utils import type_from_annotation
 
 
-def _expr_contains_unbounded_sequence(node: vy_ast.VyperNode, typ: VyperType) -> bool:
+def _expr_contains_unbounded_sequence(
+    node: vy_ast.VyperNode, typ: VyperType, func_type: ContractFunctionT
+) -> bool:
     # walk literals alongside the expected type. a literal whose shape does
     # not match `typ` is rejected later, when it is visited
     if isinstance(node, vy_ast.Tuple) and isinstance(typ, TupleT):
         return any(
-            _expr_contains_unbounded_sequence(item, item_typ)
+            _expr_contains_unbounded_sequence(item, item_typ, func_type)
             for item, item_typ in zip(node.elements, typ.member_types)
         )
     if isinstance(node, vy_ast.List) and isinstance(typ, (SArrayT, DArrayT)):
         return any(
-            _expr_contains_unbounded_sequence(item, typ.value_type) for item in node.elements
+            _expr_contains_unbounded_sequence(item, typ.value_type, func_type)
+            for item in node.elements
         )
 
     try:
@@ -103,7 +107,16 @@ def _expr_contains_unbounded_sequence(node: vy_ast.VyperNode, typ: VyperType) ->
         # resolve a wildcard call return against the element's expected
         # type, the same way `ExprVisitor.visit_Call` does for arguments
         actual_typ = actual_typ.resolve_wildcard()
-    return type_contains_unbounded_sequence(actual_typ)
+
+    if func_type.is_external:
+        return type_contains_unbounded_sequence(actual_typ)
+
+    # the only INF-bearing element type a bounded DynArray can declare is a
+    # pointer-cell struct (see `DArrayT._validate_unbounded_shape`)
+    if not type_contains_unbounded_sequence(actual_typ):
+        return False
+
+    return not is_supported_unbounded_struct_type(actual_typ)
 
 
 def _reaches_through_unbounded_member(target: vy_ast.ExprNode) -> bool:
@@ -1117,7 +1130,9 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             for arg, arg_typ in zip(node.args, func_type.argument_types):
                 if isinstance(arg, (vy_ast.Tuple, vy_ast.List)):
-                    has_nested_unbounded = _expr_contains_unbounded_sequence(arg, arg_typ)
+                    has_nested_unbounded = _expr_contains_unbounded_sequence(
+                        arg, arg_typ, func_type
+                    )
                 else:
                     try:
                         actual_arg_typ = get_exact_type_from_node(arg)
