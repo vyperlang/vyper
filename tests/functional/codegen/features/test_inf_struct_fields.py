@@ -3,6 +3,7 @@ from eth_abi import decode as eth_abi_decode
 from eth_abi import encode as eth_abi_encode
 
 from tests.evm_backends.base_env import ExecutionReverted
+from tests.utils import deploy_raw_returner, word
 from vyper.codegen_venom.module import generate_venom_runtime
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
@@ -1628,7 +1629,7 @@ def f(target: address) -> Batch:
     """
 
     caller = get_contract(caller_code)
-    empty_target = _deploy_raw_returner(env, b"")
+    empty_target = deploy_raw_returner(env, b"")
     assert caller.f(empty_target.address) == (ZERO_ADDRESS, [1])
 
 
@@ -1654,20 +1655,6 @@ def make(owner: address, n: uint256) -> Batch:
         b.values.append(i + 1)
     return b
 """
-
-
-def _deploy_raw_returner(env, payload):
-    assert len(payload) < 256
-    runtime = bytes(
-        [0x60, len(payload), 0x60, 12, 0x60, 0, 0x39, 0x60, len(payload), 0x60, 0, 0xF3]
-    )
-    runtime += payload
-    initcode = bytes.fromhex(f"61{len(runtime):04x}3d81600a3d39f3") + runtime
-    return env.deploy([], initcode)
-
-
-def _word(value):
-    return value.to_bytes(32, "big")
 
 
 @pytest.mark.parametrize("n", LENGTHS)
@@ -1830,12 +1817,10 @@ def f(target: address) -> Batch:
     """
 
     caller = get_contract(caller_code)
-    empty_target = _deploy_raw_returner(env, b"")
+    empty_target = deploy_raw_returner(env, b"")
     assert caller.f(empty_target.address) == (caller.address, [7, 8])
 
-    target = _deploy_raw_returner(
-        env, eth_abi_encode(["(address,uint256[])"], [(OWNER, [1, 2, 3])])
-    )
+    target = deploy_raw_returner(env, eth_abi_encode(["(address,uint256[])"], [(OWNER, [1, 2, 3])]))
     assert caller.f(target.address) == (OWNER, [1, 2, 3])
 
 
@@ -1860,7 +1845,7 @@ def f(target: address, b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, I
     """
 
     caller = get_contract(caller_code)
-    empty_target = _deploy_raw_returner(env, b"")
+    empty_target = deploy_raw_returner(env, b"")
     assert caller.f(empty_target.address, (OWNER, [1, 2, 3])) == (
         [100, 2, 3, 4, 5, 9],
         [1, 200, 3, 4, 5, 6],
@@ -1880,20 +1865,20 @@ def f(target: address) -> uint256:
 
     caller = get_contract(caller_code)
 
-    valid = _word(32) + _word(0) + _word(64) + _word(1) + _word(9)
-    assert caller.f(_deploy_raw_returner(env, valid).address) == 1
+    valid = word(32) + word(0) + word(64) + word(1) + word(9)
+    assert caller.f(deploy_raw_returner(env, valid).address) == 1
 
     malformed_payloads = [
         b"",  # no returndata and no default
-        _word(32),  # offset word without the struct head
-        _word(32) + _word(0) + _word(64),  # member offset without its length word
-        _word(32) + _word(0) + _word(64) + _word(2**32),  # element count past the end
-        _word(32) + _word(0) + _word(96),  # member offset outside the returndata
-        _word(2**256 - 31),  # struct offset wraps
-        _word(32) + _word(0) + _word(2**256 - 63),  # member offset wraps
+        word(32),  # offset word without the struct head
+        word(32) + word(0) + word(64),  # member offset without its length word
+        word(32) + word(0) + word(64) + word(2**32),  # element count past the end
+        word(32) + word(0) + word(96),  # member offset outside the returndata
+        word(2**256 - 31),  # struct offset wraps
+        word(32) + word(0) + word(2**256 - 63),  # member offset wraps
     ]
     for payload in malformed_payloads:
-        target = _deploy_raw_returner(env, payload)
+        target = deploy_raw_returner(env, payload)
         with tx_failed():
             caller.f(target.address)
 
@@ -2013,24 +1998,24 @@ def dec_no_tuple(d: Bytes[INF]) -> uint256:
 
     c = get_contract(code)
 
-    head = _word(32) + _word(0) + _word(64)
-    assert c.dec(head + _word(1) + _word(9)) == 1
-    assert c.dec_no_tuple(_word(0) + _word(64) + _word(2) + _word(9) + _word(8)) == 2
+    head = word(32) + word(0) + word(64)
+    assert c.dec(head + word(1) + word(9)) == 1
+    assert c.dec_no_tuple(word(0) + word(64) + word(2) + word(9) + word(8)) == 2
 
     malformed_payloads = [
         b"",
-        _word(32),  # offset word without the struct head
+        word(32),  # offset word without the struct head
         head,  # member offset without its length word
-        head + _word(2**32),  # element count past the end
-        head + _word(2) + _word(9),  # one element short
-        _word(32) + _word(0) + _word(96),  # member offset outside the input
-        _word(2**256 - 31),  # struct offset wraps
+        head + word(2**32),  # element count past the end
+        head + word(2) + word(9),  # one element short
+        word(32) + word(0) + word(96),  # member offset outside the input
+        word(2**256 - 31),  # struct offset wraps
     ]
     for payload in malformed_payloads:
         with tx_failed():
             c.dec(payload)
 
-    for payload in [b"", _word(0), _word(0) + _word(64), _word(0) + _word(64) + _word(2**32)]:
+    for payload in [b"", word(0), word(0) + word(64), word(0) + word(64) + word(2**32)]:
         with tx_failed():
             c.dec_no_tuple(payload)
 

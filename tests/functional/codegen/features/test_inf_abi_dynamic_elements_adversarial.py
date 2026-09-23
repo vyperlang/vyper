@@ -13,6 +13,8 @@ import pytest
 
 from tests.evm_backends.abi import abi_decode, abi_encode
 from tests.evm_backends.base_env import EvmError, ExecutionReverted
+from tests.utils import deploy_raw_returner as _deploy_raw_returner
+from tests.utils import word as _word
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings
 from vyper.exceptions import TypeMismatch
@@ -23,21 +25,6 @@ from vyper.utils import keccak256, method_id
 def _venom_only(experimental_codegen):
     if not experimental_codegen:
         pytest.skip("unbounded sequence types require --experimental-codegen")
-
-
-def _word(value):
-    return value.to_bytes(32, "big")
-
-
-def _deploy_raw_returner(env, payload):
-    # runtime code: CODECOPY the trailing payload to memory and RETURN it
-    assert len(payload) < 2**16
-    size = len(payload).to_bytes(2, "big")
-    runtime = b"\x61" + size + b"\x60\x0e\x60\x00\x39\x61" + size + b"\x60\x00\xf3"
-    assert len(runtime) == 14
-    runtime += payload
-    initcode = bytes.fromhex(f"61{len(runtime):04x}3d81600a3d39f3") + runtime
-    return env.deploy([], initcode)
 
 
 def _deploy_with_ctor_data(env, code, ctor_data, settings):
