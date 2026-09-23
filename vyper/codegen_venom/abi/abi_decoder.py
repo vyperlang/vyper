@@ -148,7 +148,7 @@ def clamp_basetype(ctx: VenomCodegenContext, val: IROperand, typ: VyperType) -> 
 
 
 def clamp_bytestring(
-    ctx: VenomCodegenContext, src: VyperValue, typ: _BytestringT, hi: IROperand = None
+    ctx: VenomCodegenContext, src: VyperValue, typ: _BytestringT, hi: IROperand | None = None
 ) -> None:
     """
     Validate bytestring length and bounds.
@@ -191,7 +191,7 @@ def clamp_bytestring(
 
 
 def clamp_dyn_array(
-    ctx: VenomCodegenContext, src: VyperValue, typ: DArrayT, hi: IROperand = None
+    ctx: VenomCodegenContext, src: VyperValue, typ: DArrayT, hi: IROperand | None = None
 ) -> None:
     """
     Validate DynArray count and bounds.
@@ -243,7 +243,7 @@ def _getelemptr_abi(
     parent: VyperValue,
     member_typ: VyperType,
     static_offset: int,
-    hi: IROperand = None,
+    hi: IROperand | None = None,
 ) -> VyperValue:
     """
     Navigate to ABI-encoded element.
@@ -316,7 +316,7 @@ def _decode_bytestring(
     dst: IROperand,
     src: VyperValue,
     typ: _BytestringT,
-    hi: IROperand = None,
+    hi: IROperand | None = None,
 ) -> None:
     """
     Decode a bytestring (Bytes/String) type.
@@ -374,13 +374,19 @@ def decode_unbounded_sequence_to_scratch(
         )
 
     assert isinstance(typ, DArrayT)
-    if typ.value_type.abi_type.is_dynamic():
-        raise CompilerPanic(
-            "semantic analysis should reject ABI decoding DynArray[..., INF] "
-            "with ABI-dynamic elements"
-        )  # pragma: nocover
-
     if hi is not None:
+        # Bound `count` by the payload before sizing the allocation below.
+        # `elem_static_size` is what each element occupies in the head area:
+        # its full ABI size for static elements, one offset word for dynamic
+        # ones. Any count above `(hi - data_start) / elem_static_size` is a lie.
+        #
+        # For dynamic elements the bound is loose because head offsets may
+        # alias: a payload of P bytes can validly claim P/32 elements, each
+        # reserving the element's memory size, so decoding can expand memory
+        # to `memsize(T) / 32` times P (17x for Bytes[512]). Calldata charges
+        # that to the sender; returndata and abi_decode of foreign bytes
+        # charge the decoding contract. A bounded `DynArray[T, N]` with N
+        # equal to the claimed count costs the same, so no tail pre-scan.
         elem_static_size = typ.value_type.abi_type.embedded_static_size()
         ctx.assert_abi_dynarray_payload_in_bounds(
             src.operand, length, elem_static_size, hi, data_start=data_start
@@ -392,7 +398,11 @@ def decode_unbounded_sequence_to_scratch(
 
 
 def _decode_dyn_array(
-    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, typ: DArrayT, hi: IROperand = None
+    ctx: VenomCodegenContext,
+    dst: IRVariable,
+    src: VyperValue,
+    typ: DArrayT,
+    hi: IROperand | None = None,
 ) -> None:
     """
     Decode a dynamic array.
@@ -469,7 +479,9 @@ def _decode_dyn_array(
             # _getelemptr_abi); calldata/code may alias earlier immutable data.
             b.assert_(b.iszero(b.lt(elem_src_ptr, src_data)))
             if type_contains_unbounded_sequence(elem_typ):
-                # See _getelemptr_abi: only INF elements keep the extra probe.
+                # INF elements only, by design (see _getelemptr_abi). Bounded
+                # elements match the bounded decoder: in a memory source a far
+                # head offset runs out of gas on the element's length load.
                 ctx.assert_abi_head_word_in_bounds(elem_src_ptr, hi)
     else:
         elem_src_ptr = b.add(src_data, b.mul(i, IRLiteral(elem_static_size)))
@@ -494,7 +506,11 @@ def _decode_dyn_array(
 
 
 def _decode_complex(
-    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, typ: VyperType, hi: IROperand = None
+    ctx: VenomCodegenContext,
+    dst: IRVariable,
+    src: VyperValue,
+    typ: VyperType,
+    hi: IROperand | None = None,
 ) -> None:
     """
     Decode a complex type (tuple/struct/static array).
@@ -543,7 +559,7 @@ def _decode_complex(
 
 
 def _abi_decode_to_buf(
-    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, hi: IROperand = None
+    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, hi: IROperand | None = None
 ) -> None:
     """
     Internal decoder dispatcher.
@@ -567,7 +583,7 @@ def _abi_decode_to_buf(
 
 
 def abi_decode_to_buf(
-    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, hi: IROperand = None
+    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, hi: IROperand | None = None
 ) -> None:
     """
     Decode ABI-encoded src to Vyper-encoded dst.

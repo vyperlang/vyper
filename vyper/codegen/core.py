@@ -17,6 +17,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,
     BoolT,
+    BottomT,
     BytesM_T,
     DArrayT,
     DecimalT,
@@ -497,7 +498,7 @@ def append_dyn_array(darray_node, elem_node):
 
     if not is_bounded_length(darray_node.typ.count):
         raise CodegenPanic("append not yet implemented for unbounded DynArray")
-    assert darray_node.typ.count > 0, "jerk boy u r out"
+    assert darray_node.typ.count >= 0, "jerk boy u r out"
 
     ret = ["seq"]
     with darray_node.cache_when_complex("darray") as (b1, darray_node):
@@ -926,7 +927,10 @@ def check_assign(left, right):
     def FAIL():  # pragma: no cover
         raise TypeCheckFailure(f"assigning {right.typ} to {left.typ} {left} {right}")
 
-    if isinstance(left.typ, _BytestringT):
+    if isinstance(right.typ, BottomT):
+        # Universal subtype, can be widened to anything
+        pass
+    elif isinstance(left.typ, _BytestringT):
         _check_assign_bytes(left, right)
     elif is_array_like(left.typ):
         _check_assign_list(left, right)

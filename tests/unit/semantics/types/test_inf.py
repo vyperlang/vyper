@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from vyper import ast as vy_ast
 from vyper import compiler
 from vyper.compiler.settings import Settings
 from vyper.exceptions import (
@@ -11,7 +12,7 @@ from vyper.exceptions import (
     TypeMismatch,
     UndeclaredDefinition,
 )
-from vyper.semantics.types import INF, BytesT, DArrayT, StringT
+from vyper.semantics.types import INF, BoolT, BytesT, DArrayT, StringT, TupleT
 from vyper.semantics.types.infinity import WILDCARD, Inf, Wildcard
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
@@ -476,7 +477,7 @@ error E:
 
 @external
 def boom(x: Bytes[INF]):
-    raise E(x)
+    raise E(x=x)
     """,
     ],
 )
@@ -579,18 +580,6 @@ def test_inf_module_variable_locations_rejected(code):
             "DynArray[DynArray[uint256, INF], INF]",
             "DynArray element types cannot contain unbounded sequence types",
         ),
-        (
-            "DynArray[Bytes[10], INF]",
-            "DynArray[..., INF] is only supported with ABI-static element types",
-        ),
-        (
-            "DynArray[String[10], INF]",
-            "DynArray[..., INF] is only supported with ABI-static element types",
-        ),
-        (
-            "DynArray[DynArray[uint256, 3], INF]",
-            "DynArray[..., INF] is only supported with ABI-static element types",
-        ),
     ],
 )
 def test_inf_deferred_dynarray_shapes_rejected(typ, message):
@@ -602,6 +591,29 @@ def foo(x: {typ}):
     with pytest.raises(StructureException) as e:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
     assert e.value.message == message
+
+
+@pytest.mark.parametrize(
+    ("typ", "abi_type"),
+    [
+        ("DynArray[Bytes[10], INF]", "bytes[]"),
+        ("DynArray[String[10], INF]", "string[]"),
+        ("DynArray[DynArray[uint256, 3], INF]", "uint256[][]"),
+    ],
+)
+def test_inf_dynarray_abi_dynamic_elements_accepted(typ, abi_type):
+    # bounded but ABI-dynamic element types are allowed in DynArray[..., INF]
+    code = f"""
+@external
+def foo(x: {typ}) -> {typ}:
+    return x
+    """
+    out = compiler.compile_code(
+        code, output_formats=["abi"], settings=Settings(experimental_codegen=True)
+    )
+    (fn,) = out["abi"]
+    assert fn["inputs"][0]["type"] == abi_type
+    assert fn["outputs"][0]["type"] == abi_type
 
 
 @pytest.mark.parametrize(
@@ -858,6 +870,43 @@ def test_adhoc_bytes_sources_allowed_in_legacy(code):
     compiler.compile_code(code, settings=Settings(experimental_codegen=False))
 
 
+@pytest.mark.parametrize("call_kwargs", ["", ", is_static_call=True", ", is_delegate_call=True"])
+@pytest.mark.parametrize("revert_on_failure", [True, False])
+def test_raw_call_unbounded_outsize_return_type(call_kwargs, revert_on_failure):
+    return_annotation = "Bytes[INF]" if revert_on_failure else "(bool, Bytes[INF])"
+    code = f"""
+@external
+def foo(a: address) -> {return_annotation}:
+    return raw_call(a, b"", max_outsize=INF, revert_on_failure={revert_on_failure}{call_kwargs})
+    """
+    module = compiler.CompilerData(
+        code, settings=Settings(experimental_codegen=True)
+    ).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.get("func.id") == "raw_call"]
+    return_type = call.func._metadata["type"].fetch_call_return(call)
+    if revert_on_failure:
+        assert return_type == BytesT(INF)
+    else:
+        assert return_type == TupleT([BoolT(), BytesT(INF)])
+
+
+@pytest.mark.parametrize(
+    ("revert_on_failure", "abi_types"), [(True, ["bytes"]), (False, ["bool", "bytes"])]
+)
+def test_raw_call_unbounded_outsize_abi(revert_on_failure, abi_types):
+    return_annotation = "Bytes[INF]" if revert_on_failure else "(bool, Bytes[INF])"
+    code = f"""
+@external
+def foo(target: address) -> {return_annotation}:
+    return raw_call(target, b"", max_outsize=INF, revert_on_failure={revert_on_failure})
+    """
+    out = compiler.compile_code(
+        code, output_formats=["abi"], settings=Settings(experimental_codegen=True)
+    )
+    (fn,) = out["abi"]
+    assert [output["type"] for output in fn["outputs"]] == abi_types
+
+
 def test_exported_inf_function(compile_inf_code, make_input_bundle):
     lib = """
 @external
@@ -907,7 +956,7 @@ event E:
 error E:
     x: Bytes[INF]
     """,
-            "raise lib.E(b'abc')",
+            "raise lib.E(x=b'abc')",
         ),
     ],
 )
@@ -1028,18 +1077,25 @@ def foo(x: Bytes[INF]) -> Bytes[INF]:
     compile_inf_code(code)
 
 
-def test_wildcard_return_dynamic_element_requires_expected_bound():
-    rejected = """
+def test_wildcard_return_dynamic_element_resolves_to_inf():
+    # no expected bound: the wildcard resolves to DynArray[Bytes[10], INF]
+    inf_code = """
 interface I:
     def foo() -> DynArray[Bytes[10], ...]: view
 
 @external
-def f(a: address) -> uint256:
+def f(a: address) -> DynArray[Bytes[10], INF]:
+    return staticcall I(a).foo()
+
+@external
+def g(a: address) -> uint256:
     return len(staticcall I(a).foo())
     """
-    with pytest.raises(StructureException) as e:
-        compiler.compile_code(rejected)
-    assert e.value.message == "DynArray[..., INF] is only supported with ABI-static element types"
+    out = compiler.compile_code(
+        inf_code, output_formats=["abi"], settings=Settings(experimental_codegen=True)
+    )
+    f_abi = next(fn for fn in out["abi"] if fn["name"] == "f")
+    assert f_abi["outputs"][0]["type"] == "bytes[]"
 
     accepted = """
 interface I:
@@ -1052,8 +1108,9 @@ def f(a: address) -> DynArray[Bytes[10], 5]:
     compiler.compile_code(accepted)
 
 
-def test_wildcard_arg_dynamic_element_requires_expected_bound():
-    rejected = """
+def test_wildcard_arg_dynamic_element_resolves_to_inf():
+    # no expected bound: the wildcard resolves to DynArray[Bytes[10], INF]
+    inf_code = """
 interface I:
     def foo(xs: DynArray[Bytes[10], ...]): nonpayable
 
@@ -1061,9 +1118,11 @@ interface I:
 def f(a: address):
     extcall I(a).foo([])
     """
-    with pytest.raises(StructureException) as e:
-        compiler.compile_code(rejected)
-    assert e.value.message == "DynArray[..., INF] is only supported with ABI-static element types"
+    module = compiler.CompilerData(
+        inf_code, settings=Settings(experimental_codegen=True)
+    ).annotated_vyper_module
+    (arg,) = module.get_descendants(vy_ast.List)
+    assert arg._metadata["type"] == DArrayT(BytesT(10), INF)
 
     accepted = """
 interface I:
@@ -1121,6 +1180,116 @@ def f(a: address, x: Bytes[INF]) -> uint256:
     assert e.value.message == message
 
 
+@pytest.mark.parametrize(
+    ("code", "message"),
+    [
+        (
+            """
+interface I:
+    def source() -> (Bytes[...], DynArray[uint256, ...]): nonpayable
+    def sink(x: (Bytes[10], DynArray[uint256, ...])): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).sink(extcall I(a).source())
+    """,
+            "Function arguments cannot contain unbounded sequence types inside aggregate types",
+        ),
+        (
+            """
+interface I:
+    def source() -> (Bytes[...], uint256): nonpayable
+    def sink(x: (Bytes[...], uint256)): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).sink(extcall I(a).source())
+    """,
+            "Function arguments cannot contain unbounded sequence types inside aggregate types",
+        ),
+        # the wildcard call is an element of a tuple literal
+        (
+            """
+interface I:
+    def source() -> Bytes[...]: view
+    def sink(x: (Bytes[...], uint256)): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).sink((staticcall I(a).source(), 1))
+    """,
+            "Function arguments cannot contain unbounded sequence types inside aggregate types",
+        ),
+        # only the member receiving the wildcard call is a wildcard
+        (
+            """
+interface I:
+    def source() -> DynArray[uint256, ...]: view
+    def sink(x: (Bytes[10], DynArray[uint256, ...])): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).sink((b"hi", staticcall I(a).source()))
+    """,
+            "Function arguments cannot contain unbounded sequence types inside aggregate types",
+        ),
+        # the wildcard call is an element of a list literal
+        (
+            """
+interface I:
+    def source() -> Bytes[...]: view
+    def sink(xs: DynArray[Bytes[...], ...]): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).sink([staticcall I(a).source()])
+    """,
+            "Function arguments cannot contain unbounded sequence types inside aggregate types",
+        ),
+        (
+            """
+interface I:
+    def source() -> (Bytes[...], DynArray[uint256, ...]): nonpayable
+
+@external
+def f(a: address):
+    print(extcall I(a).source())
+    """,
+            "print arguments cannot contain unbounded sequence types inside aggregate types",
+        ),
+        (
+            """
+interface I:
+    def source() -> (Bytes[...], DynArray[uint256, ...]): nonpayable
+
+@external
+def f(a: address, code: Bytes[100]) -> address:
+    return raw_create(code, extcall I(a).source())
+    """,
+            "constructor arguments cannot contain nested unbounded sequence types",
+        ),
+        (
+            """
+interface I:
+    def source() -> (Bytes[...], DynArray[uint256, ...]): nonpayable
+
+@external
+def f(a: address, target: address) -> address:
+    return create_from_blueprint(target, extcall I(a).source())
+    """,
+            "constructor arguments cannot contain nested unbounded sequence types",
+        ),
+    ],
+)
+def test_wildcard_tuple_return_rejected_as_argument(code, message):
+    # without a bounded expected type a wildcard call return resolves to INF,
+    # which is not a valid argument type inside an aggregate. this holds for
+    # the call passed directly and for a call nested in a tuple or list literal
+    with pytest.raises(StructureException) as e:
+        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+    assert e.value.message == message
+
+
 def test_wildcard_tuple_return_member_access_compile():
     code = """
 interface I:
@@ -1135,7 +1304,7 @@ def f(a: address) -> uint256:
     )
 
 
-def test_wildcard_tuple_return_dynamic_element_requires_expected_bound():
+def test_wildcard_tuple_return_dynamic_element_resolves_to_inf():
     code = """
 interface I:
     def foo() -> (uint256, DynArray[Bytes[10], ...]): view
@@ -1144,9 +1313,11 @@ interface I:
 def f(a: address) -> uint256:
     return len((staticcall I(a).foo())[1])
     """
-    with pytest.raises(StructureException) as e:
-        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
-    assert e.value.message == "DynArray[..., INF] is only supported with ABI-static element types"
+    module = compiler.CompilerData(
+        code, settings=Settings(experimental_codegen=True)
+    ).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if "call_return_type" in n._metadata]
+    assert call._metadata["call_return_type"].member_types[1] == DArrayT(BytesT(10), INF)
 
 
 def test_imported_wildcard_event_accepts_inf_arg(make_input_bundle):
@@ -1223,7 +1394,7 @@ def emit(a: address):
         ),
         (
             {"inputs": [{"name": "x", "type": "bytes"}], "name": "Oops", "type": "error"},
-            "raise JSONInterface.Oops(staticcall JSONInterface(a).returns_bytes())",
+            "raise JSONInterface.Oops(x=staticcall JSONInterface(a).returns_bytes())",
         ),
     ],
 )
@@ -1287,7 +1458,7 @@ import JSONInterface
 
 @external
 def boom(x: Bytes[10]):
-    raise JSONInterface.Oops(x)
+    raise JSONInterface.Oops(x=x)
     """
     input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
     compiler.compile_code(
@@ -1305,7 +1476,7 @@ import JSONInterface
 
 @external
 def boom(x: Bytes[INF]):
-    raise JSONInterface.Oops(x)
+    raise JSONInterface.Oops(x=x)
     """
     input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
     compiler.compile_code(
