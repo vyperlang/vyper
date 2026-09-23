@@ -46,6 +46,7 @@ from vyper.semantics.types import (
     is_type_t,
     is_unbounded_dynarray_type,
     is_unbounded_sequence_type,
+    member_slot_size,
     type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.base import VOID_TYPE
@@ -1221,9 +1222,26 @@ class Expr:
         offset = 0
         for i in range(field_index):
             t = base_typ.member_types[attrs[i]]
-            offset += t.get_size_in(data_loc)
+            if is_unbounded_sequence_type(t):
+                # only memory holds pointer cells; every word-addressed
+                # location rejects INF (the module variable gate in
+                # `semantics/analysis/module.py`)
+                assert data_loc == DataLocation.MEMORY
+                offset += member_slot_size(t)
+            else:
+                offset += t.get_size_in(data_loc)
 
         field_ptr = self.builder.add(base, IRLiteral(offset))
+
+        if is_unbounded_sequence_type(field_typ):
+            # The member is a pointer cell, not the value: reading it as the
+            # value would hand back the payload address (see
+            # `VenomCodegenContext.store_pointer_cell`).
+            assert data_loc == DataLocation.MEMORY
+            assert isinstance(field_ptr, IRVariable)
+            payload = self.builder.mload(field_ptr)
+            assert isinstance(payload, IRVariable)
+            return self.ctx.dynamic_memory_value(payload, field_typ, annotation=attr)
 
         return self._make_ptr_value(field_ptr, data_loc, field_typ)
 
@@ -1664,8 +1682,18 @@ class Expr:
 
             dst = self.builder.add(val.operand, IRLiteral(offset))
 
-            self.ctx.store_vyper_value(field_vv, dst, field_typ)
-            offset += field_typ.memory_bytes_required
+            if is_unbounded_sequence_type(field_typ):
+                # The struct owns its INF members, so the initializer is
+                # copied out of the caller's buffer before the cell is
+                # written. Capacity 0 marks the payload exact-sized.
+                assert isinstance(dst, IRVariable)
+                payload = self.ctx.copy_sequence_to_scratch(
+                    field_vv, field_typ, annotation=field_name
+                )
+                self.ctx.store_pointer_cell(dst, payload.operand, IRLiteral(0))
+            else:
+                self.ctx.store_vyper_value(field_vv, dst, field_typ)
+            offset += member_slot_size(field_typ)
 
         return val
 

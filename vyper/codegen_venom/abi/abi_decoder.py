@@ -32,11 +32,13 @@ from vyper.semantics.types import (
     IntegerT,
     InterfaceT,
     SArrayT,
+    StructT,
     VyperType,
     _BytestringT,
     is_unbounded_bytestring_type,
     is_unbounded_dynarray_type,
     is_unbounded_sequence_type,
+    member_slot_size,
     type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
@@ -543,19 +545,32 @@ def _decode_complex(
     abi_offset = 0
     vyper_offset = 0
 
-    for _key, elem_typ in items:
+    for key, elem_typ in items:
         # Get source pointer (ABI layout) - returns VyperValue
         elem_src = _getelemptr_abi(ctx, src, elem_typ, abi_offset, hi)
 
         # Get destination pointer (Vyper layout)
         elem_dst = b.add(dst, IRLiteral(vyper_offset))
 
-        # Recursively decode element
-        _abi_decode_to_buf(ctx, elem_dst, elem_src, hi)
+        if is_unbounded_sequence_type(elem_typ):
+            # An INF member has no inline payload; decode it into its own
+            # allocation and write the destination's pointer cell. Only a
+            # struct has such members (`is_supported_unbounded_struct_type`).
+            assert isinstance(typ, StructT)
+            assert isinstance(elem_dst, IRVariable)
+            member = decode_unbounded_sequence_to_scratch(
+                ctx, elem_src, elem_typ, hi, f"{typ}.{key}"
+            )
+            # capacity 0: the decoded payload is exact-sized, so an append
+            # through this cell must reallocate (see `store_pointer_cell`)
+            ctx.store_pointer_cell(elem_dst, member.operand, IRLiteral(0))
+        else:
+            # Recursively decode element
+            _abi_decode_to_buf(ctx, elem_dst, elem_src, hi)
 
         # Advance offsets
         abi_offset += elem_typ.abi_type.embedded_static_size()
-        vyper_offset += elem_typ.memory_bytes_required
+        vyper_offset += member_slot_size(elem_typ)
 
 
 def _abi_decode_to_buf(

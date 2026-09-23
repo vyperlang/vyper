@@ -19,11 +19,14 @@ from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import (
     DArrayT,
     SArrayT,
+    StructT,
     TupleT,
     VyperType,
     _BytestringT,
     is_unbounded_bytestring_type,
     is_unbounded_dynarray_type,
+    is_unbounded_sequence_type,
+    member_slot_size,
     type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -54,6 +57,8 @@ def runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IR
         ptr = ctx.unwrap(arg_vv)
         assert isinstance(ptr, IRVariable)
         return ctx.dynarray_runtime_abi_size(ptr, typ)
+    if isinstance(typ, StructT) and type_contains_unbounded_sequence(typ):
+        return _runtime_abi_size_for_struct(ctx, arg_vv, typ)
     return IRLiteral(typ.abi_type.size_bound())
 
 
@@ -68,6 +73,36 @@ def _abi_size_add(
         return ctx.checked_add(left, right), True
 
     return ctx.builder.add(left, right), False
+
+
+def _runtime_abi_size_for_struct(
+    ctx: VenomCodegenContext, arg_vv: VyperValue, typ: StructT
+) -> IROperand:
+    """Return a runtime bound on the ABI-encoded size of a struct with INF members.
+
+    `abi_type.size_bound()` multiplies by the element bound, which is INF
+    here. The head is still a compile-time constant, so only the members that
+    land in the tail have to be measured at runtime.
+    """
+    ptr = ctx.unwrap(arg_vv)
+    assert isinstance(ptr, IRVariable)
+
+    size: IROperand = IRLiteral(typ.abi_type.static_size())
+    size_unbounded = False
+    for i, (_key, member_t) in enumerate(typ.tuple_items()):
+        if not member_t.abi_type.is_dynamic():
+            continue
+        member_ptr, _ = _get_element_ptr(ctx, ptr, IRLiteral(i), typ)
+        assert isinstance(member_ptr, IRVariable)
+        member_vv = ctx.dynamic_memory_value(member_ptr, member_t)
+        size, size_unbounded = _abi_size_add(
+            ctx,
+            size,
+            runtime_abi_size_for_arg(ctx, member_vv),
+            size_unbounded,
+            type_contains_unbounded_sequence(member_t),
+        )
+    return size
 
 
 def runtime_abi_size_for_encode(
@@ -188,17 +223,25 @@ def _get_element_ptr(
         idx = key.value
 
         items = parent_typ.tuple_items()  # type: ignore[attr-defined]
+        # only a struct lays an INF member out as a pointer cell. A tuple
+        # with INF members lives in the frame of `dynamic_tuple_frame_value`,
+        # whose members reach the encoder one by one, never through here.
+        is_struct = isinstance(parent_typ, StructT)
         offset = 0
         for i, (_k, t) in enumerate(items):
             if i == idx:
                 elem_typ = t
                 break
-            offset += t.memory_bytes_required
+            offset += member_slot_size(t) if is_struct else t.memory_bytes_required
         else:  # pragma: nocover
             raise CompilerPanic(f"Tuple index {idx} out of range")
 
         elem_ptr: IROperand
         elem_ptr = b.add(parent_ptr, IRLiteral(offset))
+        if is_struct and is_unbounded_sequence_type(elem_typ):
+            # what gets encoded is the payload the cell points at
+            assert isinstance(elem_ptr, IRVariable)
+            elem_ptr = b.mload(elem_ptr)
         return elem_ptr, elem_typ
 
     elif isinstance(parent_typ, SArrayT):

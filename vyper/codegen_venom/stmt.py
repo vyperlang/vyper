@@ -1319,6 +1319,21 @@ class Stmt:
         encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, encode_typ, None)
         self.builder.return_(buf_ptr, encoded_len)
 
+    def _emit_external_pointer_cell_return(
+        self, ret_val: IRVariable, ret_typ: VyperType, encode_typ: VyperType
+    ) -> None:
+        """Return a struct whose INF members are pointer cells.
+
+        The encoding has no static bound (`abi_type.size_bound()` multiplies
+        by INF), so the buffer is sized at runtime from the members' current
+        lengths, as for a top-level INF sequence.
+        """
+        ret_vv = self.ctx.dynamic_memory_value(ret_val, ret_typ, annotation="return")
+        size = runtime_abi_size_for_encode(self.ctx, [ret_vv], encode_typ)
+        buf_ptr = self.ctx.allocate_scratch(size)
+        encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, encode_typ, None)
+        self.builder.return_(buf_ptr, encoded_len)
+
     def _lower_external_return(
         self,
         ret_val: Optional[IROperand],
@@ -1429,6 +1444,11 @@ class Stmt:
             self._emit_external_dynamic_tuple_return(
                 arg_vvs, ret_typ, wrap_outer=external_return_type is not ret_typ
             )
+            return
+
+        if isinstance(ret_typ, StructT) and type_contains_unbounded_sequence(ret_typ):
+            assert isinstance(ret_val, IRVariable)
+            self._emit_external_pointer_cell_return(ret_val, ret_typ, encode_typ)
             return
 
         maxlen = encode_typ.abi_type.size_bound()
