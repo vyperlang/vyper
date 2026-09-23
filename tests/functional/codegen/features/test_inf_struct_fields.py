@@ -457,3 +457,29 @@ def __init__(b: Batch):
     assert c.count() == 3
     assert c.first() == 42
     assert c.owner().lower() == owner
+
+
+def test_oversized_member_length_reverts(get_contract, env, tx_failed):
+    # the member has no length cap of its own, so the decoder has to bound the
+    # claimed length by the readable calldata instead of expanding memory for it
+    code = """
+struct Batch:
+    owner: address
+    values: DynArray[uint256, INF]
+
+@external
+def size(b: Batch) -> uint256:
+    return len(b.values)
+    """
+
+    c = get_contract(code)
+    calldata = (
+        method_id("size((address,uint256[]))")
+        + (32).to_bytes(32, "big")  # offset of the struct
+        + (0).to_bytes(32, "big")  # owner
+        + (64).to_bytes(32, "big")  # offset of `values` within the struct
+        + (2**32).to_bytes(32, "big")  # claimed element count, with no payload
+    )
+
+    with tx_failed():
+        env.message_call(c.address, data=calldata)

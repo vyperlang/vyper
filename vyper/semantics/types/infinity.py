@@ -82,6 +82,11 @@ def is_supported_unbounded_struct_member(typ) -> bool:
     `VenomCodegenContext.store_pointer_cell`). That keeps the struct's size a
     compile-time constant, but only for the shapes one cell can describe: a
     direct INF sequence of bounded elements, or another such struct inline.
+
+    This is stricter than `type_contains_unrepresentable_unbounded_sequence`,
+    which also accepts a DynArray of pointer-cell structs: that shape has a
+    memory layout but no static ABI size bound, and a struct must stay
+    encodable because it can be returned.
     """
     if not type_contains_unbounded_sequence(typ):
         return True
@@ -122,6 +127,9 @@ def type_contains_unrepresentable_unbounded_sequence(typ) -> bool:
     stride stays a compile-time constant. Anywhere else the offsets after the
     INF value would be runtime values, which struct/tuple/array addressing
     cannot express.
+
+    Having a memory layout does not make a type encodable; positions that
+    encode use `type_contains_unsupported_unbounded_return` instead.
     """
     if not type_contains_unbounded_sequence(typ):
         return False
