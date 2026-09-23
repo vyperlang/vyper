@@ -2,7 +2,10 @@ import pytest
 from eth_abi import decode as eth_abi_decode
 from eth_abi import encode as eth_abi_encode
 
+from vyper.codegen_venom.module import generate_venom_runtime
 from vyper.compiler import compile_code
+from vyper.compiler.phases import CompilerData
+from vyper.compiler.settings import anchor_settings
 from vyper.utils import method_id
 
 
@@ -1166,7 +1169,9 @@ def f(b: Batch) -> Batch:
 
 
 def test_member_read_does_not_copy_payload(compiler_settings):
-    # only a write through the member copies a payload the cell does not own
+    # only a write through the member copies its payload. The one dynamic
+    # allocation here is the calldata decode of the member payload; a read
+    # that copied the payload would add a second one
     code = BATCH + """
 @external
 def f(b: Batch, i: uint256) -> (uint256, uint256):
@@ -1177,8 +1182,17 @@ def f(b: Batch, i: uint256) -> (uint256, uint256):
     return acc, c.values[i]
     """
 
-    ir = compile_code(code, output_formats=["ir_runtime"], settings=compiler_settings)
-    assert "cell_copy" not in str(ir["ir_runtime"])
+    compiler_data = CompilerData(code, settings=compiler_settings)
+    with anchor_settings(compiler_settings):
+        ctx = generate_venom_runtime(compiler_data.global_ctx, compiler_settings)
+    dallocas = [
+        inst
+        for fn in ctx.functions.values()
+        for bb in fn.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "dalloca"
+    ]
+    assert len(dallocas) == 1
 
 
 # Copies of a struct never observe each other's member mutation. A struct
