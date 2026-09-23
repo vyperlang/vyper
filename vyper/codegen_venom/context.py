@@ -254,7 +254,10 @@ class VenomCodegenContext:
         A cell with capacity 0 may share its payload with other cells (see
         `zero_pointer_cell_capacities`), so its payload is first copied into
         a fresh buffer with capacity equal to the length. From then on the
-        cell is the only reference to that payload.
+        cell is the only reference to that payload. Lowering the same member
+        as an lvalue more than once within a statement (`b.xs[b.xs.pop()] =
+        v`) relies on the copied cell having capacity = length: a second
+        lowering must find the cell owned and reuse the payload.
         """
         b = self.builder
         ptr, capacity = self.load_pointer_cell(cell)

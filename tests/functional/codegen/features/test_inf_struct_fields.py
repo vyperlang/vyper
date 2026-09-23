@@ -1314,6 +1314,24 @@ def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF], uint256):
     assert c.f((OWNER, [1, 2, 3])) == ([1, 2, 3], [1, 2], 3)
 
 
+def test_member_store_with_pop_in_index(get_contract):
+    # the store target `copy.values` is lowered before the index, and the
+    # index pops the same member; fails if the first write leaves the member
+    # in a state where the pop copies the payload again, so that the store
+    # lands in a payload the member no longer refers to
+    code = BATCH + """
+@external
+def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+    src: Batch = b
+    copy: Batch = src
+    copy.values[copy.values.pop() - 3] = 100
+    return src.values, copy.values
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1, 2, 3])) == ([1, 2, 3], [100, 2])
+
+
 def test_member_copy_to_local_is_independent(get_contract):
     code = (
         BATCH
