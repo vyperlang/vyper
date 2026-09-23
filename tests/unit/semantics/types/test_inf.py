@@ -295,11 +295,11 @@ x: Bytes[...]
     """,
         InvalidType,
     ),
-    # Unbounded sequence types are not supported inside structs
+    # A struct member may be an unbounded sequence, but not contain one
     (
         """
 struct S:
-    x: Bytes[INF]
+    x: (Bytes[INF], uint256)
     """,
         StructureException,
     ),
