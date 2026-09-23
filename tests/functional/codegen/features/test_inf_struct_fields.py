@@ -526,11 +526,11 @@ def source_after_call(b: Batch) -> uint256:
     assert c.source_after_call((a, [10, 20, 30])) == 1063
 
 
-# An internal function returning a struct with INF members hands its payloads
-# to the caller through `dret`, so they outlive the callee frame. Each
-# producer is called twice from one external function: a payload left in the
-# callee frame is overwritten by the second call, and a single call site is
-# inlined at -O gas, which would hide that.
+# An internal function returning a struct with INF members copies its payloads
+# into the caller's frame, so they outlive the callee frame. Each producer is
+# called twice from one external function: a payload left in the callee frame
+# is overwritten by the second call, and a single call site is inlined at
+# -O gas, which would hide that.
 def test_internal_return_survives_second_call(get_contract):
     code = """
 struct S:
@@ -669,27 +669,6 @@ def f() -> (uint256, uint256, uint256, uint256):
     assert c.f() == (1, 2, 5, 3)
 
 
-def test_internal_return_of_arg(get_contract):
-    code = """
-struct S:
-    a: DynArray[uint256, INF]
-    n: uint256
-
-@internal
-def ident(s: S) -> S:
-    return s
-
-@external
-def f(s: S) -> (uint256, uint256, uint256):
-    first: S = self.ident(s)
-    second: S = self.ident(S(a=[99, 100], n=99))
-    return first.a[0], first.a[1], first.n
-    """
-
-    c = get_contract(code)
-    assert c.f(([1, 2], 3)) == (1, 2, 3)
-
-
 def test_internal_return_empty_payload(get_contract):
     code = """
 struct S:
@@ -697,18 +676,18 @@ struct S:
     n: uint256
 
 @internal
-def g(x: uint256) -> S:
-    return S(a=[], n=x)
+def g(xs: DynArray[uint256, INF], n: uint256) -> S:
+    return S(a=xs, n=n)
 
 @external
-def f() -> (uint256, uint256, uint256):
-    first: S = self.g(1)
-    second: S = self.g(99)
-    return len(first.a), first.n, second.n
+def f() -> (uint256, uint256, uint256, uint256):
+    first: S = self.g([], 1)
+    second: S = self.g([99, 100], 99)
+    return len(first.a), first.n, len(second.a), second.n
     """
 
     c = get_contract(code)
-    assert c.f() == (0, 1, 99)
+    assert c.f() == (0, 1, 2, 99)
 
 
 def test_internal_return_bytestring_members(get_contract):
@@ -752,3 +731,26 @@ def f() -> (uint256, uint256, uint256, uint256, Bytes[INF]):
 
     c = get_contract(code)
     assert c.f() == (1, 3, 3, 1, b"abcd")
+
+
+# The returned struct is the callee's argument, whose payload the caller
+# staged in its own frame; the second call cannot overwrite it.
+def test_internal_return_of_arg(get_contract):
+    code = """
+struct S:
+    a: DynArray[uint256, INF]
+    n: uint256
+
+@internal
+def ident(s: S) -> S:
+    return s
+
+@external
+def f(s: S) -> (uint256, uint256, uint256):
+    first: S = self.ident(s)
+    second: S = self.ident(S(a=[99, 100], n=99))
+    return first.a[0], first.a[1], first.n
+    """
+
+    c = get_contract(code)
+    assert c.f(([1, 2], 3)) == (1, 2, 3)

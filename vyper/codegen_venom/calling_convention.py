@@ -12,8 +12,8 @@ from __future__ import annotations
 from vyper.codegen.core import is_tuple_like
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import (
+    StructT,
     VyperType,
-    is_supported_unbounded_struct_type,
     is_supported_unbounded_tuple_type,
     is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
@@ -61,7 +61,7 @@ def returns_dynamic_count(func_t) -> int:
     ret_t = func_t.return_type
     if is_unbounded_sequence_type(ret_t):
         return 1
-    if is_supported_unbounded_struct_type(ret_t) and type_contains_unbounded_sequence(ret_t):
+    if isinstance(ret_t, StructT) and type_contains_unbounded_sequence(ret_t):
         # the struct itself plus one pair per pointer-cell payload
         return 1 + len(unbounded_member_cells(ret_t))
     if is_dynamic_tuple_return_type(ret_t):

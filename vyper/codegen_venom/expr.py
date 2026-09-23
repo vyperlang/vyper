@@ -1249,7 +1249,6 @@ class Expr:
     def _pointer_cell_struct_from_outputs(self, outs: list[IRVariable], typ: StructT) -> VyperValue:
         """Rebind the cells of a struct returned through `dret` to its packed payloads."""
         cells = unbounded_member_cells(typ)
-        assert len(outs) == 1 + len(cells)
         struct_ptr = outs[0]
         for payload, (offset, _) in zip(outs[1:], cells, strict=True):
             cell = self.builder.add(struct_ptr, IRLiteral(offset))
