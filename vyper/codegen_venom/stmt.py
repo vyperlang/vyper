@@ -250,6 +250,15 @@ class Stmt:
             self.ctx.copy_memory(tmp_val.operand, src, src_typ.memory_bytes_required)
             src = tmp_val.operand
 
+            if isinstance(src_typ, StructT) and type_contains_unbounded_sequence(src_typ):
+                # the staging copy already carries capacity 0; going through
+                # `store_memory` would zero it again between the two copies,
+                # which stops MemoryCopyElisionPass from fusing them
+                assert src_typ == typ
+                assert isinstance(dst_ptr.operand, IRVariable)
+                self.ctx.copy_memory(dst_ptr.operand, src, typ.memory_bytes_required)
+                return
+
         self._store_complex_type(dst_ptr, src, typ, src_typ)
 
     def _store_complex_type(
