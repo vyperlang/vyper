@@ -681,11 +681,12 @@ The member must be a direct unbounded sequence, or another struct that
 satisfies the same rule; ``x: (Bytes[INF], uint256)`` and
 ``xs: DynArray[Batch, 3]`` are rejected as struct members. A struct with an
 unbounded member is also rejected in storage, transient storage, immutable and
-constant declarations, static arrays and mappings. It may not be
-returned inside a tuple, and a ``DynArray`` of such structs may not be
-returned, encoded or decoded: not in external call arguments and return
-values, ``abi_encode``, ``abi_decode``, events, custom errors, ``print`` or
-``create_*`` constructor arguments.
+constant declarations, static arrays and mappings. It may not be returned
+inside a tuple. A ``DynArray`` of such structs is accepted as a function
+argument and as a local variable, but may not be encoded, nor decoded by
+``abi_decode`` or an external call return: not in function and external call
+return values, external call arguments, ``abi_encode``, ``abi_decode``, events,
+custom errors, ``print`` or ``create_*`` constructor arguments.
 
 .. note::
     ``INF`` sequence types require ``#pragma experimental-codegen`` or compiling
