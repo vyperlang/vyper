@@ -37,8 +37,8 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.bytestrings import BytesT
 from vyper.semantics.types.infinity import (
-    type_contains_nested_unbounded_sequence,
-    type_contains_unsupported_unbounded_sequence,
+    type_contains_unrepresentable_unbounded_sequence,
+    type_contains_unsupported_unbounded_return,
 )
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -880,7 +880,7 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
         return None
     # note: consider, for cleanliness, adding DataLocation.RETURN_VALUE
     ret = type_from_annotation(funcdef.returns, DataLocation.MEMORY)
-    if type_contains_unsupported_unbounded_sequence(ret):
+    if type_contains_unsupported_unbounded_return(ret):
         raise StructureException(
             "Function returns cannot contain unbounded sequence types inside aggregate types",
             funcdef.returns,
@@ -1105,7 +1105,7 @@ def _parse_args(
             raise ArgumentException(f"Function argument '{argname}' is missing a type", arg)
 
         type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
-        if type_contains_nested_unbounded_sequence(type_):
+        if type_contains_unrepresentable_unbounded_sequence(type_):
             raise StructureException(
                 "Function arguments cannot contain unbounded sequence types inside aggregate types",
                 arg.annotation,

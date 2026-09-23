@@ -72,8 +72,10 @@ from vyper.semantics.types.function import (
     is_ellipsis_body,
 )
 from vyper.semantics.types.infinity import (
+    is_unbounded_sequence_type,
     type_contains_nested_unbounded_sequence,
     type_contains_unbounded_sequence,
+    type_contains_unrepresentable_unbounded_sequence,
     type_contains_unsupported_unbounded_sequence,
 )
 from vyper.semantics.types.utils import type_from_annotation
@@ -102,6 +104,41 @@ def _expr_contains_unbounded_sequence(node: vy_ast.VyperNode, typ: VyperType) ->
         # type, the same way `ExprVisitor.visit_Call` does for arguments
         actual_typ = actual_typ.resolve_wildcard()
     return type_contains_unbounded_sequence(actual_typ)
+
+
+def _reaches_through_unbounded_member(target: vy_ast.ExprNode) -> bool:
+    """Return True if the lvalue `target` goes through a struct's INF member.
+
+    The member holds a pointer to its payload, and copying the struct copies
+    the pointer, so a write through it would also be visible through every
+    copy made so far.
+    """
+    node: vy_ast.VyperNode = target
+    while isinstance(node, (vy_ast.Attribute, vy_ast.Subscript)):
+        if isinstance(node, vy_ast.Attribute):
+            # an INF-typed attribute of something that is not a struct is a
+            # module-level constant, whose own diagnostic is the useful one
+            if isinstance(get_expr_info(node.value).typ, StructT) and is_unbounded_sequence_type(
+                get_expr_info(node).typ
+            ):
+                return True
+        node = node.value
+
+    return False
+
+
+def _call_arg_is_unsupported(func_type, arg_typ: VyperType) -> bool:
+    """Return True if `arg_typ` cannot be passed to `func_type`.
+
+    An internal call hands the callee a memory pointer, so it accepts any
+    type memory can hold. An external call ABI-encodes the argument into a
+    buffer that has to be sized before the encode, which is only implemented
+    for a top-level unbounded sequence.
+    """
+    if func_type.is_external:
+        return type_contains_nested_unbounded_sequence(arg_typ)
+
+    return type_contains_unrepresentable_unbounded_sequence(arg_typ)
 
 
 def analyze_functions(vy_module: vy_ast.Module) -> None:
@@ -504,7 +541,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             )
 
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
-        if type_contains_nested_unbounded_sequence(typ):
+        if type_contains_unrepresentable_unbounded_sequence(typ):
             raise StructureException(
                 "Memory variables cannot contain unbounded sequence types inside aggregate types",
                 node.annotation,
@@ -565,6 +602,13 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             for item in target.elements:
                 self._handle_modification(item)
             return
+
+        if _reaches_through_unbounded_member(target):
+            raise StructureException(
+                "Cannot modify an unbounded sequence member of a struct",
+                target,
+                hint="build a new struct value instead",
+            )
 
         # check a modification of `target`. validate the modification is
         # valid, and log the modification in relevant data structures.
@@ -1086,9 +1130,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                             # in which case it resolves to INF (see the
                             # external call handling below)
                             actual_arg_typ = actual_arg_typ.resolve_wildcard()
-                        has_nested_unbounded = type_contains_nested_unbounded_sequence(
-                            actual_arg_typ
-                        )
+                        has_nested_unbounded = _call_arg_is_unsupported(func_type, actual_arg_typ)
 
                 if has_nested_unbounded:
                     raise StructureException(
@@ -1104,6 +1146,14 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             if func_type.is_external:
                 return_t = func_type.return_type
+                if return_t is not None and type_contains_unsupported_unbounded_sequence(return_t):
+                    # decoding the returndata would have to rebuild the
+                    # value's pointer cells; only top-level INF is supported
+                    raise StructureException(
+                        "External call returns cannot contain unbounded sequence types "
+                        "inside aggregate types",
+                        node,
+                    )
                 if return_t is not None and return_t.has_wildcard:
                     if not typ.has_wildcard and typ is not VOID_TYPE:
                         # Replace wildcard-containing type by the concrete expected type
