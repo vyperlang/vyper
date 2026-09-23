@@ -555,7 +555,7 @@ def _decode_complex(
         if is_unbounded_sequence_type(elem_typ):
             # An INF member has no inline payload; decode it into its own
             # allocation and write the destination's pointer cell. Only a
-            # struct has such members (`is_supported_unbounded_struct_type`).
+            # struct has such members (`is_pointer_cell_struct_type`).
             assert isinstance(typ, StructT)
             assert isinstance(elem_dst, IRVariable)
             member = decode_unbounded_sequence_to_scratch(

@@ -10,7 +10,7 @@ from vyper.semantics.types.infinity import (
     WILDCARD,
     LengthUpperBound,
     is_bounded_length,
-    is_supported_unbounded_struct_type,
+    is_pointer_cell_struct_type,
     length_to_json,
     type_contains_unbounded_sequence,
 )
@@ -326,7 +326,7 @@ class DArrayT(_SequenceT):
 
     @staticmethod
     def _validate_unbounded_shape(value_type, length, node=None):
-        if type_contains_unbounded_sequence(value_type) and not is_supported_unbounded_struct_type(
+        if type_contains_unbounded_sequence(value_type) and not is_pointer_cell_struct_type(
             value_type
         ):
             # a struct element keeps a compile-time stride (its INF members are

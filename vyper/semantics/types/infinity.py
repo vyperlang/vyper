@@ -63,30 +63,51 @@ def is_unbounded_sequence_type(typ) -> bool:
 
 
 def is_supported_unbounded_tuple_type(typ) -> bool:
-    """Return True for tuples whose INF members are direct top-level sequences."""
+    """Return True for tuples whose INF members are direct sequences of bounded elements.
+
+    Such a tuple is built in the dynamic tuple frame
+    (`VenomCodegenContext.is_dynamic_tuple_frame_type`), where every member
+    is a 32-byte slot holding a payload pointer, so a member must itself be
+    the sequence: a struct with INF members or an INF DynArray of such
+    structs has no single payload to point at.
+    """
     if getattr(typ, "typeclass", None) != "tuple":
         return False
 
     for member_t in typ.member_types:
-        if type_contains_nested_unbounded_sequence(member_t):
+        if not type_contains_unbounded_sequence(member_t):
+            continue
+        if not is_unbounded_sequence_type(member_t) or not is_runtime_sizable_type(member_t):
             return False
 
     return True
 
 
-def is_supported_unbounded_struct_member(typ) -> bool:
-    """Return True if a struct member may have type `typ`.
+def is_runtime_sizable_type(typ) -> bool:
+    """Return True if a value of `typ` has a memory layout and a runtime encoded size.
 
-    An INF member has no inline representation, so it occupies a
-    `POINTER_CELL_SIZE` cell holding a pointer to its payload (see
-    `VenomCodegenContext.store_pointer_cell`). That keeps the struct's size a
-    compile-time constant, but only for the shapes one cell can describe: a
-    direct INF sequence of bounded elements, or another such struct inline.
+    The ABI can encode any shape holding INF; what the compiler needs is a
+    place in memory for every INF sequence and a way to size an encoding
+    buffer from the value at hand. Both exist when every INF sequence sits
+    at a compile-time offset and holds bounded elements, so that its size
+    follows from its length word: a bounded type (trivially), a direct
+    `Bytes[INF]`, `String[INF]` or `DynArray[T, INF]` with bounded `T`, or a
+    struct whose INF members are such types, also nested. An INF struct
+    member occupies a `POINTER_CELL_SIZE` cell (see
+    `VenomCodegenContext.store_pointer_cell`), which keeps the struct at a
+    compile-time size and makes its encoded size the static head plus the
+    members' runtime sizes.
 
-    This is stricter than `type_contains_unrepresentable_unbounded_sequence`,
-    which also accepts a DynArray of pointer-cell structs: that shape has a
-    memory layout but no static ABI size bound, and a struct must stay
-    encodable because it can be returned.
+    Rejected: a DynArray whose elements hold INF (a bounded
+    `DynArray[Batch, 3]` has a fixed stride, but sizing it means walking
+    every element's cells), a tuple with an INF member (its frame exists
+    only as a return value, see `is_runtime_sizable_return_type`), and a
+    static array or mapping holding INF.
+
+    This is the rule for struct members and for every position that
+    encodes or decodes a memory value: external call arguments, event and
+    error members, `abi_encode`, `abi_decode`, `print`, `create_*`
+    constructor arguments and `empty`.
     """
     if not type_contains_unbounded_sequence(typ):
         return True
@@ -95,39 +116,34 @@ def is_supported_unbounded_struct_member(typ) -> bool:
         return True
 
     if is_unbounded_dynarray_type(typ):
-        # an INF element would need a cell of its own inside the payload
         return not type_contains_unbounded_sequence(typ.value_type)
 
-    return is_supported_unbounded_struct_type(typ)
+    if getattr(typ, "typeclass", None) == "struct":
+        return all(is_runtime_sizable_type(t) for t in typ.members.values())
+
+    return False
 
 
-def is_supported_unbounded_struct_type(typ) -> bool:
-    """Return True for structs whose INF members occupy pointer cells.
-
-    Returns True for a struct with no INF member at all; callers pair it with
-    `type_contains_unbounded_sequence`.
-    """
+def is_pointer_cell_struct_type(typ) -> bool:
+    """Return True for a struct with INF members, each held in a pointer cell."""
     if getattr(typ, "typeclass", None) != "struct":
         return False
 
-    return all(is_supported_unbounded_struct_member(t) for t in typ.members.values())
+    return type_contains_unbounded_sequence(typ) and is_runtime_sizable_type(typ)
 
 
-def type_contains_nested_unbounded_sequence(typ) -> bool:
-    """Return True if `typ` contains INF below a direct top-level sequence.
+def is_runtime_sizable_return_type(typ) -> bool:
+    """Return True if a return value of `typ` can be sized at runtime.
 
-    An INF DynArray of pointer-cell structs counts as nested: its elements
-    have no static ABI size bound, so an encoding buffer for it cannot be
-    sized from its length alone.
+    Everything `is_runtime_sizable_type` accepts, plus a tuple whose INF
+    members are direct sequences: a return value is built in the dynamic
+    tuple frame, which a memory value of the same tuple type does not have,
+    so arguments and locals of that type stay rejected.
     """
-    if not type_contains_unbounded_sequence(typ):
-        return False
+    if is_supported_unbounded_tuple_type(typ):
+        return True
 
-    if is_unbounded_dynarray_type(typ):
-        # an INF element has no static per-element ABI size bound
-        return type_contains_unbounded_sequence(typ.value_type)
-
-    return not is_unbounded_sequence_type(typ)
+    return is_runtime_sizable_type(typ)
 
 
 def type_contains_unrepresentable_unbounded_sequence(typ) -> bool:
@@ -140,19 +156,17 @@ def type_contains_unrepresentable_unbounded_sequence(typ) -> bool:
     INF value would be runtime values, which struct/tuple/array addressing
     cannot express.
 
-    Having a memory layout does not make a type encodable; positions that
-    encode use `type_contains_unencodable_unbounded_sequence` instead.
+    Having a memory layout does not give a value a runtime size: a DynArray
+    of pointer-cell structs is accepted here and rejected by
+    `is_runtime_sizable_type`, which positions that encode or decode use.
     """
-    if not type_contains_unbounded_sequence(typ):
-        return False
-
-    if is_supported_unbounded_struct_type(typ):
+    if is_runtime_sizable_type(typ):
         return False
 
     if getattr(typ, "typeclass", None) == "dynamic_array":
         return type_contains_unrepresentable_unbounded_sequence(typ.value_type)
 
-    return not is_unbounded_sequence_type(typ)
+    return True
 
 
 def type_contains_unsupported_unbounded_sequence(typ) -> bool:
@@ -160,40 +174,6 @@ def type_contains_unsupported_unbounded_sequence(typ) -> bool:
     return type_contains_unbounded_sequence(typ) and not (
         is_unbounded_sequence_type(typ) or is_supported_unbounded_tuple_type(typ)
     )
-
-
-def type_contains_unencodable_unbounded_return(typ) -> bool:
-    """Return True if a return of `typ` has no supported encoding.
-
-    Accepts everything `type_contains_unsupported_unbounded_sequence` does,
-    plus a struct with pointer-cell members. A DynArray of such structs stays
-    rejected: sizing the return buffer would mean walking every element's
-    cells, which the per-element bound used for INF DynArrays cannot do.
-    """
-    if not type_contains_unbounded_sequence(typ):
-        return False
-
-    if is_unbounded_dynarray_type(typ):
-        return type_contains_unbounded_sequence(typ.value_type)
-
-    if is_supported_unbounded_struct_type(typ):
-        return False
-
-    return type_contains_unsupported_unbounded_sequence(typ)
-
-
-def type_contains_unencodable_unbounded_sequence(typ) -> bool:
-    """Return True if a memory value of `typ` cannot be ABI encoded or decoded.
-
-    External call arguments, event and error members and the builtins that
-    encode or decode a value hold it in memory first, so a tuple with an INF
-    member is rejected here (its frame exists only as a return value) on top
-    of what `type_contains_unencodable_unbounded_return` rejects.
-    """
-    if type_contains_unrepresentable_unbounded_sequence(typ):
-        return True
-
-    return type_contains_unencodable_unbounded_return(typ)
 
 
 def length_to_json(length: LengthUpperBound) -> int | str:

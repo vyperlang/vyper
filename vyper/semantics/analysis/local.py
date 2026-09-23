@@ -72,11 +72,11 @@ from vyper.semantics.types.function import (
     is_ellipsis_body,
 )
 from vyper.semantics.types.infinity import (
-    is_supported_unbounded_struct_type,
+    is_pointer_cell_struct_type,
+    is_runtime_sizable_return_type,
+    is_runtime_sizable_type,
     is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
-    type_contains_unencodable_unbounded_return,
-    type_contains_unencodable_unbounded_sequence,
     type_contains_unrepresentable_unbounded_sequence,
 )
 from vyper.semantics.types.utils import type_from_annotation
@@ -116,7 +116,7 @@ def _expr_contains_unbounded_sequence(
     if not type_contains_unbounded_sequence(actual_typ):
         return False
 
-    return not is_supported_unbounded_struct_type(actual_typ)
+    return not is_pointer_cell_struct_type(actual_typ)
 
 
 def _modifies_unbounded_member_through_subscript(target: vy_ast.ExprNode) -> bool:
@@ -159,7 +159,7 @@ def _call_arg_is_unsupported(func_type, arg_typ: VyperType) -> bool:
     buffer that has to be sized before the encode.
     """
     if func_type.is_external:
-        return type_contains_unencodable_unbounded_sequence(arg_typ)
+        return not is_runtime_sizable_type(arg_typ)
 
     return type_contains_unrepresentable_unbounded_sequence(arg_typ)
 
@@ -1171,7 +1171,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             if func_type.is_external:
                 return_t = func_type.return_type
-                if return_t is not None and type_contains_unencodable_unbounded_return(return_t):
+                if return_t is not None and not is_runtime_sizable_return_type(return_t):
                     raise StructureException(
                         "External call returns cannot contain unbounded sequence types "
                         "inside aggregate types",
@@ -1185,7 +1185,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                         # Replace wildcards in the type by INF, since there is no expected type
                         return_t = return_t.resolve_wildcard()
                         # unsupported INF shapes from wildcard resolution only exist per call site
-                        if type_contains_unencodable_unbounded_return(return_t):
+                        if not is_runtime_sizable_return_type(return_t):
                             raise StructureException(
                                 "Function returns cannot contain unbounded sequence types "
                                 "inside aggregate types",

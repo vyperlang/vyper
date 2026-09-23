@@ -12,12 +12,25 @@ from vyper.exceptions import (
     TypeMismatch,
     UndeclaredDefinition,
 )
-from vyper.semantics.types import INF, AddressT, BoolT, BytesT, DArrayT, StringT, StructT, TupleT
+from vyper.semantics.types import (
+    INF,
+    AddressT,
+    BoolT,
+    BytesT,
+    DArrayT,
+    SArrayT,
+    StringT,
+    StructT,
+    TupleT,
+)
 from vyper.semantics.types.infinity import (
     WILDCARD,
     Inf,
     Wildcard,
-    type_contains_nested_unbounded_sequence,
+    is_runtime_sizable_return_type,
+    is_runtime_sizable_type,
+    is_supported_unbounded_tuple_type,
+    type_contains_unrepresentable_unbounded_sequence,
 )
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
@@ -84,12 +97,36 @@ def test_dynarray_from_annotation_inf(build_node):
     assert t.value_type == UINT256_T
 
 
-def test_nested_unbounded_sequence_predicate():
+def test_runtime_sizable_predicates():
     batch = StructT("Batch", {"owner": AddressT(), "values": DArrayT(UINT256_T, INF)})
+    outer = StructT("Outer", {"tag": UINT256_T, "inner": batch})
+
+    assert is_runtime_sizable_type(UINT256_T)
+    assert is_runtime_sizable_type(BytesT(INF))
+    assert is_runtime_sizable_type(DArrayT(BytesT(512), INF))
+    assert is_runtime_sizable_type(batch)
+    assert is_runtime_sizable_type(outer)
     # the elements have no static ABI size bound
-    assert type_contains_nested_unbounded_sequence(DArrayT(batch, INF))
-    assert not type_contains_nested_unbounded_sequence(DArrayT(UINT256_T, INF))
-    assert not type_contains_nested_unbounded_sequence(DArrayT(BytesT(512), INF))
+    assert not is_runtime_sizable_type(DArrayT(batch, 3))
+    assert not is_runtime_sizable_type(DArrayT(batch, INF))
+    assert not is_runtime_sizable_type(DArrayT(BytesT(INF), 3))
+    # a tuple frame exists only as a return value
+    assert not is_runtime_sizable_type(TupleT((BytesT(INF), UINT256_T)))
+    assert is_runtime_sizable_return_type(TupleT((BytesT(INF), UINT256_T)))
+    assert not is_runtime_sizable_return_type(TupleT((batch, UINT256_T)))
+    assert not is_runtime_sizable_return_type(DArrayT(batch, INF))
+
+    # a frame slot holds one payload pointer
+    assert is_supported_unbounded_tuple_type(TupleT((DArrayT(UINT256_T, INF),)))
+    assert is_supported_unbounded_tuple_type(TupleT((DArrayT(BytesT(512), INF),)))
+    assert not is_supported_unbounded_tuple_type(TupleT((DArrayT(batch, INF),)))
+    assert not is_supported_unbounded_tuple_type(TupleT((batch,)))
+
+    # memory positions accept a fixed-stride array of such structs
+    assert not type_contains_unrepresentable_unbounded_sequence(DArrayT(batch, 3))
+    assert not type_contains_unrepresentable_unbounded_sequence(DArrayT(batch, INF))
+    assert type_contains_unrepresentable_unbounded_sequence(SArrayT(BytesT(INF), 2))
+    assert type_contains_unrepresentable_unbounded_sequence(TupleT((BytesT(INF), UINT256_T)))
 
 
 def test_wildcard_singleton():
