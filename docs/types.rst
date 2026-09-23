@@ -669,7 +669,7 @@ constant declarations, static arrays, mappings, events, custom errors,
 ``print``, ``empty``, ``abi_encode``, ``abi_decode``, ``create_*``
 constructor arguments, and in the arguments and return values of external
 calls. It may not be returned inside a tuple, and ``DynArray`` of such structs
-may not be returned.
+may not be returned or encoded.
 
 .. note::
     ``INF`` sequence types require ``#pragma experimental-codegen`` or compiling

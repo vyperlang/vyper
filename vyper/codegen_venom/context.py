@@ -593,8 +593,8 @@ class VenomCodegenContext:
         """
         length = self.builder.mload(ptr)
         elem_abi_t = typ.value_type.abi_type
-        # Element types are bounded (semantic analysis rejects nested INF), so
-        # the per-element bound is a compile-time constant.
+        # semantic analysis rejects encoding an INF DynArray whose elements
+        # contain INF, so the per-element bound is a compile-time constant.
         elem_bound = elem_abi_t.embedded_static_size() + elem_abi_t.embedded_dynamic_size_bound()
         data_size = self.checked_mul(length, IRLiteral(elem_bound))
         return self.checked_add(IRLiteral(32), data_size)

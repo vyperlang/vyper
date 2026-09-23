@@ -12,8 +12,13 @@ from vyper.exceptions import (
     TypeMismatch,
     UndeclaredDefinition,
 )
-from vyper.semantics.types import INF, BoolT, BytesT, DArrayT, StringT, TupleT
-from vyper.semantics.types.infinity import WILDCARD, Inf, Wildcard
+from vyper.semantics.types import INF, AddressT, BoolT, BytesT, DArrayT, StringT, StructT, TupleT
+from vyper.semantics.types.infinity import (
+    WILDCARD,
+    Inf,
+    Wildcard,
+    type_contains_nested_unbounded_sequence,
+)
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
 
@@ -77,6 +82,14 @@ def test_dynarray_from_annotation_inf(build_node):
     assert t.length is INF
     assert isinstance(t, DArrayT)
     assert t.value_type == UINT256_T
+
+
+def test_nested_unbounded_sequence_predicate():
+    batch = StructT("Batch", {"owner": AddressT(), "values": DArrayT(UINT256_T, INF)})
+    # the elements have no static ABI size bound
+    assert type_contains_nested_unbounded_sequence(DArrayT(batch, INF))
+    assert not type_contains_nested_unbounded_sequence(DArrayT(UINT256_T, INF))
+    assert not type_contains_nested_unbounded_sequence(DArrayT(BytesT(512), INF))
 
 
 def test_wildcard_singleton():

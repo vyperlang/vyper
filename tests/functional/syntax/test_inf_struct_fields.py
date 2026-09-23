@@ -206,6 +206,99 @@ def f() -> uint256:
     """,
         "empty() does not support unbounded sequence types",
     ),
+    # an INF DynArray of such structs has no static per-element ABI size
+    # bound, so no encoding buffer can be sized for it
+    (
+        BATCH + """
+@external
+def f(bs: DynArray[Batch, INF]) -> Bytes[INF]:
+    return abi_encode(bs)
+    """,
+        "abi_encode arguments cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+interface I:
+    def take(bs: DynArray[Batch, INF]): nonpayable
+
+@external
+def f(a: address, bs: DynArray[Batch, INF]):
+    extcall I(a).take(bs)
+    """,
+        "Function arguments cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+@external
+def f(bs: DynArray[Batch, INF]) -> (uint256, DynArray[Batch, INF]):
+    return 1, bs
+    """,
+        "Function returns cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+interface I:
+    def make() -> DynArray[Batch, INF]: view
+    """,
+        "Function returns cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+event E:
+    bs: DynArray[Batch, INF]
+    """,
+        "Event members cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+error E:
+    bs: DynArray[Batch, INF]
+    """,
+        "Custom error members cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+@external
+def f(bs: DynArray[Batch, INF]):
+    print(bs)
+    """,
+        "print arguments cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+@external
+def f(t: address, bs: DynArray[Batch, INF]) -> address:
+    return create_from_blueprint(t, bs, code_offset=3)
+    """,
+        "constructor arguments cannot contain nested unbounded sequence types",
+    ),
+    (
+        BATCH + """
+@external
+def f(bs: DynArray[Batch, 3]) -> Bytes[INF]:
+    return abi_encode(bs)
+    """,
+        "abi_encode arguments cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+interface I:
+    def take(bs: DynArray[Batch, 3]): nonpayable
+
+@external
+def f(a: address, bs: DynArray[Batch, 3]):
+    extcall I(a).take(bs)
+    """,
+        "Function arguments cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+@external
+def f(bs: DynArray[Batch, 3]) -> (uint256, DynArray[Batch, 3]):
+    return 1, bs
+    """,
+        "Function returns cannot contain unbounded sequence types",
+    ),
 ]
 
 

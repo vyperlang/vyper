@@ -114,8 +114,20 @@ def is_supported_unbounded_struct_type(typ) -> bool:
 
 
 def type_contains_nested_unbounded_sequence(typ) -> bool:
-    """Return True if `typ` contains INF below a direct top-level sequence."""
-    return type_contains_unbounded_sequence(typ) and not is_unbounded_sequence_type(typ)
+    """Return True if `typ` contains INF below a direct top-level sequence.
+
+    An INF DynArray of pointer-cell structs counts as nested: its elements
+    have no static ABI size bound, so an encoding buffer for it cannot be
+    sized from its length alone.
+    """
+    if not type_contains_unbounded_sequence(typ):
+        return False
+
+    if is_unbounded_dynarray_type(typ):
+        # an INF element has no static per-element ABI size bound
+        return type_contains_unbounded_sequence(typ.value_type)
+
+    return not is_unbounded_sequence_type(typ)
 
 
 def type_contains_unrepresentable_unbounded_sequence(typ) -> bool:
