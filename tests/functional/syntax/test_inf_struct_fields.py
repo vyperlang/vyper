@@ -264,6 +264,34 @@ def f(bs: DynArray[Batch, 3]) -> (uint256, DynArray[Batch, 3]):
     """,
         "Function returns cannot contain unbounded sequence types",
     ),
+    # the decoded type has no size bound, but the input must hold its static head
+    (
+        BATCH + """
+@external
+def f(d: Bytes[16]) -> uint256:
+    b: Batch = abi_decode(d, Batch)
+    return len(b.values)
+    """,
+        "Mismatch between size of input and size of decoded types",
+    ),
+    (
+        BATCH + """
+@external
+def f(d: Bytes[16]) -> uint256:
+    b: Batch = abi_decode(d, Batch, unwrap_tuple=False)
+    return len(b.values)
+    """,
+        "Mismatch between size of input and size of decoded types",
+    ),
+    (
+        """
+@external
+def f(d: Bytes[16]) -> uint256:
+    xs: DynArray[uint256, INF] = abi_decode(d, DynArray[uint256, INF])
+    return len(xs)
+    """,
+        "Mismatch between size of input and size of decoded types",
+    ),
     (
         BATCH + """
 event E:

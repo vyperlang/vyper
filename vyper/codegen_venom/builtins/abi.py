@@ -242,10 +242,14 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     # Reject bounded input buffers which cannot fit the decoded value. An
     # unbounded input is checked against its runtime length below.
-    if not type_contains_unbounded_sequence(output_typ):
-        abi_size_bound = wrapped_typ.abi_type.size_bound()
-        input_max_len = data_node._metadata["type"].maxlen
-        if is_bounded_length(input_max_len) and input_max_len < abi_size_bound:
+    input_max_len = data_node._metadata["type"].maxlen
+    if is_bounded_length(input_max_len):
+        if type_contains_unbounded_sequence(output_typ):
+            # no size bound; the input must at least hold the static head
+            abi_size_bound = wrapped_typ.abi_type.static_size()
+        else:
+            abi_size_bound = wrapped_typ.abi_type.size_bound()
+        if input_max_len < abi_size_bound:
             raise StructureException(
                 (
                     "Mismatch between size of input and size of decoded types. "
