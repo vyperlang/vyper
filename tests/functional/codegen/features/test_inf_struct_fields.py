@@ -2064,7 +2064,10 @@ _MALFORMED_WRAPPED_CASES = [
 
 
 @pytest.fixture(scope="module")
-def ingress(get_contract):
+def ingress(get_contract, experimental_codegen):
+    # module-scoped, so it is set up before the function-scoped skip above
+    if not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
     return get_contract(_INGRESS_CODE)
 
 
