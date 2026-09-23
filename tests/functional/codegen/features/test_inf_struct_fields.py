@@ -1491,6 +1491,147 @@ def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF], DynArray[uin
     assert c.f((OWNER, [1, 2, 3])) == ([100, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5])
 
 
+# empty(). Every cell of the zeroed struct points at its own empty payload,
+# the same 32-byte zero length word an empty unbounded local uses.
+
+ZERO_ADDRESS = "0x" + "00" * 20
+
+
+def test_empty_struct(get_contract):
+    code = BATCH + """
+@external
+def size() -> uint256:
+    b: Batch = empty(Batch)
+    return len(b.values)
+
+@external
+def f() -> Batch:
+    b: Batch = empty(Batch)
+    b.values.append(7)
+    b.values.append(8)
+    return b
+    """
+
+    c = get_contract(code)
+    assert c.size() == 0
+    assert c.f() == (ZERO_ADDRESS, [7, 8])
+
+
+def test_empty_struct_returned_directly(get_contract):
+    code = BATCH + """
+@external
+def f() -> Batch:
+    return empty(Batch)
+    """
+
+    c = get_contract(code)
+    assert c.f() == (ZERO_ADDRESS, [])
+
+
+def test_empty_struct_copy_is_independent(get_contract):
+    code = BATCH + """
+@external
+def f() -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+    a: Batch = empty(Batch)
+    b: Batch = a
+    b.values.append(1)
+    a.values.append(2)
+    a.values.append(3)
+    return a.values, b.values
+    """
+
+    c = get_contract(code)
+    assert c.f() == ([2, 3], [1])
+
+
+def test_empty_struct_bytes_and_string_members(get_contract):
+    code = """
+struct Msg:
+    kind: uint256
+    payload: Bytes[INF]
+    name: String[INF]
+
+@external
+def sizes() -> (uint256, uint256):
+    m: Msg = empty(Msg)
+    return len(m.payload), len(m.name)
+
+@external
+def f() -> Msg:
+    m: Msg = empty(Msg)
+    m.payload = b"hello"
+    return m
+    """
+
+    c = get_contract(code)
+    assert c.sizes() == (0, 0)
+    assert c.f() == (0, b"hello", "")
+
+
+def test_empty_nested_struct(get_contract):
+    code = BATCH + """
+struct Msg:
+    kind: uint256
+    payload: Bytes[INF]
+
+struct Outer:
+    tag: uint256
+    inner: Batch
+    msg: Msg
+
+@external
+def sizes() -> (uint256, uint256):
+    o: Outer = empty(Outer)
+    return len(o.inner.values), len(o.msg.payload)
+
+@external
+def f() -> Outer:
+    o: Outer = empty(Outer)
+    o.inner.values.append(5)
+    o.msg.payload = b"x"
+    return o
+    """
+
+    c = get_contract(code)
+    assert c.sizes() == (0, 0)
+    assert c.f() == (0, (ZERO_ADDRESS, [5]), (0, b"x"))
+
+
+def test_empty_struct_as_internal_call_arg(get_contract):
+    code = BATCH + """
+@internal
+def total(b: Batch) -> uint256:
+    acc: uint256 = 0
+    for v: uint256 in b.values:
+        acc += v
+    return acc
+
+@external
+def f() -> uint256:
+    return self.total(empty(Batch))
+    """
+
+    c = get_contract(code)
+    assert c.f() == 0
+
+
+def test_empty_struct_as_default_return_value(env, get_contract):
+    caller_code = BATCH + """
+interface Maker:
+    def make() -> Batch: view
+
+@external
+def f(target: address) -> Batch:
+    b: Batch = staticcall Maker(target).make(default_return_value=empty(Batch))
+    b.values.append(1)
+    return b
+    """
+
+    caller = get_contract(caller_code)
+    empty_target = _deploy_raw_returner(env, b"")
+    assert caller.f(empty_target.address) == (ZERO_ADDRESS, [1])
+
+
 # External calls. The encoded size of such a struct has no static bound: the
 # argument buffer is sized at runtime, and the returndata is copied to
 # scratch and decoded like a calldata argument.

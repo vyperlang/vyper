@@ -141,8 +141,8 @@ def f(a: address, b: Batch):
         BATCH + """
 @external
 def f() -> uint256:
-    b: Batch = empty(Batch)
-    return len(b.values)
+    bs: DynArray[Batch, 3] = empty(DynArray[Batch, 3])
+    return len(bs)
     """,
         "empty() does not support unbounded sequence types",
     ),
