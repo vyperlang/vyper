@@ -97,3 +97,31 @@ def test_no_jump_threading_through_subroutine_entry():
     asm = [PUSHLABEL(x), "CALLSUB", "STOP", x, PUSHLABEL(y), "JUMP", y, "RETURNSUB"]
     _merge_jumpdests(asm)
     assert asm[0] == PUSHLABEL(x)
+
+
+def test_linear_selector_section_is_static():
+    # Two external functions: the default is a selector table with a computed
+    # jump; the linear section has only pushed destinations. Under `future`
+    # the linear section makes the whole runtime static control flow.
+    code = """
+@external
+@pure
+def f(a: uint256) -> uint256:
+    return a + 1
+
+@external
+@pure
+def g(a: uint256) -> uint256:
+    return a * 2
+"""
+    default = CompilerData(code, settings=Settings(evm_version="future")).assembly_runtime
+    linear = CompilerData(
+        code, settings=Settings(evm_version="future", linear_selector_section=True)
+    ).assembly_runtime
+    default_names = _opcode_names(default)
+    linear_names = _opcode_names(linear)
+    # the table dispatch jumps through a value loaded from memory
+    assert "JUMP" in default_names
+    # the linear dispatch is JUMPIs to pushed labels only
+    assert "JUMP" not in linear_names
+    assert "JUMPI" in linear_names

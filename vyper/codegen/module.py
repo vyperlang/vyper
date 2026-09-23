@@ -10,7 +10,7 @@ from vyper.codegen.function_definitions import (
     generate_ir_for_internal_function,
 )
 from vyper.codegen.ir_node import IRnode
-from vyper.compiler.settings import _is_debug_mode
+from vyper.compiler.settings import _is_debug_mode, _opt_linear_selector_section
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import OrderedSet, method_id_int
@@ -440,9 +440,10 @@ def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
         func_ir = _ir_for_internal_function(func_ast, module_t, False)
         internal_functions_ir.append(IRnode.from_list(func_ir))
 
-    # TODO: add option to specifically force linear selector section,
-    # useful for testing and downstream tooling.
-    if core._opt_lowering_only_ir():
+    # The linear section can be requested explicitly: it is the only
+    # selector section without a computed jump, which matters to downstream
+    # tooling that requires static control flow (e.g. EIP-8337 validation).
+    if core._opt_lowering_only_ir() or _opt_linear_selector_section():
         selector_section = _selector_section_linear(external_functions, module_t)
     # dense vs sparse global overhead is amortized after about 4 methods.
     # (--debug will force dense selector table anyway if _opt_codesize is selected.)

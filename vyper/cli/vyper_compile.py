@@ -224,6 +224,13 @@ def _parse_args(argv):
         action="store_true",
         dest="disable_static_exceptions",
     )
+    parser.add_argument(
+        "--linear-selector-section",
+        help="Use the linear method selector section instead of a jump table "
+        "(static control flow, one comparison per external function)",
+        action="store_true",
+        dest="linear_selector_section",
+    )
 
     parser.add_argument(
         "-W", help="Control warnings", dest="warnings_control", choices=["error", "none"]
@@ -297,6 +304,8 @@ def _parse_args(argv):
 
     if args.disable_static_exceptions:
         settings.disable_static_exceptions = args.disable_static_exceptions
+    if args.linear_selector_section:
+        settings.linear_selector_section = args.linear_selector_section
 
     if args.verbose:
         print(f"cli specified: `{settings}`", file=sys.stderr)
