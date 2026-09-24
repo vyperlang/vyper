@@ -42,8 +42,10 @@ def runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IR
     Bounded types are sized by their static bound; unbounded bytestrings and
     unbounded DynArrays with ABI-static elements are exact; unbounded DynArrays
     with ABI-dynamic elements are bounded per element (see
-    `VenomCodegenContext.dynarray_runtime_abi_size`). Use it only to size
-    buffers; the encoded length is the encoder's return value.
+    `VenomCodegenContext.dynarray_runtime_abi_size`); structs with INF members
+    and DynArrays of such structs are summed member by member and element by
+    element. Use it only to size buffers; the encoded length is the encoder's
+    return value.
     """
     typ = arg_vv.typ
     if isinstance(typ, _BytestringT):

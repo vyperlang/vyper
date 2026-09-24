@@ -147,7 +147,9 @@ def contains_pointer_cell_array(typ) -> bool:
 
     An internal function returns its pointer-cell payloads as `dret` outputs,
     a compile-time number of them; such an array holds one payload per
-    element and cell, so internal functions cannot return it.
+    element and cell, so internal functions cannot return it. Total over all
+    types; a tuple or static array holding INF is rejected before this is
+    asked, and only the DynArray and struct branches see accepted types.
     """
     typeclass = getattr(typ, "typeclass", None)
 

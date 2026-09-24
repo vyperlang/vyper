@@ -2562,9 +2562,7 @@ def echo(os: DynArray[Outer, 2]) -> DynArray[Outer, 2]:
     c = get_contract(code)
     rows = [(1, [(OWNER, [1, 2]), (OWNER, []), (OWNER, [3])]), (2, [])]
     calldata = method_id(f"echo({_OUTER_ABI}[])") + eth_abi_encode([f"{_OUTER_ABI}[]"], [rows])
-    assert env.message_call(c.address, data=calldata) == eth_abi_encode(
-        [f"{_OUTER_ABI}[]"], [rows]
-    )
+    assert env.message_call(c.address, data=calldata) == eth_abi_encode([f"{_OUTER_ABI}[]"], [rows])
 
 
 def test_return_dynarray_of_structs_other_members(env, get_contract):
@@ -2738,14 +2736,11 @@ def take(bs: DynArray[Batch, 3]) -> (uint256, uint256):
 def test_extcall_dynarray_of_structs_arg(get_contract, n):
     # one callee declares the member unbounded, the other with a bound; the
     # ABI is the same
-    bounded_callee = get_contract(
-        """
+    bounded_callee = get_contract("""
 struct Batch:
     owner: address
     values: DynArray[uint256, 50]
-"""
-        + _ARRAY_TAKER
-    )
+""" + _ARRAY_TAKER)
     unbounded_callee = get_contract(BATCH + _ARRAY_TAKER)
     code = BATCH + """
 interface Taker:
