@@ -3,6 +3,7 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import (
     FlagDeclarationException,
+    ImmutableViolation,
     InvalidOperation,
     NamespaceCollision,
     StructureException,
@@ -133,7 +134,7 @@ flag Status:
 def test_assign_to_flag():
   Status.ACTIVE = 2
         """,
-        StructureException,
+        ImmutableViolation,
     ),
 ]
 

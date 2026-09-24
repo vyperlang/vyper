@@ -1,13 +1,7 @@
 import pytest
 
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import (
-    CodegenPanic,
-    ImmutableViolation,
-    InvalidType,
-    StructureException,
-    TypeMismatch,
-)
+from vyper.exceptions import CodegenPanic, ImmutableViolation, InvalidType, TypeMismatch
 
 
 def test_augassign(get_contract):
@@ -400,10 +394,10 @@ def g() -> uint256[3]:
 def f():
     self.g()[0] = 5
 """
-    with pytest.raises(StructureException) as e:
+    with pytest.raises(ImmutableViolation) as e:
         get_contract(code)
 
-    assert e.value.message == "`self.g()[0]` is not a valid assignment target"
+    assert e.value.message == "Read-only expression cannot be mutated."
 
 
 def test_invalid_assign_to_self_balance(assert_compile_failed, get_contract):
@@ -415,7 +409,7 @@ def f():
     with pytest.raises(ImmutableViolation) as e:
         get_contract(code)
 
-    assert e.value.message == "Expression is immutable, and cannot be written to"
+    assert e.value.message == "Read-only expression cannot be mutated."
 
 
 def test_invalid_assign_to_storage_addr_balance(assert_compile_failed, get_contract):
@@ -429,7 +423,7 @@ def f():
     with pytest.raises(ImmutableViolation) as e:
         get_contract(code)
 
-    assert e.value.message == "Expression is immutable, and cannot be written to"
+    assert e.value.message == "Read-only expression cannot be mutated."
 
 
 def test_invalid_assign_to_storage_addr_codehash(assert_compile_failed, get_contract):
@@ -443,7 +437,7 @@ def f():
     with pytest.raises(ImmutableViolation) as e:
         get_contract(code)
 
-    assert e.value.message == "Expression is immutable, and cannot be written to"
+    assert e.value.message == "Read-only expression cannot be mutated."
 
 
 def test_invalid_assign_to_iface_address(assert_compile_failed, get_contract):
@@ -460,7 +454,7 @@ def g():
     with pytest.raises(ImmutableViolation) as e:
         get_contract(code)
 
-    assert e.value.message == "Expression is immutable, and cannot be written to"
+    assert e.value.message == "Read-only expression cannot be mutated."
 
 
 def test_read_addr_balance_still_works(get_contract):

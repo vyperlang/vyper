@@ -401,7 +401,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if self.func.is_internal:
             location, modifiability = (DataLocation.MEMORY, Modifiability.MODIFIABLE)
         else:
-            location, modifiability = (DataLocation.CALLDATA, Modifiability.RUNTIME_CONSTANT)
+            location, modifiability = (DataLocation.CALLDATA, Modifiability.READ_ONLY)
 
         for arg in self.func.arguments:
             self.namespace[arg.name] = VarInfo(
@@ -547,30 +547,25 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if info.location == DataLocation.CALLDATA:
             raise ImmutableViolation("Cannot write to calldata")
 
-        if info.modifiability == Modifiability.RUNTIME_CONSTANT:
-            if info.location == DataLocation.CODE:
-                if not func_t.is_constructor:
-                    raise ImmutableViolation("Immutable value cannot be written to")
+        if (
+            info.modifiability == Modifiability.RUNTIME_CONSTANT
+            and info.location == DataLocation.CODE
+        ):
+            if not func_t.is_constructor:
+                raise ImmutableViolation("Immutable value can only be mutated in the constructor")
 
-                # handle immutables
-                if info.var_info is not None:  # don't handle complex (struct,array) immutables
-                    # special handling for immutable variables in the ctor
-                    # TODO: maybe we want to remove this restriction.
-                    if info.var_info._modification_count != 0:
-                        raise ImmutableViolation(
-                            "Immutable value cannot be modified after assignment"
-                        )
-                    info.var_info._modification_count += 1
-            else:
-                raise ImmutableViolation("Expression is immutable, and cannot be written to")
+            # handle immutables
+            if info.var_info is not None:  # don't handle complex (struct,array) immutables
+                # special handling for immutable variables in the ctor
+                # TODO: maybe we want to remove this restriction.
+                if info.var_info._modification_count != 0:
+                    raise ImmutableViolation("Immutable value cannot be modified after assignment")
+                info.var_info._modification_count += 1
+        else:
+            if info.modifiability <= Modifiability.READ_ONLY:
+                raise ImmutableViolation("Read-only expression cannot be mutated.")
 
-        if info.modifiability == Modifiability.CONSTANT:
-            raise ImmutableViolation("Constant value cannot be written to.")
-
-        if info.location == DataLocation.UNSET:
-            raise StructureException(
-                f"`{target.node_source_code}` is not a valid assignment target", target
-            )
+        assert info.location != DataLocation.UNSET
 
         var_access = _get_variable_access(target)
         assert var_access is not None
@@ -738,9 +733,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         with self.namespace.enter_scope(), self.enter_for_loop(iter_var):
             target_name = node.target.target.id
-            # maybe we should introduce a new Modifiability: LOOP_VARIABLE
             self.namespace[target_name] = VarInfo(
-                target_type, modifiability=Modifiability.RUNTIME_CONSTANT, decl_node=node.target
+                target_type, modifiability=Modifiability.READ_ONLY, decl_node=node.target
             )
 
             self.expr_visitor.visit(node.target.target, target_type)

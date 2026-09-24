@@ -62,6 +62,10 @@ class Modifiability(StringEnum):
     # could potentially add more fine-grained here as needed, like
     # CONSTANT_AFTER_DEPLOY, TX_CONSTANT, BLOCK_CONSTANT, etc.
 
+    # things that are not constant, but cannot be written to
+    # for example return values
+    READ_ONLY = enum.auto()
+
     # is writeable/can result in arbitrary state or memory changes
     MODIFIABLE = enum.auto()
 

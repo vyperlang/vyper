@@ -14,7 +14,6 @@ from vyper.exceptions import (
     ImmutableViolation,
     OverflowException,
     StateAccessViolation,
-    StructureException,
     TypeMismatch,
 )
 
@@ -1901,10 +1900,10 @@ def foo():
     self.a = [[1]]
     self.a.pop().append(2)
     """
-    with pytest.raises(StructureException) as e:
+    with pytest.raises(ImmutableViolation) as e:
         get_contract(code)
 
-    assert e.value.message == "`self.a.pop()` is not a valid assignment target"
+    assert e.value.message == "Read-only expression cannot be mutated."
 
 
 def test_dynarray_append_single_field_struct_storage(get_contract):

@@ -89,7 +89,7 @@ class _ExprAnalyser:
                 return ExprInfo.from_moduleinfo(info)
 
             if isinstance(info, VyperType):
-                return ExprInfo(TYPE_T(info))
+                return ExprInfo(TYPE_T(info), modifiability=Modifiability.CONSTANT)
 
             raise CompilerPanic(f"unreachable! {info}", node)
 
@@ -116,7 +116,7 @@ class _ExprAnalyser:
 
                 modifiability = Modifiability.RUNTIME_CONSTANT
                 if attr in info.typ._view_builtin_members:
-                    # if the base is constant, then the view member also should be:
+                    # if the base is constant/immutable, then the view member also should be:
                     # foo: constant(Foo) = Foo(<addr>)
                     # x: constant(address) = foo.address
 
@@ -145,6 +145,9 @@ class _ExprAnalyser:
             # even when `A` is.
             modifiability = max(info.modifiability, index_modifiability)
             return ExprInfo(t, location=info.location, modifiability=modifiability)
+
+        if isinstance(node, (vy_ast.Call, vy_ast.ExtCall, vy_ast.StaticCall)):
+            return ExprInfo(t, modifiability=Modifiability.READ_ONLY)
 
         return ExprInfo(t)
 
@@ -727,6 +730,9 @@ def check_modifiability(node: vy_ast.ExprNode, modifiability: Modifiability) -> 
 
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         return all(check_modifiability(item, modifiability) for item in node.elements)
+
+    if isinstance(node, vy_ast.Subscript):
+        return all(check_modifiability(i, modifiability) for i in (node.value, node.slice))
 
     if isinstance(node, vy_ast.Call):
         call_type = get_exact_type_from_node(node.func)

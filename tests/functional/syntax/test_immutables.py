@@ -171,7 +171,7 @@ def __init__():
 def hello() :
     x.a =  2
     """,
-        "Immutable value cannot be written to",
+        "Immutable value can only be mutated in the constructor",
     ),
 ]
 
