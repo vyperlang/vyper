@@ -148,7 +148,7 @@ def clamp_basetype(ctx: VenomCodegenContext, val: IROperand, typ: VyperType) -> 
 
 
 def clamp_bytestring(
-    ctx: VenomCodegenContext, src: VyperValue, typ: _BytestringT, hi: IROperand = None
+    ctx: VenomCodegenContext, src: VyperValue, typ: _BytestringT, hi: IROperand | None = None
 ) -> None:
     """
     Validate bytestring length and bounds.
@@ -191,7 +191,7 @@ def clamp_bytestring(
 
 
 def clamp_dyn_array(
-    ctx: VenomCodegenContext, src: VyperValue, typ: DArrayT, hi: IROperand = None
+    ctx: VenomCodegenContext, src: VyperValue, typ: DArrayT, hi: IROperand | None = None
 ) -> None:
     """
     Validate DynArray count and bounds.
@@ -243,7 +243,7 @@ def _getelemptr_abi(
     parent: VyperValue,
     member_typ: VyperType,
     static_offset: int,
-    hi: IROperand = None,
+    hi: IROperand | None = None,
 ) -> VyperValue:
     """
     Navigate to ABI-encoded element.
@@ -316,7 +316,7 @@ def _decode_bytestring(
     dst: IROperand,
     src: VyperValue,
     typ: _BytestringT,
-    hi: IROperand = None,
+    hi: IROperand | None = None,
 ) -> None:
     """
     Decode a bytestring (Bytes/String) type.
@@ -398,7 +398,11 @@ def decode_unbounded_sequence_to_scratch(
 
 
 def _decode_dyn_array(
-    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, typ: DArrayT, hi: IROperand = None
+    ctx: VenomCodegenContext,
+    dst: IRVariable,
+    src: VyperValue,
+    typ: DArrayT,
+    hi: IROperand | None = None,
 ) -> None:
     """
     Decode a dynamic array.
@@ -502,7 +506,11 @@ def _decode_dyn_array(
 
 
 def _decode_complex(
-    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, typ: VyperType, hi: IROperand = None
+    ctx: VenomCodegenContext,
+    dst: IRVariable,
+    src: VyperValue,
+    typ: VyperType,
+    hi: IROperand | None = None,
 ) -> None:
     """
     Decode a complex type (tuple/struct/static array).
@@ -575,7 +583,7 @@ def _decode_complex(
 
 
 def _abi_decode_to_buf(
-    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, hi: IROperand = None
+    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, hi: IROperand | None = None
 ) -> None:
     """
     Internal decoder dispatcher.
@@ -599,7 +607,7 @@ def _abi_decode_to_buf(
 
 
 def abi_decode_to_buf(
-    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, hi: IROperand = None
+    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, hi: IROperand | None = None
 ) -> None:
     """
     Decode ABI-encoded src to Vyper-encoded dst.

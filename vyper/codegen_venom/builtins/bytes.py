@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 from vyper import ast as vy_ast
 from vyper.codegen_venom.arithmetic import clamp_basetype
 from vyper.codegen_venom.value import VyperValue
+from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import (
     AddressT,
     BytesM_T,
@@ -251,13 +252,8 @@ def lower_slice(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         tmp_buf = ctx.allocate_buffer(32)
         b.mstore(tmp_buf._ptr, src_val)
         src_data = tmp_buf._ptr
-    else:
-        # bytes32 or other 32-byte type
-        src_val = Expr(src_node, ctx).lower_value()
-        src_len = IRLiteral(32)
-        tmp_buf = ctx.allocate_buffer(32)
-        b.mstore(tmp_buf._ptr, src_val)
-        src_data = tmp_buf._ptr
+    else:  # pragma: nocover
+        raise CompilerPanic(f"Unexpected slice source type: {src_t}")
 
     # Evaluate start and length AFTER src to maintain left-to-right evaluation order
     start = Expr(start_node, ctx).lower_value()
@@ -381,13 +377,8 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
         assert isinstance(src_ptr, IRVariable)
         src_len = b.mload(src_ptr)
         src_data = b.add(src_ptr, IRLiteral(32))
-    else:
-        # bytes32 or other fixed type - shouldn't happen but handle it
-        src_val = Expr(src_node, ctx).lower_value()
-        src_len = IRLiteral(32)
-        tmp_buf = ctx.allocate_buffer(32)
-        b.mstore(tmp_buf._ptr, src_val)
-        src_data = tmp_buf._ptr
+    else:  # pragma: nocover
+        raise CompilerPanic(f"Unexpected extract32 source type: {src_t}")
 
     # Evaluate start AFTER src to maintain left-to-right evaluation order
     start = Expr(start_node, ctx).lower_value()
