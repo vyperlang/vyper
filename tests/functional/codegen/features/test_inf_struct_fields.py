@@ -2869,3 +2869,75 @@ def f(xs: DynArray[Batch, 3]) -> (Bytes[INF], Bytes[INF]):
     before, after = c.f(rows)
     assert before == eth_abi_encode([_ROWS_ABI], [rows])
     assert after == eth_abi_encode([_ROWS_ABI], [[(OWNER, [1, 9]), rows[1]]])
+
+
+_HOLDER = BATCH + """
+struct Holder:
+    bs: DynArray[Batch, INF]
+    n: uint256
+"""
+_HOLDER_ABI = "((address,uint256[])[],uint256)"
+
+
+@pytest.mark.parametrize("n", [0, 1, 3])
+def test_struct_with_unbounded_array_member_roundtrip(env, get_contract, n):
+    code = _HOLDER + """
+@external
+def echo(h: Holder) -> Holder:
+    return h
+    """
+
+    c = get_contract(code)
+    h = (_batch_rows(n, 2), 7)
+    calldata = method_id(f"echo({_HOLDER_ABI})") + eth_abi_encode([_HOLDER_ABI], [h])
+    assert env.message_call(c.address, data=calldata) == eth_abi_encode([_HOLDER_ABI], [h])
+
+
+def test_struct_with_unbounded_array_member_copy_is_independent(get_contract):
+    # the source is appended to twice first, so its array has room to grow in
+    # place (see PREPARE)
+    code = _HOLDER + """
+@external
+def append_to_copy(h: Holder, b: Batch, c: Batch) -> (Bytes[INF], Bytes[INF]):
+    src: Holder = h
+    src.bs.append(b)
+    src.bs.append(b)
+    k: Holder = src
+    k.bs.append(c)
+    return abi_encode(src), abi_encode(k)
+
+@external
+def append_to_source(h: Holder, b: Batch, c: Batch) -> (Bytes[INF], Bytes[INF]):
+    src: Holder = h
+    src.bs.append(b)
+    src.bs.append(b)
+    k: Holder = src
+    src.bs.append(c)
+    return abi_encode(src), abi_encode(k)
+
+@external
+def store_copy_element(h: Holder, b: Batch, c: Batch) -> (Bytes[INF], Bytes[INF]):
+    src: Holder = h
+    src.bs.append(b)
+    src.bs.append(b)
+    k: Holder = src
+    k.bs[0] = c
+    return abi_encode(src), abi_encode(k)
+    """
+
+    c = get_contract(code)
+    first = ("0x" + "44" * 20, [1])
+    b = (OWNER, [2, 3])
+    other = ("0x" + "77" * 20, [9, 9])
+    h = ([first], 5)
+    prepared = ([first, b, b], 5)
+    grown = ([first, b, b, other], 5)
+    stored = ([other, b, b], 5)
+
+    def enc(v):
+        return eth_abi_encode([_HOLDER_ABI], [v])
+
+    assert c.append_to_copy(h, b, other) == (enc(prepared), enc(grown))
+    assert c.append_to_source(h, b, other) == (enc(grown), enc(prepared))
+    assert c.store_copy_element(h, b, other) == (enc(prepared), enc(stored))
+

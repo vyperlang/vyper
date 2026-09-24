@@ -161,6 +161,18 @@ def g(o: Outer) -> Outer:
     """,
         "Internal function returns cannot contain a DynArray of structs",
     ),
+    (
+        BATCH + """
+struct Holder:
+    bs: DynArray[Batch, INF]
+    n: uint256
+
+@internal
+def g(h: Holder) -> Holder:
+    return h
+    """,
+        "Internal function returns cannot contain a DynArray of structs",
+    ),
     # the decoded type has no size bound, but the input must hold its static head
     (
         BATCH + """
