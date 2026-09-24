@@ -525,3 +525,31 @@ def bar(t: bool) -> {typ}:
     expected = body_value if test else orelse_value
     assert c.foo(test) == expected
     assert c.bar(test) == expected
+
+
+@pytest.mark.parametrize("test", [True, False])
+def test_ternary_empty_struct_arm(get_contract, test):
+    code = """
+struct S:
+    a: uint256
+    b: DynArray[uint256, 3]
+
+@external
+def foo(t: bool) -> S:
+    x: S = empty(S) if t else S(a=1, b=[2, 3])
+    return x
+
+@external
+def bar(t: bool) -> S:
+    return S(a=1, b=[2, 3]) if t else empty(S)
+
+@external
+def baz(t: bool) -> S:
+    return empty(S) if t else empty(S)
+    """
+    c = get_contract(code)
+    empty_s = (0, [])
+    s = (1, [2, 3])
+    assert c.foo(test) == (empty_s if test else s)
+    assert c.bar(test) == (s if test else empty_s)
+    assert c.baz(test) == empty_s
