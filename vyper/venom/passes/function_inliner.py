@@ -6,8 +6,8 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, DynamicMemoryAnalysis, IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGGlobalAnalysis
 from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
-from vyper.venom.call_layout import FunctionCallLayout, InvokeLayout, has_dret
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
+from vyper.venom.call_layout import InvokeLayout, has_dret
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRGlobalPass
@@ -131,19 +131,15 @@ class FunctionInlinerPass(IRGlobalPass):
         # pre-lowering) + target-as-return-pc: identical to the old
         # operands[1:] + [operands[0]] reorder for raw IR.
         binding_ops = InvokeLayout(self.ctx, call_site).bound_params
+        binding_ops = (*binding_ops[:-1], IRLiteral(0))
 
-        layout = FunctionCallLayout(func_copy)
-        retpc_inst = layout.retpc_param_opcode_inst
-        assert retpc_inst is not None
-        retpc_op = retpc_inst.output
-        retpc_inst.make_nop()
         for bb in func_copy.get_basic_blocks():
             bb.parent = call_site_func
             call_site_func.append_basic_block(bb)
             param_idx = 0
             for inst in bb.instructions:
                 if inst.is_param:
-                    assert inst.opcode != "retpc_param"
+                    # NOTE: one of these params is the return pc.
                     inst.opcode = "assign"
                     val = binding_ops[param_idx]
                     inst.operands = [val]
@@ -161,7 +157,6 @@ class FunctionInlinerPass(IRGlobalPass):
                     # host's own reclaim governs the inlined data. Whether the
                     # host publishes is determined solely by the host's own
                     # terminators (plain `ret` is callee-save).
-                    assert retpc_op in inst.operands, retpc_op
                     ret_values = [op for op in inst.operands[:-1] if not isinstance(op, IRLabel)]
 
                     # Map each returned value to corresponding callsite outputs
@@ -179,7 +174,6 @@ class FunctionInlinerPass(IRGlobalPass):
 
             for inst in bb.instructions:
                 if not inst.annotation:
-                    assert retpc_op not in inst.operands, (inst, retpc_op)
                     inst.annotation = f"from {func.name}"
 
         call_site_bb.instructions = call_site_bb.instructions[:call_idx]
