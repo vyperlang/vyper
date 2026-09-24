@@ -2941,3 +2941,53 @@ def store_copy_element(h: Holder, b: Batch, c: Batch) -> (Bytes[INF], Bytes[INF]
     assert c.append_to_source(h, b, other) == (enc(grown), enc(prepared))
     assert c.store_copy_element(h, b, other) == (enc(prepared), enc(stored))
 
+
+# A list literal of such structs as an encoded value: an external call
+# argument (a bounded and a wildcard parameter) and an event member.
+def test_list_literal_of_structs_encoded(env, get_contract):
+    callee = get_contract(BATCH + """
+@external
+@view
+def take(bs: DynArray[Batch, 3]) -> Bytes[INF]:
+    return abi_encode(bs)
+
+@external
+@view
+def src() -> Batch:
+    return Batch(owner=self, values=[7, 8])
+    """)
+
+    code = BATCH + """
+interface Taker:
+    def take(bs: DynArray[Batch, 3]) -> Bytes[INF]: nonpayable
+
+interface AnyTaker:
+    def take(bs: DynArray[Batch, ...]) -> Bytes[INF]: view
+    def src() -> Batch: view
+
+event Submitted:
+    bs: DynArray[Batch, 3]
+
+@external
+def pair(target: address, b: Batch, c: Batch) -> Bytes[INF]:
+    return extcall Taker(target).take([b, c])
+
+@external
+def fetched(target: address) -> Bytes[INF]:
+    return staticcall AnyTaker(target).take([staticcall AnyTaker(target).src()])
+
+@external
+def submit(b: Batch):
+    log Submitted(bs=[b])
+    """
+
+    c = get_contract(code)
+    b = (OWNER, [1, 2, 3])
+    other = ("0x" + "22" * 20, [])
+    assert c.pair(callee.address, b, other) == eth_abi_encode([_ROWS_ABI], [[b, other]])
+    expected = eth_abi_encode([_ROWS_ABI], [[(callee.address, [7, 8])]])
+    assert c.fetched(callee.address) == expected
+
+    c.submit(b)
+    _, data = env.get_logs(c, raw=True)[0]
+    assert data == eth_abi_encode([_ROWS_ABI], [[b]])
