@@ -22,16 +22,6 @@ struct S:
     """,
         "Struct members cannot contain unbounded sequence types",
     ),
-    (
-        """
-struct Batch:
-    values: DynArray[uint256, INF]
-
-struct S:
-    xs: DynArray[Batch, 3]
-    """,
-        "Struct members cannot contain unbounded sequence types",
-    ),
     # an array element's member is written only by whole-struct copies
     (
         BATCH + """
@@ -109,23 +99,8 @@ def f(bs: Batch[2]) -> uint256:
     """,
         "Static arrays of unbounded sequence types are not supported",
     ),
-    # the encoded size has no static bound, so these buffers cannot be sized
-    (
-        BATCH + """
-@external
-def f(bs: DynArray[Batch, INF]) -> DynArray[Batch, INF]:
-    return bs
-    """,
-        "Function returns cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-@external
-def f(bs: DynArray[Batch, 3]) -> DynArray[Batch, 3]:
-    return bs
-    """,
-        "Function returns cannot contain unbounded sequence types",
-    ),
+    # a tuple return is built in the dynamic tuple frame, one payload
+    # pointer per member
     (
         BATCH + """
 @external
@@ -133,47 +108,6 @@ def f(b: Batch) -> (uint256, Batch):
     return 1, b
     """,
         "Function returns cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-interface I:
-    def take(bs: DynArray[Batch, 3]): nonpayable
-
-@external
-def f(a: address, b: Batch):
-    extcall I(a).take([b])
-    """,
-        "Function arguments cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-@external
-def f() -> uint256:
-    bs: DynArray[Batch, 3] = empty(DynArray[Batch, 3])
-    return len(bs)
-    """,
-        "empty() does not support unbounded sequence types",
-    ),
-    # an INF DynArray of such structs has no static per-element ABI size
-    # bound, so no encoding buffer can be sized for it
-    (
-        BATCH + """
-@external
-def f(bs: DynArray[Batch, INF]) -> Bytes[INF]:
-    return abi_encode(bs)
-    """,
-        "abi_encode arguments cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-interface I:
-    def take(bs: DynArray[Batch, INF]): nonpayable
-
-@external
-def f(a: address, bs: DynArray[Batch, INF]):
-    extcall I(a).take(bs)
-    """,
-        "Function arguments cannot contain unbounded sequence types",
     ),
     (
         BATCH + """
@@ -185,60 +119,47 @@ def f(bs: DynArray[Batch, INF]) -> (uint256, DynArray[Batch, INF]):
     ),
     (
         BATCH + """
-event E:
-    bs: DynArray[Batch, INF]
-    """,
-        "Event members cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-error E:
-    bs: DynArray[Batch, INF]
-    """,
-        "Custom error members cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-@external
-def f(bs: DynArray[Batch, INF]):
-    print(bs)
-    """,
-        "print arguments cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-@external
-def f(t: address, bs: DynArray[Batch, INF]) -> address:
-    return create_from_blueprint(t, bs, code_offset=3)
-    """,
-        "constructor arguments cannot contain nested unbounded sequence types",
-    ),
-    (
-        BATCH + """
-@external
-def f(bs: DynArray[Batch, 3]) -> Bytes[INF]:
-    return abi_encode(bs)
-    """,
-        "abi_encode arguments cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-interface I:
-    def take(bs: DynArray[Batch, 3]): nonpayable
-
-@external
-def f(a: address, bs: DynArray[Batch, 3]):
-    extcall I(a).take(bs)
-    """,
-        "Function arguments cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
 @external
 def f(bs: DynArray[Batch, 3]) -> (uint256, DynArray[Batch, 3]):
     return 1, bs
     """,
         "Function returns cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+@internal
+def g(bs: DynArray[Batch, INF]) -> (uint256, DynArray[Batch, INF]):
+    return 1, bs
+    """,
+        "Function returns cannot contain unbounded sequence types",
+    ),
+    # an internal return carries a fixed number of member payloads
+    (
+        BATCH + """
+@internal
+def g(bs: DynArray[Batch, 3]) -> DynArray[Batch, 3]:
+    return bs
+    """,
+        "Internal function returns cannot contain a DynArray of structs",
+    ),
+    (
+        BATCH + """
+@internal
+def g(bs: DynArray[Batch, INF]) -> DynArray[Batch, INF]:
+    return bs
+    """,
+        "Internal function returns cannot contain a DynArray of structs",
+    ),
+    (
+        BATCH + """
+struct Outer:
+    batches: DynArray[Batch, 5]
+
+@internal
+def g(o: Outer) -> Outer:
+    return o
+    """,
+        "Internal function returns cannot contain a DynArray of structs",
     ),
     # the decoded type has no size bound, but the input must hold its static head
     (
@@ -267,36 +188,6 @@ def f(d: Bytes[16]) -> uint256:
     return len(xs)
     """,
         "Mismatch between size of input and size of decoded types",
-    ),
-    (
-        BATCH + """
-event E:
-    bs: DynArray[Batch, 3]
-    """,
-        "Event members cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-error E:
-    bs: DynArray[Batch, 3]
-    """,
-        "Custom error members cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-@external
-def f(bs: DynArray[Batch, 3]):
-    print(bs)
-    """,
-        "print arguments cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-@external
-def f(t: address, bs: DynArray[Batch, 3]) -> address:
-    return create_from_blueprint(t, bs, code_offset=3)
-    """,
-        "constructor arguments cannot contain nested unbounded sequence types",
     ),
 ]
 

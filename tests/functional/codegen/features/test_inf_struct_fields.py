@@ -2237,12 +2237,10 @@ def deploy(target: address, b: Batch, tag: uint256) -> address:
     )
 
 
-# A DynArray of such structs is decoded (calldata argument, external call
-# return, abi_decode) but not encoded: the decoder allocates each element's
-# member payloads as it goes, while sizing an encoding buffer would mean
-# walking every element's cells first. The array cannot be returned, so the
-# contracts below flatten it: the count, then per element the owner, the
-# member length and the member values.
+# A DynArray of such structs on every ingress path (calldata argument,
+# external call return, abi_decode). The contracts below flatten the decoded
+# array -- the count, then per element the owner, the member length and the
+# member values -- so the check does not depend on the encoder.
 
 _ARRAY_INGRESS_CODE = BATCH + """
 interface Source:
@@ -2517,3 +2515,362 @@ def f(a: address, b: Batch) -> (uint256, DynArray[uint256, INF], DynArray[uint25
     rows = [(OWNER, [5]), (OWNER, [6, 7]), (OWNER, [])]
     target = deploy_raw_returner(env, eth_abi_encode(["(address,uint256[])[]"], [rows]))
     assert c.f(target.address, (OWNER, [1, 2])) == (3, [5, 9], [1, 2])
+
+
+# Encoding a DynArray of such structs: the buffer is sized at runtime from
+# every element's member lengths.
+
+
+def _batch_rows(n, m):
+    return [("0x" + f"{i + 1:02d}" * 20, list(range(i * 100, i * 100 + m))) for i in range(n)]
+
+
+_ROWS_ABI = "(address,uint256[])[]"
+
+
+@pytest.mark.parametrize("bound", _ARRAY_BOUNDS)
+@pytest.mark.parametrize("n", [0, 1, 3])
+@pytest.mark.parametrize("m", [0, 1, 40])
+def test_return_dynarray_of_structs(env, get_contract, bound, n, m):
+    code = BATCH + f"""
+@external
+def echo(bs: DynArray[Batch, {bound}]) -> DynArray[Batch, {bound}]:
+    return bs
+    """
+
+    c = get_contract(code)
+    rows = _batch_rows(n, m)
+    calldata = method_id(f"echo({_ROWS_ABI})") + eth_abi_encode([_ROWS_ABI], [rows])
+    assert env.message_call(c.address, data=calldata) == eth_abi_encode([_ROWS_ABI], [rows])
+
+
+_OUTER = BATCH + """
+struct Outer:
+    tag: uint256
+    batches: DynArray[Batch, 5]
+"""
+_OUTER_ABI = "(uint256,(address,uint256[])[])"
+
+
+def test_return_dynarray_of_structs_with_array_member(env, get_contract):
+    code = _OUTER + """
+@external
+def echo(os: DynArray[Outer, 2]) -> DynArray[Outer, 2]:
+    return os
+    """
+
+    c = get_contract(code)
+    rows = [(1, [(OWNER, [1, 2]), (OWNER, []), (OWNER, [3])]), (2, [])]
+    calldata = method_id(f"echo({_OUTER_ABI}[])") + eth_abi_encode([f"{_OUTER_ABI}[]"], [rows])
+    assert env.message_call(c.address, data=calldata) == eth_abi_encode(
+        [f"{_OUTER_ABI}[]"], [rows]
+    )
+
+
+def test_return_dynarray_of_structs_other_members(env, get_contract):
+    # a Bytes[INF] member, two INF members and a nested struct member
+    code = """
+struct Msg:
+    kind: uint256
+    payload: Bytes[INF]
+
+struct Pair:
+    left: DynArray[uint256, INF]
+    right: DynArray[uint256, INF]
+
+struct Wrapped:
+    tag: uint256
+    inner: Pair
+
+@external
+def msgs(xs: DynArray[Msg, INF]) -> DynArray[Msg, INF]:
+    return xs
+
+@external
+def pairs(xs: DynArray[Pair, 3]) -> DynArray[Pair, 3]:
+    return xs
+
+@external
+def wrapped(xs: DynArray[Wrapped, INF]) -> DynArray[Wrapped, INF]:
+    return xs
+    """
+
+    c = get_contract(code)
+    cases = [
+        ("msgs", "(uint256,bytes)", [(1, b""), (2, b"x" * 40), (3, b"hello")]),
+        ("pairs", "(uint256[],uint256[])", [([], [1]), ([2, 3], []), ([4], [5, 6, 7])]),
+        ("wrapped", "(uint256,(uint256[],uint256[]))", [(9, ([1], [])), (8, ([], [2, 3]))]),
+    ]
+    for name, abi, rows in cases:
+        calldata = method_id(f"{name}({abi}[])") + eth_abi_encode([f"{abi}[]"], [rows])
+        assert env.message_call(c.address, data=calldata) == eth_abi_encode([f"{abi}[]"], [rows])
+
+
+@pytest.mark.parametrize("bound", _ARRAY_BOUNDS)
+def test_abi_encode_dynarray_of_structs(get_contract, bound):
+    code = BATCH + f"""
+@external
+def enc(bs: DynArray[Batch, {bound}]) -> Bytes[INF]:
+    return abi_encode(bs)
+
+@external
+def enc_no_tuple(bs: DynArray[Batch, {bound}]) -> Bytes[INF]:
+    return abi_encode(bs, ensure_tuple=False)
+
+@external
+def enc_method_id(bs: DynArray[Batch, {bound}], x: uint256) -> Bytes[INF]:
+    return abi_encode(bs, x, method_id=method_id("take((address,uint256[])[],uint256)"))
+    """
+
+    c = get_contract(code)
+    for rows in [[], _batch_rows(1, 0), _batch_rows(3, 40)]:
+        encoded = eth_abi_encode([_ROWS_ABI], [rows])
+        assert c.enc(rows) == encoded
+        # without the tuple wrapper there is no offset word
+        assert c.enc_no_tuple(rows) == encoded[32:]
+        assert c.enc_method_id(rows, 7) == method_id(
+            "take((address,uint256[])[],uint256)"
+        ) + eth_abi_encode([_ROWS_ABI, "uint256"], [rows, 7])
+
+
+@pytest.mark.parametrize("n", [0, 1, 3])
+def test_event_with_dynarray_of_structs(env, get_contract, n):
+    code = BATCH + """
+event Submitted:
+    batches: DynArray[Batch, INF]
+    nonce: uint256
+
+@external
+def submit(bs: DynArray[Batch, INF], nonce: uint256):
+    log Submitted(batches=bs, nonce=nonce)
+    """
+
+    c = get_contract(code)
+    rows = _batch_rows(n, 2)
+    c.submit(rows, 7)
+    _, data = env.get_logs(c, raw=True)[0]
+    assert data == eth_abi_encode([_ROWS_ABI, "uint256"], [rows, 7])
+
+
+def test_custom_error_with_dynarray_of_structs(get_contract):
+    code = BATCH + """
+error Rejected:
+    batches: DynArray[Batch, 3]
+    reason: uint256
+
+@external
+def boom(bs: DynArray[Batch, 3]):
+    raise Rejected(batches=bs, reason=42)
+    """
+
+    c = get_contract(code)
+    rows = _batch_rows(2, 3)
+    with pytest.raises(ExecutionReverted) as excinfo:
+        c.boom(rows)
+    revert_hex = excinfo.value.args[0]
+    assert bytes.fromhex(revert_hex.removeprefix("0x")) == method_id(
+        "Rejected((address,uint256[])[],uint256)"
+    ) + eth_abi_encode([_ROWS_ABI, "uint256"], [rows, 42])
+
+
+def test_print_dynarray_of_structs(get_contract, compiler_settings):
+    # as in `test_print_struct`: the wire format is checked in the runtime code
+    code = BATCH + """
+@external
+def f(bs: DynArray[Batch, INF]) -> uint256:
+    print(bs)
+    print(bs, hardhat_compat=True)
+    return len(bs)
+    """
+
+    c = get_contract(code)
+    assert c.f(_batch_rows(2, 1)) == 2
+
+    out = compile_code(code, output_formats=["bytecode_runtime"], settings=compiler_settings)
+    runtime = out["bytecode_runtime"]
+    assert method_id("log(string,bytes)").hex() in runtime
+    assert b"((address,uint256[])[])".hex() in runtime
+    assert method_id("log((address,uint256[])[])").hex() in runtime
+
+
+def test_create_from_blueprint_with_dynarray_of_structs_arg(
+    env, get_contract, deploy_blueprint_for
+):
+    child_code = BATCH + """
+count: public(uint256)
+total: public(uint256)
+
+@deploy
+def __init__(bs: DynArray[Batch, 3], tag: uint256):
+    self.count = len(bs)
+    acc: uint256 = tag
+    for b: Batch in bs:
+        for v: uint256 in b.values:
+            acc += v
+    self.total = acc
+    """
+    blueprint, _ = deploy_blueprint_for(child_code)
+
+    deployer_code = BATCH + """
+@external
+def deploy(target: address, bs: DynArray[Batch, 3], tag: uint256) -> address:
+    return create_from_blueprint(target, bs, tag)
+    """
+
+    deployer = get_contract(deployer_code)
+    addr = deployer.deploy(blueprint.address, [(OWNER, [5, 6]), (OWNER, []), (OWNER, [7])], 100)
+    assert eth_abi_decode(["uint256"], env.message_call(addr, data=method_id("count()"))) == (3,)
+    assert eth_abi_decode(["uint256"], env.message_call(addr, data=method_id("total()"))) == (118,)
+
+
+_ARRAY_TAKER = """
+@external
+def take(bs: DynArray[Batch, 3]) -> (uint256, uint256):
+    total: uint256 = 0
+    for b: Batch in bs:
+        for v: uint256 in b.values:
+            total += v
+    return len(bs), total
+"""
+
+
+@pytest.mark.parametrize("n", [0, 1, 3])
+def test_extcall_dynarray_of_structs_arg(get_contract, n):
+    # one callee declares the member unbounded, the other with a bound; the
+    # ABI is the same
+    bounded_callee = get_contract(
+        """
+struct Batch:
+    owner: address
+    values: DynArray[uint256, 50]
+"""
+        + _ARRAY_TAKER
+    )
+    unbounded_callee = get_contract(BATCH + _ARRAY_TAKER)
+    code = BATCH + """
+interface Taker:
+    def take(bs: DynArray[Batch, 3]) -> (uint256, uint256): nonpayable
+
+@external
+def f(target: address, bs: DynArray[Batch, 3]) -> (uint256, uint256):
+    return extcall Taker(target).take(bs)
+    """
+
+    c = get_contract(code)
+    rows = _batch_rows(n, 4)
+    expected = (n, sum(sum(values) for _, values in rows))
+    assert c.f(bounded_callee.address, rows) == expected
+    assert c.f(unbounded_callee.address, rows) == expected
+
+
+def test_empty_dynarray_of_structs(get_contract):
+    code = BATCH + """
+@external
+def f() -> DynArray[Batch, 3]:
+    return empty(DynArray[Batch, 3])
+
+@external
+def enc() -> Bytes[INF]:
+    bs: DynArray[Batch, 3] = empty(DynArray[Batch, 3])
+    return abi_encode(bs)
+
+@external
+def appended(b: Batch) -> DynArray[Batch, 3]:
+    bs: DynArray[Batch, 3] = empty(DynArray[Batch, 3])
+    bs.append(b)
+    return bs
+    """
+
+    c = get_contract(code)
+    assert c.f() == []
+    assert c.enc() == eth_abi_encode([_ROWS_ABI], [[]])
+    assert c.appended((OWNER, [1, 2])) == [(OWNER, [1, 2])]
+
+
+def test_struct_with_array_member_built_then_returned(get_contract):
+    code = _OUTER + """
+@external
+def f(b: Batch, c: Batch) -> Outer:
+    o: Outer = empty(Outer)
+    o.tag = 7
+    o.batches.append(b)
+    o.batches.append(c)
+    return o
+    """
+
+    c = get_contract(code)
+    assert c.f((OWNER, [1]), (OWNER, [2, 3])) == (7, [(OWNER, [1]), (OWNER, [2, 3])])
+
+
+def test_dynarray_of_structs_copy_then_store_element(get_contract):
+    code = BATCH + """
+@external
+def f(xs: DynArray[Batch, 3], other: Batch) -> (Bytes[INF], Bytes[INF]):
+    ys: DynArray[Batch, 3] = xs
+    zs: DynArray[Batch, 3] = ys
+    ys[0] = other
+    return abi_encode(ys), abi_encode(zs)
+    """
+
+    c = get_contract(code)
+    rows = [(OWNER, [1, 2]), (OWNER, [])]
+    other = ("0x" + "77" * 20, [9, 9, 9])
+    changed, kept = c.f(rows, other)
+    assert changed == eth_abi_encode([_ROWS_ABI], [[other, rows[1]]])
+    assert kept == eth_abi_encode([_ROWS_ABI], [rows])
+
+
+def test_struct_with_array_member_copy_then_append(get_contract):
+    code = _OUTER + """
+@external
+def f(o: Outer, b: Batch) -> (Bytes[INF], Bytes[INF]):
+    p: Outer = o
+    q: Outer = p
+    p.batches.append(b)
+    return abi_encode(p), abi_encode(q)
+    """
+
+    c = get_contract(code)
+    o = (3, [(OWNER, [1])])
+    b = (OWNER, [2, 3])
+    appended, kept = c.f(o, b)
+    assert appended == eth_abi_encode([_OUTER_ABI], [(3, [(OWNER, [1]), b])])
+    assert kept == eth_abi_encode([_OUTER_ABI], [o])
+
+
+def test_dynarray_element_encodes_the_member_length(get_contract):
+    # the element is stored from a local whose member has spare capacity
+    code = BATCH + """
+@external
+def f() -> DynArray[Batch, 3]:
+    b: Batch = empty(Batch)
+    b.values.append(1)
+    b.values.append(2)
+    b.values.append(3)
+    b.values.pop()
+    xs: DynArray[Batch, 3] = [b]
+    xs.append(b)
+    return xs
+    """
+
+    c = get_contract(code)
+    assert c.f() == [(ZERO_ADDRESS, [1, 2]), (ZERO_ADDRESS, [1, 2])]
+
+
+def test_dynarray_of_structs_mutation_after_encode(get_contract):
+    code = BATCH + """
+@external
+def f(xs: DynArray[Batch, 3]) -> (Bytes[INF], Bytes[INF]):
+    ys: DynArray[Batch, 3] = xs
+    before: Bytes[INF] = abi_encode(ys)
+    b: Batch = ys[0]
+    b.values.append(9)
+    ys[0] = b
+    return before, abi_encode(ys)
+    """
+
+    c = get_contract(code)
+    rows = [(OWNER, [1]), (OWNER, [])]
+    before, after = c.f(rows)
+    assert before == eth_abi_encode([_ROWS_ABI], [rows])
+    assert after == eth_abi_encode([_ROWS_ABI], [[(OWNER, [1, 9]), rows[1]]])

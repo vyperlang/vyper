@@ -102,21 +102,25 @@ def test_dynarray_from_annotation_inf(build_node):
 def test_runtime_sizable_predicates():
     batch = StructT("Batch", {"owner": AddressT(), "values": DArrayT(UINT256_T, INF)})
     outer = StructT("Outer", {"tag": UINT256_T, "inner": batch})
+    holder = StructT("Holder", {"batches": DArrayT(batch, 5)})
 
     assert is_runtime_sizable_type(UINT256_T)
     assert is_runtime_sizable_type(BytesT(INF))
     assert is_runtime_sizable_type(DArrayT(BytesT(512), INF))
     assert is_runtime_sizable_type(batch)
     assert is_runtime_sizable_type(outer)
-    # the elements have no static ABI size bound
-    assert not is_runtime_sizable_type(DArrayT(batch, 3))
-    assert not is_runtime_sizable_type(DArrayT(batch, INF))
+    # the elements keep a compile-time stride; the array is sized element by element
+    assert is_runtime_sizable_type(DArrayT(batch, 3))
+    assert is_runtime_sizable_type(DArrayT(batch, INF))
+    assert is_runtime_sizable_type(holder)
+    assert is_runtime_sizable_type(DArrayT(holder, 2))
     assert not is_runtime_sizable_type(DArrayT(BytesT(INF), 3))
     # a tuple frame exists only as a return value
     assert not is_runtime_sizable_type(TupleT((BytesT(INF), UINT256_T)))
     assert is_runtime_sizable_return_type(TupleT((BytesT(INF), UINT256_T)))
     assert not is_runtime_sizable_return_type(TupleT((batch, UINT256_T)))
-    assert not is_runtime_sizable_return_type(DArrayT(batch, INF))
+    assert not is_runtime_sizable_return_type(TupleT((DArrayT(batch, INF), UINT256_T)))
+    assert is_runtime_sizable_return_type(DArrayT(batch, INF))
 
     # a frame slot holds one payload pointer
     assert is_supported_unbounded_tuple_type(TupleT((DArrayT(UINT256_T, INF),)))
