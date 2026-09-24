@@ -157,6 +157,7 @@ def rebase_packed_value(ctx: VenomCodegenContext, buf: IRVariable, typ: VyperTyp
     def rebase(cell: IRVariable, member_t: VyperType) -> None:
         payload = b.add(buf, b.mload(cell))
         assert isinstance(payload, IRVariable)
+        # capacity is already 0 from the pack; only the pointer word changes
         b.mstore(cell, payload)
         _for_each_cell(ctx, payload, member_t, rebase)
 
