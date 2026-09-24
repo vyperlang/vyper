@@ -683,9 +683,9 @@ satisfies the same rule; ``x: (Bytes[INF], uint256)`` and
 unbounded member is also rejected in storage, transient storage, immutable and
 constant declarations, static arrays and mappings. It may not be returned
 inside a tuple. A ``DynArray`` of such structs is accepted as a function
-argument and as a local variable, but may not be encoded, nor decoded by
-``abi_decode`` or an external call return: not in function and external call
-return values, external call arguments, ``abi_encode``, ``abi_decode``, events,
+argument and as a local variable, and may be decoded (as a calldata argument,
+with ``abi_decode``, or as an external call return value) but not encoded: not
+in function return values, external call arguments, ``abi_encode``, events,
 custom errors, ``print`` or ``create_*`` constructor arguments.
 
 .. note::
