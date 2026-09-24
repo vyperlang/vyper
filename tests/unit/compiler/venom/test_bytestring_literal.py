@@ -6,7 +6,7 @@ from vyper.codegen_venom.bytestring_literal import (
     push_bytes,
     should_codecopy,
 )
-from vyper.codegen_venom.module import generate_deploy_venom, generate_runtime_venom
+from vyper.codegen_venom.module import generate_venom_deploy, generate_venom_runtime
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings, anchor_settings
 from vyper.utils import ceil32
@@ -153,14 +153,14 @@ def _runtime_venom(code: str, level: OptimizationLevel):
     compiler_data = CompilerData(code, settings=settings)
     # `_opt_codesize()` reads the global settings, like the compiler driver
     with anchor_settings(compiler_data.settings):
-        return generate_runtime_venom(compiler_data.global_ctx, compiler_data.settings)
+        return generate_venom_runtime(compiler_data.global_ctx, compiler_data.settings)
 
 
 def _deploy_venom(code: str, level: OptimizationLevel):
     settings = Settings(experimental_codegen=True, optimize=level)
     compiler_data = CompilerData(code, settings=settings)
     with anchor_settings(compiler_data.settings):
-        return generate_deploy_venom(
+        return generate_venom_deploy(
             compiler_data.global_ctx, compiler_data.settings, b"\x00" * 32, 0
         )
 
