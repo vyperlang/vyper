@@ -93,7 +93,18 @@ class Namespace(dict):
             prev_decl = getattr(prev, "decl_node", None)
             msg = f"'{attr}' has already been declared"
             if prev_decl is None:
-                msg += f" as a {prev}"
+                # attempt to print a hint for namespace collision
+                alias = getattr(prev, "alias", None)
+
+                if alias:
+                    hint = f" via import (alias=`{alias}`)"
+                else:
+                    short_name = getattr(prev, "name", None)
+                    type_name = type(prev).__name__
+
+                    hint = f" as {type_name} '{short_name}'" if short_name else f" as {type_name}"
+
+                msg += hint + f".\n\n Suggested fix: rename or remove the previous declaration (e.g. use `import {attr} as ...` to avoid collisions)"
             raise NamespaceCollision(msg, prev_decl=prev_decl)
 
 
