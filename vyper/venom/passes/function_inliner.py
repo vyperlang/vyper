@@ -6,7 +6,14 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, DynamicMemoryAnalysis, IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGGlobalAnalysis
 from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import (
+    IRBasicBlock,
+    IRInstruction,
+    IRLabel,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
 from vyper.venom.call_layout import InvokeLayout, has_dret
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
