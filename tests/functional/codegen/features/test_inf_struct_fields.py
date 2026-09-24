@@ -3071,6 +3071,21 @@ _PRODUCERS = {
     return os
 """,
     ),
+    # payloads that hold cells of further payloads
+    "holder_array": (
+        _HOLDER,
+        "DynArray[Holder, 2]",
+        f"{_HOLDER_ABI}[]",
+        """
+    hs: DynArray[Holder, 2] = []
+    for k: uint256 in range(2):
+        h: Holder = Holder(bs=[], n=seed + k)
+        for i: uint256 in range(n, bound=3):
+            h.bs.append(self.mk(i, m, seed + k))
+        hs.append(h)
+    return hs
+""",
+    ),
 }
 
 
@@ -3085,8 +3100,10 @@ def _produced(shape, n, m, seed, note):
         return (seed, _mk_rows(n, m, seed), note)
     if shape == "holder":
         return (_mk_rows(n, m, seed), seed)
-    assert shape == "outer_array"
-    return [(seed + k, _mk_rows(n, m, seed + k), note) for k in range(2)]
+    if shape == "outer_array":
+        return [(seed + k, _mk_rows(n, m, seed + k), note) for k in range(2)]
+    assert shape == "holder_array"
+    return [(_mk_rows(n, m, seed + k), seed + k) for k in range(2)]
 
 
 def _producer_code(shape, external_body):
