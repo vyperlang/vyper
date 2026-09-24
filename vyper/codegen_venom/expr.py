@@ -42,6 +42,7 @@ from vyper.semantics.types import (
     TupleT,
     VyperType,
     _BytestringT,
+    contains_pointer_cell_array,
     is_bounded_length,
     is_type_t,
     is_unbounded_dynarray_type,
@@ -68,6 +69,7 @@ from .buffer import Buffer, Ptr
 from .calling_convention import pass_via_stack, returns_dynamic_count, returns_stack_count
 from .context import VenomCodegenContext
 from .eval_order import later_expressions_can_mutate_memory_or_storage
+from .packed_return import rebase_packed_value
 from .value import VyperValue
 
 
@@ -1663,6 +1665,15 @@ class Expr:
                     )
 
                 assert returns_count == 0
+                if contains_pointer_cell_array(func_t.return_type):
+                    assert len(outs) == 1
+                    rebase_packed_value(self.ctx, outs[0], func_t.return_type)
+                    if is_unbounded_sequence_type(func_t.return_type):
+                        return self.ctx.dynamic_memory_value(
+                            outs[0], func_t.return_type, annotation=func_name
+                        )
+                    return self._make_ptr_value(outs[0], DataLocation.MEMORY, func_t.return_type)
+
                 if isinstance(func_t.return_type, StructT):
                     return self._pointer_cell_struct_from_outputs(outs, func_t.return_type)
 

@@ -50,6 +50,7 @@ from .calling_convention import returns_dynamic_count, returns_stack_count
 from .context import LocalVariable, VenomCodegenContext, same_memory_layout
 from .eval_order import later_expressions_can_mutate_memory_or_storage
 from .expr import Expr, get_referenced_variables, is_unbounded_struct_member
+from .packed_return import pack_value_with_payloads
 from .value import VyperValue
 
 
@@ -1217,6 +1218,14 @@ class Stmt:
 
             assert returns_count == 0
             assert ret_src_typ is not None
+            if contains_pointer_cell_array(ret_typ):
+                # one payload per array element and cell, so the value and
+                # its payloads travel as a single packed pair; the caller
+                # rebases the cells (`_lower_internal_call`)
+                buf, size = pack_value_with_payloads(self.ctx, ret_val, ret_typ)
+                self.builder.dret(IRLiteral(1), buf, size, return_pc)
+                return
+
             if isinstance(ret_typ, StructT):
                 # structs are nominal, so the source has the declared layout
                 assert ret_src_typ == ret_typ
@@ -1272,7 +1281,6 @@ class Stmt:
         struct still hold this frame's pointers; the caller rewrites them
         from the payload outputs.
         """
-        assert not contains_pointer_cell_array(ret_typ)
         cells = unbounded_member_cells(ret_typ)
         pairs: list[IROperand] = [ret_val, IRLiteral(ret_typ.memory_bytes_required)]
         for offset, member_t in cells:

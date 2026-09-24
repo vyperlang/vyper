@@ -133,46 +133,6 @@ def g(bs: DynArray[Batch, INF]) -> (uint256, DynArray[Batch, INF]):
     """,
         "Function returns cannot contain unbounded sequence types",
     ),
-    # an internal return carries a fixed number of member payloads
-    (
-        BATCH + """
-@internal
-def g(bs: DynArray[Batch, 3]) -> DynArray[Batch, 3]:
-    return bs
-    """,
-        "Internal function returns cannot contain a DynArray of structs",
-    ),
-    (
-        BATCH + """
-@internal
-def g(bs: DynArray[Batch, INF]) -> DynArray[Batch, INF]:
-    return bs
-    """,
-        "Internal function returns cannot contain a DynArray of structs",
-    ),
-    (
-        BATCH + """
-struct Outer:
-    batches: DynArray[Batch, 5]
-
-@internal
-def g(o: Outer) -> Outer:
-    return o
-    """,
-        "Internal function returns cannot contain a DynArray of structs",
-    ),
-    (
-        BATCH + """
-struct Holder:
-    bs: DynArray[Batch, INF]
-    n: uint256
-
-@internal
-def g(h: Holder) -> Holder:
-    return h
-    """,
-        "Internal function returns cannot contain a DynArray of structs",
-    ),
     # the decoded type has no size bound, but the input must hold its static head
     (
         BATCH + """

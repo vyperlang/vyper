@@ -148,10 +148,11 @@ def is_pointer_cell_struct_type(typ) -> bool:
 def contains_pointer_cell_array(typ) -> bool:
     """Return True if a DynArray whose elements hold INF appears anywhere in `typ`.
 
-    An internal function returns its pointer-cell payloads as `dret` outputs,
-    a compile-time number of them; such an array holds one payload per
-    element and cell, so internal functions cannot return it. Answers for
-    every type, looking through static arrays, tuples and structs.
+    Such an array reaches one payload per element and cell, a runtime
+    number, so an internal function returns a value holding one as a single
+    packed buffer (`codegen_venom/packed_return.py`) instead of one `dret`
+    pair per payload. Answers for every type, looking through static
+    arrays, tuples and structs.
     """
     typeclass = getattr(typ, "typeclass", None)
 

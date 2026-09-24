@@ -62,10 +62,12 @@ def returns_dynamic_count(func_t) -> int:
     ret_t = func_t.return_type
     if is_unbounded_sequence_type(ret_t):
         return 1
+    if contains_pointer_cell_array(ret_t):
+        # the value and every payload it reaches, packed into one buffer
+        # (`packed_return.pack_value_with_payloads`)
+        return 1
     if isinstance(ret_t, StructT) and type_contains_unbounded_sequence(ret_t):
-        # the struct itself plus one pair per pointer-cell payload; an array
-        # member would need one pair per element
-        assert not contains_pointer_cell_array(ret_t)
+        # the struct itself plus one pair per pointer-cell payload
         return 1 + len(unbounded_member_cells(ret_t))
     if is_dynamic_tuple_return_type(ret_t):
         validate_dynamic_tuple_return_type(ret_t)
