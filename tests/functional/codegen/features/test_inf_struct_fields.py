@@ -2986,10 +2986,13 @@ def submit(b: Batch):
 
 # Internal returns of a value holding an array of such structs: the callee
 # packs the value and every payload it reaches into one buffer, the caller
-# rebases the pointers. Each producer is called twice from one external
-# function (a payload left in the callee frame is overwritten by the second
-# call), with and without inlining (inlining a callee into its caller hides
-# frame bugs).
+# rebases the pointers. Most tests call each producer `g` twice from one
+# external function (a payload left in the callee frame is overwritten by the
+# second call); two call sites keep `g` out of line, so their `inlining`
+# param only toggles whether the helper `mk` is inlined into `g`. A single
+# call site is inlined (at -O gas and codesize), which puts the pack and the
+# rebase in one function; `test_internal_return_of_struct_array_single_call`
+# covers that.
 _MK = """
 @internal
 def mk(i: uint256, m: uint256, seed: uint256) -> Batch:
@@ -3149,6 +3152,27 @@ def f() -> {ret}:
     abi = _PRODUCERS[shape][2]
     expected = eth_abi_encode([abi], [_produced(shape, 3, 2, 1, b"note")])
     assert env.message_call(c.address, data=method_id("f()")) == expected
+
+
+@pytest.mark.parametrize("shape", _PRODUCERS.keys())
+def test_internal_return_of_struct_array_single_call(env, get_contract, shape):
+    code = _producer_code(
+        shape,
+        """
+@external
+def f(n: uint256, m: uint256, note: Bytes[INF]) -> {ret}:
+    return self.g(n, m, 1, note)
+""",
+    )
+
+    c = get_contract(code)
+    abi = _PRODUCERS[shape][2]
+    for n in (0, 1, 3):
+        for m in (0, 1, 40):
+            note = b"q" * m
+            args = eth_abi_encode(["uint256", "uint256", "bytes"], [n, m, note])
+            out = env.message_call(c.address, data=method_id("f(uint256,uint256,bytes)") + args)
+            assert out == eth_abi_encode([abi], [_produced(shape, n, m, 1, note)]), (n, m)
 
 
 # (shape, writes after both calls, expected first, expected second) where
