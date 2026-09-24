@@ -1400,7 +1400,7 @@ class Stmt:
     def _emit_external_runtime_sized_return(
         self, ret_val: IRVariable, ret_typ: VyperType, encode_typ: VyperType
     ) -> None:
-        """Return a struct whose INF members are pointer cells, or a DynArray of such structs.
+        """Return a pointer-cell struct, a DynArray of them, or a struct containing one.
 
         The encoding has no static bound (`abi_type.size_bound()` multiplies
         by INF), so the buffer is sized at runtime from the members' current

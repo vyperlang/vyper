@@ -1189,17 +1189,18 @@ class VenomCodegenContext:
         self.emit_counted_loop(length, copy_element, "typed_elem_copy")
 
     def emit_counted_loop(
-        self, length: IROperand, body: Callable[[IRVariable], None], suffix: str
+        self, length: IROperand, body: Callable[[IRVariable], None], label: str
     ) -> None:
         """Emit `body(i)` for every i in [0, length).
 
-        The counter is a stack variable reassigned in the body block; MakeSSA
-        gives it the loop phi.
+        `label` prefixes the loop's block labels. The counter is a stack
+        variable reassigned in whatever block `body` ends in; MakeSSA gives
+        it the loop phi.
         """
         b = self.builder
-        cond_block = b.create_block(f"{suffix}_cond")
-        body_block = b.create_block(f"{suffix}_body")
-        exit_block = b.create_block(f"{suffix}_exit")
+        cond_block = b.create_block(f"{label}_cond")
+        body_block = b.create_block(f"{label}_body")
+        exit_block = b.create_block(f"{label}_exit")
 
         counter = b.assign(IRLiteral(0))
         b.jmp(cond_block.label)
