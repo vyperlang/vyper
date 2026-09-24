@@ -10,6 +10,7 @@ from .infinity import (
     LengthUpperBound,
     is_bounded_length,
     is_pointer_cell_struct_type,
+    is_representable_return_type,
     is_runtime_sizable_return_type,
     is_runtime_sizable_type,
     is_supported_unbounded_tuple_type,

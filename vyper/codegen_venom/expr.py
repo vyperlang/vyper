@@ -2136,9 +2136,10 @@ class Expr:
         has_dynamic_tuple_return = return_t is not None and self.ctx.is_dynamic_tuple_frame_type(
             return_t
         )
-        has_pointer_cell_struct_return = False
-        if isinstance(return_t, StructT):
-            has_pointer_cell_struct_return = type_contains_unbounded_sequence(return_t)
+        # a pointer-cell struct, or a bounded DynArray of them
+        has_pointer_cell_return = False
+        if isinstance(return_t, (StructT, DArrayT)) and not has_unbounded_return:
+            has_pointer_cell_return = type_contains_unbounded_sequence(return_t)
 
         # Evaluate contract address (the interface value)
         contract_address = Expr(call_node.func.value, self.ctx).lower_value()
@@ -2171,7 +2172,7 @@ class Expr:
             args_abi_size = args_abi_t.size_bound()
 
         if return_t is not None:
-            if has_unbounded_return or has_dynamic_tuple_return or has_pointer_cell_struct_return:
+            if has_unbounded_return or has_dynamic_tuple_return or has_pointer_cell_return:
                 return_abi_size = 0
             else:
                 return_abi_t = calculate_type_for_external_return(return_t).abi_type
@@ -2300,7 +2301,7 @@ class Expr:
             ok = b.iszero(b.lt(rds, IRLiteral(min_return_size)))
             b.assert_(ok)
 
-            if has_pointer_cell_struct_return:
+            if has_pointer_cell_return:
                 # The encoded size has no static bound, so the call wrote
                 # nothing into the call buffer (ret_len is 0). Copy the
                 # returndata to scratch and decode it like a calldata

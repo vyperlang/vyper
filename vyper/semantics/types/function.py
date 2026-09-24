@@ -37,6 +37,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.bytestrings import BytesT
 from vyper.semantics.types.infinity import (
+    is_representable_return_type,
     is_runtime_sizable_return_type,
     type_contains_unrepresentable_unbounded_sequence,
 )
@@ -362,7 +363,7 @@ class ContractFunctionT(VyperType):
 
         positional_args, keyword_args = _parse_args(funcdef, is_interface=True)
 
-        return_type = _parse_return_type(funcdef)
+        return_type = _parse_return_type(funcdef, is_interface=True)
 
         return cls(
             funcdef.name,
@@ -437,7 +438,7 @@ class ContractFunctionT(VyperType):
 
         positional_args, keyword_args = _parse_args(funcdef, is_interface=True)
 
-        return_type = _parse_return_type(funcdef)
+        return_type = _parse_return_type(funcdef, is_interface=True)
 
         if not is_ellipsis_body(funcdef.body):
             raise FunctionDeclarationException(
@@ -874,13 +875,21 @@ def is_ellipsis_body(body: list[vy_ast.VyperNode]) -> bool:
     )
 
 
-def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
+def _parse_return_type(
+    funcdef: vy_ast.FunctionDef, is_interface: bool = False
+) -> Optional[VyperType]:
     # return types
     if funcdef.returns is None:
         return None
     # note: consider, for cleanliness, adding DataLocation.RETURN_VALUE
     ret = type_from_annotation(funcdef.returns, DataLocation.MEMORY)
-    if not is_runtime_sizable_return_type(ret):
+    # an interface return is decoded at the call site; the function's own
+    # return is encoded
+    if is_interface:
+        supported = is_representable_return_type(ret)
+    else:
+        supported = is_runtime_sizable_return_type(ret)
+    if not supported:
         raise StructureException(
             "Function returns cannot contain unbounded sequence types inside aggregate types",
             funcdef.returns,

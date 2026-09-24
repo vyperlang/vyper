@@ -27,6 +27,7 @@ from vyper.semantics.types.infinity import (
     WILDCARD,
     Inf,
     Wildcard,
+    is_representable_return_type,
     is_runtime_sizable_return_type,
     is_runtime_sizable_type,
     is_supported_unbounded_tuple_type,
@@ -127,6 +128,13 @@ def test_runtime_sizable_predicates():
     assert not type_contains_unrepresentable_unbounded_sequence(DArrayT(batch, INF))
     assert type_contains_unrepresentable_unbounded_sequence(SArrayT(BytesT(INF), 2))
     assert type_contains_unrepresentable_unbounded_sequence(TupleT((BytesT(INF), UINT256_T)))
+
+    # a decoded return value only needs a memory layout
+    assert is_representable_return_type(DArrayT(batch, 3))
+    assert is_representable_return_type(DArrayT(batch, INF))
+    assert is_representable_return_type(TupleT((BytesT(INF), UINT256_T)))
+    assert not is_representable_return_type(TupleT((batch, UINT256_T)))
+    assert not is_representable_return_type(SArrayT(BytesT(INF), 2))
 
 
 def test_wildcard_singleton():

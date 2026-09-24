@@ -73,7 +73,7 @@ from vyper.semantics.types.function import (
 )
 from vyper.semantics.types.infinity import (
     is_pointer_cell_struct_type,
-    is_runtime_sizable_return_type,
+    is_representable_return_type,
     is_runtime_sizable_type,
     is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
@@ -1171,7 +1171,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             if func_type.is_external:
                 return_t = func_type.return_type
-                if return_t is not None and not is_runtime_sizable_return_type(return_t):
+                if return_t is not None and not is_representable_return_type(return_t):
                     raise StructureException(
                         "External call returns cannot contain unbounded sequence types "
                         "inside aggregate types",
@@ -1185,7 +1185,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                         # Replace wildcards in the type by INF, since there is no expected type
                         return_t = return_t.resolve_wildcard()
                         # unsupported INF shapes from wildcard resolution only exist per call site
-                        if not is_runtime_sizable_return_type(return_t):
+                        if not is_representable_return_type(return_t):
                             raise StructureException(
                                 "Function returns cannot contain unbounded sequence types "
                                 "inside aggregate types",

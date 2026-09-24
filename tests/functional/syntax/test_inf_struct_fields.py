@@ -121,6 +121,14 @@ def f(bs: DynArray[Batch, INF]) -> DynArray[Batch, INF]:
     (
         BATCH + """
 @external
+def f(bs: DynArray[Batch, 3]) -> DynArray[Batch, 3]:
+    return bs
+    """,
+        "Function returns cannot contain unbounded sequence types",
+    ),
+    (
+        BATCH + """
+@external
 def f(b: Batch) -> (uint256, Batch):
     return 1, b
     """,
@@ -177,20 +185,6 @@ def f(bs: DynArray[Batch, INF]) -> (uint256, DynArray[Batch, INF]):
     ),
     (
         BATCH + """
-interface I:
-    def make() -> DynArray[Batch, INF]: view
-    """,
-        "Function returns cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-interface I:
-    def make() -> DynArray[Batch, 3]: view
-    """,
-        "Function returns cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
 event E:
     bs: DynArray[Batch, INF]
     """,
@@ -226,24 +220,6 @@ def f(bs: DynArray[Batch, 3]) -> Bytes[INF]:
     return abi_encode(bs)
     """,
         "abi_encode arguments cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-@external
-def f(d: Bytes[INF]) -> uint256:
-    bs: DynArray[Batch, 3] = abi_decode(d, DynArray[Batch, 3])
-    return len(bs)
-    """,
-        "abi_decode output type cannot contain unbounded sequence types",
-    ),
-    (
-        BATCH + """
-@external
-def f(d: Bytes[INF]) -> uint256:
-    bs: DynArray[Batch, INF] = abi_decode(d, DynArray[Batch, INF])
-    return len(bs)
-    """,
-        "abi_decode output type cannot contain unbounded sequence types",
     ),
     (
         BATCH + """
