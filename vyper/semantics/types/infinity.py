@@ -79,8 +79,11 @@ def is_supported_unbounded_tuple_type(typ) -> bool:
             continue
         if not is_unbounded_sequence_type(member_t):
             return False
-        # `dret` passes the payload as one block sized by its length word,
-        # so the elements cannot hold payloads of their own
+        # the frame moves a member as one block sized by its length word
+        # (one `dret` pair, a `copy_sequence_to_scratch` byte copy), which
+        # leaves payloads held by the elements behind, e.g. in the callee
+        # frame of an internal return. The rule does not depend on the
+        # function's visibility, so external tuple returns share it.
         if is_unbounded_dynarray_type(member_t) and type_contains_unbounded_sequence(
             member_t.value_type
         ):
@@ -143,13 +146,12 @@ def is_pointer_cell_struct_type(typ) -> bool:
 
 
 def contains_pointer_cell_array(typ) -> bool:
-    """Return True if a DynArray of pointer-cell structs appears anywhere in `typ`.
+    """Return True if a DynArray whose elements hold INF appears anywhere in `typ`.
 
     An internal function returns its pointer-cell payloads as `dret` outputs,
     a compile-time number of them; such an array holds one payload per
-    element and cell, so internal functions cannot return it. Total over all
-    types; a tuple or static array holding INF is rejected before this is
-    asked, and only the DynArray and struct branches see accepted types.
+    element and cell, so internal functions cannot return it. Answers for
+    every type, looking through static arrays, tuples and structs.
     """
     typeclass = getattr(typ, "typeclass", None)
 
