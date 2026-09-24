@@ -94,18 +94,15 @@ def _payload_size(ctx: VenomCodegenContext, payload: IRVariable, typ: VyperType)
 
 
 def _inline_size(ctx: VenomCodegenContext, ptr: IRVariable, typ: VyperType) -> IROperand:
-    """Return the bytes the packed buffer reserves for the value itself."""
-    if is_unbounded_sequence_type(typ):
-        return _payload_size(ctx, ptr, typ)
-    # the full static size, so the caller's view of the value stays inside
-    # the buffer
-    return IRLiteral(typ.memory_bytes_required)
+    """Return the bytes the packed buffer reserves for the value itself.
 
-
-def _inline_copy_size(ctx: VenomCodegenContext, ptr: IRVariable, typ: VyperType) -> IROperand:
-    """Return the bytes of the value itself that hold data."""
+    An array takes its runtime size, bounded or not: every reader of an
+    array stops at its length, and the caller copies a bounded array by
+    length. Anything else takes its full static size: the caller's view of a
+    struct spans every member, including the unused tail of a bounded array
+    member.
+    """
     if isinstance(typ, DArrayT):
-        # elements past the length are never read
         return ctx.unchecked_dynarray_runtime_size(ptr, typ)
     return IRLiteral(typ.memory_bytes_required)
 
@@ -133,7 +130,7 @@ def pack_value_with_payloads(
     _for_each_cell(ctx, ptr, typ, add_payload_size)
 
     buf = ctx.allocate_scratch(total)
-    ctx.copy_memory_dynamic(buf, ptr, _inline_copy_size(ctx, ptr, typ))
+    ctx.copy_memory_dynamic(buf, ptr, inline_size)
     cursor = b.assign(b.add(buf, inline_size))
 
     # the cells of the copies still hold the source pointers; each one is
