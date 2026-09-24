@@ -490,3 +490,38 @@ def get_target() -> (uint256, Bytes[64]):
 
     c.from_memory(test, *y, *x)
     assert c.get_target() == (y if test else x)
+
+
+# GH issue 5199: `[]` and `empty(...)` arms have no location and used to
+# panic in make_setter
+empty_arm_cases = [
+    ("DynArray[uint256, 2]", "[]", "[]", [], []),
+    ("DynArray[uint256, 2]", "[]", "[1]", [], [1]),
+    ("DynArray[uint256, 2]", "[1, 2]", "[]", [1, 2], []),
+    ("DynArray[uint256, 2]", "empty(DynArray[uint256, 2])", "empty(DynArray[uint256, 2])", [], []),
+    ("DynArray[uint256, 2]", "empty(DynArray[uint256, 2])", "[3]", [], [3]),
+    ("uint256[2]", "empty(uint256[2])", "[1, 2]", [0, 0], [1, 2]),
+    ("uint256[2]", "empty(uint256[2])", "empty(uint256[2])", [0, 0], [0, 0]),
+    ("Bytes[10]", "empty(Bytes[10])", "empty(Bytes[10])", b"", b""),
+    ("Bytes[10]", "b'ab'", "empty(Bytes[10])", b"ab", b""),
+    ("String[10]", "empty(String[10])", '"ab"', "", "ab"),
+]
+
+
+@pytest.mark.parametrize("typ,body,orelse,body_value,orelse_value", empty_arm_cases)
+@pytest.mark.parametrize("test", [True, False])
+def test_ternary_empty_arm(get_contract, typ, body, orelse, body_value, orelse_value, test):
+    code = f"""
+@external
+def foo(t: bool) -> {typ}:
+    tmp: {typ} = {body} if t else {orelse}
+    return tmp
+
+@external
+def bar(t: bool) -> {typ}:
+    return {body} if t else {orelse}
+    """
+    c = get_contract(code)
+    expected = body_value if test else orelse_value
+    assert c.foo(test) == expected
+    assert c.bar(test) == expected
