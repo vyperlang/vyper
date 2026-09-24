@@ -2235,3 +2235,285 @@ def deploy(target: address, b: Batch, tag: uint256) -> address:
     assert eth_abi_decode(["address"], env.message_call(addr, data=method_id("owner()"))) == (
         OWNER.lower(),
     )
+
+
+# A DynArray of such structs is decoded (calldata argument, external call
+# return, abi_decode) but not encoded: the decoder allocates each element's
+# member payloads as it goes, while sizing an encoding buffer would mean
+# walking every element's cells first. The array cannot be returned, so the
+# contracts below flatten it: the count, then per element the owner, the
+# member length and the member values.
+
+_ARRAY_INGRESS_CODE = BATCH + """
+interface Source:
+    def data() -> DynArray[Batch, {bound}]: view
+
+@internal
+def _flat(bs: DynArray[Batch, {bound}]) -> DynArray[uint256, INF]:
+    out: DynArray[uint256, INF] = [len(bs)]
+    for b: Batch in bs:
+        out.append(convert(b.owner, uint256))
+        out.append(len(b.values))
+        for v: uint256 in b.values:
+            out.append(v)
+    return out
+
+@external
+def from_calldata(bs: DynArray[Batch, {bound}]) -> DynArray[uint256, INF]:
+    return self._flat(bs)
+
+@external
+def from_returndata(addr: address) -> DynArray[uint256, INF]:
+    bs: DynArray[Batch, {bound}] = staticcall Source(addr).data()
+    return self._flat(bs)
+
+@external
+def from_bytes(d: Bytes[INF]) -> DynArray[uint256, INF]:
+    bs: DynArray[Batch, {bound}] = abi_decode(d, DynArray[Batch, {bound}])
+    return self._flat(bs)
+
+@external
+def from_bytes_no_tuple(d: Bytes[INF]) -> DynArray[uint256, INF]:
+    bs: DynArray[Batch, {bound}] = abi_decode(d, DynArray[Batch, {bound}], unwrap_tuple=False)
+    return self._flat(bs)
+"""
+
+_ARRAY_BOUNDS = ("3", "INF")
+
+
+def _flat(rows):
+    out = [len(rows)]
+    for owner, values in rows:
+        out += [int(owner, 16), len(values), *values]
+    return out
+
+
+def _rows(n):
+    return [(OWNER, list(range(j, j + LENGTHS[j % len(LENGTHS)]))) for j in range(n)]
+
+
+@pytest.fixture(scope="module")
+def array_ingress(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
+    return {bound: get_contract(_ARRAY_INGRESS_CODE.format(bound=bound)) for bound in _ARRAY_BOUNDS}
+
+
+def _run_array_ingress(env, c, path, payload):
+    if path == "calldata":
+        selector = method_id("from_calldata((address,uint256[])[])")
+        ret = env.message_call(c.address, data=selector + payload)
+        return list(abi_decode("(uint256[])", ret)[0])
+    if path == "returndata":
+        return c.from_returndata(deploy_raw_returner(env, payload).address)
+    if path == "abi_decode":
+        return c.from_bytes(payload)
+    assert path == "abi_decode_no_tuple"
+    return c.from_bytes_no_tuple(payload)
+
+
+def _check_array_ingress(env, c, tx_failed, path, payload, expected):
+    if expected is None:
+        with tx_failed():
+            _run_array_ingress(env, c, path, payload)
+    else:
+        assert _run_array_ingress(env, c, path, payload) == expected, path
+
+
+@pytest.mark.parametrize("bound", _ARRAY_BOUNDS)
+@pytest.mark.parametrize("n", LENGTHS)
+def test_dynarray_of_structs_on_every_ingress_path(env, array_ingress, tx_failed, bound, n):
+    rows = _rows(n)
+    body = eth_abi_encode(["(address,uint256[])[]"], [rows])
+    # more elements than the bound: rejected on every path
+    expected = None if bound != "INF" and n > int(bound) else _flat(rows)
+    for path in _INGRESS_PATHS:
+        payload = body[32:] if path == "abi_decode_no_tuple" else body
+        _check_array_ingress(env, array_ingress[bound], tx_failed, path, payload, expected)
+
+
+# one element with values [9] (head: owner, values offset; tail: count, value)
+_ELEM = word(int(OWNER, 16)) + word(64) + word(1) + word(9)
+# one element with no values
+_ELEM_EMPTY = word(int(OWNER, 16)) + word(64) + word(0)
+
+
+def _array_body(offsets, tail):
+    """Encoding of a DynArray[Batch] starting at its count word; offsets are
+    relative to the first offset word."""
+    return word(len(offsets)) + b"".join(word(o) for o in offsets) + tail
+
+
+_ARRAY_CANONICAL = _flat([(OWNER, [9]), (OWNER, [])])
+
+# (name, body, expected): `body` starts at the array's count word, `expected`
+# is None when decoding must be rejected
+_MALFORMED_ARRAY_CASES = [
+    ("canonical", _array_body([64, 192], _ELEM + _ELEM_EMPTY), _ARRAY_CANONICAL),
+    ("empty", b"", None),
+    ("count_word_only", word(2), None),
+    ("count_past_end", word(2**40), None),
+    ("offset_words_truncated", word(2) + word(64), None),
+    ("element_offset_outside_body", _array_body([1000], _ELEM), None),
+    ("element_offset_wraps", _array_body([2**256 - 32], _ELEM), None),
+    ("element_head_truncated", _array_body([32], word(int(OWNER, 16))), None),
+    (
+        "element_values_offset_outside_body",
+        _array_body([32], word(int(OWNER, 16)) + word(1000)),
+        None,
+    ),
+    (
+        "element_values_count_past_end",
+        _array_body([32], word(int(OWNER, 16)) + word(64) + word(2**32)),
+        None,
+    ),
+    # accepted non-canonical encodings
+    (
+        "trailing_garbage",
+        _array_body([64, 192], _ELEM + _ELEM_EMPTY + b"garbage"),
+        _ARRAY_CANONICAL,
+    ),
+    ("count_zero_with_trailing_word", word(0) + word(7), [0]),
+    ("elements_alias_one_tail", _array_body([64, 64], _ELEM), _flat([(OWNER, [9]), (OWNER, [9])])),
+    ("element_offset_unaligned", _array_body([33], b"\0" + _ELEM), _flat([(OWNER, [9])])),
+    # the offset words read as an element: owner 0, values at the first word
+    ("element_offsets_point_at_the_offset_words", _array_body([0, 0], b""), [2, 0, 0, 0, 0]),
+    # the first element's values run into the second element's head
+    (
+        "element_values_overlap_next_element",
+        _array_body([64, 192], word(int(OWNER, 16)) + word(64) + word(3) + word(9) + _ELEM_EMPTY),
+        _flat([(OWNER, [9, int(OWNER, 16), 64]), (OWNER, [])]),
+    ),
+]
+
+# (name, payload, expected): cases about the offset word that wraps the
+# array, which only the tuple-wrapped paths read
+_MALFORMED_ARRAY_WRAPPED_CASES = [
+    ("wrapped_empty", b"", None),
+    ("array_offset_word_only", word(32), None),
+    ("array_offset_outside_payload", word(1000) + _MALFORMED_ARRAY_CASES[0][1], None),
+    (
+        "array_offset_skips_a_word",
+        word(64) + word(0xDEAD) + _MALFORMED_ARRAY_CASES[0][1],
+        _ARRAY_CANONICAL,
+    ),
+]
+
+
+@pytest.mark.parametrize("bound", _ARRAY_BOUNDS)
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [pytest.param(body, expected, id=name) for name, body, expected in _MALFORMED_ARRAY_CASES],
+)
+def test_malformed_dynarray_of_structs_same_outcome_on_every_ingress_path(
+    env, array_ingress, tx_failed, bound, body, expected
+):
+    for path in _INGRESS_PATHS:
+        payload = body if path == "abi_decode_no_tuple" else word(32) + body
+        _check_array_ingress(env, array_ingress[bound], tx_failed, path, payload, expected)
+
+
+@pytest.mark.parametrize("bound", _ARRAY_BOUNDS)
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        pytest.param(payload, expected, id=name)
+        for name, payload, expected in _MALFORMED_ARRAY_WRAPPED_CASES
+    ],
+)
+def test_malformed_dynarray_of_structs_offset_same_outcome_on_every_wrapped_path(
+    env, array_ingress, tx_failed, bound, payload, expected
+):
+    for path in _INGRESS_PATHS[:-1]:
+        _check_array_ingress(env, array_ingress[bound], tx_failed, path, payload, expected)
+
+
+@pytest.mark.parametrize("bound", _ARRAY_BOUNDS)
+def test_dynarray_of_structs_offset_word_near_the_top(env, array_ingress, tx_failed, bound):
+    # the offset points 27 bytes below the top of the address space. In
+    # memory that is below the payload, which every path rejects. Calldata
+    # args start at 4, so for the bounded array the pointer is past the end of
+    # calldata, where reads are zero: the bounded decoder accepts an empty
+    # array there, as it does for `DynArray[uint256, 3]`; the unbounded
+    # decoder's wrap checks reject it.
+    payload = word(2**256 - 31) + _MALFORMED_ARRAY_CASES[0][1]
+    for path in _INGRESS_PATHS[:-1]:
+        expected = [0] if bound != "INF" and path == "calldata" else None
+        _check_array_ingress(env, array_ingress[bound], tx_failed, path, payload, expected)
+
+
+@pytest.mark.parametrize("bound", _ARRAY_BOUNDS)
+@pytest.mark.parametrize("path", ["abi_decode", "returndata"])
+def test_decoded_dynarray_element_copy_then_mutate(env, get_contract, bound, path):
+    # every element's member has its own payload, exact-sized: a write
+    # through an element copy reallocates and leaves the array untouched
+    if path == "abi_decode":
+        source = f"abi_decode(d, DynArray[Batch, {bound}])"
+    else:
+        source = "staticcall Source(a).data()"
+    code = BATCH + f"""
+interface Source:
+    def data() -> DynArray[Batch, {bound}]: view
+
+@external
+def f(a: address, d: Bytes[INF]) -> (DynArray[uint256, INF], DynArray[uint256, INF], uint256):
+    xs: DynArray[Batch, {bound}] = {source}
+    b: Batch = xs[1]
+    b.values.append(9)
+    b.values[0] = 100
+    return b.values, xs[1].values, len(xs[0].values)
+    """
+
+    c = get_contract(code)
+    rows = [(OWNER, [5]), (OWNER, [1, 2, 3])]
+    payload = eth_abi_encode(["(address,uint256[])[]"], [rows])
+    source_contract = deploy_raw_returner(env, payload)
+    assert c.f(source_contract.address, payload) == ([100, 2, 3, 9], [1, 2, 3], 1)
+
+
+@pytest.mark.parametrize("bound", _ARRAY_BOUNDS)
+def test_extcall_dynarray_of_structs_return(env, get_contract, bound):
+    code = BATCH + f"""
+interface Source:
+    def data() -> DynArray[Batch, {bound}]: nonpayable
+
+@external
+def f(a: address) -> (uint256, address, DynArray[uint256, INF]):
+    xs: DynArray[Batch, {bound}] = extcall Source(a).data()
+    return len(xs), xs[2].owner, xs[2].values
+    """
+
+    c = get_contract(code)
+    rows = [(OWNER, []), (OWNER, [1]), ("0x" + "34" * 20, [7, 8])]
+    source_contract = deploy_raw_returner(env, eth_abi_encode(["(address,uint256[])[]"], [rows]))
+    assert c.f(source_contract.address) == (3, "0x" + "34" * 20, [7, 8])
+
+
+@pytest.mark.parametrize("bound", _ARRAY_BOUNDS)
+def test_staticcall_dynarray_of_structs_return_with_default(env, get_contract, bound):
+    # the default is a copy: neither the result nor the default observes a
+    # write through the other
+    code = BATCH + f"""
+interface Source:
+    def data() -> DynArray[Batch, {bound}]: view
+
+@external
+def f(a: address, b: Batch) -> (uint256, DynArray[uint256, INF], DynArray[uint256, INF]):
+    fallback: DynArray[Batch, {bound}] = [b, b]
+    r: DynArray[Batch, {bound}] = staticcall Source(a).data(default_return_value=fallback)
+    c: Batch = r[0]
+    c.values.append(9)
+    r[0] = c
+    d: Batch = fallback[1]
+    d.values.append(8)
+    fallback[1] = d
+    return len(r), r[0].values, fallback[0].values
+    """
+
+    c = get_contract(code)
+    empty_target = deploy_raw_returner(env, b"")
+    assert c.f(empty_target.address, (OWNER, [1, 2])) == (2, [1, 2, 9], [1, 2])
+
+    rows = [(OWNER, [5]), (OWNER, [6, 7]), (OWNER, [])]
+    target = deploy_raw_returner(env, eth_abi_encode(["(address,uint256[])[]"], [rows]))
+    assert c.f(target.address, (OWNER, [1, 2])) == (3, [5, 9], [1, 2])
