@@ -24,7 +24,6 @@ from vyper.semantics.types import (
     VyperType,
     _BytestringT,
     is_unbounded_bytestring_type,
-    is_unbounded_dynarray_type,
     is_unbounded_sequence_type,
     member_slot_size,
     type_contains_unbounded_sequence,
@@ -53,10 +52,12 @@ def runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IR
         if is_unbounded_bytestring_type(typ):
             return ctx.bytestring_runtime_size(ptr)
         return ctx.unchecked_bytestring_runtime_size(ptr)
-    if isinstance(typ, DArrayT) and is_unbounded_dynarray_type(typ):
+    if isinstance(typ, DArrayT) and type_contains_unbounded_sequence(typ):
         ptr = ctx.unwrap(arg_vv)
         assert isinstance(ptr, IRVariable)
-        return ctx.dynarray_runtime_abi_size(ptr, typ)
+        if not type_contains_unbounded_sequence(typ.value_type):
+            return ctx.dynarray_runtime_abi_size(ptr, typ)
+        return _runtime_abi_size_for_dynarray(ctx, ptr, typ)
     if isinstance(typ, StructT) and type_contains_unbounded_sequence(typ):
         return _runtime_abi_size_for_struct(ctx, arg_vv, typ)
     return IRLiteral(typ.abi_type.size_bound())
@@ -102,6 +103,34 @@ def _runtime_abi_size_for_struct(
             size_unbounded,
             type_contains_unbounded_sequence(member_t),
         )
+    return size
+
+
+def _runtime_abi_size_for_dynarray(
+    ctx: VenomCodegenContext, ptr: IRVariable, typ: DArrayT
+) -> IROperand:
+    """Return a runtime bound on the ABI-encoded size of a DynArray whose elements hold INF.
+
+    The elements keep a compile-time stride (their INF members are pointer
+    cells) but no compile-time encoded size, so each one is sized in turn.
+    """
+    b = ctx.builder
+    elem_t = typ.value_type
+    elem_abi_t = elem_t.abi_type
+    assert elem_abi_t.is_dynamic()
+
+    length = b.mload(ptr)
+    # the head: the length word and one offset word per element
+    head = ctx.checked_mul(length, IRLiteral(elem_abi_t.embedded_static_size()))
+    size = b.assign(ctx.checked_add(IRLiteral(32), head))
+    data = b.add(ptr, IRLiteral(32))
+
+    def add_element_size(counter: IRVariable) -> None:
+        elem_ptr = b.add(data, b.mul(counter, IRLiteral(elem_t.memory_bytes_required)))
+        elem_vv = ctx.dynamic_memory_value(elem_ptr, elem_t)
+        b.assign_to(ctx.checked_add(size, runtime_abi_size_for_arg(ctx, elem_vv)), size)
+
+    ctx.emit_counted_loop(length, add_element_size, "dyn_abi_size")
     return size
 
 

@@ -13,7 +13,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import ClassVar, Optional, Sequence
+from typing import Callable, ClassVar, Optional, Sequence
 
 from vyper.codegen.core import punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
@@ -650,8 +650,9 @@ class VenomCodegenContext:
         """
         length = self.builder.mload(ptr)
         elem_abi_t = typ.value_type.abi_type
-        # semantic analysis rejects encoding an INF DynArray whose elements
-        # contain INF, so the per-element bound is a compile-time constant.
+        # the elements are bounded, so the per-element bound is a compile-time
+        # constant; an array of INF-bearing elements is sized element by
+        # element instead (`abi_encoder._runtime_abi_size_for_dynarray`)
         elem_bound = elem_abi_t.embedded_static_size() + elem_abi_t.embedded_dynamic_size_bound()
         data_size = self.checked_mul(length, IRLiteral(elem_bound))
         return self.checked_add(IRLiteral(32), data_size)
@@ -1178,9 +1179,27 @@ class VenomCodegenContext:
         dst_elem_size = dst_elem_t.memory_bytes_required
         src_elem_size = src_elem_t.memory_bytes_required
 
-        cond_block = b.create_block("typed_elem_copy_cond")
-        body_block = b.create_block("typed_elem_copy_body")
-        exit_block = b.create_block("typed_elem_copy_exit")
+        def copy_element(counter: IRVariable) -> None:
+            src_ofst = b.mul(counter, IRLiteral(src_elem_size))
+            dst_ofst = b.mul(counter, IRLiteral(dst_elem_size))
+            src_elem_ptr = b.add(src_data, src_ofst)
+            dst_elem_ptr = b.add(dst_data, dst_ofst)
+            self._store_memory_typed(dst_elem_ptr, dst_elem_t, src_elem_ptr, src_elem_t)
+
+        self.emit_counted_loop(length, copy_element, "typed_elem_copy")
+
+    def emit_counted_loop(
+        self, length: IROperand, body: Callable[[IRVariable], None], suffix: str
+    ) -> None:
+        """Emit `body(i)` for every i in [0, length).
+
+        The counter is a stack variable reassigned in the body block; MakeSSA
+        gives it the loop phi.
+        """
+        b = self.builder
+        cond_block = b.create_block(f"{suffix}_cond")
+        body_block = b.create_block(f"{suffix}_body")
+        exit_block = b.create_block(f"{suffix}_exit")
 
         counter = b.assign(IRLiteral(0))
         b.jmp(cond_block.label)
@@ -1188,23 +1207,14 @@ class VenomCodegenContext:
         b.append_block(cond_block)
         b.set_block(cond_block)
         done = b.iszero(b.lt(counter, length))
-        cond_finish = b.current_block
+        b.jnz(done, exit_block.label, body_block.label)
 
         b.append_block(body_block)
         b.set_block(body_block)
-
-        src_ofst = b.mul(counter, IRLiteral(src_elem_size))
-        dst_ofst = b.mul(counter, IRLiteral(dst_elem_size))
-        src_elem_ptr = b.add(src_data, src_ofst)
-        dst_elem_ptr = b.add(dst_data, dst_ofst)
-
-        self._store_memory_typed(dst_elem_ptr, dst_elem_t, src_elem_ptr, src_elem_t)
-
-        new_counter = b.add(counter, IRLiteral(1))
-        b.assign_to(new_counter, counter)
+        body(counter)
+        b.assign_to(b.add(counter, IRLiteral(1)), counter)
         b.jmp(cond_block.label)
 
-        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
         b.append_block(exit_block)
         b.set_block(exit_block)
 

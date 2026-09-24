@@ -1395,10 +1395,10 @@ class Stmt:
         encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, encode_typ, None)
         self.builder.return_(buf_ptr, encoded_len)
 
-    def _emit_external_pointer_cell_return(
+    def _emit_external_runtime_sized_return(
         self, ret_val: IRVariable, ret_typ: VyperType, encode_typ: VyperType
     ) -> None:
-        """Return a struct whose INF members are pointer cells.
+        """Return a struct whose INF members are pointer cells, or a DynArray of such structs.
 
         The encoding has no static bound (`abi_type.size_bound()` multiplies
         by INF), so the buffer is sized at runtime from the members' current
@@ -1522,9 +1522,9 @@ class Stmt:
             )
             return
 
-        if isinstance(ret_typ, StructT) and type_contains_unbounded_sequence(ret_typ):
+        if type_contains_unbounded_sequence(encode_typ):
             assert isinstance(ret_val, IRVariable)
-            self._emit_external_pointer_cell_return(ret_val, ret_typ, encode_typ)
+            self._emit_external_runtime_sized_return(ret_val, ret_typ, encode_typ)
             return
 
         maxlen = encode_typ.abi_type.size_bound()
