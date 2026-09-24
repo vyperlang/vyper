@@ -1812,8 +1812,10 @@ class Expr:
         if is_unbounded_dynarray_type(darray_typ):
             return self._lower_unbounded_dynarray_append()
 
-        # Get the array VyperValue
-        darray_vv = Expr(darray_node, self.ctx).lower()
+        # Get the array VyperValue. The receiver is an lvalue: an unbounded
+        # member on its path is written through a payload its cell owns (see
+        # `_lower_struct_field`).
+        darray_vv = Expr(darray_node, self.ctx, as_ptr=True).lower()
         darray_ptr = darray_vv.operand
 
         # Get the element value.
@@ -1998,10 +2000,10 @@ class Expr:
         darray_typ = darray_node._metadata["type"]
         elem_typ = darray_typ.value_type
 
-        # Get the array VyperValue. An unbounded struct member is written
-        # through a payload its cell owns (see `_lower_struct_field`).
-        as_ptr = is_unbounded_struct_member(darray_node)
-        darray_vv = Expr(darray_node, self.ctx, as_ptr=as_ptr).lower()
+        # Get the array VyperValue. The receiver is an lvalue: an unbounded
+        # member on its path is written through a payload its cell owns (see
+        # `_lower_struct_field`).
+        darray_vv = Expr(darray_node, self.ctx, as_ptr=True).lower()
         darray_ptr = darray_vv.operand
 
         # Get location from VyperValue

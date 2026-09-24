@@ -1493,6 +1493,124 @@ def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF], DynArray[uin
     assert c.f((OWNER, [1, 2, 3])) == ([100, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5])
 
 
+# An append or pop on a bounded array reached through an unbounded member
+# writes into that member's payload, so a payload the struct shares is copied
+# first, as for an element store.
+
+TABLE = """
+struct Inner:
+    k: uint256
+    xs: DynArray[uint256, 4]
+
+struct Table:
+    rows: DynArray[DynArray[uint256, 4], INF]
+    items: DynArray[Inner, INF]
+
+struct Pair:
+    first: Table
+    second: Table
+    v: uint256
+"""
+
+TABLE_ARG = ([[1, 2], [3]], [(7, [1, 2])])
+
+# (statement on TARGET, effect on (rows, items), popped value)
+NESTED_BOUNDED_OPS = {
+    "rows_append": ("TARGET.rows[0].append(9)", lambda r, i: r[0].append(9), 0),
+    "rows_pop": ("TARGET.rows[0].pop()", lambda r, i: r[0].pop(), 0),
+    "rows_pop_value": ("v = TARGET.rows[0].pop()", lambda r, i: r[0].pop(), 2),
+    "items_append": ("TARGET.items[0].xs.append(9)", lambda r, i: i[0][1].append(9), 0),
+    "items_pop": ("TARGET.items[0].xs.pop()", lambda r, i: i[0][1].pop(), 0),
+}
+
+
+def _apply_table_op(op, rows, items):
+    rows = [list(row) for row in rows]
+    items = [(k, list(xs)) for k, xs in items]
+    NESTED_BOUNDED_OPS[op][1](rows, items)
+    return (rows, items)
+
+
+@pytest.mark.parametrize("spare", [False, True])
+@pytest.mark.parametrize("mutate_copy", [True, False])
+@pytest.mark.parametrize("op", list(NESTED_BOUNDED_OPS))
+def test_copy_then_mutate_nested_bounded_member(get_contract, op, mutate_copy, spare):
+    # fails if the append or pop goes into the member payload the copy shares
+    # with its source. With `spare`, the source's members have room to grow
+    # in place before the copy.
+    stmt, _, popped = NESTED_BOUNDED_OPS[op]
+    target = "copy" if mutate_copy else "src"
+    prepare = """
+    src.rows.append([5])
+    src.items.append(Inner(k=8, xs=[3]))"""
+    code = TABLE + f"""
+@external
+def f(t: Table) -> Pair:
+    src: Table = t{prepare if spare else ""}
+    copy: Table = src
+    v: uint256 = 0
+    {stmt.replace("TARGET", target)}
+    return Pair(first=src, second=copy, v=v)
+    """
+
+    rows, items = TABLE_ARG
+    if spare:
+        rows = rows + [[5]]
+        items = items + [(8, [3])]
+    untouched = (rows, items)
+    mutated = _apply_table_op(op, rows, items)
+    assert mutated != untouched
+
+    c = get_contract(code)
+    expected = (untouched, mutated) if mutate_copy else (mutated, untouched)
+    assert c.f(TABLE_ARG) == (*expected, popped)
+
+
+@pytest.mark.parametrize("op", ["rows_append", "rows_pop", "items_append"])
+def test_nested_struct_copy_then_mutate_nested_bounded_member(get_contract, op):
+    stmt = NESTED_BOUNDED_OPS[op][0]
+    code = TABLE + f"""
+struct Outer:
+    tag: uint256
+    inner: Table
+
+@external
+def f(o: Outer) -> Pair:
+    copy: Outer = o
+    v: uint256 = 0
+    {stmt.replace("TARGET", "copy.inner")}
+    return Pair(first=o.inner, second=copy.inner, v=copy.tag)
+    """
+
+    c = get_contract(code)
+    assert c.f((1, TABLE_ARG)) == (TABLE_ARG, _apply_table_op(op, *TABLE_ARG), 1)
+
+
+@pytest.mark.parametrize("inlining", [True, False])
+@pytest.mark.parametrize("op", ["rows_append", "rows_pop", "items_append"])
+def test_internal_call_arg_nested_bounded_mutation_stays_in_callee(
+    get_contract, compiler_settings, no_inlining_settings, op, inlining
+):
+    stmt = NESTED_BOUNDED_OPS[op][0]
+    code = TABLE + f"""
+@internal
+def mutate(s: Table) -> Table:
+    v: uint256 = 0
+    {stmt.replace("TARGET", "s")}
+    return s
+
+@external
+def f(t: Table) -> Pair:
+    src: Table = t
+    out: Table = self.mutate(src)
+    return Pair(first=src, second=out, v=0)
+    """
+
+    settings = compiler_settings if inlining else no_inlining_settings
+    c = get_contract(code, compiler_settings=settings)
+    assert c.f(TABLE_ARG) == (TABLE_ARG, _apply_table_op(op, *TABLE_ARG), 0)
+
+
 # empty(). Every cell of the zeroed struct points at its own empty payload,
 # the same 32-byte zero length word an empty unbounded local uses.
 
