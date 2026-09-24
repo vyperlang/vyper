@@ -683,9 +683,11 @@ satisfies the same rule, or a ``DynArray`` of such structs;
 unbounded member is also rejected in storage, transient storage, immutable and
 constant declarations, static arrays and mappings. It may not be returned
 inside a tuple. A ``DynArray`` of such structs, and a struct containing one,
-work everywhere the struct does, except as the return value of an internal
-function: the internal return convention carries a fixed number of member
-payloads, and such an array holds one per element.
+work everywhere the struct does, with two exceptions: the array cannot itself
+be a ``DynArray`` element (``DynArray[DynArray[Batch, 3], 2]`` is rejected),
+and it cannot be the return value of an internal function: the internal
+return convention carries a fixed number of member payloads, and such an
+array holds one per element.
 
 .. note::
     ``INF`` sequence types require ``#pragma experimental-codegen`` or compiling
