@@ -680,9 +680,8 @@ local variable, modify it, then store it back:
 The member must be a direct unbounded sequence, another struct that
 satisfies the same rule, or a ``DynArray`` of such structs;
 ``x: (Bytes[INF], uint256)`` is rejected as a struct member. A struct with an
-unbounded member is also rejected in storage, transient storage, immutable and
-constant declarations, static arrays and mappings. It may not be returned
-inside a tuple. A ``DynArray`` of such structs, and a struct containing one,
+unbounded member lives in memory only, like every unbounded sequence. It may
+not be returned inside a tuple. A ``DynArray`` of such structs, and a struct containing one,
 work everywhere the struct does, including as the return value of an internal
 function, with one exception: the array cannot itself be a ``DynArray``
 element (``DynArray[DynArray[Batch, 3], 2]`` is rejected).
