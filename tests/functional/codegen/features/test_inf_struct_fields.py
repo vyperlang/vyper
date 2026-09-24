@@ -2893,35 +2893,27 @@ def echo(h: Holder) -> Holder:
     assert env.message_call(c.address, data=calldata) == eth_abi_encode([_HOLDER_ABI], [h])
 
 
-def test_struct_with_unbounded_array_member_copy_is_independent(get_contract):
+@pytest.mark.parametrize(
+    "write,expected_src,expected_copy",
+    [
+        ("k.bs.append(c)", "prepared", "grown"),
+        ("src.bs.append(c)", "grown", "prepared"),
+        ("k.bs[0] = c", "prepared", "stored"),
+    ],
+)
+def test_struct_with_unbounded_array_member_copy_is_independent(
+    get_contract, write, expected_src, expected_copy
+):
     # the source is appended to twice first, so its array has room to grow in
     # place (see PREPARE)
-    code = _HOLDER + """
+    code = _HOLDER + f"""
 @external
-def append_to_copy(h: Holder, b: Batch, c: Batch) -> (Bytes[INF], Bytes[INF]):
+def f(h: Holder, b: Batch, c: Batch) -> (Bytes[INF], Bytes[INF]):
     src: Holder = h
     src.bs.append(b)
     src.bs.append(b)
     k: Holder = src
-    k.bs.append(c)
-    return abi_encode(src), abi_encode(k)
-
-@external
-def append_to_source(h: Holder, b: Batch, c: Batch) -> (Bytes[INF], Bytes[INF]):
-    src: Holder = h
-    src.bs.append(b)
-    src.bs.append(b)
-    k: Holder = src
-    src.bs.append(c)
-    return abi_encode(src), abi_encode(k)
-
-@external
-def store_copy_element(h: Holder, b: Batch, c: Batch) -> (Bytes[INF], Bytes[INF]):
-    src: Holder = h
-    src.bs.append(b)
-    src.bs.append(b)
-    k: Holder = src
-    k.bs[0] = c
+    {write}
     return abi_encode(src), abi_encode(k)
     """
 
@@ -2929,17 +2921,16 @@ def store_copy_element(h: Holder, b: Batch, c: Batch) -> (Bytes[INF], Bytes[INF]
     first = ("0x" + "44" * 20, [1])
     b = (OWNER, [2, 3])
     other = ("0x" + "77" * 20, [9, 9])
-    h = ([first], 5)
-    prepared = ([first, b, b], 5)
-    grown = ([first, b, b, other], 5)
-    stored = ([other, b, b], 5)
+    values = {
+        "prepared": ([first, b, b], 5),
+        "grown": ([first, b, b, other], 5),
+        "stored": ([other, b, b], 5),
+    }
 
-    def enc(v):
-        return eth_abi_encode([_HOLDER_ABI], [v])
+    def enc(name):
+        return eth_abi_encode([_HOLDER_ABI], [values[name]])
 
-    assert c.append_to_copy(h, b, other) == (enc(prepared), enc(grown))
-    assert c.append_to_source(h, b, other) == (enc(grown), enc(prepared))
-    assert c.store_copy_element(h, b, other) == (enc(prepared), enc(stored))
+    assert c.f(([first], 5), b, other) == (enc(expected_src), enc(expected_copy))
 
 
 # A list literal of such structs as an encoded value: an external call
