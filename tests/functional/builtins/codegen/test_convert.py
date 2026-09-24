@@ -426,6 +426,18 @@ def _vyper_literal(val, typ):
     return str(val)
 
 
+def test_convert_checksum_address_literal_bool(get_contract):
+    code = """
+@external
+def test_convert() -> bool:
+    return convert(0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE, bool)
+    """
+
+    c = get_contract(code)
+
+    assert c.test_convert() is True
+
+
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_passing_cases())
 @pytest.mark.fuzzing
 def test_convert_passing(get_contract, assert_compile_failed, i_typ, o_typ, val):
