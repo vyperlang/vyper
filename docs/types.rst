@@ -677,16 +677,15 @@ local variable, modify it, then store it back:
     b.values.append(1)
     xs[i] = b
 
-The member must be a direct unbounded sequence, or another struct that
-satisfies the same rule; ``x: (Bytes[INF], uint256)`` and
-``xs: DynArray[Batch, 3]`` are rejected as struct members. A struct with an
+The member must be a direct unbounded sequence, another struct that
+satisfies the same rule, or a ``DynArray`` of such structs;
+``x: (Bytes[INF], uint256)`` is rejected as a struct member. A struct with an
 unbounded member is also rejected in storage, transient storage, immutable and
 constant declarations, static arrays and mappings. It may not be returned
-inside a tuple. A ``DynArray`` of such structs is accepted as a function
-argument and as a local variable, and may be decoded (as a calldata argument,
-with ``abi_decode``, or as an external call return value) but not encoded: not
-in function return values, external call arguments, ``abi_encode``, events,
-custom errors, ``print`` or ``create_*`` constructor arguments.
+inside a tuple. A ``DynArray`` of such structs, and a struct containing one,
+work everywhere the struct does, except as the return value of an internal
+function: the internal return convention carries a fixed number of member
+payloads, and such an array holds one per element.
 
 .. note::
     ``INF`` sequence types require ``#pragma experimental-codegen`` or compiling
