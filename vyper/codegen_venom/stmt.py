@@ -30,6 +30,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     VyperType,
     _BytestringT,
+    contains_pointer_cell_array,
     is_bounded_length,
     is_unbounded_bytestring_type,
     is_unbounded_dynarray_type,
@@ -1271,6 +1272,7 @@ class Stmt:
         struct still hold this frame's pointers; the caller rewrites them
         from the payload outputs.
         """
+        assert not contains_pointer_cell_array(ret_typ)
         cells = unbounded_member_cells(ret_typ)
         pairs: list[IROperand] = [ret_val, IRLiteral(ret_typ.memory_bytes_required)]
         for offset, member_t in cells:

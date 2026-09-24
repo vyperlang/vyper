@@ -37,6 +37,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.bytestrings import BytesT
 from vyper.semantics.types.infinity import (
+    contains_pointer_cell_array,
     is_representable_return_type,
     is_runtime_sizable_return_type,
     type_contains_unrepresentable_unbounded_sequence,
@@ -496,7 +497,9 @@ class ContractFunctionT(VyperType):
 
         positional_args, keyword_args = _parse_args(funcdef, is_abstract=is_abstract)
 
-        return_type = _parse_return_type(funcdef)
+        return_type = _parse_return_type(
+            funcdef, is_internal=function_visibility == FunctionVisibility.INTERNAL
+        )
 
         # validate default and init functions
         if funcdef.name == "__default__":
@@ -876,7 +879,7 @@ def is_ellipsis_body(body: list[vy_ast.VyperNode]) -> bool:
 
 
 def _parse_return_type(
-    funcdef: vy_ast.FunctionDef, is_interface: bool = False
+    funcdef: vy_ast.FunctionDef, is_interface: bool = False, is_internal: bool = False
 ) -> Optional[VyperType]:
     # return types
     if funcdef.returns is None:
@@ -892,6 +895,12 @@ def _parse_return_type(
     if not supported:
         raise StructureException(
             "Function returns cannot contain unbounded sequence types inside aggregate types",
+            funcdef.returns,
+        )
+    if is_internal and contains_pointer_cell_array(ret):
+        raise StructureException(
+            "Internal function returns cannot contain a DynArray of structs "
+            "with unbounded sequence members",
             funcdef.returns,
         )
     return ret

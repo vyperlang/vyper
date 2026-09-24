@@ -27,6 +27,7 @@ from vyper.semantics.types.infinity import (
     WILDCARD,
     Inf,
     Wildcard,
+    contains_pointer_cell_array,
     is_representable_return_type,
     is_runtime_sizable_return_type,
     is_runtime_sizable_type,
@@ -135,6 +136,23 @@ def test_runtime_sizable_predicates():
     assert is_representable_return_type(TupleT((BytesT(INF), UINT256_T)))
     assert not is_representable_return_type(TupleT((batch, UINT256_T)))
     assert not is_representable_return_type(SArrayT(BytesT(INF), 2))
+
+
+def test_contains_pointer_cell_array():
+    batch = StructT("Batch", {"owner": AddressT(), "values": DArrayT(UINT256_T, INF)})
+    outer = StructT("Outer", {"tag": UINT256_T, "batches": DArrayT(batch, 5)})
+
+    assert contains_pointer_cell_array(DArrayT(batch, 3))
+    assert contains_pointer_cell_array(DArrayT(batch, INF))
+    assert contains_pointer_cell_array(outer)
+    assert contains_pointer_cell_array(DArrayT(outer, 2))
+    assert contains_pointer_cell_array(SArrayT(outer, 2))
+    assert contains_pointer_cell_array(TupleT((UINT256_T, DArrayT(batch, INF))))
+
+    assert not contains_pointer_cell_array(batch)
+    assert not contains_pointer_cell_array(DArrayT(UINT256_T, INF))
+    assert not contains_pointer_cell_array(DArrayT(BytesT(512), INF))
+    assert not contains_pointer_cell_array(TupleT((batch, BytesT(INF))))
 
 
 def test_wildcard_singleton():

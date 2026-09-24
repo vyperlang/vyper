@@ -14,6 +14,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import (
     StructT,
     VyperType,
+    contains_pointer_cell_array,
     is_supported_unbounded_tuple_type,
     is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
@@ -62,7 +63,9 @@ def returns_dynamic_count(func_t) -> int:
     if is_unbounded_sequence_type(ret_t):
         return 1
     if isinstance(ret_t, StructT) and type_contains_unbounded_sequence(ret_t):
-        # the struct itself plus one pair per pointer-cell payload
+        # the struct itself plus one pair per pointer-cell payload; an array
+        # member would need one pair per element
+        assert not contains_pointer_cell_array(ret_t)
         return 1 + len(unbounded_member_cells(ret_t))
     if is_dynamic_tuple_return_type(ret_t):
         validate_dynamic_tuple_return_type(ret_t)

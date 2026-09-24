@@ -133,6 +133,30 @@ def is_pointer_cell_struct_type(typ) -> bool:
     return type_contains_unbounded_sequence(typ) and is_runtime_sizable_type(typ)
 
 
+def contains_pointer_cell_array(typ) -> bool:
+    """Return True if a DynArray of pointer-cell structs appears anywhere in `typ`.
+
+    An internal function returns its pointer-cell payloads as `dret` outputs,
+    a compile-time number of them; such an array holds one payload per
+    element and cell, so internal functions cannot return it.
+    """
+    typeclass = getattr(typ, "typeclass", None)
+
+    if typeclass == "dynamic_array":
+        return type_contains_unbounded_sequence(typ.value_type)
+
+    if typeclass == "static_array":
+        return contains_pointer_cell_array(typ.value_type)
+
+    if typeclass == "tuple":
+        return any(contains_pointer_cell_array(t) for t in typ.member_types)
+
+    if typeclass == "struct":
+        return any(contains_pointer_cell_array(t) for t in typ.members.values())
+
+    return False
+
+
 def is_runtime_sizable_return_type(typ) -> bool:
     """Return True if a return value of `typ` can be sized at runtime.
 
