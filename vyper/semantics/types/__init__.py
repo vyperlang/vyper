@@ -11,7 +11,6 @@ from .infinity import (
     contains_pointer_cell_array,
     is_bounded_length,
     is_pointer_cell_struct_type,
-    is_representable_return_type,
     is_runtime_sizable_return_type,
     is_runtime_sizable_type,
     is_supported_unbounded_tuple_type,
@@ -20,7 +19,6 @@ from .infinity import (
     is_unbounded_sequence_type,
     member_slot_size,
     type_contains_unbounded_sequence,
-    type_contains_unrepresentable_unbounded_sequence,
     type_contains_unsupported_unbounded_sequence,
     unbounded_member_cells,
 )

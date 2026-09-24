@@ -38,9 +38,8 @@ from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.bytestrings import BytesT
 from vyper.semantics.types.infinity import (
     contains_pointer_cell_array,
-    is_representable_return_type,
     is_runtime_sizable_return_type,
-    type_contains_unrepresentable_unbounded_sequence,
+    is_runtime_sizable_type,
 )
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -364,7 +363,7 @@ class ContractFunctionT(VyperType):
 
         positional_args, keyword_args = _parse_args(funcdef, is_interface=True)
 
-        return_type = _parse_return_type(funcdef, is_interface=True)
+        return_type = _parse_return_type(funcdef)
 
         return cls(
             funcdef.name,
@@ -439,7 +438,7 @@ class ContractFunctionT(VyperType):
 
         positional_args, keyword_args = _parse_args(funcdef, is_interface=True)
 
-        return_type = _parse_return_type(funcdef, is_interface=True)
+        return_type = _parse_return_type(funcdef)
 
         if not is_ellipsis_body(funcdef.body):
             raise FunctionDeclarationException(
@@ -879,20 +878,14 @@ def is_ellipsis_body(body: list[vy_ast.VyperNode]) -> bool:
 
 
 def _parse_return_type(
-    funcdef: vy_ast.FunctionDef, is_interface: bool = False, is_internal: bool = False
+    funcdef: vy_ast.FunctionDef, is_internal: bool = False
 ) -> Optional[VyperType]:
     # return types
     if funcdef.returns is None:
         return None
     # note: consider, for cleanliness, adding DataLocation.RETURN_VALUE
     ret = type_from_annotation(funcdef.returns, DataLocation.MEMORY)
-    # an interface return is decoded at the call site; the function's own
-    # return is encoded
-    if is_interface:
-        supported = is_representable_return_type(ret)
-    else:
-        supported = is_runtime_sizable_return_type(ret)
-    if not supported:
+    if not is_runtime_sizable_return_type(ret):
         raise StructureException(
             "Function returns cannot contain unbounded sequence types inside aggregate types",
             funcdef.returns,
@@ -1123,7 +1116,7 @@ def _parse_args(
             raise ArgumentException(f"Function argument '{argname}' is missing a type", arg)
 
         type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
-        if type_contains_unrepresentable_unbounded_sequence(type_):
+        if not is_runtime_sizable_type(type_):
             raise StructureException(
                 "Function arguments cannot contain unbounded sequence types inside aggregate types",
                 arg.annotation,

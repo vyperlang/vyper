@@ -73,11 +73,10 @@ from vyper.semantics.types.function import (
 )
 from vyper.semantics.types.infinity import (
     is_pointer_cell_struct_type,
-    is_representable_return_type,
+    is_runtime_sizable_return_type,
     is_runtime_sizable_type,
     is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
-    type_contains_unrepresentable_unbounded_sequence,
 )
 from vyper.semantics.types.utils import type_from_annotation
 
@@ -143,19 +142,6 @@ def _reaches_through_subscript(node: vy_ast.VyperNode) -> bool:
         node = node.value
 
     return False
-
-
-def _call_arg_is_unsupported(func_type, arg_typ: VyperType) -> bool:
-    """Return True if `arg_typ` cannot be passed to `func_type`.
-
-    An internal call hands the callee a memory pointer, so it accepts any
-    type memory can hold. An external call ABI-encodes the argument into a
-    buffer that has to be sized before the encode.
-    """
-    if func_type.is_external:
-        return not is_runtime_sizable_type(arg_typ)
-
-    return type_contains_unrepresentable_unbounded_sequence(arg_typ)
 
 
 def analyze_functions(vy_module: vy_ast.Module) -> None:
@@ -558,7 +544,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             )
 
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
-        if type_contains_unrepresentable_unbounded_sequence(typ):
+        if not is_runtime_sizable_type(typ):
             raise StructureException(
                 "Memory variables cannot contain unbounded sequence types inside aggregate types",
                 node.annotation,
@@ -1147,7 +1133,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                             # in which case it resolves to INF (see the
                             # external call handling below)
                             actual_arg_typ = actual_arg_typ.resolve_wildcard()
-                        has_nested_unbounded = _call_arg_is_unsupported(func_type, actual_arg_typ)
+                        has_nested_unbounded = not is_runtime_sizable_type(actual_arg_typ)
 
                 if has_nested_unbounded:
                     raise StructureException(
@@ -1163,7 +1149,7 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             if func_type.is_external:
                 return_t = func_type.return_type
-                if return_t is not None and not is_representable_return_type(return_t):
+                if return_t is not None and not is_runtime_sizable_return_type(return_t):
                     raise StructureException(
                         "External call returns cannot contain unbounded sequence types "
                         "inside aggregate types",
@@ -1177,7 +1163,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                         # Replace wildcards in the type by INF, since there is no expected type
                         return_t = return_t.resolve_wildcard()
                         # unsupported INF shapes from wildcard resolution only exist per call site
-                        if not is_representable_return_type(return_t):
+                        if not is_runtime_sizable_return_type(return_t):
                             raise StructureException(
                                 "Function returns cannot contain unbounded sequence types "
                                 "inside aggregate types",

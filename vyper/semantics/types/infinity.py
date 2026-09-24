@@ -110,11 +110,11 @@ def is_runtime_sizable_type(typ) -> bool:
     value, see `is_runtime_sizable_return_type`), and a static array or
     mapping holding INF.
 
-    This is the rule for struct members and for every position that
-    encodes a memory value: external call arguments, event and error
-    members, `abi_encode`, `print`, `create_*` constructor arguments and
-    `empty`. Positions that decode follow
-    `type_contains_unrepresentable_unbounded_sequence` instead.
+    This is the rule for struct members, for every position that holds a
+    value in memory (function arguments, locals, `abi_decode` outputs) and
+    for every position that encodes one (external call arguments, event
+    and error members, `abi_encode`, `print`, `create_*` constructor
+    arguments and `empty`).
     """
     if not type_contains_unbounded_sequence(typ):
         return True
@@ -178,45 +178,6 @@ def is_runtime_sizable_return_type(typ) -> bool:
         return True
 
     return is_runtime_sizable_type(typ)
-
-
-def is_representable_return_type(typ) -> bool:
-    """Return True if a return value of `typ` received from an external call fits in memory.
-
-    Everything `type_contains_unrepresentable_unbounded_sequence` accepts,
-    plus the dynamic tuple frame. This is the rule for interface
-    declarations and external call returns, which decode: a `DynArray` of
-    pointer-cell structs is accepted here and rejected by
-    `is_runtime_sizable_return_type`, which a function's own return follows.
-    """
-    if is_supported_unbounded_tuple_type(typ):
-        return True
-
-    return not type_contains_unrepresentable_unbounded_sequence(typ)
-
-
-def type_contains_unrepresentable_unbounded_sequence(typ) -> bool:
-    """Return True if INF appears in `typ` where memory has no room for it.
-
-    A value held in memory (an argument, a local, an internal call argument,
-    a decoded value) can carry INF as the value itself (a runtime-sized
-    buffer) or as a struct member (a pointer cell), including in the elements
-    of a DynArray, whose stride stays a compile-time constant. Anywhere else
-    the offsets after the INF value would be runtime values, which
-    struct/tuple/array addressing cannot express.
-
-    Having a memory layout does not give a value a runtime size: a DynArray
-    of pointer-cell structs is accepted here, so the calldata decoder,
-    `abi_decode` and external call returns build it, and rejected by
-    `is_runtime_sizable_type`, which positions that encode use.
-    """
-    if is_runtime_sizable_type(typ):
-        return False
-
-    if getattr(typ, "typeclass", None) == "dynamic_array":
-        return type_contains_unrepresentable_unbounded_sequence(typ.value_type)
-
-    return True
 
 
 def type_contains_unsupported_unbounded_sequence(typ) -> bool:

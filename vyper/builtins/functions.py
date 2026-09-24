@@ -83,7 +83,6 @@ from vyper.semantics.types import (
     is_bounded_length,
     is_runtime_sizable_type,
     type_contains_unbounded_sequence,
-    type_contains_unrepresentable_unbounded_sequence,
 )
 from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT8_T, UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
@@ -2463,7 +2462,7 @@ class ABIDecode(BuiltinFunctionT):
 
         data_type = get_exact_type_from_node(node.args[0])
         output_type = type_from_annotation(node.args[1])
-        if type_contains_unrepresentable_unbounded_sequence(output_type):
+        if not is_runtime_sizable_type(output_type):
             raise StructureException(
                 "abi_decode output type cannot contain unbounded sequence types "
                 "inside aggregate types",
