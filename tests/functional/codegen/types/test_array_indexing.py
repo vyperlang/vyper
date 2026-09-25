@@ -309,6 +309,8 @@ def bar() -> uint256:
     assert c.foo() == 7
 
 
+# The storage case's idx() rewrites [1] to [2], matching the memory case's
+# initial value, so both cases share the same expected result.
 _MEMBER_CALLS = [("append(5)", [[[7, 5], [8]], [[9], [2]]]), ("pop()", [[[], [8]], [[9], [2]]])]
 
 
@@ -343,6 +345,31 @@ def foo() -> DynArray[DynArray[DynArray[uint256, 3], 3], 3]:
 @internal
 def idx() -> uint256:
     self.a[1][1] = [2]
+    return 0
+    """
+    c = get_contract(code)
+    assert c.foo() == expected
+
+
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+@pytest.mark.parametrize("call,expected", [("append(5)", [7, 5]), ("pop()", [])])
+def test_array_index_overlap_member_call_target_struct_field(get_contract, call, expected):
+    code = f"""
+struct Foo:
+    a: DynArray[uint256, 3]
+
+x: DynArray[DynArray[Foo, 3], 3]
+
+@external
+def foo() -> DynArray[uint256, 3]:
+    self.x = [[Foo(a=[7])], [Foo(a=[1])]]
+    self.x[0][self.idx()].a.{call}
+    return self.x[0][0].a
+
+@internal
+def idx() -> uint256:
+    self.x[1][0].a = [2]
     return 0
     """
     c = get_contract(code)
