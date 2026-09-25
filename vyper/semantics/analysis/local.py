@@ -1148,7 +1148,7 @@ class ExprVisitor(VyperNodeVisitorBase):
             assert len(node.args) == len(func_type.arg_types)
             for arg, arg_type in zip(node.args, func_type.arg_types):
                 if isinstance(arg_type, DArrayT) and not is_bounded_length(arg_type.length):
-                    # derive a conrete length if not done yet
+                    # derive a concrete length if not done yet
                     # this currently catches `DynArray.extend(...)` only
                     arg_type = next(
                         (
