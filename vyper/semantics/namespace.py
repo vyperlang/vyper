@@ -1,4 +1,5 @@
 import contextlib
+import contextvars
 
 from vyper.ast.identifiers import validate_identifier
 from vyper.exceptions import CompilerPanic, NamespaceCollision, UndeclaredDefinition
@@ -97,26 +98,26 @@ class Namespace(dict):
             raise NamespaceCollision(msg, prev_decl=prev_decl)
 
 
+_namespace: contextvars.ContextVar[Namespace | None] = contextvars.ContextVar(
+    "namespace", default=None
+)
+
+
 def get_namespace():
     """
     Get the global namespace object.
     """
-    global _namespace
-    try:
-        return _namespace
-    except NameError:
-        _namespace = Namespace()
-        return _namespace
+    namespace = _namespace.get()
+    if namespace is None:
+        namespace = Namespace()
+        _namespace.set(namespace)
+    return namespace
 
 
 @contextlib.contextmanager
 def override_global_namespace(ns):
-    global _namespace
-    tmp = _namespace
+    token = _namespace.set(ns)
     try:
-        # clobber global namespace
-        _namespace = ns
         yield
     finally:
-        # unclobber
-        _namespace = tmp
+        _namespace.reset(token)
