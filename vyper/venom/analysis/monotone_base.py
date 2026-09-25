@@ -32,12 +32,8 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
         self.bb_output: dict[IRBasicBlock, Lattice] = {}
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
-        for bb in self.function.get_basic_blocks():
-            bottom: Lattice = self._bottom()
-            self.bb_output[bb] = bottom
-
         if self._direction() == Direction.Forward:
-            worklist = deque(self.cfg.dfs_pre_walk)
+            worklist = deque([self.function.entry])
         else:
             worklist = deque(self.cfg.dfs_post_walk)
 
@@ -86,7 +82,7 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
             predecessors = self.cfg.cfg_out(bb)
 
         for pred in predecessors:
-            lattice = self.bb_output[pred]
+            lattice = self.bb_output.get(pred, self._bottom())
             if self._direction() == Direction.Forward:
                 # edge goes pred -> bb
                 lattice = self._edge_transfer(pred, bb, lattice)

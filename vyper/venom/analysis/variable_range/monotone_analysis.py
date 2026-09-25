@@ -198,7 +198,7 @@ class VariableRangeMonotoneAnalysis(MonotoneAnalysis[RangeLattice]):
         phi_range = ValueRange.empty()
         for label, var in inst.phi_operands:
             pred_bb = self.function.get_basic_block(label.value)
-            pred_lattice = self.bb_output[pred_bb]
+            pred_lattice = self.bb_output.get(pred_bb, self._bottom())
             pred_state = self._edge_transfer(pred_bb, inst.parent, pred_lattice).data
             assert isinstance(var, IRVariable)  # phi operands are always variables
             phi_range = phi_range.union(pred_state.get(var, ValueRange.top()))

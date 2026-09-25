@@ -444,7 +444,7 @@ class VariableRangeAnalysis(IRAnalysis):
         """
         result = self._copy_state(new_state)
         for var in result:
-            old_range = old_state.get(var, ValueRange.empty())
+            old_range = old_state.get(var, ValueRange.top())
             new_range = result[var]
             widened = self._widen_range(old_range, new_range)
             result[var] = widened
