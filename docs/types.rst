@@ -586,9 +586,10 @@ may use ``INF`` as the length bound:
         return ys
 
 ``Bytes[INF]`` and ``String[INF]`` can hold any runtime length. ``DynArray[T, INF]``
-can hold any runtime item count. ``T`` itself must be bounded, but it may be
-ABI-dynamic, such as ``Bytes[512]``, ``DynArray[uint256, 3]`` or a struct with
-bytestring members:
+can hold any runtime item count. ``T`` must have a fixed-size layout: a bounded
+type, which may be ABI-dynamic, such as ``Bytes[512]``, ``DynArray[uint256, 3]``
+or a struct with bytestring members, or a struct with unbounded members (see
+below), but not an unbounded sequence itself:
 
 .. code-block:: vyper
 
@@ -667,8 +668,10 @@ another:
     c.values.pop()
     # b.values is unchanged
 
-Writing the member of an array element is rejected; copy the element to a
-local variable, modify it, then store it back:
+Writing an unbounded member of an array element, or anything inside it, is
+rejected; other members, including a whole nested struct, and whole elements
+can be assigned. Copy the element to a local variable, modify it, then store
+it back:
 
 .. code-block:: vyper
 

@@ -101,7 +101,8 @@ def is_runtime_sizable_type(typ) -> bool:
     at a compile-time offset from its container and holds bounded elements,
     so that its size follows from its length word: a bounded type
     (trivially), a direct `Bytes[INF]`, `String[INF]` or `DynArray[T, INF]`
-    with bounded `T`, a struct whose INF members are such types, and a
+    with a fixed-size `T` (bounded, or a struct as below, but not an INF
+    sequence), a struct whose INF members are such types, and a
     DynArray, bounded or INF, of such structs, also nested. An INF struct
     member occupies a `POINTER_CELL_SIZE` cell (see
     `VenomCodegenContext.store_pointer_cell`), which keeps the struct at a
@@ -227,9 +228,11 @@ def struct_member_offsets(struct_t) -> list[tuple[str, int, Any]]:
 
 
 def unbounded_member_cells(struct_t) -> list[tuple[int, Any]]:
-    """Return `(byte offset, member type)` for every pointer cell in a struct.
+    """Return `(byte offset, member type)` for every pointer cell at a static
+    offset in a struct.
 
-    Cells of nested structs are included at their offset in the outer struct.
+    Cells of nested structs are included at their offset in the outer struct;
+    cells inside the elements of an array member are not.
     """
     cells = []
     for _, offset, member_t in struct_member_offsets(struct_t):
