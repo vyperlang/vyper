@@ -457,3 +457,6 @@ class SelfT(AddressT):
         # compares true to AddressT
         # This checks if either is a subtype of the other, which doesn't seem correct
         return isinstance(other, type(self)) or isinstance(self, type(other))
+
+
+AnyPrimType = Union[AddressT, BoolT, BytesM_T, DecimalT, IntegerT]
