@@ -346,6 +346,48 @@ def bar() -> uint256:
         c.foo()
 
 
+@pytest.mark.parametrize("index", [0, 1])
+def test_append_to_row_in_popped_outer_array(get_contract, tx_failed, index):
+    code = """
+@external
+def foo(index: uint256) -> DynArray[DynArray[DynArray[uint256, 3], 3], 3]:
+    rows: DynArray[DynArray[DynArray[uint256, 3], 3], 3] = [[[1]], [[2]]]
+    rows[index][0].append(rows.pop()[0][0])
+    return rows
+    """
+    c = get_contract(code)
+    if index == 1:
+        with tx_failed():
+            c.foo(index)
+    else:
+        assert c.foo(index) == [[[1, 2]]]
+
+
+@pytest.mark.requires_evm_version("cancun")
+@pytest.mark.parametrize("index", [0, 1])
+def test_append_to_row_popped_by_argument_transient(get_contract, tx_failed, index):
+    code = """
+rows: transient(DynArray[DynArray[uint256, 3], 3])
+
+@external
+def foo(xs: DynArray[DynArray[uint256, 3], 3], index: uint256) -> DynArray[DynArray[uint256, 3], 3]:
+    self.rows = xs
+    self.rows[index].append(self.bar())
+    return self.rows
+
+@internal
+def bar() -> uint256:
+    self.rows.pop()
+    return 5
+    """
+    c = get_contract(code)
+    if index == 1:
+        with tx_failed():
+            c.foo([[1], [2]], index)
+    else:
+        assert c.foo([[1], [2]], index) == [[1, 5]]
+
+
 # TODO: When it also raises with venom, move this back to analysis
 def test_index_empty_list_variable_index(request, env, tx_failed, experimental_codegen):
     code = """
