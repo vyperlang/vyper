@@ -185,11 +185,20 @@ def is_runtime_sizable_return_type(typ) -> bool:
     return is_runtime_sizable_type(typ)
 
 
-def type_contains_unsupported_unbounded_sequence(typ) -> bool:
-    """Return True if INF appears outside the supported top-level shapes."""
-    return type_contains_unbounded_sequence(typ) and not (
-        is_unbounded_sequence_type(typ) or is_supported_unbounded_tuple_type(typ)
-    )
+def is_unsupported_constant_type(typ) -> bool:
+    """Return True if a constant cannot have type `typ`.
+
+    Constants hold INF only as a top-level sequence of elements without INF,
+    or a tuple of such sequences; a struct with INF members is never part of
+    a constant, including as the element of an INF DynArray.
+    """
+    if not type_contains_unbounded_sequence(typ):
+        return False
+    if is_supported_unbounded_tuple_type(typ):
+        return False
+    if is_unbounded_dynarray_type(typ):
+        return type_contains_unbounded_sequence(typ.value_type)
+    return not is_unbounded_sequence_type(typ)
 
 
 def length_to_json(length: LengthUpperBound) -> int | str:

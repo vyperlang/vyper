@@ -17,10 +17,10 @@ from .infinity import (
     is_unbounded_bytestring_type,
     is_unbounded_dynarray_type,
     is_unbounded_sequence_type,
+    is_unsupported_constant_type,
     member_slot_size,
     struct_member_offsets,
     type_contains_unbounded_sequence,
-    type_contains_unsupported_unbounded_sequence,
     unbounded_member_cells,
 )
 from .module import InterfaceT, ModuleT

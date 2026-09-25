@@ -84,12 +84,6 @@ def __init__(b: Batch):
     """,
         "Module variables cannot use unbounded sequence types",
     ),
-    (
-        BATCH + """
-C: constant(Batch) = Batch(owner=empty(address), values=[1, 2])
-    """,
-        "Constants cannot contain unbounded sequence types",
-    ),
     (BATCH + "\nm: HashMap[uint256, Batch]\n", "Module variables cannot use unbounded sequence"),
     (
         BATCH + """
@@ -243,6 +237,43 @@ def f():
         compile_code(code, settings=Settings(experimental_codegen=True), input_bundle=input_bundle)
 
     assert "Constant value cannot be written to" in str(e.value)
+
+
+# a struct with unbounded members is never part of a constant
+constant_fail_list = [
+    "C: constant(Batch) = Batch(owner=empty(address), values=[1, 2])",
+    "C: constant(DynArray[Batch, 2]) = [Batch(owner=empty(address), values=[1])]",
+    "C: constant(DynArray[Batch, INF]) = [Batch(owner=empty(address), values=[1])]",
+]
+
+
+@pytest.mark.parametrize("venom", [True, False])
+@pytest.mark.parametrize("decl", constant_fail_list)
+def test_inf_struct_constant_rejected(decl, venom):
+    with pytest.raises(StructureException) as e:
+        compile_code(BATCH + decl, settings=Settings(experimental_codegen=venom))
+
+    assert "Constants cannot contain unbounded sequence types" in str(e.value)
+
+
+constant_pass_list = [
+    "C: constant(DynArray[uint256, INF]) = [1, 2]",
+    "C: constant(DynArray[DynArray[uint256, 2], INF]) = [[1], [2, 3]]",
+    'C: constant(Bytes[INF]) = b"ab"',
+    'C: constant(String[INF]) = "ab"',
+]
+
+
+@pytest.mark.parametrize("decl", constant_pass_list)
+def test_unbounded_sequence_constant_accepted(decl):
+    code = decl + """
+
+@external
+def f() -> uint256:
+    return len(C)
+    """
+
+    compile_code(code, settings=Settings(experimental_codegen=True))
 
 
 def test_inf_struct_field_rejected_without_venom():
