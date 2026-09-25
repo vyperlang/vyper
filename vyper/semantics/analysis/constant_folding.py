@@ -9,7 +9,7 @@ def constant_fold(module_ast: vy_ast.Module):
     ConstantFolder(module_ast).run()
 
 
-class ConstantFolder(VyperNodeVisitorBase):
+class ConstantFolder(VyperNodeVisitorBase[None]):
     def __init__(self, module_ast):
         self._constants = {}
         self._module_ast = module_ast
