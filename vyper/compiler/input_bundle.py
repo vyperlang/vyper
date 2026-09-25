@@ -6,14 +6,14 @@ from functools import cached_property
 from pathlib import Path, PurePath
 from typing import TYPE_CHECKING, Any, Iterator, Optional
 
-from vyper.exceptions import JSONError
+from vyper.exceptions import BadArchive, JSONError
 from vyper.utils import sha256sum
 
 # a type to make mypy happy
 PathLike = Path | PurePath
 
 if TYPE_CHECKING:
-    from zipfile import ZipFile
+    from zipfile import ZipFile, ZipInfo
 
 # hacky sentinel to indicate that a file came from InputBundle for builtins
 BUILTIN = -2
@@ -257,13 +257,35 @@ class JSONInputBundle(InputBundle):
 # a zipfile as input.
 class ZipInputBundle(InputBundle):
     def __init__(self, archive: "ZipFile"):
+        # Validate the entire namespace before testzip() or any manifest read.
+        # orig_filename preserves NULs which ZipInfo.filename truncates.
+        self._members: dict[str, "ZipInfo"] = {}
+        for member in archive.infolist():
+            name = member.orig_filename
+            canonical = posixpath.normpath(name)
+            if (
+                not name
+                or ".." in name.split("/")
+                or "\\" in name
+                or "\x00" in name
+                or canonical == "."
+            ):
+                raise BadArchive(f"Invalid archive member name: {name!r}")
+            if canonical in self._members:
+                previous = self._members[canonical].orig_filename
+                raise BadArchive(f"Duplicate archive member path: {previous!r} and {name!r}")
+            self._members[canonical] = member
+
         assert archive.testzip() is None
         self.archive = archive
 
-        sp_str = archive.read("MANIFEST/searchpaths").decode("utf-8")
+        sp_str = self.read_file("MANIFEST/searchpaths").decode("utf-8")
         search_paths = [PurePath(p) for p in sp_str.splitlines()]
 
         super().__init__(search_paths)
+
+    def read_file(self, path: str) -> bytes:
+        return self.archive.read(self._members[posixpath.normpath(path)])
 
     def _normalize_path(self, path: PurePath) -> PurePath:
         return _normpath(path)
@@ -272,7 +294,7 @@ class ZipInputBundle(InputBundle):
         # zipfile.BadZipFile: File is not a zip file
 
         try:
-            value = self.archive.read(resolved_path.as_posix()).decode("utf-8")
+            value = self.read_file(resolved_path.as_posix()).decode("utf-8")
         except KeyError:
             # zipfile literally raises KeyError if the file is not there
             raise _NotFound(resolved_path)
