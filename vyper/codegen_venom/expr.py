@@ -184,11 +184,21 @@ class Expr:
     or check `node.has_folded_value` before isinstance checks on node type.
     """
 
-    def __init__(self, node: vy_ast.VyperNode, ctx: VenomCodegenContext, as_ptr: bool = False):
+    def __init__(
+        self,
+        node: vy_ast.VyperNode,
+        ctx: VenomCodegenContext,
+        as_ptr: bool = False,
+        darray_indices: Optional[list[tuple[IROperand, IROperand, DataLocation]]] = None,
+    ):
         self.node = node.reduced()
         self.ctx = ctx
         self.builder = ctx.builder
         self.as_ptr = as_ptr  # Assignment targets must retain their original location.
+        # When given, collects (array_ptr, index, location) for each DynArray
+        # subscript on a target's path, so the caller can check the indices
+        # again after later side effects shrink those arrays.
+        self.darray_indices = darray_indices
 
     def lower(self) -> VyperValue:
         """Dispatch to type-specific lowering method.
@@ -1013,7 +1023,9 @@ class Expr:
         if overlap and self.as_ptr:
             raise CompilerPanic("risky overlap")
 
-        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
+        base_vv = Expr(
+            node.value, self.ctx, as_ptr=self.as_ptr, darray_indices=self.darray_indices
+        ).lower()
         if overlap:
             base_vv = self.ctx.materialize_value(base_vv, base_typ)
 
@@ -1035,6 +1047,8 @@ class Expr:
         if isinstance(base_typ, DArrayT):
             # Dynamic array: load length from first word.
             length = self.ctx.load_word(base, data_loc)
+            if self.darray_indices is not None:
+                self.darray_indices.append((base, index, data_loc))
         else:
             # Static array: compile-time length
             length = IRLiteral(base_typ.count)
@@ -1162,7 +1176,9 @@ class Expr:
         """
         node = self.node
         assert isinstance(node, vy_ast.Subscript)
-        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
+        base_vv = Expr(
+            node.value, self.ctx, as_ptr=self.as_ptr, darray_indices=self.darray_indices
+        ).lower()
         base = base_vv.operand  # Extract pointer for address math
         base_typ = base_vv.typ
 
@@ -1204,7 +1220,9 @@ class Expr:
         """
         node = self.node
         assert isinstance(node, vy_ast.Attribute)
-        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
+        base_vv = Expr(
+            node.value, self.ctx, as_ptr=self.as_ptr, darray_indices=self.darray_indices
+        ).lower()
         base = base_vv.operand  # Extract pointer for address math
         base_typ = node.value._metadata["type"]
         attr = node.attr
@@ -1726,7 +1744,8 @@ class Expr:
             return self._lower_unbounded_dynarray_append()
 
         # Get the array VyperValue
-        darray_vv = Expr(darray_node, self.ctx).lower()
+        darray_indices: list[tuple[IROperand, IROperand, DataLocation]] = []
+        darray_vv = Expr(darray_node, self.ctx, darray_indices=darray_indices).lower()
         darray_ptr = darray_vv.operand
 
         # Get the element value.
@@ -1751,6 +1770,16 @@ class Expr:
             elem_src_typ = elem_typ
         else:
             elem_val = arg_val
+
+        # The argument can shrink arrays on the receiver's path (e.g.
+        # `rows[1].append(rows.pop()[0])`). Check the receiver's indices
+        # again so appending to a removed element reverts.
+        if _subscript_base_length_can_stale(darray_node) and _subscript_read_write_overlap(
+            darray_node, arg_node
+        ):
+            for array_ptr, index, loc in darray_indices:
+                length = self.ctx.load_word(array_ptr, loc)
+                self.builder.assert_(self.builder.lt(index, length))
 
         # Get location from VyperValue
         data_loc = darray_vv.location

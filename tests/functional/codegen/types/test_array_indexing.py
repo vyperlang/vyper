@@ -309,6 +309,43 @@ def bar() -> uint256:
     assert c.foo() == 7
 
 
+def test_append_to_row_popped_by_argument(get_contract, tx_failed):
+    code = """
+@external
+def foo() -> DynArray[DynArray[uint256, 3], 3]:
+    rows: DynArray[DynArray[uint256, 3], 3] = [[1], [2]]
+    rows[1].append(rows.pop()[0])
+    return rows
+    """
+    c = get_contract(code)
+    with tx_failed():
+        c.foo()
+
+
+def test_append_to_row_popped_by_argument_storage(get_contract, tx_failed):
+    code = """
+rows: DynArray[DynArray[uint256, 3], 3]
+
+@external
+def seed():
+    self.rows = [[1], [2]]
+
+@external
+def foo() -> DynArray[DynArray[uint256, 3], 3]:
+    self.rows[1].append(self.bar())
+    return self.rows
+
+@internal
+def bar() -> uint256:
+    self.rows.pop()
+    return 5
+    """
+    c = get_contract(code)
+    c.seed()
+    with tx_failed():
+        c.foo()
+
+
 # TODO: When it also raises with venom, move this back to analysis
 def test_index_empty_list_variable_index(request, env, tx_failed, experimental_codegen):
     code = """
