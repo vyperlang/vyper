@@ -1746,6 +1746,72 @@ def f() -> R:
     assert c.f() == (MOVED_START, b, (6, w_inner), v)
 
 
+# The writes that move the payload can also shrink it first, so the fresh
+# buffer ends before an element the statement already resolved. That element
+# is dead by then; it stays readable and writable in the old buffer, as a
+# popped element of a bounded array stays in place.
+
+SHRUNK = """
+struct S:
+    rows: DynArray[DynArray[uint256, 4], INF]
+    flat: DynArray[uint256, INF]
+
+struct R:
+    src: S
+    rows: DynArray[DynArray[uint256, 4], INF]
+    flat: DynArray[uint256, INF]
+    other: DynArray[DynArray[uint256, 4], INF]
+    v: uint256
+
+@internal
+def inspect(s: S) -> uint256:
+    return 0
+"""
+
+SHRUNK_START = ([[1, 2], [0, 1], [3]], [4, 1, 0])
+
+# pops [3], copies b, pops [0, 1] (moving the payload), pops flat's 0
+SHRINK = "b.rows.pop()[0] + self.inspect(b) + b.rows.pop()[0] + b.flat.pop()"
+
+# (statement, (rows, flat, other, v) after it or None if it reverts)
+SHRUNK_WRITES = {
+    "append_dead_receiver": (f"b.rows[2].append({SHRINK})", ([[1, 2]], [4, 1], [[0]], 0)),
+    "append_live_receiver": (f"b.rows[0].append({SHRINK})", ([[1, 2, 3]], [4, 1], [[0]], 0)),
+    "copy_dead_source": (f"c.rows[{SHRINK} - 3] = b.rows[2]", ([[1, 2]], [4, 1], [[3]], 0)),
+    "copy_live_source": (f"c.rows[{SHRINK} - 3] = b.rows[0]", ([[1, 2]], [4, 1], [[1, 2]], 0)),
+    "pop_index": (f"v = b.rows[{SHRINK} - 3].pop()", ([[1]], [4, 1], [[0]], 2)),
+    "store_index": (f"b.rows[{SHRINK} - 3] = [7]", ([[7]], [4, 1], [[0]], 0)),
+    "store_index_out_of_range": (f"b.rows[{SHRINK} - 2] = [7]", None),
+    "read_index_out_of_range": (f"v = len(b.rows[{SHRINK} - 2])", None),
+}
+
+
+@pytest.mark.parametrize("inlining", [True, False])
+@pytest.mark.parametrize("case", list(SHRUNK_WRITES))
+def test_write_after_payload_moved_and_shrunk(
+    get_contract, tx_failed, compiler_settings, no_inlining_settings, case, inlining
+):
+    stmt, expected = SHRUNK_WRITES[case]
+    code = SHRUNK + f"""
+@external
+def f() -> R:
+    a: S = S(rows={SHRUNK_START[0]}, flat={SHRUNK_START[1]})
+    b: S = a
+    c: S = S(rows=[[0]], flat=[])
+    v: uint256 = 0
+    {stmt}
+    return R(src=a, rows=b.rows, flat=b.flat, other=c.rows, v=v)
+    """
+
+    settings = compiler_settings if inlining else no_inlining_settings
+    c = get_contract(code, compiler_settings=settings)
+    if expected is None:
+        with tx_failed():
+            c.f()
+        return
+    assert c.f() == (SHRUNK_START, *expected)
+
+
 # empty(). Every cell of the zeroed struct points at its own empty payload,
 # the same 32-byte zero length word an empty unbounded local uses.
 

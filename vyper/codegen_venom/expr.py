@@ -85,11 +85,14 @@ class _CallKwargs:
 
 @dataclass(frozen=True)
 class _PayloadAnchor:
-    """The pointer cell a lowered memory pointer was derived through, and the
-    payload address the derivation read from it."""
+    """The pointer cell a lowered memory pointer was derived through, the
+    payload address the derivation read from it, and the dynamic array
+    subscripts applied inside that payload, as (offset of the array from the
+    payload, index) pairs."""
 
     cell: IRVariable
     payload: IRVariable
+    subscripts: tuple[tuple[IROperand, IROperand], ...] = ()
 
 
 # Environment variable prefixes for attribute access
@@ -1101,6 +1104,12 @@ class Expr:
         offset = self.builder.mul(index, IRLiteral(elem_size))
         elem_ptr = self.builder.add(data_ptr, offset)
 
+        anchor = self.payload_anchor
+        if anchor is not None and isinstance(base_typ, DArrayT):
+            array_offset = self.builder.sub(base, anchor.payload)
+            subscripts = anchor.subscripts + ((array_offset, index),)
+            self.payload_anchor = _PayloadAnchor(anchor.cell, anchor.payload, subscripts)
+
         return self._make_ptr_value(elem_ptr, data_loc, elem_typ)
 
     def _lower_mapping_subscript(self) -> VyperValue:
@@ -1328,6 +1337,12 @@ class Expr:
         wrote the struct, `ptr` may still point into the old buffer, so it is
         moved to the same offset in the payload the cell holds now.
 
+        The fresh buffer only holds the elements live when it was made, so an
+        index on the path that the moving writes left past its array's length
+        may be past the end of the buffer. `ptr` then keeps pointing into the
+        old buffer: the element is dead either way, and the old buffer still
+        holds it, as a bounded array still holds a popped element.
+
         The current payload is written without materializing it again: a
         capacity this statement set to 0 was set by copies made while
         evaluating the statement, and those are dead by the time of the write.
@@ -1335,10 +1350,17 @@ class Expr:
         anchor = self.payload_anchor
         if anchor is None or not _writes_variables_read_by(evaluated, derived_from):
             return ptr
-        payload = self.builder.mload(anchor.cell)
+        b = self.builder
+        payload: IROperand = b.mload(anchor.cell)
+        if len(anchor.subscripts) > 0:
+            in_bounds: IROperand = IRLiteral(1)
+            for array_offset, index in anchor.subscripts:
+                length = b.mload(b.add(payload, array_offset))
+                in_bounds = b.and_(in_bounds, b.lt(index, length))
+            payload = b.select(in_bounds, payload, anchor.payload)
         assert isinstance(payload, IRVariable)
-        self.payload_anchor = _PayloadAnchor(anchor.cell, payload)
-        return self.builder.add(payload, self.builder.sub(ptr, anchor.payload))
+        self.payload_anchor = _PayloadAnchor(anchor.cell, payload, anchor.subscripts)
+        return b.add(payload, b.sub(ptr, anchor.payload))
 
     def rebase_after(self, vv: VyperValue, evaluated: vy_ast.VyperNode) -> VyperValue:
         """Re-derive `vv`, the result of `lower()`, after `evaluated` ran (see
