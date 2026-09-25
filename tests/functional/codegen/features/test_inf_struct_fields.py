@@ -1746,10 +1746,9 @@ def f() -> R:
     assert c.f() == (MOVED_START, b, (6, w_inner), v)
 
 
-# The writes that move the payload can also shrink it first, so the fresh
-# buffer ends before an element the statement already resolved. That element
-# is dead by then; it stays readable and writable in the old buffer, as a
-# popped element of a bounded array stays in place.
+# The writes that move the payload can also pop the element the statement
+# already resolved. The target is checked again after the argument or index
+# runs, so a popped target reverts.
 
 SHRUNK = """
 struct S:
@@ -1775,9 +1774,14 @@ SHRINK = "b.rows.pop()[0] + self.inspect(b) + b.rows.pop()[0] + b.flat.pop()"
 
 # (statement, (rows, flat, other, v) after it or None if it reverts)
 SHRUNK_WRITES = {
-    "append_dead_receiver": (f"b.rows[2].append({SHRINK})", ([[1, 2]], [4, 1], [[0]], 0)),
+    "append_dead_receiver": (f"b.rows[2].append({SHRINK})", None),
     "append_live_receiver": (f"b.rows[0].append({SHRINK})", ([[1, 2, 3]], [4, 1], [[0]], 0)),
-    "copy_dead_source": (f"c.rows[{SHRINK} - 3] = b.rows[2]", ([[1, 2]], [4, 1], [[3]], 0)),
+    "copy_dead_source": (f"c.rows[{SHRINK} - 3] = b.rows[2]", None),
+    "copy_changed_then_popped_source": (
+        "c.rows[self.inspect(b) + b.rows[1].pop() - 1 + b.rows.pop()[0] * b.rows.pop()[0]]"
+        " = b.rows[1]",
+        None,
+    ),
     "copy_live_source": (f"c.rows[{SHRINK} - 3] = b.rows[0]", ([[1, 2]], [4, 1], [[1, 2]], 0)),
     "pop_index": (f"v = b.rows[{SHRINK} - 3].pop()", ([[1]], [4, 1], [[0]], 2)),
     "store_index": (f"b.rows[{SHRINK} - 3] = [7]", ([[7]], [4, 1], [[0]], 0)),

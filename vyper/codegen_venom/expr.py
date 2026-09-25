@@ -1337,11 +1337,8 @@ class Expr:
         wrote the struct, `ptr` may still point into the old buffer, so it is
         moved to the same offset in the payload the cell holds now.
 
-        The fresh buffer only holds the elements live when it was made, so an
-        index on the path that the moving writes left past its array's length
-        may be past the end of the buffer. `ptr` then keeps pointing into the
-        old buffer: the element is dead either way, and the old buffer still
-        holds it, as a bounded array still holds a popped element.
+        Each dynamic array index on the path is checked again against the
+        current length, since the writes may also have removed the element.
 
         The current payload is written without materializing it again: a
         capacity this statement set to 0 was set by copies made while
@@ -1351,14 +1348,11 @@ class Expr:
         if anchor is None or not _writes_variables_read_by(evaluated, derived_from):
             return ptr
         b = self.builder
-        payload: IROperand = b.mload(anchor.cell)
-        if len(anchor.subscripts) > 0:
-            in_bounds: IROperand = IRLiteral(1)
-            for array_offset, index in anchor.subscripts:
-                length = b.mload(b.add(payload, array_offset))
-                in_bounds = b.and_(in_bounds, b.lt(index, length))
-            payload = b.select(in_bounds, payload, anchor.payload)
+        payload = b.mload(anchor.cell)
         assert isinstance(payload, IRVariable)
+        for array_offset, index in anchor.subscripts:
+            length = b.mload(b.add(payload, array_offset))
+            b.assert_(b.lt(index, length))
         self.payload_anchor = _PayloadAnchor(anchor.cell, payload, anchor.subscripts)
         return b.add(payload, b.sub(ptr, anchor.payload))
 
