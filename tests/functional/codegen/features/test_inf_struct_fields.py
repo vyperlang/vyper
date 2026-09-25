@@ -1611,6 +1611,141 @@ def f(t: Table) -> Pair:
     assert c.f(TABLE_ARG) == (TABLE_ARG, _apply_table_op(op, *TABLE_ARG), 0)
 
 
+# A statement can copy the struct and then write the same member again before
+# its own write lands, e.g. by passing the struct to a function and popping
+# from the member in an argument or index. That second write moves the
+# member's payload to a fresh buffer, and the statement's own write has to
+# follow it.
+
+MOVED = """
+struct S:
+    rows: DynArray[DynArray[uint256, 4], INF]
+    flat: DynArray[uint256, INF]
+
+struct W:
+    tag: uint256
+    inner: S
+
+struct R:
+    a: S
+    b: S
+    w: W
+    v: uint256
+
+@internal
+def inspect(s: S) -> uint256:
+    return 0
+
+@internal
+def touch(s: S) -> uint256:
+    c: S = s
+    c.rows[0].append(7)
+    c.flat.append(7)
+    return 0
+"""
+
+MOVED_START = ([[1, 2], [0, 1]], [4, 1])
+
+# (statement on T, (rows, flat) after it, v)
+MOVED_WRITES = {
+    "append_arg": (
+        "TARGET.rows[0].append(self.inspect(TARGET) + TARGET.rows[0].pop())",
+        ([[1, 2], [0, 1]], [4, 1]),
+        0,
+    ),
+    "append_arg_copy_in_callee": (
+        "TARGET.rows[0].append(self.touch(TARGET) + TARGET.rows[0].pop())",
+        ([[1, 2], [0, 1]], [4, 1]),
+        0,
+    ),
+    "append_arg_reads_first": (
+        "TARGET.rows[1].append(TARGET.rows[0][0] + self.inspect(TARGET) + TARGET.rows[0].pop())",
+        ([[1], [0, 1, 3]], [4, 1]),
+        0,
+    ),
+    "append_arg_other_member": (
+        "TARGET.rows[0].append(self.inspect(TARGET) + TARGET.flat.pop())",
+        ([[1, 2, 1], [0, 1]], [4]),
+        0,
+    ),
+    "append_index": (
+        "TARGET.rows[self.inspect(TARGET) + TARGET.rows[1].pop()].append(9)",
+        ([[1, 2], [0, 9]], [4, 1]),
+        0,
+    ),
+    "pop_index": (
+        "v = TARGET.rows[self.inspect(TARGET) + TARGET.rows[1].pop()].pop()",
+        ([[1, 2], []], [4, 1]),
+        0,
+    ),
+    "store_index": (
+        "TARGET.rows[self.inspect(TARGET) + TARGET.rows[1].pop()][0] = 9",
+        ([[1, 2], [9]], [4, 1]),
+        0,
+    ),
+    "store_row_index": (
+        "TARGET.rows[self.inspect(TARGET) + TARGET.rows[1].pop()] = [9]",
+        ([[1, 2], [9]], [4, 1]),
+        0,
+    ),
+    "store_index_source": (
+        "TARGET.rows[self.inspect(TARGET) + TARGET.rows[0].pop() - 1] = TARGET.rows[0]",
+        ([[1], [1]], [4, 1]),
+        0,
+    ),
+    "store_flat_index": (
+        "TARGET.flat[self.inspect(TARGET) + TARGET.rows[1].pop()] = 9",
+        ([[1, 2], [0]], [4, 9]),
+        0,
+    ),
+    "read_index_bounds": ("v = TARGET.flat[TARGET.flat.pop()]", None, 0),
+    "read_index_copy_bounds": (
+        "v = TARGET.flat[self.inspect(TARGET) + TARGET.flat.pop()]",
+        None,
+        0,
+    ),
+    "read_nested_index_bounds": ("v = len(TARGET.rows[TARGET.rows.pop()[1]])", None, 0),
+    "read_index": (
+        "v = len(TARGET.rows[self.inspect(TARGET) + TARGET.rows[1].pop()])",
+        ([[1, 2], [0]], [4, 1]),
+        1,
+    ),
+}
+
+
+@pytest.mark.parametrize("inlining", [True, False])
+@pytest.mark.parametrize("owned", [False, True])
+@pytest.mark.parametrize("target", ["b", "w.inner"])
+@pytest.mark.parametrize("case", list(MOVED_WRITES))
+def test_write_follows_payload_moved_by_own_statement(
+    get_contract, tx_failed, compiler_settings, no_inlining_settings, case, target, owned, inlining
+):
+    # with `owned`, the member owns its payload before the statement starts
+    stmt, after, v = MOVED_WRITES[case]
+    prepare = f"""
+    {target}.rows[0].append(8)
+    {target}.rows[0].pop()"""
+    code = MOVED + f"""
+@external
+def f() -> R:
+    a: S = S(rows={MOVED_START[0]}, flat={MOVED_START[1]})
+    b: S = a
+    w: W = W(tag=6, inner=a)
+    v: uint256 = 0{prepare if owned else ""}
+    {stmt.replace("TARGET", target)}
+    return R(a=a, b=b, w=w, v=v)
+    """
+
+    settings = compiler_settings if inlining else no_inlining_settings
+    c = get_contract(code, compiler_settings=settings)
+    if after is None:
+        with tx_failed():
+            c.f()
+        return
+    b, w_inner = (after, MOVED_START) if target == "b" else (MOVED_START, after)
+    assert c.f() == (MOVED_START, b, (6, w_inner), v)
+
+
 # empty(). Every cell of the zeroed struct points at its own empty payload,
 # the same 32-byte zero length word an empty unbounded local uses.
 

@@ -190,8 +190,12 @@ class Stmt:
         # IMPORTANT: Evaluate RHS first, then compute LHS target pointer.
         # This matches legacy codegen and ensures proper semantics for cases
         # like `c[0] = c.pop()` where RHS modifies array length.
-        src = Expr(node.value, self.ctx).lower()
+        src_expr = Expr(node.value, self.ctx)
+        src = src_expr.lower()
         dst_ptr = self._get_target_ptr(target)
+        # a source reached through a struct member follows a payload which
+        # evaluating the target's indices moved
+        src = src_expr.rebase_after(src, target)
         self._assign_value(dst_ptr, src, target_typ, src_node=node.value)
 
     def _assign_unbounded_sequence_local(self, var: LocalVariable, src: VyperValue, typ: VyperType):

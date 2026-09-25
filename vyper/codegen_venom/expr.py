@@ -83,6 +83,15 @@ class _CallKwargs:
     default_return_value: Optional[VyperValue]  # Default if returndatasize==0
 
 
+@dataclass(frozen=True)
+class _PayloadAnchor:
+    """The pointer cell a lowered memory pointer was derived through, and the
+    payload address the derivation read from it."""
+
+    cell: IRVariable
+    payload: IRVariable
+
+
 # Environment variable prefixes for attribute access
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
@@ -166,6 +175,11 @@ def _subscript_read_write_overlap(
     return _contains_risky_call(index_node)
 
 
+def _writes_variables_read_by(writer: vy_ast.VyperNode, reader: vy_ast.VyperNode) -> bool:
+    reads = get_referenced_variables(reader)
+    return any(access.variable in reads for access in get_expr_writes(writer))
+
+
 def is_unbounded_struct_member(node: vy_ast.VyperNode) -> bool:
     """Return True if `node` is an unbounded member of a struct value, which
     a pointer cell represents (see `VenomCodegenContext.store_pointer_cell`).
@@ -204,6 +218,8 @@ class Expr:
         self.ctx = ctx
         self.builder = ctx.builder
         self.as_ptr = as_ptr  # Assignment targets must retain their original location.
+        # set by `lower()` when the result points into a struct member's payload
+        self.payload_anchor: Optional[_PayloadAnchor] = None
 
     def lower(self) -> VyperValue:
         """Dispatch to type-specific lowering method.
@@ -1028,12 +1044,16 @@ class Expr:
         if overlap and self.as_ptr:
             raise CompilerPanic("risky overlap")
 
-        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
+        base_expr = Expr(node.value, self.ctx, as_ptr=self.as_ptr)
+        base_vv = base_expr.lower()
         if overlap:
             base_vv = self.ctx.materialize_value(base_vv, base_typ)
+        else:
+            self.payload_anchor = base_expr.payload_anchor
 
         base = base_vv.operand  # Extract pointer for address math
         index = Expr(node.slice, self.ctx).lower_value()  # Need the value
+        base = self._rebase_ptr_after(base, node.slice, node.value)
 
         elem_typ = base_typ.value_type
         index_typ = node.slice._metadata["type"]
@@ -1177,7 +1197,8 @@ class Expr:
         """
         node = self.node
         assert isinstance(node, vy_ast.Subscript)
-        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
+        base_expr = Expr(node.value, self.ctx, as_ptr=self.as_ptr)
+        base_vv = base_expr.lower()
         base = base_vv.operand  # Extract pointer for address math
         base_typ = base_vv.typ
 
@@ -1192,6 +1213,8 @@ class Expr:
             return self.ctx.dynamic_tuple_frame_values(base, base_typ, annotation="subscript")[
                 index
             ]
+
+        self.payload_anchor = base_expr.payload_anchor
 
         # Propagate location from base
         data_loc = base_vv.location
@@ -1217,7 +1240,9 @@ class Expr:
         """
         node = self.node
         assert isinstance(node, vy_ast.Attribute)
-        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
+        base_expr = Expr(node.value, self.ctx, as_ptr=self.as_ptr)
+        base_vv = base_expr.lower()
+        self.payload_anchor = base_expr.payload_anchor
         base = base_vv.operand  # Extract pointer for address math
         base_typ = node.value._metadata["type"]
         attr = node.attr
@@ -1279,9 +1304,52 @@ class Expr:
             else:
                 payload = self.builder.mload(field_ptr)
             assert isinstance(payload, IRVariable)
+            if self.payload_anchor is None:
+                self.payload_anchor = _PayloadAnchor(field_ptr, payload)
+            else:
+                # the cell sits in an array element inside another member's
+                # payload; elements are only written whole (see
+                # `_modifies_unbounded_member_through_subscript`), so this
+                # payload never moves
+                assert not self.as_ptr
+                self.payload_anchor = None
             return self.ctx.dynamic_memory_value(payload, field_typ, annotation=attr)
 
         return self._make_ptr_value(field_ptr, data_loc, field_typ)
+
+    def _rebase_ptr_after(
+        self, ptr: IROperand, evaluated: vy_ast.VyperNode, derived_from: vy_ast.VyperNode
+    ) -> IROperand:
+        """Re-derive `ptr`, lowered from `derived_from`, after `evaluated` ran.
+
+        A write through a member whose payload the struct may share first
+        copies the payload into a fresh buffer and rebinds the cell (see
+        `VenomCodegenContext.materialize_owned_dynarray_cell`). If `evaluated`
+        wrote the struct, `ptr` may still point into the old buffer, so it is
+        moved to the same offset in the payload the cell holds now.
+
+        The current payload is written without materializing it again: a
+        capacity this statement set to 0 was set by copies made while
+        evaluating the statement, and those are dead by the time of the write.
+        """
+        anchor = self.payload_anchor
+        if anchor is None or not _writes_variables_read_by(evaluated, derived_from):
+            return ptr
+        payload = self.builder.mload(anchor.cell)
+        assert isinstance(payload, IRVariable)
+        self.payload_anchor = _PayloadAnchor(anchor.cell, payload)
+        return self.builder.add(payload, self.builder.sub(ptr, anchor.payload))
+
+    def rebase_after(self, vv: VyperValue, evaluated: vy_ast.VyperNode) -> VyperValue:
+        """Re-derive `vv`, the result of `lower()`, after `evaluated` ran (see
+        `_rebase_ptr_after`).
+        """
+        if self.payload_anchor is None:
+            return vv
+        ptr = self._rebase_ptr_after(vv.operand, evaluated, self.node)
+        if ptr is vv.operand:
+            return vv
+        return self._make_ptr_value(ptr, DataLocation.MEMORY, vv.typ)
 
     def _pointer_cell_struct_from_outputs(self, outs: list[IRVariable], typ: StructT) -> VyperValue:
         """Rebind the cells of a struct returned through `dret` to its packed payloads."""
@@ -1815,7 +1883,8 @@ class Expr:
         # Get the array VyperValue. The receiver is an lvalue: an unbounded
         # member on its path is written through a payload its cell owns (see
         # `_lower_struct_field`).
-        darray_vv = Expr(darray_node, self.ctx, as_ptr=True).lower()
+        darray_expr = Expr(darray_node, self.ctx, as_ptr=True)
+        darray_vv = darray_expr.lower()
         darray_ptr = darray_vv.operand
 
         # Get the element value.
@@ -1828,6 +1897,7 @@ class Expr:
         arg_vv = Expr(arg_node, self.ctx).lower()
         arg_val = self.ctx.unwrap(arg_vv)
         elem_src_typ = arg_vv.typ
+        darray_ptr = darray_expr._rebase_ptr_after(darray_ptr, arg_node, darray_node)
 
         if not elem_typ._is_prim_word:
             # Always stage complex elements through a temp buffer to guard
