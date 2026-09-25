@@ -81,17 +81,17 @@ from vyper.semantics.types.infinity import (
 from vyper.semantics.types.utils import type_from_annotation
 
 
-def _expr_contains_unbounded_sequence(node: vy_ast.VyperNode, typ: VyperType) -> bool:
+def _expr_has_unsupported_unbounded_arg(node: vy_ast.VyperNode, typ: VyperType) -> bool:
     # walk literals alongside the expected type. a literal whose shape does
     # not match `typ` is rejected later, when it is visited
     if isinstance(node, vy_ast.Tuple) and isinstance(typ, TupleT):
         return any(
-            _expr_contains_unbounded_sequence(item, item_typ)
+            _expr_has_unsupported_unbounded_arg(item, item_typ)
             for item, item_typ in zip(node.elements, typ.member_types)
         )
     if isinstance(node, vy_ast.List) and isinstance(typ, (SArrayT, DArrayT)):
         return any(
-            _expr_contains_unbounded_sequence(item, typ.value_type) for item in node.elements
+            _expr_has_unsupported_unbounded_arg(item, typ.value_type) for item in node.elements
         )
 
     try:
@@ -1120,12 +1120,12 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             for arg, arg_typ in zip(node.args, func_type.argument_types):
                 if isinstance(arg, (vy_ast.Tuple, vy_ast.List)):
-                    has_nested_unbounded = _expr_contains_unbounded_sequence(arg, arg_typ)
+                    has_unsupported_unbounded = _expr_has_unsupported_unbounded_arg(arg, arg_typ)
                 else:
                     try:
                         actual_arg_typ = get_exact_type_from_node(arg)
                     except VyperException:
-                        has_nested_unbounded = False
+                        has_unsupported_unbounded = False
                     else:
                         if arg_typ.has_wildcard:
                             # a wildcard call return resolves to the parameter
@@ -1133,9 +1133,9 @@ class ExprVisitor(VyperNodeVisitorBase):
                             # in which case it resolves to INF (see the
                             # external call handling below)
                             actual_arg_typ = actual_arg_typ.resolve_wildcard()
-                        has_nested_unbounded = not is_runtime_sizable_type(actual_arg_typ)
+                        has_unsupported_unbounded = not is_runtime_sizable_type(actual_arg_typ)
 
-                if has_nested_unbounded:
+                if has_unsupported_unbounded:
                     raise StructureException(
                         "Function arguments cannot contain unbounded sequence types "
                         "inside aggregate types",
