@@ -188,7 +188,7 @@ class Expr:
         self.node = node.reduced()
         self.ctx = ctx
         self.builder = ctx.builder
-        self.as_ptr = as_ptr  # True = return pointer, False = return value (load if needed)
+        self.as_ptr = as_ptr  # Assignment targets must retain their original location.
 
     def lower(self) -> VyperValue:
         """Dispatch to type-specific lowering method.
@@ -990,7 +990,7 @@ class Expr:
         else:  # pragma: nocover
             raise CompilerPanic(f"Unsupported subscript on {base_typ}")
 
-    def _lower_array_subscript(self, bounds_check: bool = True) -> VyperValue:
+    def _lower_array_subscript(self) -> VyperValue:
         """Lower array[index] access.
 
         Computes element pointer with bounds checking:
@@ -1031,29 +1031,28 @@ class Expr:
         elem_size = elem_typ.get_size_in(data_loc)
 
         # Bounds checking
-        if bounds_check:
-            length: IROperand = IRLiteral(0)
-            if isinstance(base_typ, DArrayT):
-                # Dynamic array: load length from first word.
-                length = self.ctx.load_word(base, data_loc)
-            else:
-                # Static array: compile-time length
-                length = IRLiteral(base_typ.count)
+        length: IROperand
+        if isinstance(base_typ, DArrayT):
+            # Dynamic array: load length from first word.
+            length = self.ctx.load_word(base, data_loc)
+        else:
+            # Static array: compile-time length
+            length = IRLiteral(base_typ.count)
 
-            # Check: not (index < 0) and not (index >= length)
-            # For signed indices, check negativity; for unsigned, skip
-            is_neg: IROperand
-            if isinstance(index_typ, IntegerT) and index_typ.is_signed:
-                is_neg = self.builder.slt(index, IRLiteral(0))
-            else:
-                is_neg = IRLiteral(0)
+        # Check: not (index < 0) and not (index >= length)
+        # For signed indices, check negativity; for unsigned, skip
+        is_neg: IROperand
+        if isinstance(index_typ, IntegerT) and index_typ.is_signed:
+            is_neg = self.builder.slt(index, IRLiteral(0))
+        else:
+            is_neg = IRLiteral(0)
 
-            # Always use unsigned comparison for out-of-bounds
-            # ge(a, b) = not lt(a, b)
-            is_oob = self.builder.iszero(self.builder.lt(index, length))
-            invalid = self.builder.or_(is_neg, is_oob)
-            valid = self.builder.iszero(invalid)
-            self.builder.assert_(valid)
+        # Always use unsigned comparison for out-of-bounds
+        # ge(a, b) = not lt(a, b)
+        is_oob = self.builder.iszero(self.builder.lt(index, length))
+        invalid = self.builder.or_(is_neg, is_oob)
+        valid = self.builder.iszero(invalid)
+        self.builder.assert_(valid)
 
         # Compute data pointer (skip length word for dynamic arrays)
         data_ptr: IROperand
@@ -1108,20 +1107,7 @@ class Expr:
         return VyperValue.from_ptr(ptr, value_typ)
 
     def _lower_keccak256_key(self, key_node: vy_ast.VyperNode) -> IROperand:
-        """Hash a bytes/string key for use as mapping key.
-
-        For bytes32: mstore to scratch, sha3
-        For bytes/string: ensure in memory, sha3 data portion
-        """
-        key_typ = key_node._metadata["type"]
-
-        if key_typ == BYTES32_T:
-            # bytes32: mstore to temp buffer and hash
-            key = Expr(key_node, self.ctx).lower_value()
-            buf = self.ctx.allocate_buffer(32, "mapping_key")
-            self.ctx.ptr_store(buf.base_ptr(), key)
-            return self.builder.sha3(buf._ptr, IRLiteral(32))
-
+        """Hash the data portion of a bytes/string mapping key."""
         # bytes/string: get pointer, hash the data portion
         # sha3 only works on memory - copy non-memory data first
         key_vv = Expr(key_node, self.ctx).lower()
@@ -1241,7 +1227,9 @@ class Expr:
 
         return self._make_ptr_value(field_ptr, data_loc, field_typ)
 
-    def _make_ptr_value(self, operand: IROperand, location: DataLocation, typ) -> VyperValue:
+    def _make_ptr_value(
+        self, operand: IROperand, location: DataLocation, typ: VyperType
+    ) -> VyperValue:
         """Create a VyperValue with Ptr for a computed pointer.
 
         For MEMORY locations, creates a dummy buffer since we don't track buffer provenance
@@ -1251,6 +1239,7 @@ class Expr:
             # Buffer requires IRVariable; memory pointers from arithmetic ops are always IRVariables
             assert isinstance(operand, IRVariable)
             if self.ctx.is_dynamic_tuple_frame_type(typ):
+                assert isinstance(typ, TupleT)
                 return self.ctx.dynamic_tuple_frame_value(operand, typ, annotation="computed_ptr")
             size = None if is_unbounded_sequence_type(typ) else typ.memory_bytes_required
             buf = Buffer(_ptr=operand, size=size, annotation="computed_ptr")
@@ -1285,9 +1274,8 @@ class Expr:
 
         b = self.builder
 
-        if not list_node.elements:
-            # Empty list: x in [] is always False, x not in [] is always True
-            return IRLiteral(0 if is_in else 1)
+        # Semantic analysis rejects membership tests against empty list literals.
+        assert list_node.elements
 
         # Evaluate ALL elements first to preserve side effects
         elem_vals = [Expr(elem, self.ctx).lower_value() for elem in list_node.elements]
@@ -1311,7 +1299,11 @@ class Expr:
         return result
 
     def _lower_array_membership(
-        self, needle: IROperand, haystack_vv: VyperValue, haystack_typ, is_in: bool
+        self,
+        needle: IROperand,
+        haystack_vv: VyperValue,
+        haystack_typ: DArrayT | SArrayT,
+        is_in: bool,
     ) -> IRVariable:
         """Lower array membership test: x in array or x not in array.
 
@@ -1580,14 +1572,9 @@ class Expr:
             arg_t = func_t.arguments[i]
 
             if pass_via_stack_dict[arg_t.name]:
-                # Stack-passed arg: use value directly
-                # For struct/tuple types that fit in one word, arg_val is a memory
-                # pointer (from unwrap), so we need to load the actual value
-                arg_op = self.ctx.unwrap(arg_val)
-                if hasattr(arg_t.typ, "tuple_items"):
-                    assert isinstance(arg_op, IRVariable)
-                    arg_op = self.builder.mload(arg_op)
-                invoke_args.append(arg_op)
+                assert arg_t.typ._is_prim_word
+                # Only primitive word types are passed on the stack.
+                invoke_args.append(self.ctx.unwrap(arg_val))
             else:
                 # Memory-passed arg: pointer to the owned snapshot staged above.
                 # Must not go through `unwrap`: a word-typed arg is memory-passed
@@ -1770,18 +1757,6 @@ class Expr:
         assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
-        if (
-            data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT)
-            and not elem_typ._is_prim_word
-            and elem_src_typ != elem_typ
-        ):
-            # Normalize source layout for locations that only understand destination layout.
-            normalized = self.ctx.new_temporary_value(elem_typ)
-            assert isinstance(normalized.operand, IRVariable)
-            self.ctx.store_memory(elem_val, normalized.operand, elem_typ, src_typ=elem_src_typ)
-            elem_val = normalized.operand
-            elem_src_typ = elem_typ
-
         elem_size = elem_typ.get_size_in(data_loc)
         capacity = darray_typ.count  # Maximum length
 
@@ -1826,10 +1801,11 @@ class Expr:
         The pointer cell carries the owned payload capacity next to the
         payload pointer (see VenomCodegenContext.store_pointer_cell). When
         the payload has spare room the element is written in place; otherwise
-        a payload of `max(2 * capacity, length + 1)` elements is allocated
-        and the old contents copied over, making repeated appends amortized
-        linear in aggregate. Non-append stores leave capacity at 0, so the
-        first append after an assignment/decode allocates the exact new size
+        the payload grows to `max(2 * capacity, length + 1)` elements, in
+        place if it is owned and ends at the FMP, otherwise by copying to a
+        new allocation. Repeated appends are amortized linear in aggregate.
+        Non-append stores leave capacity at 0, so the first append after an
+        assignment/decode allocates the exact new size
         (no 2x memory jump on a large ingested array) and doubling starts
         from there.
         """
@@ -1895,8 +1871,32 @@ class Expr:
         min_cap = self.ctx.checked_add(length, IRLiteral(1))
         new_cap = b.select(b.lt(doubled, min_cap), min_cap, doubled)
         new_size = self.ctx.dynarray_runtime_size_from_length(new_cap, darray_typ)
-        new_ptr = self.ctx.allocate_scratch(new_size)
         old_size = b.add(IRLiteral(32), data_size)
+
+        # At capacity, old_size is the full owned allocation size. Extending
+        # a top-most payload preserves all its aliases and avoids retaining
+        # a superseded buffer. Capacity zero denotes a borrowed payload and
+        # must take the copy path even if it happens to end at the FMP.
+        extend_bb = b.create_block("append_extend")
+        copy_bb = b.create_block("append_copy")
+        old_end = b.add(old_ptr, old_size)
+        fmp = b.getfmp()
+        can_extend = b.and_(b.iszero(b.iszero(capacity)), b.eq(old_end, fmp))
+        b.jnz(can_extend, extend_bb.label, copy_bb.label)
+
+        b.append_block(extend_bb)
+        b.set_block(extend_bb)
+        # Keep the captured FMP live through the branch, preventing a
+        # synthesized rewind between the top-most check and the advance.
+        new_end = self.ctx.checked_add(fmp, b.sub(new_size, old_size))
+        b.setfmp(new_end)
+        self.ctx.store_pointer_cell(cell, old_ptr, new_cap)
+        b.mstore(target_cell._ptr, old_ptr)
+        b.jmp(join_bb.label)
+
+        b.append_block(copy_bb)
+        b.set_block(copy_bb)
+        new_ptr = self.ctx.allocate_scratch(new_size)
         self.ctx.copy_memory_dynamic(new_ptr, old_ptr, old_size)
         self.ctx.store_pointer_cell(cell, new_ptr, new_cap)
         b.mstore(target_cell._ptr, new_ptr)
@@ -2177,7 +2177,7 @@ class Expr:
 
         # Return buffer location and size
         ret_ofst = buf_ptr
-        ret_len = IRLiteral(return_abi_size) if return_abi_size > 0 else IRLiteral(0)
+        ret_len = IRLiteral(return_abi_size)
 
         if use_staticcall:
             success = b.staticcall(

@@ -139,6 +139,39 @@ def flipped(
     assert c.flipped(False, b, a) == a
 
 
+def test_widened_ternary_as_for_loop_iterable(get_contract):
+    # the loop allocates new buffers while it is still reading the widened
+    # copy of the selected arm, so that copy must stay live for the whole
+    # loop
+    code = """
+stored: DynArray[Bytes[10], 3]
+
+@external
+def set(xs: DynArray[Bytes[10], 3]):
+    self.stored = xs
+
+@external
+def foo(c: bool, xs: DynArray[Bytes[512], 3]) -> DynArray[Bytes[512], 3]:
+    ys: DynArray[Bytes[512], 3] = []
+    for x: Bytes[512] in (self.stored if c else xs):
+        ys.append(x)
+    return ys
+
+@external
+def flipped(c: bool, xs: DynArray[Bytes[512], 3]) -> DynArray[Bytes[512], 3]:
+    ys: DynArray[Bytes[512], 3] = []
+    for x: Bytes[512] in (xs if c else self.stored):
+        ys.append(x)
+    return ys
+    """
+    c = get_contract(code)
+    c.set(SHORT)
+    assert c.foo(True, LONG) == SHORT
+    assert c.foo(False, LONG) == LONG
+    assert c.flipped(True, LONG) == LONG
+    assert c.flipped(False, LONG) == SHORT
+
+
 def _ternaries(ir_node, source):
     if ir_node.value == "if" and ir_node.annotation == source:
         yield ir_node

@@ -276,8 +276,8 @@ class IRnode:
                 body = self.args[4]
 
                 assert (
-                    isinstance(repeat_bound.value, int) and repeat_bound.value > 0
-                ), f"repeat bound must be a compile-time positive integer: {self.args[2]}"
+                    isinstance(repeat_bound.value, int) and repeat_bound.value >= 0
+                ), f"repeat bound must be a compile-time non-negative integer: {repeat_bound}"
                 assert repeat_count.valency == 1, repeat_count
                 assert counter_ptr.valency == 1, counter_ptr
                 assert start.valency == 1, start
@@ -289,7 +289,9 @@ class IRnode:
                 int_bound = int(repeat_bound.value)
                 self._gas += int_bound * (body.gas + 50) + 30
 
-                if repeat_count != repeat_bound:
+                if not (
+                    isinstance(repeat_count.value, int) and repeat_count.value <= repeat_bound.value
+                ):
                     # gas for assert(repeat_count <= repeat_bound)
                     self._gas += 18
 
