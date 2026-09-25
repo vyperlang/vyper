@@ -85,15 +85,17 @@ class Namespace(dict):
         super().clear()
         self.__init__()
 
+    # TODO: This should also include the location of the conflicting definition
     def validate_assignment(self, attr):
         validate_identifier(attr)
 
         if attr in self:
             prev = super().__getitem__(attr)
             prev_decl = getattr(prev, "decl_node", None)
-            msg = f"'{attr}' has already been declared"
             if prev_decl is None:
-                msg += f" as a {prev}"
+                msg = f"'{attr}' is already the name of a built-in"
+            else:
+                msg = f"'{attr}' has already been declared"
             raise NamespaceCollision(msg, prev_decl=prev_decl)
 
 
