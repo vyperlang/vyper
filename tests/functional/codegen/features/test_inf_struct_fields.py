@@ -1690,7 +1690,8 @@ MOVED_WRITES = {
     ),
     "store_index_source": (
         "TARGET.rows[self.inspect(TARGET) + TARGET.rows[0].pop() - 1] = TARGET.rows[0]",
-        ([[1], [1]], [4, 1]),
+        # the value is copied before the target's index pops from it
+        ([[1], [1, 2]], [4, 1]),
         0,
     ),
     "store_flat_index": (
@@ -1748,7 +1749,8 @@ def f() -> R:
 
 # The writes that move the payload can also pop the element the statement
 # already resolved. The target is checked again after the argument or index
-# runs, so a popped target reverts.
+# runs, so a popped target reverts; an assigned value is copied before the
+# target is evaluated, so it is the value from before the pop.
 
 SHRUNK = """
 struct S:
@@ -1776,11 +1778,11 @@ SHRINK = "b.rows.pop()[0] + self.inspect(b) + b.rows.pop()[0] + b.flat.pop()"
 SHRUNK_WRITES = {
     "append_dead_receiver": (f"b.rows[2].append({SHRINK})", None),
     "append_live_receiver": (f"b.rows[0].append({SHRINK})", ([[1, 2, 3]], [4, 1], [[0]], 0)),
-    "copy_dead_source": (f"c.rows[{SHRINK} - 3] = b.rows[2]", None),
+    "copy_dead_source": (f"c.rows[{SHRINK} - 3] = b.rows[2]", ([[1, 2]], [4, 1], [[3]], 0)),
     "copy_changed_then_popped_source": (
         "c.rows[self.inspect(b) + b.rows[1].pop() - 1 + b.rows.pop()[0] * b.rows.pop()[0]]"
         " = b.rows[1]",
-        None,
+        ([[1, 2]], [4, 1, 0], [[0, 1]], 0),
     ),
     "copy_live_source": (f"c.rows[{SHRINK} - 3] = b.rows[0]", ([[1, 2]], [4, 1], [[1, 2]], 0)),
     "pop_index": (f"v = b.rows[{SHRINK} - 3].pop()", ([[1]], [4, 1], [[0]], 2)),

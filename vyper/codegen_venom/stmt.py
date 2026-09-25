@@ -192,10 +192,11 @@ class Stmt:
         # like `c[0] = c.pop()` where RHS modifies array length.
         src_expr = Expr(node.value, self.ctx)
         src = src_expr.lower()
+        if src_expr.payload_anchor is not None:
+            # a source read through an unbounded member is copied before the
+            # target is evaluated, which may pop it or move the payload
+            src = self.ctx.materialize_value(src)
         dst_ptr = self._get_target_ptr(target)
-        # a source reached through a struct member follows a payload which
-        # evaluating the target's indices moved
-        src = src_expr.rebase_after(src, target)
         self._assign_value(dst_ptr, src, target_typ, src_node=node.value)
 
     def _assign_unbounded_sequence_local(self, var: LocalVariable, src: VyperValue, typ: VyperType):

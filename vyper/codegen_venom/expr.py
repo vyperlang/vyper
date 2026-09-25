@@ -1356,17 +1356,6 @@ class Expr:
         self.payload_anchor = _PayloadAnchor(anchor.cell, payload, anchor.subscripts)
         return b.add(payload, b.sub(ptr, anchor.payload))
 
-    def rebase_after(self, vv: VyperValue, evaluated: vy_ast.VyperNode) -> VyperValue:
-        """Re-derive `vv`, the result of `lower()`, after `evaluated` ran (see
-        `_rebase_ptr_after`).
-        """
-        if self.payload_anchor is None:
-            return vv
-        ptr = self._rebase_ptr_after(vv.operand, evaluated, self.node)
-        if ptr is vv.operand:
-            return vv
-        return self._make_ptr_value(ptr, DataLocation.MEMORY, vv.typ)
-
     def _pointer_cell_struct_from_outputs(self, outs: list[IRVariable], typ: StructT) -> VyperValue:
         """Rebind the cells of a struct returned through `dret` to its packed payloads."""
         cells = unbounded_member_cells(typ)
