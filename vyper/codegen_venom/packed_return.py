@@ -95,10 +95,12 @@ def _inline_size(ctx: VenomCodegenContext, ptr: IRVariable, typ: VyperType) -> I
     """Return the bytes the packed buffer reserves for the value itself.
 
     An array takes its runtime size, bounded or not: every reader of an
-    array stops at its length, and the caller copies a bounded array by
-    length. Anything else takes its full static size: the caller's view of a
-    struct spans every member, including the unused tail of a bounded array
-    member.
+    array stops at its length. A caller copying a bounded array copies its
+    full static size, so it also reads the bytes packed after the reservation,
+    but only into the tail past the length, which no reader sees and which is
+    overwritten element by element before the length grows over it. Anything
+    else takes its full static size: the caller's view of a struct spans every
+    member, including the unused tail of a bounded array member.
     """
     if isinstance(typ, DArrayT):
         return ctx.unchecked_dynarray_runtime_size(ptr, typ)
