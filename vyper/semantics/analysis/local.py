@@ -1148,11 +1148,8 @@ class ExprVisitor(VyperNodeVisitorBase):
             assert len(node.args) == len(func_type.arg_types)
             for arg, arg_type in zip(node.args, func_type.arg_types):
                 if isinstance(arg_type, DArrayT) and not is_bounded_length(arg_type.length):
-                    # unbounded-length arg types (e.g. the arg type of
-                    # `DynArray.extend()`) are not representable in node
-                    # metadata. substitute the arg's own type when it is
-                    # concrete, else the dst type (e.g. `x.extend([])`, or
-                    # `x.extend(staticcall y.bar())` with unbounded return).
+                    # derive a conrete length if not done yet
+                    # this currently catches `DynArray.extend(...)` only
                     arg_type = next(
                         (
                             t
