@@ -309,6 +309,46 @@ def bar() -> uint256:
     assert c.foo() == 7
 
 
+_MEMBER_CALLS = [("append(5)", [[[7, 5], [8]], [[9], [2]]]), ("pop()", [[[], [8]], [[9], [2]]])]
+
+
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+@pytest.mark.parametrize("call,expected", _MEMBER_CALLS)
+def test_array_index_overlap_member_call_target(get_contract, call, expected):
+    code = f"""
+@external
+def foo() -> DynArray[DynArray[DynArray[uint256, 3], 3], 3]:
+    x: DynArray[DynArray[DynArray[uint256, 3], 3], 3] = [[[7], [8]], [[9], [2]]]
+    x[0][convert(sha256(convert(msg.sender, bytes32)), uint256) % 1].{call}
+    return x
+    """
+    c = get_contract(code)
+    assert c.foo() == expected
+
+
+# to fix in future release
+@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+@pytest.mark.parametrize("call,expected", _MEMBER_CALLS)
+def test_array_index_overlap_member_call_target_storage(get_contract, call, expected):
+    code = f"""
+a: DynArray[DynArray[DynArray[uint256, 3], 3], 3]
+
+@external
+def foo() -> DynArray[DynArray[DynArray[uint256, 3], 3], 3]:
+    self.a = [[[7], [8]], [[9], [1]]]
+    self.a[0][self.idx()].{call}
+    return self.a
+
+@internal
+def idx() -> uint256:
+    self.a[1][1] = [2]
+    return 0
+    """
+    c = get_contract(code)
+    assert c.foo() == expected
+
+
 # TODO: When it also raises with venom, move this back to analysis
 def test_index_empty_list_variable_index(request, env, tx_failed, experimental_codegen):
     code = """

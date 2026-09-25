@@ -1725,8 +1725,9 @@ class Expr:
         if is_unbounded_dynarray_type(darray_typ):
             return self._lower_unbounded_dynarray_append()
 
-        # Get the array VyperValue
-        darray_vv = Expr(darray_node, self.ctx).lower()
+        # The array is mutated in place, so lower it as a target: a
+        # snapshot of it would silently drop the write.
+        darray_vv = Expr(darray_node, self.ctx, as_ptr=True).lower()
         darray_ptr = darray_vv.operand
 
         # Get the element value.
@@ -1933,8 +1934,9 @@ class Expr:
         darray_typ = darray_node._metadata["type"]
         elem_typ = darray_typ.value_type
 
-        # Get the array VyperValue
-        darray_vv = Expr(darray_node, self.ctx).lower()
+        # The array is mutated in place, so lower it as a target: a
+        # snapshot of it would silently drop the write.
+        darray_vv = Expr(darray_node, self.ctx, as_ptr=True).lower()
         darray_ptr = darray_vv.operand
 
         # Get location from VyperValue
