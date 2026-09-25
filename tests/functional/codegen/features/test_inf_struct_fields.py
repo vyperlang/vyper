@@ -1818,6 +1818,46 @@ def f() -> R:
     assert c.f() == (SHRUNK_START, *expected)
 
 
+# An index that pops the array holding the indexed member reads the member
+# as it was before the pop, as for a bounded member.
+
+POPPED_HOLDER = """
+struct T:
+    xs: DynArray[uint256, INF]
+    n: uint256
+
+struct S:
+    items: DynArray[T, INF]
+"""
+
+POPPED_HOLDER_READS = {
+    "local_array": """
+    ts: DynArray[T, 3] = [T(xs=[4, 5], n=1)]
+    return ts[0].xs[ts.pop().n]""",
+    "unbounded_local_array": """
+    ts: DynArray[T, INF] = [T(xs=[4, 5], n=1)]
+    return ts[0].xs[ts.pop().n]""",
+    "member_array": """
+    b: S = S(items=[T(xs=[4, 5], n=1)])
+    return b.items[0].xs[b.items.pop().n]""",
+    "member_array_shared": """
+    a: S = S(items=[T(xs=[4, 5], n=1)])
+    b: S = a
+    return b.items[0].xs[b.items.pop().n] + len(a.items) * 10""",
+}
+
+
+@pytest.mark.parametrize("case", list(POPPED_HOLDER_READS))
+def test_index_pops_array_holding_member(get_contract, case):
+    code = POPPED_HOLDER + f"""
+@external
+def f() -> uint256:{POPPED_HOLDER_READS[case]}
+    """
+
+    expected = 15 if case == "member_array_shared" else 5
+    assert get_contract(code).f() == expected
+
+
 # empty(). Every cell of the zeroed struct points at its own empty payload,
 # the same 32-byte zero length word an empty unbounded local uses.
 

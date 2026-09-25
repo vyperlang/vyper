@@ -1050,7 +1050,12 @@ class Expr:
         base_expr = Expr(node.value, self.ctx, as_ptr=self.as_ptr)
         base_vv = base_expr.lower()
         if overlap:
-            base_vv = self.ctx.materialize_value(base_vv, base_typ)
+            # an unbounded base here is a member of an array element, which
+            # is never written in place (see
+            # `_modifies_unbounded_member_through_subscript`): its payload
+            # stays as it is while the index runs
+            if not is_unbounded_sequence_type(base_typ):
+                base_vv = self.ctx.materialize_value(base_vv, base_typ)
         else:
             self.payload_anchor = base_expr.payload_anchor
 
