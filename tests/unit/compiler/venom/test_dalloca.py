@@ -1706,6 +1706,96 @@ def test_getfmp_capture_allows_reclaim_after_death(env):
     assert _word(out, 1) == 5
 
 
+def test_in_place_growth_preserves_extent_and_reclaims_later_scratch(env):
+    # the growth capture (%end/%grown) must not veto reclaiming the later
+    # scratch %tmp: %q reuses its address while the grown %tail stays intact
+    out = _run_program(
+        env,
+        """
+        function main {
+            main:
+                %p = dalloca 32
+                mstore %p, 5
+                %end = getfmp
+                %grown = add %end, 32
+                setfmp %grown
+                %tail = add %p, 32
+                mstore %tail, 7
+                %tmp = dalloca 32
+                mstore %tmp, 8
+                %v = mload %tmp
+                %q = dalloca 32
+                mstore %q, 9
+                %w = mload %tail
+                mstore 0, %q
+                mstore 32, %v
+                mstore 64, %w
+                return 0, 96
+        }
+        """,
+    )
+    assert _word(out, 0) == 64
+    assert _word(out, 1) == 8
+    assert _word(out, 2) == 7
+
+
+def test_in_place_growth_keeps_surrounding_capture_live(env):
+    # growth advances the FMP through its own capture (%fmp). The
+    # surrounding anchor still addresses memory above the write, so it
+    # keeps vetoing: %p is not reclaimed under %alias.
+    out = _run_program(
+        env,
+        """
+        function main {
+            main:
+                %anchor = getfmp
+                %fmp = getfmp
+                %end = add %fmp, 32
+                setfmp %end
+                %p = dalloca 32
+                mstore %p, 5
+                %q = dalloca 32
+                mstore %q, 9
+                %alias = add %anchor, 32
+                %v = mload %alias
+                mstore 0, %q
+                mstore 32, %v
+                return 0, 64
+        }
+        """,
+    )
+    assert _word(out, 0) == 64  # %q did not reuse %p's address
+    assert _word(out, 1) == 5  # the anchor still sees %p's data
+
+
+def test_setfmp_closes_own_capture_only(env):
+    # a setfmp whose operand derives from the capture closes it: the anchor
+    # no longer vetoes, so the dead %p is reclaimed and %q reuses its address
+    out = _run_program(
+        env,
+        """
+        function main {
+            main:
+                %anchor = getfmp
+                %end = add %anchor, 32
+                mstore %anchor, 7
+                setfmp %end
+                %p = dalloca 32
+                mstore %p, 5
+                %v = mload %p
+                %q = dalloca 32
+                mstore %q, 9
+                %w = mload %anchor
+                mstore 0, %q
+                mstore 32, %w
+                return 0, 64
+        }
+        """,
+    )
+    assert _word(out, 0) == 32  # %p reclaimed; %q reuses its address
+    assert _word(out, 1) == 7
+
+
 def test_escaped_getfmp_capture_pins_reclaim(env):
     # the capture escapes SSA tracking (stored to memory as a value), so
     # derived pointers can re-enter where liveness cannot see them: the

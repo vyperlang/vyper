@@ -190,7 +190,7 @@ class Stmt:
         self.ctx.store_pointer_cell(var.value.operand, value.operand, IRLiteral(0))
 
     def _assign_value(
-        self, dst_ptr: Ptr, src: VyperValue, typ, *, src_node: vy_ast.VyperNode
+        self, dst_ptr: Ptr, src: VyperValue, typ: VyperType, *, src_node: vy_ast.VyperNode
     ) -> None:
         """Assign a VyperValue to a destination pointer.
 
@@ -208,7 +208,7 @@ class Stmt:
         else:
             self._copy_complex_type(dst_ptr, src, typ)
 
-    def _copy_complex_type(self, dst_ptr: Ptr, src_vv: VyperValue, typ) -> None:
+    def _copy_complex_type(self, dst_ptr: Ptr, src_vv: VyperValue, typ: VyperType) -> None:
         """Copy complex type into `dst_ptr`.
 
         Materializes `src_vv` to memory (via unwrap), then stages through a
@@ -231,7 +231,9 @@ class Stmt:
 
         self._store_complex_type(dst_ptr, src, typ, src_typ)
 
-    def _store_complex_type(self, dst_ptr: Ptr, src: IROperand, typ, src_typ) -> None:
+    def _store_complex_type(
+        self, dst_ptr: Ptr, src: IROperand, typ: VyperType, src_typ: VyperType
+    ) -> None:
         """Store complex value from memory `src` into `dst_ptr` (no overlap guard).
 
         Only called from `_copy_complex_type` which handles staging when needed.
@@ -750,7 +752,8 @@ class Stmt:
                     raise CompilerPanic("range() with non-literal args requires bound=")
 
         # Allocate counter variable in memory for user access
-        counter_local = self.ctx.new_variable(varname, target_type, mutable=False)
+        counter_value = self.ctx.new_temporary_value(target_type, annotation=varname)
+        assert isinstance(counter_value.operand, IRVariable)
         self.ctx.forvars[varname] = True
 
         # Create blocks
@@ -796,10 +799,11 @@ class Stmt:
 
         # Set up loop targets for break/continue using context manager
         with self.ctx.loop_scope(exit_block.label, incr_block.label):
+            self.ctx.register_variable(varname, target_type, counter_value.operand, mutable=False)
             # Body block: store counter to user var, execute body
             self.builder.append_block(body_block)
             self.builder.set_block(body_block)
-            self.ctx.ptr_store(counter_local.value.ptr(), counter_var)
+            self.ctx.ptr_store(counter_value.ptr(), counter_var)
             self._lower_body(node.body)
             body_finish = self.builder.current_block
             if not body_finish.is_terminated:
@@ -866,8 +870,8 @@ class Stmt:
         elem_size = array_typ.value_type.get_size_in(location)
 
         # Allocate loop variable (copy of element, not reference)
-        item_local = self.ctx.new_variable(varname, target_type, mutable=False)
-        assert isinstance(item_local.value.operand, IRVariable)
+        item_value = self.ctx.new_temporary_value(target_type, annotation=varname)
+        assert isinstance(item_value.operand, IRVariable)
         self.ctx.forvars[varname] = True
 
         # Create blocks
@@ -901,6 +905,7 @@ class Stmt:
 
         # Set up loop targets
         with self.ctx.loop_scope(exit_block.label, incr_block.label):
+            self.ctx.register_variable(varname, target_type, item_value.operand, mutable=False)
             # Body block: compute element address, copy to loop var
             self.builder.append_block(body_block)
             self.builder.set_block(body_block)
@@ -924,7 +929,7 @@ class Stmt:
             # sources, the linear copy is safe for flat types since the
             # source is smaller than the destination buffer. Only the
             # memory path uses type-aware copying (store_memory).
-            dst = item_local.value.operand
+            dst = item_value.operand
             if is_slot_addressed:
                 # Word-addressed (STORAGE, TRANSIENT)
                 self.ctx.slot_to_memory(elem_addr, dst, elem_size, location)
@@ -1123,7 +1128,10 @@ class Stmt:
         self.builder.jmp(exit_label)
 
     def _lower_internal_return(
-        self, ret_val: Optional[IROperand], func_t: ContractFunctionT, ret_src_typ=None
+        self,
+        ret_val: Optional[IROperand],
+        func_t: ContractFunctionT,
+        ret_src_typ: Optional[VyperType] = None,
     ) -> None:
         """Lower internal function return.
 
@@ -1157,6 +1165,7 @@ class Stmt:
                 return
 
             assert returns_count == 0
+            assert ret_src_typ is not None
             if self.ctx.unbounded_dynarray_element_layout_differs(ret_typ, ret_src_typ):
                 # dret passes the value with the declared element stride (the
                 # caller reads it as ret_typ), so widened elements (e.g.
@@ -1311,7 +1320,10 @@ class Stmt:
         self.builder.return_(buf_ptr, encoded_len)
 
     def _lower_external_return(
-        self, ret_val: Optional[IROperand], func_t: ContractFunctionT, ret_src_typ=None
+        self,
+        ret_val: Optional[IROperand],
+        func_t: ContractFunctionT,
+        ret_src_typ: Optional[VyperType] = None,
     ) -> None:
         """Lower external function return.
 
@@ -1515,7 +1527,7 @@ class Stmt:
 
         self.builder.log(len(topics), abi_buf_ptr, encoded_len, *topics)
 
-    def _encode_log_topic(self, val: IROperand, typ) -> IROperand:
+    def _encode_log_topic(self, val: IROperand, typ: VyperType) -> IROperand:
         """Encode a single indexed topic value.
 
         Per Solidity ABI spec for indexed event encoding:
