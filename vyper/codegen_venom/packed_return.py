@@ -30,7 +30,7 @@ from vyper.semantics.types import (
     is_unbounded_bytestring_type,
     is_unbounded_dynarray_type,
     is_unbounded_sequence_type,
-    member_slot_size,
+    struct_member_offsets,
     type_contains_unbounded_sequence,
 )
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
@@ -53,8 +53,7 @@ def _for_each_cell(
     b = ctx.builder
 
     if isinstance(typ, StructT):
-        offset = 0
-        for member_t in typ.member_types.values():
+        for _, offset, member_t in struct_member_offsets(typ):
             if type_contains_unbounded_sequence(member_t):
                 member_ptr = b.add(ptr, IRLiteral(offset))
                 assert isinstance(member_ptr, IRVariable)
@@ -62,7 +61,6 @@ def _for_each_cell(
                     visit(member_ptr, member_t)
                 else:
                     _for_each_cell(ctx, member_ptr, member_t, visit)
-            offset += member_slot_size(member_t)
         return
 
     if isinstance(typ, DArrayT):

@@ -47,7 +47,7 @@ from vyper.semantics.types import (
     is_type_t,
     is_unbounded_dynarray_type,
     is_unbounded_sequence_type,
-    member_slot_size,
+    struct_member_offsets,
     type_contains_unbounded_sequence,
     unbounded_member_cells,
 )
@@ -1270,16 +1270,16 @@ class Expr:
         field_index = attrs.index(attr)
         field_typ = base_typ.member_types[attr]
 
-        offset = 0
-        for i in range(field_index):
-            t = base_typ.member_types[attrs[i]]
-            if is_unbounded_sequence_type(t):
+        if data_loc == DataLocation.MEMORY:
+            offset = struct_member_offsets(base_typ)[field_index][1]
+        else:
+            offset = 0
+            for i in range(field_index):
+                t = base_typ.member_types[attrs[i]]
                 # only memory holds pointer cells; every word-addressed
                 # location rejects INF (the module variable gate in
                 # `semantics/analysis/module.py`)
-                assert data_loc == DataLocation.MEMORY
-                offset += member_slot_size(t)
-            else:
+                assert not is_unbounded_sequence_type(t)
                 offset += t.get_size_in(data_loc)
 
         return self.builder.add(base, IRLiteral(offset)), data_loc, field_typ
@@ -1812,9 +1812,7 @@ class Expr:
             member_vals[kwarg.arg] = kwarg.value
 
         # Store each field at its correct offset (in struct field order)
-        offset = 0
-        for field_name in struct_t.tuple_keys():
-            field_typ = struct_t.member_types[field_name]
+        for field_name, offset, field_typ in struct_member_offsets(struct_t):
             field_vv = Expr(member_vals[field_name], self.ctx).lower()
 
             dst = self.builder.add(val.operand, IRLiteral(offset))
@@ -1830,7 +1828,6 @@ class Expr:
                 self.ctx.store_pointer_cell(dst, payload.operand, IRLiteral(0))
             else:
                 self.ctx.store_vyper_value(field_vv, dst, field_typ)
-            offset += member_slot_size(field_typ)
 
         return val
 

@@ -206,19 +206,28 @@ def member_slot_size(typ) -> int:
     return typ.size_in_bytes
 
 
+def struct_member_offsets(struct_t) -> list[tuple[str, int, Any]]:
+    """Return `(name, byte offset, member type)` for every member of a struct
+    in memory, where an unbounded member takes a pointer cell."""
+    ret = []
+    offset = 0
+    for name, member_t in struct_t.member_types.items():
+        ret.append((name, offset, member_t))
+        offset += member_slot_size(member_t)
+    return ret
+
+
 def unbounded_member_cells(struct_t) -> list[tuple[int, Any]]:
     """Return `(byte offset, member type)` for every pointer cell in a struct.
 
     Cells of nested structs are included at their offset in the outer struct.
     """
     cells = []
-    offset = 0
-    for member_t in struct_t.member_types.values():
+    for _, offset, member_t in struct_member_offsets(struct_t):
         if is_unbounded_sequence_type(member_t):
             cells.append((offset, member_t))
         elif getattr(member_t, "typeclass", None) == "struct":
             cells.extend((offset + off, t) for off, t in unbounded_member_cells(member_t))
-        offset += member_slot_size(member_t)
     return cells
 
 
