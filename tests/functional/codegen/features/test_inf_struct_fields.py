@@ -1858,6 +1858,43 @@ def f() -> uint256:{POPPED_HOLDER_READS[case]}
     assert get_contract(code).f() == expected
 
 
+# A whole struct assigned into an array is copied before the target's index
+# runs, so it keeps the members the index pops from.
+
+WHOLE_SOURCES = {"local": "b", "nested": "w.inner", "ternary": "b if flag else c"}
+
+
+@pytest.mark.parametrize("source", list(WHOLE_SOURCES))
+def test_whole_struct_source_copied_before_index_pops(get_contract, source):
+    src = WHOLE_SOURCES[source]
+    popped = src.split(" ")[0]
+    code = f"""
+struct S:
+    xs: DynArray[uint256, INF]
+    n: uint256
+
+struct W:
+    tag: uint256
+    inner: S
+
+@internal
+def inspect(s: S) -> uint256:
+    return 0
+
+@external
+def f(flag: bool) -> (DynArray[uint256, INF], DynArray[uint256, INF], DynArray[uint256, INF]):
+    a: S = S(xs=[1, 2, 3], n=5)
+    b: S = a
+    c: S = S(xs=[9], n=0)
+    w: W = W(tag=0, inner=a)
+    sarr: DynArray[S, 3] = [c, c]
+    sarr[self.inspect({popped}) + {popped}.xs.pop() - 3] = {src}
+    return sarr[0].xs, {popped}.xs, a.xs
+    """
+
+    assert get_contract(code).f(True) == ([1, 2, 3], [1, 2], [1, 2, 3])
+
+
 # empty(). Every cell of the zeroed struct points at its own empty payload,
 # the same 32-byte zero length word an empty unbounded local uses.
 

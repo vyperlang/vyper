@@ -192,9 +192,10 @@ class Stmt:
         # like `c[0] = c.pop()` where RHS modifies array length.
         src_expr = Expr(node.value, self.ctx)
         src = src_expr.lower()
-        if src_expr.payload_anchor is not None:
-            # a source read through an unbounded member is copied before the
-            # target is evaluated, which may pop it or move the payload
+        if src_expr.payload_anchor is not None or type_contains_unbounded_sequence(src.typ):
+            # a source that holds or is read through an unbounded member is
+            # copied before the target is evaluated, which may pop from it or
+            # move its payloads
             src = self.ctx.materialize_value(src)
         dst_ptr = self._get_target_ptr(target)
         self._assign_value(dst_ptr, src, target_typ, src_node=node.value)
