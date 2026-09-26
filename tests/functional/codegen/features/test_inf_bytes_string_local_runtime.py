@@ -5,7 +5,6 @@ import pytest
 
 from tests.evm_backends.abi import abi_decode, abi_encode
 from tests.evm_backends.base_env import EvmError, ExecutionReverted
-from tests.utils import deploy_raw_returner as _deploy_raw_returner
 from vyper.compiler import compile_code
 from vyper.exceptions import StructureException
 from vyper.utils import EIP_3860_LIMIT, keccak256, method_id
@@ -21,6 +20,16 @@ def _deploy_with_ctor_data(env, code, ctor_data, settings):
     out = compile_code(code, output_formats=["abi", "bytecode"], settings=settings)
     initcode = bytes.fromhex(out["bytecode"].removeprefix("0x")) + ctor_data
     return env.deploy(out["abi"], initcode)
+
+
+def _deploy_raw_returner(env, payload):
+    assert len(payload) < 256
+    runtime = bytes(
+        [0x60, len(payload), 0x60, 12, 0x60, 0, 0x39, 0x60, len(payload), 0x60, 0, 0xF3]
+    )
+    runtime += payload
+    initcode = bytes.fromhex(f"61{len(runtime):04x}3d81600a3d39f3") + runtime
+    return env.deploy([], initcode)
 
 
 def _call(env, contract, signature, args_schema=None, args=None):
