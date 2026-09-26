@@ -6,7 +6,14 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, DynamicMemoryAnalysis, IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGGlobalAnalysis
 from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
+from vyper.venom.basicblock import (
+    IRBasicBlock,
+    IRInstruction,
+    IRLabel,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
 from vyper.venom.call_layout import InvokeLayout, has_dret
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
@@ -131,6 +138,7 @@ class FunctionInlinerPass(IRGlobalPass):
         # pre-lowering) + target-as-return-pc: identical to the old
         # operands[1:] + [operands[0]] reorder for raw IR.
         binding_ops = InvokeLayout(self.ctx, call_site).bound_params
+        binding_ops = (*binding_ops[:-1], IRLiteral(0))
 
         for bb in func_copy.get_basic_blocks():
             bb.parent = call_site_func
