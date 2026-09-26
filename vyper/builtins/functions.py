@@ -81,8 +81,7 @@ from vyper.semantics.types import (
     TupleT,
     _BytestringT,
     is_bounded_length,
-    is_unbounded_sequence_type,
-    type_contains_nested_unbounded_sequence,
+    is_runtime_sizable_type,
     type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.shortcuts import BYTES4_T, BYTES32_T, INT256_T, UINT8_T, UINT256_T
@@ -1659,7 +1658,7 @@ class RawCreate(_CreateBase):
         if is_bounded_length(bytecode_type.length) and bytecode_type.length > EIP_3860_LIMIT:
             raise TypeMismatch(f"initcode length cannot exceed {EIP_3860_LIMIT}", node.args[0])
         ctor_arg_types = [get_exact_type_from_node(arg).resolve_wildcard() for arg in node.args[1:]]
-        if any(type_contains_nested_unbounded_sequence(t) for t in ctor_arg_types):
+        if not all(is_runtime_sizable_type(t) for t in ctor_arg_types):
             raise StructureException(
                 "constructor arguments cannot contain nested unbounded sequence types", node
             )
@@ -1842,7 +1841,7 @@ class CreateFromBlueprint(_CreateBase):
         if raw_args and not (len(ctor_arg_types) == 1 and isinstance(ctor_arg_types[0], BytesT)):
             raise StructureException("raw_args must be used with exactly 1 bytes argument", node)
 
-        if any(type_contains_nested_unbounded_sequence(t) for t in ctor_arg_types):
+        if not all(is_runtime_sizable_type(t) for t in ctor_arg_types):
             raise StructureException(
                 "constructor arguments cannot contain nested unbounded sequence types", node
             )
@@ -2240,7 +2239,7 @@ class Print(BuiltinFunctionT):
             # touch abi_type to reject non-encodable argument types
             _ = arg_t.abi_type
 
-            if type_contains_nested_unbounded_sequence(arg_t):
+            if not is_runtime_sizable_type(arg_t):
                 raise StructureException(
                     "print arguments cannot contain unbounded sequence types "
                     "inside aggregate types",
@@ -2368,7 +2367,7 @@ class ABIEncode(BuiltinFunctionT):
 
         if any(type_contains_unbounded_sequence(t) for t in arg_types):
             for arg, arg_t in zip(node.args, arg_types):
-                if type_contains_nested_unbounded_sequence(arg_t):
+                if not is_runtime_sizable_type(arg_t):
                     raise StructureException(
                         "abi_encode arguments cannot contain unbounded sequence types "
                         "inside aggregate types",
@@ -2463,13 +2462,12 @@ class ABIDecode(BuiltinFunctionT):
 
         data_type = get_exact_type_from_node(node.args[0])
         output_type = type_from_annotation(node.args[1])
-        if type_contains_unbounded_sequence(output_type):
-            if not is_unbounded_sequence_type(output_type):
-                raise StructureException(
-                    "abi_decode output type cannot contain unbounded sequence types "
-                    "inside aggregate types",
-                    node.args[1],
-                )
+        if not is_runtime_sizable_type(output_type):
+            raise StructureException(
+                "abi_decode output type cannot contain unbounded sequence types "
+                "inside aggregate types",
+                node.args[1],
+            )
 
         return [data_type, TYPE_T(output_type)]
 

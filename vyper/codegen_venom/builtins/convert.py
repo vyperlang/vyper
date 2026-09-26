@@ -19,6 +19,7 @@ from vyper import ast as vy_ast
 from vyper.codegen_venom.buffer import Buffer
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic, InvalidLiteral, TypeMismatch
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,
     BoolT,
@@ -51,12 +52,9 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand | Vy
     in_t = arg_node._metadata["type"]
     out_t = node.args[1]._metadata["type"].typedef
 
-    # For bytestrings we need pointer, for primitives we need value
-    if isinstance(in_t, _BytestringT):
-        arg_vv = Expr(arg_node, ctx).lower()
-        arg = ctx.unwrap(arg_vv)  # Copies storage/transient to memory
-    else:
-        arg = Expr(arg_node, ctx).lower_value()
+    # Unwrap loads primitive words and copies storage/transient bytestrings.
+    arg_vv = Expr(arg_node, ctx).lower()
+    arg = ctx.unwrap(arg_vv)
 
     # Dispatch based on output type
     if out_t == BoolT():
@@ -71,10 +69,10 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand | Vy
         return _to_bytes_m(arg, in_t, out_t, arg_node, ctx)
     elif isinstance(out_t, BytesT):
         ret = _to_bytes(arg, in_t, out_t, arg_node, ctx)
-        return _bytestring_convert_value(ret, out_t, ctx)
+        return _bytestring_convert_value(ret, out_t, ctx, arg_vv)
     elif isinstance(out_t, StringT):
         ret = _to_string(arg, in_t, out_t, arg_node, ctx)
-        return _bytestring_convert_value(ret, out_t, ctx)
+        return _bytestring_convert_value(ret, out_t, ctx, arg_vv)
     elif isinstance(out_t, FlagT):
         return _to_flag(arg, in_t, out_t, ctx)
     else:  # pragma: nocover
@@ -82,13 +80,16 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand | Vy
 
 
 def _bytestring_convert_value(
-    ptr: IROperand, out_t: _BytestringT, ctx: VenomCodegenContext
+    ptr: IROperand, out_t: _BytestringT, ctx: VenomCodegenContext, source: VyperValue
 ) -> VyperValue:
     assert isinstance(ptr, IRVariable)
+    # A bytestring pointer cast preserves its source reference; unwrap has
+    # already copied sources from other locations into independent memory.
+    reference = source.reference if source.location == DataLocation.MEMORY else None
     if is_unbounded_bytestring_type(out_t):
-        return ctx.dynamic_memory_value(ptr, out_t, annotation="convert")
+        return ctx.dynamic_memory_value(ptr, out_t, annotation="convert").with_reference(reference)
     buf = Buffer(_ptr=ptr, size=out_t.memory_bytes_required, annotation="convert")
-    return VyperValue.from_ptr(buf.base_ptr(), out_t)
+    return VyperValue.from_ptr(buf.base_ptr(), out_t, reference)
 
 
 def _get_folded_value(node: vy_ast.VyperNode):

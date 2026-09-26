@@ -19,11 +19,13 @@ from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import (
     DArrayT,
     SArrayT,
+    StructT,
     TupleT,
     VyperType,
     _BytestringT,
     is_unbounded_bytestring_type,
-    is_unbounded_dynarray_type,
+    is_unbounded_sequence_type,
+    struct_member_offsets,
     type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -40,8 +42,10 @@ def runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IR
     Bounded types are sized by their static bound; unbounded bytestrings and
     unbounded DynArrays with ABI-static elements are exact; unbounded DynArrays
     with ABI-dynamic elements are bounded per element (see
-    `VenomCodegenContext.dynarray_runtime_abi_size`). Use it only to size
-    buffers; the encoded length is the encoder's return value.
+    `VenomCodegenContext.dynarray_runtime_abi_size`); structs with INF members
+    and DynArrays of such structs are summed member by member and element by
+    element. Use it only to size buffers; the encoded length is the encoder's
+    return value.
     """
     typ = arg_vv.typ
     if isinstance(typ, _BytestringT):
@@ -50,10 +54,14 @@ def runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IR
         if is_unbounded_bytestring_type(typ):
             return ctx.bytestring_runtime_size(ptr)
         return ctx.unchecked_bytestring_runtime_size(ptr)
-    if isinstance(typ, DArrayT) and is_unbounded_dynarray_type(typ):
+    if isinstance(typ, DArrayT) and type_contains_unbounded_sequence(typ):
         ptr = ctx.unwrap(arg_vv)
         assert isinstance(ptr, IRVariable)
-        return ctx.dynarray_runtime_abi_size(ptr, typ)
+        if not type_contains_unbounded_sequence(typ.value_type):
+            return ctx.dynarray_runtime_abi_size(ptr, typ)
+        return _runtime_abi_size_for_dynarray(ctx, ptr, typ)
+    if isinstance(typ, StructT) and type_contains_unbounded_sequence(typ):
+        return _runtime_abi_size_for_struct(ctx, arg_vv, typ)
     return IRLiteral(typ.abi_type.size_bound())
 
 
@@ -68,6 +76,64 @@ def _abi_size_add(
         return ctx.checked_add(left, right), True
 
     return ctx.builder.add(left, right), False
+
+
+def _runtime_abi_size_for_struct(
+    ctx: VenomCodegenContext, arg_vv: VyperValue, typ: StructT
+) -> IROperand:
+    """Return a runtime bound on the ABI-encoded size of a struct with INF members.
+
+    `abi_type.size_bound()` multiplies by the element bound, which is INF
+    here. The head is still a compile-time constant, so only the members that
+    land in the tail have to be measured at runtime.
+    """
+    ptr = ctx.unwrap(arg_vv)
+    assert isinstance(ptr, IRVariable)
+
+    size: IROperand = IRLiteral(typ.abi_type.static_size())
+    size_unbounded = False
+    for i, (_key, member_t) in enumerate(typ.tuple_items()):
+        if not member_t.abi_type.is_dynamic():
+            continue
+        member_ptr, _ = _get_element_ptr(ctx, ptr, IRLiteral(i), typ)
+        assert isinstance(member_ptr, IRVariable)
+        member_vv = ctx.dynamic_memory_value(member_ptr, member_t)
+        size, size_unbounded = _abi_size_add(
+            ctx,
+            size,
+            runtime_abi_size_for_arg(ctx, member_vv),
+            size_unbounded,
+            type_contains_unbounded_sequence(member_t),
+        )
+    return size
+
+
+def _runtime_abi_size_for_dynarray(
+    ctx: VenomCodegenContext, ptr: IRVariable, typ: DArrayT
+) -> IROperand:
+    """Return a runtime bound on the ABI-encoded size of a DynArray whose elements hold INF.
+
+    The elements keep a compile-time stride (their INF members are pointer
+    cells) but no compile-time encoded size, so each one is sized in turn.
+    """
+    b = ctx.builder
+    elem_t = typ.value_type
+    elem_abi_t = elem_t.abi_type
+    assert elem_abi_t.is_dynamic()
+
+    length = b.mload(ptr)
+    # the head: the length word and one offset word per element
+    head = ctx.checked_mul(length, IRLiteral(elem_abi_t.embedded_static_size()))
+    size = b.assign(ctx.checked_add(IRLiteral(32), head))
+    data = b.add(ptr, IRLiteral(32))
+
+    def add_element_size(counter: IRVariable) -> None:
+        elem_ptr = b.add(data, b.mul(counter, IRLiteral(elem_t.memory_bytes_required)))
+        elem_vv = ctx.dynamic_memory_value(elem_ptr, elem_t)
+        b.assign_to(ctx.checked_add(size, runtime_abi_size_for_arg(ctx, elem_vv)), size)
+
+    ctx.emit_counted_loop(length, add_element_size, "dyn_abi_size")
+    return size
 
 
 def runtime_abi_size_for_encode(
@@ -187,18 +253,27 @@ def _get_element_ptr(
         # Calculate offset: sum of preceding element sizes
         idx = key.value
 
-        items = parent_typ.tuple_items()  # type: ignore[attr-defined]
-        offset = 0
-        for i, (_k, t) in enumerate(items):
-            if i == idx:
-                elem_typ = t
-                break
-            offset += t.memory_bytes_required
-        else:  # pragma: nocover
-            raise CompilerPanic(f"Tuple index {idx} out of range")
+        # Dynamic tuples reach the encoder one member at a time; only a
+        # struct has pointer cells in its inline memory layout.
+        is_struct = isinstance(parent_typ, StructT)
+        if is_struct:
+            _, offset, elem_typ = struct_member_offsets(parent_typ)[idx]
+        else:
+            items = parent_typ.tuple_items()  # type: ignore[attr-defined]
+            offset = 0
+            for i, (_k, elem_typ) in enumerate(items):
+                if i == idx:
+                    break
+                offset += elem_typ.memory_bytes_required
+            else:  # pragma: nocover
+                raise CompilerPanic(f"Tuple index {idx} out of range")
 
         elem_ptr: IROperand
         elem_ptr = b.add(parent_ptr, IRLiteral(offset))
+        if is_struct and is_unbounded_sequence_type(elem_typ):
+            # what gets encoded is the payload the cell points at
+            assert isinstance(elem_ptr, IRVariable)
+            elem_ptr = b.mload(elem_ptr)
         return elem_ptr, elem_typ
 
     elif isinstance(parent_typ, SArrayT):

@@ -46,6 +46,7 @@ from vyper.semantics.types import (
     is_type_t,
     is_unbounded_dynarray_type,
     is_unbounded_sequence_type,
+    struct_member_offsets,
     type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.base import VOID_TYPE
@@ -63,9 +64,16 @@ from .abi import (
     runtime_abi_size_for_encode,
 )
 from .buffer import Buffer, Ptr
-from .calling_convention import pass_via_stack, returns_dynamic_count, returns_stack_count
+from .calling_convention import (
+    pass_via_stack,
+    returns_dynamic_count,
+    returns_stack_count,
+    uses_packed_return,
+)
 from .context import VenomCodegenContext
 from .eval_order import later_expressions_can_mutate_memory_or_storage
+from .packed_return import rebase_packed_value
+from .reference import PayloadAnchor, ValueReference, merge_references
 from .value import VyperValue
 
 
@@ -162,17 +170,15 @@ def _subscript_read_write_overlap(
     return _contains_risky_call(index_node)
 
 
-def _subscript_base_length_can_stale(base_node: vy_ast.VyperNode) -> bool:
-    # A pointer which passes through a dynamic array element anywhere in its
-    # derivation chain can be invalidated by resizing the enclosing array.
-    node = base_node
-    while isinstance(node, (vy_ast.Subscript, vy_ast.Attribute)):
-        if isinstance(node, vy_ast.Subscript):
-            parent_typ = node.value._metadata["type"]
-            if isinstance(parent_typ, DArrayT):
-                return True
-        node = node.value
-    return False
+def is_unbounded_struct_member(node: vy_ast.VyperNode) -> bool:
+    """Return True if `node` is an unbounded member of a struct value, which
+    a pointer cell represents (see `VenomCodegenContext.store_pointer_cell`).
+    """
+    if not isinstance(node, vy_ast.Attribute):
+        return False
+    if not isinstance(node.value._metadata.get("type"), StructT):
+        return False
+    return is_unbounded_sequence_type(node._metadata["type"])
 
 
 class Expr:
@@ -188,7 +194,7 @@ class Expr:
         self.node = node.reduced()
         self.ctx = ctx
         self.builder = ctx.builder
-        self.as_ptr = as_ptr  # Assignment targets must retain their original location.
+        self.as_ptr = as_ptr  # Mutation targets acquire writable payloads.
 
     def lower(self) -> VyperValue:
         """Dispatch to type-specific lowering method.
@@ -923,36 +929,43 @@ class Expr:
         result = self.builder.new_variable()
         result_typ = node._metadata["type"]
 
-        def lower_arm(expr_node: vy_ast.VyperNode) -> IROperand:
+        def lower_arm(expr_node: vy_ast.VyperNode) -> VyperValue:
             if result_typ._is_prim_word:
-                return Expr(expr_node, self.ctx).lower_value()
+                value = Expr(expr_node, self.ctx).lower_value()
+                return VyperValue.from_stack_op(value, result_typ)
             if self.ctx.is_dynamic_tuple_frame_type(result_typ):
                 arm_vv = Expr(expr_node, self.ctx).lower()
                 frame_vv = self.ctx.dynamic_tuple_frame_from_value(
                     arm_vv, result_typ, annotation="ternary"
                 )
-                return frame_vv.operand
+                return frame_vv
             # arms may be narrower than the result type (e.g. DynArray[Bytes[10], 5]
             # for a DynArray[Bytes[512], 5] result), and the result pointer is read
             # with the result type's layout
             arm_vv = self.ctx.ensure_memory_layout(
                 Expr(expr_node, self.ctx).lower(), result_typ, annotation="ternary"
             )
-            return self.ctx.unwrap(arm_vv)
+            operand = self.ctx.unwrap(arm_vv)
+            reference = arm_vv.reference if arm_vv.location == DataLocation.MEMORY else None
+            return self._make_ptr_value(operand, DataLocation.MEMORY, result_typ, reference)
 
         # Process then branch
         self.builder.append_block(then_block)
         self.builder.set_block(then_block)
         then_val = lower_arm(node.body)
         then_block_finish = self.builder.current_block
-        then_block_finish.append_instruction("assign", then_val, ret=result)
+        then_block_finish.append_instruction("assign", then_val.operand, ret=result)
 
         # Process else branch
         self.builder.append_block(else_block)
         self.builder.set_block(else_block)
         else_val = lower_arm(node.orelse)
         else_block_finish = self.builder.current_block
-        else_block_finish.append_instruction("assign", else_val, ret=result)
+        else_block_finish.append_instruction("assign", else_val.operand, ret=result)
+
+        reference = merge_references(
+            self.ctx, then_val.reference, else_val.reference, then_block_finish, else_block_finish
+        )
 
         # Add jnz to cond_block
         cond_block.append_instruction("jnz", cond, then_block.label, else_block.label)
@@ -967,7 +980,7 @@ class Expr:
 
         if result_typ._is_prim_word:
             return VyperValue.from_stack_op(result, result_typ)
-        return self._make_ptr_value(result, DataLocation.MEMORY, result_typ)
+        return self._make_ptr_value(result, DataLocation.MEMORY, result_typ, reference)
 
     # === Subscript Operations ===
 
@@ -1003,22 +1016,26 @@ class Expr:
         assert isinstance(node, vy_ast.Subscript)
         base_typ = node.value._metadata["type"]
 
-        # A nested dynamic-array base can be invalidated while its index is
-        # evaluated. Snapshot rvalues before that happens; assignment targets
-        # cannot be snapshotted (the write must reach the real pointer), so
-        # reject them like legacy codegen does.
-        overlap = _subscript_base_length_can_stale(node.value) and _subscript_read_write_overlap(
-            node.value, node.slice
+        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
+        reference = base_vv.reference
+        overlap = (
+            reference is not None
+            and len(reference.indices) > 0
+            and _subscript_read_write_overlap(node.value, node.slice)
         )
         if overlap and self.as_ptr:
             raise CompilerPanic("risky overlap")
-
-        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
         if overlap:
-            base_vv = self.ctx.materialize_value(base_vv, base_typ)
+            # An unbounded member of an array element cannot be mutated in
+            # place, so its payload survives removal of the containing frame.
+            if not is_unbounded_sequence_type(base_typ):
+                base_vv = self.ctx.materialize_value(base_vv, base_typ)
+            else:
+                base_vv = base_vv.with_reference(None)
 
-        base = base_vv.operand  # Extract pointer for address math
-        index = Expr(node.slice, self.ctx).lower_value()  # Need the value
+        index = Expr(node.slice, self.ctx).lower_value()
+        base_vv = self._resolve_after(base_vv, node.slice, node.value)
+        base = base_vv.operand
 
         elem_typ = base_typ.value_type
         index_typ = node.slice._metadata["type"]
@@ -1066,7 +1083,13 @@ class Expr:
         offset = self.builder.mul(index, IRLiteral(elem_size))
         elem_ptr = self.builder.add(data_ptr, offset)
 
-        return self._make_ptr_value(elem_ptr, data_loc, elem_typ)
+        reference = base_vv.reference
+        if isinstance(base_typ, DArrayT):
+            if reference is None:
+                reference = ValueReference()
+            reference = reference.project(base, index, data_loc)
+
+        return self._make_ptr_value(elem_ptr, data_loc, elem_typ, reference)
 
     def _lower_mapping_subscript(self) -> VyperValue:
         """Lower mapping[key] access.
@@ -1162,7 +1185,8 @@ class Expr:
         """
         node = self.node
         assert isinstance(node, vy_ast.Subscript)
-        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
+        base_expr = Expr(node.value, self.ctx, as_ptr=self.as_ptr)
+        base_vv = base_expr.lower()
         base = base_vv.operand  # Extract pointer for address math
         base_typ = base_vv.typ
 
@@ -1193,18 +1217,20 @@ class Expr:
 
         elem_ptr = self.builder.add(base, IRLiteral(offset))
 
-        return self._make_ptr_value(elem_ptr, data_loc, elem_typ)
+        return self._make_ptr_value(elem_ptr, data_loc, elem_typ, base_vv.reference)
 
-    def _lower_struct_field(self) -> VyperValue:
-        """Lower struct.field access.
+    def _struct_member_ptr(
+        self,
+    ) -> tuple[IROperand, DataLocation, VyperType, Optional[ValueReference]]:
+        """Compute a struct member's pointer by summing the sizes of the members before it.
 
-        Computes field pointer by summing sizes of preceding fields.
-
-        Returns VyperValue.from_ptr() with field pointer and inherited location.
+        Returns the field's address, location, type and reference obligations.
+        An unbounded field's address points to its cell, not its payload.
         """
         node = self.node
         assert isinstance(node, vy_ast.Attribute)
-        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
+        base_expr = Expr(node.value, self.ctx, as_ptr=self.as_ptr)
+        base_vv = base_expr.lower()
         base = base_vv.operand  # Extract pointer for address math
         base_typ = node.value._metadata["type"]
         attr = node.attr
@@ -1218,17 +1244,83 @@ class Expr:
         field_index = attrs.index(attr)
         field_typ = base_typ.member_types[attr]
 
-        offset = 0
-        for i in range(field_index):
-            t = base_typ.member_types[attrs[i]]
-            offset += t.get_size_in(data_loc)
+        if data_loc == DataLocation.MEMORY:
+            offset = struct_member_offsets(base_typ)[field_index][1]
+        else:
+            offset = 0
+            for i in range(field_index):
+                t = base_typ.member_types[attrs[i]]
+                # only memory holds pointer cells; every word-addressed
+                # location rejects INF (the module variable gate in
+                # `semantics/analysis/module.py`)
+                assert not is_unbounded_sequence_type(t)
+                offset += t.get_size_in(data_loc)
 
         field_ptr = self.builder.add(base, IRLiteral(offset))
+        return field_ptr, data_loc, field_typ, base_vv.reference
 
-        return self._make_ptr_value(field_ptr, data_loc, field_typ)
+    def struct_member_cell_ptr(self) -> IRVariable:
+        """Return the pointer cell of an unbounded struct member (see
+        `VenomCodegenContext.store_pointer_cell`).
+        """
+        field_ptr, data_loc, field_typ, _ = self._struct_member_ptr()
+        assert is_unbounded_sequence_type(field_typ)
+        assert data_loc == DataLocation.MEMORY
+        assert isinstance(field_ptr, IRVariable)
+        return field_ptr
+
+    def _lower_struct_field(self) -> VyperValue:
+        """Lower struct.field access.
+
+        Returns VyperValue.from_ptr() with field pointer and inherited location.
+        """
+        node = self.node
+        assert isinstance(node, vy_ast.Attribute)
+        attr = node.attr
+        field_ptr, data_loc, field_typ, field_reference = self._struct_member_ptr()
+
+        if is_unbounded_sequence_type(field_typ):
+            # The member is a pointer cell, not the value: reading it as the
+            # value would hand back the payload address (see
+            # `VenomCodegenContext.store_pointer_cell`).
+            assert data_loc == DataLocation.MEMORY
+            assert isinstance(field_ptr, IRVariable)
+            if self.as_ptr:
+                # an assignment target writes into the payload, which the
+                # cell has to own; a bytestring member has no element writes
+                assert isinstance(field_typ, DArrayT)
+                payload = self.ctx.materialize_owned_dynarray_cell(field_ptr, field_typ)
+            else:
+                payload = self.builder.mload(field_ptr)
+            assert isinstance(payload, IRVariable)
+            reference: Optional[ValueReference] = ValueReference(PayloadAnchor(field_ptr, payload))
+            if field_reference is not None and field_reference.anchor is not None:
+                # A cell within another payload belongs to an array element.
+                # Its payload cannot be mutated through that element.
+                assert not self.as_ptr
+                reference = None
+            value = self.ctx.dynamic_memory_value(payload, field_typ, annotation=attr)
+            return value.with_reference(reference)
+
+        return self._make_ptr_value(field_ptr, data_loc, field_typ, field_reference)
+
+    def _resolve_after(
+        self, value: VyperValue, evaluated: vy_ast.VyperNode, derived_from: vy_ast.VyperNode
+    ) -> VyperValue:
+        """Consume a live reference after an expression that may invalidate it."""
+        reference = value.reference
+        if reference is None or not _subscript_read_write_overlap(derived_from, evaluated):
+            return value
+        ptr, reference = reference.resolve(self.ctx, value.operand)
+        assert value.location is not None
+        return self._make_ptr_value(ptr, value.location, value.typ, reference)
 
     def _make_ptr_value(
-        self, operand: IROperand, location: DataLocation, typ: VyperType
+        self,
+        operand: IROperand,
+        location: DataLocation,
+        typ: VyperType,
+        reference: Optional[ValueReference] = None,
     ) -> VyperValue:
         """Create a VyperValue with Ptr for a computed pointer.
 
@@ -1246,7 +1338,7 @@ class Expr:
             ptr = Ptr(operand=operand, location=location, buf=buf)
         else:
             ptr = Ptr(operand=operand, location=location)
-        return VyperValue.from_ptr(ptr, typ)
+        return VyperValue.from_ptr(ptr, typ, reference)
 
     def _lower_list_literal_membership(
         self, needle: IROperand, list_node: vy_ast.List, is_in: bool
@@ -1600,6 +1692,15 @@ class Expr:
                     )
 
                 assert returns_count == 0
+                if uses_packed_return(func_t.return_type):
+                    assert len(outs) == 1
+                    rebase_packed_value(self.ctx, outs[0], func_t.return_type)
+                    if is_unbounded_sequence_type(func_t.return_type):
+                        return self.ctx.dynamic_memory_value(
+                            outs[0], func_t.return_type, annotation=func_name
+                        )
+                    return self._make_ptr_value(outs[0], DataLocation.MEMORY, func_t.return_type)
+
                 assert len(outs) == 1
                 # Dynamic internal returns publish a runtime memory pointer directly.
                 return self.ctx.dynamic_memory_value(
@@ -1657,15 +1758,22 @@ class Expr:
             member_vals[kwarg.arg] = kwarg.value
 
         # Store each field at its correct offset (in struct field order)
-        offset = 0
-        for field_name in struct_t.tuple_keys():
-            field_typ = struct_t.member_types[field_name]
+        for field_name, offset, field_typ in struct_member_offsets(struct_t):
             field_vv = Expr(member_vals[field_name], self.ctx).lower()
 
             dst = self.builder.add(val.operand, IRLiteral(offset))
 
-            self.ctx.store_vyper_value(field_vv, dst, field_typ)
-            offset += field_typ.memory_bytes_required
+            if is_unbounded_sequence_type(field_typ):
+                # The struct owns its INF members, so the initializer is
+                # copied out of the caller's buffer before the cell is
+                # written. Capacity 0 marks the payload exact-sized.
+                assert isinstance(dst, IRVariable)
+                payload = self.ctx.copy_sequence_to_scratch(
+                    field_vv, field_typ, annotation=field_name
+                )
+                self.ctx.store_pointer_cell(dst, payload.operand, IRLiteral(0))
+            else:
+                self.ctx.store_vyper_value(field_vv, dst, field_typ)
 
         return val
 
@@ -1725,9 +1833,11 @@ class Expr:
         if is_unbounded_dynarray_type(darray_typ):
             return self._lower_unbounded_dynarray_append()
 
-        # Get the array VyperValue
-        darray_vv = Expr(darray_node, self.ctx).lower()
-        darray_ptr = darray_vv.operand
+        # Get the array VyperValue. The receiver is an lvalue: an unbounded
+        # member on its path is written through a payload its cell owns (see
+        # `_lower_struct_field`).
+        darray_expr = Expr(darray_node, self.ctx, as_ptr=True)
+        darray_vv = darray_expr.lower()
 
         # Get the element value.
         # For complex elements, always stage through a temporary buffer to
@@ -1739,6 +1849,8 @@ class Expr:
         arg_vv = Expr(arg_node, self.ctx).lower()
         arg_val = self.ctx.unwrap(arg_vv)
         elem_src_typ = arg_vv.typ
+        darray_vv = self._resolve_after(darray_vv, arg_node, darray_node)
+        darray_ptr = darray_vv.operand
 
         if not elem_typ._is_prim_word:
             # Always stage complex elements through a temp buffer to guard
@@ -1819,17 +1931,8 @@ class Expr:
         assert isinstance(darray_typ, DArrayT)
         elem_typ = darray_typ.value_type
 
-        if not isinstance(darray_node, vy_ast.Name):
-            raise CompilerPanic(
-                "semantic analysis should reject append() on non-local DynArray[..., INF]"
-            )  # pragma: nocover
-
-        var = self.ctx.lookup(darray_node.id)
-        if not var.is_pointer_cell:
-            raise CompilerPanic(
-                "unbounded DynArray append expects pointer-cell storage"
-            )  # pragma: nocover
-
+        # the element is read before the receiver's cell so that
+        # `xs.append(xs[0])` reads the payload the append then replaces
         arg_vv = Expr(node.args[0], self.ctx).lower()
         arg_val = self.ctx.unwrap(arg_vv)
 
@@ -1843,7 +1946,19 @@ class Expr:
 
         b = self.builder
 
-        cell = var.value.operand
+        if isinstance(darray_node, vy_ast.Name):
+            var = self.ctx.lookup(darray_node.id)
+            if not var.is_pointer_cell:
+                raise CompilerPanic(
+                    "unbounded DynArray append expects pointer-cell storage"
+                )  # pragma: nocover
+            cell = var.value.operand
+        elif is_unbounded_struct_member(darray_node):
+            cell = Expr(darray_node, self.ctx).struct_member_cell_ptr()
+        else:
+            raise CompilerPanic(
+                "semantic analysis should reject append() on this DynArray[..., INF]"
+            )  # pragma: nocover
         assert isinstance(cell, IRVariable)
         old_ptr, capacity = self.ctx.load_pointer_cell(cell)
         length = b.mload(old_ptr)
@@ -1933,8 +2048,10 @@ class Expr:
         darray_typ = darray_node._metadata["type"]
         elem_typ = darray_typ.value_type
 
-        # Get the array VyperValue
-        darray_vv = Expr(darray_node, self.ctx).lower()
+        # Get the array VyperValue. The receiver is an lvalue: an unbounded
+        # member on its path is written through a payload its cell owns (see
+        # `_lower_struct_field`).
+        darray_vv = Expr(darray_node, self.ctx, as_ptr=True).lower()
         darray_ptr = darray_vv.operand
 
         # Get location from VyperValue
@@ -2049,7 +2166,7 @@ class Expr:
         )
 
     def _external_call_args_need_runtime_encoding(self, arg_vals: list[VyperValue]) -> bool:
-        return any(is_unbounded_sequence_type(arg_vv.typ) for arg_vv in arg_vals)
+        return any(type_contains_unbounded_sequence(arg_vv.typ) for arg_vv in arg_vals)
 
     def _lower_external_call(self) -> VyperValue:
         """Lower external call (extcall/staticcall).
@@ -2080,6 +2197,10 @@ class Expr:
         has_dynamic_tuple_return = return_t is not None and self.ctx.is_dynamic_tuple_frame_type(
             return_t
         )
+        # a pointer-cell struct, or a bounded DynArray of them
+        has_pointer_cell_return = False
+        if isinstance(return_t, (StructT, DArrayT)) and not has_unbounded_return:
+            has_pointer_cell_return = type_contains_unbounded_sequence(return_t)
 
         # Evaluate contract address (the interface value)
         contract_address = Expr(call_node.func.value, self.ctx).lower_value()
@@ -2112,7 +2233,7 @@ class Expr:
             args_abi_size = args_abi_t.size_bound()
 
         if return_t is not None:
-            if has_unbounded_return or has_dynamic_tuple_return:
+            if has_unbounded_return or has_dynamic_tuple_return or has_pointer_cell_return:
                 return_abi_size = 0
             else:
                 return_abi_t = calculate_type_for_external_return(return_t).abi_type
@@ -2232,7 +2353,37 @@ class Expr:
 
         # Allocate result buffer
         result_val = self.ctx.new_temporary_value(wrapped_return_t)
-        assert isinstance(result_val.operand, IRVariable)
+        result_ptr = result_val.operand
+        assert isinstance(result_ptr, IRVariable)
+
+        def decode_return() -> None:
+            # Check returndatasize >= min_return_size
+            rds = b.returndatasize()
+            ok = b.iszero(b.lt(rds, IRLiteral(min_return_size)))
+            b.assert_(ok)
+
+            if has_pointer_cell_return:
+                # The encoded size has no static bound, so the call wrote
+                # nothing into the call buffer (ret_len is 0). Copy the
+                # returndata to scratch and decode it like a calldata
+                # argument, every member bounded by the end of the copy.
+                src_ptr, hi = self._copy_returndata_to_scratch(rds)
+            else:
+                # No returndatacopy needed: staticcall/call already wrote
+                # min(returndatasize, ret_len) bytes to buf_ptr, and
+                # payload_bound caps reads at ret_len (== size_bound()).
+
+                # Compute hi bound for decode (prevents overread)
+                # Cap at return_abi_size to handle truncation case
+                max_return_size = wrapped_return_t.abi_type.size_bound()
+                payload_bound = b.select(
+                    b.lt(rds, IRLiteral(max_return_size)), rds, IRLiteral(max_return_size)
+                )
+                src_ptr = buf_ptr
+                hi = b.add(buf_ptr, payload_bound)
+
+            src = self._make_ptr_value(src_ptr, DataLocation.MEMORY, wrapped_return_t)
+            abi_decode_to_buf(self.ctx, result_ptr, src, hi=hi)
 
         # Handle default_return_value
         if call_kwargs.default_return_value is not None:
@@ -2253,7 +2404,7 @@ class Expr:
             # Store default value
             default_vv = call_kwargs.default_return_value
             assert default_vv is not None
-            self.ctx.store_vyper_value(default_vv, result_val.operand, return_t)
+            self.ctx.store_vyper_value(default_vv, result_ptr, return_t)
 
             # Check extcodesize if not skipped (contract might have selfdestructed)
             if not call_kwargs.skip_contract_check:
@@ -2266,24 +2417,7 @@ class Expr:
             b.append_block(decode_bb)
             b.set_block(decode_bb)
 
-            # Check returndatasize >= min_return_size
-            rds = b.returndatasize()
-            ok = b.iszero(b.lt(rds, IRLiteral(min_return_size)))
-            b.assert_(ok)
-
-            # No returndatacopy needed: staticcall/call already wrote
-            # min(returndatasize, ret_len) bytes to buf_ptr, and
-            # payload_bound caps reads at ret_len (== size_bound()).
-
-            # Compute hi bound for decode (prevents overread)
-            # Cap at return_abi_size to handle truncation case
-            max_return_size = wrapped_return_t.abi_type.size_bound()
-            payload_bound = b.select(
-                b.lt(rds, IRLiteral(max_return_size)), rds, IRLiteral(max_return_size)
-            )
-            hi = b.add(buf_ptr, payload_bound)
-            src = self._make_ptr_value(buf_ptr, DataLocation.MEMORY, wrapped_return_t)
-            abi_decode_to_buf(self.ctx, result_val.operand, src, hi=hi)
+            decode_return()
 
             b.jmp(exit_bb.label)
 
@@ -2293,24 +2427,7 @@ class Expr:
 
         else:
             # No default_return_value - simple decode path
-            # Check returndatasize >= min_return_size
-            rds = b.returndatasize()
-            ok = b.iszero(b.lt(rds, IRLiteral(min_return_size)))
-            b.assert_(ok)
-
-            # No returndatacopy needed: staticcall/call already wrote
-            # min(returndatasize, ret_len) bytes to buf_ptr, and
-            # payload_bound caps reads at ret_len (== size_bound()).
-
-            # Compute hi bound for decode (prevents overread)
-            # Cap at return_abi_size to handle truncation case
-            max_return_size = wrapped_return_t.abi_type.size_bound()
-            payload_bound = b.select(
-                b.lt(rds, IRLiteral(max_return_size)), rds, IRLiteral(max_return_size)
-            )
-            hi = b.add(buf_ptr, payload_bound)
-            src = self._make_ptr_value(buf_ptr, DataLocation.MEMORY, wrapped_return_t)
-            abi_decode_to_buf(self.ctx, result_val.operand, src, hi=hi)
+            decode_return()
 
         # Return as location in memory with unwrapped type
         # The data is at offset 0 in the wrapped tuple, so pointer is correct

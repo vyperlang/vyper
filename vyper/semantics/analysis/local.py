@@ -72,24 +72,26 @@ from vyper.semantics.types.function import (
     is_ellipsis_body,
 )
 from vyper.semantics.types.infinity import (
-    type_contains_nested_unbounded_sequence,
+    is_pointer_cell_struct_type,
+    is_runtime_sizable_return_type,
+    is_runtime_sizable_type,
+    is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
-    type_contains_unsupported_unbounded_sequence,
 )
 from vyper.semantics.types.utils import type_from_annotation
 
 
-def _expr_contains_unbounded_sequence(node: vy_ast.VyperNode, typ: VyperType) -> bool:
+def _expr_has_unsupported_unbounded_arg(node: vy_ast.VyperNode, typ: VyperType) -> bool:
     # walk literals alongside the expected type. a literal whose shape does
     # not match `typ` is rejected later, when it is visited
     if isinstance(node, vy_ast.Tuple) and isinstance(typ, TupleT):
         return any(
-            _expr_contains_unbounded_sequence(item, item_typ)
+            _expr_has_unsupported_unbounded_arg(item, item_typ)
             for item, item_typ in zip(node.elements, typ.member_types)
         )
     if isinstance(node, vy_ast.List) and isinstance(typ, (SArrayT, DArrayT)):
         return any(
-            _expr_contains_unbounded_sequence(item, typ.value_type) for item in node.elements
+            _expr_has_unsupported_unbounded_arg(item, typ.value_type) for item in node.elements
         )
 
     try:
@@ -101,7 +103,45 @@ def _expr_contains_unbounded_sequence(node: vy_ast.VyperNode, typ: VyperType) ->
         # resolve a wildcard call return against the element's expected
         # type, the same way `ExprVisitor.visit_Call` does for arguments
         actual_typ = actual_typ.resolve_wildcard()
-    return type_contains_unbounded_sequence(actual_typ)
+
+    # the only INF-bearing element type a DynArray can declare is a
+    # pointer-cell struct (see `DArrayT._validate_unbounded_shape`)
+    if not type_contains_unbounded_sequence(actual_typ):
+        return False
+
+    return not is_pointer_cell_struct_type(actual_typ)
+
+
+def _modifies_unbounded_member_through_subscript(target: vy_ast.ExprNode) -> bool:
+    """Return True if the lvalue `target` writes a struct's INF member of an
+    array element.
+
+    The member holds a pointer to its payload. Array elements are written
+    only by whole-struct copies, which is what lets an array of such structs
+    be copied flat (see `VenomCodegenContext.zero_pointer_cell_capacities`);
+    a write through an element's member would break that.
+    """
+    node: vy_ast.VyperNode = target
+    while isinstance(node, (vy_ast.Attribute, vy_ast.Subscript)):
+        if isinstance(node, vy_ast.Attribute):
+            # an INF-typed attribute of something that is not a struct is a
+            # module-level constant, whose own diagnostic is the useful one
+            if isinstance(get_expr_info(node.value).typ, StructT) and is_unbounded_sequence_type(
+                get_expr_info(node).typ
+            ):
+                return _reaches_through_subscript(node.value)
+        node = node.value
+
+    return False
+
+
+def _reaches_through_subscript(node: vy_ast.VyperNode) -> bool:
+    while isinstance(node, (vy_ast.Attribute, vy_ast.Subscript)):
+        if isinstance(node, vy_ast.Subscript):
+            return True
+        node = node.value
+
+    return False
 
 
 def analyze_functions(vy_module: vy_ast.Module) -> None:
@@ -504,7 +544,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             )
 
         typ = type_from_annotation(node.annotation, DataLocation.MEMORY)
-        if type_contains_nested_unbounded_sequence(typ):
+        if not is_runtime_sizable_type(typ):
             raise StructureException(
                 "Memory variables cannot contain unbounded sequence types inside aggregate types",
                 node.annotation,
@@ -565,6 +605,13 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             for item in target.elements:
                 self._handle_modification(item)
             return
+
+        if _modifies_unbounded_member_through_subscript(target):
+            raise StructureException(
+                "Cannot modify an unbounded sequence member through an array element",
+                target,
+                hint="copy the element to a local, modify it, then store it back",
+            )
 
         # check a modification of `target`. validate the modification is
         # valid, and log the modification in relevant data structures.
@@ -1073,12 +1120,12 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             for arg, arg_typ in zip(node.args, func_type.argument_types):
                 if isinstance(arg, (vy_ast.Tuple, vy_ast.List)):
-                    has_nested_unbounded = _expr_contains_unbounded_sequence(arg, arg_typ)
+                    has_unsupported_unbounded = _expr_has_unsupported_unbounded_arg(arg, arg_typ)
                 else:
                     try:
                         actual_arg_typ = get_exact_type_from_node(arg)
                     except VyperException:
-                        has_nested_unbounded = False
+                        has_unsupported_unbounded = False
                     else:
                         if arg_typ.has_wildcard:
                             # a wildcard call return resolves to the parameter
@@ -1086,11 +1133,9 @@ class ExprVisitor(VyperNodeVisitorBase):
                             # in which case it resolves to INF (see the
                             # external call handling below)
                             actual_arg_typ = actual_arg_typ.resolve_wildcard()
-                        has_nested_unbounded = type_contains_nested_unbounded_sequence(
-                            actual_arg_typ
-                        )
+                        has_unsupported_unbounded = not is_runtime_sizable_type(actual_arg_typ)
 
-                if has_nested_unbounded:
+                if has_unsupported_unbounded:
                     raise StructureException(
                         "Function arguments cannot contain unbounded sequence types "
                         "inside aggregate types",
@@ -1104,6 +1149,12 @@ class ExprVisitor(VyperNodeVisitorBase):
 
             if func_type.is_external:
                 return_t = func_type.return_type
+                if return_t is not None and not is_runtime_sizable_return_type(return_t):
+                    raise StructureException(
+                        "External call returns cannot contain unbounded sequence types "
+                        "inside aggregate types",
+                        node,
+                    )
                 if return_t is not None and return_t.has_wildcard:
                     if not typ.has_wildcard and typ is not VOID_TYPE:
                         # Replace wildcard-containing type by the concrete expected type
@@ -1112,7 +1163,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                         # Replace wildcards in the type by INF, since there is no expected type
                         return_t = return_t.resolve_wildcard()
                         # unsupported INF shapes from wildcard resolution only exist per call site
-                        if type_contains_unsupported_unbounded_sequence(return_t):
+                        if not is_runtime_sizable_return_type(return_t):
                             raise StructureException(
                                 "Function returns cannot contain unbounded sequence types "
                                 "inside aggregate types",

@@ -586,9 +586,10 @@ may use ``INF`` as the length bound:
         return ys
 
 ``Bytes[INF]`` and ``String[INF]`` can hold any runtime length. ``DynArray[T, INF]``
-can hold any runtime item count. ``T`` itself must be bounded, but it may be
-ABI-dynamic, such as ``Bytes[512]``, ``DynArray[uint256, 3]`` or a struct with
-bytestring members:
+can hold any runtime item count. ``T`` must have a fixed-size layout: a bounded
+type, which may be ABI-dynamic, such as ``Bytes[512]``, ``DynArray[uint256, 3]``
+or a struct with bytestring members, or a struct with unbounded members (see
+below), but not an unbounded sequence itself:
 
 .. code-block:: vyper
 
@@ -617,11 +618,76 @@ bytes-oriented builtins such as ``concat``, ``slice``, ``convert``, ``empty`` an
 for example ``(uint256, Bytes[INF])``.
 
 Unbounded sequences are not supported in storage, transient storage, immutable
-module variables, struct members, static arrays, mappings, or as the element
-type of another ``DynArray``, bounded or unbounded. For example,
-``DynArray[Bytes[INF], INF]`` and ``DynArray[DynArray[uint256, INF], 3]`` are rejected.
-Tuple arguments and local tuple variables containing unbounded sequence members
-are also rejected.
+module variables, static arrays, mappings, or as the element type of another
+``DynArray``, bounded or unbounded. For example, ``DynArray[Bytes[INF], INF]``
+and ``DynArray[DynArray[uint256, INF], 3]`` are rejected. Tuple arguments and
+local tuple variables containing unbounded sequence members are also rejected.
+
+.. _unbounded_struct_members:
+
+Unbounded Struct Members
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+A struct member may itself be an unbounded sequence. Such a struct keeps its
+usual ABI encoding -- ``Batch`` below is the ABI tuple ``(address,uint256[])``
+-- so a signed batch or configuration struct does not have to pick an arbitrary
+field cap:
+
+.. code-block:: vyper
+
+    #pragma experimental-codegen
+
+    struct Batch:
+        owner: address
+        values: DynArray[uint256, INF]
+
+    @external
+    def total(b: Batch) -> uint256:
+        acc: uint256 = 0
+        for v: uint256 in b.values:
+            acc += v
+        return acc
+
+Such a struct can be read, copied, passed to internal functions, built with the
+struct constructor or ``empty``, returned from external and internal functions,
+and used as the element type of a ``DynArray``. It can be passed to and returned from
+external calls, encoded and decoded with ``abi_encode`` and ``abi_decode``, used
+as an event or custom error member, printed, and passed as a ``create_*``
+constructor argument. The member of a struct held in a local variable (or an
+internal function argument) can be assigned, indexed, appended to and popped
+from, also through nested struct members; copies of a struct never share a
+member with each other, so a write through one struct is not visible through
+another:
+
+.. code-block:: vyper
+
+    c: Batch = b
+    c.values = [1, 2]
+    c.values[0] += 1
+    c.values.append(3)
+    c.values.pop()
+    # b.values is unchanged
+
+Writing an unbounded member of an array element, or anything inside it, is
+rejected; other members, including a whole nested struct, and whole elements
+can be assigned. Copy the element to a local variable, modify it, then store
+it back:
+
+.. code-block:: vyper
+
+    xs[i].values.append(1)  # rejected
+    b: Batch = xs[i]
+    b.values.append(1)
+    xs[i] = b
+
+The member must be a direct unbounded sequence, another struct that
+satisfies the same rule, or a ``DynArray`` of such structs;
+``x: (Bytes[INF], uint256)`` is rejected as a struct member. A struct with an
+unbounded member lives in memory only, like every unbounded sequence. It may
+not be returned inside a tuple. A ``DynArray`` of such structs, and a struct containing one,
+work everywhere the struct does, including as the return value of an internal
+function, with one exception: the array cannot itself be a ``DynArray``
+element (``DynArray[DynArray[Batch, 3], 2]`` is rejected).
 
 .. note::
     ``INF`` sequence types require ``#pragma experimental-codegen`` or compiling
