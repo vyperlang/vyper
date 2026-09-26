@@ -1,3 +1,4 @@
+import dataclasses
 import enum
 import itertools
 import math
@@ -10,7 +11,7 @@ import pytest
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings
-from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
+from vyper.exceptions import InvalidLiteral, InvalidType, StaticAssertionException, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.shortcuts import BYTES20_T, BYTES32_T, UINT, UINT160_T, UINT256_T
 from vyper.utils import (
@@ -695,7 +696,9 @@ def foo() -> {t_bytes}:
 
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_reverting_cases())
 @pytest.mark.fuzzing
-def test_conversion_failures(get_contract, assert_compile_failed, tx_failed, i_typ, o_typ, val):
+def test_conversion_failures(
+    get_contract, assert_compile_failed, tx_failed, compiler_settings, i_typ, o_typ, val
+):
     """
     Test multiple contracts and check for a specific exception.
     If no exception is provided, a runtime revert is expected (e.g. clamping).
@@ -706,7 +709,13 @@ def foo() -> {o_typ}:
     return convert({_vyper_literal(val, i_typ)}, {o_typ})
     """
 
-    c1_exception = InvalidLiteral
+    # Either the constant folder or Venom's SCCP can establish that the
+    # literal conversion is invalid. Both must reject it before execution.
+    c1_exception = (
+        (InvalidLiteral, StaticAssertionException)
+        if compiler_settings.experimental_codegen
+        else InvalidLiteral
+    )
 
     if isinstance(i_typ, IntegerT) and isinstance(o_typ, BytesM_T):
         # integer literals get upcasted to uint256 / int256 types, so the convert
@@ -735,7 +744,10 @@ def foo():
     foobar: {o_typ} = convert(bar, {o_typ})
     """
 
-    c2 = get_contract(contract_2)
+    # SCCP can prove this constant clamp fails. Keep the assertion in the
+    # generated code so this case continues to exercise the runtime revert.
+    runtime_settings = dataclasses.replace(compiler_settings, disable_static_exceptions=True)
+    c2 = get_contract(contract_2, compiler_settings=runtime_settings)
     with tx_failed():
         c2.foo()
 
