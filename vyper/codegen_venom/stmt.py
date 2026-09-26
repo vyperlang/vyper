@@ -1339,30 +1339,15 @@ class Stmt:
             IRLiteral(dyn_count), *ordinary_returns, *dynamic_return_operands, return_pc
         )
 
-    def _emit_external_unbounded_sequence_return(
-        self, ret_val: IRVariable, ret_typ: VyperType, ret_src_typ: VyperType
-    ) -> None:
-        assert is_unbounded_sequence_type(ret_typ)
-
-        # Size the buffer by the declared type's bound but encode from the
-        # source layout: a widened element type (DynArray[Bytes[10], 5] ->
-        # DynArray[Bytes[512], INF]) has a different memory stride.
-        ret_vv = self.ctx.dynamic_memory_value(ret_val, ret_typ, annotation="return")
-        tail_bound = runtime_abi_size_for_encode(self.ctx, [ret_vv], ret_typ)
-        alloc_size = self.ctx.checked_add(IRLiteral(32), tail_bound)
-        buf_ptr = self.ctx.allocate_scratch(alloc_size)
-        encode_typ = calculate_type_for_external_return(ret_src_typ)
-        encoded_len = abi_encode_to_buf(self.ctx, buf_ptr, ret_val, encode_typ, None)
-        self.builder.return_(buf_ptr, encoded_len)
-
     def _emit_external_runtime_sized_return(
         self, ret_val: IRVariable, ret_typ: VyperType, encode_typ: VyperType
     ) -> None:
-        """Return a pointer-cell struct, a DynArray of them, or a struct containing one.
+        """ABI-encode a return containing unbounded sequences into a runtime-sized buffer.
 
-        The encoding has no static bound (`abi_type.size_bound()` multiplies
-        by INF), so the buffer is sized at runtime from the members' current
-        lengths, as for a top-level INF sequence.
+        Size from the declared type, but encode using the source layout in
+        encode_typ: widened DynArray elements can have different memory strides.
+        The external-return tuple wrapper in encode_typ includes the outer
+        ABI offset in the size, including for a top-level INF sequence.
         """
         ret_vv = self.ctx.dynamic_memory_value(ret_val, ret_typ, annotation="return")
         size = runtime_abi_size_for_encode(self.ctx, [ret_vv], encode_typ)
@@ -1460,7 +1445,9 @@ class Stmt:
         if is_unbounded_sequence_type(ret_typ):
             assert isinstance(ret_val, IRVariable)
             assert ret_src_typ is not None
-            self._emit_external_unbounded_sequence_return(ret_val, ret_typ, ret_src_typ)
+            self._emit_external_runtime_sized_return(
+                ret_val, ret_typ, calculate_type_for_external_return(ret_src_typ)
+            )
             return
 
         if (
