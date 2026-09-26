@@ -11,12 +11,12 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Optional
 
 from vyper.codegen_venom.buffer import Ptr
-from vyper.codegen_venom.reference import ValueReference
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.data_locations import DataLocation
 from vyper.venom.basicblock import IROperand
 
 if TYPE_CHECKING:
+    from vyper.codegen_venom.reference import ValueReference
     from vyper.semantics.types.base import VyperType
 
 

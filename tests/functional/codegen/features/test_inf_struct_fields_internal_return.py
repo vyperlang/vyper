@@ -402,6 +402,7 @@ def _mk_rows(n, m, seed):
 
 
 def _produced(shape, n, m, seed, note):
+    # Each shape has its own ABI type, so its expected tuple/list layout differs.
     if shape in ("array_3", "array_inf"):
         return _mk_rows(n, m, seed)
     if shape == "outer":

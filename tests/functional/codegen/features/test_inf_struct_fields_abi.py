@@ -380,8 +380,6 @@ def from_bytes_no_tuple(d: Bytes[INF]) -> Msg:
 
 _INGRESS_PATHS = ("calldata", "returndata", "abi_decode", "abi_decode_no_tuple")
 
-# the struct head is three words: owner, values offset, payload offset
-_HEAD_SIZE = 96
 _VALUES_TAIL = word(1) + word(9)
 _PAYLOAD_TAIL = word(5) + b"hello".ljust(32, b"\0")
 

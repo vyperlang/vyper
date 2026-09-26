@@ -9,13 +9,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from itertools import zip_longest
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from vyper.semantics.data_locations import DataLocation
 from vyper.venom.basicblock import IRBasicBlock, IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
-    from .context import VenomCodegenContext
+    from vyper.venom.builder import VenomBuilder
+
+
+class _ReferenceContext(Protocol):
+    """The emission operations references need, independent of codegen context state."""
+
+    builder: VenomBuilder
+
+    def load_word(self, addr: IROperand, location: DataLocation) -> IROperand:
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)
@@ -43,7 +52,7 @@ class ValueReference:
     def project(self, array: IROperand, index: IROperand, location: DataLocation):
         return replace(self, indices=self.indices + (ArrayIndex(array, index, location),))
 
-    def resolve(self, ctx: VenomCodegenContext, ptr: IROperand) -> tuple[IROperand, ValueReference]:
+    def resolve(self, ctx: _ReferenceContext, ptr: IROperand) -> tuple[IROperand, ValueReference]:
         """Reload the selected payload and check indices without evaluating them again.
 
         All indices following an anchor are inside its payload. Dereferencing a
@@ -84,7 +93,7 @@ class ValueReference:
 
 
 def merge_references(
-    ctx: VenomCodegenContext,
+    ctx: _ReferenceContext,
     left: ValueReference | None,
     right: ValueReference | None,
     left_block: IRBasicBlock,

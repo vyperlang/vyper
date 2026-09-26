@@ -400,9 +400,12 @@ def pop(o: Outer) -> (DynArray[uint256, INF], uint256, uint256):
     o = (9, (OWNER, [1, 2, 3]))
     assert c.assign(o) == (9, [7, 8], 2)
     assert c.store(o, 0, 10) == (9, (OWNER, [11, 2, 3]))
-    assert c.append(o, 3) == ([1, 2, 3, 0, 1, 2], 6)
-    assert c.append(o, 20) == ([1, 2, 3] + list(range(20)), 23)
-    assert c.pop(o) == ([1, 2], 3, 2)
+    appended = c.append(o, 3)
+    assert appended == ([1, 2, 3, 0, 1, 2], 6)
+    appended = c.append(o, 20)
+    assert appended == ([1, 2, 3] + list(range(20)), 23)
+    popped = c.pop(o)
+    assert popped == ([1, 2], 3, 2)
 
 
 def test_bytestring_member_assign(get_contract):

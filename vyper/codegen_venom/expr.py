@@ -1838,7 +1838,6 @@ class Expr:
         # `_lower_struct_field`).
         darray_expr = Expr(darray_node, self.ctx, as_ptr=True)
         darray_vv = darray_expr.lower()
-        darray_ptr = darray_vv.operand
 
         # Get the element value.
         # For complex elements, always stage through a temporary buffer to
