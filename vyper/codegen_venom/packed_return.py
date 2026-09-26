@@ -1,14 +1,10 @@
 """
-Packing of internal return values that hold an array of pointer-cell structs.
+Compact transport for internal returns containing pointer-cell structs.
 
-`dret` keeps a returned buffer alive by moving a compile-time number of
-(src, size) pairs into the caller's frame. An array whose elements hold
-pointer cells reaches one payload per element and cell, a runtime number, so
-such a value is returned as a single pair instead: the callee copies the value
-and every payload reachable from it into one buffer, writing each cell's
-pointer as an offset from the start of the buffer, and the caller adds the
-address the buffer landed at. Offsets make the buffer position-independent,
-so the callee does not depend on where `dret` places it.
+A struct or array of such structs uses one position-independent buffer. The
+callee copies its inline frame and reachable payloads, replacing pointers with
+buffer-relative offsets. After `dret` moves the buffer into the caller's frame,
+the caller converts those offsets to ordinary absolute memory pointers.
 
 Every relocated cell has capacity 0 and its payload holds exactly its length:
 the packed buffer has no spare room.

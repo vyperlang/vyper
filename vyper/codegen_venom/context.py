@@ -30,6 +30,7 @@ from vyper.semantics.types import (
     VyperType,
     _BytestringT,
     is_bounded_length,
+    is_pointer_cell_struct_type,
     is_supported_unbounded_tuple_type,
     is_unbounded_bytestring_type,
     is_unbounded_dynarray_type,
@@ -1024,7 +1025,13 @@ class VenomCodegenContext:
             return ptr
 
     def store_memory(
-        self, val: IROperand, ptr: IRVariable, typ: VyperType, src_typ: Optional[VyperType] = None
+        self,
+        val: IROperand,
+        ptr: IRVariable,
+        typ: VyperType,
+        src_typ: Optional[VyperType] = None,
+        *,
+        stage: bool = False,
     ) -> None:
         """Store value to memory pointer.
 
@@ -1032,6 +1039,8 @@ class VenomCodegenContext:
         For complex types (structs, arrays), val is a source pointer and
         we copy from val to ptr.
         For bytestrings, copies actual length from source, not max size.
+        Callers request staging when source and destination may overlap. A
+        struct's ownership transition happens once, before either copy.
 
         Note: Single-word structs are NOT primitive word types - they are
         complex types that happen to fit in one word. The caller passes
@@ -1039,6 +1048,18 @@ class VenomCodegenContext:
         """
         if src_typ is None:
             src_typ = typ
+
+        if is_pointer_cell_struct_type(src_typ):
+            assert isinstance(src_typ, StructT)
+            assert src_typ == typ
+            self.zero_pointer_cell_capacities(val, src_typ)
+
+        if stage:
+            assert not typ._is_prim_word
+            temporary = self.new_temporary_value(src_typ)
+            assert isinstance(temporary.operand, IRVariable)
+            self.copy_memory(temporary.operand, val, src_typ.memory_bytes_required)
+            val = temporary.operand
 
         if typ._is_prim_word:
             assert isinstance(ptr, IRVariable)
@@ -1057,8 +1078,6 @@ class VenomCodegenContext:
             self._store_memory_typed(dst=ptr, dst_typ=typ, src=val, src_typ=src_typ)
         else:
             # Complex type: val is a pointer, copy memory
-            if isinstance(typ, StructT) and type_contains_unbounded_sequence(typ):
-                self.zero_pointer_cell_capacities(val, typ)
             self.copy_memory(ptr, val, typ.memory_bytes_required)
 
     def _store_memory_typed(

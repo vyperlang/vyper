@@ -30,6 +30,38 @@ _ROWS_ABI = "(address,uint256[])[]"
 _ARRAY_BOUNDS = ("3", "INF")
 
 
+@pytest.mark.parametrize("inlining", [True, False])
+def test_struct_return_with_stack_and_memory_arguments(
+    get_contract, compiler_settings, no_inlining_settings, inlining
+):
+    code = """
+struct S:
+    a: DynArray[uint256, INF]
+    b: DynArray[uint256, INF]
+    c: DynArray[uint256, INF]
+    tag: uint256
+
+@internal
+def build(a: uint256, b: uint256, c: uint256, d: uint256,
+          e: uint256, f: uint256, tag: uint256) -> S:
+    return S(a=[a, b], b=[c, d], c=[e, f], tag=tag)
+
+@external
+def f() -> uint256[17]:
+    first: S = self.build(1, 2, 3, 4, 5, 6, 7)
+    second: S = self.build(8, 9, 10, 11, 12, 13, 14)
+    first.c.append(99)
+    return [first.a[0], first.a[1], first.b[0], first.b[1],
+            first.c[0], first.c[1], first.tag,
+            second.a[0], second.a[1], second.b[0], second.b[1],
+            second.c[0], second.c[1], second.tag,
+            first.c[2], len(first.c), len(second.c)]
+"""
+    settings = compiler_settings if inlining else no_inlining_settings
+    c = get_contract(code, compiler_settings=settings)
+    assert c.f() == list(range(1, 15)) + [99, 3, 2]
+
+
 # An internal function returning a struct with INF members copies its payloads
 # into the caller's frame, so they outlive the callee frame. Each producer is
 # called twice from one external function: a payload left in the callee frame

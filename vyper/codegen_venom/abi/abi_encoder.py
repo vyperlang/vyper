@@ -25,7 +25,7 @@ from vyper.semantics.types import (
     _BytestringT,
     is_unbounded_bytestring_type,
     is_unbounded_sequence_type,
-    member_slot_size,
+    struct_member_offsets,
     type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -253,19 +253,20 @@ def _get_element_ptr(
         # Calculate offset: sum of preceding element sizes
         idx = key.value
 
-        items = parent_typ.tuple_items()  # type: ignore[attr-defined]
-        # only a struct lays an INF member out as a pointer cell. A tuple
-        # with INF members lives in the frame of `dynamic_tuple_frame_value`,
-        # whose members reach the encoder one by one, never through here.
+        # Dynamic tuples reach the encoder one member at a time; only a
+        # struct has pointer cells in its inline memory layout.
         is_struct = isinstance(parent_typ, StructT)
-        offset = 0
-        for i, (_k, t) in enumerate(items):
-            if i == idx:
-                elem_typ = t
-                break
-            offset += member_slot_size(t) if is_struct else t.memory_bytes_required
-        else:  # pragma: nocover
-            raise CompilerPanic(f"Tuple index {idx} out of range")
+        if is_struct:
+            _, offset, elem_typ = struct_member_offsets(parent_typ)[idx]
+        else:
+            items = parent_typ.tuple_items()  # type: ignore[attr-defined]
+            offset = 0
+            for i, (_k, elem_typ) in enumerate(items):
+                if i == idx:
+                    break
+                offset += elem_typ.memory_bytes_required
+            else:  # pragma: nocover
+                raise CompilerPanic(f"Tuple index {idx} out of range")
 
         elem_ptr: IROperand
         elem_ptr = b.add(parent_ptr, IRLiteral(offset))

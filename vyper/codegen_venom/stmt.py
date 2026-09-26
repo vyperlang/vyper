@@ -30,13 +30,11 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     VyperType,
     _BytestringT,
-    contains_pointer_cell_array,
     is_bounded_length,
     is_unbounded_bytestring_type,
     is_unbounded_dynarray_type,
     is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
-    unbounded_member_cells,
 )
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
@@ -46,7 +44,7 @@ from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 from .buffer import Ptr
 from .builtins.simple import get_empty_type
-from .calling_convention import returns_dynamic_count, returns_stack_count
+from .calling_convention import returns_dynamic_count, returns_stack_count, uses_packed_return
 from .context import LocalVariable, VenomCodegenContext, same_memory_layout
 from .eval_order import later_expressions_can_mutate_memory_or_storage
 from .expr import Expr, get_referenced_variables, is_unbounded_struct_member
@@ -190,13 +188,13 @@ class Stmt:
         # IMPORTANT: Evaluate RHS first, then compute LHS target pointer.
         # This matches legacy codegen and ensures proper semantics for cases
         # like `c[0] = c.pop()` where RHS modifies array length.
-        src_expr = Expr(node.value, self.ctx)
-        src = src_expr.lower()
-        if src_expr.payload_anchor is not None or type_contains_unbounded_sequence(src.typ):
+        src = Expr(node.value, self.ctx).lower()
+        through_payload = src.reference is not None and src.reference.anchor is not None
+        if through_payload or type_contains_unbounded_sequence(src.typ):
             # a source that holds or is read through an unbounded member is
             # copied before the target is evaluated, which may pop from it or
             # move its payloads
-            src = self.ctx.materialize_value(src)
+            src = self.ctx.snapshot_value_for_delayed_use(src, copy_composites=True)
         dst_ptr = self._get_target_ptr(target)
         self._assign_value(dst_ptr, src, target_typ, src_node=node.value)
 
@@ -245,27 +243,10 @@ class Stmt:
         src_typ = src_vv.typ
         src = self.ctx.unwrap(src_vv)  # always a memory ptr for complex types
 
-        # Stage when both src and dst are in memory to guard against aliasing.
-        # MemoryCopyElisionPass will eliminate the redundant copy when
-        # src/dst are provably non-overlapping (different allocas).
         if src_loc is DataLocation.MEMORY and dst_ptr.location is DataLocation.MEMORY:
-            if isinstance(src_typ, StructT) and type_contains_unbounded_sequence(src_typ):
-                # the staging copy shares the payloads with the source, so
-                # the source gives up its spare room here, not only the copy
-                self.ctx.zero_pointer_cell_capacities(src, src_typ)
-            tmp_val = self.ctx.new_temporary_value(src_typ)
-            assert isinstance(tmp_val.operand, IRVariable)
-            self.ctx.copy_memory(tmp_val.operand, src, src_typ.memory_bytes_required)
-            src = tmp_val.operand
-
-            if isinstance(src_typ, StructT) and type_contains_unbounded_sequence(src_typ):
-                # the staging copy already carries capacity 0; going through
-                # `store_memory` would zero it again between the two copies,
-                # which stops MemoryCopyElisionPass from fusing them
-                assert src_typ == typ
-                assert isinstance(dst_ptr.operand, IRVariable)
-                self.ctx.copy_memory(dst_ptr.operand, src, typ.memory_bytes_required)
-                return
+            assert isinstance(dst_ptr.operand, IRVariable)
+            self.ctx.store_memory(src, dst_ptr.operand, typ, src_typ=src_typ, stage=True)
+            return
 
         self._store_complex_type(dst_ptr, src, typ, src_typ)
 
@@ -1224,18 +1205,10 @@ class Stmt:
 
             assert returns_count == 0
             assert ret_src_typ is not None
-            if contains_pointer_cell_array(ret_typ):
-                # one payload per array element and cell, so the value and
-                # its payloads travel as a single packed pair; the caller
-                # rebases the cells (`_lower_internal_call`)
+            if uses_packed_return(ret_typ):
+                assert not self.ctx.unbounded_dynarray_element_layout_differs(ret_typ, ret_src_typ)
                 buf, size = pack_value_with_payloads(self.ctx, ret_val, ret_typ)
                 self.builder.dret(IRLiteral(1), buf, size, return_pc)
-                return
-
-            if isinstance(ret_typ, StructT):
-                # structs are nominal, so the source has the declared layout
-                assert ret_src_typ == ret_typ
-                self._emit_pointer_cell_struct_internal_return(ret_val, ret_typ, return_pc)
                 return
 
             if self.ctx.unbounded_dynarray_element_layout_differs(ret_typ, ret_src_typ):
@@ -1275,26 +1248,6 @@ class Stmt:
 
         else:  # pragma: nocover
             raise CompilerPanic("Internal function missing return mechanism")
-
-    def _emit_pointer_cell_struct_internal_return(
-        self, ret_val: IRVariable, ret_typ: StructT, return_pc: IRVariable
-    ) -> None:
-        """Return a struct with pointer-cell members through `dret`.
-
-        The struct is the first pair and each cell's payload follows, so
-        every payload is packed into the caller's frame instead of being left
-        in this frame, which the plain `ret` reclaims. The cells in the packed
-        struct still hold this frame's pointers; the caller rewrites them
-        from the payload outputs.
-        """
-        cells = unbounded_member_cells(ret_typ)
-        pairs: list[IROperand] = [ret_val, IRLiteral(ret_typ.memory_bytes_required)]
-        for offset, member_t in cells:
-            cell = self.builder.add(ret_val, IRLiteral(offset))
-            payload = self.builder.mload(cell)
-            assert isinstance(payload, IRVariable)
-            pairs += [payload, self.ctx.sequence_runtime_size(payload, member_t)]
-        self.builder.dret(IRLiteral(1 + len(cells)), *pairs, return_pc)
 
     def _dynamic_return_member_size(
         self, member_ptr: IRVariable, dst_typ: VyperType, src_typ: VyperType

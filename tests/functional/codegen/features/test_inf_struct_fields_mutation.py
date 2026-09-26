@@ -29,6 +29,92 @@ struct Batch:
 OWNER = "0x" + "12" * 20
 
 
+@pytest.mark.parametrize("owned", [False, True])
+@pytest.mark.parametrize(
+    "source, otherwise",
+    [
+        ("b.rows[0]", [1, 2]),
+        ("b.rows[0] if flag else [8]", [8]),
+        ("b.rows[0] if flag else c.rows[0]", [0]),
+        ("(b.rows[0], c.rows[0])[0]", [1, 2]),
+        ("(b if flag else c).rows[0]", [0]),
+        ("b.rows[0] if flag else (c.rows[0] if other else [8])", [0]),
+    ],
+)
+def test_member_source_frozen_before_target(get_contract, source, otherwise, owned):
+    prepare = "b.rows.append([5])\n    b.rows.pop()" if owned else "pass"
+    code = f"""
+struct S:
+    rows: DynArray[DynArray[uint256, 4], INF]
+
+@external
+def f(flag: bool, other: bool) -> (DynArray[uint256, 4], DynArray[uint256, 4]):
+    b: S = S(rows=[[1, 2]])
+    c: S = S(rows=[[0]])
+    {prepare}
+    c.rows[b.rows[0].pop() - 2] = {source}
+    return c.rows[0], b.rows[0]
+"""
+    c = get_contract(code)
+    assert c.f(True, True) == ([1, 2], [1])
+    assert c.f(False, True) == (otherwise, [1])
+    if "other" in source:
+        assert c.f(False, False) == ([8], [1])
+
+
+@pytest.mark.parametrize("owned", [False, True])
+@pytest.mark.parametrize("bound", ["4", "INF"])
+@pytest.mark.parametrize(
+    "base",
+    [
+        "b.rows",
+        "(b.rows if flag else c.rows)",
+        "(b.rows if flag else local)",
+        "(b.rows if flag else (c.rows if other else local))",
+    ],
+)
+def test_selected_array_checks_length_after_index(get_contract, tx_failed, base, bound, owned):
+    prepare = "b.rows.append([7])\n    b.rows.pop()" if owned else "pass"
+    code = f"""
+struct S:
+    rows: DynArray[DynArray[uint256, 4], {bound}]
+
+@external
+def f(flag: bool, other: bool) -> uint256:
+    b: S = S(rows=[[0], [1]])
+    c: S = S(rows=[[3], [4, 5]])
+    local: DynArray[DynArray[uint256, 4], {bound}] = [[6], [7, 8, 9]]
+    {prepare}
+    return len({base}[b.rows.pop()[0]])
+"""
+    c = get_contract(code)
+    with tx_failed():
+        c.f(True, True)
+    if "flag" in base:
+        assert c.f(False, True) == (2 if "c.rows" in base else 3)
+    if "other" in base:
+        assert c.f(False, False) == 3
+
+
+@pytest.mark.parametrize("owned", [False, True])
+def test_selected_nested_array_snapshot_before_index(get_contract, tx_failed, owned):
+    prepare = "b.rows.append([7])\n    b.rows.pop()" if owned else "pass"
+    code = f"""
+struct S:
+    rows: DynArray[DynArray[uint256, 4], INF]
+
+@external
+def f(flag: bool) -> uint256:
+    b: S = S(rows=[[0], [1]])
+    {prepare}
+    return (b.rows[0] if flag else [0, 1])[b.rows.pop()[0]]
+"""
+    c = get_contract(code)
+    with tx_failed():
+        c.f(True)
+    assert c.f(False) == 1
+
+
 def test_member_assign_from_local(get_contract):
     code = BATCH + """
 @external

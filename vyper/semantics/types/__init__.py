@@ -8,7 +8,6 @@ from .infinity import (
     POINTER_CELL_SIZE,
     WILDCARD,
     LengthUpperBound,
-    contains_pointer_cell_array,
     is_bounded_length,
     is_pointer_cell_struct_type,
     is_runtime_sizable_return_type,
