@@ -5,7 +5,7 @@ from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import IRnode
-from vyper.exceptions import CompilerPanic, TypeMismatch, UnfoldableNode
+from vyper.exceptions import CompilerPanic, InvalidReference, TypeMismatch, UnfoldableNode
 from vyper.semantics.analysis.base import Modifiability, StateMutability
 from vyper.semantics.analysis.utils import (
     check_modifiability,
@@ -137,7 +137,11 @@ class BuiltinFunctionT(VyperType):
         for arg in varargs:
             # call get_exact_type_from_node for its side effects -
             # ensures the type can be inferred exactly.
-            get_exact_type_from_node(arg)
+            argt = get_exact_type_from_node(arg)
+            # a vararg is always a runtime value; a bare type name (TYPE_T)
+            # is not, and would otherwise slip through to codegen and panic.
+            if isinstance(argt, TYPE_T):
+                raise InvalidReference(f"not a variable or literal: '{argt.typedef}'", arg)
 
     def check_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
         return self._modifiability <= modifiability
