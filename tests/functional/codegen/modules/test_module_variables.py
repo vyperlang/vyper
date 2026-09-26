@@ -97,7 +97,7 @@ MY_IMMUTABLE: immutable(uint256)
 @deploy
 def __init__(initial_value: uint256):
     self.counter = initial_value
-    MY_IMMUTABLE = initial_value * 2
+    self.MY_IMMUTABLE = initial_value * 2
 
 @internal
 def increment_counter():
@@ -116,7 +116,7 @@ initializes: lib
 @deploy
 def __init__():
     self.counter = 1
-    MY_IMMUTABLE = 3
+    self.MY_IMMUTABLE = 3
     lib.__init__(5)
 
 @external
@@ -147,7 +147,7 @@ MY_IMMUTABLE: immutable(uint256)
 @deploy
 def __init__(initial_value: uint256):
     self.counter = initial_value
-    MY_IMMUTABLE = initial_value * 2
+    self.MY_IMMUTABLE = initial_value * 2
 
 @internal
 def increment_counter():
@@ -211,7 +211,7 @@ MY_IMMUTABLE: immutable(uint256)
 @deploy
 def __init__(initial_value: uint256):
     self.counter = initial_value * 2
-    MY_IMMUTABLE = initial_value * 3
+    self.MY_IMMUTABLE = initial_value * 3
 
 @internal
 def increment_counter():

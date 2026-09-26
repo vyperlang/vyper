@@ -10,10 +10,10 @@ def build_node():
     Yields a helper function for generating a single Vyper AST node.
     """
 
-    def _build_node(source):
+    def _build_node(source, is_interface=False):
         # docstring ensures string nodes are properly generated, not turned into docstrings
         source = f"""'I am a docstring.'\n{source}"""
-        ast = vy_ast.parse_to_ast(source).body[0]
+        ast = vy_ast.parse_to_ast(source, is_interface=is_interface).body[0]
         if isinstance(ast, vy_ast.Expr):
             ast = ast.value
         return ast

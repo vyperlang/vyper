@@ -2,11 +2,12 @@
 
 from decimal import Decimal
 from functools import cached_property
-from typing import Any, Tuple, Union
+from typing import Any, NoReturn, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_Bool, ABI_BytesM, ABI_GIntM, ABIType
 from vyper.exceptions import (
+    BadChecksumAddress,
     CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
@@ -15,15 +16,16 @@ from vyper.exceptions import (
 )
 from vyper.utils import checksum_encode, int_bounds, is_checksum_encoded
 
-from .base import VyperType
+from .base import BottomT, VyperType
 from .bytestrings import BytesT
+from .infinity import INF
 
 
 class _PrimT(VyperType):
     _is_prim_word = True
     _equality_attrs: tuple = ()
     _as_hashmap_key = True
-    _as_array = True
+    is_valid_element_type = True
 
 
 # should inherit from uint8?
@@ -125,6 +127,9 @@ class BytesM_T(_PrimT):
             raise InvalidLiteral(f"Cannot mix uppercase and lowercase for {self} literal", node)
 
     def compare_type(self, other: VyperType) -> bool:
+        if isinstance(other, BottomT):
+            return True
+
         if not super().compare_type(other):
             return False
         assert isinstance(other, BytesM_T)
@@ -316,6 +321,9 @@ class IntegerT(NumericT):
         return ABI_GIntM(self.bits, self.is_signed)
 
     def compare_type(self, other: VyperType) -> bool:
+        if isinstance(other, BottomT):
+            return True
+
         # this function is performance sensitive
         # originally:
         # if not super().compare_type(other):
@@ -411,7 +419,7 @@ class AddressT(_PrimT):
         "codehash": BytesM_T(32),
         "codesize": UINT(256),
         "is_contract": BoolT(),
-        "code": BytesT(),
+        "code": BytesT(INF),
     }
 
     @cached_property
@@ -424,13 +432,18 @@ class AddressT(_PrimT):
         if node.n_bytes != 20:
             raise InvalidLiteral(f"Invalid address. Expected 20 bytes, got {node.n_bytes}.", node)
 
-        addr = node.value
-        if not is_checksum_encoded(addr):
-            raise InvalidLiteral(
-                "Address checksum mismatch. If you are sure this is the right "
-                f"address, the correct checksummed form is: {checksum_encode(addr)}",
-                node,
-            )
+        if not is_checksum_encoded(node.value):
+            self.raise_bad_checksum(node)
+
+    @classmethod
+    def _checksum_error_msg(cls, node: vy_ast.Hex) -> str:
+        msg = "Address checksum mismatch. If you are sure this is the right "
+        msg += f"address, the correct checksummed form is: {checksum_encode(node.value)}"
+        return msg
+
+    @classmethod
+    def raise_bad_checksum(cls, node: vy_ast.Hex) -> NoReturn:
+        raise BadChecksumAddress(cls._checksum_error_msg(node), node)
 
 
 # type for "self"
@@ -439,5 +452,11 @@ class SelfT(AddressT):
     _id = "self"
 
     def compare_type(self, other):
+        if isinstance(other, BottomT):
+            return True
         # compares true to AddressT
+        # This checks if either is a subtype of the other, which doesn't seem correct
         return isinstance(other, type(self)) or isinstance(self, type(other))
+
+
+AnyPrimType = Union[AddressT, BoolT, BytesM_T, DecimalT, IntegerT]

@@ -1,10 +1,12 @@
 from vyper import ast as vy_ast
+from vyper.compiler.input_bundle import BUILTIN
 from vyper.compiler.settings import get_global_settings
 from vyper.exceptions import (
     ArrayIndexException,
     CompilerPanic,
     FeatureException,
     InstantiationException,
+    InvalidReference,
     InvalidType,
     StructureException,
     UndeclaredDefinition,
@@ -13,7 +15,8 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import TYPE_T, VyperType
+from vyper.semantics.types.base import TYPE_T, BottomT, VyperType
+from vyper.semantics.types.infinity import INF, WILDCARD, LengthUpperBound
 
 # TODO maybe this should be merged with .types/base.py
 
@@ -63,7 +66,7 @@ def type_from_abi(abi_type: dict) -> VyperType:
             if type_string in ("Bytes", "String"):
                 # special handling for bytes, string, since
                 # the type ctor is in the namespace instead of a concrete type.
-                return t()
+                return t(WILDCARD)
             return t
         except KeyError:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
@@ -94,11 +97,15 @@ def type_from_annotation(
     # TODO: cursed import cycle!
     from vyper.semantics.types.primitives import DecimalT
 
-    if isinstance(typ, DecimalT):
+    # Gate uses of decimal outside of built-ins behind a flag
+    if isinstance(typ, DecimalT) and node.module_node.source_id != BUILTIN:
         # is there a better place to put this check?
         settings = get_global_settings()
         if settings and not settings.get_enable_decimals():
             raise FeatureException("decimals are not allowed unless `--enable-decimals` is set")
+
+    if isinstance(typ, BottomT):
+        raise InvalidType("`Never` is not allowed in user programs.", node)
 
     return typ
 
@@ -171,12 +178,16 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         typ_ = typ_.module_t
 
     if not isinstance(typ_, VyperType):
-        raise CompilerPanic(f"Not a type: {typ_}", node)
+        from vyper.semantics.analysis.base import VarInfo
+
+        if isinstance(typ_, VarInfo):
+            raise InvalidType(err_msg, node)
+        raise CompilerPanic(f"Not a type: {typ_}", node)  # pragma: no cover
 
     return typ_
 
 
-def get_index_value(node: vy_ast.VyperNode) -> int:
+def get_index_value(node: vy_ast.VyperNode) -> LengthUpperBound:
     """
     Return the literal value for a `Subscript` index.
 
@@ -187,27 +198,39 @@ def get_index_value(node: vy_ast.VyperNode) -> int:
 
     Returns
     -------
-    int
-        Literal integer value.
-        In the future, will return `None` if the subscript is an Ellipsis
+    LengthUpperBound
+        Either an integer, INF or Wildcard (for `...`)
     """
     # this is imported to improve error messages
     # TODO: revisit this!
     from vyper.semantics.analysis.utils import get_possible_types_from_node
 
+    if isinstance(node, vy_ast.Ellipsis):
+        # module_node gives the module for the file, we need to check for inline interfaces as well
+        in_interface = node.module_node.is_interface or node.get_ancestor(vy_ast.InterfaceDef)
+        if not in_interface:
+            raise InvalidType("Wildcard length is only allowed in interfaces", node)
+        return WILDCARD
+
     node = node.reduced()
+
+    # TODO: Maybe instead check that get_possible_types_from_node(node) is _Inf ?
+    if isinstance(node, vy_ast.Name) and node.id == "INF":
+        return INF
 
     if not isinstance(node, vy_ast.Int):
         # even though the subscript is an invalid type, first check if it's a valid _something_
         # this gives a more accurate error in case of e.g. a typo in a constant variable name
         try:
             get_possible_types_from_node(node)
-        except StructureException:
-            # StructureException is a very broad error, better to raise InvalidType in this case
+        except (StructureException, InvalidReference):
+            # StructureException is a very broad error, better to raise InvalidType in this case.
+            # InvalidReference is raised for a parameterized type name (e.g. `Bytes[String]`),
+            # which is the same user mistake as `Bytes[uint256]` and wants the same message.
             pass
         raise InvalidType("Subscript must be a literal integer", node)
 
-    if node.value <= 0:
-        raise ArrayIndexException("Subscript must be greater than 0", node)
+    if node.value < 0:
+        raise ArrayIndexException("Subscript must be at least 0", node)
 
     return node.value

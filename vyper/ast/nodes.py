@@ -14,6 +14,7 @@ from vyper.compiler.settings import VYPER_ERROR_CONTEXT_LINES, VYPER_ERROR_LINE_
 from vyper.exceptions import (
     ArgumentException,
     CompilerPanic,
+    FunctionDeclarationException,
     InvalidLiteral,
     InvalidOperation,
     OverflowException,
@@ -330,6 +331,16 @@ class VyperNode:
         slot_fields = [x for i in cls.__mro__ for x in getattr(i, "__slots__", [])]
         return set(i for i in slot_fields if not i.startswith("_"))
 
+    # TODO: perf profiling
+    @classmethod
+    def get_comparison_fields(cls) -> set:
+        """
+        For a node, return the subset of its field names that are useful for comparison
+
+        Excludes things like source position and caches
+        """
+        return cls.get_fields() - set(VyperNode.__slots__)
+
     def __deepcopy__(self, memo):
         # default implementation of deepcopy is a hotspot
         return pickle.loads(pickle.dumps(self))
@@ -362,7 +373,7 @@ class VyperNode:
         return getattr(self, "_description", type(self).__name__)
 
     @property
-    def module_node(self):
+    def module_node(self) -> "Module":
         if isinstance(self, Module):
             return self
         return self.get_ancestor(Module)
@@ -456,6 +467,8 @@ class VyperNode:
         # TODO: add full analysis result, e.g. expr_info
         if "type" in self._metadata:
             ast_dict["type"] = self._metadata["type"].to_dict()
+        if "func_type" in self._metadata:
+            ast_dict["func_type"] = self._metadata["func_type"].to_dict()
 
         return ast_dict
 
@@ -653,7 +666,15 @@ class Module(TopLevel):
 
 
 class FunctionDef(TopLevel):
-    __slots__ = ("args", "returns", "decorator_list", "pos")
+    __slots__ = ("args", "returns", "decorator_list")
+
+    def validate(self):
+        if not self.body:
+            raise FunctionDeclarationException(
+                "Function body cannot consist of only a docstring",
+                self,
+                hint="add a `pass` statement to the function body",
+            )
 
 
 class DocStr(VyperNode):
@@ -726,6 +747,10 @@ class FlagDef(TopLevel):
 
 
 class EventDef(TopLevel):
+    __slots__ = ("name", "body")
+
+
+class ErrorDef(TopLevel):
     __slots__ = ("name", "body")
 
 
@@ -847,9 +872,6 @@ class Hex(Constant):
     __slots__ = ()
 
     def validate(self):
-        if "_" in self.value:
-            # TODO: revisit this, we should probably allow underscores
-            raise InvalidLiteral("Underscores not allowed in hex literals", self)
         if len(self.value) % 2:
             raise InvalidLiteral("Hex notation requires an even number of digits", self)
 
@@ -1115,10 +1137,16 @@ class Pow(Operator):
         # stage since we are just trying to filter out inputs which can cause
         # the compiler to hang. the others will get caught during constant
         # folding or codegen.
+        # |left| <= 1 can never overflow (result magnitude stays <= 1), so
+        # fast-path it before the log-based heuristic. math.log is undefined
+        # for left <= 0 and zero for left == 1, so the log check below would
+        # also be ill-defined for those cases.
+        if abs(left) <= 1:
+            return int(left**right)
         # l**r > 2**256
         # r * ln(l) > ln(2 ** 256)
         # r > ln(2 ** 256) / ln(l)
-        if right > math.log(decimal.Decimal(2**257)) / math.log(decimal.Decimal(left)):
+        if right > math.log(decimal.Decimal(2**257)) / math.log(decimal.Decimal(abs(left))):
             raise InvalidLiteral("Out of bounds", self)
 
         return int(left**right)
@@ -1484,30 +1512,40 @@ class Pass(Stmt):
 
 
 class _ImportStmt(Stmt):
-    __slots__ = ("name", "alias")
+    __slots__ = ("names",)
 
     def to_dict(self):
         ret = super().to_dict()
-        if (import_info := self._metadata.get("import_info")) is not None:
-            ret["import_info"] = import_info.to_dict()
+        if (import_infos := self._metadata.get("import_infos")) is not None:
+            ret["import_infos"] = [import_info.to_dict() for import_info in import_infos]
 
         return ret
-
-    def __init__(self, *args, **kwargs):
-        if len(kwargs["names"]) > 1:
-            _raise_syntax_exc("Assignment statement must have one target", kwargs)
-        names = kwargs.pop("names")[0]
-        kwargs["name"] = names.name
-        kwargs["alias"] = names.asname
-        super().__init__(*args, **kwargs)
 
 
 class Import(_ImportStmt):
     __slots__ = ()
 
+    def validate(self):
+        if len(self.names) > 1:
+            msg = "modules need to be imported one by one"
+            import_strings = "\n    ".join(
+                [f"import {alias_node.node_source_code}" for alias_node in self.names]
+            )
+            hint = f"try \n    ```\n    {import_strings}\n    ```\n  "
+            raise StructureException(msg, self, hint=hint)
+
 
 class ImportFrom(_ImportStmt):
     __slots__ = ("level", "module")
+
+
+class alias(VyperNode):
+    """
+    Represents the `foo as bar` part of an import
+    Accessed from Import.names and ImportFrom.names
+    """
+
+    __slots__ = ("name", "asname")
 
 
 class ImplementsDecl(Stmt):
@@ -1516,16 +1554,26 @@ class ImplementsDecl(Stmt):
 
     Attributes
     ----------
-    annotation : Name
-        Name node for the interface to be implemented
+    children : List of (Name | Attribute)s
+        Name nodes for the interfaces to be implemented
     """
 
-    __slots__ = ("annotation",)
+    __slots__ = ("children",)
     _only_empty_fields = ("value",)
 
+    def __init__(self, *args, **kwargs):
+        tmp = kwargs.pop("annotation")
+        if isinstance(tmp, python_ast.Tuple):
+            kwargs["children"] = tmp.elts
+        else:
+            kwargs["children"] = [tmp]
+
+        super().__init__(*args, **kwargs)
+
     def validate(self):
-        if not isinstance(self.annotation, (Name, Attribute)):
-            raise StructureException("invalid implements", self.annotation)
+        for child in self.children:
+            if not isinstance(child, (Name, Attribute)):
+                raise StructureException("invalid implements", child)
 
 
 def as_tuple(node: VyperNode):

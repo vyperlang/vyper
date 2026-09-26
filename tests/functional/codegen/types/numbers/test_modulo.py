@@ -60,6 +60,19 @@ def bar(a: int128) -> bool:
     assert c.bar(-5) is True
 
 
+def test_signed_negative(get_contract):
+    code = """
+@external
+@pure
+def f(arg0: int128) -> int128:
+    return arg0 % arg0
+    """
+
+    c = get_contract(code)
+
+    assert c.f(-1) == 0
+
+
 BAD_CODE = [
     """
 @external

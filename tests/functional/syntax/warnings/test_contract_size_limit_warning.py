@@ -15,9 +15,9 @@ def huge_bytestring():
 def test_contract_size_exceeded(huge_bytestring):
     code = f"""
 @external
-def a() -> bool:
+def a() -> Bytes[24577]:
     q: Bytes[24577] = {huge_bytestring}
-    return True
+    return q
 """
     with pytest.warns(vyper.warnings.ContractSizeLimit):
         vyper.compile_code(code, output_formats=["bytecode_runtime"])

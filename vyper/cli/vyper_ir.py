@@ -15,9 +15,7 @@ def _parse_cli_args():
 def _parse_args(argv):
     parser = argparse.ArgumentParser(description="Vyper IR IR compiler")
     parser.add_argument("input_file", help="Vyper sourcecode to compile")
-    parser.add_argument(
-        "--version", action="version", version=f"{vyper.__version__}+commit{vyper.__commit__}"
-    )
+    parser.add_argument("--version", action="version", version=vyper.__long_version__)
     parser.add_argument(
         "-f",
         help="Format to print csv list of ir,opt_ir,asm,bytecode",

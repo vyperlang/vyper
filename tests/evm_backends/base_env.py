@@ -1,13 +1,21 @@
 import json
 from contextlib import contextmanager
 from dataclasses import dataclass
+from enum import Enum
+from itertools import count
+from pathlib import Path
 from typing import Iterable, Optional
 
+from eth.vm.forks.cancun.constants import BLOB_BASE_FEE_UPDATE_FRACTION, MIN_BLOB_BASE_FEE
+from eth.vm.forks.cancun.state import fake_exponential
 from eth_keys.datatypes import PrivateKey
 from eth_utils import to_checksum_address
 
+import vyper.compiler.settings as compiler_settings_module
 from tests.evm_backends.abi import abi_decode
 from tests.evm_backends.abi_contract import ABIContract, ABIContractFactory, ABIFunction
+from tests.exports import TestExporter
+from tests.utils import python_args_to_json
 from vyper.ast.grammar import parse_vyper_source
 from vyper.compiler import InputBundle, Settings, compile_code
 from vyper.utils import ERC5202_PREFIX, method_id
@@ -30,6 +38,16 @@ class ExecutionResult:
     gas_used: int
 
 
+class DeploymentOrigin(Enum):
+    SOURCE = "source"
+    IR = "ir"
+    BLUEPRINT = "blueprint"
+    RAW_BYTECODE = "raw_bytecode"
+
+    def __str__(self):
+        return self.value
+
+
 class EvmError(Exception):
     """Exception raised when a call fails."""
 
@@ -46,23 +64,78 @@ class BaseEnv:
 
     DEFAULT_CHAIN_ID = 1
 
-    def __init__(self, gas_limit: int, account_keys: list[PrivateKey]) -> None:
+    def __init__(
+        self, gas_limit: int, account_keys: list[PrivateKey], exporter: Optional[TestExporter]
+    ) -> None:
         self.gas_limit = gas_limit
         self._keys = account_keys
         self.deployer: str = self._keys[0].public_key.to_checksum_address()
 
-    def deploy(self, abi: list[dict], bytecode: bytes, value=0, *args, **kwargs):
-        """Deploy a contract with the given ABI and bytecode."""
+        self.exporter = exporter
+
+    def deploy(
+        self,
+        abi: list[dict],
+        bytecode: bytes,
+        *args,
+        export_metadata: Optional[dict] = None,
+        value=0,
+        **kwargs,
+    ):
         factory = ABIContractFactory.from_abi_dict(abi, bytecode=bytecode)
 
         initcode = bytecode
+        calldata = b""
         if args or kwargs:
             ctor_abi = next(i for i in abi if i["type"] == "constructor")
             ctor = ABIFunction(ctor_abi, contract_name=factory._name)
-            initcode += ctor.prepare_calldata(*args, **kwargs)
+            calldata = ctor.prepare_calldata(*args, **kwargs)
+            initcode += calldata
 
-        deployed_at = self._deploy(initcode, value)
-        address = to_checksum_address(deployed_at)
+        common_trace_kwargs = {}
+        if self.exporter:
+            if export_metadata is None:
+                export_metadata = {"deployment_origin": DeploymentOrigin.RAW_BYTECODE}
+
+            python_args = python_args_to_json(args, kwargs)
+
+            common_trace_kwargs = {
+                "deployment_type": str(export_metadata.get("deployment_origin")),
+                "contract_abi": abi,
+                "initcode": initcode.hex(),
+                "calldata": calldata.hex() if calldata else None,
+                "value": value,
+                "source_code": export_metadata.get("source_code"),
+                "annotated_ast": export_metadata.get("annotated_ast"),
+                "solc_json": export_metadata.get("solc_json"),
+                "compiler_settings": export_metadata.get("compiler_settings"),
+                "storage_layout": export_metadata.get("storage_layout"),
+                "raw_ir": export_metadata.get("raw_ir"),
+                "blueprint_initcode_prefix": export_metadata.get("blueprint_initcode_prefix"),
+                "python_args": python_args,
+                "function_name": "constructor",
+                "env": self.get_env_data(
+                    self.deployer, self.gas_limit, 0
+                ),  # gas_price not accessible for deployments
+            }
+
+        deployment_succeeded = False
+        address = "0x0000000000000000000000000000000000000000"
+
+        try:
+            deployed_at = self._deploy(initcode, value)
+            deployment_succeeded = True
+            address = to_checksum_address(deployed_at)
+        finally:
+            if self.exporter:
+                runtime_bytecode = self.get_code(address)
+                self.exporter.trace_deployment(
+                    **common_trace_kwargs,
+                    deployed_address=address,
+                    runtime_bytecode=runtime_bytecode.hex(),
+                    deployment_succeeded=deployment_succeeded,
+                )
+
         return factory.at(self, address)
 
     def deploy_source(
@@ -77,10 +150,49 @@ class BaseEnv:
         **kwargs,
     ) -> ABIContract:
         """Compile and deploy a contract from source code."""
-        abi, bytecode = _compile(
-            source_code, output_formats, input_bundle, compiler_settings, storage_layout_override
+        if self.exporter:
+            # solc_json is useful for exporting the whole input bundle (including imports)
+            output_formats["solc_json"] = True
+            # settings_dict exports the resolved compiler settings used for compilation
+            output_formats["settings_dict"] = True
+            output_formats["layout"] = True
+
+        out = _compile(
+            source_code,
+            output_formats,
+            input_bundle=input_bundle,
+            settings=compiler_settings,
+            storage_layout_override=storage_layout_override,
         )
-        return self.deploy(abi, bytecode, value, *args, **kwargs)
+
+        abi = out["abi"]
+        bytecode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+
+        export_metadata = None
+        # note that tests where compilation fails (e.g. `syntax` tests) aren't
+        # propagated to the export yet
+        if self.exporter:
+            compiler_settings_dict = out.get("settings_dict")
+            if (
+                compiler_settings_dict is not None
+                and "enable_decimals" not in compiler_settings_dict
+            ):
+                compiler_settings_dict["enable_decimals"] = (
+                    compiler_settings_module.DEFAULT_ENABLE_DECIMALS
+                )
+
+            export_metadata = {
+                "source_code": source_code,
+                "annotated_ast": out.get("annotated_ast_dict"),
+                "solc_json": out.get("solc_json"),
+                "compiler_settings": compiler_settings_dict,
+                "storage_layout": out.get("layout"),
+                "deployment_origin": DeploymentOrigin.SOURCE,
+            }
+
+        return self.deploy(
+            abi, bytecode, *args, export_metadata=export_metadata, value=value, **kwargs
+        )
 
     def deploy_blueprint(
         self,
@@ -91,7 +203,13 @@ class BaseEnv:
         initcode_prefix: bytes = ERC5202_PREFIX,
     ):
         """Deploy a contract with a blueprint pattern."""
-        abi, bytecode = _compile(source_code, output_formats, input_bundle)
+        if self.exporter:
+            output_formats["solc_json"] = True
+            output_formats["settings_dict"] = True
+            output_formats["layout"] = True
+
+        out = _compile(source_code, output_formats, input_bundle)
+        abi, bytecode = out["abi"], bytes.fromhex(out["bytecode"].removeprefix("0x"))
         bytecode = initcode_prefix + bytecode
         bytecode_len = len(bytecode)
         bytecode_len_hex = hex(bytecode_len)[2:].rjust(4, "0")
@@ -100,7 +218,31 @@ class BaseEnv:
         deploy_bytecode = deploy_preamble + bytecode
 
         deployer_abi: list[dict] = []  # just a constructor
-        deployer = self.deploy(deployer_abi, deploy_bytecode, *args)
+
+        export_metadata = None
+        if self.exporter:
+            compiler_settings_dict = out.get("settings_dict")
+            if (
+                compiler_settings_dict is not None
+                and "enable_decimals" not in compiler_settings_dict
+            ):
+                compiler_settings_dict["enable_decimals"] = (
+                    compiler_settings_module.DEFAULT_ENABLE_DECIMALS
+                )
+
+            export_metadata = {
+                "source_code": source_code,
+                "annotated_ast": out.get("annotated_ast_dict"),
+                "solc_json": out.get("solc_json"),
+                "compiler_settings": compiler_settings_dict,
+                "storage_layout": out.get("layout"),
+                "blueprint_initcode_prefix": initcode_prefix.hex(),
+                "deployment_origin": DeploymentOrigin.BLUEPRINT,
+            }
+
+        deployer = self.deploy(
+            deployer_abi, deploy_bytecode, *args, export_metadata=export_metadata
+        )
 
         def factory(address):
             return ABIContractFactory.from_abi_dict(abi).at(self, address)
@@ -130,6 +272,11 @@ class BaseEnv:
         raise NotImplementedError  # must be implemented by subclasses
 
     def set_balance(self, address: str, value: int):
+        if self.exporter:
+            self.exporter.trace_set_balance(address, value)
+        self._set_balance(address, value)
+
+    def _set_balance(self, address: str, value: int):
         raise NotImplementedError  # must be implemented by subclasses
 
     @property
@@ -169,10 +316,59 @@ class BaseEnv:
         gas: int | None = None,
         gas_price: int = 0,
         is_modifying: bool = True,
-    ) -> bytes:
+        blob_hashes: Optional[list[bytes]] = None,
+        **kwargs,
+    ):
+        if isinstance(data, str):
+            data = bytes.fromhex(data.removeprefix("0x"))
+        sender = sender or self.deployer
+        gas_to_use = self.gas_limit if gas is None else gas
+
+        result = None
+        call_succeeded = False
+
+        try:
+            result = self._message_call(
+                to, sender, data, value, gas_to_use, gas_price, is_modifying, blob_hashes
+            )
+            call_succeeded = True
+        finally:
+            if self.exporter:
+                python_args = kwargs.pop("python_args", {"args": [], "kwargs": {}})
+                function_name = kwargs.pop("function_name", None)
+                self.exporter.trace_call(
+                    output=result,
+                    call_succeeded=call_succeeded,
+                    to=to,
+                    calldata=data,
+                    value=value,
+                    is_modifying=is_modifying,
+                    python_args=python_args,
+                    function_name=function_name,
+                    env=self.get_env_data(sender, gas_to_use, gas_price),
+                )
+
+        return result
+
+    def _message_call(
+        self,
+        to: str,
+        sender: str,
+        data: bytes,
+        value: int,
+        gas: int,
+        gas_price: int,
+        is_modifying: bool,
+        blob_hashes: Optional[list[bytes]],
+    ):
         raise NotImplementedError  # must be implemented by subclasses
 
     def clear_transient_storage(self) -> None:
+        if self.exporter:
+            self.exporter.trace_clear_transient_storage()
+        self._clear_transient_storage()
+
+    def _clear_transient_storage(self) -> None:
         raise NotImplementedError  # must be implemented by subclasses
 
     def get_code(self, address: str) -> bytes:
@@ -184,8 +380,58 @@ class BaseEnv:
     def set_excess_blob_gas(self, param):
         raise NotImplementedError  # must be implemented by subclasses
 
+    def get_blob_basefee(self) -> Optional[int]:
+        """Calculate blob base fee from excess blob gas using EIP-4844 formula."""
+        excess_blob_gas = self.get_excess_blob_gas()
+        if excess_blob_gas is None:
+            return None
+
+        return fake_exponential(MIN_BLOB_BASE_FEE, excess_blob_gas, BLOB_BASE_FEE_UPDATE_FRACTION)
+
+    def get_block_hash(self, block_number: int) -> bytes:
+        """Get the hash of a block by its number."""
+        raise NotImplementedError  # must be implemented by subclasses
+
     def _deploy(self, code: bytes, value: int, gas: int | None = None) -> str:
         raise NotImplementedError  # must be implemented by subclasses
+
+    def _get_block_hashes(self) -> dict[str, bytes]:
+        # Export the last 256 block hashes (or up to block 0)
+        block_hashes = {}
+        current_block = self.block_number
+
+        # We can only get hashes for blocks before the current one
+        # Start from block_number - 1 and go back up to 256 blocks
+        start_block = current_block - 1
+        end_block = max(0, current_block - 256)
+
+        for block_num in range(start_block, end_block - 1, -1):
+            if block_num < 0:
+                break
+            block_hash = self.get_block_hash(block_num)
+            block_hashes[str(block_num)] = block_hash.hex()
+
+        return block_hashes
+
+    def get_env_data(self, origin: str, gas: int, gas_price: int) -> dict:
+        block_hashes = self._get_block_hashes()
+
+        return {
+            "tx": {
+                "origin": origin,
+                "gas": gas,
+                "gas_price": gas_price,
+                "blob_hashes": [h.hex() for h in self.blob_hashes],
+            },
+            "block": {
+                "number": self.block_number,
+                "timestamp": self.timestamp,
+                "gas_limit": self.gas_limit,
+                "excess_blob_gas": self.get_excess_blob_gas(),
+                "blob_basefee": self.get_blob_basefee(),
+                "block_hashes": block_hashes,
+            },
+        }
 
     @staticmethod
     def _parse_revert(output_bytes: bytes, error: Exception, gas_used: int):
@@ -219,15 +465,84 @@ class BaseEnv:
         raise NotImplementedError  # must be implemented by subclasses
 
 
+_path_index = count()
+
+
+def _make_fake_path(base_dir: Path | None = None) -> Path:
+    name = f"unknown_{next(_path_index)}.vy"
+    path = (base_dir or Path.cwd()) / name
+    # resolve path same as default FileInputBundle(["."]) would
+    return path.resolve(strict=False)
+
+
+def _validate_source_map(source_map: dict, bytecode_len: int) -> None:
+    """
+    Assert basic invariants of source maps,
+    such as the facts that line and column numbers are non-negative
+    """
+    pc_pos_map = source_map["pc_pos_map"]
+    pc_ast_map = source_map["pc_ast_map"]
+    pc_jump_map = source_map["pc_jump_map"]
+    error_map = source_map["error_map"]
+    compressed = source_map["pc_pos_map_compressed"]
+
+    for m in (pc_pos_map, pc_ast_map, pc_jump_map, error_map):
+        for pc in m.keys():
+            assert isinstance(pc, int)
+            assert 0 <= pc < bytecode_len
+
+    for span in pc_pos_map.values():
+        lineno, col, end_lineno, end_col = span
+        assert lineno >= 0 and col >= 0 and end_lineno >= 0 and end_col >= 0
+        assert (lineno, col) < (end_lineno, end_col)
+
+    for ast_ref in pc_ast_map.values():
+        source_id, node_id = ast_ref
+        # -1 and BUILTIN (-2) are legitimate sentinels (see vyper/compiler/input_bundle.py).
+        assert -2 <= source_id
+        assert 0 <= node_id
+
+    for jump_type in pc_jump_map.values():
+        assert jump_type in ("o", "i", "-")
+
+    assert pc_pos_map.keys() == pc_ast_map.keys()
+
+    # _compress_source_map produces exactly `bytecode_size` `;`-joined entries.
+    entries = compressed.split(";")
+    assert len(entries) == bytecode_len
+    for pc, entry in enumerate(entries):
+        parts = entry.split(":")
+
+        assert 3 <= len(parts) <= 4
+        start, length, source_id = int(parts[0]), int(parts[1]), int(parts[2])
+
+        is_sentinel = (start, length, source_id) == (-1, -1, -1)
+        assert is_sentinel == (pc not in pc_ast_map)
+
+        if not is_sentinel:
+            assert start >= 0 and length >= 0
+            assert source_id == pc_ast_map[pc][0]
+
+        assert (len(parts) == 4) == (pc in pc_jump_map)
+        if len(parts) == 4:
+            assert parts[3] == pc_jump_map[pc]
+
+
 def _compile(
     source_code: str,
     output_formats: Iterable[str],
-    input_bundle: InputBundle = None,
-    settings: Settings = None,
+    input_bundle: InputBundle | None = None,
+    settings: Settings | None = None,
     storage_layout_override=None,
-) -> tuple[list[dict], bytes]:
+) -> dict:
+    if input_bundle is None:
+        fake_path = _make_fake_path()
+    else:
+        fake_path = _make_fake_path(Path(input_bundle.search_paths[0]))
+
     out = compile_code(
         source_code,
+        fake_path,
         # test that all output formats can get generated
         output_formats=output_formats,
         settings=settings,
@@ -235,6 +550,15 @@ def _compile(
         show_gas_estimates=True,  # Enable gas estimates for testing
         storage_layout_override=storage_layout_override,
     )
+
     parse_vyper_source(source_code)  # Test grammar.
     json.dumps(out["metadata"])  # test metadata is json serializable
-    return out["abi"], bytes.fromhex(out["bytecode"].removeprefix("0x"))
+
+    for sm_key, bc_key in (("source_map", "bytecode"), ("source_map_runtime", "bytecode_runtime")):
+        if sm_key not in out:
+            continue
+        assert bc_key in out
+        bytecode_len = len(bytes.fromhex(out[bc_key].removeprefix("0x")))
+        _validate_source_map(out[sm_key], bytecode_len)
+
+    return out

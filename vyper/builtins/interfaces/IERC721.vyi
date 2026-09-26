@@ -42,7 +42,7 @@ def transferFrom(_from: address, _to: address, _tokenId: uint256):
     ...
 
 @payable
-def safeTransferFrom(_from: address, _to: address, _tokenId: uint256, _data: Bytes[1024] = b""):
+def safeTransferFrom(_from: address, _to: address, _tokenId: uint256, _data: Bytes[1024] = ...):
     ...
 
 @payable

@@ -186,9 +186,10 @@ def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
         return IRnode.from_list(ir_ret, annotation=annotation)
 
     # contains some computation, we need to only do it once.
-    with ir_node.cache_when_complex("to_encode") as (b1, ir_node), dst.cache_when_complex(
-        "dst"
-    ) as (b2, dst):
+    with (
+        ir_node.cache_when_complex("to_encode") as (b1, ir_node),
+        dst.cache_when_complex("dst") as (b2, dst),
+    ):
         dyn_ofst = "dyn_ofst"  # current offset in the dynamic section
 
         if ir_node.typ._is_prim_word:

@@ -92,8 +92,8 @@ class BuiltinFunctionT(VyperType):
     mutability: StateMutability = StateMutability.PURE
 
     @property
-    def modifiability(self):
-        return self._modifiability
+    def is_modifying(self) -> bool:
+        return self.mutability > StateMutability.VIEW
 
     # helper function to deal with TYPE_Ts
     def _validate_single(self, arg: vy_ast.VyperNode, expected_type: VyperType) -> None:
@@ -115,6 +115,8 @@ class BuiltinFunctionT(VyperType):
         validate_call_args(node, expect_num_args, list(self._kwargs.keys()))
 
         for arg, (_, expected) in zip(node.args, self._inputs):
+            # `expected` is sometimes not a VyperType
+            # This violates the contract of _validate_single, but it still works
             self._validate_single(arg, expected)
 
         for kwarg in node.keywords:
@@ -123,6 +125,8 @@ class BuiltinFunctionT(VyperType):
                 kwarg.value, Modifiability.CONSTANT
             ):
                 raise TypeMismatch("Value must be literal", kwarg.value)
+            # `kwarg_settings.typ` is sometimes not a VyperType
+            # This violates the contract of _validate_single, but it still works
             self._validate_single(kwarg.value, kwarg_settings.typ)
 
         # typecheck varargs. we don't have type info from the signature,
@@ -152,7 +156,9 @@ class BuiltinFunctionT(VyperType):
         varargs = node.args[n_known_args:]
         if len(varargs) > 0:
             assert self._has_varargs
-        ret.extend(get_exact_type_from_node(arg) for arg in varargs)
+        # varargs have no declared type, so a wildcard call return has no
+        # bound to resolve against and its wildcards resolve to INF
+        ret.extend(get_exact_type_from_node(arg).resolve_wildcard() for arg in varargs)
         return ret
 
     def infer_kwarg_types(self, node: vy_ast.Call) -> dict[str, VyperType]:

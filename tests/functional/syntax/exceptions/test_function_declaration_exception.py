@@ -43,7 +43,7 @@ a: immutable(uint256)
 
 @internal
 def __init__():
-    a = 1
+    self.a = 1
     """,
     """
 a: immutable(uint256)
@@ -51,7 +51,7 @@ a: immutable(uint256)
 @deploy
 @pure
 def __init__():
-    a = 1
+    self.a = 1
     """,
     """
 a: immutable(uint256)
@@ -59,7 +59,7 @@ a: immutable(uint256)
 @deploy
 @view
 def __init__():
-    a = 1
+    self.a = 1
     """,
 ]
 

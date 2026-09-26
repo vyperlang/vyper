@@ -1,0 +1,186 @@
+from __future__ import annotations
+
+from collections import deque
+from collections.abc import Iterator
+
+import vyper.evm.address_space as addr_space
+from vyper.venom.analysis import (
+    BasePtrAnalysis,
+    DFGAnalysis,
+    DominatorTreeAnalysis,
+    LivenessAnalysis,
+    MemoryAliasAnalysis,
+)
+from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
+from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
+from vyper.venom.call_layout import InvokeLayout
+from vyper.venom.effects import EMPTY, Effects
+from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.copy_forwarding import CopyForwardingPolicy
+from vyper.venom.passes.machinery.inst_updater import InstUpdater
+
+
+class InvokeCopyForwardingBase(IRPass):
+    """
+    Shared analyses and helpers for invoke-related memory copy forwarding passes.
+    """
+
+    dfg: DFGAnalysis
+    domtree: DominatorTreeAnalysis
+    base_ptr: BasePtrAnalysis
+    mem_alias: MemoryAliasAnalysis
+    updater: InstUpdater
+    readonly_memory_args: ReadonlyMemoryArgsGlobalAnalysis
+    copy_forwarding: CopyForwardingPolicy
+
+    def _prepare(self) -> None:
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.domtree = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
+        self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
+        self.mem_alias = self.analyses_cache.request_analysis(MemoryAliasAnalysis)
+        self.updater = InstUpdater(self.dfg)
+        self.copy_forwarding = CopyForwardingPolicy(
+            self.function, self.dfg, self.base_ptr, self.mem_alias
+        )
+        # force (not request): recompute after prior optimizations may have
+        # eliminated writes, allowing more parameters to be classified readonly
+        self.readonly_memory_args = self.analyses_cache.force_analysis(
+            ReadonlyMemoryArgsGlobalAnalysis
+        )
+        self._multi_defined_vars = self._collect_multi_defined_vars()
+
+    def _collect_multi_defined_vars(self) -> set[IRVariable]:
+        # the pre-inlining run of these passes sees pre-SSA IR, where a
+        # variable can be assigned on several paths. DFGAnalysis records a
+        # single producer per variable, so an assign chain walked through
+        # such a variable would follow just one of its definitions.
+        seen: set[IRVariable] = set()
+        multi: set[IRVariable] = set()
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                for out in inst.get_outputs():
+                    if out in seen:
+                        multi.add(out)
+                    seen.add(out)
+        return multi
+
+    def _finish(self, changed: bool) -> None:
+        if changed:
+            self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+
+    def _is_after(self, copy_inst: IRInstruction, use_inst: IRInstruction) -> bool:
+        return self.domtree.is_after(use_inst, copy_inst)
+
+    def _invoke_user_arg_index(self, invoke_inst: IRInstruction, operand_idx: int) -> int | None:
+        return self._invoke_layout(invoke_inst).user_arg_index(operand_idx)
+
+    def _invoke_return_buffer_operand_pos(self, invoke_inst: IRInstruction) -> int | None:
+        return self._invoke_layout(invoke_inst).return_buffer_operand_pos
+
+    def _is_alloca_like(self, inst: IRInstruction | None) -> bool:
+        return inst is not None and inst.opcode == "alloca"
+
+    def _matches_alloca_size(self, inst: IRInstruction, expected_size: int) -> bool:
+        size = inst.operands[0]
+        return isinstance(size, IRLiteral) and size.value == expected_size
+
+    def _is_readonly_invoke_operand(self, invoke_inst: IRInstruction, operand_idx: int) -> bool:
+        callee = self._get_invoke_callee(invoke_inst)
+        if callee is None:
+            return False
+
+        arg_idx = self._invoke_user_arg_index(invoke_inst, operand_idx)
+        if arg_idx is None:
+            return False
+
+        readonly_idxs = self.readonly_memory_args.get_readonly_invoke_arg_idxs(callee)
+        return arg_idx in readonly_idxs
+
+    def _get_invoke_callee(self, invoke_inst: IRInstruction):
+        return self._invoke_layout(invoke_inst).callee
+
+    def _invoke_layout(self, invoke_inst: IRInstruction) -> InvokeLayout:
+        return InvokeLayout(self.function.ctx, invoke_inst)
+
+    def _has_src_clobber_between(
+        self, copy_inst: IRInstruction, rewrite_sites: set[tuple[IRInstruction, int]]
+    ) -> bool:
+        src_loc = self.base_ptr.get_read_location(copy_inst, addr_space.MEMORY)
+        if src_loc.is_empty():
+            return False
+
+        bb_insts = copy_inst.parent.instructions
+        copy_idx = bb_insts.index(copy_inst)
+
+        for invoke_inst, _ in rewrite_sites:
+            invoke_idx = bb_insts.index(invoke_inst)
+            for inst in bb_insts[copy_idx + 1 : invoke_idx]:
+                if inst.get_write_effects() & Effects.MEMORY == EMPTY:
+                    continue
+                write_loc = self.base_ptr.get_write_location(inst, addr_space.MEMORY)
+                if self.mem_alias.may_alias(src_loc, write_loc):
+                    return True
+
+        return False
+
+    def _collect_assign_aliases(self, root: IRVariable) -> set[IRVariable] | None:
+        """
+        `root` and every variable assigned from it through assign chains,
+        or None when one of those variables is multiply defined and so does
+        not alias `root` on every path.
+        """
+        aliases: set[IRVariable] = {root}
+        worklist = deque([root])
+
+        while len(worklist) > 0:
+            var = worklist.popleft()
+            for use in self.dfg.get_uses(var):
+                if use.opcode != "assign":
+                    continue
+                out = use.output
+                if out in self._multi_defined_vars:
+                    return None
+                if out in aliases:
+                    continue
+                aliases.add(out)
+                worklist.append(out)
+
+        return aliases
+
+    def _iter_use_positions(self, var: IRVariable) -> Iterator[tuple[IRInstruction, int]]:
+        for use in self.dfg.get_uses(var):
+            for pos, op in enumerate(use.operands):
+                if op == var:
+                    yield use, pos
+
+    def _iter_alias_use_positions(
+        self, aliases: set[IRVariable]
+    ) -> Iterator[tuple[IRVariable, IRInstruction, int]]:
+        for var in aliases:
+            for use, pos in self._iter_use_positions(var):
+                yield var, use, pos
+
+    def _is_assign_output_use(self, use: IRInstruction, operand_pos: int) -> bool:
+        return use.opcode == "assign" and operand_pos == 0
+
+    def _assign_root(self, op: IROperand) -> IROperand | None:
+        if not isinstance(op, IRVariable):
+            return op
+        return self._assign_root_var(op)
+
+    def _assign_root_var(self, var: IRVariable) -> IRVariable | None:
+        """
+        The variable at the start of `var`'s assign chain, or None when the
+        chain passes through a multiply defined variable, whose root differs
+        per path.
+        """
+        while True:
+            if var in self._multi_defined_vars:
+                return None
+            inst = self.dfg.get_producing_instruction(var)
+            if inst is None or inst.opcode != "assign":
+                return var
+            parent = inst.operands[0]
+            if not isinstance(parent, IRVariable):
+                return var
+            var = parent

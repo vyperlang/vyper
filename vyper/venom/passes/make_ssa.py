@@ -24,10 +24,14 @@ class MakeSSA(IRPass):
 
         self._add_phi_nodes()
 
-        self.var_name_counters = {var.name: 0 for var in self.defs.keys()}
+        self.var_name_counters = {var.value: 0 for var in self.defs.keys()}
         self.var_name_stacks = {var.value: [0] for var in self.defs.keys()}
         self._rename_vars(fn.entry)
         self._remove_degenerate_phis(fn.entry)
+
+        # Ensure phis remain at top of blocks after converting some to stores
+        for bb in fn.get_basic_blocks():
+            bb.ensure_well_formed()
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
@@ -63,13 +67,10 @@ class MakeSSA(IRPass):
 
         args: list[IROperand] = []
         for bb in self.cfg.cfg_in(basic_block):
-            if bb == basic_block:
-                continue
-
             args.append(bb.label)  # type: ignore
             args.append(var)  # type: ignore
 
-        basic_block.insert_instruction(IRInstruction("phi", args, var), 0)
+        basic_block.insert_instruction(IRInstruction("phi", args, [var]), 0)
 
     def latest_version_of(self, var: IRVariable) -> IRVariable:
         og_var = self.original_vars[var]
@@ -103,21 +104,30 @@ class MakeSSA(IRPass):
 
                 inst.operands = new_ops
 
-            if inst.output is not None:
-                v_name = self.original_vars[inst.output].value
+            outputs = inst.get_outputs()
+            if len(outputs) == 0:
+                continue
+
+            new_outputs: list[IRVariable] = []
+            for output in outputs:
+                v_name = self.original_vars[output].value
                 i = self.var_name_counters[v_name]
 
                 self.var_name_stacks[v_name].append(i)
                 self.var_name_counters[v_name] += 1
 
-                inst.output = self.latest_version_of(inst.output)
-                outs.append(inst.output)
+                new_var = self.latest_version_of(output)
+                new_outputs.append(new_var)
+                outs.append(new_var)
+
+            inst.set_outputs(new_outputs)
 
         for bb in self.cfg.cfg_out(basic_block):
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     continue
-                assert inst.output is not None, inst  # phis should have output
+                # Ensure phi has exactly one output
+                _ = inst.output
                 for i, op in enumerate(inst.operands):
                     if op == basic_block.label:
                         var = inst.operands[i + 1]
@@ -131,7 +141,7 @@ class MakeSSA(IRPass):
         # Post-action
         for var in outs:
             # NOTE: each pop corresponds to an append in the pre-action above
-            og_name = self.original_vars[var].name
+            og_name = self.original_vars[var].value
             self.var_name_stacks[og_name].pop()
 
     def _remove_degenerate_phis(self, entry: IRBasicBlock):
@@ -140,17 +150,27 @@ class MakeSSA(IRPass):
                 continue
 
             new_ops: list[IROperand] = []
+            phi_out = inst.output
             for label, op in inst.phi_operands:
-                if op == inst.output:
+                if op == phi_out:
                     continue
                 new_ops.extend([label, op])
             new_ops_len = len(new_ops)
             if new_ops_len == 0:
                 entry.instructions.remove(inst)
             elif new_ops_len == 2:
-                entry.instructions.remove(inst)
+                # Single incoming value - convert to assign to preserve uses
+                inst.opcode = "assign"
+                inst.operands = [new_ops[1]]  # new_ops is [label, value]
             else:
-                inst.operands = new_ops
+                # Check if all operands have the same value (can simplify to assign)
+                # new_ops is [label1, val1, label2, val2, ...]
+                values = new_ops[1::2]  # extract values at odd indices
+                if len(set(values)) == 1:
+                    inst.opcode = "assign"
+                    inst.operands = [values[0]]
+                else:
+                    inst.operands = new_ops
 
         for bb in self.dom.dominated[entry]:
             if bb == entry:

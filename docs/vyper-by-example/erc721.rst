@@ -1,0 +1,26 @@
+.. index:: tokens;ERC721, ERC721, NFT
+
+ERC721 Non-Fungible Token
+*************************
+
+.. _erc721:
+
+.. warning::
+
+   This is example code for learning purposes. Do not use in production without thorough review and testing.
+
+A standard ERC721 (NFT) implementation with minting and burning.
+
+.. literalinclude:: ../../examples/tokens/ERC721.vy
+  :language: vyper
+  :linenos:
+
+This implementation includes:
+
+- ``mint`` and ``burn`` functions controlled by a minter address
+- ``safeTransferFrom`` with receiver callback verification
+- Operator approval via ``setApprovalForAll``
+- ERC165 interface detection
+
+The ``safeTransferFrom`` function checks if the recipient is a contract and, if so,
+calls ``onERC721Received`` to ensure the recipient can handle NFTs.

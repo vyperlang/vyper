@@ -94,7 +94,7 @@ B: immutable(uint256)
 
 @deploy
 def __init__(b: uint256):
-    B = b
+    self.B = b
 
 @internal
 def foo() -> (uint256, uint256):
@@ -103,7 +103,7 @@ def foo() -> (uint256, uint256):
 @external
 def bar():
     a: uint256 = 1
-    a, B = self.foo()
+    a, self.B = self.foo()
     """,
         ImmutableViolation,
     ),

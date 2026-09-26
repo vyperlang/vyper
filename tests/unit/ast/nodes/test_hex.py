@@ -1,25 +1,31 @@
 import pytest
 
+from tests.utils import analyze_module_single
 from vyper import ast as vy_ast
-from vyper import semantics
-from vyper.exceptions import InvalidLiteral
+from vyper.exceptions import BadChecksumAddress, InvalidLiteral
 
 code_invalid_checksum = [
     """
 foo: constant(address) = 0x6b175474e89094c44da98b954eedeac495271d0F
     """,
     """
-foo: constant(address[1]) = [0x6b175474e89094c44da98b954eedeac495271d0F]
-    """,
-    """
 @external
 def foo():
     bar: address = 0x6b175474e89094c44da98b954eedeac495271d0F
     """,
+]
+
+
+@pytest.mark.parametrize("code", code_invalid_checksum)
+def test_bad_checksum_address(code):
+    with pytest.raises(BadChecksumAddress):
+        vyper_module = vy_ast.parse_to_ast(code)
+        analyze_module_single(vyper_module)
+
+
+code_invalid_literal = [
     """
-@external
-def foo():
-    bar: address[1] = [0x6b175474e89094c44da98b954eedeac495271d0F]
+foo: constant(address[1]) = [0x6b175474e89094c44da98b954eedeac495271d0F]
     """,
     """
 @external
@@ -28,10 +34,12 @@ def foo():
         pass
     """,
     """
-foo: constant(bytes20) = 0x6b175474e89094c44da98b954eedeac495271d0F
+@external
+def foo():
+    bar: address[1] = [0x6b175474e89094c44da98b954eedeac495271d0F]
     """,
     """
-foo: constant(bytes4) = 0x12_34_56
+foo: constant(bytes20) = 0x6b175474e89094c44da98b954eedeac495271d0F
     """,
     """
 foo: constant(bytes4) = 0X12345678
@@ -39,8 +47,8 @@ foo: constant(bytes4) = 0X12345678
 ]
 
 
-@pytest.mark.parametrize("code", code_invalid_checksum)
-def test_invalid_checksum(code):
+@pytest.mark.parametrize("code", code_invalid_literal)
+def test_invalid_literal(code):
     with pytest.raises(InvalidLiteral):
         vyper_module = vy_ast.parse_to_ast(code)
-        semantics.analyze_module(vyper_module)
+        analyze_module_single(vyper_module)

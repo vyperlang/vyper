@@ -9,8 +9,11 @@ main properties to test:
 import pytest
 
 from vyper.compiler import compile_code
+from vyper.compiler.phases import CompilerData
 from vyper.exceptions import (
     BorrowException,
+    CallViolation,
+    FunctionDeclarationException,
     ImmutableViolation,
     InitializerException,
     StructureException,
@@ -358,6 +361,71 @@ initializes: lib2[lib1 := lib1]
     assert e.value._hint == "add `initializes: lib1` to the top level of your main contract"
 
 
+def test_valid_initialized_twice(make_input_bundle):
+    # Initialized by both lib2 and lib3
+    lib1 = """
+counter: uint256
+    """
+
+    lib2 = """
+import lib1
+
+initializes: lib1
+    """
+
+    lib3 = """
+import lib1
+
+initializes: lib1
+    """
+
+    main = """
+import lib2
+import lib3
+
+initializes: lib2
+# lib3 not initialized, so lib1 is only initialized once
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
+
+    compile_code(main, input_bundle=input_bundle)
+
+
+def test_invalid_initialized_twice(make_input_bundle):
+    # Initialized by both lib2 and lib3
+    lib1 = """
+counter: uint256
+    """
+
+    lib2 = """
+import lib1
+
+initializes: lib1
+    """
+
+    lib3 = """
+import lib1
+
+initializes: lib1
+    """
+
+    main = """
+import lib2
+import lib3
+
+# both initialize lib1, invalid!
+initializes: lib2
+initializes: lib3
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib2.vy": lib2, "lib3.vy": lib3})
+
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+    assert e.value.message == "`lib1` initialized twice!"
+
+
 def test_initializer_no_references(make_input_bundle):
     lib1 = """
 counter: uint256
@@ -465,7 +533,7 @@ MY_IMMUTABLE: immutable(uint256)
 
 @deploy
 def __init__():
-    MY_IMMUTABLE = 7
+    self.MY_IMMUTABLE = 7
     """
     lib2 = """
 import lib1
@@ -506,11 +574,11 @@ MY_IMMUTABLE: immutable(uint256)
 
 @deploy
 def __init__():
-    MY_IMMUTABLE = 9
+    self.MY_IMMUTABLE = 9
 
 @internal
 def get_counter() -> uint256:
-    return MY_IMMUTABLE
+    return self.MY_IMMUTABLE
     """
     lib2 = """
 import lib1
@@ -843,7 +911,7 @@ def foo():
 import lib1
 import lib2
 
-initializes: lib2
+uses: lib2
 
 @external
 def foo(new_value: uint256):
@@ -1444,3 +1512,471 @@ exports: lib1.bar
     expected_hint = "add `uses: lib1` or `initializes: lib1` as a"
     expected_hint += " top-level statement to your contract"
     assert e.value._hint == expected_hint
+
+
+initializable_modules = [
+    """
+counter: uint32
+    """,
+    """
+ended: public(bool)
+    """,
+    """
+@external
+@nonreentrant
+def foo():
+    pass
+    """,
+    """
+@internal
+@nonreentrant
+def foo():
+    pass
+    """,
+]
+
+
+@pytest.mark.parametrize("module", initializable_modules)
+def test_initializes_on_modules_with_state_related_vars(module, make_input_bundle):
+    # test modules that use storage can be initialized
+    main = """
+import lib
+initializes: lib
+    """
+    input_bundle = make_input_bundle({"lib.vy": module, "main.vy": main})
+    compile_code(main, input_bundle=input_bundle)
+
+
+def test_initializes_on_modules_with_immutables(make_input_bundle):
+    # test modules with immutables can be initialized
+    lib = """
+foo: immutable(int128)
+
+@deploy
+def __init__():
+    foo = 2
+    """
+
+    main = """
+import lib
+initializes: lib
+
+@deploy
+def __init__():
+    lib.__init__()
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib, "main.vy": main})
+    compile_code(main, input_bundle=input_bundle)
+
+
+stateless_modules = [
+    """
+    """,
+    """
+@internal
+@pure
+def foo(x: uint256, y: uint256) -> uint256:
+    return unsafe_add(x & y, (x ^ y) >> 1)
+    """,
+    """
+FOO: constant(int128) = 128
+    """,
+    """
+# pragma nonreentrancy on
+
+def bar(): # internal functions are always reentrant by default
+    pass
+    """,
+]
+
+
+@pytest.mark.parametrize("module", stateless_modules)
+def test_forbids_initializes_on_stateless_modules(module, make_input_bundle):
+    # test we cannot initialize modules that don't use state
+    main = """
+import lib
+initializes: lib
+        """
+    input_bundle = make_input_bundle({"lib.vy": module, "main.vy": main})
+    with pytest.raises(InitializerException) as e:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert e.value._message == "Cannot initialize a stateless concrete module `lib`!"
+    assert e.value._hint == "remove `initializes: lib`"
+
+
+@pytest.mark.parametrize("module", stateless_modules)
+def test_works_without_initializes_on_stateless_modules(module, make_input_bundle):
+    # test stateless modules compile fine without `initializes`
+    main = """
+import lib
+        """
+    input_bundle = make_input_bundle({"lib.vy": module, "main.vy": main})
+    compile_code(main, input_bundle=input_bundle)
+
+
+def test_initializes_on_modules_with_uses(make_input_bundle):
+    lib0 = """
+import lib1
+uses: lib1
+
+@internal
+def foo() -> uint32:
+    return lib1.counter
+           """
+    lib1 = """
+counter: uint32
+           """
+    main = """
+import lib1
+initializes: lib1
+
+import lib0
+initializes: lib0[lib1 := lib1]
+
+@internal
+def use_lib0():
+    lib0.foo()
+           """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib0.vy": lib0, "main.vy": main})
+    compile_code(main, input_bundle=input_bundle)
+
+
+def test_initializes_on_modules_with_initializes(make_input_bundle):
+    lib0 = """
+import lib1
+initializes: lib1
+           """
+    lib1 = """
+counter: uint32
+           """
+    main = """
+import lib0
+initializes: lib0
+           """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "lib0.vy": lib0, "main.vy": main})
+    compile_code(main, input_bundle=input_bundle)
+
+
+def test_initializes_on_modules_with_init_function(make_input_bundle):
+    lib = """
+interface Foo:
+    def foo(): payable
+
+@deploy
+def __init__():
+    extcall Foo(self).foo()
+           """
+    main = """
+import lib
+initializes: lib
+
+@deploy
+def __init__():
+    lib.__init__()
+
+@external
+def foo():
+    pass
+           """
+    input_bundle = make_input_bundle({"lib.vy": lib, "main.vy": main})
+    compile_code(main, input_bundle=input_bundle)
+
+
+# ===== Abstract/Override Initializer Tests =====
+# Tests for uses/initializes requirements with @abstract/@override
+
+
+def test_stateful_override_without_initializes(make_input_bundle):
+    contract = """
+import abstract_m
+import override_m
+
+uses: abstract_m
+# initializes: override_m # should fail gracefully without this
+
+@external
+def my_method() -> uint256:
+    return abstract_m.bar()
+    """
+
+    abstract_m = """
+@abstract
+def bar() -> uint256: ...
+    """
+
+    override_m = """
+import abstract_m
+initializes: abstract_m
+
+counter: uint256
+
+@override(abstract_m)
+def bar() -> uint256:
+    self.counter += 1
+    return 101
+    """
+    input_bundle = make_input_bundle({"abstract_m.vy": abstract_m, "override_m.vy": override_m})
+
+    with pytest.raises(InitializerException) as e:
+        compile_code(contract, input_bundle=input_bundle)
+
+    # Verify the error message is helpful
+    expected_msg = "abstract_m.vy` is used but never initialized!"
+    assert expected_msg in e.value._message
+    expected_hint = "add `initializes: abstract_m`"
+    assert expected_hint in e.value._hint
+
+
+def test_call_to_abstract_without_uses(make_input_bundle):
+    # Test that the same contract works when override_m is properly initialized
+    contract = """
+import abstract_m
+import override_m
+
+# uses: abstract_m
+initializes: override_m
+
+@external
+def my_method() -> uint256:
+    return abstract_m.bar() # Call to abstract method from un-uses-ed module
+    """
+
+    abstract_m = """
+@abstract
+def bar() -> uint256: ...
+    """
+
+    override_m = """
+import abstract_m
+initializes: abstract_m
+
+counter: uint256
+
+@override(abstract_m)
+def bar() -> uint256:
+    self.counter += 1
+    return 101
+    """
+    input_bundle = make_input_bundle({"abstract_m.vy": abstract_m, "override_m.vy": override_m})
+
+    with pytest.raises(StructureException) as e:
+        compile_code(contract, input_bundle=input_bundle)
+
+    expected_msg = "Cannot access abstract methods of `abstract_m`"
+    assert expected_msg in e.value._message
+    expected_hint = "add `uses: abstract_m` as a top-level statement to your contract"
+    assert e.value._hint == expected_hint
+
+
+def test_call_to_abstract_with_initializes_fails(make_input_bundle):
+    """
+    Test that calling an abstract method from a module you initialize fails.
+    When you `initializes:` a module, you must provide overrides, so calling
+    abstract methods through the abstract interface is disallowed - use `uses:` instead.
+    """
+    contract = """
+import abstract_m
+
+initializes: abstract_m
+
+@external
+def my_method() -> uint256:
+    return abstract_m.bar()  # Cannot call abstract method when you initialize
+
+@override(abstract_m)
+def bar() -> uint256:
+    return 42
+    """
+
+    abstract_m = """
+@abstract
+def bar() -> uint256: ...
+    """
+
+    input_bundle = make_input_bundle({"abstract_m.vy": abstract_m})
+
+    with pytest.raises(CallViolation) as e:
+        compile_code(contract, input_bundle=input_bundle)
+
+    expected_msg = (
+        "Abstract method `abstract_m.bar` is overridden by `self.bar`, call that instead."
+    )
+    assert expected_msg in str(e.value)
+
+
+def test_override_non_initialized_module_fails(make_input_bundle):
+    """Test that overriding from a non-initialized module fails with proper error"""
+    contract = """
+import foo
+# Missing: initializes: foo
+
+@override(foo)
+def bar() -> uint256:
+    return 42
+    """
+
+    foo = """
+@abstract
+def bar() -> uint256: ...
+    """
+
+    input_bundle = make_input_bundle({"foo.vy": foo})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        compile_code(contract, input_bundle=input_bundle)
+
+    assert e.value.message == "Cannot override `foo.bar` as it is not initialized"
+
+
+def test_uses_clause_does_not_allow_override(make_input_bundle):
+    """Test that a module with only uses clause cannot override abstract methods"""
+
+    abstract_module = """
+@abstract
+def foo() -> uint256: ...
+    """
+
+    contract = """
+import abstract_module
+
+uses: abstract_module  # Only uses, not initializes
+
+@override(abstract_module)  # Should fail - can't override from uses-only
+def foo() -> uint256:
+    return 100
+    """
+
+    input_bundle = make_input_bundle({"abstract_module.vy": abstract_module})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        compile_code(contract, input_bundle=input_bundle)
+
+    assert "not initialized" in e.value._message
+
+
+def test_module_override_without_initializing(make_input_bundle):
+    """Test that a module cannot override from another module it doesn't initialize"""
+
+    abstract_module = """
+@abstract
+def foo() -> uint256: ...
+    """
+
+    override_module = """
+import abstract_module
+
+uses: abstract_module  # Only uses, not initializes
+
+@override(abstract_module)  # Should fail
+def foo() -> uint256:
+    return 42
+    """
+
+    contract = """
+import override_module
+import abstract_module
+
+initializes: abstract_module
+initializes: override_module
+    """
+
+    input_bundle = make_input_bundle(
+        {"abstract_module.vy": abstract_module, "override_module.vy": override_module}
+    )
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        compile_code(contract, input_bundle=input_bundle)
+
+    assert "not initialized" in e.value._message
+
+
+def test_uninitialized_abstract_call_fails(make_input_bundle):
+    abstract_module = """
+@abstract
+def foo() -> uint256: ...
+    """
+
+    override_module = """
+import abstract_module
+
+initializes: abstract_module
+
+@override(abstract_module)
+def foo() -> uint256:
+    return 42
+    """
+
+    contract = """
+import override_module
+import abstract_module
+
+uses: abstract_module
+# initializes: override_module # Without this, we have no way of knowing which override to pick
+
+@external
+def test_foo() -> uint256:
+    return abstract_module.foo()
+    """
+
+    input_bundle = make_input_bundle(
+        {"abstract_module.vy": abstract_module, "override_module.vy": override_module}
+    )
+
+    with pytest.raises(InitializerException) as e:
+        compile_code(contract, input_bundle=input_bundle)
+
+    assert "abstract_module.vy` is used but never initialized!" in e.value._message
+    assert "add `initializes: abstract_module`" in e.value._hint
+
+
+def test_at_call_does_not_propagate_writes(make_input_bundle):
+    # calling a module's function via __at__ is an external call.
+    # the callee's variable writes should NOT be propagated into
+    # the caller function's _variable_writes.
+    other = """
+counter: uint256
+
+@external
+def increment():
+    self.counter += 1
+    """
+    main = """
+import other
+
+@external
+def foo(addr: address):
+    extcall other.__at__(0x0000000000000000000000000000000000000000).increment()
+    """
+    input_bundle = make_input_bundle({"other.vy": other})
+
+    data = CompilerData(main, input_bundle=input_bundle)
+    foo_t = data.function_signatures["foo"]
+    assert len(foo_t._variable_writes) == 0
+
+
+def test_at_call_does_not_propagate_reads(make_input_bundle):
+    # calling a module's function via __at__ is an external call.
+    # the callee's variable reads should NOT be propagated into
+    # the caller function's _variable_reads.
+    lib = """
+counter: uint256
+
+@external
+@view
+def get_counter() -> uint256:
+    return self.counter
+    """
+    main = """
+import lib
+
+@external
+@view
+def foo() -> uint256:
+    return staticcall lib.__at__(0x0000000000000000000000000000000000000000).get_counter()
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib})
+
+    data = CompilerData(main, input_bundle=input_bundle)
+    foo_t = data.function_signatures["foo"]
+    assert len(foo_t._variable_reads) == 0

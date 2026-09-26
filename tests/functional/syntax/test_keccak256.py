@@ -3,13 +3,11 @@ import pytest
 from vyper import compiler
 from vyper.exceptions import TypeMismatch, UndeclaredDefinition
 
-type_fail_list = [
-    """
+type_fail_list = ["""
 @external
 def foo():
     x: bytes32 = keccak256(3)
-    """
-]
+    """]
 
 
 @pytest.mark.parametrize("bad_code", type_fail_list)

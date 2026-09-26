@@ -31,7 +31,7 @@ Include the ``-f`` flag to specify which output formats to return. Use ``vyper -
 
 .. code:: shell
 
-    $ vyper -f abi,abi_python,bb,bb_runtime,bytecode,bytecode_runtime,blueprint_bytecode,cfg,cfg_runtime,interface,external_interface,ast,annotated_ast,integrity,ir,ir_json,ir_runtime,asm,opcodes,opcodes_runtime,source_map,source_map_runtime,archive,solc_json,method_identifiers,userdoc,devdoc,metadata,combined_json,layout yourFileName.vy
+    $ vyper -f abi,abi_python,bytecode,bytecode_runtime,blueprint_bytecode,cfg,cfg_runtime,interface,external_interface,ast,annotated_ast,integrity,ir,ir_json,ir_runtime,asm,opcodes,opcodes_runtime,source_map,source_map_runtime,archive,solc_json,method_identifiers,userdoc,devdoc,metadata,combined_json,layout yourFileName.vy
 
 .. note::
     The ``opcodes`` and ``opcodes_runtime`` output of the compiler has been returning incorrect opcodes since ``0.2.0`` due to a lack of 0 padding (patched via `PR 3735 <https://github.com/vyperlang/vyper/pull/3735>`_). If you rely on these functions for debugging, please use the latest patched versions.
@@ -135,9 +135,9 @@ In codesize optimized mode, the compiler will try hard to minimize codesize by
 * using more loops for data copies.
 
 Enabling Experimental Code Generation
-===========================
+=====================================
 
-When compiling, you can use the CLI flag ``--experimental-codegen`` or its alias ``--venom`` to activate the new `Venom IR <https://github.com/vyperlang/vyper/blob/master/vyper/venom/README.md>`_.
+When compiling, you can use the CLI flag ``--experimental-codegen`` (or its alias ``--venom-experimental``) to activate the new `Venom IR <https://github.com/vyperlang/vyper/blob/master/vyper/venom/README.md>`_.
 Venom IR is inspired by LLVM IR and enables new advanced analysis and optimizations.
 
 .. _evm-version:
@@ -308,7 +308,7 @@ The following example describes the expected input format of ``vyper-json``. (Co
                 "b": {"type": "uint256", "slot": 0, "n_slots": 1},
             }
         },
-        // Optional
+        // Required
         "settings": {
             "evmVersion": "prague",  // EVM version to compile for. Can be london, paris, shanghai, cancun or prague (default).
             // optional, optimization mode
@@ -346,6 +346,7 @@ The following example describes the expected input format of ``vyper-json``. (Co
             //    evm.deployedBytecode.opcodes - Deployed opcodes list
             //    evm.deployedBytecode.sourceMap - Deployed source mapping (useful for debugging)
             //    evm.methodIdentifiers - The list of function hashes
+            //    layout - Storage layout of the contract
             //
             // Using `evm`, `evm.bytecode`, etc. will select every target part of that output.
             // Additionally, `*` can be used as a wildcard to request everything.
@@ -370,7 +371,7 @@ The following example describes the output format of ``vyper-json``. Comments ar
 
     {
         // The compiler version used to generate the JSON
-        "compiler": "vyper-0.1.0b12",
+        "compiler": "vyper-0.4.0",
         // Optional: not present if no errors/warnings were encountered
         "errors": [
             {
@@ -414,14 +415,24 @@ The following example describes the output format of ``vyper-json``. Comments ar
                 // The contract name will always be the file name without a suffix
                 "source_file": {
                     // The Ethereum Contract ABI.
-                    // See https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI
+                    // See https://docs.soliditylang.org/en/latest/abi-spec.html
                     "abi": [],
                     // Natspec developer documentation
                     "devdoc": {},
-                    // Intermediate representation (string)
-                    "ir": "",
-                    // Natspec developer documentation
+                    // Intermediate representation (the IR node tree as a JSON object)
+                    "ir": {},
+                    // Natspec user documentation
                     "userdoc": {},
+                    // Storage layout of the contract
+                    "layout": {
+                        "storage_layout": {
+                            "variableName": {
+                                "type": "uint256",
+                                "slot": 0,
+                                "n_slots": 1
+                            }
+                        }
+                    },
                     // EVM-related outputs
                     "evm": {
                         "bytecode": {
@@ -429,7 +440,7 @@ The following example describes the output format of ``vyper-json``. Comments ar
                             "object": "00fe",
                             // Opcodes list (string)
                             "opcodes": "",
-                            // The deployed source mapping.
+                            // The creation source mapping.
                             "sourceMap": {
                                 "breakpoints": [],
                                 "error_map": {},
@@ -438,7 +449,7 @@ The following example describes the output format of ``vyper-json``. Comments ar
                                 "pc_breakpoints": [],
                                 "pc_jump_map": {},
                                 "pc_pos_map": {},
-                                // The deployed source mapping as a string.
+                                // The creation source mapping as a string.
                                 "pc_pos_map_compressed": ""
                             }
                         },

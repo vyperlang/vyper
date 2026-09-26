@@ -1,7 +1,8 @@
 import pytest
 
-from tests.venom_utils import PrePostChecker
+from tests.venom_utils import PrePostChecker, parse_from_basic_block
 from vyper.utils import evm_not
+from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import ReduceLiteralsCodesize
 
 pytestmark = pytest.mark.hevm
@@ -125,3 +126,31 @@ def test_literal_codesize_no_shl(orig_value):
     """
 
     _check_no_change(pre)
+
+
+def test_literal_codesize_no_inplace_mutation_for_shared_literals():
+    pre = """
+    main:
+        %1 = -0x4b0
+        %2 = -0x4b0
+        sink %1, %2
+    """
+
+    ctx = parse_from_basic_block(pre)
+    fn = next(iter(ctx.functions.values()))
+    bb = fn.entry
+    inst1, inst2 = bb.instructions[0], bb.instructions[1]
+
+    # Simulate shared IRLiteral operand (can happen after earlier optimization rewrites).
+    shared = inst1.operands[0]
+    inst2.operands[0] = shared
+    assert inst2.operands[0] is shared
+
+    ReduceLiteralsCodesize(IRAnalysesCache(fn), fn).run_pass()
+
+    # Both instructions should still be optimized independently.
+    assert inst1.opcode == "not"
+    assert inst2.opcode == "not"
+
+    # Shared literal object must not be mutated in-place.
+    assert shared.value == -0x4B0

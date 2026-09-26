@@ -7,9 +7,7 @@ from vyper.codegen.core import (
     _freshname,
     add_ofst,
     calculate_type_for_external_return,
-    check_assign,
     check_external_call,
-    dummy_node_for_type,
     eval_once_check,
     get_type_for_exact_size,
     make_setter,
@@ -32,18 +30,19 @@ class _CallKwargs:
     default_return_value: IRnode
 
 
-def _pack_arguments(fn_type, args, context):
-    # abi encoding just treats all args as a big tuple
+def _pack_arguments(fn_type, args, context, return_t=None):
+    # abi encoding just treats all args as a big tuple.
+    # Use concrete types from the args (not fn_type.argument_types, which may
+    # contain WILDCARD for JSON ABI interfaces).
     args_tuple_t = TupleT([x.typ for x in args])
     args_as_tuple = IRnode.from_list(["multi"] + [x for x in args], typ=args_tuple_t)
     args_abi_t = args_tuple_t.abi_type
 
-    # sanity typecheck - make sure the arguments can be assigned
-    dst_tuple_t = TupleT(fn_type.argument_types[: len(args)])
-    check_assign(dummy_node_for_type(dst_tuple_t), args_as_tuple)
+    if return_t is None:
+        return_t = fn_type.return_type
 
-    if fn_type.return_type is not None:
-        return_abi_t = calculate_type_for_external_return(fn_type.return_type).abi_type
+    if return_t is not None:
+        return_abi_t = calculate_type_for_external_return(return_t).abi_type
 
         # we use the same buffer for args and returndata,
         # so allocate enough space here for the returndata too.
@@ -59,7 +58,7 @@ def _pack_arguments(fn_type, args, context):
     args_ofst = add_ofst(buf, 28)
     args_len = args_abi_t.size_bound() + 4
 
-    abi_signature = fn_type.name + dst_tuple_t.abi_type.selector_name()
+    abi_signature = fn_type.name + args_tuple_t.abi_type.selector_name()
 
     # layout:
     # 32 bytes                 | args
@@ -78,8 +77,9 @@ def _pack_arguments(fn_type, args, context):
     return buf, pack_args, args_ofst, args_len
 
 
-def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, expr):
-    return_t = fn_type.return_type
+def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, expr, return_t=None):
+    if return_t is None:
+        return_t = fn_type.return_type
 
     if return_t is None:
         return ["pass"], 0, 0
@@ -194,6 +194,9 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
     # sanity check
     assert fn_type.n_positional_args <= len(args_ir) <= fn_type.n_total_args
 
+    # get un-wildcard-ed return type
+    return_t = call_expr._metadata["call_return_type"]
+
     ret = ["seq"]
 
     # this is a sanity check to prevent double evaluation of the external call
@@ -201,15 +204,17 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
     # a duplicate label exception will get thrown during assembly.
     ret.append(eval_once_check(_freshname(call_expr.node_source_code)))
 
-    buf, arg_packer, args_ofst, args_len = _pack_arguments(fn_type, args_ir, context)
+    buf, arg_packer, args_ofst, args_len = _pack_arguments(
+        fn_type, args_ir, context, return_t=return_t
+    )
 
     ret_unpacker, ret_ofst, ret_len = _unpack_returndata(
-        buf, fn_type, call_kwargs, contract_address, context, call_expr
+        buf, fn_type, call_kwargs, contract_address, context, call_expr, return_t=return_t
     )
 
     ret += arg_packer
 
-    if fn_type.return_type is None and not call_kwargs.skip_contract_check:
+    if return_t is None and not call_kwargs.skip_contract_check:
         # if we do not expect return data, check that a contract exists at the
         # target address. we must perform this check BEFORE the call because
         # the contract might selfdestruct. on the other hand we can omit this
@@ -232,7 +237,6 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
 
     ret.append(check_external_call(call_op))
 
-    return_t = fn_type.return_type
     if return_t is not None:
         ret.append(ret_unpacker)
 

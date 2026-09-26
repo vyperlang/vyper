@@ -1,6 +1,5 @@
 import contextlib
-import dataclasses as dc
-from typing import Iterable, Optional
+from typing import Collection, Iterable, Optional
 
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
@@ -11,8 +10,9 @@ from vyper.venom.analysis.mem_alias import (
     StorageAliasAnalysis,
     TransientAliasAnalysis,
 )
+from vyper.venom.analysis.reachable import ReachableAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, ir_printer
-from vyper.venom.memory_location import MemoryLocation, get_read_location, get_write_location
+from vyper.venom.memory_location import MemoryLocation
 
 
 class MemoryAccess:
@@ -72,10 +72,10 @@ class LiveOnEntry(MemoryAccess):
 class MemoryDef(MemoryAccess):
     """Represents a definition of memory state"""
 
-    def __init__(self, id: int, store_inst: IRInstruction, addr_space: AddrSpace):
+    def __init__(self, id: int, store_inst: IRInstruction, loc: MemoryLocation):
         super().__init__(id)
         self.store_inst = store_inst
-        self.loc = get_write_location(store_inst, addr_space)
+        self.loc = loc
 
     @property
     def inst(self):
@@ -85,10 +85,10 @@ class MemoryDef(MemoryAccess):
 class MemoryUse(MemoryAccess):
     """Represents a use of memory state"""
 
-    def __init__(self, id: int, load_inst: IRInstruction, addr_space: AddrSpace):
+    def __init__(self, id: int, load_inst: IRInstruction, loc: MemoryLocation):
         super().__init__(id)
         self.load_inst = load_inst
-        self.loc = get_read_location(load_inst, addr_space)
+        self.loc = loc
 
     @property
     def inst(self):
@@ -123,6 +123,7 @@ class MemSSAAbstract(IRAnalysis):
 
     addr_space: AddrSpace
     mem_alias_type: type[MemoryAliasAnalysisAbstract]
+    volatiles: list[MemoryLocation]
 
     def __init__(self, analyses_cache, function):
         super().__init__(analyses_cache, function)
@@ -141,6 +142,8 @@ class MemSSAAbstract(IRAnalysis):
         self.inst_to_def: dict[IRInstruction, MemoryDef] = {}
         self.inst_to_use: dict[IRInstruction, MemoryUse] = {}
 
+        self.volatiles = []
+
     def analyze(self):
         # Request required analyses
         self.cfg: CFGAnalysis = self.analyses_cache.request_analysis(CFGAnalysis)
@@ -155,13 +158,17 @@ class MemSSAAbstract(IRAnalysis):
         # Clean up unnecessary phi nodes
         self._remove_redundant_phis()
 
+    def invalidate(self):
+        self.analyses_cache.invalidate_analysis(self.mem_alias_type)
+
     def mark_location_volatile(self, loc: MemoryLocation) -> MemoryLocation:
+        self.volatiles.append(loc)
         volatile_loc = self.memalias.mark_volatile(loc)
 
         for bb in self.memory_defs:
             for mem_def in self.memory_defs[bb]:
                 if self.memalias.may_alias(mem_def.loc, loc):
-                    mem_def.loc = dc.replace(mem_def.loc, is_volatile=True)
+                    mem_def.loc = mem_def.loc.mk_volatile()
 
         return volatile_loc
 
@@ -194,15 +201,17 @@ class MemSSAAbstract(IRAnalysis):
         """Process memory definitions and uses in a basic block"""
         for inst in block.instructions:
             # Check for memory reads
-            if get_read_location(inst, self.addr_space) != MemoryLocation.EMPTY:
-                mem_use = MemoryUse(self.next_id, inst, self.addr_space)
+            loc = self.memalias.base_ptr.get_read_location(inst, self.addr_space)
+            if loc != MemoryLocation.EMPTY:
+                mem_use = MemoryUse(self.next_id, inst, loc)
                 self.next_id += 1
                 self.memory_uses.setdefault(block, []).append(mem_use)
                 self.inst_to_use[inst] = mem_use
 
             # Check for memory writes
-            if get_write_location(inst, self.addr_space) != MemoryLocation.EMPTY:
-                mem_def = MemoryDef(self.next_id, inst, self.addr_space)
+            loc = self.memalias.base_ptr.get_write_location(inst, self.addr_space)
+            if loc != MemoryLocation.EMPTY:
+                mem_def = MemoryDef(self.next_id, inst, loc)
                 self.next_id += 1
                 self.memory_defs.setdefault(block, []).append(mem_def)
                 self.inst_to_def[inst] = mem_def
@@ -315,6 +324,22 @@ class MemSSAAbstract(IRAnalysis):
         query_loc = access.loc
         return self._walk_for_aliased_access(access, query_loc, OrderedSet())
 
+    def get_aliased_memory_accesses_before(
+        self, inst: IRInstruction, query_loc: MemoryLocation
+    ) -> OrderedSet[MemoryAccess]:
+        """
+        Get memory definitions that may alias `query_loc` and reach `inst`.
+
+        This is useful when a pass wants to ask about a location different from
+        the location read by `inst`, while still using MemorySSA's reaching-def
+        chain at that program point.
+        """
+        mem_use = self.get_memory_use(inst)
+        if mem_use is None:
+            return OrderedSet()
+
+        return self._walk_for_aliased_access(mem_use.reaching_def, query_loc, OrderedSet())
+
     def _walk_for_aliased_access(
         self,
         current: Optional[MemoryAccess],
@@ -345,6 +370,59 @@ class MemSSAAbstract(IRAnalysis):
             current = current.reaching_def
 
         return aliased_accesses
+
+    def clobbering_accesses_between(
+        self,
+        start_inst: IRInstruction,
+        end_insts: Collection[IRInstruction],
+        loc: MemoryLocation,
+        *,
+        ignore: Collection[IRInstruction] = (),
+    ) -> OrderedSet[MemoryAccess]:
+        """
+        Memory defs that may-alias `loc` and lie strictly between `start_inst`
+        and any instruction in `end_insts` (i.e. are reachable from
+        `start_inst`).
+
+        This is the reachability-filtered companion to
+        `get_aliased_memory_accesses_before`, letting callers reason about
+        clobbers on a path between two program points. Instructions in
+        `ignore` are excluded from the result.
+
+        Precondition: every instruction in `end_insts` must have a MemoryUse;
+        otherwise its reaching-def chain is invisible here and the query would
+        silently report "no clobber".
+        """
+        reachable = self.analyses_cache.request_analysis(ReachableAnalysis)
+        ret: OrderedSet[MemoryAccess] = OrderedSet()
+        for end_inst in end_insts:
+            assert self.get_memory_use(end_inst) is not None, f"no MemoryUse: {end_inst}"
+            for access in self.get_aliased_memory_accesses_before(end_inst, loc):
+                if access.inst in ignore:
+                    continue
+                if reachable.is_reachable_from(access.inst, start_inst):
+                    ret.add(access)
+        return ret
+
+    def is_clobbered_between(
+        self,
+        start_inst: IRInstruction,
+        end_insts: Collection[IRInstruction],
+        loc: MemoryLocation,
+        *,
+        ignore: Collection[IRInstruction] = (),
+    ) -> bool:
+        """
+        True if any memory write that may-alias `loc` lies on a path strictly
+        between `start_inst` and any instruction in `end_insts`.
+
+        Precondition (unless `loc` is empty): every instruction in `end_insts`
+        must have a MemoryUse -- see `clobbering_accesses_between`.
+        """
+        if loc.is_empty():
+            return False
+        clobbers = self.clobbering_accesses_between(start_inst, end_insts, loc, ignore=ignore)
+        return len(clobbers) > 0
 
     def get_clobbered_memory_access(self, access: MemoryAccess) -> Optional[MemoryAccess]:
         """
@@ -383,8 +461,10 @@ class MemSSAAbstract(IRAnalysis):
 
             # If the current node is a memory definition, check if
             # it completely contains the query location.
+            # For a store to "clobber" (provide data for) a load, the store's
+            # location must completely contain the load's location.
             if isinstance(current, MemoryDef):
-                if query_loc.completely_contains(current.loc):
+                if current.loc.completely_contains(query_loc):
                     return current
 
             # If the current node is a phi node, check if any of the operands
