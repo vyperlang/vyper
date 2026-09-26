@@ -314,9 +314,7 @@ class Stmt:
         assert isinstance(node.target, vy_ast.Tuple)
         target = node.target
         src_vv = Expr(node.value, self.ctx).lower()
-        src = self.ctx.unwrap(src_vv)
 
-        # src is a pointer to the source tuple in memory
         src_tuple_typ = src_vv.typ
         dst_tuple_typ = target._metadata["type"]
         assert isinstance(src_tuple_typ, TupleT)
@@ -324,6 +322,7 @@ class Stmt:
         targets = target.elements
 
         if self.ctx.is_dynamic_tuple_frame_type(src_tuple_typ):
+            src = self.ctx.unwrap(src_vv)
             assert isinstance(src, IRVariable)
             self._lower_dynamic_tuple_frame_unpack(src, src_tuple_typ, dst_tuple_typ, targets)
             return
@@ -335,22 +334,14 @@ class Stmt:
         src_member_types = src_tuple_typ.member_types
         dst_member_types = dst_tuple_typ.member_types
 
-        # If source and destination may alias in memory, snapshot the source tuple once.
-        # This preserves tuple-assignment semantics (a, b = b, a) for complex members
-        # without staging each element individually.
-        src_expr = node.value.reduced()
-        source_is_memory_view = isinstance(
-            src_expr, (vy_ast.Name, vy_ast.Attribute, vy_ast.Subscript)
-        )
-        if (
-            source_is_memory_view
-            and src_vv.location is DataLocation.MEMORY
-            and any(not t._is_prim_word for t in src_member_types)
+        # Composite member loads capture pointers, not independent values.
+        # Freeze the tuple before a target expression or an earlier store can
+        # mutate a pending member, including when a conditional selected the view.
+        if src_vv.location is DataLocation.MEMORY and any(
+            not t._is_prim_word for t in src_member_types
         ):
-            staged_src = self.ctx.new_temporary_value(src_tuple_typ)
-            assert isinstance(staged_src.operand, IRVariable)
-            self.ctx.copy_memory(staged_src.operand, src, src_tuple_typ.memory_bytes_required)
-            src = staged_src.operand
+            src_vv = self.ctx.snapshot_value_for_delayed_use(src_vv, copy_composites=True)
+        src = self.ctx.unwrap(src_vv)
 
         for src_elem_typ, dst_elem_typ in zip(src_member_types, dst_member_types):
             elem_ptr = self.builder.add(src, IRLiteral(src_offset))

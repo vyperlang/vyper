@@ -716,3 +716,59 @@ def foo() -> uint256[5]:
 def test_mcopy_overlap(get_contract, code, expected_result):
     c = get_contract(code)
     assert c.foo() == expected_result
+
+
+@pytest.mark.parametrize("bound", ["3", "INF"])
+@pytest.mark.parametrize("owned", [False, True])
+@pytest.mark.parametrize(
+    "source,selected,unselected",
+    [
+        ("b.rows[0].pair", ([1, 2], 7), ([1, 2], 7)),
+        ("b.rows[0].pair if flag else other", ([1, 2], 7), ([9], 8)),
+        ("other if flag else b.rows[0].pair", ([9], 8), ([1, 2], 7)),
+        ("(b.rows[0].pair, other)[0]", ([1, 2], 7), ([1, 2], 7)),
+    ],
+)
+def test_tuple_unpack_source_frozen_before_target(
+    get_contract, experimental_codegen, bound, owned, source, selected, unselected
+):
+    if bound == "INF" and not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
+
+    # Leave the values unchanged while acquiring ownership of an INF payload.
+    prepare = "b.rows[0].pair[0].append(9)\n    b.rows[0].pair[0].pop()" if owned else "pass"
+    code = f"""
+struct Row:
+    pair: (DynArray[uint256, 4], uint256)
+
+struct S:
+    rows: DynArray[Row, {bound}]
+
+@external
+def f(flag: bool) -> (DynArray[uint256, 4], uint256, DynArray[uint256, 4]):
+    b: S = S(rows=[Row(pair=([1, 2], 7))])
+    other: (DynArray[uint256, 4], uint256) = ([9], 8)
+    out: DynArray[DynArray[uint256, 4], 2] = [[]]
+    z: uint256 = 0
+    {prepare}
+    out[b.rows[0].pair[0].pop() - 2], z = {source}
+    return out[0], z, b.rows[0].pair[0]
+"""
+    c = get_contract(code)
+    assert c.f(True) == (*selected, [1])
+    assert c.f(False) == (*unselected, [1])
+
+
+@pytest.mark.parametrize("source", ["a", "a if flag else other"])
+def test_tuple_unpack_source_survives_first_store(get_contract, source):
+    code = f"""
+@external
+def f(flag: bool) -> (DynArray[uint256, 2], DynArray[uint256, 2]):
+    a: (DynArray[uint256, 2], DynArray[uint256, 2]) = ([1], [2])
+    other: (DynArray[uint256, 2], DynArray[uint256, 2]) = ([3], [4])
+    a[1], a[0] = {source}
+    return a
+"""
+    c = get_contract(code)
+    assert c.f(True) == ([2], [1])
+    assert c.f(False) == (([4], [3]) if "flag" in source else ([2], [1]))

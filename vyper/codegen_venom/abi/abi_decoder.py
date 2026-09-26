@@ -270,11 +270,10 @@ def _getelemptr_abi(
         offset_val = b.load(static_loc, loc)
         actual_ptr = b.add(parent.operand, offset_val)
         if hi is not None:
-            # Only hi-bounded (MEMORY) decodes need the no-wrap guard, mirroring
-            # legacy's _dirty_read_risk (MEMORY-only). In calldata/code, wrapping
-            # can alias an earlier byte in the same immutable region. Bounded type
-            # clamps still cap decoder work and destination writes; out-of-range
-            # portions of the resulting loads/copies are zero-filled.
+            # `hi` bounds memory inputs and INF-bearing calldata. Check the
+            # offset addition before comparing against that bound. Bounded
+            # calldata and constructor CODE keep legacy leniency when no bound
+            # is supplied; out-of-range loads/copies there are zero-filled.
             # assert actual_ptr >= parent
             b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
             if type_contains_unbounded_sequence(member_typ):
@@ -384,11 +383,13 @@ def decode_unbounded_sequence_to_scratch(
         #
         # For dynamic elements the bound is loose because head offsets may
         # alias: a payload of P bytes can validly claim P/32 elements, each
-        # reserving the element's memory size, so decoding can expand memory
-        # to `memsize(T) / 32` times P (17x for Bytes[512]). Calldata charges
-        # that to the sender; returndata and abi_decode of foreign bytes
-        # charge the decoding contract. A bounded `DynArray[T, N]` with N
-        # equal to the claimed count costs the same, so no tail pre-scan.
+        # reserving the element's inline memory size (`memsize(T) / 32` times
+        # P, e.g. 17x for Bytes[512]). For structs with INF members this bounds
+        # only the frames: aliased tails are decoded separately, so n elements
+        # sharing an m-word tail can allocate O(n*m) bytes from O(n+m) input.
+        # Calldata charges decoding to the sender; returndata and abi_decode
+        # of foreign bytes charge the decoding contract. Returndata decoding
+        # happens after the call and is not limited by the callee's gas cap.
         elem_static_size = typ.value_type.abi_type.embedded_static_size()
         ctx.assert_abi_dynarray_payload_in_bounds(
             src.operand, length, elem_static_size, hi, data_start=data_start
