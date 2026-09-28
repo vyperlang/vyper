@@ -149,6 +149,27 @@ def get_my_list() -> uint256[3]:
     assert c.get_my_list() == list(values)
 
 
+def test_list_immutable_subscript_assignment_in_loop(get_contract):
+    # the loop variable is read-only, but it is only an index: it does not
+    # make `my_list` any less writable inside the constructor
+    code = """
+my_list: immutable(uint256[3])
+
+@deploy
+def __init__():
+    my_list = [0, 0, 0]
+    for i: uint256 in range(3):
+        my_list[i] = i * 2
+
+@view
+@external
+def get_my_list() -> uint256[3]:
+    return my_list
+    """
+    c = get_contract(code)
+    assert c.get_my_list() == [0, 2, 4]
+
+
 def test_dynarray_immutable(get_contract):
     code = """
 my_list: immutable(DynArray[uint256, 3])

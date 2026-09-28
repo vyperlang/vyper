@@ -548,7 +548,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             raise ImmutableViolation("Cannot write to calldata")
 
         if (
-            info.modifiability == Modifiability.RUNTIME_CONSTANT
+            info.writability == Modifiability.RUNTIME_CONSTANT
             and info.location == DataLocation.CODE
         ):
             if not func_t.is_constructor:
@@ -561,9 +561,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 if info.var_info._modification_count != 0:
                     raise ImmutableViolation("Immutable value cannot be modified after assignment")
                 info.var_info._modification_count += 1
-        else:
-            if info.modifiability <= Modifiability.READ_ONLY:
-                raise ImmutableViolation("Read-only expression cannot be mutated.")
+        elif info.writability <= Modifiability.READ_ONLY:
+            raise ImmutableViolation("Read-only expression cannot be mutated.")
 
         assert info.location != DataLocation.UNSET
 

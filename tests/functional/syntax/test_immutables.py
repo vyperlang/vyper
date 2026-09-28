@@ -173,6 +173,22 @@ def hello() :
     """,
         "Immutable value can only be mutated in the constructor",
     ),
+    (
+        # the index is modifiable, but that does not make the immutable writable
+        """
+x: immutable(uint256[3])
+
+@deploy
+def __init__():
+    x = [1, 2, 3]
+
+@external
+def hello(i: uint256):
+    j: uint256 = i
+    x[j] = 2
+    """,
+        "Immutable value can only be mutated in the constructor",
+    ),
 ]
 
 

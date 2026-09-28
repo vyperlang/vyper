@@ -400,6 +400,50 @@ def f():
     assert e.value.message == "Read-only expression cannot be mutated."
 
 
+def test_invalid_assign_to_constant_with_runtime_index(get_contract):
+    code = """
+A: constant(uint256[3]) = [1, 2, 3]
+
+@external
+def f(i: uint256):
+    j: uint256 = i
+    A[j] = 5
+"""
+    with pytest.raises(ImmutableViolation) as e:
+        get_contract(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
+
+
+def test_invalid_assign_to_call_return_with_runtime_index(get_contract):
+    code = """
+@internal
+def g() -> uint256[3]:
+    return [1, 2, 3]
+
+@external
+def f(i: uint256):
+    j: uint256 = i
+    self.g()[j] = 5
+"""
+    with pytest.raises(ImmutableViolation) as e:
+        get_contract(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
+
+
+def test_invalid_assign_to_self(get_contract):
+    code = """
+@external
+def f():
+    self = 1
+"""
+    with pytest.raises(ImmutableViolation) as e:
+        get_contract(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
+
+
 def test_invalid_assign_to_self_balance(assert_compile_failed, get_contract):
     code = """
 @external

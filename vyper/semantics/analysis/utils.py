@@ -23,7 +23,6 @@ from vyper.exceptions import (
 from vyper.semantics import types
 from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarAccess, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
-from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
@@ -89,7 +88,7 @@ class _ExprAnalyser:
                 return ExprInfo.from_moduleinfo(info)
 
             if isinstance(info, VyperType):
-                return ExprInfo(TYPE_T(info), modifiability=Modifiability.CONSTANT)
+                return ExprInfo(TYPE_T(info), constancy=Modifiability.CONSTANT)
 
             raise CompilerPanic(f"unreachable! {info}", node)
 
@@ -114,15 +113,20 @@ class _ExprAnalyser:
             if info.typ._builtin_members and attr in info.typ._builtin_members:
                 # built-in members are special in that they are not assignable
 
-                modifiability = Modifiability.RUNTIME_CONSTANT
+                constancy = Modifiability.RUNTIME_CONSTANT
                 if attr in info.typ._view_builtin_members:
                     # if the base is constant/immutable, then the view member also should be:
                     # foo: constant(Foo) = Foo(<addr>)
                     # x: constant(address) = foo.address
 
-                    modifiability = min(modifiability, info.modifiability)
+                    constancy = min(constancy, info.constancy)
                 return ExprInfo(
-                    t, attr=attr, location=DataLocation.UNSET, modifiability=modifiability
+                    t,
+                    attr=attr,
+                    constancy=constancy,
+                    # built-in members can never be assigned to, no matter what
+                    # they are reached through
+                    writability=Modifiability.READ_ONLY,
                 )
 
             return info.copy_with_type(t, attr=attr)
@@ -134,20 +138,26 @@ class _ExprAnalyser:
             index = node.slice
             if index.is_literal_value or index.has_folded_value:
                 # since literals often have more than one type, they fail get_expr_info
-                # instead hardcode the modifiability
+                # instead hardcode the constancy
                 # TODO: Remove this branching once every expression has a single type
-                index_modifiability = Modifiability.CONSTANT
+                index_constancy = Modifiability.CONSTANT
             else:
-                index_modifiability = self.get_expr_info(index).modifiability
+                index_constancy = self.get_expr_info(index).constancy
 
-            # the expression is only as modifiable as its most modifiable
-            # part. e.g. `A[block.number]` is not a compile-time constant,
-            # even when `A` is.
-            modifiability = max(info.modifiability, index_modifiability)
-            return ExprInfo(t, location=info.location, modifiability=modifiability)
+            # the expression is only as constant as its least constant
+            # part. e.g. `a[block.number]` is not a compile-time constant,
+            # even when `a` is.
+            # on the other hand, the index is only read, so it does not affect whether the
+            # container can be written to
+            return ExprInfo(
+                t,
+                location=info.location,
+                constancy=max(info.constancy, index_constancy),
+                writability=info.writability,
+            )
 
         if isinstance(node, (vy_ast.Call, vy_ast.ExtCall, vy_ast.StaticCall)):
-            return ExprInfo(t, modifiability=Modifiability.READ_ONLY)
+            return ExprInfo(t, constancy=Modifiability.READ_ONLY)
 
         return ExprInfo(t)
 
@@ -742,7 +752,7 @@ def check_modifiability(node: vy_ast.ExprNode, modifiability: Modifiability) -> 
             return call_type.check_modifiability_for_call(node, modifiability)
 
     info = get_expr_info(node)
-    return info.modifiability <= modifiability
+    return info.constancy <= modifiability
 
 
 # TODO: move this into part of regular analysis in `local.py`
