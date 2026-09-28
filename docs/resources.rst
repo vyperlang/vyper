@@ -9,8 +9,6 @@ General
 -------
 
 - `Cyfrin Updraft - Python & Vyper <https://updraft.cyfrin.io/courses/intro-python-vyper-smart-contract-development/>`_ by Cyfrin
-- `Ape Academy – Learn how to build Vyper projects <https://academy.apeworx.io/>`_ by ApeWorX
-- `More Vyper by Example <https://vyper-by-example.org/>`_ by Smart Contract Engineer
 - `Vyper greatest hits smart contract examples <https://github.com/pynchmeister/vyper-greatest-hits/tree/main/contracts>`_
 - `A curated list of Vyper resources, libraries, tools, and more <https://github.com/stars/pcaversaccio/lists/vyper>`_
 
