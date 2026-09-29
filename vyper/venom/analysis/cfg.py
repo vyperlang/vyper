@@ -121,8 +121,8 @@ class CFGAnalysis(IRAnalysis):
             MustHaltAnalysis,
             ReachableAnalysis,
         )
-        from vyper.venom.stack_safety import StackCleanupSafety
         from vyper.venom.analysis.liveness_monotone import LivenessMonotoneAnalysis
+        from vyper.venom.stack_safety import StackCleanupSafety
 
         # just in case somebody is holding onto a bad reference to this
         del self._cfg_in
