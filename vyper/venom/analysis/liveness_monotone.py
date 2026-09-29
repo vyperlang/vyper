@@ -87,4 +87,6 @@ class LivenessMonotoneAnalysis(MonotoneAnalysis[LivenessLattice]):
         """
         Get the variables that are live at (right before) a given instruction
         """
+        if inst not in self.inst_lattice:
+            return OrderedSet()
         return self.inst_lattice[inst].data
