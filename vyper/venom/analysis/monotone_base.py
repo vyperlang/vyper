@@ -45,10 +45,12 @@ class MonotoneAnalysis(Generic[Lattice], IRAnalysis):
             if self._process_bb(bb, lattice):
                 if self._direction() == Direction.Forward:
                     for successor in self.cfg.cfg_out(bb):
-                        worklist.append(successor)
+                        if successor not in worklist:
+                            worklist.append(successor)
                 else:
                     for predecessor in self.cfg.cfg_in(bb):
-                        worklist.append(predecessor)
+                        if predecessor not in worklist:
+                            worklist.append(predecessor)
 
     def _process_bb(self, bb: IRBasicBlock, current_lattice: Lattice) -> bool:
         current_lattice = self._pre_basicblock_transfer(bb, current_lattice)
