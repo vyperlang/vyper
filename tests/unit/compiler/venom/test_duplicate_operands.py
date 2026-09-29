@@ -1,3 +1,5 @@
+import pytest
+
 from vyper.compiler.phases import generate_bytecode
 from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
 from vyper.venom import generate_assembly_experimental, run_passes_on
@@ -79,3 +81,46 @@ join:
 
     calldata = b"".join(_word(x) for x in (0, 5, 7, 11))
     assert int.from_bytes(env.message_call(contract.address, data=calldata), "big") == 18
+
+
+@pytest.mark.parametrize("cond", [0, 1])
+@pytest.mark.parametrize("cond2", [0, 1])
+def test_phi_operand_used_after_join(env, cond, cond2):
+    # %a flows into the phi and is also used in a successor of the join
+    source = """
+function runtime {
+entry:
+  %cond = calldataload 0
+  %a = calldataload 32
+  %b = calldataload 64
+  %cond2 = calldataload 96
+  jnz %cond, @p1, @p2
+p1:
+  jmp @join
+p2:
+  jmp @join
+join:
+  %x = phi @p1, %a, @p2, %b
+  jnz %cond2, @c1, @c2
+c1:
+  %z = add %x, %a
+  mstore 0, %z
+  return 0, 32
+c2:
+  mstore 0, %x
+  return 0, 32
+}
+    """
+
+    ctx = parse_venom(source)
+    run_passes_on(ctx, VenomOptimizationFlags(level=OptimizationLevel.GAS), disable_mem_checks=True)
+
+    asm = generate_assembly_experimental(ctx, optimize=OptimizationLevel.GAS)
+    runtime_bytecode, _ = generate_bytecode(asm)
+    contract = _deploy_runtime(env, runtime_bytecode)
+
+    a, b = 5, 7
+    calldata = b"".join(_word(x) for x in (cond, a, b, cond2))
+    x = a if cond else b
+    expected = x + a if cond2 else x
+    assert int.from_bytes(env.message_call(contract.address, data=calldata), "big") == expected
