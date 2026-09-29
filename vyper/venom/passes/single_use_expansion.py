@@ -22,6 +22,7 @@ class SingleUseExpansion(IRPass):
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
         self.updater = InstUpdater(self.dfg)
         for bb in self.function.get_basic_blocks():
             self._process_bb(bb)
@@ -77,7 +78,11 @@ class SingleUseExpansion(IRPass):
             # same basic block otherwise this is not needed
             uses = self.dfg.get_uses_in_bb(var, inst.parent)
             uses = [use for use in uses if use.opcode != "assign"]
-            if len(uses) == 1:
+            # the var must also be dead after the phis: if it is live-in
+            # at this block (i.e. used past the phi, e.g. in a successor),
+            # the phi must not consume it, so it gets an edge copy too
+            live_after = var in self.liveness.liveness_in_vars(inst.parent)
+            if len(uses) == 1 and not live_after:
                 continue
 
             source = self.function.get_basic_block(label.name)
