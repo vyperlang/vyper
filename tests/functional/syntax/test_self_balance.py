@@ -18,7 +18,6 @@ def get_balance() -> uint256:
     return a
 
 @external
-@payable
 def __default__():
     pass
     """

@@ -81,7 +81,6 @@ def get_v() -> uint256:
     assert self.owner == self.owner # force a dload to write at index 0 of memory
     return 21
 
-@payable
 @external
 def test_ecrecover() -> bool:
     assert ecrecover(empty(bytes32), self.get_v(), 0, 0) == empty(address)

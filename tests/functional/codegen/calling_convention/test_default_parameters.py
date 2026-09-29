@@ -15,7 +15,6 @@ from vyper.utils import method_id
 def test_default_param_abi(get_contract):
     code = """
 @external
-@payable
 def safeTransferFrom(_data: Bytes[100] = b"test", _b: int128 = 1):
     pass
     """
@@ -116,7 +115,7 @@ def fooBar(a: Bytes[100], b: uint256[2], c: Bytes[6] = b"hello", d: int128[3] = 
 def test_default_param_interface(get_contract):
     code = """
 interface Foo:
-    def bar(): payable
+    def bar(): nonpayable
 
 FOO: constant(Foo) = Foo(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)
 
@@ -236,7 +235,6 @@ def test_environment_vars_as_default(get_contract, env):
 xx: uint256
 
 @external
-@payable
 def foo(a: uint256 = msg.value) -> bool:
     self.xx += a
     return True
@@ -299,7 +297,6 @@ def foo(a: address = msg.sender, b: address[3] = [msg.sender, tx.origin, block.c
     """,
     """
 @external
-@payable
 def foo(a: uint256 = msg.value): pass
     """,
     """
@@ -471,8 +468,9 @@ def foo(a: uint256[2] = [2, self.x]): pass
     ),
     (
         """
-# msg.value in a nonpayable
+# msg.value in a view function
 @external
+@view
 def foo(a: uint256 = msg.value): pass
 """,
         NonPayableViolation,

@@ -146,10 +146,6 @@ class Context:
 
     # convenience properties
     @property
-    def is_payable(self):
-        return self.func_t.is_payable
-
-    @property
     def is_internal(self):
         return self.func_t.is_internal
 

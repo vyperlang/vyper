@@ -396,13 +396,11 @@ def test_private_payable(env, get_contract):
 def _send_it(a: address, _value: uint256):
     send(a, _value)
 
-@payable
 @external
 def test(doit: bool, a: address, _value: uint256):
     self._send_it(a, _value)
 
 @external
-@payable
 def __default__():
     pass
     """
@@ -687,12 +685,9 @@ def test_tuple_return_types(get_contract, source_code, args, expected):
     assert c.foo(*args) == expected
 
 
-# TODO: Fix this reverting, should either not compile or work
-@pytest.mark.xfail()
-def test_internal_payable_from_nonpayable(get_contract, env):
-    # nonpayable can call payable internal
+def test_internal_msg_value(get_contract, env):
+    # internal functions can read msg.value
     code = """
-@payable
 @internal
 def _foo() -> uint256:
     return msg.value
@@ -710,12 +705,10 @@ def foo() -> uint256:
 def test_internal_payable_from_payable(get_contract, env):
     # payable can call payable internal with msg.value access
     code = """
-@payable
 @internal
 def _foo() -> uint256:
     return msg.value
 
-@payable
 @external
 def foo() -> uint256:
     return self._foo()
@@ -731,12 +724,10 @@ def test_internal_payable_with_state_modification(get_contract, env):
     code = """
 received: public(uint256)
 
-@payable
 @internal
 def _receive():
     self.received += msg.value
 
-@payable
 @external
 def deposit():
     self._receive()

@@ -166,6 +166,9 @@ class ContractFunctionT(VyperType):
         # errors raised by this function (populated during analysis)
         self._raised_errors: OrderedSet[ErrorT] = OrderedSet()
 
+        # whether this function reads `msg.value` (populated during analysis)
+        self._reads_msg_value = False
+
         # to be populated during codegen
         self._ir_info: Any = None
         self._function_id: Optional[int] = None
@@ -333,7 +336,9 @@ class ContractFunctionT(VyperType):
         """
         # FunctionDef with stateMutability in body (Interface definitions)
         body = funcdef.body
-        if (
+        if len(body) == 1 and body[0].get("value.id") == "payable":
+            _raise_payable_removed(body[0])
+        elif (
             len(body) == 1
             and isinstance(body[0], vy_ast.Expr)
             and isinstance(body[0].value, vy_ast.Name)
@@ -347,7 +352,7 @@ class ContractFunctionT(VyperType):
             if body[0].value.id == "constant":
                 expected = "view or pure"
             else:
-                expected = "payable or nonpayable"
+                expected = "nonpayable"
             raise StructureException(f"State mutability should be set to {expected}", body[0])
         else:
             raise StructureException("Body must only contain state mutability label", body[0])
@@ -681,7 +686,14 @@ class ContractFunctionT(VyperType):
             if not return_t.is_subtype_of(other_return_t):
                 return False
 
-        return self.mutability == other.mutability
+        # functions have no payable modifier, payable and nonpayable
+        # are equivalent
+        def _normalize(mutability):
+            if mutability == StateMutability.PAYABLE:
+                return StateMutability.NONPAYABLE
+            return mutability
+
+        return _normalize(self.mutability) == _normalize(other.mutability)
 
     @cached_property
     def default_values(self) -> dict[str, vy_ast.VyperNode]:
@@ -729,8 +741,29 @@ class ContractFunctionT(VyperType):
         return self.mutability > StateMutability.VIEW
 
     @property
+    def reads_msg_value(self) -> bool:
+        return self._reads_msg_value
+
+    def mark_reads_msg_value(self) -> None:
+        self._reads_msg_value = True
+
+    @property
     def is_payable(self) -> bool:
-        return self.mutability == StateMutability.PAYABLE
+        """
+        Whether this function is reported as payable in the ABI.
+
+        Vyper functions have no payable modifier, and none of them reject
+        callvalue. A function is considered payable if it (or any internal
+        function reachable from it) reads `msg.value`. Functions imported from
+        a JSON ABI keep their declared mutability.
+        """
+        if self.mutability == StateMutability.PAYABLE:
+            return True
+        if self.mutability != StateMutability.NONPAYABLE or self.from_interface:
+            return False
+        return self.reads_msg_value or any(
+            f.reads_msg_value for f in self.reachable_internal_functions
+        )
 
     @property
     def is_fallback(self) -> bool:
@@ -781,11 +814,6 @@ class ContractFunctionT(VyperType):
         except ArgumentException as e:
             raise self._enhance_call_exception(e, self.ast_def)
 
-        if self.mutability < StateMutability.PAYABLE:
-            kwarg_node = next((k for k in node.keywords if k.arg == "value"), None)
-            if kwarg_node is not None:
-                raise CallViolation("Cannot send ether to nonpayable function", kwarg_node)
-
         for arg, expected in zip(node.args, self.arguments):
             try:
                 validate_expected_type(arg, expected.typ)
@@ -826,7 +854,8 @@ class ContractFunctionT(VyperType):
         return self.return_type
 
     def to_toplevel_abi_dict(self):
-        abi_dict: Dict = {"stateMutability": self.mutability.value}
+        mutability = StateMutability.PAYABLE if self.is_payable else self.mutability
+        abi_dict: Dict = {"stateMutability": mutability.value}
 
         if self.is_fallback:
             abi_dict["type"] = "fallback"
@@ -1011,6 +1040,12 @@ class _ParsedDecorators:
         return self.raw_return_node is not None
 
 
+def _raise_payable_removed(node: vy_ast.VyperNode) -> NoReturn:
+    hint = "remove it. functions accept ether by default; functions which read "
+    hint += "`msg.value` are marked as payable in the ABI"
+    raise FunctionDeclarationException("`payable` has been removed", node, hint=hint)
+
+
 def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
     ret = _ParsedDecorators(funcdef)
 
@@ -1027,7 +1062,9 @@ def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
 
         # Decorators without argument clause: `@something`
         if isinstance(decorator, vy_ast.Name):
-            if decorator.id == "nonreentrant":
+            if decorator.id == "payable":
+                _raise_payable_removed(decorator)
+            elif decorator.id == "nonreentrant":
                 ret.set_nonreentrant(decorator)
             elif decorator.id == "reentrant":
                 ret.set_reentrant(decorator)
@@ -1057,7 +1094,10 @@ def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
             if not isinstance(decorator.func, vy_ast.Name):
                 fail_bad_decorator(decorator)
 
-            if decorator.func.id == "override":
+            if decorator.func.id == "payable":
+                _raise_payable_removed(decorator)
+
+            elif decorator.func.id == "override":
                 ret.add_override(decorator)
 
             elif decorator.func.id in decorators_without_parameters:

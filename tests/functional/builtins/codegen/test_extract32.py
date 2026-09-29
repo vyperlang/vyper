@@ -125,7 +125,7 @@ def test_extract32_order_of_eval_extcall(get_contract):
 var:DynArray[Bytes[96], 1]
 
 interface Bar:
-    def bar() -> uint256: payable
+    def bar() -> uint256: nonpayable
 
 @external
 def bar() -> uint256:

@@ -861,7 +861,6 @@ class Expr:
         if key == "msg.sender":
             return self.builder.caller()
         if key == "msg.value":
-            # Note: payability check should be done at a higher level
             return self.builder.callvalue()
         if key in ("msg.gas", "msg.mana"):
             return self.builder.gas()

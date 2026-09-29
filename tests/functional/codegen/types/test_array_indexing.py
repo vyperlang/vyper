@@ -167,7 +167,7 @@ def test_array_index_overlap_extcall(get_contract, experimental_codegen):
     code = """
 
 interface Bar:
-    def bar() -> uint256: payable
+    def bar() -> uint256: nonpayable
 
 a: public(DynArray[DynArray[Bytes[96], 5], 5])
 
