@@ -12,8 +12,25 @@ from vyper.exceptions import (
     TypeMismatch,
     UndeclaredDefinition,
 )
-from vyper.semantics.types import INF, BoolT, BytesT, DArrayT, StringT, TupleT
-from vyper.semantics.types.infinity import WILDCARD, Inf, Wildcard
+from vyper.semantics.types import (
+    INF,
+    AddressT,
+    BoolT,
+    BytesT,
+    DArrayT,
+    SArrayT,
+    StringT,
+    StructT,
+    TupleT,
+)
+from vyper.semantics.types.infinity import (
+    WILDCARD,
+    Inf,
+    Wildcard,
+    is_runtime_sizable_return_type,
+    is_runtime_sizable_type,
+    is_supported_unbounded_tuple_type,
+)
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
 
@@ -77,6 +94,40 @@ def test_dynarray_from_annotation_inf(build_node):
     assert t.length is INF
     assert isinstance(t, DArrayT)
     assert t.value_type == UINT256_T
+
+
+def test_runtime_sizable_predicates():
+    batch = StructT("Batch", {"owner": AddressT(), "values": DArrayT(UINT256_T, INF)})
+    outer = StructT("Outer", {"tag": UINT256_T, "inner": batch})
+    holder = StructT("Holder", {"batches": DArrayT(batch, 5)})
+
+    assert is_runtime_sizable_type(UINT256_T)
+    assert is_runtime_sizable_type(BytesT(INF))
+    assert is_runtime_sizable_type(DArrayT(BytesT(512), INF))
+    assert is_runtime_sizable_type(batch)
+    assert is_runtime_sizable_type(outer)
+    # the elements keep a compile-time stride; the array is sized element by element
+    assert is_runtime_sizable_type(DArrayT(batch, 3))
+    assert is_runtime_sizable_type(DArrayT(batch, INF))
+    assert is_runtime_sizable_type(holder)
+    assert is_runtime_sizable_type(DArrayT(holder, 2))
+    assert not is_runtime_sizable_type(DArrayT(BytesT(INF), 3))
+    # a tuple frame exists only as a return value
+    assert not is_runtime_sizable_type(TupleT((BytesT(INF), UINT256_T)))
+    assert is_runtime_sizable_return_type(TupleT((BytesT(INF), UINT256_T)))
+    assert not is_runtime_sizable_return_type(TupleT((batch, UINT256_T)))
+    assert not is_runtime_sizable_return_type(TupleT((DArrayT(batch, INF), UINT256_T)))
+    assert is_runtime_sizable_return_type(DArrayT(batch, INF))
+
+    # a frame slot holds one payload pointer
+    assert is_supported_unbounded_tuple_type(TupleT((DArrayT(UINT256_T, INF),)))
+    assert is_supported_unbounded_tuple_type(TupleT((DArrayT(BytesT(512), INF),)))
+    assert not is_supported_unbounded_tuple_type(TupleT((DArrayT(batch, INF),)))
+    assert not is_supported_unbounded_tuple_type(TupleT((batch,)))
+
+    # a static array holding INF has no memory layout
+    assert not is_runtime_sizable_type(SArrayT(BytesT(INF), 2))
+    assert not is_runtime_sizable_return_type(SArrayT(BytesT(INF), 2))
 
 
 def test_wildcard_singleton():
@@ -295,11 +346,11 @@ x: Bytes[...]
     """,
         InvalidType,
     ),
-    # Unbounded sequence types are not supported inside structs
+    # A struct member may be an unbounded sequence, but not contain one
     (
         """
 struct S:
-    x: Bytes[INF]
+    x: (Bytes[INF], uint256)
     """,
         StructureException,
     ),

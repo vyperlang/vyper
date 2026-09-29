@@ -60,8 +60,8 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.function import ContractFunctionT, KeywordArg, _FunctionArg
 from vyper.semantics.types.infinity import (
+    is_unsupported_constant_type,
     type_contains_unbounded_sequence,
-    type_contains_unsupported_unbounded_sequence,
 )
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
@@ -824,7 +824,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         )
 
         type_ = type_from_annotation(node.annotation, location)
-        if node.is_constant and type_contains_unsupported_unbounded_sequence(type_):
+        if node.is_constant and is_unsupported_constant_type(type_):
             raise StructureException(
                 "Constants cannot contain unbounded sequence types inside aggregate types",
                 node.annotation,

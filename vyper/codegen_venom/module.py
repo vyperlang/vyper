@@ -31,11 +31,16 @@ from vyper.compiler.settings import Settings, _opt_codesize, _opt_lowering_only_
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types import TupleT, VyperType, is_unbounded_sequence_type
+from vyper.semantics.types import (
+    TupleT,
+    VyperType,
+    is_unbounded_sequence_type,
+    type_contains_unbounded_sequence,
+)
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import OrderedSet, method_id_int
-from vyper.venom.basicblock import IRLabel, IRLiteral, IRVariable
+from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 from vyper.venom.context import IRContext
 from vyper.venom.memory_location import Allocation
@@ -1114,6 +1119,20 @@ def _get_abi_arg_ptr(
     return VyperValue.from_ptr(Ptr(operand=static_loc, location=loc), member_typ)
 
 
+def _aggregate_arg_hi(ctx: VenomCodegenContext, arg, elem_src: VyperValue) -> IROperand | None:
+    """Return the payload bound for an aggregate argument, or None.
+
+    An INF member inside a struct has no length cap of its own, so the
+    caller-controlled length needs the same bound a top-level INF argument
+    gets. Wholly bounded arguments keep the legacy clamp-only decode.
+    """
+    if not type_contains_unbounded_sequence(arg.typ):
+        return None
+
+    assert elem_src.location is not None, "src must have a location for ABI decoding"
+    return _abi_arg_hi(ctx, elem_src.location)
+
+
 def _register_abi_arg_from_src(ctx: VenomCodegenContext, arg, elem_src: VyperValue) -> None:
     if is_unbounded_sequence_type(arg.typ):
         assert elem_src.location is not None, "src must have a location for ABI decoding"
@@ -1129,8 +1148,9 @@ def _register_abi_arg_from_src(ctx: VenomCodegenContext, arg, elem_src: VyperVal
 
     # Bounded args are capped by the length<=maxlen / count<=max clamp, and
     # calldata/code overreads zero-fill, so (like legacy) no hi bound is needed.
-    # Unbounded (INF) args get their payload bound in the early-return path above.
-    abi_decode_to_buf(ctx, var.value.operand, elem_src, hi=None)
+    # Unbounded (INF) args get their payload bound in the early-return path
+    # above, aggregates holding one in `_aggregate_arg_hi`.
+    abi_decode_to_buf(ctx, var.value.operand, elem_src, hi=_aggregate_arg_hi(ctx, arg, elem_src))
 
 
 def _store_abi_arg_to_existing_ptr(
@@ -1144,7 +1164,7 @@ def _store_abi_arg_to_existing_ptr(
         return
 
     # Bounded args are capped by the type clamp; no hi bound needed (see above).
-    abi_decode_to_buf(ctx, dst, elem_src, hi=None)
+    abi_decode_to_buf(ctx, dst, elem_src, hi=_aggregate_arg_hi(ctx, arg, elem_src))
 
 
 def _register_default_arg(ctx: VenomCodegenContext, arg, default_node: vy_ast.VyperNode) -> None:
