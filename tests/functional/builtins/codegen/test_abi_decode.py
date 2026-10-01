@@ -1664,8 +1664,8 @@ def run() -> uint256:
 def test_complex_tuple_wrap(get_contract):
     code = """
 @external
-def run(xs: Bytes[1953]) -> DynArray[String[532], 3]:
-    ret: DynArray[String[532], 3] = abi_decode(xs, DynArray[String[532], 3])
+def run(xs: Bytes[1953]) -> (DynArray[String[532], 3],):
+    ret: (DynArray[String[532], 3],) = abi_decode(xs, (DynArray[String[532], 3],))
     return ret
     """
     _ = get_contract(code)
