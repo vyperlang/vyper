@@ -310,7 +310,7 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     abi_decode_to_buf(ctx, output_val.operand, src_vv, hi=hi)
 
     # Return with output_typ (unwrapped type if applicable)
-    if unwrap_tuple and wrapped_typ != output_typ:
+    if unwrap_tuple and not wrapped_typ.compare_type(output_typ):
         # For single-element tuple, element 0 is at offset 0
         return VyperValue.from_ptr(output_val.ptr(), output_typ)
     return output_val
