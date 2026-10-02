@@ -53,7 +53,6 @@ External functions can use the ``@raw_return`` decorator to return raw bytes wit
 .. code-block:: vyper
 
     @external
-    @payable
     @raw_return
     def proxy_call(target: address) -> Bytes[128]:
         # Forward a call and return the raw response without ABI-encoding
@@ -103,11 +102,10 @@ Or for internal functions which are defined in :ref:`imported modules <modules>`
     def calculate(amount: uint256) -> uint256:
         return calculator_library._times_two(amount)
 
-Marking an internal function as ``payable`` specifies that the function can interact with ``msg.value``. A ``nonpayable`` internal function can be called from an external ``payable`` function, but it cannot access ``msg.value``.
+Internal functions which are not ``@view`` or ``@pure`` can read ``msg.value``:
 
 .. code-block:: vyper
 
-    @payable
     def _foo() -> uint256:
         return msg.value % 2
 
@@ -141,12 +139,11 @@ Mutability
 
 .. _function-mutability:
 
-You can optionally declare a function's mutability by using a :ref:`decorator <function-decorators>`. There are four mutability levels:
+You can optionally declare a function's mutability by using a :ref:`decorator <function-decorators>`. There are three mutability levels:
 
     * ``@pure``: does not read from the contract state or any environment variables.
     * ``@view``: may read from the contract state, but does not alter it.
-    * ``@nonpayable`` (default): may read from and write to the contract state, but cannot receive Ether.
-    * ``@payable``: may read from and write to the contract state, and can receive and access Ether via ``msg.value``.
+    * ``@nonpayable`` (default): may read from and write to the contract state, and can receive and access Ether via ``msg.value``.
 
 .. code-block:: vyper
 
@@ -156,20 +153,23 @@ You can optionally declare a function's mutability by using a :ref:`decorator <f
         # this function cannot write to state
         ...
 
-    @payable
     @external
     def send_me_money():
-        # this function can receive ether
+        # this function can receive ether and read msg.value
         ...
 
 Functions default to ``nonpayable`` when no mutability decorator is used.
 
-Functions marked with ``@view`` cannot call mutable (``payable`` or ``nonpayable``) functions. Any external calls are made using the special ``STATICCALL`` opcode, which prevents state changes at the EVM level.
+No function rejects Ether: there is no runtime check on ``msg.value``, including for ``@view`` and ``@pure`` functions, the constructor and ``__default__``. However, ``msg.value`` can only be read in functions which are not ``@view`` or ``@pure``; reading it in a ``@view`` or ``@pure`` function raises :func:`NonPayableViolation<NonPayableViolation>`.
 
-Functions marked with ``@pure`` cannot call non-``pure`` functions.
+In the generated JSON ABI, the ``stateMutability`` of a ``nonpayable`` function (including the constructor and ``__default__``) is ``"payable"`` if the function, or any internal function reachable from it, reads ``msg.value``, and ``"nonpayable"`` otherwise. Note that this means a ``__default__`` function which does not read ``msg.value`` is listed as ``nonpayable`` in the ABI, even though it accepts Ether.
 
 .. note::
-    The ``@nonpayable`` decorator is not strictly enforced on ``internal`` functions when they are invoked through an ``external`` ``payable`` function. As a result, an ``external`` ``payable`` function can invoke an ``internal`` ``nonpayable`` function. However, the ``nonpayable`` ``internal`` function cannot have access to ``msg.value``.
+    The ``@payable`` decorator has been removed. Using it is a compile-time error; simply remove it.
+
+Functions marked with ``@view`` cannot call mutable (``nonpayable``) functions. Any external calls are made using the special ``STATICCALL`` opcode, which prevents state changes at the EVM level.
+
+Functions marked with ``@pure`` cannot call non-``pure`` functions.
 
 Nonreentrancy Locks
 -------------------
@@ -262,7 +262,7 @@ A contract can also have a default function, which is executed on a call to the 
 
 This function is always named ``__default__``. It must be annotated with ``@external``. It cannot expect any input arguments.
 
-If the function is annotated as ``@payable``, this function is executed whenever the contract is sent Ether (without data). This is why the default function cannot accept arguments - it is a design decision of Ethereum to make no differentiation between sending ether to a contract or a user address.
+This function is executed whenever the contract is sent Ether (without data). This is why the default function cannot accept arguments - it is a design decision of Ethereum to make no differentiation between sending ether to a contract or a user address.
 
 .. code-block:: vyper
 
@@ -271,7 +271,6 @@ If the function is annotated as ``@payable``, this function is executed whenever
         sender: indexed(address)
 
     @external
-    @payable
     def __default__():
         log Payment(msg.value, msg.sender)
 
@@ -282,7 +281,7 @@ Just as in Solidity, Vyper generates a default function if one isn't found, in t
 
 Ethereum specifies that the operations will be rolled back if the contract runs out of gas in execution. ``send`` calls to the contract come with a free stipend of 2300 gas, which does not leave much room to perform other operations except basic logging. **However**, if the sender includes a higher gas amount through a ``call`` instead of ``send``, then more complex functionality can be run.
 
-It is considered a best practice to ensure your payable default function is compatible with this stipend. The following operations will consume more than 2300 gas:
+It is considered a best practice to ensure your default function is compatible with this stipend. The following operations will consume more than 2300 gas:
 
     * Writing to storage
     * Creating a contract
@@ -308,7 +307,6 @@ Decorator                       Description
 ``@deploy``                     Function is called only at deploy time
 ``@pure``                       Function does not read contract state or environment variables
 ``@view``                       Function does not alter contract state
-``@payable``                    Function is able to receive Ether
 ``@nonreentrant``               Function cannot be called back into during an external call
 ``@raw_return``                 Function returns raw bytes without ABI-encoding (``@external`` functions only)
 ``@abstract``                   Function body must be ``...``; an ``@override`` must provide the implementation (see :ref:`abstract-modules`)
@@ -323,7 +321,6 @@ The ``@raw_return`` decorator allows a function to return raw bytes without ABI-
 .. code-block:: vyper
 
     @external
-    @payable
     @raw_return
     def forward_call(target: address) -> Bytes[1024]:
         # Returns the raw bytes from the external call without ABI-encoding

@@ -30,7 +30,6 @@ def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
     self.goal = _goal
 
 @external
-@payable
 def participate():
     assert block.timestamp < self.deadline
     nfi: int128 = self.nextFunderIndex
@@ -126,7 +125,6 @@ def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
     self.goal = _goal
 
 @external
-@payable
 def participate():
     assert block.timestamp < self.deadline
     nfi: int128 = self.nextFunderIndex

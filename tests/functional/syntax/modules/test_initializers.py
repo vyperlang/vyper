@@ -1661,7 +1661,7 @@ initializes: lib0
 def test_initializes_on_modules_with_init_function(make_input_bundle):
     lib = """
 interface Foo:
-    def foo(): payable
+    def foo(): nonpayable
 
 @deploy
 def __init__():

@@ -6,7 +6,6 @@ def test_selfdestruct_with_storage_variable(env, get_contract):
 owner: address
 
 @deploy
-@payable
 def __init__(o: address):
     self.owner = o
 
@@ -36,7 +35,6 @@ owner: address
 recipient: address
 
 @deploy
-@payable
 def __init__(o: address, r: address):
     self.owner = o
     self.recipient = r

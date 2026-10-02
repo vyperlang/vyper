@@ -15,7 +15,6 @@ finalized: bool
 # Sets the on chain market maker with its owner, initial token quantity,
 # and initial ether quantity
 @external
-@payable
 def initiate(token_addr: address, token_quantity: uint256):
     assert self.invariant == 0
     self.token = IERC20(token_addr)
@@ -28,7 +27,6 @@ def initiate(token_addr: address, token_quantity: uint256):
 
 # Sells ether to the contract in exchange for tokens (minus a fee)
 @external
-@payable
 def ethToTokens():
     assert not self.finalized
 

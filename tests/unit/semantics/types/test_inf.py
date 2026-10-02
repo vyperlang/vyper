@@ -857,7 +857,6 @@ def foo() -> Bytes[4]:
         """,
         """
 @external
-@payable
 def foo(target: address) -> Bytes[32]:
     return raw_call(target, msg.data, max_outsize=32)
         """,

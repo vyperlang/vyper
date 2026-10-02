@@ -34,7 +34,6 @@ def _sorted_abi(entries: list[dict]) -> list[dict]:
 
 
 FALLBACK_ONLY = """
-@payable
 @external
 def __default__():
     pass
@@ -114,7 +113,6 @@ deposited: public(uint256)
 def __init__():
     self.deposited = 0
 
-@payable
 @external
 def __default__():
     self.deposited += msg.value

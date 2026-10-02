@@ -17,7 +17,6 @@ test_code = """
 '''
 
 @external
-@payable
 def doesEat(food: String[30], qty: uint256) -> bool:
     '''
     @notice Determine if Bugs will accept `qty` of `food` to eat

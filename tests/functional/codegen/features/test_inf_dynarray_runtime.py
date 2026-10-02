@@ -1218,7 +1218,6 @@ stored_len: public(uint256)
 last: public(uint256)
 
 @deploy
-@payable
 def __init__(xs: DynArray[uint256, INF]):
     self.stored_len = len(xs)
     self.last = xs[len(xs) - 1]

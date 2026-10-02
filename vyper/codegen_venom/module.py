@@ -334,11 +334,11 @@ def _generate_selector_section_linear(
 
             builder.jnz(is_match, match_bb.label, next_check_bb.label)
 
-            # Match block: payable/calldatasize checks, then kwargs or body
+            # Match block: calldatasize checks, then kwargs or body
             builder.append_block(match_bb)
             builder.set_block(match_bb)
 
-            _emit_entry_checks(builder, func_t, entry_info.min_calldatasize)
+            _emit_entry_checks(builder, entry_info.min_calldatasize)
 
             if has_kwargs:
                 # Entry point: handle kwargs, jump to common body
@@ -374,12 +374,6 @@ def _generate_selector_section_linear(
     if default_function:
         func_t = default_function._metadata["func_type"]
         _init_ir_info(func_t)
-
-        # Payable check for fallback
-        if not func_t.is_payable:
-            callvalue = builder.callvalue()
-            is_zero = builder.iszero(callvalue)
-            builder.assert_(is_zero)
 
         # Generate fallback body
         _generate_fallback_body(builder, module_t, literal_pool, func_t, default_function)
@@ -535,11 +529,11 @@ def _generate_selector_section_sparse(
 
                     builder.jnz(is_match, match_bb.label, next_check_bb.label)
 
-                    # Match block: payable/calldatasize checks, then kwargs or body
+                    # Match block: calldatasize checks, then kwargs or body
                     builder.append_block(match_bb)
                     builder.set_block(match_bb)
 
-                    _emit_entry_checks(builder, func_t, entry_info.min_calldatasize)
+                    _emit_entry_checks(builder, entry_info.min_calldatasize)
 
                     if has_kwargs:
                         # Entry point: handle kwargs, jump to common body
@@ -577,12 +571,6 @@ def _generate_selector_section_sparse(
     if default_function:
         func_t = default_function._metadata["func_type"]
         _init_ir_info(func_t)
-
-        # Payable check for fallback
-        if not func_t.is_payable:
-            callvalue = builder.callvalue()
-            is_zero = builder.iszero(callvalue)
-            builder.assert_(is_zero)
 
         # Generate fallback body
         _generate_fallback_body(builder, module_t, literal_pool, func_t, default_function)
@@ -752,10 +740,7 @@ def _generate_selector_section_dense(
     # func_info layout (right-aligned):
     #   [method_id:4] [label:2] [metadata:FN_METADATA_BYTES]
     fn_metadata_mask = 2 ** (FN_METADATA_BYTES * 8) - 1
-    calldatasize_mask = fn_metadata_mask - 1  # ex. 0xFFFE (low bit is nonpayable flag)
-
-    is_nonpayable = builder.and_(IRLiteral(1), func_info)
-    expected_calldatasize = builder.and_(IRLiteral(calldatasize_mask), func_info)
+    expected_calldatasize = builder.and_(IRLiteral(fn_metadata_mask), func_info)
 
     label_bits_ofst = FN_METADATA_BYTES * 8
     function_label = builder.and_(
@@ -777,12 +762,9 @@ def _generate_selector_section_dense(
     builder.append_block(check_passed_bb)
     builder.set_block(check_passed_bb)
 
-    # Assert callvalue == 0 if nonpayable
-    bad_callvalue = builder.mul(is_nonpayable, builder.callvalue())
     # Assert calldatasize >= expected
     bad_calldatasize = builder.lt(builder.calldatasize(), expected_calldatasize)
-    failed_entry_conditions = builder.or_(bad_callvalue, bad_calldatasize)
-    builder.assert_(builder.iszero(failed_entry_conditions))
+    builder.assert_(builder.iszero(bad_calldatasize))
 
     # Dynamic jump to function label
     jump_targets = list(entry_point_labels.values())
@@ -808,9 +790,9 @@ def _generate_selector_section_dense(
             runtime_ctx.append_data_item(mid.to_bytes(4, "big"))
             # label <2 bytes> (symbol reference)
             runtime_ctx.append_data_item(entry_point_labels[matching_sig])
-            # metadata: min_calldatasize | is_nonpayable (packed)
-            func_metadata_int = entry_info.min_calldatasize | int(not entry_info.func_t.is_payable)
-            runtime_ctx.append_data_item(func_metadata_int.to_bytes(FN_METADATA_BYTES, "big"))
+            # metadata: min_calldatasize
+            func_metadata = entry_info.min_calldatasize.to_bytes(FN_METADATA_BYTES, "big")
+            runtime_ctx.append_data_item(func_metadata)
 
     # Generate entry point blocks for each function
     for abi_sig, (func_ast, entry_info) in all_entry_points.items():
@@ -852,12 +834,6 @@ def _generate_selector_section_dense(
         func_t = default_function._metadata["func_type"]
         _init_ir_info(func_t)
 
-        # Payable check for fallback
-        if not func_t.is_payable:
-            callvalue = builder.callvalue()
-            is_zero = builder.iszero(callvalue)
-            builder.assert_(is_zero)
-
         # Generate fallback body
         _generate_fallback_body(builder, module_t, literal_pool, func_t, default_function)
     else:
@@ -866,16 +842,8 @@ def _generate_selector_section_dense(
         builder.revert(revert_buffer._ptr, IRLiteral(0))
 
 
-def _emit_entry_checks(
-    builder: VenomBuilder, func_t: ContractFunctionT, min_calldatasize: int
-) -> None:
-    """Emit payable and calldatasize checks for external function entry."""
-    # Payable check
-    if not func_t.is_payable:
-        callvalue = builder.callvalue()
-        is_zero = builder.iszero(callvalue)
-        builder.assert_(is_zero)
-
+def _emit_entry_checks(builder: VenomBuilder, min_calldatasize: int) -> None:
+    """Emit calldatasize checks for external function entry."""
     # Calldatasize check
     if min_calldatasize > SELECTOR_BYTES:
         calldatasize = builder.calldatasize()
@@ -1503,12 +1471,6 @@ def _generate_constructor(
         is_ctor_context=True,
         literal_pool=literal_pool,
     )
-
-    # Payable check
-    if not func_t.is_payable:
-        callvalue = builder.callvalue()
-        is_zero = builder.iszero(callvalue)
-        builder.assert_(is_zero)
 
     # Reserve immutables region at memory position 0.
     # Immutables MUST be at position 0 because:

@@ -44,7 +44,7 @@ interface TriCryptoNgPool:
     def add_liquidity(amounts: uint256[3], min_mint_amount: uint256) -> uint256: nonpayable
 
 interface WETH:
-    def deposit(): payable
+    def deposit(): nonpayable
     def withdraw(_amount: uint256): nonpayable
 
 
@@ -64,7 +64,6 @@ is_approved: HashMap[address, HashMap[address, bool]]
 
 
 @external
-@payable
 def __default__():
     pass
 
@@ -75,7 +74,6 @@ def __init__( _weth: address):
 
 
 @external
-@payable
 @nonreentrant
 def exchange(
     _route: address[11],

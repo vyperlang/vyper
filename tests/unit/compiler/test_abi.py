@@ -35,14 +35,13 @@ def test_only_init_function(source_code):
 
 def test_default_abi():
     default_code = """
-@payable
 @external
 def __default__():
     pass
     """
 
     data = CompilerData(default_code)
-    assert build_abi_output(data) == [{"stateMutability": "payable", "type": "fallback"}]
+    assert build_abi_output(data) == [{"stateMutability": "nonpayable", "type": "fallback"}]
 
 
 def test_method_identifiers():

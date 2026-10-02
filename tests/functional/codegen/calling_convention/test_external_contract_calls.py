@@ -899,9 +899,9 @@ def set_lucky(arg1: address, arg2: int128):
     print("Successfully executed an external contract call state change")
 
 
-@pytest.mark.parametrize("modifying", ("payable", "nonpayable"))
 @pytest.mark.parametrize("constant", ("pure", "view"))
-def test_constant_external_contract_call_cannot_change_state(modifying, constant):
+def test_constant_external_contract_call_cannot_change_state(constant):
+    modifying = "nonpayable"
     c = f"""
 interface Foo:
     def set_lucky(_lucky: int128) -> int128: {modifying}
@@ -1355,7 +1355,6 @@ def foo(contract_address: address) -> int128:
 
 def test_external_with_payable_value(env, get_contract):
     contract_1 = """
-@payable
 @external
 def get_lucky() -> int128:
     return 1
@@ -1367,7 +1366,7 @@ def get_balance() -> uint256:
 
     contract_2 = """
 interface Bar:
-    def get_lucky() -> int128: payable
+    def get_lucky() -> int128: nonpayable
 
 bar_contract: Bar
 
@@ -1375,7 +1374,6 @@ bar_contract: Bar
 def set_contract(contract_address: address):
     self.bar_contract = Bar(contract_address)
 
-@payable
 @external
 def get_lucky(amount_to_send: uint256) -> int128:
     if amount_to_send != 0:
@@ -1557,7 +1555,7 @@ def test_bad_skip_contract_check(assert_compile_failed, get_contract):
     code = """
 # variable value for skip_contract_check
 interface Bar:
-    def bar(): payable
+    def bar(): nonpayable
 
 @external
 def foo():
@@ -2492,7 +2490,7 @@ def run(callee: address) -> uint256:
 def test_external_call_kwarg_source_order(env, get_contract, experimental_codegen):
     code = """
 interface Foo:
-    def pay() -> uint256: payable
+    def pay() -> uint256: nonpayable
 
 counter: public(uint256)
 
@@ -2502,12 +2500,10 @@ def bump() -> uint256:
     return self.counter
 
 @external
-@payable
 def pay() -> uint256:
     return msg.value * 10
 
 @external
-@payable
 def run() -> uint256:
     self.counter = 0
     return extcall Foo(self).pay(gas=50000 + self.bump(), value=self.bump())

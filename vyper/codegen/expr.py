@@ -273,7 +273,7 @@ class Expr:
             elif key == "msg.data":
                 # This adhoc node will be replaced with a valid node in `Slice/Len.build_IR`
                 return IRnode.from_list(["~calldata"], typ=BytesT(0))
-            elif key == "msg.value" and self.context.is_payable:
+            elif key == "msg.value":
                 return IRnode.from_list(["callvalue"], typ=UINT256_T)
             elif key in ("msg.gas", "msg.mana"):
                 # NOTE: `msg.mana` is an alias for `msg.gas`

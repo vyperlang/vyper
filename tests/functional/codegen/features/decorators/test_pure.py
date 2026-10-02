@@ -194,7 +194,6 @@ def foo() -> uint256:
 def test_invalid_call_payable():
     # pure cannot call payable internal
     code = """
-@payable
 @internal
 def _foo() -> uint256:
     return msg.value
@@ -225,7 +224,7 @@ def test_invalid_conflicting_decorators():
     code = """
 @pure
 @external
-@payable
+@nonpayable
 def foo() -> uint256:
     return 5
     """

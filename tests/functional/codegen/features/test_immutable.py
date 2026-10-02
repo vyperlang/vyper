@@ -280,7 +280,6 @@ def foo() -> uint256:
 a: public(immutable(uint256))
 b: public(uint256)
 
-@payable
 @deploy
 def __init__(to_copy: address):
     c: address = create_copy_of(to_copy)
@@ -304,7 +303,6 @@ a0: immutable(uint256[10])
 a: public(immutable(uint256))
 b: public(uint256)
 
-@payable
 @deploy
 def __init__(to_copy: address):
     c: address = create_copy_of(to_copy)

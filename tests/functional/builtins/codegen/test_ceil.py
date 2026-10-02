@@ -111,7 +111,7 @@ def ceil_param(p: decimal) -> int256:
 def test_ceil_ext_call(side_effects_contract, assert_side_effects_invoked, get_contract):
     code = """
 interface Foo:
-    def foo(x: decimal) -> decimal: payable
+    def foo(x: decimal) -> decimal: nonpayable
 
 @external
 def foo(a: Foo) -> int256:

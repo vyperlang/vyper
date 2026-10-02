@@ -5,12 +5,6 @@ from dataclasses import dataclass
 from vyper.utils import method_id_int
 
 
-@dataclass
-class Signature:
-    method_id: int
-    payable: bool
-
-
 # bucket for dense function
 @dataclass
 class Bucket:

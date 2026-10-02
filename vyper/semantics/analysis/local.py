@@ -180,9 +180,8 @@ def _validate_address_code(node: vy_ast.Attribute, value_type: VyperType) -> Non
             )
 
 
-def _validate_msg_value_access(node: vy_ast.Attribute) -> None:
-    if isinstance(node.value, vy_ast.Name) and node.attr == "value" and node.value.id == "msg":
-        raise NonPayableViolation("msg.value is not allowed in non-payable functions", node)
+def _is_msg_value(node: vy_ast.Attribute) -> bool:
+    return isinstance(node.value, vy_ast.Name) and node.attr == "value" and node.value.id == "msg"
 
 
 def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name, typ: VyperType) -> None:
@@ -953,8 +952,11 @@ class ExprVisitor(VyperNodeVisitorBase):
         # if self.func.mutability < expr_info.mutability:
         #    raise ...
 
-        if self.func and self.func.mutability != StateMutability.PAYABLE:
-            _validate_msg_value_access(node)
+        if self.func and _is_msg_value(node):
+            if self.func.mutability < StateMutability.NONPAYABLE:
+                msg = f"msg.value is not allowed in {self.func.mutability} functions"
+                raise NonPayableViolation(msg, node)
+            self.func.mark_reads_msg_value()
 
         if self.func and self.func.mutability == StateMutability.PURE:
             _validate_pure_access(node, typ)
