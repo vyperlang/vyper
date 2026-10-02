@@ -1661,6 +1661,7 @@ def run() -> uint256:
     with tx_failed():
         c.run()
 
+
 def test_complex_tuple_wrap(get_contract):
     code = """
 @external

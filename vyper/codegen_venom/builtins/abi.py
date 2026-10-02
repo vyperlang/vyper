@@ -240,7 +240,6 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     if unwrap_tuple:
         wrapped_typ = calculate_type_for_external_return(output_typ)
 
-
     # Reject bounded input buffers which cannot fit the decoded value. An
     # unbounded input is checked against its runtime length below.
     if not is_unbounded_sequence_type(output_typ):
