@@ -1,10 +1,14 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path, PurePath
+from threading import Barrier
 
 import pytest
 
 from tests.utils import working_directory
+from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, JSONInput, JSONInputBundle
+from vyper.semantics.analysis.imports import ImportAnalyzer, _ImportGraph
 
 
 # FilesystemInputBundle which uses same search path as make_file
@@ -36,6 +40,71 @@ def test_search_path_context_manager(make_file, tmp_path):
 
     assert isinstance(file, FileInput)
     assert file == FileInput(0, Path("foo.vy"), filepath, "contents")
+
+
+def test_load_file_local_search_paths(make_input_bundle, tmp_path):
+    bundle = make_input_bundle(
+        {"foo.vy": "default", "first/foo.vy": "first", "second/foo.vy": "second"}
+    )
+    default_paths = bundle.search_paths
+    local_paths = (tmp_path / "first", tmp_path / "second")
+
+    file = bundle.load_file("foo.vy", search_paths=local_paths)
+    assert file.contents == "second"
+    assert file.resolved_path == tmp_path / "second/foo.vy"
+    assert bundle.load_file("foo.vy", search_paths=local_paths[:1]).contents == "first"
+    assert bundle.load_file("foo.vy", search_paths=None).contents == "default"
+
+    with pytest.raises(FileNotFoundError):
+        bundle.load_file("foo.vy", search_paths=[])
+    with pytest.raises(FileNotFoundError) as exc:
+        bundle.load_file("foo.vy", search_paths=[tmp_path / "missing"])
+    assert str(tmp_path / "missing/foo.vy") in str(exc.value)
+
+    assert bundle.search_paths is default_paths
+    assert bundle.search_paths == [tmp_path]
+    assert local_paths == (tmp_path / "first", tmp_path / "second")
+    assert bundle.load_file("foo.vy").contents == "default"
+
+
+def test_concurrent_relative_import_search_paths(make_input_bundle, tmp_path, monkeypatch):
+    bundle = make_input_bundle(
+        {"foo.vy": "default", "first/foo.vy": "first", "second/foo.vy": "second"}
+    )
+    default_paths = bundle.search_paths
+    analyzers = []
+    for directory in ("first", "second"):
+        module = vy_ast.parse_to_ast("", resolved_path=str(tmp_path / directory / "main.vy"))
+        analyzers.append(ImportAnalyzer(bundle, _ImportGraph(), module))
+
+    # Both requests must reach load_file before either starts searching.
+    # Check shared state while both are still inside ImportAnalyzer._load_file.
+    barrier = Barrier(2, timeout=5)
+    load_file = bundle.load_file
+
+    def synchronized_load_file(path, **kwargs):
+        barrier.wait()
+        assert bundle.search_paths is default_paths
+        assert bundle.search_paths == [tmp_path]
+        return load_file(path, **kwargs)
+
+    monkeypatch.setattr(bundle, "load_file", synchronized_load_file)
+
+    def load_relative(analyzer):
+        with analyzer.graph.enter_path(analyzer.toplevel_module):
+            return analyzer._load_file(PurePath("foo.vy"), level=1)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(load_relative, analyzer) for analyzer in analyzers]
+        files = [future.result(timeout=10) for future in futures]
+
+    assert [file.contents for file in files] == ["first", "second"]
+    assert [file.resolved_path for file in files] == [
+        tmp_path / "first/foo.vy", tmp_path / "second/foo.vy"
+    ]
+    assert bundle.search_paths is default_paths
+    assert bundle.search_paths == [tmp_path]
+    assert load_file("foo.vy").contents == "default"
 
 
 def test_search_path_precedence(make_file, tmp_path, tmp_path_factory, input_bundle):
