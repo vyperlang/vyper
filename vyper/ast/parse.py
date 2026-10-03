@@ -8,7 +8,8 @@ from typing import Optional
 
 from vyper.ast import nodes as vy_ast
 from vyper.ast.pre_parser import PreParser
-from vyper.exceptions import CompilerPanic, SyntaxException
+from vyper.ast.utils import get_syntax_error_offset
+from vyper.exceptions import CompilerPanic, SyntaxException, _BaseVyperException
 from vyper.utils import sha256sum
 from vyper.warnings import Deprecation, vyper_warn
 
@@ -30,9 +31,11 @@ def parse_to_ast(
 ) -> vy_ast.Module:
     try:
         return _parse_to_ast(vyper_source, source_id, module_path, resolved_path, is_interface)
-    except SyntaxException as e:
+    except _BaseVyperException as e:
         e.resolved_path = resolved_path
         raise e
+    except Exception as e:
+        raise CompilerPanic(f"unhandled exception during parsing: {type(e).__name__}: {e}") from e
 
 
 def _parse_to_ast(
@@ -77,17 +80,13 @@ def _parse_to_ast(
     try:
         py_ast = python_ast.parse(pre_parser.reformatted_code)
     except SyntaxError as e:
-        offset = e.offset
-        if offset is not None:
-            # SyntaxError offset is 1-based, not 0-based (see:
-            # https://docs.python.org/3/library/exceptions.html#SyntaxError.offset)
-            offset -= 1
+        offset = get_syntax_error_offset(e)
 
-            # adjust the column of the error if it was modified by the pre-parser
-            if e.lineno is not None:  # help mypy
-                offset += pre_parser.shift_for(e.lineno, offset)
+        # adjust the column of the error if it was modified by the pre-parser
+        if offset is not None and e.lineno is not None:  # help mypy
+            offset += pre_parser.shift_for(e.lineno, offset)
 
-        new_e = SyntaxException(str(e), vyper_source, e.lineno, offset)
+        new_e = SyntaxException(e.msg, vyper_source, e.lineno, offset)
 
         likely_errors = ("staticall", "staticcal")
         tmp = str(new_e)
