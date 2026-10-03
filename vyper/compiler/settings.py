@@ -147,6 +147,10 @@ class Settings:
     enable_decimals: Optional[bool] = None
     nonreentrancy_by_default: Optional[bool] = None
     disable_static_exceptions: Optional[bool] = None
+    # Use the O(n) linear method selector section instead of a jump table.
+    # The jump table's computed jump is not static control flow; the linear
+    # section is, at the cost of one comparison per external function.
+    linear_selector_section: Optional[bool] = None
     venom_flags: Optional[VenomOptimizationFlags] = None
 
     def __post_init__(self):
@@ -163,6 +167,8 @@ class Settings:
             assert isinstance(self.nonreentrancy_by_default, bool)
         if self.disable_static_exceptions is not None:
             assert isinstance(self.disable_static_exceptions, bool)
+        if self.linear_selector_section is not None:
+            assert isinstance(self.linear_selector_section, bool)
 
         if self.venom_flags is not None:
             assert isinstance(self.venom_flags, VenomOptimizationFlags)
@@ -193,6 +199,8 @@ class Settings:
             ret.append(" --enable-decimals")
         if self.disable_static_exceptions is True:
             ret.append(" --disable-static-exceptions")
+        if self.linear_selector_section is True:
+            ret.append(" --linear-selector-section")
 
         return "".join(ret)
 
@@ -331,6 +339,10 @@ def _opt_gas():
 
 def _opt_lowering_only_ir():
     return _settings.optimize in _OPT_LOWERING_ONLY_LEVELS
+
+
+def _opt_linear_selector_section():
+    return bool(get_global_settings().linear_selector_section)
 
 
 def _is_debug_mode():

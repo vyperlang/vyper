@@ -11,7 +11,9 @@ from vyper.typing import OpcodeMap
 # 3. Per VIP-3365, we support mainnet fork choice rules up to 3 years old
 #    (and may optionally have forward support for experimental/unreleased
 #    fork choice rules)
-_evm_versions = ("london", "paris", "shanghai", "cancun", "prague")
+# "future" is experimental: instructions proposed for a later fork but not yet
+# scheduled (currently EIP-7979, Call and Return Opcodes for the EVM).
+_evm_versions = ("london", "paris", "shanghai", "cancun", "prague", "future")
 EVM_VERSIONS: dict[str, int] = dict((v, i) for i, v in enumerate(_evm_versions))
 
 DEFAULT_EVM_VERSION = "prague"
@@ -182,6 +184,12 @@ OPCODE_OVERRIDES: dict[str, OpcodeMap] = {
         "MCOPY": (0x5E, 3, 0, 3),
         "TLOAD": (0x5C, 1, 1, 100),
         "TSTORE": (0x5D, 2, 0, 100),
+    },
+    # EIP-7979: call and return opcodes (mid, jumpdest, low)
+    "future": {
+        "CALLSUB": (0xB0, 1, 0, 8),
+        "CALLDEST": (0xB1, 0, 0, 1),
+        "RETURNSUB": (0xB2, 0, 0, 5),
     },
 }
 
