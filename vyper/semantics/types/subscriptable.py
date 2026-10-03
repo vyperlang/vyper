@@ -2,7 +2,13 @@ from typing import Any, Dict, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
-from vyper.exceptions import ArrayIndexException, CodegenPanic, InvalidType, StructureException
+from vyper.exceptions import (
+    ArrayIndexException,
+    CodegenPanic,
+    InvalidOperation,
+    InvalidType,
+    StructureException,
+)
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import BottomT, VyperType
 from vyper.semantics.types.infinity import (
@@ -64,6 +70,10 @@ class HashMapT(_SubscriptableT):
 
     def __repr__(self):
         return f"HashMap[{self.key_type}, {self.value_type}]"
+
+    @property
+    def abi_type(self) -> ABIType:
+        raise InvalidOperation(f"`{self}` does not have an abi encoding")
 
     # TODO not sure this is used?
     def compare_type(self, other):
