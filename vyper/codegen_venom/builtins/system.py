@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional, Union
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.builtins._kwargs import get_kwarg_value
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import ArgumentException, CompilerPanic, StateAccessViolation
 from vyper.semantics.types import BoolT, BytesT, TupleT, is_unbounded_bytestring_type
@@ -20,14 +21,6 @@ from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
-
-
-def _get_kwarg_value(node: vy_ast.Call, kwarg_name: str, default=None):
-    """Extract a keyword argument value from a Call node."""
-    for kw in node.keywords:
-        if kw.arg == kwarg_name:
-            return kw.value
-    return default
 
 
 def _is_msg_data(node) -> bool:
@@ -42,7 +35,7 @@ def _is_msg_data(node) -> bool:
 
 def _get_literal_kwarg(node: vy_ast.Call, kwarg_name: str, default):
     """Extract a literal value from a keyword argument."""
-    kw_node = _get_kwarg_value(node, kwarg_name)
+    kw_node = get_kwarg_value(node, kwarg_name)
     if kw_node is None:
         return default
     # Try to get folded value
@@ -108,7 +101,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
 
     # Validate value not passed with delegate/static
     # Check if value kwarg is explicitly provided (not relying on default)
-    value_node = _get_kwarg_value(node, "value")
+    value_node = get_kwarg_value(node, "value")
     if (is_delegate or is_static) and value_node is not None:
         raise ArgumentException("value= may not be passed for static or delegate calls!", node)
 
@@ -266,7 +259,7 @@ def lower_send(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     value = Expr(node.args[1], ctx).lower_value()
 
     # Parse gas kwarg (default 0)
-    gas_node = _get_kwarg_value(node, "gas")
+    gas_node = get_kwarg_value(node, "gas")
     gas: IROperand
     if gas_node is None:
         gas = IRLiteral(0)
