@@ -248,11 +248,13 @@ jobs:
   # fuzzing + slow/exhaustive tests (things that are too slow to run in
   # the regular test suite)
   fuzzing:
+    name: fuzzing (${{ matrix.group }}, ${{ matrix.experimental-codegen && 'venom' || 'legacy' }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
     strategy:
       matrix:
+        experimental-codegen: [false, true]
         # note that every time this is updated, `--splits` needs to be
         # updated below as well.
         # python -c "print(list(range(1, 121)))"
@@ -282,6 +284,7 @@ jobs:
       run: |
         pytest \
           -m "fuzzing" \
+          ${{ matrix.experimental-codegen && '--experimental-codegen' || '' }} \
           --splits 120 \
           --group ${{ matrix.group }} \
           --splitting-algorithm least_duration \
