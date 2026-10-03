@@ -39,6 +39,10 @@ Name                  Type             Value
 
 .. note::
 
+    ``block.prevhash`` skips the bounds checks that :func:`blockhash <blockhash>` performs. The two only differ at block ``0``, where ``blockhash(block.number - 1)`` reverts on the underflow of ``block.number - 1`` and ``block.prevhash`` returns ``empty(bytes32)``. Live networks are long past block ``0``, but a local test environment can start there.
+
+.. note::
+
     ``msg.data`` requires the usage of :func:`slice <slice>` to explicitly extract a section of calldata. If the extracted section exceeds the bounds of calldata, this will throw. You can check the size of ``msg.data`` using :func:`len <len>`.
 
 .. _constants-self:
