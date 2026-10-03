@@ -35,7 +35,14 @@ def _get_primitive_types():
     # are in the namespace instead of concrete type objects.
     res.extend([BytesT, StringT])
 
-    ret = {t._id: t for t in res}
+    ret = {}
+    for t in res:
+        if isinstance(t, type):
+            # parametrizable bytestring *classes* (e.g. `Bytes` for `Bytes[5]`)
+            # are registered under their declared name.
+            ret[t._id] = t
+        else:
+            ret[t.serialization_name] = t
     ret.update(_get_sequence_types())
 
     return ret
