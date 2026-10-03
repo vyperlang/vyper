@@ -220,10 +220,16 @@ def _ir_to_dict(ir_node):
 
 
 def build_ir_dict_output(compiler_data: CompilerData) -> dict:
+    if compiler_data.settings.experimental_codegen:
+        raise ValueError("ir_dict is not supported with --experimental-codegen; use ir instead")
     return _ir_to_dict(compiler_data.ir_nodes)
 
 
 def build_ir_runtime_dict_output(compiler_data: CompilerData) -> dict:
+    if compiler_data.settings.experimental_codegen:
+        raise ValueError(
+            "ir_runtime_dict is not supported with --experimental-codegen; use ir_runtime instead"
+        )
     return _ir_to_dict(compiler_data.ir_runtime)
 
 
