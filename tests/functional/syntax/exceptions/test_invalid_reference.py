@@ -44,6 +44,45 @@ a: public(constant(uint256)) = 1
 def foo():
     b: uint256 = self.a
     """,
+    """
+flag F:
+    A
+    B
+x: bool
+@external
+def foo():
+    self.x = (F == F)
+    """,
+    """
+flag F:
+    A
+    B
+x: bool
+@external
+def foo():
+    self.x = (F != F)
+    """,
+    """
+flag F:
+    A
+@external
+def foo() -> uint256:
+    return F + 1
+    """,
+    """
+flag F:
+    A
+@external
+def foo() -> F:
+    return -F
+    """,
+    """
+flag F:
+    A
+@external
+def foo() -> bool:
+    return F.A in [F]
+    """,
     # parameterized types live in the namespace as the type class rather than an
     # instance, so they used to miss the TYPE_T check and panic on `t.typ`
     # instead of reporting a bad reference
