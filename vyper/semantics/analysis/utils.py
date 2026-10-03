@@ -368,14 +368,13 @@ class _ExprAnalyser:
             raise OverflowException(
                 "Numeric literal is outside of allowable range for number types", node
             )
-
-        msg = f"Could not determine type for literal value '{node.value}'"
+        value = node.original_value if isinstance(node, vy_ast.Hex) else node.value
+        msg = f"Could not determine type for literal value '{value}'"
         hint = None
         # add a hint on address checksum mismatch
         if isinstance(node, vy_ast.Hex) and node.n_bytes == 20:
-            assert not is_checksum_encoded(node.value)
+            assert not is_checksum_encoded(node.original_value)
             hint = AddressT._checksum_error_msg(node)
-
         raise InvalidLiteral(msg, node, hint=hint)
 
     def types_from_IfExp(self, node):
