@@ -24,6 +24,14 @@ class _GenericTypeAcceptor:
     def __repr__(self):
         return f"GenericTypeAcceptor({self.type_})"
 
+    def __str__(self):
+        name = getattr(self.type_, "_id", None)
+        if not isinstance(name, str):
+            name = self.type_._generic_id
+        if not isinstance(name, str):
+            raise CompilerPanic(f"{self.type_.__name__} has no user-facing name")
+        return name
+
     def __init__(self, type_):
         self.type_ = type_
 
@@ -86,6 +94,10 @@ class VyperType:
     typeclass: str = None  # type: ignore
 
     _id: str  # rename to `_name`
+    # user-facing name for types whose `_id` is the fully applied type
+    # (e.g. `uint256`, `bytes4`) rather than the type constructor, so there
+    # is no generic name to read off the class. see `_GenericTypeAcceptor`.
+    _generic_id: Optional[str] = None
     _type_members: Optional[Dict] = None
     _valid_literal: Tuple = ()
     _invalid_locations: Tuple = ()
