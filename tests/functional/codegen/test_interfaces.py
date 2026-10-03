@@ -418,6 +418,35 @@ def test(addr: address):
         c.test(address)
 
 
+def test_interface_widens_to_address_in_exprs(env, get_contract):
+    code = """
+interface Foo:
+    def foo(): payable
+
+f: Foo
+
+@internal
+def _take_addr(a: address) -> address:
+    return a
+
+@external
+def test(addr: address) -> address:
+    self.f = Foo(addr)
+    assert addr == self.f # widen from equals
+
+    local_addr: address = self.f # widen from assignment
+    assert local_addr == addr
+
+    passed: address = self._take_addr(self.f) # widen from argument passing
+    assert passed == addr
+
+    return self.f # widen from return
+    """
+    c = get_contract(code)
+    some_address = env.accounts[1]
+    assert c.test(some_address) == some_address
+
+
 # test data returned from external interface gets clamped
 @pytest.mark.parametrize("typ", ("int128", "uint8"))
 def test_external_interface_int_clampers(get_contract, tx_failed, typ):
