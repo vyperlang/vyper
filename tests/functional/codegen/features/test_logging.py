@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from eth.codecs import abi
 from eth_utils import to_text
@@ -12,6 +14,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     UndeclaredDefinition,
+    UnimplementedException,
     UnknownAttribute,
 )
 from vyper.utils import keccak256
@@ -188,8 +191,47 @@ event MyLog:
     arg4: indexed(int128)
     """
 
-    with pytest.raises(EventDeclarationException):
+    with pytest.raises(EventDeclarationException) as e:
         compile_code(loggy_code)
+    assert e.value.message == "Event cannot have more than three indexed arguments"
+
+
+@pytest.mark.xfail(raises=UnimplementedException, reason="anonymous events not yet supported")
+def test_json_abi_anonymous_four_indexed_log(get_contract, get_logs, make_input_bundle):
+    iface_abi = json.dumps(
+        [
+            {
+                "type": "event",
+                "name": "MyLog",
+                "anonymous": True,
+                "inputs": [
+                    {"name": "arg1", "type": "int128", "indexed": True},
+                    {"name": "arg2", "type": "bool", "indexed": True},
+                    {"name": "arg3", "type": "address", "indexed": True},
+                    {"name": "arg4", "type": "uint256", "indexed": True},
+                ],
+            }
+        ]
+    )
+    main = """
+import iface
+
+@external
+def foo():
+    log iface.MyLog(arg1=-2, arg2=True, arg3=self, arg4=42)
+    """
+    input_bundle = make_input_bundle({"iface.json": iface_abi, "main.vy": main})
+
+    c = get_contract(main, input_bundle=input_bundle)
+    c.foo()
+
+    (log,) = get_logs(c)
+    # anonymous events have no event-id topic
+    assert len(log.topics) == 4
+    assert int.from_bytes(log.topics[0], "big") == (-2) % (2**256)
+    assert int.from_bytes(log.topics[1], "big") == 1
+    assert log.topics[2][-20:] == bytes.fromhex(c.address[2:])
+    assert int.from_bytes(log.topics[3], "big") == 42
 
 
 def test_event_logging_with_data(get_logs, keccak, get_contract):
