@@ -801,9 +801,16 @@ class Expr:
 
         # if they are in the same location, we can skip copying
         # into memory. also for the case where either body or orelse are
-        # literal `multi` values (ex. for tuple or arrays), copy to
-        # memory (to avoid crashing in make_setter, XXX fixme).
-        if body.location != orelse.location or body.value == "multi":
+        # literal `multi` values (ex. for tuple or arrays) or the `~empty`
+        # intrinsic (ex. `[]` or `empty(...)`), which have no location,
+        # copy to memory (to avoid crashing in make_setter, XXX fixme).
+        if (
+            body.location != orelse.location
+            or body.value == "multi"
+            or orelse.value == "multi"
+            or body.is_empty_intrinsic
+            or orelse.is_empty_intrinsic
+        ):
             body = ensure_in_memory(body, self.context)
             orelse = ensure_in_memory(orelse, self.context)
 
