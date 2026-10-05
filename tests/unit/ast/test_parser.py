@@ -120,18 +120,15 @@ def _nodes_of_type(module_ast, ast_type):
 @pytest.mark.parametrize(
     "prefix",
     [
-        "\x0c\n",  # form feed at the start of the file
-        "\n\x0c\n",  # form feed on its own line
         "# café\n",  # non-ascii character on a previous line
         "# \U0001f600\n",  # astral (surrogate-pair) character on a previous line
-        "# a\u2028b\n",  # U+2028 inside a comment
     ],
 )
 def test_literal_source_spans_with_offset_shifting_prefixes(prefix):
     # the source spans (and therefore the literal values re-derived from
     # them) must be identical no matter what precedes the literal: CPython
-    # reports byte-based column offsets and does not treat "\x0c" or
-    # U+2028 as line boundaries, so neither may shift the spans.
+    # reports byte-based column offsets, so a multi-byte character earlier
+    # in the source may not shift the spans.
     code = prefix + f"A: constant(address) = {_HEX_LITERAL}\n"
     module_ast = parse_to_ast(code)
 
@@ -144,18 +141,6 @@ def test_literal_source_spans_with_offset_shifting_prefixes(prefix):
         "A",
         "constant",
         "address",
-    ]
-
-
-def test_literal_source_spans_form_feed_at_end_of_line():
-    code = (
-        f"A: constant(address) = {_HEX_LITERAL}\x0c\n"
-        "B: constant(address) = 0x2222222222222222222222222222222222222222\n"
-    )
-    module_ast = parse_to_ast(code)
-    assert [n.value for n in _nodes_of_type(module_ast, "Hex")] == [
-        _HEX_LITERAL,
-        "0x2222222222222222222222222222222222222222",
     ]
 
 
@@ -172,11 +157,11 @@ def test_literal_source_span_nfkc_identifier():
     assert _nodes_of_type(module_ast, "Name")[0].node_source_code == "ﬁ"
 
 
-def test_decimal_and_binary_literal_values_with_form_feed():
+def test_decimal_and_binary_literal_values_after_multibyte_char():
+    # the decimal value is re-derived from the sliced source text, so a
+    # multi-byte character earlier on the line must not displace its span
     code = (
-        "\x0c\n"
-        "A: constant(decimal) = 1.5\n"
-        "B: constant(bytes4) = 0b11110000111100001111000011110000\n"
+        "ﬁ: constant(decimal) = 1.5\n" "B: constant(bytes4) = 0b11110000111100001111000011110000\n"
     )
     module_ast = parse_to_ast(code)
 
@@ -189,10 +174,54 @@ def test_decimal_and_binary_literal_values_with_form_feed():
     assert bytes_node.value == b"\xf0\xf0\xf0\xf0"
 
 
-def test_form_feed_contract_compiles_to_same_runtime_bytecode():
+@pytest.mark.parametrize(
+    "char,code_point",
+    [
+        ("\x0b", "U+000B"),  # vertical tab
+        ("\x0c", "U+000C"),  # form feed
+        ("\x85", "U+0085"),  # next line
+        ("\u2028", "U+2028"),  # line separator
+        ("\u2029", "U+2029"),  # paragraph separator
+    ],
+)
+def test_forbidden_source_characters_rejected(char, code_point):
+    # these characters are line boundaries for str.splitlines() but not
+    # for CPython's tokenizer, so they are forbidden in vyper source
+    # instead of being accounted for in the span computation.
+    code = f"A: constant(address) = {_HEX_LITERAL}\n# comment{char}here\n"
+    with pytest.raises(SyntaxException) as exc_info:
+        parse_to_ast(code)
+    assert code_point in exc_info.value.message
+
+
+def test_forbidden_character_at_start_of_file():
+    code = f"\x0c\nA: constant(address) = {_HEX_LITERAL}\n"
+    with pytest.raises(SyntaxException) as exc_info:
+        parse_to_ast(code)
+    annotation = exc_info.value.annotations[0]
+    assert (annotation.lineno, annotation.col_offset) == (1, 0)
+
+
+def test_forbidden_character_in_string_literal_rejected():
+    code = 'A: constant(String[4]) = "a\u2028b"\n'
+    with pytest.raises(SyntaxException) as exc_info:
+        parse_to_ast(code)
+    assert "U+2028" in exc_info.value.message
+
+
+def test_form_feed_contract_rejected():
     code = (
         f"A: constant(address) = {_HEX_LITERAL}\n\n@external\ndef get() -> address:\n    return A\n"
     )
-    out = compile_code(code, output_formats=["bytecode_runtime"])
-    out_ff = compile_code("\x0c\n" + code, output_formats=["bytecode_runtime"])
-    assert out_ff["bytecode_runtime"] == out["bytecode_runtime"]
+    with pytest.raises(SyntaxException):
+        compile_code("\x0c\n" + code, output_formats=["bytecode_runtime"])
+
+
+def test_escaped_form_feed_in_bytes_literal_allowed():
+    # only the literal character is forbidden; the escape sequence (four
+    # ascii characters in the source text) is fine.
+    code = 'A: constant(bytes1) = b"\\x0c"\n'
+    module_ast = parse_to_ast(code)
+
+    (bytes_node,) = _nodes_of_type(module_ast, "Bytes")
+    assert bytes_node.value == b"\x0c"
