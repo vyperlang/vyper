@@ -1,3 +1,28 @@
+import pytest
+
+
+@pytest.mark.parametrize("prefix_len,suffix_len", [(1, 1), (31, 1), (32, 1), (1, 31), (31, 2)])
+@pytest.mark.parametrize("dynamic_prefix", [False, True])
+def test_concat_preserves_adjacent_memory(get_contract, prefix_len, suffix_len, dynamic_prefix):
+    prefix_type = f"Bytes[{prefix_len}]" if dynamic_prefix else f"bytes{prefix_len}"
+    code = f"""
+@external
+def foo(
+    a: {prefix_type}, b: bytes{suffix_len}, guard: bytes32[2]
+) -> (Bytes[{prefix_len + suffix_len}], bytes32[2]):
+    return concat(a, b), guard
+    """
+    c = get_contract(code)
+    guard = [b"\xff" * 32, b"\xaa" * 32]
+    suffix = b"\xbb" * suffix_len
+    lengths = range(prefix_len + 1) if dynamic_prefix else [prefix_len]
+    for length in lengths:
+        prefix = b"\xcc" * length
+        # A full-word store of b at an unaligned offset must stay within
+        # the concat allocation, even when guard is placed immediately after it.
+        assert c.foo(prefix, suffix, guard) == (prefix + suffix, guard)
+
+
 def test_concat(get_contract):
     test_concat = """
 @external

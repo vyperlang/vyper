@@ -73,8 +73,13 @@ def _lower_concat_bounded(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperV
     else:
         out_typ = BytesT(max_len)
 
-    # Allocate output buffer (length word + data)
-    out_val = ctx.new_temporary_value(out_typ)
+    # bytesM args use full-word stores at potentially unaligned offsets.
+    # Reserve a slack word so a trailing store stays inside the allocation.
+    bufsize = out_typ.memory_bytes_required
+    if any(isinstance(arg._metadata["type"], BytesM_T) for arg in args):
+        bufsize += 32
+    out_buf = ctx.allocate_buffer(bufsize)
+    out_val = VyperValue.from_ptr(out_buf.base_ptr(), out_typ)
     data_ptr = ctx.add_offset(out_val.ptr(), IRLiteral(32))
 
     # Track current offset as a variable
