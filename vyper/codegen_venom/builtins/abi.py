@@ -318,11 +318,14 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     src_vv = VyperValue.from_ptr(ptr, wrapped_typ)
     abi_decode_to_buf(ctx, output_val.operand, src_vv, hi=hi)
 
-    # Return with output_typ (unwrapped type if applicable)
-    if unwrap_tuple and wrapped_typ != output_typ:
-        # For single-element tuple, element 0 is at offset 0
-        return VyperValue.from_ptr(output_val.ptr(), output_typ)
-    return output_val
+    # sanity check as in the legacy, it cannot be done right
+    # after creating of wrapped_typ since the unbounded
+    # types do not have this info
+    assert wrapped_typ.memory_bytes_required == output_typ.memory_bytes_required
+
+    # the output should be always of type that is
+    # propageted in the signature as in the legacy
+    return VyperValue.from_ptr(output_val.ptr(), output_typ)
 
 
 HANDLERS = {
