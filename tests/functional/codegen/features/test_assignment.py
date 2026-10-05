@@ -384,7 +384,7 @@ def foo(x: int128):
     assert_compile_failed(lambda: get_contract(code), ImmutableViolation)
 
 
-def test_invalid_assign_to_call_return(assert_compile_failed, get_contract):
+def test_invalid_assign_to_call_return(get_contract):
     code = """
 @internal
 def g() -> uint256[3]:
@@ -432,6 +432,21 @@ def f(i: uint256):
     assert e.value.message == "Read-only expression cannot be mutated."
 
 
+def test_invalid_assign_to_ternary(get_contract):
+    code = """
+a: uint256[3]
+b: uint256[3]
+
+@external
+def f():
+    (self.a if True else self.b)[0] = 1
+"""
+    with pytest.raises(ImmutableViolation) as e:
+        get_contract(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
+
+
 def test_invalid_assign_to_self(get_contract):
     code = """
 @external
@@ -444,7 +459,7 @@ def f():
     assert e.value.message == "Read-only expression cannot be mutated."
 
 
-def test_invalid_assign_to_self_balance(assert_compile_failed, get_contract):
+def test_invalid_assign_to_self_balance(get_contract):
     code = """
 @external
 def f():
@@ -456,7 +471,7 @@ def f():
     assert e.value.message == "Read-only expression cannot be mutated."
 
 
-def test_invalid_assign_to_storage_addr_balance(assert_compile_failed, get_contract):
+def test_invalid_assign_to_storage_addr_balance(get_contract):
     code = """
 addr: address
 
@@ -470,7 +485,7 @@ def f():
     assert e.value.message == "Read-only expression cannot be mutated."
 
 
-def test_invalid_assign_to_storage_addr_codehash(assert_compile_failed, get_contract):
+def test_invalid_assign_to_storage_addr_codehash(get_contract):
     code = """
 addr: address
 
@@ -484,7 +499,7 @@ def f():
     assert e.value.message == "Read-only expression cannot be mutated."
 
 
-def test_invalid_assign_to_iface_address(assert_compile_failed, get_contract):
+def test_invalid_assign_to_iface_address(get_contract):
     code = """
 interface IFoo:
     def foo() -> uint256: nonpayable
@@ -511,6 +526,25 @@ def f() -> uint256:
 """
     c = get_contract(code)
     assert c.f() == 0
+
+
+def test_assign_with_multi_type_index(get_contract):
+    # indices which do not resolve to a single type (like int literal
+    # ternaries) are valid write targets
+    code = """
+h: HashMap[uint256, uint256]
+
+@external
+def f(c: bool) -> (uint256[3], uint256):
+    x: uint256[3] = [1, 2, 3]
+    x[1 if c else 2] = 5
+    x[1 if c else 2] += 1
+    self.h[1 if c else 2] = 7
+    return x, self.h[1 if c else 2]
+"""
+    c = get_contract(code)
+    assert c.f(True) == ([1, 6, 3], 7)
+    assert c.f(False) == ([1, 2, 6], 7)
 
 
 def test_valid_literal_increment(get_contract):

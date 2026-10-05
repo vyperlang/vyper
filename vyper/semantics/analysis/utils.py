@@ -111,15 +111,16 @@ class _ExprAnalyser:
                 return ExprInfo.from_moduleinfo(t, attr=attr)
 
             if info.typ._builtin_members and attr in info.typ._builtin_members:
-                # built-in members are special in that they are not assignable
+                # a built-in members is not writable, and has the same constancy as its base:
+                # foo: constant(Foo) = Foo(<addr>)
+                # x: constant(address) = foo.address
 
-                constancy = Modifiability.RUNTIME_CONSTANT
-                if attr in info.typ._view_builtin_members:
-                    # if the base is constant/immutable, then the view member also should be:
-                    # foo: constant(Foo) = Foo(<addr>)
-                    # x: constant(address) = foo.address
+                constancy = info.constancy
 
-                    constancy = min(constancy, info.constancy)
+                # But some members fetch runtime information, these cannot be CONSTANT
+                if attr not in info.typ._view_builtin_members:
+                    constancy = max(constancy, Modifiability.RUNTIME_CONSTANT)
+
                 return ExprInfo(
                     t,
                     attr=attr,
@@ -133,16 +134,9 @@ class _ExprAnalyser:
 
         # If it's a Subscript, propagate the subscriptable varinfo
         if isinstance(node, vy_ast.Subscript):
-            info = self.get_expr_info(node.value)
+            info = get_expr_info(node.value)
 
-            index = node.slice
-            if index.is_literal_value or index.has_folded_value:
-                # since literals often have more than one type, they fail get_expr_info
-                # instead hardcode the constancy
-                # TODO: Remove this branching once every expression has a single type
-                index_constancy = Modifiability.CONSTANT
-            else:
-                index_constancy = self.get_expr_info(index).constancy
+            index_constancy = _get_constancy(node.slice)
 
             # the expression is only as constant as its least constant
             # part. e.g. `a[block.number]` is not a compile-time constant,
@@ -159,7 +153,11 @@ class _ExprAnalyser:
         if isinstance(node, (vy_ast.Call, vy_ast.ExtCall, vy_ast.StaticCall)):
             return ExprInfo(t, constancy=Modifiability.READ_ONLY)
 
-        return ExprInfo(t)
+        # any other expression (e.g. a ternary, a binop or a literal) is a
+        # temporary value; it has no location, so it can never be written to.
+        # note the constancy is left alone, since such an expression can still
+        # be constant (cf. `_get_constancy`)
+        return ExprInfo(t, writability=Modifiability.READ_ONLY)
 
     def get_exact_type_from_node(self, node, include_type_exprs=False):
         """
@@ -501,6 +499,27 @@ def _filter(type_, fn_name, node):
         return False
 
 
+def _get_constancy(node: vy_ast.ExprNode) -> Modifiability:
+    """
+    Compute the constancy of an expression without requiring it to
+    resolve to a single type.
+    """
+    # since expressions containing literals often have more than one type, they fail get_expr_info,
+    # instead hardcode the constancy
+    # TODO: Remove this helper once every expression has a single type
+
+    if node.is_literal_value or node.has_folded_value:
+        return Modifiability.CONSTANT
+
+    if isinstance(
+        node, (vy_ast.BinOp, vy_ast.Compare, vy_ast.BoolOp, vy_ast.UnaryOp, vy_ast.IfExp)
+    ):
+        # the expression is only as constant as its least constant part
+        return max(_get_constancy(i) for i in node.get_children(vy_ast.ExprNode))
+
+    return get_expr_info(node).constancy
+
+
 def get_possible_types_from_node(node):
     """
     Return a list of possible types for the given node.
@@ -740,9 +759,6 @@ def check_modifiability(node: vy_ast.ExprNode, modifiability: Modifiability) -> 
 
     if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
         return all(check_modifiability(item, modifiability) for item in node.elements)
-
-    if isinstance(node, vy_ast.Subscript):
-        return all(check_modifiability(i, modifiability) for i in (node.value, node.slice))
 
     if isinstance(node, vy_ast.Call):
         call_type = get_exact_type_from_node(node.func)

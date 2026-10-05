@@ -33,9 +33,7 @@ class Namespace(dict):
         self.update(environment.CONSTANT_ENVIRONMENT_VARS)
         # builtin functions are not assignable
         builtins = get_builtin_functions().items()
-        self.update(
-            {k: VarInfo(b, modifiability=Modifiability.RUNTIME_CONSTANT) for (k, b) in builtins}
-        )
+        self.update({k: VarInfo(b, modifiability=Modifiability.READ_ONLY) for (k, b) in builtins})
 
     def __eq__(self, other):
         return self is other

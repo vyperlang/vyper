@@ -236,6 +236,8 @@ class VarInfo:
     @property
     def is_constant(self):
         res = self.location == DataLocation.UNSET
+        # Note: This assert never raises, but is wrong in general:
+        # environment vars have an UNSET location but some are only RUNTIME_CONSTANT, e.g. block.
         assert res == (self.modifiability == Modifiability.CONSTANT)
         return res
 
@@ -346,7 +348,7 @@ class ExprInfo:
         return cls(
             module_info.module_t,
             module_info=module_info,
-            constancy=Modifiability.READ_ONLY,
+            constancy=Modifiability.CONSTANT,
             **kwargs,
         )
 

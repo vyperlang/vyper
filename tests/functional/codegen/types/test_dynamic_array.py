@@ -1891,7 +1891,7 @@ def boo() -> uint256:
     assert c.foo() == [1, 2, 3, 4]
 
 
-def test_dangling_reference(get_contract, assert_compile_failed):
+def test_dangling_reference(get_contract):
     code = """
 a: DynArray[DynArray[uint256, 5], 5]
 
