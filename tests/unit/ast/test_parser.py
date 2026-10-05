@@ -108,3 +108,91 @@ def foo():
     with pytest.raises(SyntaxException) as exc_info:
         compile_code(main, input_bundle=input_bundle)
     assert exc_info.value.message == _NULL_BYTE_MSG
+
+
+_HEX_LITERAL = "0x1111111111111111111111111111111111111111"
+
+
+def _nodes_of_type(module_ast, ast_type):
+    return [n for n in module_ast.get_descendants() if n.ast_type == ast_type]
+
+
+@pytest.mark.parametrize(
+    "prefix",
+    [
+        "\x0c\n",  # form feed at the start of the file
+        "\n\x0c\n",  # form feed on its own line
+        "# café\n",  # non-ascii character on a previous line
+        "# \U0001f600\n",  # astral (surrogate-pair) character on a previous line
+        "# a\u2028b\n",  # U+2028 inside a comment
+    ],
+)
+def test_literal_source_spans_with_offset_shifting_prefixes(prefix):
+    # the source spans (and therefore the literal values re-derived from
+    # them) must be identical no matter what precedes the literal: CPython
+    # reports byte-based column offsets and does not treat "\x0c" or
+    # U+2028 as line boundaries, so neither may shift the spans.
+    code = prefix + f"A: constant(address) = {_HEX_LITERAL}\n"
+    module_ast = parse_to_ast(code)
+
+    (hex_node,) = _nodes_of_type(module_ast, "Hex")
+    assert hex_node.node_source_code == _HEX_LITERAL
+    assert hex_node.value == _HEX_LITERAL
+
+    # every name must slice exactly its own identifier as well
+    assert [n.node_source_code for n in _nodes_of_type(module_ast, "Name")] == [
+        "A",
+        "constant",
+        "address",
+    ]
+
+
+def test_literal_source_spans_form_feed_at_end_of_line():
+    code = (
+        f"A: constant(address) = {_HEX_LITERAL}\x0c\n"
+        "B: constant(address) = 0x2222222222222222222222222222222222222222\n"
+    )
+    module_ast = parse_to_ast(code)
+    assert [n.value for n in _nodes_of_type(module_ast, "Hex")] == [
+        _HEX_LITERAL,
+        "0x2222222222222222222222222222222222222222",
+    ]
+
+
+def test_literal_source_span_nfkc_identifier():
+    # U+FB01 (3 utf-8 bytes, 1 character) NFKC-normalizes to the ascii name
+    # "fi"; the byte-based column offsets it produces must not displace the
+    # spans of the nodes that follow it on the same line.
+    code = f"ﬁ: constant(address) = {_HEX_LITERAL}\n"
+    module_ast = parse_to_ast(code)
+
+    (hex_node,) = _nodes_of_type(module_ast, "Hex")
+    assert hex_node.node_source_code == _HEX_LITERAL
+    assert hex_node.value == _HEX_LITERAL
+    assert _nodes_of_type(module_ast, "Name")[0].node_source_code == "ﬁ"
+
+
+def test_decimal_and_binary_literal_values_with_form_feed():
+    code = (
+        "\x0c\n"
+        "A: constant(decimal) = 1.5\n"
+        "B: constant(bytes4) = 0b11110000111100001111000011110000\n"
+    )
+    module_ast = parse_to_ast(code)
+
+    (decimal_node,) = _nodes_of_type(module_ast, "Decimal")
+    assert decimal_node.node_source_code == "1.5"
+    assert str(decimal_node.value) == "1.5"
+
+    (bytes_node,) = _nodes_of_type(module_ast, "Bytes")
+    assert bytes_node.node_source_code == "0b11110000111100001111000011110000"
+    assert bytes_node.value == b"\xf0\xf0\xf0\xf0"
+
+
+def test_form_feed_contract_compiles_to_same_runtime_bytecode():
+    code = (
+        f"A: constant(address) = {_HEX_LITERAL}\n\n@external\ndef get() -> address:\n    return A\n"
+    )
+    out = compile_code(code, output_formats=["bytecode_runtime"])
+    out_ff = compile_code("\x0c\n" + code, output_formats=["bytecode_runtime"])
+    assert out_ff["bytecode_runtime"] == out["bytecode_runtime"]
