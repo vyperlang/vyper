@@ -1,5 +1,6 @@
 from vyper.compiler import compile_code
 from vyper.evm.opcodes import version_check
+from vyper.utils import erc7201_storage_slot
 
 from .utils import adjust_storage_layout_for_cancun
 
@@ -404,3 +405,91 @@ a: public(uint256)
         }
 
     assert storage_layout == out["storage_layout"]
+
+
+def test_storage_namespace_erc7201():
+    """Test that storage-namespace pragma uses ERC-7201 namespacing."""
+    namespace = "myapp.storage.v1"
+    starting_slot = erc7201_storage_slot(namespace)
+
+    code = f"""
+#pragma storage-namespace {namespace}
+
+counter: uint256
+owner: address
+    """
+
+    out = compile_code(code, output_formats=["layout"])
+    layout = out["layout"]
+
+    # Check that storage_namespace info is included
+    assert "storage_namespace" in layout
+    assert layout["storage_namespace"]["namespace"] == namespace
+    assert layout["storage_namespace"]["starting_slot"] == starting_slot
+
+    # Check that variables are allocated starting from the namespace slot
+    # Slot 0 (relative to namespace) is the nonreentrant key
+    # In Cancun+, nonreentrant is in transient storage, so first var is at starting_slot
+    if version_check(begin="cancun"):
+        expected_counter_slot = starting_slot
+        expected_owner_slot = starting_slot + 1
+    else:
+        # Pre-cancun: slot 0 is nonreentrant key
+        expected_counter_slot = starting_slot + 1
+        expected_owner_slot = starting_slot + 2
+
+    assert layout["storage_layout"]["counter"]["slot"] == expected_counter_slot
+    assert layout["storage_layout"]["owner"]["slot"] == expected_owner_slot
+
+
+def test_storage_namespace_hex_value():
+    """Test that storage-namespace pragma with hex value uses raw slot."""
+    code = """
+#pragma storage-namespace 0x1000
+
+value: uint256
+    """
+
+    out = compile_code(code, output_formats=["layout"])
+    layout = out["layout"]
+
+    # Check that storage_namespace info is included
+    assert "storage_namespace" in layout
+    assert layout["storage_namespace"]["namespace"] == "0x1000"
+    assert layout["storage_namespace"]["starting_slot"] == 0x1000
+
+    # Check variable allocation
+    if version_check(begin="cancun"):
+        expected_slot = 0x1000
+    else:
+        expected_slot = 0x1000 + 1  # +1 for nonreentrant key
+
+    assert layout["storage_layout"]["value"]["slot"] == expected_slot
+
+
+def test_storage_namespace_with_nonreentrant():
+    """Test storage namespace with nonreentrant functions."""
+    namespace = "myapp.storage"
+    starting_slot = erc7201_storage_slot(namespace)
+
+    code = f"""
+#pragma storage-namespace {namespace}
+
+counter: uint256
+
+@external
+@nonreentrant
+def increment():
+    self.counter += 1
+    """
+
+    out = compile_code(code, output_formats=["layout"])
+    layout = out["layout"]
+
+    # Nonreentrant key should be at the starting slot (or in transient for cancun+)
+    if version_check(begin="cancun"):
+        assert layout["transient_storage_layout"]["$.nonreentrant_key"]["slot"] == 0
+        assert layout["storage_layout"]["counter"]["slot"] == starting_slot
+    else:
+        assert layout["storage_layout"]["$.nonreentrant_key"]["slot"] == starting_slot
+        assert layout["storage_layout"]["counter"]["slot"] == starting_slot + 1

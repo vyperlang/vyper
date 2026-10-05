@@ -3,11 +3,13 @@ from collections import defaultdict
 from typing import Generic, Optional, TypeVar
 
 from vyper import ast as vy_ast
+from vyper.compiler.settings import get_global_settings
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, StorageLayoutException
 from vyper.semantics.analysis.base import VarOffset
 from vyper.semantics.data_locations import DataLocation
 from vyper.typing import StorageLayout
+from vyper.utils import erc7201_storage_slot
 
 
 def set_data_positions(
@@ -86,8 +88,10 @@ class Allocators:
 
     _global_nonreentrancy_key_slot: int
 
-    def __init__(self):
-        self.storage_allocator = SimpleAllocator(max_slot=2**256)
+    def __init__(self, storage_starting_slot: int = 0):
+        self.storage_allocator = SimpleAllocator(
+            max_slot=2**256, starting_slot=storage_starting_slot
+        )
         self.transient_storage_allocator = SimpleAllocator(max_slot=2**256)
         self.immutables_allocator = SimpleAllocator(max_slot=0x6000)
 
@@ -313,7 +317,13 @@ def _allocate_layout_r(
     Returns the layout as a dict of variable name -> variable info
     """
     if allocators is None:
-        allocators = Allocators()
+        # Check for storage namespace pragma
+        settings = get_global_settings()
+        storage_starting_slot = 0
+        if settings is not None and settings.storage_namespace is not None:
+            storage_starting_slot = erc7201_storage_slot(settings.storage_namespace)
+
+        allocators = Allocators(storage_starting_slot=storage_starting_slot)
         # always allocate nonreentrancy slot, so that adding or removing
         # reentrancy protection from a contract does not change its layout
         allocators.allocate_global_nonreentrancy_slot()
@@ -350,7 +360,16 @@ def _allocate_layout_r(
 
 # get the layout for export
 def generate_layout_export(vyper_module: vy_ast.Module):
-    return _generate_layout_export_r(vyper_module)
+    ret = _generate_layout_export_r(vyper_module)
+
+    # Add storage namespace information if present
+    settings = get_global_settings()
+    if settings is not None and settings.storage_namespace is not None:
+        namespace = settings.storage_namespace
+        starting_slot = erc7201_storage_slot(namespace)
+        ret["storage_namespace"] = {"namespace": namespace, "starting_slot": starting_slot}
+
+    return ret
 
 
 def _generate_layout_export_r(vyper_module):
