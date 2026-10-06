@@ -75,14 +75,9 @@ class VolatilePrePostChecker(PrePostChecker):
 
 
 _check_pre_post = VolatilePrePostChecker([DeadStoreElimination])
-_check_pre_post_storage = VolatilePrePostChecker([DeadStoreElimination], addr_space=STORAGE)
-
 
 def _check_no_change(code, hevm=False):
     return _check_pre_post(code, code, hevm=hevm)
-
-def _check_no_change_storage(code, hevm=False):
-    return _check_pre_post_storage(code, code, hevm=hevm)
 
 
 @pytest.mark.parametrize("position", [0, "alloca 32"])
@@ -1136,7 +1131,7 @@ def test_sstore_before_retfmp_is_not_dead():
         sstore 64, 1
         retfmp %retpc, %fmp, 1
     """
-    _check_no_change_storage(pre, hevm=False)
+    _check_no_change_generic(pre, STORAGE, hevm=False)
 
 
 def test_mstore_before_ret_clobbered_is_dead():
@@ -1205,6 +1200,9 @@ _persistent_address_spaces = (STORAGE, TRANSIENT)
 
 def _check_pre_post_generic(pre, post, addr_space):
     VolatilePrePostChecker([DeadStoreElimination], addr_space=addr_space)(pre, post)
+
+def _check_no_change_generic(code, addr_space, hevm=False):
+    VolatilePrePostChecker([DeadStoreElimination], addr_space=addr_space)(code, code, hevm=hevm)
 
 
 @pytest.mark.parametrize("addr_space", _persistent_address_spaces)
