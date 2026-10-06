@@ -136,7 +136,7 @@ class _ExprAnalyser:
         if isinstance(node, vy_ast.Subscript):
             info = get_expr_info(node.value)
 
-            index_constancy = _get_constancy(node.slice)
+            index_constancy = get_constancy(node.slice)
 
             # the expression is only as constant as its least constant
             # part. e.g. `a[block.number]` is not a compile-time constant,
@@ -150,13 +150,16 @@ class _ExprAnalyser:
                 writability=info.writability,
             )
 
-        if isinstance(node, (vy_ast.Call, vy_ast.ExtCall, vy_ast.StaticCall)):
-            return ExprInfo(t, constancy=Modifiability.READ_ONLY)
-
-        # any other expression (e.g. a ternary, a binop or a literal) is a
-        # temporary value; it has no location, so it can never be written to.
+        # any other expression (e.g. a call, a ternary, a binop or a literal) is a
+        # temporary value, so it can never be written to.
         # note the constancy is left alone, since such an expression can still
-        # be constant (cf. `_get_constancy`)
+        # be constant (cf. `get_constancy`)
+
+        if isinstance(node, (vy_ast.Call, vy_ast.ExtCall, vy_ast.StaticCall)):
+            return ExprInfo(
+                t, constancy=get_constancy(node), writability=Modifiability.READ_ONLY
+            )
+
         return ExprInfo(t, writability=Modifiability.READ_ONLY)
 
     def get_exact_type_from_node(self, node, include_type_exprs=False):
@@ -499,23 +502,55 @@ def _filter(type_, fn_name, node):
         return False
 
 
-def _get_constancy(node: vy_ast.ExprNode) -> Modifiability:
+def get_constancy(node: vy_ast.ExprNode) -> Modifiability:
     """
     Compute the constancy of an expression without requiring it to
     resolve to a single type.
     """
-    # since expressions containing literals often have more than one type, they fail get_expr_info,
-    # instead hardcode the constancy
+    # since expressions containing literals often have more than one type, they fail
+    # get_expr_info, so recurse into the operands instead of asking for an ExprInfo
     # TODO: Remove this helper once every expression has a single type
 
     if node.is_literal_value or node.has_folded_value:
         return Modifiability.CONSTANT
 
-    if isinstance(
-        node, (vy_ast.BinOp, vy_ast.Compare, vy_ast.BoolOp, vy_ast.UnaryOp, vy_ast.IfExp)
-    ):
-        # the expression is only as constant as its least constant part
-        return max(_get_constancy(i) for i in node.get_children(vy_ast.ExprNode))
+    if isinstance(node, (
+        vy_ast.BinOp,
+        vy_ast.Compare,
+        vy_ast.BoolOp,
+        vy_ast.UnaryOp,
+        vy_ast.IfExp,
+        vy_ast.List,
+        vy_ast.Tuple,
+    )):
+        # the expression is only as constant as its least constant part.
+        # note an empty list or tuple is a compile-time constant
+        operands = node.get_children(vy_ast.ExprNode)
+        return max((get_constancy(i) for i in operands), default=Modifiability.CONSTANT)
+    
+    if isinstance(node, (vy_ast.ExtCall, vy_ast.StaticCall)):
+        # an external call can never be constant
+        return Modifiability.READ_ONLY
+
+    if isinstance(node, vy_ast.Call):
+        call_type = get_exact_type_from_node(node.func)
+
+        if isinstance(call_type, TYPE_T):
+            # a constructor call is as constant as its least constant argument.
+            args = (*node.args, *(kw.value for kw in node.keywords))
+            return max((get_constancy(arg) for arg in args), default=Modifiability.CONSTANT)
+        
+        # a type is callable if and only if it has _constancy
+        if not hasattr(call_type, "_constancy"):
+            raise StructureException(f"{call_type} is not callable", node)
+
+        # currently we don't need to check the mutability of the arguments.
+        # this is however quite fragile.
+        # a better fix would be to do the same check as for TYPE_T above,
+        # however this fails because of built-ins taking types as arguments:
+        # get_constancy -> get_expr_info -> get_exact_type_from_node
+        # and `get_exact_type_from_node` fails on types like `uint256[3]`, `Bytes`
+        return call_type._constancy
 
     return get_expr_info(node).constancy
 
@@ -739,36 +774,6 @@ def validate_unique_method_ids(functions: List) -> None:
                 f"Methods produce colliding method ID `0x{collision_hex}`: {collision_str}"
             )
         seen.add(method_id)
-
-
-def check_modifiability(node: vy_ast.ExprNode, modifiability: Modifiability) -> bool:
-    """
-    Check if the given node is not more modifiable than the given modifiability.
-    """
-    if node.is_literal_value or node.has_folded_value:
-        return True
-
-    if isinstance(node, (vy_ast.BinOp, vy_ast.Compare)):
-        return all(check_modifiability(i, modifiability) for i in (node.left, node.right))
-
-    if isinstance(node, vy_ast.BoolOp):
-        return all(check_modifiability(i, modifiability) for i in node.values)
-
-    if isinstance(node, vy_ast.UnaryOp):
-        return check_modifiability(node.operand, modifiability)
-
-    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return all(check_modifiability(item, modifiability) for item in node.elements)
-
-    if isinstance(node, vy_ast.Call):
-        call_type = get_exact_type_from_node(node.func)
-
-        # structs and interfaces
-        if hasattr(call_type, "check_modifiability_for_call"):
-            return call_type.check_modifiability_for_call(node, modifiability)
-
-    info = get_expr_info(node)
-    return info.constancy <= modifiability
 
 
 # TODO: move this into part of regular analysis in `local.py`

@@ -13,12 +13,7 @@ from vyper.exceptions import (
     UnfoldableNode,
     VariableDeclarationException,
 )
-from vyper.semantics.analysis.base import Modifiability
-from vyper.semantics.analysis.utils import (
-    check_modifiability,
-    validate_expected_type,
-    validate_kwargs,
-)
+from vyper.semantics.analysis.utils import validate_expected_type, validate_kwargs
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.subscriptable import HashMapT
@@ -448,12 +443,6 @@ class ErrorT(_UserType):
     def _ctor_kwarg_types(self, node):
         return self.arguments
 
-    def _ctor_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
-        for arg in (*node.args, *[kw.value for kw in node.keywords]):
-            if not check_modifiability(arg, modifiability):
-                return False
-        return True
-
     def to_toplevel_abi_dict(self) -> list[dict]:
         return [
             {
@@ -585,6 +574,3 @@ class StructT(_UserType):
         validate_kwargs(node, self.member_types, self.typeclass)
 
         return self
-
-    def _ctor_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
-        return all(check_modifiability(k.value, modifiability) for k in node.keywords)

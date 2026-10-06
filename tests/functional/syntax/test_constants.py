@@ -363,6 +363,13 @@ interface Foo:
 FOO: constant(Foo) = Foo(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)
 BAR: constant(address) = FOO.address
     """,
+    """
+interface Foo:
+    def foo(): nonpayable
+
+# the constructor is not named, but is still a compile-time constant
+BAR: constant(address) = Foo(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF).address
+    """,
 ]
 
 
