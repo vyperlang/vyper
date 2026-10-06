@@ -20,39 +20,6 @@ PYTHON_AST_SINGLETONS = (
     python_ast.expr_context,
 )
 
-# Characters which `str.splitlines()` treats as line boundaries, but
-# CPython's tokenizer does not. If one of them appears in the source, our
-# line/column accounting desynchronises from the positions reported by
-# the python AST (and literal values get re-derived from the wrong source
-# text), so forbid them outright instead of trying to account for them.
-_FORBIDDEN_SOURCE_CHARS = {
-    "\x0b": "vertical tab",
-    "\x0c": "form feed",
-    "\x85": "next line",
-    "\u2028": "line separator",
-    "\u2029": "paragraph separator",
-}
-
-
-def _check_for_forbidden_chars(vyper_source: str) -> None:
-    idx = None
-    for c in _FORBIDDEN_SOURCE_CHARS:
-        i = vyper_source.find(c)
-        if i != -1 and (idx is None or i < idx):
-            idx = i
-    if idx is None:
-        return
-
-    c = vyper_source[idx]
-    lineno = vyper_source.count("\n", 0, idx) + 1
-    line_start = max(vyper_source.rfind("\n", 0, idx), vyper_source.rfind("\r", 0, idx)) + 1
-    raise SyntaxException(
-        f"Invalid character {c!r} ({_FORBIDDEN_SOURCE_CHARS[c]}, U+{ord(c):04X}) " "in source code",
-        vyper_source,
-        lineno,
-        idx - line_start,
-    )
-
 
 def parse_to_ast(
     vyper_source: str,
@@ -104,8 +71,6 @@ def _parse_to_ast(
     list
         Untyped, unoptimized Vyper AST nodes.
     """
-    _check_for_forbidden_chars(vyper_source)
-
     pre_parser = PreParser(is_interface)
     pre_parser.parse(vyper_source)
 
@@ -223,7 +188,34 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
     @cached_property
     def source_lines(self):
-        return self._source_code.splitlines(keepends=True)
+        # Split the source the way CPython's tokenizer does: only "\n",
+        # "\r" and "\r\n" are line boundaries. str.splitlines() also splits
+        # on "\x0b", "\x0c", "\x85", U+2028 and U+2029, none of which start
+        # a new line for the python parser, so using it here desynchronises
+        # our line numbers (and every span derived from them) from the
+        # positions reported by the python AST whenever the source contains
+        # one of those characters.
+        lines = []
+        start = 0
+        i = 0
+        source = self._source_code
+        while i < len(source):
+            c = source[i]
+            if c == "\n":
+                i += 1
+                lines.append(source[start:i])
+                start = i
+            elif c == "\r":
+                i += 1
+                if i < len(source) and source[i] == "\n":
+                    i += 1
+                lines.append(source[start:i])
+                start = i
+            else:
+                i += 1
+        if start < len(source):
+            lines.append(source[start:])
+        return lines
 
     @cached_property
     def line_index(self):
