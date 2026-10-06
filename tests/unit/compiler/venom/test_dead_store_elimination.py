@@ -75,10 +75,14 @@ class VolatilePrePostChecker(PrePostChecker):
 
 
 _check_pre_post = VolatilePrePostChecker([DeadStoreElimination])
+_check_pre_post_storage = VolatilePrePostChecker([DeadStoreElimination], addr_space=STORAGE)
 
 
 def _check_no_change(code, hevm=False):
     return _check_pre_post(code, code, hevm=hevm)
+
+def _check_no_change_storage(code, hevm=False):
+    return _check_pre_post_storage(code, code, hevm=hevm)
 
 
 @pytest.mark.parametrize("position", [0, "alloca 32"])
@@ -1104,6 +1108,35 @@ def test_mstore_before_ret_is_not_dead():
         ret %ptr
     """
     _check_no_change(pre, hevm=False)
+
+
+def test_sstore_before_ret_is_not_dead():
+    """Memory stores before ret (internal function return) are live because
+    the caller can observe memory after the function returns.
+    Regression test: DSE was eliminating the free memory pointer update
+    in alloc()-style functions, causing all allocations to alias."""
+    pre = """
+    _global:
+        %retpc = retpc_param
+        sstore 64, 1
+        ret %retpc, 1
+    """
+    _check_no_change(pre, hevm=False)
+
+
+def test_sstore_before_retfmp_is_not_dead():
+    """Memory stores before ret (internal function return) are live because
+    the caller can observe memory after the function returns.
+    Regression test: DSE was eliminating the free memory pointer update
+    in alloc()-style functions, causing all allocations to alias."""
+    pre = """
+    _global:
+        %retpc = retpc_param
+        %fmp = fmp_param
+        sstore 64, 1
+        retfmp %retpc, %fmp, 1
+    """
+    _check_no_change_storage(pre, hevm=False)
 
 
 def test_mstore_before_ret_clobbered_is_dead():
