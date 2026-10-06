@@ -2,8 +2,8 @@ import dataclasses as dc
 from dataclasses import dataclass
 from typing import Optional
 
-from vyper.evm import address_space
 import vyper.venom.effects as effects
+from vyper.evm import address_space
 from vyper.evm.address_space import (
     CALLDATA,
     CODE,
@@ -18,7 +18,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable, RET_INSTRUCTIONS
+from vyper.venom.basicblock import RET_INSTRUCTIONS, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.memory_location import (
     Allocation,
     InstAccessOps,
@@ -333,7 +333,7 @@ class BasePtrAnalysis(IRAnalysis):
             dst = inst.operands[1]
             access_ops = InstAccessOps(ofst=dst, size=IRLiteral(address_space.STORAGE.word_scale))
             return self.segment_from_ops(access_ops)
-        
+
         shared = self._get_storage_and_transient_write_location(opcode)
         if shared:
             return shared
@@ -347,7 +347,7 @@ class BasePtrAnalysis(IRAnalysis):
             dst = inst.operands[1]
             access_ops = InstAccessOps(ofst=dst, size=IRLiteral(address_space.TRANSIENT.word_scale))
             return self.segment_from_ops(access_ops)
-        
+
         shared = self._get_storage_and_transient_write_location(opcode)
         if shared:
             return shared
@@ -372,7 +372,7 @@ class BasePtrAnalysis(IRAnalysis):
             ofst = inst.operands[0]
             access_ops = InstAccessOps(ofst=ofst, size=IRLiteral(address_space.STORAGE.word_scale))
             return self.segment_from_ops(access_ops)
-        
+
         shared = self._get_storage_and_transient_read_location(opcode)
         if shared:
             return shared
@@ -384,9 +384,11 @@ class BasePtrAnalysis(IRAnalysis):
         opcode = inst.opcode
         if opcode == "tload":
             ofst = inst.operands[0]
-            access_ops = InstAccessOps(ofst=ofst, size=IRLiteral(address_space.TRANSIENT.word_scale))
+            access_ops = InstAccessOps(
+                ofst=ofst, size=IRLiteral(address_space.TRANSIENT.word_scale)
+            )
             return self.segment_from_ops(access_ops)
-        
+
         shared = self._get_storage_and_transient_read_location(opcode)
         if shared:
             return shared
@@ -415,7 +417,6 @@ class BasePtrAnalysis(IRAnalysis):
             # while not a "true" read, this case makes the code in DSE simpler.
             return MemoryLocation.UNDEFINED
         return None
-
 
     def _get_copyable_read_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
         """
