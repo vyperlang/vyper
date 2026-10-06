@@ -76,6 +76,7 @@ class VolatilePrePostChecker(PrePostChecker):
 
 _check_pre_post = VolatilePrePostChecker([DeadStoreElimination])
 
+
 def _check_no_change(code, hevm=False):
     return _check_pre_post(code, code, hevm=hevm)
 
@@ -1200,6 +1201,7 @@ _persistent_address_spaces = (STORAGE, TRANSIENT)
 
 def _check_pre_post_generic(pre, post, addr_space):
     VolatilePrePostChecker([DeadStoreElimination], addr_space=addr_space)(pre, post)
+
 
 def _check_no_change_generic(code, addr_space, hevm=False):
     VolatilePrePostChecker([DeadStoreElimination], addr_space=addr_space)(code, code, hevm=hevm)
