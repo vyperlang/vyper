@@ -18,7 +18,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable, RET_INSTRUCTIONS
 from vyper.venom.memory_location import (
     Allocation,
     InstAccessOps,
@@ -408,7 +408,7 @@ class BasePtrAnalysis(IRAnalysis):
             # which could happen in the next program invocation.
             # while not a "true" read, this case makes the code in DSE simpler.
             return MemoryLocation.UNDEFINED
-        elif opcode in ("ret", "dret", "retfmp"):
+        elif opcode in RET_INSTRUCTIONS:
             # `ret` escapes our control and returns execution to the
             # caller function. to be conservative, we model these as
             # "future" reads which could happen in the caller.
