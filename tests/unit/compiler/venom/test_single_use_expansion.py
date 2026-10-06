@@ -1,9 +1,11 @@
 import pytest
 
-from tests.venom_utils import parse_from_basic_block
+from tests.venom_utils import PrePostChecker, parse_from_basic_block
 from vyper.venom import generate_assembly_experimental
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import SingleUseExpansion
+
+_check_pre_post = PrePostChecker([SingleUseExpansion], default_hevm=False)
 
 
 def test_single_use_Expansion():
@@ -46,3 +48,55 @@ def test_single_use_Expansion():
         SingleUseExpansion(ac, fn).run_pass()
 
     generate_assembly_experimental(ctx)
+
+
+def test_single_use_expansion_phi_operand_live_after_join():
+    """
+    A phi operand that is still used after the join (here in a
+    successor block) must be copied on the incoming edge, so the phi
+    does not consume the original.
+    """
+    pre = """
+    main:
+        %cond = calldataload 0
+        %a = calldataload 32
+        %b = calldataload 64
+        jnz %cond, @p1, @p2
+    p1:
+        jmp @join
+    p2:
+        jmp @join
+    join:
+        %x = phi @p1, %a, @p2, %b
+        jmp @next
+    next:
+        %z = add %x, %a
+        sink %z
+    """
+
+    post = """
+    main:
+        %1 = 0
+        %cond = calldataload %1
+        %2 = 32
+        %a = calldataload %2
+        %3 = 64
+        %b = calldataload %3
+        jnz %cond, @p1, @p2
+    p1:
+        ; %a is copied on the incoming edge because it is live after the join.
+        %4 = %a
+        jmp @join
+    p2:
+        jmp @join
+    join:
+        ; %b is not used after the join, so it is left alone.
+        %x = phi @p1, %4, @p2, %b
+        jmp @next
+    next:
+        %5 = %a
+        %z = add %x, %5
+        sink %z
+    """
+
+    _check_pre_post(pre, post)
