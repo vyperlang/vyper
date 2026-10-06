@@ -156,9 +156,7 @@ class _ExprAnalyser:
         # be constant (cf. `get_constancy`)
 
         if isinstance(node, (vy_ast.Call, vy_ast.ExtCall, vy_ast.StaticCall)):
-            return ExprInfo(
-                t, constancy=get_constancy(node), writability=Modifiability.READ_ONLY
-            )
+            return ExprInfo(t, constancy=get_constancy(node), writability=Modifiability.READ_ONLY)
 
         return ExprInfo(t, writability=Modifiability.READ_ONLY)
 
@@ -514,20 +512,23 @@ def get_constancy(node: vy_ast.ExprNode) -> Modifiability:
     if node.is_literal_value or node.has_folded_value:
         return Modifiability.CONSTANT
 
-    if isinstance(node, (
-        vy_ast.BinOp,
-        vy_ast.Compare,
-        vy_ast.BoolOp,
-        vy_ast.UnaryOp,
-        vy_ast.IfExp,
-        vy_ast.List,
-        vy_ast.Tuple,
-    )):
+    if isinstance(
+        node,
+        (
+            vy_ast.BinOp,
+            vy_ast.Compare,
+            vy_ast.BoolOp,
+            vy_ast.UnaryOp,
+            vy_ast.IfExp,
+            vy_ast.List,
+            vy_ast.Tuple,
+        ),
+    ):
         # the expression is only as constant as its least constant part.
         # note an empty list or tuple is a compile-time constant
         operands = node.get_children(vy_ast.ExprNode)
         return max((get_constancy(i) for i in operands), default=Modifiability.CONSTANT)
-    
+
     if isinstance(node, (vy_ast.ExtCall, vy_ast.StaticCall)):
         # an external call can never be constant
         return Modifiability.READ_ONLY
@@ -539,7 +540,7 @@ def get_constancy(node: vy_ast.ExprNode) -> Modifiability:
             # a constructor call is as constant as its least constant argument.
             args = (*node.args, *(kw.value for kw in node.keywords))
             return max((get_constancy(arg) for arg in args), default=Modifiability.CONSTANT)
-        
+
         # a type is callable if and only if it has _constancy
         if not hasattr(call_type, "_constancy"):
             raise StructureException(f"{call_type} is not callable", node)
