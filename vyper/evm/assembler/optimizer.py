@@ -1,4 +1,6 @@
 from vyper.evm.assembler.instructions import (
+    CONST,
+    CONSTREF,
     DATA_ITEM,
     PUSH_OFST,
     PUSHLABEL,
@@ -28,8 +30,20 @@ def _prune_unreachable_code(assembly):
                 # fixup an off-by-one if we made it to the end of the assembly
                 # without finding an jumpdest or sublist
                 j = len(assembly)
-            changed |= j > i + 1
-            del assembly[i + 1 : j]
+
+            # CONST items are declarations, not code -- they contribute no
+            # bytes to the bytecode, and can be referenced (via CONSTREF)
+            # from code which *is* reachable, so they must survive even when
+            # they sit in an unreachable range. deleting them would leave a
+            # dangling CONSTREF at symbol resolution time. (this happens with
+            # `mem_deploy_end`, which is declared by the deploy sequence --
+            # unreachable when the constructor always reverts -- but
+            # referenced by `iload`/`istore` in the constructor body.)
+            # declarations which really are unused are removed by
+            # `_prune_unused_consts`.
+            consts = [item for item in assembly[i + 1 : j] if isinstance(item, CONST)]
+            changed |= len(consts) < j - (i + 1)
+            assembly[i + 1 : j] = consts
 
         i += 1
 
@@ -200,6 +214,29 @@ def _prune_unused_jumpdests(assembly):
     return changed
 
 
+def _prune_unused_consts(assembly):
+    # CONST declarations produce no bytecode, so they are only needed if
+    # something still refers to them.
+    changed = False
+
+    used_consts: set[CONSTREF] = set()
+
+    for item in assembly:
+        if isinstance(item, PUSH_OFST) and isinstance(item.label, CONSTREF):
+            used_consts.add(item.label)
+
+    i = 0
+    while i < len(assembly):
+        item = assembly[i]
+        if isinstance(item, CONST) and CONSTREF(item.name) not in used_consts:
+            changed = True
+            del assembly[i]
+        else:
+            i += 1
+
+    return changed
+
+
 def _stack_peephole_opts(assembly):
     changed = False
     i = 0
@@ -253,6 +290,7 @@ def optimize_assembly(assembly):
         changed |= _prune_inefficient_jumps(assembly)
         changed |= _optimize_inefficient_jumps(assembly)
         changed |= _prune_unused_jumpdests(assembly)
+        changed |= _prune_unused_consts(assembly)
         changed |= _stack_peephole_opts(assembly)
 
         if not changed:

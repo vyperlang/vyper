@@ -1,5 +1,7 @@
 from collections import namedtuple
 
+import pytest
+
 from vyper.compiler import compile_code
 from vyper.compiler.output import _compress_source_map
 from vyper.compiler.settings import OptimizationLevel
@@ -38,22 +40,16 @@ def test_jump_map(optimize, experimental_codegen):
     pos_map = source_map["pc_pos_map"]
     jump_map = source_map["pc_jump_map"]
 
-    if optimize == OptimizationLevel.NONE:
-        # some jumps which don't get optimized out when optimizer is off
-        # (slightly different behavior depending if venom pipeline is enabled):
-        if experimental_codegen:
-            expected_jumps = 0
-            expected_internals = 0
-        else:
-            expected_jumps = 3
-            expected_internals = 2
+    if experimental_codegen:
+        expected_jumps = 0
+        # Internal calls survive in the lowering-only IR pipelines because
+        # inlining is off. Assembly optimization at O1 does not change that.
+        expected_internals = 2 if optimize.uses_lowering_only_ir() else 0
     else:
-        if experimental_codegen:
-            expected_jumps = 0
-            expected_internals = 0
-        else:
-            expected_jumps = 1
-            expected_internals = 2
+        # Only NONE disables the legacy assembly optimizer. O1 uses the same
+        # lowering-only IR pipeline but still receives assembly peepholes.
+        expected_jumps = 3 if optimize == OptimizationLevel.NONE else 1
+        expected_internals = 2
 
     assert len([v for v in jump_map.values() if v == "o"]) == expected_jumps
     assert len([v for v in jump_map.values() if v == "i"]) == expected_internals
@@ -61,7 +57,7 @@ def test_jump_map(optimize, experimental_codegen):
     code_lines = [i + "\n" for i in TEST_CODE.split("\n")]
     for pc in [k for k, v in jump_map.items() if v == "o"]:
         if pc not in pos_map:
-            assert optimize == OptimizationLevel.NONE
+            assert optimize.uses_lowering_only_ir()
             continue  # some jump is not being optimized out
 
         lineno, col_offset, _, end_col_offset = pos_map[pc]
@@ -69,7 +65,7 @@ def test_jump_map(optimize, experimental_codegen):
 
     for pc in [k for k, v in jump_map.items() if v == "i"]:
         if pc not in pos_map:
-            assert optimize == OptimizationLevel.NONE
+            assert optimize.uses_lowering_only_ir()
             continue  # some jump is not being optimized out
         lineno, col_offset, _, end_col_offset = pos_map[pc]
         assert code_lines[lineno - 1][col_offset:end_col_offset].startswith("self.")
@@ -180,6 +176,85 @@ def test_expand_source_map():
         [1, 21, 1, None],
     ]
     assert expand_source_map(compressed) == expanded
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        """
+interface I:
+    def f() -> uint256: view
+
+def g(a: address) -> uint256:
+    return staticcall I(a).f()
+""",
+        """
+interface I:
+    def f(x: uint256) -> uint256: nonpayable
+
+def g(a: address) -> uint256:
+    return extcall I(a).f(extcall I(a).f(1))
+""",
+    ],
+    ids=["single_rewrite", "nested_rewrite"],
+)
+@pytest.mark.parametrize("fmt", ["source_map", "source_map_runtime"])
+def test_source_map_no_negative_length_after_keyword_rewrite(code, fmt):
+    out = compile_code(code, output_formats=[fmt])[fmt]
+    for lineno, col, end_lineno, end_col in out["pc_pos_map"].values():
+        assert (end_lineno, end_col) >= (lineno, col)
+    for entry in out["pc_pos_map_compressed"].split(";"):
+        parts = entry.split(":")
+        assert len(parts) >= 2
+        if parts[1] != "-1":
+            assert int(parts[1]) >= 0
+
+
+def test_module_has_correct_end_position_with_rewrite():
+
+    from vyper.ast.parse import parse_to_ast
+
+    code = """
+def get() -> uint256:
+    return staticcall foo()"""  # staticcall -> await  will cause a shift
+    module = parse_to_ast(code)
+
+    last_line = code.split("\n")[-1]
+    assert module.end_col_offset == len(last_line)
+
+    start, length, _ = module.src.split(":")
+    assert int(start) + int(length) == len(code)
+
+
+def test_singleton_child_coords_not_double_shifted():
+    from vyper.ast.nodes import BinOp
+    from vyper.ast.parse import parse_to_ast
+
+    code = """
+interface Vault:
+    def convertToAssets(shares: uint256) -> uint256: view
+
+d: immutable(uint256)
+
+@deploy
+def __init__():
+    d = 18
+
+@external
+@view
+def get(v: address) -> uint256:
+    return staticcall Vault(v).convertToAssets(10 ** d)
+"""
+    module = parse_to_ast(code)
+    binop = module.get_descendants(BinOp, filters={"node_source_code": "10 ** d"})[0]
+
+    # ensures field exists on both
+    sentinel1 = object()
+    sentinel2 = object()
+
+    # `op` (Pow) inherits its coordinates from the parent BinOp, so they must match.
+    for field_name in ("lineno", "col_offset", "end_lineno", "end_col_offset"):
+        assert getattr(binop.op, field_name, sentinel1) == getattr(binop, field_name, sentinel2)
 
 
 def _construct_node_id_map(ast_struct):

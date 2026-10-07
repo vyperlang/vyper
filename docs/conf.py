@@ -1,6 +1,8 @@
 # Vyper documentation build configuration file, created by
 # sphinx-quickstart on Wed Jul 26 11:18:29 2017.
 
+import os
+
 extensions = [
     "sphinx_copybutton",
     "sphinx.ext.intersphinx",
@@ -42,6 +44,21 @@ html_theme_options = {
     "github_url": "https://github.com/vyperlang",
 }
 html_favicon = "_static/logo.svg"
+
+# Warn readers when they are viewing docs built from a development branch (e.g.
+# the ReadTheDocs "latest" version, which tracks `master`) rather than a
+# released version. These docs describe unreleased features, so point readers to
+# the version-pinned docs at /en/stable/. ReadTheDocs sets these env vars at
+# build time; locally they are unset and no banner is shown.
+# https://docs.readthedocs.io/en/stable/reference/environment-variables.html
+if os.environ.get("READTHEDOCS_VERSION_TYPE") in ("branch", "external"):
+    html_theme_options["announcement"] = (
+        "You are reading the <strong>development</strong> documentation, which "
+        "describes features that may not be in any released version yet. For the "
+        'latest stable release, see the '
+        '<a href="https://docs.vyperlang.org/en/stable/">stable docs</a>, or use '
+        "the version selector to match your installed version."
+    )
 
 # For the "Edit this page ->" link
 html_context = {

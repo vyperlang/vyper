@@ -62,6 +62,14 @@ def test_contract_collision():
         get_inputs(input_json)
 
 
+def test_contract_collision_different_dirs_ok():
+    # same stem in different directories is fine (GH issues #4591, #4883)
+    input_json = {
+        "sources": {"foo.vy": {"content": FOO_CODE}, "contracts/foo.vy": {"content": FOO_CODE}}
+    }
+    get_inputs(input_json)
+
+
 def test_contracts_return_value():
     input_json = {
         "sources": {"foo.vy": {"content": FOO_CODE}, "contracts/bar.vy": {"content": BAR_CODE}}
@@ -88,12 +96,21 @@ BAR_ABI = [
 
 
 def test_interface_collision():
+    # bar.json and bar.vy resolve to the same import path, `bar`
     input_json = {
         "sources": {"foo.vy": {"content": FOO_CODE}},
         "interfaces": {"bar.json": {"abi": BAR_ABI}, "bar.vy": {"content": BAR_CODE}},
     }
     with pytest.raises(JSONError):
         get_inputs(input_json)
+
+
+def test_interface_collision_different_dirs_ok():
+    input_json = {
+        "sources": {"foo.vy": {"content": FOO_CODE}},
+        "interfaces": {"bar.json": {"abi": BAR_ABI}, "ifaces/bar.vy": {"content": BAR_CODE}},
+    }
+    get_inputs(input_json)
 
 
 def test_json_no_abi():

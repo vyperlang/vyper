@@ -29,9 +29,10 @@ A function header may carry an optional bracketed annotation list:
 ```llvm
 function my_func [fmp_lowered] { ... }
 function my_producer [fmp_lowered, fmp_publishes] { ... }
+function keep_as_call [noinline] { ... }
 ```
 
-The annotation is the explicit carrier of the FMP (free-memory pointer)
+The FMP annotations are the explicit carrier of the free-memory pointer
 calling-convention facts that are not opcodes (see "Dynamic memory" below):
 `fmp_lowered` declares that the function's FMP convention has been
 materialized (its `fmp_signature` is frozen), and `fmp_publishes` declares
@@ -39,9 +40,10 @@ that every `ret` carries a hidden adopted-FMP value before the return PC.
 Whether the function has a hidden FMP param is *not* annotated: it is
 carried syntactically by the `fmp_param` opcode. A function containing
 lowered FMP artifacts (`fmp_param`, `bump`, `initial_fmp`) without the
-annotation is rejected by the input validator; raw IR needs no annotation.
+annotation is rejected by the input validator; raw IR needs no FMP annotation.
 The printer emits the annotation for every function with a frozen
 signature, so lowered IR round-trips through the parser.
+`noinline` prevents the function inliner from inlining the function at its call sites.
 
 Venom employs two scopes: global and function level.
 
@@ -234,8 +236,13 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
     copies, `setfmp` (advancing the register over the packed data) and a `retfmp` terminator.
     `FmpLoweringPass` later threads the register and materializes the physical convention
     (hidden FMP param/operand, `ret` with the hidden adopted-FMP value).
-- FMP virtual-register opcodes (exist only between `DretDesugarPass` and `FmpLoweringPass`)
+- FMP virtual-register opcodes (eliminated by `FmpLoweringPass`)
   - `%v = getfmp` reads the FMP virtual register; `setfmp %v` writes it.
+    Besides return packing, unbounded-array append uses these to extend an owned
+    payload whose end equals the current FMP: growth reads its own capture and advances
+    the FMP by the checked size difference. A `setfmp` closes only the captures its
+    operand derives from, so a surrounding return-pack anchor keeps vetoing reclaim
+    across the write. A capture used only to update the FMP does not escape into memory.
   - ```
     retfmp <ordinary returns...>, <packed dst ptrs...>, return_pc
     ```

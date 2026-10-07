@@ -21,17 +21,33 @@ class StackSpiller:
         self.ctx = ctx
         self._spill_free_slots: list[int] = []
         self._next_spill_offset: Optional[int] = None
+        self._next_function_spill_offset = 0
         self._current_function: Optional[IRFunction] = None
         self.peak_spill_end = 0
 
-    def reset_peak_spill_end(self) -> None:
+    def reset_for_codegen(self) -> None:
+        self._spill_free_slots = []
+        self._next_spill_offset = None
         self.peak_spill_end = 0
+        self._next_function_spill_offset = max(self.ctx.mem_allocator.fn_eom.values(), default=0)
+        self._current_function = None
 
     def set_current_function(self, fn: Optional[IRFunction]) -> None:
         """Set the current function being processed."""
+        # A caller's static frame and live spills remain accessible to its
+        # callees. In particular, memory-passed arguments are pointers into
+        # the caller's frame. Give every function a disjoint spill region
+        # above every static frame so callee spills cannot clobber either.
+        if self._current_function is not None and self._next_spill_offset is not None:
+            self._next_function_spill_offset = max(
+                self._next_function_spill_offset, self._next_spill_offset
+            )
+
         self._current_function = fn
         if fn is not None and fn in self.ctx.mem_allocator.fn_eom:
-            self._next_spill_offset = self.ctx.mem_allocator.fn_eom[fn]
+            static_eom = max(self.ctx.mem_allocator.fn_eom.values(), default=0)
+            self._next_function_spill_offset = max(self._next_function_spill_offset, static_eom)
+            self._next_spill_offset = self._next_function_spill_offset
         else:
             # reset on function exit / unknown fn: a stale offset from the
             # previous function would let a spill land in that function's
@@ -134,8 +150,8 @@ class StackSpiller:
         """
         Dup operation that handles deep stacks via spilling.
 
-        For stacks deeper than 16, spills the stack segment to memory,
-        then restores it with duplication.
+        For stacks deeper than 16, spills only the inaccessible prefix,
+        duplicates the now-reachable operand, then restores the prefix.
 
         Returns the cost (number of operations emitted).
         """
@@ -145,16 +161,43 @@ class StackSpiller:
             assembly.append(f"DUP{dup_idx}")
             return 1
 
-        # For deep stacks, use spill/restore technique
-        chunk_size = dup_idx
-        spill_ops, offsets, cost = self._spill_stack_segment(assembly, stack, chunk_size, dry_run)
+        # Spill only the inaccessible prefix so the source can be reached with
+        # DUP16. Keep the duplicate at the top while rebuilding that prefix.
+        spill_count = dup_idx - 16
+        spill_ops, offsets, cost = self._spill_stack_segment(assembly, stack, spill_count, dry_run)
 
-        indices = list(range(chunk_size))
-        desired_indices = [indices[-1]] + indices
+        # Removing spill_count items shifts the source closer by the same amount.
+        reachable_depth = depth + spill_count
+        stack.dup(reachable_depth)
+        assembly.append(f"DUP{1 - reachable_depth}")
+        cost += 1
 
-        cost += self._restore_spilled_segment(
-            assembly, stack, spill_ops, offsets, desired_indices, dry_run
-        )
+        restore_indices = list(reversed(range(spill_count)))
+        restore_with_single_swap = spill_count <= 16
+        if restore_with_single_swap:
+            # Load the deepest spilled item last. SWAPn then moves it into the
+            # duplicate's old position while lifting the duplicate to the top.
+            restore_indices = restore_indices[1:] + restore_indices[:1]
+
+        for idx in restore_indices:
+            assembly.extend(PUSH(offsets[idx]))
+            assembly.append("MLOAD")
+            stack.push(spill_ops[idx])
+            cost += 2
+
+            if not restore_with_single_swap:
+                stack.swap(-1)
+                assembly.append("SWAP1")
+                cost += 1
+
+        if restore_with_single_swap:
+            stack.swap(-spill_count)
+            assembly.append(f"SWAP{spill_count}")
+            cost += 1
+
+        if not dry_run:
+            self._spill_free_slots.extend(offsets)
+
         return cost
 
     def _spill_stack_segment(

@@ -20,7 +20,6 @@ from vyper.evm.assembler.instructions import (
     AssemblyInstruction,
     DataHeader,
     TaggedInstruction,
-    mkdebug,
 )
 from vyper.evm.assembler.optimizer import optimize_assembly
 from vyper.evm.assembler.symbols import CONSTREF, Label
@@ -375,6 +374,9 @@ class _IRnodeLowerer:
             rounds_bound = code.args[3]
             body = code.args[4]
 
+            if isinstance(rounds.value, int):
+                assert isinstance(rounds_bound.value, int)
+                assert 0 <= rounds.value <= rounds_bound.value
             assert isinstance(i_name.value, str)  # help mypy
 
             entry_dest = self.mksymbol("loop_start")
@@ -386,10 +388,10 @@ class _IRnodeLowerer:
 
             o.extend(self._compile_r(rounds, height + 1))
 
-            # stack: i
+            # stack: i, rounds
 
-            # assert rounds <= round_bound
-            if rounds != rounds_bound:
+            # assert rounds <= rounds_bound
+            if not isinstance(rounds.value, int):
                 # stack: i, rounds
                 o.extend(self._compile_r(rounds_bound, height + 2))
                 # stack: i, rounds, rounds_bound
@@ -397,10 +399,21 @@ class _IRnodeLowerer:
                 # TODO this runtime assertion shouldn't fail for
                 # internally generated repeats.
                 o.extend(["DUP2", "GT"] + self._assert_false())
-
                 # stack: i, rounds
-                # if (0 == rounds) { goto end_dest; }
+
+            # if (0 == rounds) { goto exit_dest; }
+            if rounds.value == 0:
+                # true at compile-time: unconditional jump
+                o.extend(JUMP(exit_dest))
+            elif isinstance(rounds.value, int):
+                # value is known at compile-time not to be 0, no code to emit
+                pass
+            else:
+                # we know nothing, emit conditional
+                # stack: i, rounds
+                # if (0 == rounds) { goto exit_dest; }
                 o.extend(["DUP1", "ISZERO", *JUMPI(exit_dest)])
+                # stack: i, rounds
 
             # stack: start, rounds
             if start.value != 0:
@@ -692,7 +705,7 @@ class _IRnodeLowerer:
             assert isinstance(label_name, str)
 
             if label_name in self.existing_labels:  # pragma: nocover
-                raise Exception(f"Label with name {label_name} already exists!")
+                raise CompilerPanic(f"Label with name {label_name} already exists!")
             else:
                 self.existing_labels.add(label_name)
 
@@ -728,7 +741,7 @@ class _IRnodeLowerer:
             assert isinstance(symbol, str)
 
             if symbol in self.existing_labels:  # pragma: nocover
-                raise Exception(f"symbol {symbol} already exists!")
+                raise CompilerPanic(f"symbol {symbol} already exists!")
             else:
                 self.existing_labels.add(symbol)
 
@@ -737,14 +750,6 @@ class _IRnodeLowerer:
         if code.value == "exit_to":
             # currently removed by _rewrite_return_sequences
             raise CodegenPanic("exit_to not implemented yet!")
-
-        # inject debug opcode.
-        if code.value == "debugger":
-            return mkdebug(pc_debugger=False, ast_source=code.ast_source)
-
-        # inject debug opcode.
-        if code.value == "pc_debugger":
-            return mkdebug(pc_debugger=True, ast_source=code.ast_source)
 
         raise CompilerPanic(f"invalid IRnode: {type(code)} {code}")  # pragma: no cover
 

@@ -48,8 +48,6 @@ class PyEvmEnv(BaseEnv):
             logger = logging.getLogger("eth.vm.computation.BaseComputation")
             setup_DEBUG2_logging()
             logger.setLevel("DEBUG2")
-            # from vdb import vdb
-            # vdb.set_evm_opcode_debugger()
 
         spec = getattr(chain_builder.builders, evm_version + "_at")(block_number)
         self._chain: ChainAPI = chain_builder.build(MainnetChain, spec).from_genesis(

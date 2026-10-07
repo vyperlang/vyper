@@ -46,6 +46,7 @@ def validate_pass_order(pass_classes: Sequence[type[IRPass]], pipeline_name: str
             pipeline_name,
             direction="after",
         )
+        _validate_ordered_after(idx, pass_cls, pipeline_name, first_idx=first_idx)
 
 
 def _index_pass_positions(pass_names: list[str]) -> tuple[dict[str, int], dict[str, int]]:
@@ -92,6 +93,24 @@ def _validate_non_immediate(
             relation=relation,
             pipeline_name=pipeline_name,
         )
+
+
+def _validate_ordered_after(
+    idx: int, pass_cls: type[IRPass], pipeline_name: str, first_idx: dict[str, int]
+) -> None:
+    """
+    Ordering-only constraint: a listed pass may be absent, but if it is present
+    its first occurrence must come before this pass.
+    """
+    for candidate in _normalize_refs(pass_cls.ordered_after):
+        if candidate in first_idx and first_idx[candidate] > idx:
+            _raise_pass_order_error(
+                idx=idx,
+                pass_cls=pass_cls,
+                expected=(candidate,),
+                relation="must run after (when present)",
+                pipeline_name=pipeline_name,
+            )
 
 
 def _validate_immediate(

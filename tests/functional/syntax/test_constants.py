@@ -4,6 +4,7 @@ from pytest import raises
 from vyper import compiler
 from vyper.exceptions import (
     ArgumentException,
+    BadChecksumAddress,
     ImmutableViolation,
     NamespaceCollision,
     StateAccessViolation,
@@ -96,7 +97,7 @@ VAL: uint256
 
 @deploy
 def __init__():
-    VAL = 1
+    self.VAL = 1
     """,
         NamespaceCollision,
     ),
@@ -108,7 +109,7 @@ VAL: immutable(uint256)
 
 @deploy
 def __init__():
-    VAL = 1
+    self.VAL = 1
     """,
         NamespaceCollision,
     ),
@@ -189,6 +190,13 @@ def hello() :
     x.a =  2
     """,
         ImmutableViolation,
+    ),
+    # invalid checksum address
+    (
+        """
+a: constant(address) = 0x3cd751e6b0078be393132286c442345e5dc49699
+    """,
+        BadChecksumAddress,
     ),
 ]
 

@@ -183,6 +183,14 @@ class VenomBuilder:
         """
         return self._emit1("dalloca", size)
 
+    def getfmp(self) -> IRVariable:
+        """Read the current free-memory pointer."""
+        return self._emit1("getfmp")
+
+    def setfmp(self, ptr: Operand) -> None:
+        """Set the free-memory pointer after establishing a new frame extent."""
+        self._emit("setfmp", ptr)
+
     # === Storage ===
     def sload(self, slot: Operand) -> IRVariable:
         return self._emit1_evm("sload", slot)
@@ -301,6 +309,10 @@ class VenomBuilder:
     def ret(self, *values: Operand) -> None:
         """Return from internal function. Terminates block."""
         self._emit("ret", *values)
+
+    def dret(self, *values: Operand) -> None:
+        """Return dynamic memory from an internal function. Terminates block."""
+        self._emit("dret", *values)
 
     # === EVM Terminators ===
     def return_(self, offset: Operand, size: Operand) -> None:

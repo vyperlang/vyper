@@ -1,11 +1,17 @@
 import bisect
 from typing import Optional
 
+import vyper.venom.effects as effects
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT, AddrSpace
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis, IRAnalysis
-from vyper.venom.basicblock import IRInstruction
-from vyper.venom.memory_location import Allocation, MemoryLocation
+from vyper.venom.basicblock import IRInstruction, IRVariable
+from vyper.venom.memory_location import (
+    Allocation,
+    MemoryLocation,
+    memory_read_ops,
+    memory_write_ops,
+)
 
 
 class MemoryAliasAnalysisAbstract(IRAnalysis):
@@ -163,6 +169,62 @@ class MemoryAliasAnalysisAbstract(IRAnalysis):
 
 class MemoryAliasAnalysis(MemoryAliasAnalysisAbstract):
     addr_space = MEMORY
+
+    def pointer_uses_may_touch(self, var: IRVariable, loc: MemoryLocation) -> bool:
+        """
+        Conservatively report whether any memory-effecting use reachable from
+        pointer `var` (following pointer arithmetic) may touch `loc`.
+
+        Cycles in the pointer-use graph and uses with no statically known
+        memory effect both resolve to True (fail closed).
+        """
+        return self._pointer_uses_may_touch_r(var, loc, set())
+
+    def _pointer_uses_may_touch_r(
+        self, var: IRVariable, loc: MemoryLocation, seen: set[IRVariable]
+    ) -> bool:
+        if var in seen:
+            return True
+        seen.add(var)
+
+        for use in self.dfg.get_uses(var):
+            for pos, op in enumerate(use.operands):
+                if op != var:
+                    continue
+                if self.base_ptr.instruction_derives_pointer_from(use, var):
+                    if self._pointer_uses_may_touch_r(use.output, loc, seen):
+                        return True
+                    continue
+
+                has_memory_read = use.get_read_effects() & effects.MEMORY != effects.EMPTY
+                has_memory_write = use.get_write_effects() & effects.MEMORY != effects.EMPTY
+                read_idx = memory_read_ops(use).ofst_index if has_memory_read else None
+                write_idx = memory_write_ops(use).ofst_index if has_memory_write else None
+                is_read_address = read_idx is not None and pos == read_idx
+                is_write_address = write_idx is not None and pos == write_idx
+
+                if has_memory_read and is_read_address:
+                    read_loc = self.base_ptr.get_read_location(use, MEMORY)
+                    if self.may_alias(read_loc, loc):
+                        return True
+
+                if has_memory_write and is_write_address:
+                    write_loc = self.base_ptr.get_write_location(use, MEMORY)
+                    if self.may_alias(write_loc, loc):
+                        return True
+
+                # If `var` is used by a memory-effecting instruction but not
+                # as one of its memory address operands, it is flowing as data
+                # (size, stored value, call arg, ...). Treat that as an escape.
+                if (has_memory_read or has_memory_write) and not (
+                    is_read_address or is_write_address
+                ):
+                    return True
+
+                if not (has_memory_read or has_memory_write):
+                    return True
+
+        return False
 
 
 class StorageAliasAnalysis(MemoryAliasAnalysisAbstract):

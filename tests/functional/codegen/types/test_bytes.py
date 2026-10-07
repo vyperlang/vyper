@@ -1,6 +1,7 @@
 import pytest
 
 from vyper.compiler import compile_code
+from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import TypeMismatch
 
 
@@ -380,14 +381,27 @@ MY_BYTES: immutable(Bytes[100])
 
 @deploy
 def __init__():
-    MY_BYTES = b"hello"
+    self.MY_BYTES = b"hello"
 
 @external
 def compare(x: Bytes[100]) -> bool:
-    return x == MY_BYTES
+    return x == self.MY_BYTES
     """
     c = get_contract(code)
     assert c.compare(b"hello") is True
     assert c.compare(b"world") is False
     assert c.compare(b"") is False
     assert c.compare(b"hello world") is False
+
+
+@pytest.mark.parametrize("n", [32, 33, 63, 64, 65, 96, 97, 100, 200])
+@pytest.mark.parametrize("opt", [OptimizationLevel.GAS, OptimizationLevel.CODESIZE])
+def test_bytes_literal_return(get_contract, n, opt):
+    data = bytes(range(1, 256))[:n]
+    code = f"""
+@external
+def foo() -> Bytes[{n}]:
+    return x"{data.hex()}"
+    """
+    c = get_contract(code, override_opt_level=opt)
+    assert c.foo() == data

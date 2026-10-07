@@ -17,8 +17,13 @@ from vyper.evm.assembler.symbols import SYMBOL_SIZE, resolve_symbols
 from vyper.evm.opcodes import get_opcodes
 from vyper.exceptions import CompilerPanic
 
+# EVM opcode base values for PUSH, DUP, and SWAP instructions
+# These constants are used to calculate opcodes: OFFSET + instruction_number
+# PUSH0 = 0x5F, PUSH1 = 0x60, PUSH2 = 0x61, etc.
 PUSH_OFFSET = 0x5F
+# DUP1 = 0x80, DUP2 = 0x81, DUP3 = 0x82, etc.
 DUP_OFFSET = 0x7F
+# SWAP1 = 0x90, SWAP2 = 0x91, SWAP3 = 0x92, etc.
 SWAP_OFFSET = 0x8F
 
 
@@ -56,9 +61,7 @@ def _assembly_to_evm(
     # now that all symbols have been resolved, generate bytecode
     # using the symbol map
     for item in assembly:
-        if item in ("DEBUG",):
-            continue  # skippable opcodes
-        elif isinstance(item, CONST):
+        if isinstance(item, CONST):
             continue  # CONST things do not show up in bytecode
         elif isinstance(item, DataHeader):
             continue  # DataHeader does not show up in bytecode

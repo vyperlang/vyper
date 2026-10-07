@@ -1,3 +1,4 @@
+from tests.venom_utils import parse_from_basic_block
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings
 from vyper.venom.basicblock import IRVariable
@@ -75,6 +76,29 @@ def test_invoke_middle_output_unused():
     assert asm.count("POP") == 1, asm
     pop_idx = asm.index("POP")
     assert pop_idx > 0 and asm[pop_idx - 1] == "SWAP1", asm
+
+
+def test_unused_clean_stack_from_cfg_in():
+    code = """
+    main:
+        %unused = offset @else, 32
+        %cond = calldataload 0
+        jnz %cond, @then, @else
+    then:
+        %a = calldataload 0
+        jmp @after
+    else:
+        jmp @after
+    after:
+        %x = phi @else, %cond, @then, %a
+        %ptr = alloca 32
+        mstore %ptr, %x
+        return %ptr, 32
+    """
+
+    ctx = parse_from_basic_block(code)
+    asm = VenomCompiler(ctx).generate_evm_assembly()
+    assert "POP" not in asm
 
 
 def test_popmany_bulk_removal_of_suffix():

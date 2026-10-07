@@ -13,6 +13,15 @@ import subprocess
 import sys
 
 
+def is_fuzz(kind):
+    # classify from forge's own result kind rather than test-name heuristics:
+    # snekmate names its randomized tests testFuzz.../statefulFuzz..., which a
+    # testFuzz_/invariant_ prefix check misses. fuzz gas is corpus-sensitive
+    # across compiler builds (the fuzz dictionary is harvested from bytecode),
+    # so misclassifying them as deterministic produces phantom gas diffs
+    return isinstance(kind, dict) and ("Fuzz" in kind or "Invariant" in kind)
+
+
 def extract_gas(kind):
     # forge --json reports kind as {"Unit": {"gas": N}} | {"Fuzz": {"median_gas": N, ...}} |
     # {"Invariant": {...}}; pick the one numeric field that represents this run's gas
@@ -54,7 +63,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--snekmate-dir", required=True, help="Path to snekmate checkout")
     parser.add_argument(
-        "--include-fuzz", action="store_true", help="Include testFuzz_/invariant_ tests (noisy)"
+        "--include-fuzz", action="store_true", help="Include fuzz/invariant tests (noisy)"
     )
     args = parser.parse_args()
 
@@ -82,10 +91,7 @@ def main():
         contract_name = suite_path.split(":", 1)[1] if ":" in suite_path else suite_path
         for test_name, result in suite.get("test_results", {}).items():
             total += 1
-            base_name = test_name.split("(", 1)[0]
-            if not args.include_fuzz and (
-                base_name.startswith("testFuzz_") or base_name.startswith("invariant_")
-            ):
+            if not args.include_fuzz and is_fuzz(result.get("kind")):
                 skipped_fuzz += 1
                 continue
             status = result.get("status", "Unknown")

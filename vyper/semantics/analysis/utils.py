@@ -20,20 +20,54 @@ from vyper.exceptions import (
     VyperException,
     ZeroDivisionException,
 )
-from vyper.semantics import types
 from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarAccess, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import TYPE_T, VyperType
+from vyper.semantics.types.base import TYPE_T, BottomT, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
-from vyper.semantics.types.infinity import is_bounded_length
 
 if TYPE_CHECKING:
     from vyper.semantics.types.module import ModuleT
 
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
-from vyper.utils import OrderedSet, checksum_encode, int_to_fourbytes
+from vyper.utils import OrderedSet, int_to_fourbytes, is_checksum_encoded
+from vyper.warnings import Deprecation, vyper_warn
+
+
+def _primitive_types():
+    from vyper.semantics import types
+
+    return types.PRIMITIVE_TYPES.values()
+
+
+def empty_list_candidate_types():
+    """
+    Enumerate the possible types of the empty list literal `[]`, one per
+    primitive element type.
+
+    `types_from_List` infers `[]` as the single type `DynArray[Never, 0]`,
+    which is enough to typecheck against a concrete expected type, but it
+    erases the element type. Callers which need to match `[]` against an
+    expected type that is not fully concrete (i.e. contains a wildcard) need
+    the enumeration to recover a concrete element type.
+    """
+    ret = []
+    for t in _primitive_types():
+        if isinstance(t, BottomT):
+            # `Never` is a subtype of everything, so it would match any
+            # expected type and disambiguate nothing.
+            continue
+        if not isinstance(t, VyperType):
+            # bytestring typeclasses. their generic acceptor (`BytesT.any()`)
+            # only matches on the expected side of `compare_type`, never as
+            # the given type, so as a candidate it could not match anything.
+            assert isinstance(t, type) and issubclass(t, VyperType), t
+            continue
+        # 0 is minimum possible length for dynarray,
+        # can be assigned to anything
+        ret.append(DArrayT(t, 0))
+    return ret
 
 
 def _validate_op(node, types_list, validation_fn_name):
@@ -253,7 +287,7 @@ class _ExprAnalyser:
                 return [s]
 
             # general case. s is a VarInfo, e.g. self.foo
-            if is_self_reference and (s.is_constant or s.is_immutable):
+            if is_self_reference and s.is_constant:
                 _raise_invalid_reference(name, node)
             return [s.typ]
 
@@ -348,7 +382,7 @@ class _ExprAnalyser:
     def types_from_Constant(self, node):
         # literal value (integer, string, etc)
         types_list = []
-        for t in types.PRIMITIVE_TYPES.values():
+        for t in _primitive_types():
             try:
                 # clarity and perf note: will be better to construct a
                 # map from node types to valid vyper types
@@ -375,7 +409,15 @@ class _ExprAnalyser:
             raise OverflowException(
                 "Numeric literal is outside of allowable range for number types", node
             )
-        raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
+
+        msg = f"Could not determine type for literal value '{node.value}'"
+        hint = None
+        # add a hint on address checksum mismatch
+        if isinstance(node, vy_ast.Hex) and node.n_bytes == 20:
+            assert not is_checksum_encoded(node.value)
+            hint = AddressT._checksum_error_msg(node)
+
+        raise InvalidLiteral(msg, node, hint=hint)
 
     def types_from_IfExp(self, node):
         validate_expected_type(node.test, BoolT())
@@ -390,28 +432,10 @@ class _ExprAnalyser:
 
     def types_from_List(self, node):
         # literal array
-        if _is_empty_list(node):
-            ret = []
 
-            if len(node.elements) > 0:
-                # empty nested list literals `[[], []]`
-                subtypes = self.get_possible_types_from_node(node.elements[0])
-            else:
-                # empty list literal `[]`
-                # subtype can be anything
-                subtypes = types.PRIMITIVE_TYPES.values()
-
-            for t in subtypes:
-                # 1 is minimum possible length for dynarray,
-                # can be assigned to anything
-                if isinstance(t, VyperType):
-                    ret.append(DArrayT(t, 1))
-                elif isinstance(t, type) and issubclass(t, VyperType):
-                    # for typeclasses like bytestrings, use a generic type acceptor
-                    ret.append(DArrayT(t.any(), 1))
-                else:
-                    raise CompilerPanic(f"busted type {t}", node)
-            return ret
+        if len(node.elements) == 0:
+            # can't have an empty SArrayT
+            return [DArrayT(BottomT(), 0)]
 
         types_list = get_common_types(*node.elements)
 
@@ -426,14 +450,21 @@ class _ExprAnalyser:
     def types_from_Name(self, node):
         # variable name, e.g. `foo`
         name = node.id
+
+        if "self" in self.namespace and getattr(
+            self.namespace["self"].typ.members.get(name), "is_immutable", False
+        ):
+            msg = "immutables should now be accessed through `self`"
+            hint = f"use `self.{name}` instead"
+            vyper_warn(Deprecation(msg, node, hint=hint))
+
         if (
             name not in self.namespace
             and "self" in self.namespace
             and name in self.namespace["self"].typ.members
         ):
-            raise InvalidReference(
-                f"'{name}' is a storage variable, access it as self.{name}", node
-            )
+            raise InvalidReference(f"'{name}'", node, hint=f"did you mean self.{name}?")
+
         try:
             t = self.namespace[node.id]
             # when this is a type, we want to lower it
@@ -443,6 +474,13 @@ class _ExprAnalyser:
                 # TYPE_T is used to handle cases where a type can occur in call or
                 # attribute conditions, like Flag.foo or MyStruct({...})
                 return [TYPE_T(t)]
+
+            if isinstance(t, type) and issubclass(t, VyperType):
+                # parameterized types (`Bytes`, `String`, `DynArray`, `HashMap`)
+                # are in the namespace as the class, not an instance, so they
+                # reach here instead of the TYPE_T branch above. they are type
+                # constructors, not values.
+                raise InvalidReference(f"not a variable or literal: '{node.id}'", node)
 
             return [t.typ]
 
@@ -471,18 +509,6 @@ class _ExprAnalyser:
         # unary operation: `-foo`
         types_list = self.get_possible_types_from_node(node.operand)
         return _validate_op(node, types_list, "validate_numeric_op")
-
-
-def _is_empty_list(node):
-    # Checks if a node is a `List` node with an empty list for `elements`,
-    # including any nested `List` nodes. ex. `[]` or `[[]]` will return True,
-    # [1] will return False.
-    if not isinstance(node, vy_ast.List):
-        return False
-
-    if not node.elements:
-        return True
-    return all(_is_empty_list(t) for t in node.elements)
 
 
 def _is_type_in_list(obj, types_list):
@@ -625,11 +651,13 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
         tmp = []
         for c in common_types:
             for t in new_types:
-                # TODO: This can add either the supertype or the subtype to tmp depending on
-                # the order
-                if t.compare_type(c) or c.compare_type(t):
+                # The common type is the one such that both are subtypes
+
+                if t.is_subtype_of(c):
                     tmp.append(c)
-                    break
+
+                elif c.is_subtype_of(t):
+                    tmp.append(t)
 
         common_types = tmp
 
@@ -637,25 +665,6 @@ def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> Li
         common_types = [i for i in common_types if filter_fn(i)]
 
     return common_types
-
-
-# TODO push this into `ArrayT.validate_literal()`
-def _validate_literal_array(node, expected):
-    # validate that every item within an array has the same type
-    if isinstance(expected, SArrayT):
-        if len(node.elements) != expected.length:
-            return False
-    if isinstance(expected, DArrayT):
-        if is_bounded_length(expected.length) and len(node.elements) > expected.length:
-            return False
-
-    for item in node.elements:
-        try:
-            validate_expected_type(item, expected.value_type)
-        except (InvalidType, TypeMismatch):
-            return False
-
-    return True
 
 
 def validate_expected_type(node, expected_type):
@@ -693,19 +702,18 @@ def validate_expected_type(node, expected_type):
             # fail block
             pass
 
-    given_types = _ExprAnalyser().get_possible_types_from_node(node)
+    try:
+        given_types = _ExprAnalyser().get_possible_types_from_node(node)
+    except InvalidLiteral as i:
+        # throw more specific error if the cause of the failure was an incorrect checksum
+        if AddressT() in expected_type and isinstance(node, vy_ast.Hex) and node.n_bytes == 20:
+            assert not is_checksum_encoded(node.value)
+            AddressT.raise_bad_checksum(node)
+        raise i
 
-    if isinstance(node, vy_ast.List):
-        # special case - for literal arrays we individually validate each item
-        for expected in expected_type:
-            if not isinstance(expected, (DArrayT, SArrayT)):
-                continue
-            if _validate_literal_array(node, expected):
-                return
-    else:
-        for given, expected in itertools.product(given_types, expected_type):
-            if given.is_subtype_of(expected):
-                return
+    for given, expected in itertools.product(given_types, expected_type):
+        if given.is_subtype_of(expected):
+            return
 
     # validation failed, prepare a meaningful error message
     if len(expected_type) > 1:
@@ -745,7 +753,9 @@ def validate_expected_type(node, expected_type):
 
         suggestion_str = ""
         if expected_type[0] == AddressT() and given_types[0] == BytesM_T(20):
-            suggestion_str = f" Did you mean {checksum_encode(node.value)}?"
+            # call `validate_literal` for its side effect of throwing an exception for
+            # address checksum mismatch
+            AddressT().validate_literal(node)
 
         raise TypeMismatch(
             f"Expected {expected_str} but literal can only be cast as {given_str}.{suggestion_str}",

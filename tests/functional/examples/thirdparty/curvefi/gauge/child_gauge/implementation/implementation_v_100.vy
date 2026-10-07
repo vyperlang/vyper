@@ -143,7 +143,7 @@ root_gauge: public(address)
 def __init__(_factory: Factory):
     self.lp_token = 0x000000000000000000000000000000000000dEaD
 
-    FACTORY = _factory
+    self.FACTORY = _factory
 
 
 @external
@@ -208,13 +208,13 @@ def _checkpoint(_user: address):
             week_time = min(week_time + WEEK, block.timestamp)
 
     # check CRV balance and increase weekly inflation rate by delta for the rest of the week
-    crv: IERC20 = staticcall FACTORY.crv()
+    crv: IERC20 = staticcall self.FACTORY.crv()
     if crv != empty(IERC20):
         crv_balance: uint256 = staticcall crv.balanceOf(self)
         if crv_balance != 0:
             current_week: uint256 = block.timestamp // WEEK
             self.inflation_rate[current_week] += crv_balance // ((current_week + 1) * WEEK - block.timestamp)
-            success: bool = extcall crv.transfer(FACTORY.address, crv_balance)
+            success: bool = extcall crv.transfer(self.FACTORY.address, crv_balance)
             assert success
 
     period += 1
@@ -572,7 +572,7 @@ def user_checkpoint(addr: address) -> bool:
     @param addr User address
     @return bool success
     """
-    assert msg.sender in [addr, FACTORY.address]  # dev: unauthorized
+    assert msg.sender in [addr, self.FACTORY.address]  # dev: unauthorized
     self._checkpoint(addr)
     self._update_liquidity_limit(addr, self.balanceOf[addr], self.totalSupply)
     return True
@@ -600,7 +600,7 @@ def set_gauge_manager(_gauge_manager: address):
         method, but only for the gauge which they are the manager of.
     @param _gauge_manager The account to set as the new manager of the gauge.
     """
-    assert msg.sender in [self.manager, staticcall FACTORY.owner()]  # dev: only manager or factory admin
+    assert msg.sender in [self.manager, staticcall self.FACTORY.owner()]  # dev: only manager or factory admin
 
     self.manager = _gauge_manager
     log SetGaugeManager(_gauge_manager=_gauge_manager)
@@ -616,7 +616,7 @@ def set_manager(_gauge_manager: address):
         method, but only for the gauge which they are the manager of.
     @param _gauge_manager The account to set as the new manager of the gauge.
     """
-    assert msg.sender in [self.manager, staticcall FACTORY.owner()]  # dev: only manager or factory admin
+    assert msg.sender in [self.manager, staticcall self.FACTORY.owner()]  # dev: only manager or factory admin
 
     self.manager = _gauge_manager
     log SetGaugeManager(_gauge_manager=_gauge_manager)
@@ -681,8 +681,8 @@ def add_reward(_reward_token: address, _distributor: address):
     @param _reward_token The token to add as an additional reward
     @param _distributor Address permitted to fund this contract with the reward token
     """
-    assert msg.sender in [self.manager, staticcall FACTORY.owner()]  # dev: only manager or factory admin
-    crv_token: IERC20 = staticcall FACTORY.crv()
+    assert msg.sender in [self.manager, staticcall self.FACTORY.owner()]  # dev: only manager or factory admin
+    crv_token: IERC20 = staticcall self.FACTORY.crv()
     assert _reward_token != crv_token.address  # dev: can not distinguish CRV reward from CRV emission
     assert _distributor != empty(address)  # dev: distributor cannot be zero address
 
@@ -704,7 +704,7 @@ def set_reward_distributor(_reward_token: address, _distributor: address):
     """
     current_distributor: address = self.reward_data[_reward_token].distributor
 
-    assert msg.sender in [current_distributor, staticcall FACTORY.owner(), self.manager]
+    assert msg.sender in [current_distributor, staticcall self.FACTORY.owner(), self.manager]
     assert current_distributor != empty(address)
     assert _distributor != empty(address)
 
@@ -718,7 +718,7 @@ def set_killed(_is_killed: bool):
     @dev Nothing happens, just stop emissions and that's it
     @param _is_killed Killed status to set
     """
-    assert msg.sender == staticcall FACTORY.owner()  # dev: only owner
+    assert msg.sender == staticcall self.FACTORY.owner()  # dev: only owner
 
     self.is_killed = _is_killed
 
@@ -729,7 +729,7 @@ def set_root_gauge(_root: address):
     @notice Set Root contract in case something went wrong (e.g. between implementation updates)
     @param _root Root gauge to set
     """
-    assert msg.sender in [staticcall FACTORY.owner(), staticcall FACTORY.manager()]
+    assert msg.sender in [staticcall self.FACTORY.owner(), staticcall self.FACTORY.manager()]
     assert _root != empty(address)
 
     self.root_gauge = _root
@@ -740,7 +740,7 @@ def update_voting_escrow():
     """
     @notice Update the voting escrow contract in storage
     """
-    self.voting_escrow = staticcall FACTORY.voting_escrow()
+    self.voting_escrow = staticcall self.FACTORY.voting_escrow()
 
 
 # View Methods
@@ -788,7 +788,7 @@ def claimable_tokens(addr: address) -> uint256:
     @return uint256 number of claimable tokens per user
     """
     self._checkpoint(addr)
-    return self.integrate_fraction[addr] - staticcall FACTORY.minted(addr, self)
+    return self.integrate_fraction[addr] - staticcall self.FACTORY.minted(addr, self)
 
 
 @view
@@ -826,4 +826,4 @@ def factory() -> Factory:
     """
     @notice Get factory of this gauge
     """
-    return FACTORY
+    return self.FACTORY

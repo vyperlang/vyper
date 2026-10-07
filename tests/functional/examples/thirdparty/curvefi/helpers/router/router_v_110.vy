@@ -71,7 +71,7 @@ def __default__():
 
 @deploy
 def __init__( _weth: address):
-    WETH_ADDRESS = _weth
+    self.WETH_ADDRESS = _weth
 
 
 @external
@@ -165,9 +165,9 @@ def exchange(
             else:  # twocrypto-ng, tricrypto-ng
                 extcall CryptoNgPool(swap).remove_liquidity_one_coin(amount, params[1], 0)
         elif params[2] == 8:
-            if input_token == ETH_ADDRESS and output_token == WETH_ADDRESS:
+            if input_token == ETH_ADDRESS and output_token == self.WETH_ADDRESS:
                 extcall WETH(swap).deposit(value=amount)
-            elif input_token == WETH_ADDRESS and output_token == ETH_ADDRESS:
+            elif input_token == self.WETH_ADDRESS and output_token == ETH_ADDRESS:
                 extcall WETH(swap).withdraw(amount)
             else:
                 raise "Swap type 8 is only for ETH <-> WETH"

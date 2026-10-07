@@ -55,13 +55,13 @@ def test_builder_block_management():
     # Then block
     b.append_block(then_bb)
     b.set_block(then_bb)
-    result_then = b.add(cond, 1)
+    b.add(cond, 1)
     b.jmp(exit_bb.label)
 
     # Else block
     b.append_block(else_bb)
     b.set_block(else_bb)
-    result_else = b.sub(cond, 1)
+    b.sub(cond, 1)
     b.jmp(exit_bb.label)
 
     # Exit block
@@ -161,10 +161,10 @@ def test_builder_comparison_ops():
     x = b.calldataload(0)
     y = b.calldataload(32)
 
-    eq_result = b.eq(x, y)
-    lt_result = b.lt(x, y)
-    gt_result = b.gt(x, y)
-    is_zero = b.iszero(x)
+    b.eq(x, y)
+    b.lt(x, y)
+    b.gt(x, y)
+    b.iszero(x)
     b.stop()
 
     instrs = fn.entry.instructions
@@ -183,12 +183,12 @@ def test_builder_bitwise_ops():
     x = b.calldataload(0)
     y = b.calldataload(32)
 
-    and_result = b.and_(x, y)
-    or_result = b.or_(x, y)
-    xor_result = b.xor(x, y)
-    not_result = b.not_(x)
-    shl_result = b.shl(8, x)
-    shr_result = b.shr(8, x)
+    b.and_(x, y)
+    b.or_(x, y)
+    b.xor(x, y)
+    b.not_(x)
+    b.shl(8, x)
+    b.shr(8, x)
     b.stop()
 
     instrs = fn.entry.instructions
@@ -206,11 +206,11 @@ def test_builder_environment_ops():
     fn = ctx.create_function("test_env")
     b = VenomBuilder(ctx, fn)
 
-    caller = b.caller()
-    value = b.callvalue()
-    size = b.calldatasize()
-    addr = b.address()
-    bal = b.selfbalance()
+    b.caller()
+    b.callvalue()
+    b.calldatasize()
+    b.address()
+    b.selfbalance()
     b.stop()
 
     instrs = fn.entry.instructions
@@ -227,12 +227,12 @@ def test_builder_block_info():
     fn = ctx.create_function("test_block_info")
     b = VenomBuilder(ctx, fn)
 
-    ts = b.timestamp()
-    num = b.number()
-    cb = b.coinbase()
-    rand = b.prevrandao()
-    limit = b.gaslimit()
-    chain = b.chainid()
+    b.timestamp()
+    b.number()
+    b.coinbase()
+    b.prevrandao()
+    b.gaslimit()
+    b.chainid()
     b.stop()
 
     instrs = fn.entry.instructions
@@ -299,7 +299,7 @@ def test_builder_crypto_ops():
 
     ptr = b.calldataload(0)
     size = b.calldataload(32)
-    hash_result = b.sha3(ptr, size)
+    b.sha3(ptr, size)
 
     instrs = fn.entry.instructions
     assert instrs[2].opcode == "sha3"

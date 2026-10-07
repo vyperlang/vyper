@@ -35,11 +35,31 @@ class Mem2Var(IRPass):
         self.var_name_count += 1
         return varname
 
+    @staticmethod
+    def _is_pointer_use(inst: IRInstruction, ptr: IRVariable) -> bool:
+        """
+        Check that `inst` uses `ptr` only as a memory address, and not
+        e.g. as the value operand of an mstore.
+
+        This intentionally has slight conceptual overlap with
+        memory_location.py's memory_read_ops/memory_write_ops helpers, but it
+        also needs to reject uses where the alloca output appears in the
+        non-address operand position.
+        """
+        if inst.opcode == "mload":
+            # the only operand is the address
+            return True
+        if inst.opcode in ("mstore", "return"):
+            # mstore [val, ptr]; return [size, ptr] -- the pointer must
+            # not appear in the value/size position.
+            return inst.operands[0] != ptr
+        return False
+
     def _process_alloca_var(self, dfg: DFGAnalysis, alloca_inst: IRInstruction, var: IRVariable):
         """
-        Process alloca allocated variable. If it is only used by
-        mstore/mload/return instructions, it is promoted to a stack variable.
-        Otherwise, it is left as is.
+        Process alloca allocated variable. If it is only used as the
+        memory address of mstore/mload/return instructions, it is promoted
+        to a stack variable. Otherwise, it is left as is.
         """
 
         assert len(alloca_inst.operands) == 1, (alloca_inst, alloca_inst.parent)
@@ -51,7 +71,7 @@ class Mem2Var(IRPass):
 
         uses = dfg.get_uses(alloca_inst.output)
 
-        if not all2(inst.opcode in ["mstore", "mload", "return"] for inst in uses):
+        if not all2(self._is_pointer_use(inst, alloca_inst.output) for inst in uses):
             return
 
         size = size_lit.value

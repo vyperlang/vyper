@@ -8,8 +8,8 @@ This module handles:
 - Constructor (deploy) code generation
 
 Two-phase compilation:
-1. generate_runtime_venom() - generates runtime code (deployed bytecode)
-2. generate_deploy_venom() - generates deploy code with runtime bytecode embedded
+1. generate_venom_runtime() - generates runtime code (deployed bytecode)
+2. generate_venom_deploy() - generates deploy code with runtime bytecode embedded
 """
 
 from __future__ import annotations
@@ -19,15 +19,19 @@ from typing import Optional
 import vyper.ast as vy_ast
 from vyper.codegen import jumptable_utils
 from vyper.codegen.function_definitions.common import EntryPointInfo, _FuncIRInfo
-from vyper.codegen_venom.abi.abi_decoder import _getelemptr_abi, abi_decode_to_buf
+from vyper.codegen_venom.abi.abi_decoder import (
+    abi_decode_to_buf,
+    decode_unbounded_sequence_to_scratch,
+)
 from vyper.codegen_venom.buffer import Ptr
+from vyper.codegen_venom.bytestring_literal import LiteralPool
 from vyper.codegen_venom.constants import SELECTOR_BYTES, SELECTOR_SHIFT_BITS
 from vyper.codegen_venom.value import VyperValue
-from vyper.compiler.settings import Settings, _opt_codesize, _opt_none
+from vyper.compiler.settings import Settings, _opt_codesize, _opt_lowering_only_ir
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types import TupleT, VyperType
+from vyper.semantics.types import TupleT, VyperType, is_unbounded_sequence_type
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import OrderedSet, method_id_int
@@ -36,7 +40,7 @@ from vyper.venom.builder import VenomBuilder
 from vyper.venom.context import IRContext
 from vyper.venom.memory_location import Allocation
 
-from .calling_convention import pass_via_stack, returns_stack_count
+from .calling_convention import pass_via_stack, returns_dynamic_count, returns_stack_count
 from .context import Constancy, VenomCodegenContext
 from .expr import Expr
 from .stmt import Stmt
@@ -50,15 +54,26 @@ def _get_constancy(func_t: ContractFunctionT) -> Constancy:
 
 
 class IDGenerator:
-    """Assign unique IDs to functions."""
+    """
+    Assign unique IDs to functions.
 
-    def __init__(self):
-        self._id = 0
+    Semantic analysis can assign IDs before deploy/runtime lowering. Preserve
+    existing IDs so metadata and cross-pass function references remain stable.
+    """
+
+    def __init__(self, module_t: ModuleT | None = None):
+        ids = []
+        if module_t is not None:
+            ids = [fn_t._function_id for fn_t in module_t.reachable_functions]
+            ids = [fn_id for fn_id in ids if fn_id is not None]
+        self._id = max(ids, default=-1) + 1
 
     def ensure_id(self, fn_t: ContractFunctionT) -> None:
         if fn_t._function_id is None:
             fn_t._function_id = self._id
             self._id += 1
+        else:
+            self._id = max(self._id, fn_t._function_id + 1)
 
 
 def _is_constructor(func_ast) -> bool:
@@ -99,7 +114,7 @@ def _init_ir_info(func_t: ContractFunctionT) -> None:
 # =============================================================================
 
 
-def generate_runtime_venom(module_t: ModuleT, settings: Settings) -> IRContext:
+def generate_venom_runtime(module_t: ModuleT, settings: Settings) -> IRContext:
     """
     Generate runtime Venom IR directly from annotated AST.
 
@@ -107,7 +122,7 @@ def generate_runtime_venom(module_t: ModuleT, settings: Settings) -> IRContext:
     IRContext must be compiled to bytecode before generating
     deploy code.
     """
-    id_generator = IDGenerator()
+    id_generator = IDGenerator(module_t)
 
     # Find all reachable functions
     reachable = _runtime_reachable_functions(module_t, id_generator)
@@ -125,38 +140,43 @@ def generate_runtime_venom(module_t: ModuleT, settings: Settings) -> IRContext:
     runtime_fn = runtime_ctx.create_function("runtime")
     runtime_ctx.entry_function = runtime_fn  # Mark as entry point
     runtime_builder = VenomBuilder(runtime_ctx, runtime_fn)
+    literal_pool = LiteralPool()
 
     # Generate selector dispatch
     # Selection logic matches legacy codegen:
-    # - opt_none: linear search (O(n))
+    # - lowering-only IR: linear search (O(n))
     # - opt_codesize with >4 functions: dense jumptable (O(1), codesize-optimized)
     # - >3 functions: sparse jumptable (O(1) average, gas-optimized)
     # - otherwise: linear search
-    if _opt_none():
+    if _opt_lowering_only_ir():
         _generate_selector_section_linear(
-            runtime_builder, module_t, external_functions, default_function
+            runtime_builder, module_t, literal_pool, external_functions, default_function
         )
     elif _opt_codesize() and len(external_functions) > 4:
         _generate_selector_section_dense(
-            runtime_builder, module_t, external_functions, default_function
+            runtime_builder, module_t, literal_pool, external_functions, default_function
         )
     elif len(external_functions) > 3:
         _generate_selector_section_sparse(
-            runtime_builder, module_t, external_functions, default_function
+            runtime_builder, module_t, literal_pool, external_functions, default_function
         )
     else:
         _generate_selector_section_linear(
-            runtime_builder, module_t, external_functions, default_function
+            runtime_builder, module_t, literal_pool, external_functions, default_function
         )
 
     # Generate internal functions for runtime
     for func_ast in internal_functions:
-        _generate_internal_function(runtime_ctx, module_t, func_ast, is_ctor_context=False)
+        _generate_internal_function(
+            runtime_ctx, module_t, literal_pool, func_ast, is_ctor_context=False
+        )
+
+    literal_pool.finalize(runtime_ctx)
 
     return runtime_ctx
 
 
-def generate_deploy_venom(
+def generate_venom_deploy(
     module_t: ModuleT,
     settings: Settings,
     runtime_bytecode: bytes,
@@ -177,23 +197,15 @@ def generate_deploy_venom(
         immutables_len: Size of immutables section in bytes
         cbor_metadata: Optional CBOR-encoded metadata to append to bytecode
     """
-    id_generator = IDGenerator()
+    id_generator = IDGenerator(module_t)
 
     # Create deploy IR context
     deploy_ctx = IRContext()
 
-    # Add runtime bytecode as data section
-    deploy_ctx.append_data_section(IRLabel("runtime_begin"))
-    deploy_ctx.append_data_item(runtime_bytecode)
-
-    # Add CBOR metadata if provided
-    if cbor_metadata is not None:
-        deploy_ctx.append_data_section(IRLabel("cbor_metadata"))
-        deploy_ctx.append_data_item(cbor_metadata)
-
     deploy_fn = deploy_ctx.create_function("deploy")
     deploy_ctx.entry_function = deploy_fn  # Mark as entry point
     deploy_builder = VenomBuilder(deploy_ctx, deploy_fn)
+    literal_pool = LiteralPool()
 
     init_func_t = module_t.init_function
 
@@ -207,7 +219,12 @@ def generate_deploy_venom(
         # Generate constructor
         assert isinstance(init_func_t.ast_def, vy_ast.FunctionDef)
         _generate_constructor(
-            deploy_builder, module_t, init_func_t.ast_def, len(runtime_bytecode), immutables_len
+            deploy_builder,
+            module_t,
+            literal_pool,
+            init_func_t.ast_def,
+            len(runtime_bytecode),
+            immutables_len,
         )
 
         # Generate internal functions reachable from constructor
@@ -215,6 +232,7 @@ def generate_deploy_venom(
             _generate_internal_function(
                 deploy_ctx,
                 module_t,
+                literal_pool,
                 func_t.ast_def,
                 is_ctor_context=True,
                 immutables_len=immutables_len,
@@ -222,6 +240,18 @@ def generate_deploy_venom(
     else:
         # No constructor - just deploy runtime
         _generate_simple_deploy(deploy_builder, len(runtime_bytecode), immutables_len)
+
+    literal_pool.finalize(deploy_ctx)
+
+    # Add runtime bytecode as data section. This comes after the literal
+    # data sections so that the metadata stays the last bytes of the initcode.
+    deploy_ctx.append_data_section(IRLabel("runtime_begin"))
+    deploy_ctx.append_data_item(runtime_bytecode)
+
+    # Add CBOR metadata if provided
+    if cbor_metadata is not None:
+        deploy_ctx.append_data_section(IRLabel("cbor_metadata"))
+        deploy_ctx.append_data_item(cbor_metadata)
 
     return deploy_ctx
 
@@ -234,7 +264,8 @@ def generate_deploy_venom(
 def _generate_selector_section_linear(
     builder: VenomBuilder,
     module_t: ModuleT,
-    external_functions: list,
+    literal_pool: LiteralPool,
+    external_functions: list[vy_ast.FunctionDef],
     default_function: Optional[vy_ast.FunctionDef],
 ) -> None:
     """Generate O(n) linear selector dispatch.
@@ -312,10 +343,14 @@ def _generate_selector_section_linear(
             if has_kwargs:
                 # Entry point: handle kwargs, jump to common body
                 assert common_label is not None
-                _generate_entry_point_kwargs(builder, module_t, func_t, entry_info, common_label)
+                _generate_entry_point_kwargs(
+                    builder, module_t, literal_pool, func_t, entry_info, common_label
+                )
             else:
                 # No kwargs: generate body directly
-                _generate_external_function_body(builder, module_t, func_t, func_ast, entry_info)
+                _generate_external_function_body(
+                    builder, module_t, literal_pool, func_t, func_ast, entry_info
+                )
 
             # Continue checking other functions
             builder.append_block(next_check_bb)
@@ -330,7 +365,7 @@ def _generate_selector_section_linear(
         common_bb.label = common_label
         builder.append_block(common_bb)
         builder.set_block(common_bb)
-        _generate_common_function_body(builder, module_t, func_t, func_ast)
+        _generate_common_function_body(builder, module_t, literal_pool, func_t, func_ast)
 
     # Fallback block
     builder.append_block(fallback_bb)
@@ -347,7 +382,7 @@ def _generate_selector_section_linear(
             builder.assert_(is_zero)
 
         # Generate fallback body
-        _generate_fallback_body(builder, module_t, func_t, default_function)
+        _generate_fallback_body(builder, module_t, literal_pool, func_t, default_function)
     else:
         # No fallback - revert
         revert_buffer = codegen_ctx.allocate_buffer(0, annotation="fallback revert buffer")
@@ -357,7 +392,8 @@ def _generate_selector_section_linear(
 def _generate_selector_section_sparse(
     builder: VenomBuilder,
     module_t: ModuleT,
-    external_functions: list,
+    literal_pool: LiteralPool,
+    external_functions: list[vy_ast.FunctionDef],
     default_function: Optional[vy_ast.FunctionDef],
 ) -> None:
     """Generate O(1) average-case sparse jumptable selector dispatch.
@@ -510,12 +546,12 @@ def _generate_selector_section_sparse(
                         assert func_t._function_id is not None  # help mypy
                         common_label = common_labels[func_t._function_id]
                         _generate_entry_point_kwargs(
-                            builder, module_t, func_t, entry_info, common_label
+                            builder, module_t, literal_pool, func_t, entry_info, common_label
                         )
                     else:
                         # No kwargs: generate body directly
                         _generate_external_function_body(
-                            builder, module_t, func_t, func_ast, entry_info
+                            builder, module_t, literal_pool, func_t, func_ast, entry_info
                         )
 
                     # Continue with next check
@@ -532,7 +568,7 @@ def _generate_selector_section_sparse(
         common_bb.label = common_label
         builder.append_block(common_bb)
         builder.set_block(common_bb)
-        _generate_common_function_body(builder, module_t, func_t, func_ast)
+        _generate_common_function_body(builder, module_t, literal_pool, func_t, func_ast)
 
     # Fallback block
     builder.append_block(fallback_bb)
@@ -549,7 +585,7 @@ def _generate_selector_section_sparse(
             builder.assert_(is_zero)
 
         # Generate fallback body
-        _generate_fallback_body(builder, module_t, func_t, default_function)
+        _generate_fallback_body(builder, module_t, literal_pool, func_t, default_function)
     else:
         # No fallback - revert
         revert_buffer = codegen_ctx.allocate_buffer(0, annotation="fallback revert buffer")
@@ -559,7 +595,8 @@ def _generate_selector_section_sparse(
 def _generate_selector_section_dense(
     builder: VenomBuilder,
     module_t: ModuleT,
-    external_functions: list,
+    literal_pool: LiteralPool,
+    external_functions: list[vy_ast.FunctionDef],
     default_function: Optional[vy_ast.FunctionDef],
 ) -> None:
     """Generate O(1) dense jumptable selector dispatch.
@@ -790,10 +827,14 @@ def _generate_selector_section_dense(
             # Entry point: handle kwargs, jump to common body
             assert func_t._function_id is not None  # help mypy
             common_label = common_labels[func_t._function_id]
-            _generate_entry_point_kwargs(builder, module_t, func_t, entry_info, common_label)
+            _generate_entry_point_kwargs(
+                builder, module_t, literal_pool, func_t, entry_info, common_label
+            )
         else:
             # No kwargs: generate body directly (entry checks already done in dispatcher)
-            _generate_external_function_body(builder, module_t, func_t, func_ast, entry_info)
+            _generate_external_function_body(
+                builder, module_t, literal_pool, func_t, func_ast, entry_info
+            )
 
     # Generate deferred common bodies for functions with kwargs
     for func_ast, func_t, common_label in deferred_common_bodies:
@@ -801,7 +842,7 @@ def _generate_selector_section_dense(
         common_bb.label = common_label
         builder.append_block(common_bb)
         builder.set_block(common_bb)
-        _generate_common_function_body(builder, module_t, func_t, func_ast)
+        _generate_common_function_body(builder, module_t, literal_pool, func_t, func_ast)
 
     # Fallback block
     builder.append_block(fallback_bb)
@@ -818,7 +859,7 @@ def _generate_selector_section_dense(
             builder.assert_(is_zero)
 
         # Generate fallback body
-        _generate_fallback_body(builder, module_t, func_t, default_function)
+        _generate_fallback_body(builder, module_t, literal_pool, func_t, default_function)
     else:
         # No fallback - revert
         revert_buffer = fallback_codegen_ctx.allocate_buffer(0, annotation="fallback revert buffer")
@@ -878,6 +919,7 @@ def _generate_external_entry_points(func_t: ContractFunctionT) -> dict[str, Entr
 def _generate_external_function_body(
     builder: VenomBuilder,
     module_t: ModuleT,
+    literal_pool: LiteralPool,
     func_t: ContractFunctionT,
     func_ast: vy_ast.FunctionDef,
     entry_info: EntryPointInfo,
@@ -898,6 +940,7 @@ def _generate_external_function_body(
         func_t=func_t,
         constancy=_get_constancy(func_t),
         is_ctor_context=False,
+        literal_pool=literal_pool,
     )
 
     # Register positional args from calldata
@@ -925,6 +968,7 @@ def _generate_external_function_body(
 def _generate_entry_point_kwargs(
     builder: VenomBuilder,
     module_t: ModuleT,
+    literal_pool: LiteralPool,
     func_t: ContractFunctionT,
     entry_info: EntryPointInfo,
     common_label: IRLabel,
@@ -944,6 +988,7 @@ def _generate_entry_point_kwargs(
         func_t=func_t,
         constancy=_get_constancy(func_t),
         is_ctor_context=False,
+        literal_pool=literal_pool,
     )
 
     # Handle kwargs - write to pre-allocated allocas
@@ -956,6 +1001,7 @@ def _generate_entry_point_kwargs(
 def _generate_common_function_body(
     builder: VenomBuilder,
     module_t: ModuleT,
+    literal_pool: LiteralPool,
     func_t: ContractFunctionT,
     func_ast: vy_ast.FunctionDef,
 ) -> None:
@@ -976,6 +1022,7 @@ def _generate_common_function_body(
         func_t=func_t,
         constancy=_get_constancy(func_t),
         is_ctor_context=False,
+        literal_pool=literal_pool,
     )
 
     # Register positional args from calldata
@@ -1023,16 +1070,117 @@ def _register_positional_args(ctx: VenomCodegenContext, func_t: ContractFunction
             func_t.positional_args[j].typ.abi_type.embedded_static_size() for j in range(i)
         )
 
-        # Allocate memory for the arg
-        var = ctx.new_variable(arg.name, arg.typ, mutable=False)
-        assert isinstance(var.value.operand, IRVariable)
-
         # Get the element location in calldata (handles ABI offset indirection for dynamic types)
-        elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
+        elem_src = _get_abi_arg_ptr(ctx, calldata_tuple, arg.typ, static_offset)
 
-        # Decode from calldata to memory
-        # Note: No hi bound needed - calldata size already validated in dispatcher
-        abi_decode_to_buf(ctx, var.value.operand, elem_src)
+        _register_abi_arg_from_src(ctx, arg, elem_src)
+
+
+def _abi_arg_hi(ctx: VenomCodegenContext, location: DataLocation):
+    # External calldata is caller-controlled and INF has no type cap, so INF
+    # args need a payload bound. Constructor CODE args keep legacy leniency.
+    if location == DataLocation.CALLDATA:
+        return ctx.builder.calldatasize()
+
+    return None
+
+
+def _get_abi_arg_ptr(
+    ctx: VenomCodegenContext, parent: VyperValue, member_typ: VyperType, static_offset: int
+) -> VyperValue:
+    """
+    Navigate to a top-level external/constructor ABI argument.
+
+    This intentionally stays separate from recursive ABI element addressing:
+    arguments live in a flat frame, and only calldata needs the top-level
+    underflow guard. Constructor CODE args keep legacy's lenient behavior.
+    """
+    loc = parent.location
+    assert loc is not None, "parent must have a location for ABI arg access"
+    assert loc in (DataLocation.CALLDATA, DataLocation.CODE), "ABI args live in calldata or code"
+
+    b = ctx.builder
+    static_loc = b.add(parent.operand, IRLiteral(static_offset))
+
+    if member_typ.abi_type.is_dynamic():
+        offset_val = b.load(static_loc, loc)
+        actual_ptr = b.add(parent.operand, offset_val)
+        # Calldata is caller-controlled. Constructor CODE args intentionally
+        # keep legacy's lenient decode behavior.
+        if loc == DataLocation.CALLDATA:
+            b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
+        return VyperValue.from_ptr(Ptr(operand=actual_ptr, location=loc), member_typ)
+
+    return VyperValue.from_ptr(Ptr(operand=static_loc, location=loc), member_typ)
+
+
+def _register_abi_arg_from_src(ctx: VenomCodegenContext, arg, elem_src: VyperValue) -> None:
+    if is_unbounded_sequence_type(arg.typ):
+        assert elem_src.location is not None, "src must have a location for ABI decoding"
+        hi = _abi_arg_hi(ctx, elem_src.location)
+        val = decode_unbounded_sequence_to_scratch(ctx, elem_src, arg.typ, hi, arg.name)
+        assert isinstance(val.operand, IRVariable)
+        ctx.register_dynamic_variable(arg.name, arg.typ, val.operand, mutable=False)
+        return
+
+    # Allocate memory for the arg
+    var = ctx.new_variable(arg.name, arg.typ, mutable=False)
+    assert isinstance(var.value.operand, IRVariable)
+
+    # Bounded args are capped by the length<=maxlen / count<=max clamp, and
+    # calldata/code overreads zero-fill, so (like legacy) no hi bound is needed.
+    # Unbounded (INF) args get their payload bound in the early-return path above.
+    abi_decode_to_buf(ctx, var.value.operand, elem_src, hi=None)
+
+
+def _store_abi_arg_to_existing_ptr(
+    ctx: VenomCodegenContext, dst: IRVariable, arg, elem_src: VyperValue
+) -> None:
+    if is_unbounded_sequence_type(arg.typ):
+        assert elem_src.location is not None, "src must have a location for ABI decoding"
+        hi = _abi_arg_hi(ctx, elem_src.location)
+        val = decode_unbounded_sequence_to_scratch(ctx, elem_src, arg.typ, hi, arg.name)
+        ctx.store_pointer_cell(dst, val.operand, IRLiteral(0))
+        return
+
+    # Bounded args are capped by the type clamp; no hi bound needed (see above).
+    abi_decode_to_buf(ctx, dst, elem_src, hi=None)
+
+
+def _register_default_arg(ctx: VenomCodegenContext, arg, default_node: vy_ast.VyperNode) -> None:
+    if is_unbounded_sequence_type(arg.typ):
+        default_vv = Expr(default_node, ctx).lower()
+        val = ctx.copy_sequence_to_scratch(default_vv, arg.typ, annotation=arg.name)
+        assert isinstance(val.operand, IRVariable)
+        ctx.register_dynamic_variable(arg.name, arg.typ, val.operand, mutable=False)
+        return
+
+    var = ctx.new_variable(arg.name, arg.typ, mutable=False)
+    assert isinstance(var.value.operand, IRVariable)
+
+    if arg.typ._is_prim_word:
+        default_val = Expr(default_node, ctx).lower_value()
+        ctx.ptr_store(var.value.ptr(), default_val)
+    else:
+        default_vv = Expr(default_node, ctx).lower()
+        ctx.store_vyper_value(default_vv, var.value.operand, arg.typ)
+
+
+def _store_default_arg_to_existing_ptr(
+    ctx: VenomCodegenContext, dst: IRVariable, arg, default_node: vy_ast.VyperNode
+) -> None:
+    if is_unbounded_sequence_type(arg.typ):
+        default_vv = Expr(default_node, ctx).lower()
+        val = ctx.copy_sequence_to_scratch(default_vv, arg.typ, annotation=arg.name)
+        ctx.store_pointer_cell(dst, val.operand, IRLiteral(0))
+        return
+
+    if arg.typ._is_prim_word:
+        default_val = Expr(default_node, ctx).lower_value()
+        ctx.builder.mstore(dst, default_val)
+    else:
+        default_vv = Expr(default_node, ctx).lower()
+        ctx.store_vyper_value(default_vv, dst, arg.typ)
 
 
 def _handle_kwargs(
@@ -1071,9 +1219,6 @@ def _handle_kwargs(
         calldata_tuple = VyperValue.from_ptr(ptr, calldata_tuple_t)
 
     for i, arg in enumerate(func_t.keyword_args):
-        var = ctx.new_variable(arg.name, arg.typ, mutable=False)
-        assert isinstance(var.value.operand, IRVariable)
-
         if i < kwargs_from_calldata:
             # Copy from calldata using ABI decoder
             # This kwarg's index in the full calldata tuple
@@ -1081,17 +1226,12 @@ def _handle_kwargs(
             static_offset = sum(
                 calldata_arg_types[j].abi_type.embedded_static_size() for j in range(tuple_index)
             )
-            elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
-            abi_decode_to_buf(ctx, var.value.operand, elem_src)
+            elem_src = _get_abi_arg_ptr(ctx, calldata_tuple, arg.typ, static_offset)
+            _register_abi_arg_from_src(ctx, arg, elem_src)
         else:
             # Use default value
             default_node = func_t.default_values[arg.name]
-            if arg.typ._is_prim_word:
-                default_val = Expr(default_node, ctx).lower_value()
-                ctx.ptr_store(var.value.ptr(), default_val)
-            else:
-                default_vv = Expr(default_node, ctx).lower()
-                ctx.store_vyper_value(default_vv, var.value.operand, arg.typ)
+            _register_default_arg(ctx, arg, default_node)
 
 
 def _create_kwarg_allocas(
@@ -1110,7 +1250,10 @@ def _create_kwarg_allocas(
 
     kwarg_vars: dict[str, IRVariable] = {}
     for arg in func_t.keyword_args:
-        size = arg.typ.memory_bytes_required
+        if is_unbounded_sequence_type(arg.typ):
+            size = VenomCodegenContext.POINTER_CELL_SIZE
+        else:
+            size = arg.typ.memory_bytes_required
         ptr = builder.alloca(size)
         kwarg_vars[arg.name] = ptr
 
@@ -1165,17 +1308,12 @@ def _init_kwargs_in_entry_point(
             static_offset = sum(
                 calldata_arg_types[j].abi_type.embedded_static_size() for j in range(tuple_index)
             )
-            elem_src = _getelemptr_abi(ctx, calldata_tuple, arg.typ, static_offset)
-            abi_decode_to_buf(ctx, alloca_ptr, elem_src)
+            elem_src = _get_abi_arg_ptr(ctx, calldata_tuple, arg.typ, static_offset)
+            _store_abi_arg_to_existing_ptr(ctx, alloca_ptr, arg, elem_src)
         else:
             # Use default value
             default_node = func_t.default_values[arg.name]
-            if arg.typ._is_prim_word:
-                default_val = Expr(default_node, ctx).lower_value()
-                ctx.builder.mstore(alloca_ptr, default_val)
-            else:
-                default_vv = Expr(default_node, ctx).lower()
-                ctx.store_vyper_value(default_vv, alloca_ptr, arg.typ)
+            _store_default_arg_to_existing_ptr(ctx, alloca_ptr, arg, default_node)
 
 
 def _register_kwarg_variables(ctx: VenomCodegenContext, func_t: ContractFunctionT) -> None:
@@ -1196,12 +1334,16 @@ def _register_kwarg_variables(ctx: VenomCodegenContext, func_t: ContractFunction
         alloca_ptr = kwarg_vars[arg.name]
 
         # Register as a variable pointing to the existing alloca (no new allocation)
-        ctx.register_variable(arg.name, arg.typ, alloca_ptr, mutable=False)
+        if is_unbounded_sequence_type(arg.typ):
+            ctx.register_pointer_cell_variable(arg.name, arg.typ, alloca_ptr, mutable=False)
+        else:
+            ctx.register_variable(arg.name, arg.typ, alloca_ptr, mutable=False)
 
 
 def _generate_fallback_body(
     builder: VenomBuilder,
     module_t: ModuleT,
+    literal_pool: LiteralPool,
     func_t: ContractFunctionT,
     func_ast: vy_ast.FunctionDef,
 ) -> None:
@@ -1212,6 +1354,7 @@ def _generate_fallback_body(
         func_t=func_t,
         constancy=_get_constancy(func_t),
         is_ctor_context=False,
+        literal_pool=literal_pool,
     )
 
     # Nonreentrant lock
@@ -1233,6 +1376,7 @@ def _generate_fallback_body(
 def _generate_internal_function(
     ir_ctx: IRContext,
     module_t: ModuleT,
+    literal_pool: LiteralPool,
     func_ast: vy_ast.FunctionDef,
     is_ctor_context: bool,
     immutables_len: int = 0,
@@ -1257,6 +1401,7 @@ def _generate_internal_function(
         func_t=func_t,
         constancy=_get_constancy(func_t),
         is_ctor_context=is_ctor_context,
+        literal_pool=literal_pool,
     )
 
     # Reserve immutables region for ctor context internal functions.
@@ -1277,14 +1422,17 @@ def _generate_internal_function(
     # Set up return handling
     pass_via_stack_dict = pass_via_stack(func_t)
     returns_count = returns_stack_count(func_t)
-    has_memory_return_buffer = func_t.return_type is not None and returns_count == 0
+    dynamic_returns_count = returns_dynamic_count(func_t)
+    has_memory_return_buffer = (
+        func_t.return_type is not None and returns_count == 0 and dynamic_returns_count == 0
+    )
 
     # Structured invoke metadata used by backend passes. _invoke_param_count
     # is gone: the user-arg count is now syntactic (FunctionCallLayout counts
     # plain `param` opcodes). _return_value_count feeds the post-lowering
     # invoke output-count check (find_post_lowering_errors).
     fn._has_memory_return_buffer_param = has_memory_return_buffer
-    fn._return_value_count = returns_count
+    fn._return_value_count = returns_count + dynamic_returns_count
 
     # Handle parameters
     # First: return buffer pointer if memory return
@@ -1301,7 +1449,11 @@ def _generate_internal_function(
         else:
             # Memory-passed: receive pointer, register directly (no allocation)
             ptr = builder.param()
-            codegen_ctx.register_variable(arg.name, arg.typ, ptr, mutable=True)
+            if is_unbounded_sequence_type(arg.typ):
+                var = codegen_ctx.new_pointer_cell_variable(arg.name, arg.typ, mutable=True)
+                codegen_ctx.store_pointer_cell(var.value.operand, ptr, IRLiteral(0))
+            else:
+                codegen_ctx.register_variable(arg.name, arg.typ, ptr, mutable=True)
 
     # Return PC is the last param, named by its dedicated opcode so the
     # raw IR is self-describing even for functions with no `ret` to anchor it
@@ -1309,7 +1461,7 @@ def _generate_internal_function(
 
     # Allocate return buffer if needed
     if func_t.return_type is not None:
-        if returns_count > 0:
+        if returns_count > 0 and dynamic_returns_count == 0:
             ret_buf = codegen_ctx.new_temporary_value(func_t.return_type).operand
             assert isinstance(ret_buf, IRVariable)
             codegen_ctx.return_buffer = ret_buf
@@ -1333,6 +1485,7 @@ def _generate_internal_function(
 def _generate_constructor(
     builder: VenomBuilder,
     module_t: ModuleT,
+    literal_pool: LiteralPool,
     func_ast: vy_ast.FunctionDef,
     runtime_codesize: int,
     immutables_len: int,
@@ -1348,6 +1501,7 @@ def _generate_constructor(
         func_t=func_t,
         constancy=_get_constancy(func_t),
         is_ctor_context=True,
+        literal_pool=literal_pool,
     )
 
     # Payable check
@@ -1383,18 +1537,28 @@ def _generate_constructor(
     # Nonreentrant lock
     codegen_ctx.emit_nonreentrant_lock(func_t)
 
+    # Single exit block, so that the deploy epilogue is the constructor's only
+    # terminator (cf. legacy codegen, where the `deploy` fragment positionally
+    # follows the ctor exit sequence). `return` in the body jumps here; halting
+    # instead would deploy a contract with empty runtime code.
+    exit_block = builder.create_block("ctor_exit")
+    codegen_ctx.ctor_exit_label = exit_block.label
+
     # Constructor body
     for stmt in func_ast.body:
         Stmt(stmt, codegen_ctx).lower()
 
-    # Unlock
     if not builder.is_terminated():
-        codegen_ctx.emit_nonreentrant_unlock(func_t)
+        builder.jmp(exit_block.label)
 
-        # Deploy epilogue: copy runtime code to memory and return
-        _emit_deploy_epilogue(
-            builder, runtime_codesize, immutables_len, codegen_ctx.immutables_alloca
-        )
+    builder.append_block(exit_block)
+    builder.set_block(exit_block)
+
+    # Unlock
+    codegen_ctx.emit_nonreentrant_unlock(func_t)
+
+    # Deploy epilogue: copy runtime code to memory and return
+    _emit_deploy_epilogue(builder, runtime_codesize, immutables_len, codegen_ctx.immutables_alloca)
 
 
 def _register_constructor_args(ctx: VenomCodegenContext, func_t: ContractFunctionT) -> None:
@@ -1420,16 +1584,10 @@ def _register_constructor_args(ctx: VenomCodegenContext, func_t: ContractFunctio
             func_t.positional_args[j].typ.abi_type.embedded_static_size() for j in range(i)
         )
 
-        # Allocate memory for the arg
-        var = ctx.new_variable(arg.name, arg.typ, mutable=False)
-        assert isinstance(var.value.operand, IRVariable)
-
         # Get element location in data section (handles ABI offset for dynamic types)
-        elem_src = _getelemptr_abi(ctx, data_tuple, arg.typ, static_offset)
+        elem_src = _get_abi_arg_ptr(ctx, data_tuple, arg.typ, static_offset)
 
-        # Decode from data section to memory
-        # Note: No hi bound needed for constructor args from trusted bytecode
-        abi_decode_to_buf(ctx, var.value.operand, elem_src)
+        _register_abi_arg_from_src(ctx, arg, elem_src)
 
 
 def _generate_simple_deploy(
