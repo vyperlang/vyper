@@ -21,7 +21,7 @@ Name                  Type             Value
 ``block.gaslimit``    ``uint256``      Current block's gas limit
 ``block.basefee``     ``uint256``      Current block's base fee
 ``block.blobbasefee`` ``uint256``      Current block's blob gas base fee
-``block.prevhash``    ``bytes32``      Equivalent to ``blockhash(block.number - 1)``, except at block ``0`` (see :ref:`below <prevhash-at-block-zero>`)
+``block.prevhash``    ``bytes32``      Equivalent to ``blockhash(block.number - 1)``, :ref:`except at block 0 <prevhash-at-block-zero>`
 ``block.timestamp``   ``uint256``      Current block epoch timestamp
 ``chain.id``          ``uint256``      Chain ID
 ``msg.data``          ``Bytes``        Message data
