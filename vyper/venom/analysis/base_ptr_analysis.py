@@ -317,7 +317,7 @@ class BasePtrAnalysis(IRAnalysis):
             return MemoryLocation.UNDEFINED
         if inst.opcode == "invoke":
             return MemoryLocation.UNDEFINED
-        if inst.opcode == "ret":
+        if inst.opcode in RET_INSTRUCTIONS:
             return MemoryLocation.UNDEFINED
 
         if inst.get_read_effects() & effects.MEMORY == effects.EMPTY:
