@@ -1658,10 +1658,12 @@ class RawCreate(_CreateBase):
         if is_bounded_length(bytecode_type.length) and bytecode_type.length > EIP_3860_LIMIT:
             raise TypeMismatch(f"initcode length cannot exceed {EIP_3860_LIMIT}", node.args[0])
         ctor_arg_types = [get_exact_type_from_node(arg).resolve_wildcard() for arg in node.args[1:]]
-        if not all(is_runtime_sizable_type(t) for t in ctor_arg_types):
-            raise StructureException(
-                "constructor arguments cannot contain nested unbounded sequence types", node
-            )
+        for arg, arg_t in zip(node.args[1:], ctor_arg_types):
+            if not is_runtime_sizable_type(arg_t):
+                raise StructureException(
+                    f"Unsupported unbounded sequence nesting in constructor argument type: {arg_t}",
+                    arg,
+                )
         return [bytecode_type, *ctor_arg_types]
 
     def _build_create_IR(self, expr, args, context, value, salt, revert_on_failure):
@@ -1841,10 +1843,12 @@ class CreateFromBlueprint(_CreateBase):
         if raw_args and not (len(ctor_arg_types) == 1 and isinstance(ctor_arg_types[0], BytesT)):
             raise StructureException("raw_args must be used with exactly 1 bytes argument", node)
 
-        if not all(is_runtime_sizable_type(t) for t in ctor_arg_types):
-            raise StructureException(
-                "constructor arguments cannot contain nested unbounded sequence types", node
-            )
+        for arg, arg_t in zip(node.args[1:], ctor_arg_types):
+            if not is_runtime_sizable_type(arg_t):
+                raise StructureException(
+                    f"Unsupported unbounded sequence nesting in constructor argument type: {arg_t}",
+                    arg,
+                )
 
         return arg_types
 
@@ -2241,9 +2245,7 @@ class Print(BuiltinFunctionT):
 
             if not is_runtime_sizable_type(arg_t):
                 raise StructureException(
-                    "print arguments cannot contain unbounded sequence types "
-                    "inside aggregate types",
-                    arg,
+                    f"Unsupported unbounded sequence nesting in print argument type: {arg_t}", arg
                 )
 
         return None
@@ -2369,8 +2371,8 @@ class ABIEncode(BuiltinFunctionT):
             for arg, arg_t in zip(node.args, arg_types):
                 if not is_runtime_sizable_type(arg_t):
                     raise StructureException(
-                        "abi_encode arguments cannot contain unbounded sequence types "
-                        "inside aggregate types",
+                        "Unsupported unbounded sequence nesting in abi_encode argument type: "
+                        f"{arg_t}",
                         arg,
                     )
             return BytesT(INF)
@@ -2464,8 +2466,7 @@ class ABIDecode(BuiltinFunctionT):
         output_type = type_from_annotation(node.args[1])
         if not is_runtime_sizable_type(output_type):
             raise StructureException(
-                "abi_decode output type cannot contain unbounded sequence types "
-                "inside aggregate types",
+                f"Unsupported unbounded sequence nesting in abi_decode output type: {output_type}",
                 node.args[1],
             )
 

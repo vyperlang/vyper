@@ -709,8 +709,9 @@ def foo(x: Bytes[INF]):
     """
     with pytest.raises(StructureException) as e:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
-    message = "print arguments cannot contain unbounded sequence types inside aggregate types"
+    message = "Unsupported unbounded sequence nesting in print argument type: (Bytes[INF],)"
     assert e.value.message == message
+    assert e.value.annotations[0].node_source_code == "(x,)"
 
 
 @pytest.mark.parametrize(
@@ -1306,7 +1307,8 @@ interface I:
 def f(a: address):
     print(extcall I(a).source())
     """,
-            "print arguments cannot contain unbounded sequence types inside aggregate types",
+            "Unsupported unbounded sequence nesting in print argument type: "
+            "(Bytes[INF], DynArray[uint256, INF])",
         ),
         (
             """
@@ -1317,7 +1319,8 @@ interface I:
 def f(a: address, code: Bytes[100]) -> address:
     return raw_create(code, extcall I(a).source())
     """,
-            "constructor arguments cannot contain nested unbounded sequence types",
+            "Unsupported unbounded sequence nesting in constructor argument type: "
+            "(Bytes[INF], DynArray[uint256, INF])",
         ),
         (
             """
@@ -1328,7 +1331,8 @@ interface I:
 def f(a: address, target: address) -> address:
     return create_from_blueprint(target, extcall I(a).source())
     """,
-            "constructor arguments cannot contain nested unbounded sequence types",
+            "Unsupported unbounded sequence nesting in constructor argument type: "
+            "(Bytes[INF], DynArray[uint256, INF])",
         ),
     ],
 )
