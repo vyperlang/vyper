@@ -669,13 +669,16 @@ it back:
     b.values.append(1)
     xs[i] = b
 
-The member must be a direct unbounded sequence, another struct that
-satisfies the same rule, or a ``DynArray`` of such structs;
-``x: (Bytes[INF], uint256)`` is rejected as a struct member. A struct with an
-unbounded member lives in memory only, like every unbounded sequence. It may
-not be returned inside a tuple. A ``DynArray`` of such structs, and a struct containing one,
-work everywhere the struct does, including as the return value of an internal
-function, with one exception: the array cannot itself be a ``DynArray``
+In addition to bounded types, struct members may use ``Bytes[INF]``,
+``String[INF]``, or ``DynArray[T, INF]``, subject to the element-type restrictions
+above. Members may also be structs with unbounded members, or ``DynArray`` types
+whose elements are such structs. Tuples containing unbounded sequences, such as
+``(Bytes[INF], uint256)``, are not supported as struct members.
+
+A struct with an unbounded member lives in memory only, like every unbounded
+sequence. It may not be returned inside a tuple. A ``DynArray`` of such structs,
+and a struct containing one, work everywhere the struct does, including as the
+return value of an internal function, with one exception: the array cannot itself be a ``DynArray``
 element (``DynArray[DynArray[Batch, 3], 2]`` is rejected).
 
 .. note::
