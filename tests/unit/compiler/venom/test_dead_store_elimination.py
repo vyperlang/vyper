@@ -1134,6 +1134,7 @@ def test_sstore_before_retfmp_is_not_dead():
     """
     _check_no_change_generic(pre, STORAGE, hevm=False)
 
+
 def test_mstore_before_retfmp_is_not_dead():
     """Memory stores before ret (internal function return) are live because
     the caller can observe memory after the function returns.
