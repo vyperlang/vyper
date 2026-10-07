@@ -655,18 +655,7 @@ external calls, encoded and decoded with ``abi_encode`` and ``abi_decode``, used
 as an event or custom error member, printed, and passed as a ``create_*``
 constructor argument. The member of a struct held in a local variable (or an
 internal function argument) can be assigned, indexed, appended to and popped
-from, also through nested struct members; copies of a struct never share a
-member with each other, so a write through one struct is not visible through
-another:
-
-.. code-block:: vyper
-
-    c: Batch = b
-    c.values = [1, 2]
-    c.values[0] += 1
-    c.values.append(3)
-    c.values.pop()
-    # b.values is unchanged
+from, also through nested struct members.
 
 Writing an unbounded member of an array element, or anything inside it, is
 rejected; other members, including a whole nested struct, and whole elements
@@ -717,6 +706,20 @@ Struct members can be accessed via ``struct.argname``.
 
     # Accessing a value
     exampleStruct.value1 = 1
+
+Assigning a struct copies its value. Changes to the copy, including changes to
+nested members, do not affect the original.
+
+.. code-block:: vyper
+
+    struct Numbers:
+        values: DynArray[uint256, 3]
+
+    original: Numbers = Numbers(values=[1, 2])
+    copied: Numbers = original
+    copied.values[0] = 7
+    copied.values.append(3)
+    # original.values is still [1, 2]
 
 .. index:: !mapping
 
