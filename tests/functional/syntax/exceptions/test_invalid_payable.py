@@ -4,11 +4,20 @@ from pytest import raises
 from vyper import compiler
 from vyper.exceptions import NonPayableViolation
 
-fail_list = ["""
+fail_list = [
+    """
 @external
+@view
 def foo():
     x: uint256 = msg.value
-"""]
+""",
+    """
+@internal
+@view
+def foo():
+    x: uint256 = msg.value
+""",
+]
 
 
 @pytest.mark.parametrize("bad_code", fail_list)
@@ -21,14 +30,12 @@ valid_list = [
     """
 x: int128
 @external
-@payable
 def foo() -> int128:
     self.x = 5
     return self.x
     """,
     """
 @external
-@payable
 def foo():
     x: uint256 = msg.value
     """,

@@ -47,9 +47,9 @@ variables to be *readable* by an external caller, but not *writeable*.
 .. literalinclude:: ../../examples/safe_remote_purchase/safe_remote_purchase.vy
   :language: vyper
   :lineno-start: 25
-  :lines: 25-33
+  :lines: 25-32
 
-With a ``@payable`` decorator on the constructor, the contract creator will be
+The constructor reads ``msg.value``, so the contract creator will be
 required to make an initial deposit equal to twice the item's ``value`` to
 initialize the contract, which will be later returned. This is in addition to
 the gas fees needed to deploy the contract on the blockchain, which is not
@@ -61,8 +61,8 @@ in the contract variable ``self.value`` and saves the contract creator into
 
 .. literalinclude:: ../../examples/safe_remote_purchase/safe_remote_purchase.vy
   :language: vyper
-  :lineno-start: 35
-  :lines: 35-43
+  :lineno-start: 34
+  :lines: 34-42
 
 The ``abort()`` method is a method only callable by the seller and while the
 contract is still ``unlocked``—meaning it is callable only prior to any buyer
@@ -76,11 +76,10 @@ contract sends the balance back to the seller, effectively canceling the sale.
 
 .. literalinclude:: ../../examples/safe_remote_purchase/safe_remote_purchase.vy
   :language: vyper
-  :lineno-start: 45
-  :lines: 45-53
+  :lineno-start: 44
+  :lines: 44-51
 
-Like the constructor, the ``purchase()`` method has a ``@payable`` decorator,
-meaning it can be called with a payment. For the buyer to make a valid
+Like the constructor, the ``purchase()`` method is called with a payment. For the buyer to make a valid
 purchase, we must first ``assert`` that the contract's ``unlocked`` property is
 ``True`` and that the amount sent is equal to twice the item's value. We then
 set the buyer to the ``msg.sender`` and lock the contract. At this point, the
@@ -89,8 +88,8 @@ send the item to the buyer.
 
 .. literalinclude:: ../../examples/safe_remote_purchase/safe_remote_purchase.vy
   :language: vyper
-  :lineno-start: 55
-  :lines: 55-72
+  :lineno-start: 53
+  :lines: 53-70
 
 Finally, upon the buyer's receipt of the item, the buyer can confirm their
 receipt by calling the ``received()`` method to distribute the funds as

@@ -27,9 +27,7 @@ def testEcrecover(h: bytes32, v:uint8, r:bytes32, s:bytes32) -> address:
     return ecrecover(h, v, r, s)
 
 
-# `@payable` allows functions to receive ether
 @external
-@payable
 def approve(_seq: int128, to: address, _value: uint256, data: Bytes[4096], sigdata: uint256[3][5]) -> Bytes[4096]:
     # Throws if the value sent to the contract is less than the sum of the value to be sent
     assert msg.value >= _value
@@ -67,6 +65,5 @@ def approve(_seq: int128, to: address, _value: uint256, data: Bytes[4096], sigda
 
 
 @external
-@payable
 def __default__():
     pass

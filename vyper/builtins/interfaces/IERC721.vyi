@@ -37,15 +37,12 @@ def getApproved(_tokenId: uint256) -> address:
 def isApprovedForAll(_owner: address, _operator: address) -> bool:
     ...
 
-@payable
 def transferFrom(_from: address, _to: address, _tokenId: uint256):
     ...
 
-@payable
 def safeTransferFrom(_from: address, _to: address, _tokenId: uint256, _data: Bytes[1024] = ...):
     ...
 
-@payable
 def approve(_approved: address, _tokenId: uint256):
     ...
 

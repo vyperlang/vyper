@@ -61,10 +61,9 @@ Now let's take a look at how a person can participate in the crowdfund.
 .. literalinclude:: ../../examples/crowdfund.vy
   :language: vyper
   :lineno-start: 25
-  :lines: 25-32
+  :lines: 25-31
 
-Once again, we see the ``@payable`` decorator on a method, which allows a
-person to send some ether along with a call to the method. In this case,
+A person can send some ether along with a call to the method. In this case,
 the ``participate()`` method accesses the sender's address with ``msg.sender``
 and the corresponding amount sent with ``msg.value``. The contribution is added
 to the ``funders`` HashMap, which maps each participant's address to their
@@ -72,8 +71,8 @@ total contribution amount.
 
 .. literalinclude:: ../../examples/crowdfund.vy
   :language: vyper
-  :lineno-start: 34
-  :lines: 34-42
+  :lineno-start: 33
+  :lines: 33-41
 
 The ``finalize()`` method is used to complete the crowdfunding process. However,
 to complete the crowdfunding, the method first checks to see if the crowdfunding
@@ -92,8 +91,8 @@ all the participants.
 
 .. literalinclude:: ../../examples/crowdfund.vy
   :language: vyper
-  :lineno-start: 44
-  :lines: 44-54
+  :lineno-start: 43
+  :lines: 43-53
 
 In the ``refund()`` method, we first check that the crowdfunding period is
 indeed over and that the total collected balance is less than the ``goal`` with

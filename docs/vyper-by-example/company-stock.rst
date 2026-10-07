@@ -58,8 +58,8 @@ company's address is initialized to hold all shares of the company in the
 
 .. literalinclude:: ../../examples/stock/company.vy
   :language: vyper
-  :lineno-start: 149
-  :lines: 149-153
+  :lineno-start: 148
+  :lines: 148-152
 
 We will be seeing a few ``@view`` decorators in this contract—which is
 used to decorate methods that simply read the contract state or return a simple
@@ -78,9 +78,9 @@ company's holding.
 .. literalinclude:: ../../examples/stock/company.vy
   :language: vyper
   :lineno-start: 50
-  :lines: 50-67
+  :lines: 50-66
 
-The ``buyStock()`` method is a ``@payable`` method which takes an amount of
+The ``buyStock()`` method takes an amount of
 ether sent and calculates the ``buyOrder`` (the stock value equivalence at
 the time of call). The number of shares is deducted from the company's holdings
 and transferred to the sender's in the ``holdings`` mapping.
@@ -89,13 +89,13 @@ Now that people can buy shares, how do we check someone's holdings?
 
 .. literalinclude:: ../../examples/stock/company.vy
   :language: vyper
-  :lineno-start: 68
-  :lines: 68-72
+  :lineno-start: 67
+  :lines: 67-71
 
 .. literalinclude:: ../../examples/stock/company.vy
   :language: vyper
-  :lineno-start: 155
-  :lines: 155-159
+  :lineno-start: 154
+  :lines: 154-158
 
 The ``_getHolding()`` is another ``@view`` method that takes an ``address``
 and returns its corresponding stock holdings by keying into ``self.holdings``.
@@ -103,16 +103,16 @@ Again, an external function ``getHolding()`` is included to allow access.
 
 .. literalinclude:: ../../examples/stock/company.vy
   :language: vyper
-  :lineno-start: 74
-  :lines: 74-78
+  :lineno-start: 73
+  :lines: 73-77
 
 To check the ether balance of the company, we can simply call the getter method
 ``cash()``.
 
 .. literalinclude:: ../../examples/stock/company.vy
   :language: vyper
-  :lineno-start: 80
-  :lines: 80-97
+  :lineno-start: 79
+  :lines: 79-96
 
 To sell a stock, we have the ``sellStock()`` method which takes a number of
 stocks a person wishes to sell, and sends the equivalent value in ether to the
@@ -124,8 +124,8 @@ from the seller and given to the company. The ethers are then sent to the seller
 
 .. literalinclude:: ../../examples/stock/company.vy
   :language: vyper
-  :lineno-start: 99
-  :lines: 99-112
+  :lineno-start: 98
+  :lines: 98-111
 
 A stockholder can also transfer their stock to another stockholder with the
 ``transferStock()`` method. The method takes a receiver address and the number
@@ -135,8 +135,8 @@ both conditions are satisfied, the transfer is made.
 
 .. literalinclude:: ../../examples/stock/company.vy
   :language: vyper
-  :lineno-start: 114
-  :lines: 114-126
+  :lineno-start: 113
+  :lines: 113-125
 
 The company is also allowed to pay out an amount in ether to an address by
 calling the ``payBill()`` method. This method should only be callable by the
@@ -147,13 +147,13 @@ sends its ether to an address.
 
 .. literalinclude:: ../../examples/stock/company.vy
   :language: vyper
-  :lineno-start: 129
-  :lines: 129-133
+  :lineno-start: 128
+  :lines: 128-132
 
 .. literalinclude:: ../../examples/stock/company.vy
   :language: vyper
-  :lineno-start: 143
-  :lines: 143-147
+  :lineno-start: 142
+  :lines: 142-146
 
 We can also check how much the company has raised by multiplying the number of
 shares the company has sold and the price of each share. Internally, we get
@@ -161,8 +161,8 @@ this value by calling the ``_debt()`` method. Externally it is accessed via ``de
 
 .. literalinclude:: ../../examples/stock/company.vy
   :language: vyper
-  :lineno-start: 135
-  :lines: 135-141
+  :lineno-start: 134
+  :lines: 134-140
 
 Finally, in this ``worth()`` method, we can check the worth of a company by
 subtracting its debt from its ether balance.

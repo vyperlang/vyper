@@ -1,5 +1,3 @@
-import contextlib
-
 import pytest
 
 from tests.evm_backends.base_env import _compile
@@ -400,20 +398,12 @@ def __init__(a: uint256):
     assert c.counter() == expected_counter
 
 
-@pytest.mark.parametrize("should_fail", [True, False])
-def test_constructor_payability(env, get_contract, tx_failed, should_fail):
-    code = f"""
+def test_constructor_accepts_value(env, get_contract):
+    code = """
 @deploy
-{"" if should_fail else "@payable"}
 def __init__():
     pass
 """
     env.set_balance(env.deployer, 10)
-
-    if should_fail:
-        ctx = tx_failed
-    else:
-        ctx = contextlib.nullcontext
-
-    with ctx():
-        _ = get_contract(code, value=10)
+    c = get_contract(code, value=10)
+    assert env.get_balance(c.address) == 10

@@ -75,10 +75,10 @@ With initial setup out of the way, let's look at how our users can make bids.
 .. literalinclude:: ../../examples/auctions/simple_open_auction.vy
   :language: vyper
   :lineno-start: 31
-  :lines: 31-48
+  :lines: 31-47
 
-The ``@payable`` decorator will allow a user to send some ether to the
-contract in order to call the decorated method. In this case, a user wanting
+Any non-``@view``, non-``@pure`` method can be called with ether attached.
+In this case, a user wanting
 to make a bid would call the ``bid()`` method while sending an amount equal
 to their desired bid (not including gas fees). When calling any method within a
 contract, we are provided with a built-in variable ``msg`` and we can access
@@ -96,8 +96,8 @@ transaction. We then record the previous highest bid in the ``pendingReturns`` m
 
 .. literalinclude:: ../../examples/auctions/simple_open_auction.vy
   :language: vyper
-  :lineno-start: 50
-  :lines: 50-58
+  :lineno-start: 49
+  :lines: 49-57
 
 The ``withdraw()`` method allows previously outbid participants to withdraw
 their funds. Rather than sending refunds directly during ``bid()`` (which
@@ -108,8 +108,8 @@ zeroes it out (to prevent re-entrancy), and sends the funds.
 
 .. literalinclude:: ../../examples/auctions/simple_open_auction.vy
   :language: vyper
-  :lineno-start: 60
-  :lines: 60-87
+  :lineno-start: 59
+  :lines: 59-86
 
 With the ``endAuction()`` method, we check whether our current time is past
 the ``auctionEnd`` time we set upon initialization of the contract. We also

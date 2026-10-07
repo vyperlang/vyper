@@ -481,7 +481,7 @@ def test_dense_jumptable_bucket_size(n_methods, seed):
 @st.composite
 def generate_methods(draw, max_calldata_bytes):
     max_default_args = draw(st.integers(min_value=0, max_value=4))
-    default_fn_mutability = draw(st.sampled_from(["", "@pure", "@view", "@nonpayable", "@payable"]))
+    default_fn_mutability = draw(st.sampled_from(["", "@pure", "@view", "@nonpayable"]))
 
     return (
         max_default_args,
@@ -492,7 +492,7 @@ def generate_methods(draw, max_calldata_bytes):
                     # function id:
                     st.integers(min_value=0),
                     # mutability:
-                    st.sampled_from(["@pure", "@view", "@nonpayable", "@payable"]),
+                    st.sampled_from(["@pure", "@view", "@nonpayable"]),
                     # n calldata words:
                     st.integers(min_value=0, max_value=max_calldata_bytes // 32),
                     # n bytes to strip from calldata
@@ -524,7 +524,7 @@ def test_selector_table_fuzz(max_calldata_bytes, opt_level, env, get_contract, t
         for j in range(n_default_args):
             arglist.append(f"x{j}: uint256 = 0")
         args = ", ".join(arglist)
-        _log_return = f"log _Return({func_id})" if mutability == "@payable" else ""
+        _log_return = f"log _Return({func_id})" if mutability == "@nonpayable" else ""
 
         return f"""
 @external
@@ -546,7 +546,7 @@ def foo{func_id}({args}) -> uint256:
 
         if default_fn_mutability == "":
             default_fn_code = ""
-        elif default_fn_mutability in ("@nonpayable", "@payable"):
+        elif default_fn_mutability == "@nonpayable":
             default_fn_code = f"""
 @external
 {default_fn_mutability}
@@ -591,15 +591,13 @@ event _Return:
 
                 argsdata = b"\x00" * (n_calldata_words * 32 + j * 32)
 
-                # do payable check
-                if mutability == "@payable":
+                # all functions accept value
+                if mutability == "@nonpayable":
                     func(*args, value=1)
                     (event,) = get_logs(c, "_Return")
                     assert event.args.val == func_id
                 else:
-                    hexstr = (method_id + argsdata).hex()
-                    with tx_failed():
-                        env.message_call(c.address, data=hexstr, value=1)
+                    assert func(*args, value=1) == func_id
 
                 # now do calldatasize check
                 # strip some bytes
@@ -611,13 +609,9 @@ event _Return:
                     if default_fn_mutability == "":
                         with tx_failed():
                             env.message_call(**tx_params)
-                    elif default_fn_mutability == "@payable":
+                    else:
                         # we should be able to send eth to it
                         tx_params["value"] = 1
-                        env.message_call(**tx_params)
-                        logs = get_logs(c, "CalledDefault")
-                        assert len(logs) == 1
-                    else:
                         env.message_call(**tx_params)
 
                         # note: can't emit logs from view/pure functions,
@@ -625,11 +619,6 @@ event _Return:
                         if default_fn_mutability == "@nonpayable":
                             logs = get_logs(c, "CalledDefault")
                             assert len(logs) == 1
-
-                        # check default function reverts
-                        tx_params["value"] = 1
-                        with tx_failed():
-                            env.message_call(**tx_params)
                 else:
                     with tx_failed():
                         env.message_call(**tx_params)

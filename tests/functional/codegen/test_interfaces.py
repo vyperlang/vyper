@@ -404,7 +404,7 @@ def test():
 def test_address_member(env, get_contract):
     code = """
 interface Foo:
-    def foo(): payable
+    def foo(): nonpayable
 
 f: Foo
 
@@ -915,7 +915,6 @@ def test_intrinsic_interface_kws(env, make_input_bundle, get_contract):
     value = 10**5
     lib1 = f"""
 @external
-@payable
 def foo(a: address):
     send(a, {value})
     """
@@ -939,7 +938,6 @@ def bar(a: address):
 def test_intrinsic_interface_defaults(env, make_input_bundle, get_contract):
     lib1 = """
 @external
-@payable
 def foo(i: uint256=1) -> uint256:
     return i
     """

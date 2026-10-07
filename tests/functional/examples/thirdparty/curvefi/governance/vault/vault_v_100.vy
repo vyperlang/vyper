@@ -84,7 +84,6 @@ def apply_future_owner():
     log ApplyOwnership(owner=future_owner)
 
 
-@payable
 @external
 def __default__():
     assert len(msg.data) == 0

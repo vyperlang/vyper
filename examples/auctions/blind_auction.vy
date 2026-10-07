@@ -59,7 +59,6 @@ def __init__(_beneficiary: address, _biddingTime: uint256, _revealTime: uint256)
 # not the exact amount are ways to hide the real bid but still make the
 # required deposit. The same address can place multiple bids.
 @external
-@payable
 def bid(_blindedBid: bytes32):
     # Check if bidding period is still open
     assert block.timestamp < self.biddingEnd

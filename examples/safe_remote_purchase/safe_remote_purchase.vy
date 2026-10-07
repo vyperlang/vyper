@@ -23,7 +23,6 @@ ended: public(bool)
 finalized: public(bool)
 
 @deploy
-@payable
 def __init__():
     assert (msg.value % 2) == 0
     assert msg.value > 0
@@ -43,7 +42,6 @@ def abort():
     send(self.seller, self.balance)
 
 @external
-@payable
 def purchase():
     assert not self.finalized
     assert self.unlocked # Is the contract still open (is the item still up

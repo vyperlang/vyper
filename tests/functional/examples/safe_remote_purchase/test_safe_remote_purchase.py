@@ -121,7 +121,7 @@ def test_received_reentrancy(env, get_contract, tx_failed, get_balance, contract
 interface PurchaseContract:
 
     def received(): nonpayable
-    def purchase(): payable
+    def purchase(): nonpayable
     def unlocked() -> bool: view
 
 purchase_contract: PurchaseContract
@@ -132,20 +132,17 @@ def __init__(_purchase_contract: address):
     self.purchase_contract = PurchaseContract(_purchase_contract)
 
 
-@payable
 @external
 def start_purchase():
     extcall self.purchase_contract.purchase(value=2)
 
 
-@payable
 @external
 def start_received():
    extcall self.purchase_contract.received()
 
 
 @external
-@payable
 def __default__():
     extcall self.purchase_contract.received()
 

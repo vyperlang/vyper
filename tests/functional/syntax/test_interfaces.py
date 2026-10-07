@@ -180,20 +180,6 @@ def approve(_spender : address, _value : uint256) -> bool:
         NamespaceCollision,
     ),
     (
-        # `payable` decorator not implemented
-        """
-interface testI:
-    def foo() -> uint256: payable
-
-implements: testI
-
-@external
-def foo() -> uint256:
-    return 0
-    """,
-        InterfaceViolation,
-    ),
-    (
         # decorators must be strictly identical
         """
 interface Self:
@@ -366,13 +352,13 @@ def __init__():
     """,
     """
 interface MyInterface:
-    def kick(): payable
+    def kick(): nonpayable
 
 kickers: HashMap[address, MyInterface]
     """,
     """
 interface Foo:
-    def append(a: uint256): payable
+    def append(a: uint256): nonpayable
 
 @external
 def bar(x: address):
@@ -381,7 +367,7 @@ def bar(x: address):
     """,
     """
 interface Foo:
-    def pop(): payable
+    def pop(): nonpayable
 
 @external
 def foo(x: address):
@@ -799,7 +785,6 @@ def bar():
 def test_intrinsic_interfaces_default_function(make_input_bundle, get_contract):
     lib1 = """
 @external
-@payable
 def __default__():
     pass
     """

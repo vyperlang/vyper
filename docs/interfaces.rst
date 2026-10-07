@@ -44,9 +44,12 @@ The interface name can also be used as a type annotation for storage variables. 
     def test():
         extcall self.foobar_contract.test1()
 
-Specifying ``payable`` or ``nonpayable`` annotation in the interface indicates that the call made to the external contract will be able to alter storage, whereas ``view`` and ``pure`` calls will use a ``STATICCALL`` ensuring no storage can be altered during execution. Additionally, ``payable`` allows non-zero value to be sent along with the call.
+Specifying the ``nonpayable`` annotation in the interface indicates that the call made to the external contract will be able to alter storage, whereas ``view`` and ``pure`` calls will use a ``STATICCALL`` ensuring no storage can be altered during execution. Non-zero value may be sent along with any ``extcall``.
 
-Either the ``extcall`` or ``staticcall`` keyword is required to precede the external call to distinguish it from internal calls. The keyword must match the visibility of the function, ``staticcall`` for ``pure`` and ``view`` functions, and ``extcall`` for ``payable`` and ``nonpayable`` functions. Additionally, the output of a ``staticcall`` must be assigned to a result.
+.. note::
+    The ``payable`` annotation has been removed; use ``nonpayable`` instead. JSON ABI files imported as interfaces may still contain ``payable`` functions.
+
+Either the ``extcall`` or ``staticcall`` keyword is required to precede the external call to distinguish it from internal calls. The keyword must match the visibility of the function, ``staticcall`` for ``pure`` and ``view`` functions, and ``extcall`` for ``nonpayable`` functions. Additionally, the output of a ``staticcall`` must be assigned to a result.
 
 .. warning::
 
@@ -58,7 +61,7 @@ Either the ``extcall`` or ``staticcall`` keyword is required to precede the exte
         def calculate() -> uint256: pure
         def query() -> uint256: view
         def update(): nonpayable
-        def pay(): payable
+        def pay(): nonpayable
 
     @external
     def test(foobar: FooBar):
@@ -110,7 +113,7 @@ You can define an interface for your contract with the ``implements`` statement:
     implements: FooBarInterface
 
 
-This imports the defined interface from the vyper file at ``an_interface.vyi`` (or ``an_interface.json`` if using ABI json interface type) and ensures your current contract implements all the necessary external functions. If any interface functions are not included in the contract, it will fail to compile. This is especially useful when developing contracts around well-defined standards such as ERC20.
+This imports the defined interface from the vyper file at ``an_interface.vyi`` (or ``an_interface.json`` if using ABI json interface type) and ensures your current contract implements all the necessary external functions. If any interface functions are not included in the contract, it will fail to compile. This is especially useful when developing contracts around well-defined standards such as ERC20. When checking compatibility, ``payable`` and ``nonpayable`` are treated as equivalent.
 
 Multiple ``implements`` statements can be grouped into one:
 

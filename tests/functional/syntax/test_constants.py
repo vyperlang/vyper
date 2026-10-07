@@ -255,7 +255,6 @@ def test():
 MIN_DEPOSIT: constant(uint256) = 1  # ETH
 MAX_DEPOSIT: constant(decimal) = 32.0  # ETH
 
-@payable
 @external
 def deposit(deposit_input: Bytes[2048]):
     assert msg.value >= as_wei_value(MIN_DEPOSIT, "ether")

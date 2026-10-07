@@ -80,7 +80,6 @@ There are no other restrictions on abstract methods, they can have any signature
     def name() -> String[10]:
         ...
 
-    @payable
     @nonreentrant
     @abstract
     def foo(bar: DynArray[Bytes[20], 10]) -> DynArray[String[15], 38]:
