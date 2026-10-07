@@ -266,6 +266,13 @@ def f():
         """,
         InterfaceViolation,
     ),
+    (
+        """
+interface Foo:
+    def bar(self: uint256): nonpayable
+        """,
+        ArgumentException,
+    ),
 ]
 
 
@@ -525,6 +532,25 @@ from ethereum.ercs import {erc}
     assert e.value._message == f"ethereum.ercs.{erc}"
     assert e.value._hint == f"try renaming `{erc}` to `I{erc}`"
     assert "code.vy:" in str(e.value)
+
+
+def test_interface_self_param_vyi(make_input_bundle):
+    interface_code = """
+def bar(self: uint256): ...
+"""
+    input_bundle = make_input_bundle({"foo.vyi": interface_code})
+
+    code = """
+import foo as Foo
+
+@external
+def baz():
+    pass
+"""
+    with pytest.raises(ArgumentException) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+
+    assert e.value.message == "Cannot use 'self' as a variable name in a function input"
 
 
 def test_interface_body_check(make_input_bundle):
