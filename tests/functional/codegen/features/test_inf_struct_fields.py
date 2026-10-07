@@ -25,11 +25,7 @@ LENGTHS = [0, 1, 3, 40]
 
 @pytest.mark.parametrize("n", LENGTHS)
 def test_struct_inf_field_echo(get_contract, n):
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 @external
 def echo(b: Batch) -> Batch:
     return b
@@ -45,11 +41,7 @@ def echo(b: Batch) -> Batch:
 def test_struct_inf_field_len(get_contract, n):
     # the member is a pointer cell; a lowering that read the cell as the value
     # would return the payload address here instead of the length
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 @external
 def size(b: Batch) -> uint256:
     return len(b.values)
@@ -61,11 +53,7 @@ def size(b: Batch) -> uint256:
 
 @pytest.mark.parametrize("n", LENGTHS)
 def test_struct_inf_field_iterate(get_contract, n):
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 @external
 def total(b: Batch) -> uint256:
     acc: uint256 = 0
@@ -80,11 +68,7 @@ def total(b: Batch) -> uint256:
 
 
 def test_struct_inf_field_index(get_contract):
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 @external
 def at(b: Batch, i: uint256) -> uint256:
     return b.values[i]
@@ -176,11 +160,7 @@ def echo(n: Named) -> Named:
 
 
 def test_nested_struct_inf_member(get_contract):
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 struct Outer:
     tag: uint256
     batch: Batch
@@ -201,11 +181,7 @@ def size(o: Outer) -> uint256:
 
 
 def test_internal_call_with_inf_struct_arg(get_contract):
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 @internal
 def _total(b: Batch) -> uint256:
     acc: uint256 = 0
@@ -223,11 +199,7 @@ def total(b: Batch) -> uint256:
 
 
 def test_internal_call_returning_inf_struct(get_contract):
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 @internal
 def _pass(b: Batch) -> Batch:
     return b
@@ -243,11 +215,7 @@ def echo(b: Batch) -> Batch:
 
 
 def test_local_copy_of_inf_struct(get_contract):
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 @external
 def echo(b: Batch) -> Batch:
     copy: Batch = b
@@ -260,11 +228,7 @@ def echo(b: Batch) -> Batch:
 
 
 def test_struct_constructor_with_inf_field(get_contract):
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 @external
 def build(owner: address, values: DynArray[uint256, INF]) -> Batch:
     return Batch(owner=owner, values=values)
@@ -279,11 +243,7 @@ def test_struct_constructor_source_is_copied(get_contract):
     # the struct owns its members, so appending to the initializer afterwards
     # must not be visible through the struct, including when the append has
     # room to write into the buffer the initializer already holds
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 @external
 def build() -> Batch:
     src: DynArray[uint256, INF] = [1, 2, 3]
@@ -301,11 +261,7 @@ def build() -> Batch:
 
 
 def test_dynarray_of_structs_with_inf_field(get_contract):
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 @external
 def count(bs: DynArray[Batch, INF]) -> uint256:
     return len(bs)
@@ -335,11 +291,7 @@ def owner(bs: DynArray[Batch, INF], i: uint256) -> address:
 
 
 def test_bounded_dynarray_of_structs_with_inf_field(get_contract):
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 @external
 def size(bs: DynArray[Batch, 4], i: uint256) -> uint256:
     return len(bs[i].values)
@@ -356,11 +308,7 @@ def size(bs: DynArray[Batch, 4], i: uint256) -> uint256:
 def test_abi_roundtrip_matches_eth_abi(get_contract, env, n):
     # the struct's external ABI is the plain tuple, unchanged by the
     # pointer-cell memory representation
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 @external
 def echo(b: Batch) -> Batch:
     return b
@@ -386,11 +334,7 @@ def echo(b: Batch) -> Batch:
 
 
 def test_for_over_dynarray_of_structs(get_contract):
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 @external
 def total(bs: DynArray[Batch, INF]) -> uint256:
     acc: uint256 = 0
@@ -406,11 +350,7 @@ def total(bs: DynArray[Batch, INF]) -> uint256:
 
 
 def test_struct_reassignment(get_contract):
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 @external
 def pick(b: Batch, c: Batch) -> Batch:
     d: Batch = b
@@ -425,11 +365,7 @@ def pick(b: Batch, c: Batch) -> Batch:
 
 
 def test_struct_ternary(get_contract):
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 @external
 def pick(b: Batch, c: Batch, take_first: bool) -> uint256:
     d: Batch = b if take_first else c
@@ -444,11 +380,7 @@ def pick(b: Batch, c: Batch, take_first: bool) -> uint256:
 
 
 def test_constructor_arg_with_inf_struct_field(get_contract, env):
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 count: public(uint256)
 first: public(uint256)
 owner: public(address)
@@ -470,11 +402,7 @@ def __init__(b: Batch):
 def test_oversized_member_length_reverts(get_contract, env, tx_failed):
     # the member has no length cap of its own, so the decoder has to bound the
     # claimed length by the readable calldata instead of expanding memory for it
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 @external
 def size(b: Batch) -> uint256:
     return len(b.values)
@@ -494,11 +422,7 @@ def size(b: Batch) -> uint256:
 
 
 def test_internal_call_with_list_literal_of_inf_structs(get_contract):
-    code = """
-struct Batch:
-    owner: address
-    values: DynArray[uint256, INF]
-
+    code = BATCH + """
 @internal
 def _total(bs: DynArray[Batch, 3]) -> uint256:
     acc: uint256 = len(bs) * 1000
