@@ -51,7 +51,9 @@ def type_from_abi(abi_type: dict) -> VyperType:
         except ValueError:
             raise UnknownType(f"ABI type has an invalid length: {type_string}") from None
         try:
-            value_type = type_from_abi({"type": value_type_string})
+            # Preserve metadata which qualifies the base ABI carrier type. In
+            # particular, `internalType` distinguishes decimal from int168.
+            value_type = type_from_abi({**abi_type, "type": value_type_string})
         except UnknownType:
             raise UnknownType(f"ABI contains unknown type: {type_string}") from None
         try:
