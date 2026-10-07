@@ -266,6 +266,16 @@ def f():
         """,
         InterfaceViolation,
     ),
+    (
+        """
+from ethereum.ercs import IERC20
+
+@external
+def test(a: address):
+    x: IERC20 = a  # Should not narrow
+        """,
+        TypeMismatch,
+    ),
 ]
 
 
