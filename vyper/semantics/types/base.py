@@ -84,7 +84,7 @@ class VyperType:
     _view_builtin_members: Tuple, optional
         Builtin members which display the same data in a different type.
         For example an interface member `foo` is internally just an address,
-        so `foo.address`has the same data (and therefore shares properties such as modifiability).
+        so `foo.address` has the same data (and therefore shares properties such as modifiability).
     """
 
     typeclass: str = None  # type: ignore

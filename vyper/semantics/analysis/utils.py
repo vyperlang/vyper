@@ -145,7 +145,7 @@ class _ExprAnalyser:
                 return ExprInfo.from_moduleinfo(t, attr=attr)
 
             if info.typ._builtin_members and attr in info.typ._builtin_members:
-                # a built-in members is not writable, and has the same constancy as its base:
+                # a built-in member is not writable, and has the same constancy as its base:
                 # foo: constant(Foo) = Foo(<addr>)
                 # x: constant(address) = foo.address
 
