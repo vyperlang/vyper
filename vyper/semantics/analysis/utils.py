@@ -164,6 +164,12 @@ class _ExprAnalyser:
                     writability=Modifiability.READ_ONLY,
                 )
 
+            if getattr(t, "_is_callable", False):
+                # function members can only be called, never assigned to
+                return ExprInfo(
+                    t, attr=attr, constancy=info.constancy, writability=Modifiability.READ_ONLY
+                )
+
             return info.copy_with_type(t, attr=attr)
 
         # If it's a Subscript, propagate the subscriptable varinfo

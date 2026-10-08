@@ -516,6 +516,58 @@ def g():
     assert e.value.message == "Read-only expression cannot be mutated."
 
 
+def test_invalid_assign_to_iface_function(get_contract):
+    code = """
+interface IFoo:
+    def foo() -> uint256: view
+
+f: IFoo
+g: IFoo
+
+@external
+def h():
+    self.f.foo = self.g.foo
+"""
+    with pytest.raises(ImmutableViolation) as e:
+        get_contract(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
+
+
+def test_invalid_assign_to_internal_function(get_contract):
+    code = """
+@internal
+def a():
+    pass
+
+@internal
+def b():
+    pass
+
+@external
+def h():
+    self.a = self.b
+"""
+    with pytest.raises(ImmutableViolation) as e:
+        get_contract(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
+
+
+def test_invalid_assign_to_member_function(get_contract):
+    code = """
+arr: DynArray[uint256, 3]
+
+@external
+def h():
+    self.arr.append = self.arr.append
+"""
+    with pytest.raises(ImmutableViolation) as e:
+        get_contract(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
+
+
 def test_read_addr_balance_still_works(get_contract):
     code = """
 addr: address
