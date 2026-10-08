@@ -1658,7 +1658,7 @@ class RawCreate(_CreateBase):
         if is_bounded_length(bytecode_type.length) and bytecode_type.length > EIP_3860_LIMIT:
             raise TypeMismatch(f"initcode length cannot exceed {EIP_3860_LIMIT}", node.args[0])
         ctor_arg_types = [get_exact_type_from_node(arg).resolve_wildcard() for arg in node.args[1:]]
-        for arg, arg_t in zip(node.args[1:], ctor_arg_types):
+        for arg, arg_t in zip(node.args[1:], ctor_arg_types, strict=True):
             if not is_runtime_sizable_type(arg_t):
                 raise StructureException(
                     f"Unsupported unbounded sequence nesting in constructor argument type: {arg_t}",
@@ -1843,7 +1843,7 @@ class CreateFromBlueprint(_CreateBase):
         if raw_args and not (len(ctor_arg_types) == 1 and isinstance(ctor_arg_types[0], BytesT)):
             raise StructureException("raw_args must be used with exactly 1 bytes argument", node)
 
-        for arg, arg_t in zip(node.args[1:], ctor_arg_types):
+        for arg, arg_t in zip(node.args[1:], ctor_arg_types, strict=True):
             if not is_runtime_sizable_type(arg_t):
                 raise StructureException(
                     f"Unsupported unbounded sequence nesting in constructor argument type: {arg_t}",
@@ -2368,7 +2368,7 @@ class ABIEncode(BuiltinFunctionT):
             arg_abi_t = ABI_Tuple(arg_abi_types)
 
         if any(type_contains_unbounded_sequence(t) for t in arg_types):
-            for arg, arg_t in zip(node.args, arg_types):
+            for arg, arg_t in zip(node.args, arg_types, strict=True):
                 if not is_runtime_sizable_type(arg_t):
                     raise StructureException(
                         "Unsupported unbounded sequence nesting in abi_encode argument type: "
