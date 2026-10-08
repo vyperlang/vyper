@@ -68,16 +68,6 @@ class Modifiability(StringEnum):
     # is writeable/can result in arbitrary state or memory changes
     MODIFIABLE = enum.auto()
 
-    @classmethod
-    def from_state_mutability(cls, mutability: StateMutability):
-        if mutability == StateMutability.PURE:
-            return cls.CONSTANT
-        if mutability == StateMutability.VIEW:
-            return cls.RUNTIME_CONSTANT
-        # sanity check in case more StateMutability levels are added in the future
-        assert mutability in (StateMutability.PAYABLE, StateMutability.NONPAYABLE)
-        return cls.MODIFIABLE
-
 
 @dataclass
 class VarOffset:
