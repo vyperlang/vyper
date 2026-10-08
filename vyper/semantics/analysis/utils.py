@@ -108,7 +108,7 @@ class _ExprAnalyser:
     def __init__(self):
         self.namespace = get_namespace()
 
-    def get_expr_info(self, node: vy_ast.VyperNode, is_callable: bool = False) -> ExprInfo:
+    def get_expr_info(self, node: vy_ast.ExprNode, is_callable: bool = False) -> ExprInfo:
         t = self.get_exact_type_from_node(node, include_type_exprs=is_callable)
 
         # if it's a Name, we have varinfo for it
@@ -186,13 +186,8 @@ class _ExprAnalyser:
 
         # any other expression (e.g. a call, a ternary, a binop or a literal) is a
         # temporary value, so it can never be written to.
-        # note the constancy is left alone, since such an expression can still
-        # be constant (cf. `get_constancy`)
-
-        if isinstance(node, (vy_ast.Call, vy_ast.ExtCall, vy_ast.StaticCall)):
-            return ExprInfo(t, constancy=get_constancy(node), writability=Modifiability.READ_ONLY)
-
-        return ExprInfo(t, writability=Modifiability.READ_ONLY)
+        # it can however still be constant (cf. `get_constancy`)
+        return ExprInfo(t, constancy=get_constancy(node), writability=Modifiability.READ_ONLY)
 
     def get_exact_type_from_node(self, node, include_type_exprs=False):
         """

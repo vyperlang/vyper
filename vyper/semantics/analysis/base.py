@@ -303,15 +303,16 @@ class ExprInfo:
     """
 
     typ: VyperType
-    var_info: Optional[VarInfo] = None
-    module_info: Optional[ModuleInfo] = None
-    location: DataLocation = DataLocation.UNSET
 
     # how constant an expression is.
     # this determines where it can be used (e.g. pure functions),
     # and what it can be assigned to
     # for example `a[i]` is only a compile-time constant if both `a` and `i` are
-    constancy: Modifiability = Modifiability.MODIFIABLE
+    constancy: Modifiability
+
+    var_info: Optional[VarInfo] = None
+    module_info: Optional[ModuleInfo] = None
+    location: DataLocation = DataLocation.UNSET
 
     # the minimum constancy required to write to this expression.
     # usually the same as constancy (see `__post_init__`), but not always:
