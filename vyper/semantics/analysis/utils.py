@@ -540,20 +540,16 @@ def get_constancy(node: vy_ast.ExprNode) -> Modifiability:
 
     if isinstance(
         node,
-        (
-            vy_ast.BinOp,
-            vy_ast.Compare,
-            vy_ast.BoolOp,
-            vy_ast.UnaryOp,
-            vy_ast.IfExp,
-            vy_ast.List,
-            vy_ast.Tuple,
-        ),
+        (vy_ast.BinOp, vy_ast.Compare, vy_ast.BoolOp, vy_ast.UnaryOp, vy_ast.List, vy_ast.Tuple),
     ):
         # the expression is only as constant as its least constant part.
         # note an empty list or tuple is a compile-time constant
         operands = node.get_children(vy_ast.ExprNode)
         return max((get_constancy(i) for i in operands), default=Modifiability.CONSTANT)
+
+    if isinstance(node, vy_ast.IfExp):
+        # TODO: Move this with the above once constant-folding for ternaries is implemented
+        return Modifiability.READ_ONLY
 
     if isinstance(node, (vy_ast.ExtCall, vy_ast.StaticCall)):
         # an external call can never be constant

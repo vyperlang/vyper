@@ -211,6 +211,33 @@ def test_constants_fail(bad_code):
             compiler.compile_code(bad_code)
 
 
+@pytest.mark.xfail(raises=StateAccessViolation)
+def test_constant_ternary_index():
+    # TODO: Fix this regression (works on current master: 95fe091b2d654184a6427bfe8732ac223a885e6f)
+    # Due to master ignoring index entirely (see also GH #5275)
+    code = """
+A: constant(bool) = True
+L: constant(uint256[2]) = [1, 2]
+B: constant(uint256) = L[0 if A else 1]
+
+@external
+def f() -> uint256:
+    return B
+    """
+    assert compiler.compile_code(code) is not None
+
+
+def test_constant_ternary_not_constant():
+    code = """
+A: constant(bool) = True
+S: constant(String[8]) = "foo" if A else "bar"
+    """
+    with raises(StateAccessViolation) as e:
+        compiler.compile_code(code)
+
+    assert e.value.message == "Value must be a literal"
+
+
 def test_constant_address_member_not_constant():
     code = """
 FOO: constant(address) = 0x1234567890123456789012345678901234567890
