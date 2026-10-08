@@ -657,6 +657,8 @@ constructor argument. The member of a struct held in a local variable (or an
 internal function argument) can be assigned, indexed, appended to and popped
 from, also through nested struct members.
 
+.. TODO: Support mutation of unbounded members through array elements.
+
 Writing an unbounded member of an array element, or anything inside it, is
 rejected; other members, including a whole nested struct, and whole elements
 can be assigned. Copy the element to a local variable, modify it, then store
@@ -680,6 +682,9 @@ sequence. It may not be returned inside a tuple. A ``DynArray`` of such structs,
 and a struct containing one, work everywhere the struct does, including as the
 return value of an internal function, with one exception: the array cannot itself be a ``DynArray``
 element (``DynArray[DynArray[Batch, 3], 2]`` is rejected).
+
+.. TODO: Support nested DynArray types whose innermost elements are structs
+   with unbounded members.
 
 .. note::
     ``INF`` sequence types require ``#pragma experimental-codegen`` or compiling
