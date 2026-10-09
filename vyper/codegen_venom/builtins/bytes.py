@@ -56,13 +56,17 @@ def _lower_concat_bounded(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperV
     b = ctx.builder
     args = node.args
 
-    # Calculate max output length (for buffer allocation)
+    # Calculate max output length and the furthest data byte any store can
+    # reach: bytesM args are written with full-word mstores, which can extend
+    # up to 31 bytes past ceil32(max_len)
     max_len = 0
+    data_bound = 0
     for arg in args:
         arg_t = arg._metadata["type"]
         if isinstance(arg_t, _BytestringT):
             max_len += arg_t.maxlen
         else:  # BytesM_T
+            data_bound = max(data_bound, max_len + 32)
             max_len += arg_t.m
 
     # Determine output type (string or bytes)
@@ -73,8 +77,9 @@ def _lower_concat_bounded(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperV
     else:
         out_typ = BytesT(max_len)
 
-    # Allocate output buffer (length word + data)
-    out_val = ctx.new_temporary_value(out_typ)
+    bufsize = max(out_typ.memory_bytes_required, 32 + data_bound)
+    out_buf = ctx.allocate_buffer(bufsize)
+    out_val = VyperValue.from_ptr(out_buf.base_ptr(), out_typ)
     data_ptr = ctx.add_offset(out_val.ptr(), IRLiteral(32))
 
     # Track current offset as a variable
