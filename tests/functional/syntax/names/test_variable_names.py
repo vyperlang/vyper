@@ -2,50 +2,33 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import ImmutableViolation, NamespaceCollision, StructureException
+from vyper.exceptions import NamespaceCollision, StructureException
 
 fail_list = [  # noqa: E122
-    (
-        """
+    """
 @external
 def foo(i: int128) -> int128:
     varő : int128 = i
     return varő
     """,
-        StructureException,
-    ),
-    (
-        """
+    """
 @external
 def foo(i: int128) -> int128:
     wei : int128 = i
     return wei
     """,
-        StructureException,
-    ),
-    (
-        """
+    """
 @external
 def foo(i: int128) -> int128:
     false : int128 = i
     return false
     """,
-        StructureException,
-    ),
-    (
-        """
-@external
-def foo():
-    convert = convert # builtin !
-    """,
-        ImmutableViolation,
-    ),
 ]
 
 
-@pytest.mark.parametrize("bad_code,expected_exception", fail_list)
-def test_varname_validity_fail(bad_code, expected_exception):
-    with raises(expected_exception):
+@pytest.mark.parametrize("bad_code", fail_list)
+def test_varname_validity_fail(bad_code):
+    with raises(StructureException):
         compiler.compile_code(bad_code)
 
 

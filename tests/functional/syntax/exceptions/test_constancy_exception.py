@@ -194,3 +194,185 @@ def foo(f: Foo) -> Foo:
 def test_immutability_violations(bad_code):
     with raises(ImmutableViolation):
         compiler.compile_code(bad_code)
+
+
+def test_invalid_assign_to_call_return():
+    code = """
+@internal
+def g() -> uint256[3]:
+    return [1, 2, 3]
+
+@external
+def f():
+    self.g()[0] = 5
+"""
+    with raises(ImmutableViolation) as e:
+        compiler.compile_code(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
+
+
+def test_invalid_assign_to_constant_with_runtime_index():
+    code = """
+A: constant(uint256[3]) = [1, 2, 3]
+
+@external
+def f(i: uint256):
+    j: uint256 = i
+    A[j] = 5
+"""
+    with raises(ImmutableViolation) as e:
+        compiler.compile_code(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
+
+
+def test_invalid_assign_to_call_return_with_runtime_index():
+    code = """
+@internal
+def g() -> uint256[3]:
+    return [1, 2, 3]
+
+@external
+def f(i: uint256):
+    j: uint256 = i
+    self.g()[j] = 5
+"""
+    with raises(ImmutableViolation) as e:
+        compiler.compile_code(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
+
+
+def test_invalid_assign_to_ternary():
+    code = """
+a: uint256[3]
+b: uint256[3]
+
+@external
+def f():
+    (self.a if True else self.b)[0] = 1
+"""
+    with raises(ImmutableViolation) as e:
+        compiler.compile_code(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
+
+
+def test_invalid_assign_to_self():
+    code = """
+@external
+def f():
+    self = 1
+"""
+    with raises(ImmutableViolation) as e:
+        compiler.compile_code(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
+
+
+def test_invalid_assign_to_self_balance():
+    code = """
+@external
+def f():
+    self.balance = 100
+"""
+    with raises(ImmutableViolation) as e:
+        compiler.compile_code(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
+
+
+def test_invalid_assign_to_storage_addr_balance():
+    code = """
+addr: address
+
+@external
+def f():
+    self.addr.balance = 1
+"""
+    with raises(ImmutableViolation) as e:
+        compiler.compile_code(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
+
+
+def test_invalid_assign_to_iface_address():
+    code = """
+interface IFoo:
+    def foo() -> uint256: nonpayable
+
+f: IFoo
+
+@external
+def g():
+    self.f.address = empty(address)
+"""
+    with raises(ImmutableViolation) as e:
+        compiler.compile_code(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
+
+
+def test_invalid_assign_to_iface_function():
+    code = """
+interface IFoo:
+    def foo() -> uint256: view
+
+f: IFoo
+g: IFoo
+
+@external
+def h():
+    self.f.foo = self.g.foo
+"""
+    with raises(ImmutableViolation) as e:
+        compiler.compile_code(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
+
+
+def test_invalid_assign_to_internal_function():
+    code = """
+@internal
+def a():
+    pass
+
+@internal
+def b():
+    pass
+
+@external
+def h():
+    self.a = self.b
+"""
+    with raises(ImmutableViolation) as e:
+        compiler.compile_code(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
+
+
+def test_invalid_assign_to_member_function():
+    code = """
+arr: DynArray[uint256, 3]
+
+@external
+def h():
+    self.arr.append = self.arr.append
+"""
+    with raises(ImmutableViolation) as e:
+        compiler.compile_code(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
+
+
+def test_invalid_assign_to_builtin_function():
+    code = """
+@external
+def foo():
+    convert = convert
+"""
+    with raises(ImmutableViolation) as e:
+        compiler.compile_code(code)
+
+    assert e.value.message == "Read-only expression cannot be mutated."
