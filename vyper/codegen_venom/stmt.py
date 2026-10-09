@@ -1476,6 +1476,7 @@ class Stmt:
             return
 
         if type_contains_unbounded_sequence(encode_typ):
+            assert isinstance(encode_typ, TupleT)
             assert isinstance(ret_val, IRVariable)
             self._emit_external_runtime_sized_return(ret_val, ret_typ, encode_typ)
             return
