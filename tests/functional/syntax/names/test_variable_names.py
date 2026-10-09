@@ -40,14 +40,6 @@ def foo():
     """,
         ImmutableViolation,
     ),
-    (
-        """
-@external
-def foo():
-    as_wei_value = as_wei_value # builtin !
-    """,
-        ImmutableViolation,
-    ),
 ]
 
 

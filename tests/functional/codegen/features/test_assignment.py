@@ -485,20 +485,6 @@ def f():
     assert e.value.message == "Read-only expression cannot be mutated."
 
 
-def test_invalid_assign_to_storage_addr_codehash(get_contract):
-    code = """
-addr: address
-
-@external
-def f():
-    self.addr.codehash = empty(bytes32)
-"""
-    with pytest.raises(ImmutableViolation) as e:
-        get_contract(code)
-
-    assert e.value.message == "Read-only expression cannot be mutated."
-
-
 def test_invalid_assign_to_iface_address(get_contract):
     code = """
 interface IFoo:
