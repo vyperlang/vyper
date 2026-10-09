@@ -1,7 +1,10 @@
+import warnings
+
 import pytest
 
 from vyper import compiler
 from vyper.exceptions import ModuleNotFound, StructureException
+from vyper.warnings import VyperWarning
 
 CODE_TOP = """
 import subdir0.lib0 as lib0
@@ -194,3 +197,25 @@ def bar():
 
     input_bundle = make_input_bundle({"top.vy": top, "a.vy": a, "subdir/b.vy": b})
     compiler.compile_from_file_input(top, input_bundle=input_bundle)
+
+
+@pytest.mark.parametrize("used,ignored", [(".vy", ".vyi"), (".vy", ".json"), (".vyi", ".json")])
+def test_import_warns_about_ignored_file(make_input_bundle, used, ignored):
+    top = """
+import lib1
+    """
+    input_bundle = make_input_bundle({f"lib1{used}": "", f"lib1{ignored}": "[]"})
+
+    with pytest.warns(VyperWarning, match=rf"ignoring `.*lib1\{ignored}`"):
+        compiler.compile_code(top, input_bundle=input_bundle)
+
+
+def test_import_does_not_warn_for_other_suffixes(make_input_bundle):
+    top = """
+import lib1
+    """
+    input_bundle = make_input_bundle({"lib1.vy": "", "lib1.txt": ""})
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", VyperWarning)
+        compiler.compile_code(top, input_bundle=input_bundle)

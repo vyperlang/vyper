@@ -26,6 +26,7 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.base import ImportInfo
 from vyper.utils import OrderedSet, safe_relpath, sha256sum
+from vyper.warnings import vyper_warn
 
 """
 collect import statements and validate the import graph.
@@ -189,6 +190,7 @@ class ImportAnalyzer:
 
             # Set on alias_node for more precise error messages
             compiler_input, ast = self._load_import(level, qualified_module_name)
+            self._warn_ignored_files(level, qualified_module_name, compiler_input, alias_node)
             # check resolved path (catches different relative paths to same file)
             self._check_duplicate_import(compiler_input, alias_node, alias)
             self._compiler_inputs[compiler_input] = ast
@@ -208,6 +210,23 @@ class ImportAnalyzer:
             previous_import_stmt = self.graph.imported_modules[resolved]
             raise DuplicateImport(f"{alias} imported more than once!", previous_import_stmt, node)
         self.graph.imported_modules[resolved] = node
+
+    def _warn_ignored_files(
+        self, level: int, module_str: str, file: CompilerInput, node: vy_ast.VyperNode
+    ) -> None:
+        # `_load_import()` takes the first of `.vy`, `.vyi` and `.json` that
+        # exists, so a file with one of the later suffixes is silently ignored.
+        if file.from_builtin:
+            return
+        suffixes = [".vy", ".vyi", ".json"]
+        path = _import_to_path(level, module_str)
+        for suffix in suffixes[suffixes.index(PurePath(file.path).suffix) + 1 :]:
+            try:
+                other = self._load_file(path.with_suffix(suffix), level)
+            except FileNotFoundError:
+                continue
+            used, ignored = safe_relpath(file.resolved_path), safe_relpath(other.resolved_path)
+            vyper_warn(f"import `{module_str}` resolved to `{used}`, ignoring `{ignored}`", node)
 
     def _load_import(self, level: int, module_str: str) -> tuple[CompilerInput, Any]:
         if _is_builtin(level, module_str):
