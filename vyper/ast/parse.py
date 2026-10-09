@@ -188,7 +188,34 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
     @cached_property
     def source_lines(self):
-        return self._source_code.splitlines(keepends=True)
+        # Split the source the way CPython's tokenizer does: only "\n",
+        # "\r" and "\r\n" are line boundaries. str.splitlines() also splits
+        # on "\x0b", "\x0c", "\x85", U+2028 and U+2029, none of which start
+        # a new line for the python parser, so using it here desynchronises
+        # our line numbers (and every span derived from them) from the
+        # positions reported by the python AST whenever the source contains
+        # one of those characters.
+        lines = []
+        start = 0
+        i = 0
+        source = self._source_code
+        while i < len(source):
+            c = source[i]
+            if c == "\n":
+                i += 1
+                lines.append(source[start:i])
+                start = i
+            elif c == "\r":
+                i += 1
+                if i < len(source) and source[i] == "\n":
+                    i += 1
+                lines.append(source[start:i])
+                start = i
+            else:
+                i += 1
+        if start < len(source):
+            lines.append(source[start:])
+        return lines
 
     @cached_property
     def line_index(self):
@@ -199,6 +226,25 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
             ret[lineno + 1] = ofst
             ofst += len(line)
         return ret
+
+    def _char_index(self, lineno: int, byte_col_offset: int) -> int:
+        """
+        Convert a (lineno, col_offset) pair from the python AST into a
+        character index into `self._source_code`.
+
+        `col_offset` values (including the pre-parser's shift adjustments,
+        which are computed from tokenize positions) are UTF-8 *byte* offsets
+        within the line, while `line_index` and string slicing work in
+        characters. For lines containing non-ASCII characters the two
+        disagree, and slicing with the raw byte offset returns source text
+        that does not correspond to the node.
+        """
+        line_start = self.line_index[lineno]
+        if byte_col_offset == 0:
+            return line_start
+        line = self.source_lines[lineno - 1]
+        char_col_offset = len(line.encode("utf-8")[:byte_col_offset].decode("utf-8"))
+        return line_start + char_col_offset
 
     def generic_visit(self, node):
         """
@@ -223,7 +269,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
 
             if len(self.source_lines) > 0:
                 node.end_lineno = len(self.source_lines)
-                node.end_col_offset = len(self.source_lines[-1])
+                # col offsets are utf-8 byte offsets (see `_char_index`)
+                node.end_col_offset = len(self.source_lines[-1].encode("utf-8"))
             else:
                 node.end_lineno = 1
                 node.end_col_offset = 0
@@ -259,8 +306,8 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
         self.counter += 1
         node.ast_type = node.__class__.__name__
 
-        start_index = self.line_index[node.lineno] + node.col_offset
-        end_index = self.line_index[node.end_lineno] + node.end_col_offset
+        start_index = self._char_index(node.lineno, node.col_offset)
+        end_index = self._char_index(node.end_lineno, node.end_col_offset)
 
         node.src = f"{start_index}:{end_index-start_index}:{self._source_id}"
         node.node_source_code = self._source_code[start_index:end_index]
