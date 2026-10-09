@@ -46,7 +46,10 @@ from .buffer import Ptr
 from .builtins.simple import get_empty_type
 from .calling_convention import returns_dynamic_count, returns_stack_count, uses_packed_return
 from .context import LocalVariable, VenomCodegenContext, same_memory_layout
-from .eval_order import later_expressions_can_mutate_memory_or_storage
+from .eval_order import (
+    expression_can_mutate_memory_or_storage,
+    later_expressions_can_mutate_memory_or_storage,
+)
 from .expr import Expr, get_referenced_variables, is_unbounded_struct_member
 from .packed_return import pack_value_with_payloads
 from .value import VyperValue
@@ -190,10 +193,13 @@ class Stmt:
         # like `c[0] = c.pop()` where RHS modifies array length.
         src = Expr(node.value, self.ctx).lower()
         through_payload = src.reference is not None and src.reference.anchor is not None
-        if through_payload or type_contains_unbounded_sequence(src.typ):
-            # a source that holds or is read through an unbounded member is
-            # copied before the target is evaluated, which may pop from it or
-            # move its payloads
+        if (
+            through_payload
+            or type_contains_unbounded_sequence(src.typ)
+            or expression_can_mutate_memory_or_storage(target)
+        ):
+            # Preserve the source before target evaluation can mutate it.
+            # Unbounded values also need protection against payload moves.
             src = self.ctx.snapshot_value_for_delayed_use(src, copy_composites=True)
         dst_ptr = self._get_target_ptr(target)
         self._assign_value(dst_ptr, src, target_typ, src_node=node.value)

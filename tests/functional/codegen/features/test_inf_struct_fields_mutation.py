@@ -1205,13 +1205,15 @@ def f() -> uint256:{POPPED_HOLDER_READS[case]}
 WHOLE_SOURCES = {"local": "b", "nested": "w.inner", "ternary": "b if flag else c"}
 
 
+@pytest.mark.parametrize("bound", ["5", "INF"])
 @pytest.mark.parametrize("source", list(WHOLE_SOURCES))
-def test_whole_struct_source_copied_before_index_pops(get_contract, source):
+def test_whole_struct_source_copied_before_index_pops(get_contract, source, bound):
     src = WHOLE_SOURCES[source]
     popped = src.split(" ")[0]
+    array_type = f"DynArray[uint256, {bound}]"
     code = f"""
 struct S:
-    xs: DynArray[uint256, INF]
+    xs: {array_type}
     n: uint256
 
 struct W:
@@ -1223,7 +1225,7 @@ def inspect(s: S) -> uint256:
     return 0
 
 @external
-def f(flag: bool) -> (DynArray[uint256, INF], DynArray[uint256, INF], DynArray[uint256, INF]):
+def f(flag: bool) -> ({array_type}, {array_type}, {array_type}):
     a: S = S(xs=[1, 2, 3], n=5)
     b: S = a
     c: S = S(xs=[9], n=0)
