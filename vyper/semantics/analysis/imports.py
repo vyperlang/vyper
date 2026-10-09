@@ -221,11 +221,12 @@ class ImportAnalyzer:
         suffixes = [".vy", ".vyi", ".json"]
         path = _import_to_path(level, module_str)
         for suffix in suffixes[suffixes.index(PurePath(file.path).suffix) + 1 :]:
-            try:
-                other = self._load_file(path.with_suffix(suffix), level)
-            except FileNotFoundError:
+            # only look for the file: reading it would take a source id, and
+            # a file the resolution never consulted must not fail the build
+            other = self._find_file(path.with_suffix(suffix), level)
+            if other is None:
                 continue
-            used, ignored = safe_relpath(file.resolved_path), safe_relpath(other.resolved_path)
+            used, ignored = safe_relpath(file.resolved_path), safe_relpath(other)
             vyper_warn(f"import `{module_str}` resolved to `{used}`, ignoring `{ignored}`", node)
 
     def _load_import(self, level: int, module_str: str) -> tuple[CompilerInput, Any]:
@@ -281,17 +282,19 @@ class ImportAnalyzer:
         search_paths = self.input_bundle.search_paths.copy()  # noqa: F841
         raise ModuleNotFound(module_str, hint=hint) from err
 
-    def _load_file(self, path: PathLike, level: int) -> CompilerInput:
-        ast = self.graph.current_module
-
-        search_paths: list[PathLike]  # help mypy
+    def _search_paths(self, level: int) -> list[PathLike]:
         if level != 0:  # relative import
-            search_paths = [Path(ast.resolved_path).parent]
-        else:
-            search_paths = self.absolute_search_paths
+            return [Path(self.graph.current_module.resolved_path).parent]
+        return self.absolute_search_paths
 
-        with self.input_bundle.temporary_search_paths(search_paths):
+    def _load_file(self, path: PathLike, level: int) -> CompilerInput:
+        with self.input_bundle.temporary_search_paths(self._search_paths(level)):
             return self.input_bundle.load_file(path)
+
+    # the resolved path `_load_file()` would load, without reading it
+    def _find_file(self, path: PathLike, level: int) -> Optional[PathLike]:
+        with self.input_bundle.temporary_search_paths(self._search_paths(level)):
+            return self.input_bundle.find_file(path)
 
     def _ast_from_file(self, file: FileInput) -> vy_ast.Module:
         # cache ast if we have seen it before.

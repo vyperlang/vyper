@@ -219,3 +219,30 @@ import lib1
     with warnings.catch_warnings():
         warnings.simplefilter("error", VyperWarning)
         compiler.compile_code(top, input_bundle=input_bundle)
+
+
+def test_ignored_file_is_not_read(make_input_bundle, tmp_path):
+    top = """
+import lib1
+    """
+    input_bundle = make_input_bundle({"lib1.vy": ""})
+    # not valid utf-8, so reading it would fail
+    (tmp_path / "lib1.vyi").write_bytes(b"\xff\xfe")
+
+    with pytest.warns(VyperWarning, match=r"ignoring `.*lib1\.vyi`"):
+        compiler.compile_code(top, input_bundle=input_bundle)
+
+    # the ignored file did not take a source id
+    assert all(path.name != "lib1.vyi" for path in input_bundle._source_ids)
+
+
+def test_import_ignores_directory_with_later_suffix(make_input_bundle, tmp_path):
+    top = """
+import lib1
+    """
+    input_bundle = make_input_bundle({"lib1.vy": ""})
+    (tmp_path / "lib1.json").mkdir()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", VyperWarning)
+        compiler.compile_code(top, input_bundle=input_bundle)
