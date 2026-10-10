@@ -3,9 +3,9 @@
 Structure of a Contract
 #######################
 
-Vyper contracts are contained within files. Each file contains exactly one contract.
+Each Vyper source file contains exactly one module.
 
-This section provides a quick overview of the types of data present within a contract, with links to other sections where you can obtain more details.
+This section provides a quick overview of the types of data present within a module, with links to other sections where you can obtain more details.
 
 .. _structure-versions:
 
@@ -36,12 +36,12 @@ The following declaration is equivalent, and, prior to 0.3.10, was the only supp
     # @version ^0.4.0
 
 
-In the above examples, the contract will only compile with Vyper versions ``0.4.x``.
+In the above examples, the module will only compile with Vyper versions ``0.4.x``.
 
 Optimization Mode
 -----------------
 
-The optimization mode can be one of ``"none"``, ``"codesize"``, or ``"gas"`` (default). For example, adding the following line to a contract will cause it to try to optimize for codesize:
+The optimization mode can be one of ``"none"``, ``"codesize"``, or ``"gas"`` (default). For example, adding the following line to a module will cause it to try to optimize for codesize:
 
 .. code-block:: vyper
 
@@ -95,7 +95,7 @@ Using ``from`` you can perform both absolute and relative imports. You may optio
     # with an alias
     from my_package import foo as bar
 
-Relative imports are possible by prepending dots to the contract name. A single leading dot indicates a relative import starting with the current package. Two leading dots indicate a relative import from the parent of the current package:
+Relative imports are possible by prepending dots to the module name. A single leading dot indicates a relative import starting with the current package. Two leading dots indicate a relative import from the parent of the current package:
 
 .. code-block:: vyper
 
@@ -109,7 +109,7 @@ Further higher directories can be accessed with ``...``, ``....`` etc., as in Py
 Searching For Imports
 -----------------------------
 
-When looking for a file to import, Vyper will first search relative to the same folder as the contract being compiled. It then checks for the file in the provided search paths, in the precedence provided. Vyper checks for the file name with a ``.vy`` suffix first, then ``.vyi``, then ``.json``.
+When looking for a file to import, Vyper will first search relative to the same folder as the module being compiled. It then checks for the file in the provided search paths, in the precedence provided. Vyper checks for the file name with a ``.vy`` suffix first, then ``.vyi``, then ``.json``.
 
 When using the :ref:`vyper CLI <vyper-cli-command>`, the search path defaults to the current working directory, plus the python `syspath <https://docs.python.org/3.11/library/sys.html#sys.path>`_. You can append to the search path with the ``-p`` flag, e.g.:
 
@@ -155,7 +155,7 @@ See the documentation on :ref:`Types<types>` or :ref:`Scoping and Declarations<s
 Functions
 =========
 
-Functions are executable units of code within a contract.
+Functions are executable units of code within a module.
 
 .. code-block:: vyper
 
@@ -185,7 +185,7 @@ Therefore, a module encapsulates
 * functionality (types and functions), and
 * state (variables), which may be tightly coupled with that functionality 
 
-Modules can be added to contracts by importing them from a ``.vy`` file. Any ``.vy`` file is a valid module which can be imported into another contract! This is a very powerful feature which allows you to assemble contracts via other contracts as building blocks.
+Modules can be imported from any ``.vy`` file. Any ``.vy`` file is a valid module which can be imported into another module. When the entry-point module is compiled and deployed, it becomes a contract.
 
 .. code-block:: vyper
 
@@ -238,7 +238,7 @@ Interfaces
 
 An interface is a set of function definitions used to enable calls between smart contracts. A contract interface defines all of that contract's externally available functions. By importing the interface, your contract now knows how to call these functions in other contracts.
 
-Interfaces can be added to contracts either through inline definition, or by importing them from a separate ``.vyi`` file.
+Interfaces can be added to a module either through inline definition, or by importing them from a separate ``.vyi`` file.
 
 .. code-block:: vyper
 
