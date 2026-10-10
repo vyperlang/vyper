@@ -1744,6 +1744,24 @@ def foo() -> DynArray[DynArray[DynArray[uint256, 3], 3], 3]:
         get_contract(code)
 
 
+def test_extend_popped_row(get_contract, tx_failed):
+    # `rows.pop()` shrinks `rows` while it is being used to derive the
+    # receiver `rows[1]`, detaching the row the receiver points at. extending
+    # a detached row must not silently succeed: both backends re-validate the
+    # receiver's index after the argument is evaluated and revert.
+    code = """
+@external
+def foo() -> DynArray[DynArray[uint256, 3], 3]:
+    rows: DynArray[DynArray[uint256, 3], 3] = [[1], [2]]
+    rows[1].extend(rows.pop())
+    return rows
+    """
+
+    c = get_contract(code)
+    with tx_failed():
+        c.foo()
+
+
 extend_complex_tests = [
     (
         """
