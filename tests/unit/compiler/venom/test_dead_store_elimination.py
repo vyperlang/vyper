@@ -1106,6 +1106,50 @@ def test_mstore_before_ret_is_not_dead():
     _check_no_change(pre, hevm=False)
 
 
+def test_sstore_before_ret_is_not_dead():
+    """Memory stores before ret (internal function return) are live because
+    the caller can observe memory after the function returns.
+    Regression test: DSE was eliminating the free memory pointer update
+    in alloc()-style functions, causing all allocations to alias."""
+    pre = """
+    _global:
+        %retpc = retpc_param
+        sstore 64, 1
+        ret %retpc, 1
+    """
+    _check_no_change(pre, hevm=False)
+
+
+def test_sstore_before_retfmp_is_not_dead():
+    """Memory stores before ret (internal function return) are live because
+    the caller can observe memory after the function returns.
+    Regression test: DSE was eliminating the free memory pointer update
+    in alloc()-style functions, causing all allocations to alias."""
+    pre = """
+    _global:
+        %retpc = retpc_param
+        %fmp = fmp_param
+        sstore 64, 1
+        retfmp %retpc, %fmp, 1
+    """
+    _check_no_change_generic(pre, STORAGE, hevm=False)
+
+
+def test_mstore_before_retfmp_is_not_dead():
+    """Memory stores before ret (internal function return) are live because
+    the caller can observe memory after the function returns.
+    Regression test: DSE was eliminating the free memory pointer update
+    in alloc()-style functions, causing all allocations to alias."""
+    pre = """
+    _global:
+        %retpc = retpc_param
+        %fmp = fmp_param
+        mstore 64, 1
+        retfmp %retpc, %fmp, 1
+    """
+    _check_no_change(pre, hevm=False)
+
+
 def test_mstore_before_ret_clobbered_is_dead():
     """A store before ret that is clobbered by a later store IS dead."""
     pre = """
@@ -1172,6 +1216,10 @@ _persistent_address_spaces = (STORAGE, TRANSIENT)
 
 def _check_pre_post_generic(pre, post, addr_space):
     VolatilePrePostChecker([DeadStoreElimination], addr_space=addr_space)(pre, post)
+
+
+def _check_no_change_generic(code, addr_space, hevm=False):
+    VolatilePrePostChecker([DeadStoreElimination], addr_space=addr_space)(code, code, hevm=hevm)
 
 
 @pytest.mark.parametrize("addr_space", _persistent_address_spaces)
