@@ -2085,7 +2085,7 @@ class Expr:
             # copy is a single runtime-sized mcopy
             data_size = self.builder.mul(src_len, IRLiteral(elem_size))
             self.ctx.copy_memory_dynamic(
-                dst_elem_base, src_data, data_size, self.ctx.data_size_bound(src_darray_typ)
+                dst_elem_base, src_data, data_size, self.ctx.data_size_bound(dst_darray_typ)
             )
         elif data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT):
             self.ctx.copy_dynarray_elements_to_storage(

@@ -1435,6 +1435,34 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[DynArray[uint256, 3], 3]:
     """,
         lambda xs: [[]],
     ),
+    # widening element type src (memory dst): the staging buffer re-lays
+    # the elements out at the dst stride (Bytes[2] -> Bytes[64] changes
+    # the stride from 64 to 96 bytes)
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[Bytes[64], 3]:
+    src: DynArray[Bytes[2], 2] = [b"a", b"b"]
+    dst: DynArray[Bytes[64], 3] = []
+    dst.extend(src)
+    return dst
+    """,
+        lambda xs: [b"a", b"b"],
+    ),
+    # widening element type src (storage dst)
+    (
+        """
+my_array: DynArray[Bytes[64], 3]
+
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[Bytes[64], 3]:
+    src: DynArray[Bytes[2], 2] = [b"c", b"d"]
+    self.my_array = []
+    self.my_array.extend(src)
+    return self.my_array
+    """,
+        lambda xs: [b"c", b"d"],
+    ),
     # nonempty list literal src
     (
         """
