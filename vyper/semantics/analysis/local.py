@@ -200,7 +200,7 @@ def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name, typ: VyperType) 
             )
         # allow type exprs in the value node, e.g. MyFlag.A
         parent_info = get_expr_info(node.value, is_callable=True)
-        if isinstance(parent_info.typ, AddressT) and node.attr in AddressT._type_members:
+        if isinstance(parent_info.typ, AddressT) and node.attr in AddressT._builtin_members:
             raise StateAccessViolation("not allowed to query address members in pure functions")
 
     if (varinfo := info.var_info) is None:
@@ -218,9 +218,9 @@ def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name, typ: VyperType) 
 
 
 # analyse the variable access for the attribute chain for a node
-# e.x. `x` will return varinfo for `x`
-# `module.foo` will return VarAccess for `module.foo`
-# `self.my_struct.x.y` will return VarAccess for `self.my_struct.x.y`
+# e.x. `x` will return `VarAccess(<x>, ())`
+# `module.foo` will return `VarAccess(<module.foo>, ())`
+# `self.my_struct.x.y` will return `VarAccess(<self.my_struct>, ('x', 'y'))`
 def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
     path: list[str | object] = []
     info = get_expr_info(node)
@@ -238,13 +238,9 @@ def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
         if (attr := info.attr) is not None:
             path.append(attr)
 
-        assert isinstance(node, (vy_ast.Subscript, vy_ast.Attribute))  # help mypy
         node = node.value
         info = get_expr_info(node)
 
-    # ignore `self.` as it interferes with VarAccess comparison across modules
-    if len(path) > 0 and path[-1] == "self":
-        path.pop()
     path.reverse()
 
     return VarAccess(info.var_info, tuple(path))
@@ -436,7 +432,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if self.func.is_internal:
             location, modifiability = (DataLocation.MEMORY, Modifiability.MODIFIABLE)
         else:
-            location, modifiability = (DataLocation.CALLDATA, Modifiability.RUNTIME_CONSTANT)
+            location, modifiability = (DataLocation.CALLDATA, Modifiability.READ_ONLY)
 
         for arg in self.func.arguments:
             self.namespace[arg.name] = VarInfo(
@@ -587,29 +583,27 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if info.location == DataLocation.CALLDATA:
             raise ImmutableViolation("Cannot write to calldata")
 
-        if info.modifiability == Modifiability.RUNTIME_CONSTANT:
-            if info.location == DataLocation.CODE:
-                if not func_t.is_constructor:
-                    raise ImmutableViolation("Immutable value cannot be written to")
+        if (
+            info.writability == Modifiability.RUNTIME_CONSTANT
+            and info.location == DataLocation.CODE
+        ):
+            if not func_t.is_constructor:
+                raise ImmutableViolation("Immutable value can only be mutated in the constructor")
 
-                # handle immutables
-                if info.var_info is not None:  # don't handle complex (struct,array) immutables
-                    # special handling for immutable variables in the ctor
-                    # TODO: maybe we want to remove this restriction.
-                    if info.var_info._modification_count != 0:
-                        raise ImmutableViolation(
-                            "Immutable value cannot be modified after assignment"
-                        )
-                    info.var_info._modification_count += 1
-            else:
-                raise ImmutableViolation("Environment variable cannot be written to")
+            # handle immutables
+            if info.var_info is not None:  # don't handle complex (struct,array) immutables
+                # special handling for immutable variables in the ctor
+                # TODO: maybe we want to remove this restriction.
+                if info.var_info._modification_count != 0:
+                    raise ImmutableViolation("Immutable value cannot be modified after assignment")
+                info.var_info._modification_count += 1
+        elif info.writability <= Modifiability.READ_ONLY:
+            raise ImmutableViolation("Read-only expression cannot be mutated.")
 
-        if info.modifiability == Modifiability.CONSTANT:
-            raise ImmutableViolation("Constant value cannot be written to.")
+        assert info.location != DataLocation.UNSET
 
         var_access = _get_variable_access(target)
-        if var_access is None:
-            raise ImmutableViolation("Cannot modify temporary value", target)
+        assert var_access is not None
 
         info._writes.add(var_access)
 
@@ -738,7 +732,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         return _get_variable_access(iter_val)
 
     # TODO: Implement a more standard "mutability of this expression" method and use it here
-    def _check_for_loop_modifiability(self, iter_node: vy_ast.VyperNode):
+    def _check_for_loop_mutability(self, iter_node: vy_ast.VyperNode):
         "Checks the expression X in `for something in X` does not modify state"
 
         args = None
@@ -780,9 +774,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         with self.namespace.enter_scope(), self.enter_for_loop(iter_var):
             target_name = node.target.target.id
-            # maybe we should introduce a new Modifiability: LOOP_VARIABLE
             self.namespace[target_name] = VarInfo(
-                target_type, modifiability=Modifiability.RUNTIME_CONSTANT, decl_node=node.target
+                target_type, modifiability=Modifiability.READ_ONLY, decl_node=node.target
             )
 
             self.expr_visitor.visit(node.target.target, target_type)
@@ -790,7 +783,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             for stmt in node.body:
                 self.visit(stmt)
 
-        self._check_for_loop_modifiability(node.iter)
+        self._check_for_loop_mutability(node.iter)
 
     def visit_If(self, node):
         self.expr_visitor.visit(node.test, BoolT())

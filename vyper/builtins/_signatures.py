@@ -8,7 +8,7 @@ from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic, TypeMismatch, UnfoldableNode
 from vyper.semantics.analysis.base import Modifiability, StateMutability
 from vyper.semantics.analysis.utils import (
-    check_modifiability,
+    get_constancy,
     get_exact_type_from_node,
     validate_expected_type,
 )
@@ -85,7 +85,7 @@ class BuiltinFunctionT(VyperType):
     _has_varargs = False
     _inputs: list[tuple[str, Any]] = []
     _kwargs: dict[str, KwargSettings] = {}
-    _modifiability: Modifiability = Modifiability.MODIFIABLE
+    _constancy: Modifiability = Modifiability.READ_ONLY
     _return_type: Optional[VyperType] = None
     _equality_attrs = ("_id",)
     _is_terminus = False
@@ -121,8 +121,9 @@ class BuiltinFunctionT(VyperType):
 
         for kwarg in node.keywords:
             kwarg_settings = self._kwargs[kwarg.arg]
-            if kwarg_settings.require_literal and not check_modifiability(
-                kwarg.value, Modifiability.CONSTANT
+            if (
+                kwarg_settings.require_literal
+                and get_constancy(kwarg.value) > Modifiability.CONSTANT
             ):
                 raise TypeMismatch("Value must be literal", kwarg.value)
             # `kwarg_settings.typ` is sometimes not a VyperType
@@ -138,9 +139,6 @@ class BuiltinFunctionT(VyperType):
             # call get_exact_type_from_node for its side effects -
             # ensures the type can be inferred exactly.
             get_exact_type_from_node(arg)
-
-    def check_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
-        return self._modifiability <= modifiability
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         self._validate_arg_types(node)

@@ -384,6 +384,37 @@ def foo(x: int128):
     assert_compile_failed(lambda: get_contract(code), ImmutableViolation)
 
 
+def test_read_addr_balance_still_works(get_contract):
+    code = """
+addr: address
+
+@external
+def f() -> uint256:
+    return self.addr.balance
+"""
+    c = get_contract(code)
+    assert c.f() == 0
+
+
+def test_assign_with_multi_type_index(get_contract):
+    # indices which do not resolve to a single type (like int literal
+    # ternaries) are valid write targets
+    code = """
+h: HashMap[uint256, uint256]
+
+@external
+def f(c: bool) -> (uint256[3], uint256):
+    x: uint256[3] = [1, 2, 3]
+    x[1 if c else 2] = 5
+    x[1 if c else 2] += 1
+    self.h[1 if c else 2] = 7
+    return x, self.h[1 if c else 2]
+"""
+    c = get_contract(code)
+    assert c.f(True) == ([1, 6, 3], 7)
+    assert c.f(False) == ([1, 2, 6], 7)
+
+
 def test_valid_literal_increment(get_contract):
     code = """
 storx: uint256

@@ -81,12 +81,17 @@ class VyperType:
         Whether or not this type can be attributed in a type
         annotation, like IFoo.SomeType. Currently limited to
         `InterfaceT`s.
+    _view_builtin_members: Tuple, optional
+        Builtin members which display the same data in a different type.
+        For example an interface member `foo` is internally just an address,
+        so `foo.address` has the same data (and therefore shares properties such as modifiability).
     """
 
     typeclass: str = None  # type: ignore
 
     _id: str  # rename to `_name`
-    _type_members: Optional[Dict] = None
+    _builtin_members: Optional[Dict] = None
+    _view_builtin_members: Tuple = ()
     _valid_literal: Tuple = ()
     _invalid_locations: Tuple = ()
     _is_prim_word: bool = False
@@ -109,8 +114,8 @@ class VyperType:
         self.members: Dict = {}
 
         # add members that are on the class instance.
-        if self._type_members is not None:
-            for k, v in self._type_members.items():
+        if self._builtin_members is not None:
+            for k, v in self._builtin_members.items():
                 # for builtin members like `contract.address` -- skip namespace
                 # validation, as it introduces a dependency cycle
                 self.add_member(k, v)
@@ -546,11 +551,6 @@ class TYPE_T(VyperType):
 
     def __repr__(self):
         return f"type({self.typedef})"
-
-    def check_modifiability_for_call(self, node, modifiability):
-        if hasattr(self.typedef, "_ctor_modifiability_for_call"):
-            return self.typedef._ctor_modifiability_for_call(node, modifiability)
-        raise StructureException("Value is not callable", node)
 
     # dispatch into ctor if it's called
     def fetch_call_return(self, node):

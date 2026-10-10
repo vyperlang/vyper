@@ -140,6 +140,25 @@ CONST_BAR: constant(Foo) = Foo(a=1, b=block.number)
     """,
         StateAccessViolation,
     ),
+    # non-constant index into a constant list, see GH issue 5275
+    (
+        """
+A: constant(uint256[2]) = [1, 2]
+B: constant(uint256) = A[block.number]
+    """,
+        StateAccessViolation,
+    ),
+    # non-constant index into a list member of a constant struct, see GH issue 5275
+    (
+        """
+struct S:
+    xs: uint256[2]
+
+A: constant(S) = S(xs=[1, 2])
+B: constant(uint256) = A.xs[block.number]
+    """,
+        StateAccessViolation,
+    ),
     # cannot assign function result to a constant
     (
         """
@@ -190,6 +209,46 @@ def test_constants_fail(bad_code):
     else:
         with raises(StructureException):
             compiler.compile_code(bad_code)
+
+
+@pytest.mark.xfail(raises=StateAccessViolation)
+def test_constant_ternary_index():
+    # TODO: Fix this regression (works on current master: 95fe091b2d654184a6427bfe8732ac223a885e6f)
+    # Due to master ignoring index entirely (see also GH #5275)
+    code = """
+A: constant(bool) = True
+L: constant(uint256[2]) = [1, 2]
+B: constant(uint256) = L[0 if A else 1]
+
+@external
+def f() -> uint256:
+    return B
+    """
+    assert compiler.compile_code(code) is not None
+
+
+def test_constant_ternary_not_constant():
+    code = """
+A: constant(bool) = True
+S: constant(String[8]) = "foo" if A else "bar"
+    """
+    with raises(StateAccessViolation) as e:
+        compiler.compile_code(code)
+
+    assert e.value.message == "Value must be a literal"
+
+
+def test_constant_address_member_not_constant():
+    code = """
+FOO: constant(address) = 0x1234567890123456789012345678901234567890
+
+B: constant(uint256) = FOO.balance
+    """
+    with raises(StateAccessViolation) as e:
+        compiler.compile_code(code)
+
+    # TODO: better error message
+    assert e.value.message == "Value must be a literal"
 
 
 valid_list = [
@@ -331,6 +390,20 @@ interface Foo:
 
 FOO: constant(Foo) = Foo(BAR)
 BAR: constant(address) = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF
+    """,
+    """
+interface Foo:
+    def foo(): nonpayable
+
+FOO: constant(Foo) = Foo(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF)
+BAR: constant(address) = FOO.address
+    """,
+    """
+interface Foo:
+    def foo(): nonpayable
+
+# the constructor is not named, but is still a compile-time constant
+BAR: constant(address) = Foo(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF).address
     """,
 ]
 

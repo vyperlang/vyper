@@ -61,18 +61,12 @@ class Modifiability(StringEnum):
     # could potentially add more fine-grained here as needed, like
     # CONSTANT_AFTER_DEPLOY, TX_CONSTANT, BLOCK_CONSTANT, etc.
 
+    # things that are not constant, but cannot be written to
+    # for example return values
+    READ_ONLY = enum.auto()
+
     # is writeable/can result in arbitrary state or memory changes
     MODIFIABLE = enum.auto()
-
-    @classmethod
-    def from_state_mutability(cls, mutability: StateMutability):
-        if mutability == StateMutability.PURE:
-            return cls.CONSTANT
-        if mutability == StateMutability.VIEW:
-            return cls.RUNTIME_CONSTANT
-        # sanity check in case more StateMutability levels are added in the future
-        assert mutability in (StateMutability.PAYABLE, StateMutability.NONPAYABLE)
-        return cls.MODIFIABLE
 
 
 @dataclass
@@ -234,6 +228,8 @@ class VarInfo:
     @property
     def is_constant(self):
         res = self.location == DataLocation.UNSET
+        # Note: This assert never raises, but is wrong in general:
+        # environment vars have an UNSET location but some are only RUNTIME_CONSTANT, e.g. block.
         assert res == (self.modifiability == Modifiability.CONSTANT)
         return res
 
@@ -297,20 +293,38 @@ class ExprInfo:
     """
 
     typ: VyperType
+
+    # how constant an expression is.
+    # this determines where it can be used (e.g. pure functions),
+    # and what it can be assigned to
+    # for example `a[i]` is only a compile-time constant if both `a` and `i` are
+    constancy: Modifiability
+
     var_info: Optional[VarInfo] = None
     module_info: Optional[ModuleInfo] = None
     location: DataLocation = DataLocation.UNSET
-    modifiability: Modifiability = Modifiability.MODIFIABLE
+
+    # the minimum constancy required to write to this expression.
+    # usually the same as constancy (see `__post_init__`), but not always:
+    # for example if `a` is an immutable, `a[i]` can be assigned in the constructor,
+    # even if `i` is not RUNTIME_CONSTANT, e.g. if it is a loop variable.
+    writability: Modifiability = None  # type: ignore[assignment]
+
     attr: Optional[str] = None
     _writes: OrderedSet[VarAccess] = field(default_factory=OrderedSet)
     _reads: OrderedSet[VarAccess] = field(default_factory=OrderedSet)
 
     def __post_init__(self):
-        should_match = ("typ", "location", "modifiability")
+        if self.writability is None:
+            self.writability = self.constancy
+
+        should_match = ("typ", "location")
         if self.var_info is not None:
             for attr in should_match:
                 if getattr(self.var_info, attr) != getattr(self, attr):
                     raise CompilerPanic(f"Bad analysis: non-matching {attr}: {self}")
+            # a variable's modifiability is both its constancy and its writability
+            assert self.var_info.modifiability == self.constancy == self.writability
 
     @classmethod
     def from_varinfo(cls, var_info: VarInfo, **kwargs) -> "ExprInfo":
@@ -318,25 +332,24 @@ class ExprInfo:
             var_info.typ,
             var_info=var_info,
             location=var_info.location,
-            modifiability=var_info.modifiability,
+            constancy=var_info.modifiability,
             **kwargs,
         )
 
     @classmethod
     def from_moduleinfo(cls, module_info: ModuleInfo, **kwargs) -> "ExprInfo":
-        modifiability = Modifiability.RUNTIME_CONSTANT
-        if module_info.ownership >= ModuleOwnership.USES:
-            modifiability = Modifiability.MODIFIABLE
-
         return cls(
-            module_info.module_t, module_info=module_info, modifiability=modifiability, **kwargs
+            module_info.module_t,
+            module_info=module_info,
+            constancy=Modifiability.CONSTANT,
+            **kwargs,
         )
 
     def copy_with_type(self, typ: VyperType, **kwargs) -> "ExprInfo":
         """
         Return a copy of the ExprInfo but with the type set to something else
         """
-        to_copy = ("location", "modifiability")
+        to_copy = ("location", "constancy", "writability")
         fields = {k: getattr(self, k) for k in to_copy}
         for t in to_copy:
             assert t not in kwargs
