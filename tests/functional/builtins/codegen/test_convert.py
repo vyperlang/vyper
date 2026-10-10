@@ -848,3 +848,28 @@ def test_convert() -> uint256:
     """  # noqa: E501
     c = get_contract(code)
     assert c.test_convert() == 42
+
+
+def test_convert_int256_to_decimal_bounds(get_contract, tx_failed):
+    code = """
+@external
+def foo(x: int256) -> decimal:
+    return convert(x, decimal)
+    """
+    c = get_contract(code)
+
+    # the decimal bounds are not whole numbers, so the largest-magnitude
+    # convertible integers are the bounds rounded towards zero
+    lo, hi = DecimalT().ast_bounds
+    min_int = round_towards_zero(lo)
+    max_int = round_towards_zero(hi)
+    assert Decimal(min_int - 1) < lo < Decimal(min_int)
+    assert Decimal(max_int) < hi < Decimal(max_int + 1)
+
+    assert c.foo(min_int) == min_int * DECIMAL_DIVISOR
+    assert c.foo(max_int) == max_int * DECIMAL_DIVISOR
+
+    with tx_failed():
+        c.foo(min_int - 1)
+    with tx_failed():
+        c.foo(max_int + 1)

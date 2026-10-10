@@ -33,6 +33,7 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.shortcuts import UINT160_T, UINT256_T
 from vyper.semantics.types.user import FlagT
+from vyper.utils import evm_div
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
@@ -323,8 +324,8 @@ def _to_decimal(
         # Clamp input to valid range before scaling
         out_lo, out_hi = out_t.int_bounds
         # Scale bounds for pre-multiplication check
-        pre_lo = out_lo // divisor
-        pre_hi = out_hi // divisor
+        pre_lo = evm_div(out_lo, divisor)
+        pre_hi = evm_div(out_hi, divisor)
         in_lo, in_hi = in_t.int_bounds
         val = _clamp_numeric_convert(val, (in_lo, in_hi), (pre_lo, pre_hi), in_t.is_signed, ctx)
         # Multiply by divisor
