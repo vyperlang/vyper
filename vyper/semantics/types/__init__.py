@@ -4,16 +4,23 @@ from .bytestrings import BytesT, StringT, _BytestringT
 from .function import ContractFunctionT, MemberFunctionT
 from .infinity import (
     INF,
+    POINTER_CELL_CAPACITY_OFFSET,
+    POINTER_CELL_SIZE,
     WILDCARD,
     LengthUpperBound,
     is_bounded_length,
+    is_pointer_cell_struct_type,
+    is_runtime_sizable_return_type,
+    is_runtime_sizable_type,
     is_supported_unbounded_tuple_type,
     is_unbounded_bytestring_type,
     is_unbounded_dynarray_type,
     is_unbounded_sequence_type,
-    type_contains_nested_unbounded_sequence,
+    is_unsupported_constant_type,
+    member_slot_size,
+    struct_member_offsets,
     type_contains_unbounded_sequence,
-    type_contains_unsupported_unbounded_sequence,
+    unbounded_member_cells,
 )
 from .module import InterfaceT, ModuleT
 from .primitives import AddressT, BoolT, BytesM_T, DecimalT, IntegerT, SelfT

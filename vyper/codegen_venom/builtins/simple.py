@@ -10,9 +10,12 @@ from vyper import ast as vy_ast
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import StructureException, TypeMismatch
 from vyper.semantics.types import (
+    StructT,
     _BytestringT,
+    is_runtime_sizable_type,
     is_unbounded_sequence_type,
-    type_contains_unsupported_unbounded_sequence,
+    type_contains_unbounded_sequence,
+    unbounded_member_cells,
 )
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import DArrayT
@@ -72,7 +75,7 @@ def lower_empty(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROperand,
                 member_vv = _empty_memory_value(ctx, member_t)
                 ctx.builder.mstore(cell, member_vv.operand)
         return ctx.dynamic_tuple_frame_value(frame, typ, annotation="empty")
-    if type_contains_unsupported_unbounded_sequence(typ):
+    if not is_runtime_sizable_type(typ):
         raise StructureException(
             "empty() does not support unbounded sequence types inside aggregate types", node
         )
@@ -96,12 +99,17 @@ def get_empty_type(node: vy_ast.Call):
     return typ
 
 
+def _empty_unbounded_payload(ctx: VenomCodegenContext) -> IRVariable:
+    # Empty INF values have a known exact size: just the zero length word.
+    buf = ctx.allocate_buffer(32, annotation="empty")
+    ptr = buf._ptr
+    ctx.builder.mstore(ptr, IRLiteral(0))
+    return ptr
+
+
 def _empty_memory_value(ctx: VenomCodegenContext, typ) -> VyperValue:
     if is_unbounded_sequence_type(typ):
-        # Empty INF values have a known exact size: just the zero length word.
-        buf = ctx.allocate_buffer(32, annotation="empty")
-        ptr = buf._ptr
-        ctx.builder.mstore(ptr, IRLiteral(0))
+        ptr = _empty_unbounded_payload(ctx)
         return ctx.dynamic_memory_value(ptr, typ, annotation="empty")
 
     # Allocate memory buffer
@@ -114,6 +122,13 @@ def _empty_memory_value(ctx: VenomCodegenContext, typ) -> VyperValue:
         ctx.builder.mstore(val.operand, IRLiteral(0))
     else:
         _zero_memory(ctx, val.operand, typ.memory_bytes_required)
+
+    # An unbounded struct member is a pointer cell; a zeroed cell would point
+    # at memory 0. Point each cell at its own empty payload instead.
+    if isinstance(typ, StructT) and type_contains_unbounded_sequence(typ):
+        for offset, _ in unbounded_member_cells(typ):
+            cell = ctx.builder.add(val.operand, IRLiteral(offset))
+            ctx.store_pointer_cell(cell, _empty_unbounded_payload(ctx), IRLiteral(0))
 
     return val
 

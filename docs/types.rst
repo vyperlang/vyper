@@ -585,10 +585,18 @@ may use ``INF`` as the length bound:
         ys.append(42)
         return ys
 
+An *unbounded sequence type* is ``Bytes[INF]``, ``String[INF]``, or
+``DynArray[T, INF]``. An *unbounded type* is an unbounded sequence type or any
+type that contains one, directly or indirectly. Unbounded types have no
+compile-time upper bound on the total memory needed to hold their values,
+including separately allocated member data. A struct with unbounded members
+can still have a fixed-size inline layout.
+
 ``Bytes[INF]`` and ``String[INF]`` can hold any runtime length. ``DynArray[T, INF]``
-can hold any runtime item count. ``T`` itself must be bounded, but it may be
-ABI-dynamic, such as ``Bytes[512]``, ``DynArray[uint256, 3]`` or a struct with
-bytestring members:
+can hold any runtime item count. ``T`` must have a fixed-size layout: a bounded
+type, which may be ABI-dynamic, such as ``Bytes[512]``, ``DynArray[uint256, 3]``
+or a struct with bytestring members, or a struct with unbounded members (see
+below), but not an unbounded sequence itself:
 
 .. code-block:: vyper
 
@@ -613,15 +621,72 @@ rejected where a bounded array in calldata would be zero-filled.
 Unbounded sequence values are supported for memory locals, function arguments,
 function returns, event and custom error members, ABI encoding and decoding, and
 bytes-oriented builtins such as ``concat``, ``slice``, ``convert``, ``empty`` and
-``print``. Top-level return tuples may contain direct unbounded sequence members,
+``print``. Top-level return tuples may contain unbounded sequence members,
 for example ``(uint256, Bytes[INF])``.
 
-Unbounded sequences are not supported in storage, transient storage, immutable
-module variables, struct members, static arrays, mappings, or as the element
-type of another ``DynArray``, bounded or unbounded. For example,
-``DynArray[Bytes[INF], INF]`` and ``DynArray[DynArray[uint256, INF], 3]`` are rejected.
-Tuple arguments and local tuple variables containing unbounded sequence members
+Unbounded types are not supported in storage, transient storage, immutable
+module variables, static arrays, or mappings. An unbounded sequence type cannot
+be the element type of another ``DynArray``, bounded or unbounded. For example,
+``DynArray[Bytes[INF], INF]`` and ``DynArray[DynArray[uint256, INF], 3]`` are
+rejected. Tuple arguments and local tuple variables containing unbounded types
 are also rejected.
+
+.. _unbounded_struct_members:
+
+Unbounded Struct Members
+************************
+
+A struct member may itself be an unbounded sequence. Such a struct keeps its
+usual ABI encoding -- ``Batch`` below is the ABI tuple ``(address,uint256[])``
+-- so a signed batch or configuration struct does not have to pick an arbitrary
+field cap:
+
+.. code-block:: vyper
+
+    #pragma experimental-codegen
+
+    struct Batch:
+        owner: address
+        values: DynArray[uint256, INF]
+
+    @external
+    def total(b: Batch) -> uint256:
+        acc: uint256 = 0
+        for v: uint256 in b.values:
+            acc += v
+        return acc
+
+In addition to bounded types, struct members may use ``Bytes[INF]``,
+``String[INF]``, or ``DynArray[T, INF]``, subject to the element-type restrictions
+above. Members may also be structs with unbounded members, or ``DynArray`` types
+whose elements are such structs. Tuples containing unbounded sequences, such as
+``(Bytes[INF], uint256)``, are not supported as struct members.
+
+Structs with unbounded members behave like other structs, subject to the
+following restrictions.
+
+.. TODO: Support mutation of unbounded members through array elements.
+
+Writing an unbounded member of an array element, or anything inside it, is
+rejected; other members, including a whole nested struct, and whole elements
+can be assigned. Copy the element to a local variable, modify it, then store
+it back:
+
+.. code-block:: vyper
+
+    xs[i].values.append(1)  # rejected
+    b: Batch = xs[i]
+    b.values.append(1)
+    xs[i] = b
+
+A struct with an unbounded member lives in memory only, like every unbounded
+sequence. It may not be returned inside a tuple. A ``DynArray`` of such structs,
+and a struct containing one, work everywhere the struct does, with one exception:
+the array cannot itself be a ``DynArray`` element
+(``DynArray[DynArray[Batch, 3], 2]`` is rejected).
+
+.. TODO: Support nested DynArray types whose innermost elements are structs
+   with unbounded members.
 
 .. note::
     ``INF`` sequence types require ``#pragma experimental-codegen`` or compiling
@@ -651,6 +716,23 @@ Struct members can be accessed via ``struct.argname``.
 
     # Accessing a value
     exampleStruct.value1 = 1
+
+.. note::
+
+    As with other assignments in Vyper, assigning a struct copies its value.
+    Changes to the copy, including changes to nested members, do not affect
+    the original.
+
+    .. code-block:: vyper
+
+        struct Numbers:
+            values: DynArray[uint256, 3]
+
+        original: Numbers = Numbers(values=[1, 2])
+        copied: Numbers = original
+        copied.values[0] = 7
+        copied.values.append(3)
+        # original.values is still [1, 2]
 
 .. index:: !mapping
 

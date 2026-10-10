@@ -710,6 +710,27 @@ def pair(x: DynArray[uint256, INF]) -> (uint256, DynArray[uint256, INF]):
     assert c.pair(payload) == (17, payload)
 
 
+@pytest.mark.parametrize("return_expr", ["(x,)", "self._one(x)"])
+def test_inf_dynarray_singleton_tuple_return(env, get_contract, no_inlining_settings, return_expr):
+    code = f"""
+@internal
+def _one(x: DynArray[uint256, INF]) -> (DynArray[uint256, INF],):
+    return (x,)
+
+@external
+def one(x: DynArray[uint256, INF]) -> (DynArray[uint256, INF],):
+    return {return_expr}
+    """
+
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    for payload in ([], [1, 2, 3], list(range(257))):
+        calldata = method_id("one(uint256[])") + abi_encode("(uint256[])", (payload,))
+        # Compare raw bytes so both the return wrapper and singleton tuple
+        # must be encoded, including their separate offset words.
+        expected = abi_encode("((uint256[]))", ((payload,),))
+        assert env.message_call(c.address, data=calldata) == expected
+
+
 def test_inf_dynarray_internal_tuple_unpack_no_inline(get_contract, no_inlining_settings):
     code = """
 @internal
