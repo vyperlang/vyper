@@ -1726,6 +1726,24 @@ def test_extend_longer_src(get_contract, tx_failed, code, check_result, test_dat
         assert c.foo(test_data) == expected_result
 
 
+def test_extend_nested_runtime_index(get_contract):
+    # the receiver passes through a DynArray element and the index expression
+    # (`x[0][1].pop()`) resizes an array the receiver derives from, so the
+    # receiver pointer can go stale while the index is evaluated. like
+    # append/pop, this must not compile: extend would otherwise write into an
+    # rvalue snapshot and silently drop the write.
+    code = """
+@external
+def foo() -> DynArray[DynArray[DynArray[uint256, 3], 3], 3]:
+    x: DynArray[DynArray[DynArray[uint256, 3], 3], 3] = [[[7, 3], [8, 1]]]
+    x[0][x[0][1].pop()].extend([5])
+    return x
+    """
+
+    with pytest.raises(CompilerPanic):
+        get_contract(code)
+
+
 extend_complex_tests = [
     (
         """

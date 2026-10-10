@@ -2021,8 +2021,9 @@ class Expr:
         if not is_bounded_length(dst_darray_typ.count):
             raise CodegenPanic("Not yet implemented for Unbounded DynArray")
 
-        # Get the array VyperValue
-        dst_darray_vv = Expr(dst_darray_node, self.ctx).lower()
+        # Lower as a target so risky overlap panics: mutating an rvalue
+        # snapshot would silently drop the write.
+        dst_darray_vv = Expr(dst_darray_node, self.ctx, as_ptr=True).lower()
         dst_darray_ptr = dst_darray_vv.operand
 
         # Get the src value.
