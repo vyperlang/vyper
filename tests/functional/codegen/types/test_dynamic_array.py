@@ -1423,6 +1423,18 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
     """,
         lambda xs: [1, 2] + xs if len(xs) <= 3 else None,
     ),
+    # nested empty list literal src (`Never` is below the top level of the
+    # inferred literal type; the dst-type fallback covers this too)
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[DynArray[uint256, 3], 3]:
+    ys: DynArray[DynArray[uint256, 3], 3] = []
+    ys.extend([[]])
+    return ys
+    """,
+        lambda xs: [[]],
+    ),
     # nonempty list literal src
     (
         """
@@ -1760,6 +1772,24 @@ def foo() -> DynArray[DynArray[uint256, 3], 3]:
     c = get_contract(code)
     with tx_failed():
         c.foo()
+
+
+def test_extend_inf_src(experimental_codegen, get_contract):
+    # extend() from an unbounded source: codegen handles the runtime length,
+    # so the INF-typed arg must not be rejected by the analyzer
+    if not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
+
+    code = """
+@external
+def foo() -> DynArray[uint256, 3]:
+    src: DynArray[uint256, INF] = [1, 2]
+    dst: DynArray[uint256, 3] = []
+    dst.extend(src)
+    return dst
+    """
+    c = get_contract(code)
+    assert c.foo() == [1, 2]
 
 
 extend_complex_tests = [

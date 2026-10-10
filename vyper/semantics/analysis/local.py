@@ -105,6 +105,14 @@ def _expr_contains_unbounded_sequence(node: vy_ast.VyperNode, typ: VyperType) ->
     return type_contains_unbounded_sequence(actual_typ)
 
 
+def _dynarray_contains_bottom(typ: VyperType) -> bool:
+    if isinstance(typ, BottomT):
+        return True
+    if isinstance(typ, DArrayT):
+        return _dynarray_contains_bottom(typ.value_type)
+    return False
+
+
 def analyze_functions(vy_module: vy_ast.Module) -> None:
     """Analyzes a vyper ast and validates the function bodies"""
     err_list = ExceptionList()
@@ -1148,17 +1156,21 @@ class ExprVisitor(VyperNodeVisitorBase):
             assert len(node.args) == len(func_type.arg_types)
             for arg, arg_type in zip(node.args, func_type.arg_types):
                 if isinstance(arg_type, DArrayT) and not is_bounded_length(arg_type.length):
-                    # derive a concrete length if not done yet
-                    # this currently catches `DynArray.extend(...)` only
+                    # derive a usable type for the arg node if not done yet.
+                    # this currently catches `DynArray.extend(...)` only.
+                    # prefer a bounded type with a concrete element type;
+                    # an unbounded (INF) type is also fine since codegen
+                    # handles runtime lengths. if there is no usable type
+                    # (e.g. `x.extend([])`, or `[[]]` where `Never` is nested
+                    # below the top level), fall back to the destination type.
+                    possible_types = [
+                        t
+                        for t in get_possible_types_from_node(arg)
+                        if t.is_subtype_of(arg_type) and not _dynarray_contains_bottom(t.value_type)
+                    ]
                     arg_type = next(
-                        (
-                            t
-                            for t in get_possible_types_from_node(arg)
-                            if t.is_subtype_of(arg_type)
-                            and is_bounded_length(t.length)
-                            and not isinstance(t.value_type, BottomT)
-                        ),
-                        func_type.underlying_type,
+                        (t for t in possible_types if is_bounded_length(t.length)),
+                        next(iter(possible_types), func_type.underlying_type),
                     )
                 self.visit(arg, arg_type)
         else:
