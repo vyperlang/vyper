@@ -3,8 +3,26 @@ from __future__ import annotations
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.variable_range import VariableRangeAnalysis
 from vyper.venom.analysis.variable_range.evaluators import eval_sdiv, eval_smod
+from vyper.venom.analysis.variable_range.monotone_analysis import VariableRangeMonotoneAnalysis
 from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX, SIGNED_MIN, ValueRange
 from vyper.venom.parser import parse_venom
+
+
+def _compare(fn, analysis: VariableRangeAnalysis, mono_analysis: VariableRangeMonotoneAnalysis):
+    insts = []
+    varz = []
+    for bb in fn.get_basic_blocks():
+        for inst in bb.instructions:
+            insts.append(inst)
+            varz.extend(inst.get_outputs())
+
+    for inst in insts:
+        for v in varz:
+            assert analysis.get_range(v, inst) == mono_analysis.get_range(v, inst), (
+                v,
+                inst,
+                inst.parent,
+            )
 
 
 def _analyze(source: str):
@@ -12,11 +30,13 @@ def _analyze(source: str):
     fn = next(iter(ctx.functions.values()))
     analyses = IRAnalysesCache(fn)
     analysis = analyses.request_analysis(VariableRangeAnalysis)
-    return analysis, fn
+    mono_analysis = analyses.request_analysis(VariableRangeMonotoneAnalysis)
+    _compare(fn, analysis, mono_analysis)
+    return analysis, mono_analysis, fn
 
 
 def test_add_propagates_constant_range():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 5
@@ -37,9 +57,13 @@ def test_add_propagates_constant_range():
     assert rng.lo == 12
     assert rng.hi == 12
 
+    rng = mono.get_range(y_var, jmp_inst)
+    assert rng.lo == 12
+    assert rng.hi == 12
+
 
 def test_branch_refines_lt_bounds():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -68,6 +92,9 @@ def test_branch_refines_lt_bounds():
     small_range = analysis.get_range(x_var, small_add)
     assert small_range.hi == 9
 
+    small_range = mono.get_range(x_var, small_add)
+    assert small_range.hi == 9
+
     large_bb = fn.get_basic_block("large")
     large_jmp = large_bb.instructions[-1]
     large_range = analysis.get_range(x_var, large_jmp)
@@ -78,9 +105,12 @@ def test_branch_refines_lt_bounds():
     # This is the sound/correct behavior for unsigned comparisons.
     assert large_range.is_top
 
+    large_range = mono.get_range(x_var, large_jmp)
+    assert large_range.is_top
+
 
 def test_eq_branch_sets_constant():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -107,10 +137,14 @@ def test_eq_branch_sets_constant():
     assert rng.lo == 5
     assert rng.hi == 5
 
+    rng = mono.get_range(x_var, use_inst)
+    assert rng.lo == 5
+    assert rng.hi == 5
+
 
 def test_lt_boundary_zero_true_branch_is_bottom():
     """lt %x, 0 true means x < 0 unsigned, which is impossible → BOTTOM."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -137,12 +171,16 @@ def test_lt_boundary_zero_true_branch_is_bottom():
     # True branch of `lt %x, 0` is unreachable since nothing is < 0 unsigned
     assert rng.is_empty
 
+    rng = mono.get_range(x_var, sink_inst)
+    # True branch of `lt %x, 0` is unreachable since nothing is < 0 unsigned
+    assert rng.is_empty
+
 
 def test_slt_boundary_signed_min_true_branch_is_bottom():
     """slt %x, SIGNED_MIN true means x < SIGNED_MIN signed, impossible → BOTTOM."""
     from vyper.venom.analysis.variable_range.value_range import SIGNED_MIN
 
-    analysis, fn = _analyze(f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %x = calldataload 0
@@ -166,9 +204,13 @@ def test_slt_boundary_signed_min_true_branch_is_bottom():
     # True branch of `slt %x, SIGNED_MIN` is unreachable
     assert rng.is_empty
 
+    rng = mono.get_range(x_var, sink_inst)
+    # True branch of `slt %x, SIGNED_MIN` is unreachable
+    assert rng.is_empty
+
 
 def test_iszero_true_branch_forces_zero():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -195,9 +237,13 @@ def test_iszero_true_branch_forces_zero():
     assert rng.lo == 0
     assert rng.hi == 0
 
+    rng = mono.get_range(x_var, use_inst)
+    assert rng.lo == 0
+    assert rng.hi == 0
+
 
 def test_phi_merges_ranges():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %flag = calldataload 0
@@ -229,9 +275,13 @@ def test_phi_merges_ranges():
     assert rng.lo == 1
     assert rng.hi == 20
 
+    rng = mono.get_range(merged_var, use_inst)
+    assert rng.lo == 1
+    assert rng.hi == 20
+
 
 def test_byte_range():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -250,10 +300,14 @@ def test_byte_range():
     assert rng.lo == 0
     assert rng.hi == 255
 
+    rng = mono.get_range(byte_inst.output, entry.instructions[-1])
+    assert rng.lo == 0
+    assert rng.hi == 255
+
 
 def test_byte_out_of_range_index():
     """byte(N, x) returns 0 when N >= 32."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -271,9 +325,12 @@ def test_byte_out_of_range_index():
     rng = analysis.get_range(byte_inst.output, entry.instructions[-1])
     assert rng.lo == 0 and rng.hi == 0
 
+    rng = mono.get_range(byte_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
 
 def test_signextend_range():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -291,9 +348,13 @@ def test_signextend_range():
     assert rng.lo == -128
     assert rng.hi == 127
 
+    rng = mono.get_range(se_inst.output, entry.instructions[-1])
+    assert rng.lo == -128
+    assert rng.hi == 127
+
 
 def test_mod_literal_range():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -311,9 +372,13 @@ def test_mod_literal_range():
     assert rng.lo == 0
     assert rng.hi == 9
 
+    rng = mono.get_range(mod_inst.output, entry.instructions[-1])
+    assert rng.lo == 0
+    assert rng.hi == 9
+
 
 def test_div_literal_range():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 50
@@ -331,9 +396,13 @@ def test_div_literal_range():
     assert rng.lo == 25
     assert rng.hi == 25
 
+    rng = mono.get_range(div_inst.output, entry.instructions[-1])
+    assert rng.lo == 25
+    assert rng.hi == 25
+
 
 def test_shifts_update_ranges():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 255
@@ -358,7 +427,15 @@ def test_shifts_update_ranges():
     assert shr_rng.lo == 15
     assert shr_rng.hi == 15
 
+    shr_rng = mono.get_range(shr_inst.output, entry.instructions[-1])
+    assert shr_rng.lo == 15
+    assert shr_rng.hi == 15
+
     shl_rng = analysis.get_range(shl_inst.output, entry.instructions[-1])
+    assert shl_rng.lo == 20
+    assert shl_rng.hi == 20
+
+    shl_rng = mono.get_range(shl_inst.output, entry.instructions[-1])
     assert shl_rng.lo == 20
     assert shl_rng.hi == 20
 
@@ -366,9 +443,13 @@ def test_shifts_update_ranges():
     assert sar_rng.lo == -4
     assert sar_rng.hi == -4
 
+    sar_rng = mono.get_range(sar_inst.output, entry.instructions[-1])
+    assert sar_rng.lo == -4
+    assert sar_rng.hi == -4
+
 
 def test_add_wraps_constants_modulo():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
@@ -386,9 +467,13 @@ def test_add_wraps_constants_modulo():
     assert rng.lo == 0
     assert rng.hi == 0
 
+    rng = mono.get_range(add_inst.output, entry.instructions[-1])
+    assert rng.lo == 0
+    assert rng.hi == 0
+
 
 def test_sub_wraps_constants_modulo():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0
@@ -407,9 +492,14 @@ def test_sub_wraps_constants_modulo():
     assert rng.lo == -1
     assert rng.hi == -1
 
+    rng = mono.get_range(sub_inst.output, entry.instructions[-1])
+
+    assert rng.lo == -1
+    assert rng.hi == -1
+
 
 def test_add_signed_constants():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = -10
@@ -427,9 +517,13 @@ def test_add_signed_constants():
     assert rng.lo == -5
     assert rng.hi == -5
 
+    rng = mono.get_range(add_inst.output, entry.instructions[-1])
+    assert rng.lo == -5
+    assert rng.hi == -5
+
 
 def test_iszero_false_branch_does_not_force_positive_when_signed():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %a = calldataload 0
@@ -456,9 +550,16 @@ def test_iszero_false_branch_does_not_force_positive_when_signed():
     # but importantly the range must not force positivity
     assert rng.lo < 0 <= rng.hi
 
+    rng = mono.get_range(x_var, use_inst)
+    # Must still include negative values — lo must be negative
+    assert rng.lo < 0
+    # We cannot represent "all values except 0" because ValueRange is contiguous,
+    # but importantly the range must not force positivity
+    assert rng.lo < 0 <= rng.hi
+
 
 def test_iszero_false_branch_narrows_range_crossing_zero():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -485,9 +586,14 @@ def test_iszero_false_branch_narrows_range_crossing_zero():
     assert rng.lo == 1
     assert rng.hi == 10
 
+    rng = mono.get_range(x_var, use_inst)
+    # Range should be narrowed from [0, 10] to [1, 10] on the nonzero branch
+    assert rng.lo == 1
+    assert rng.hi == 10
+
 
 def test_iszero_false_branch_narrows_when_proven_nonnegative():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -512,10 +618,13 @@ def test_iszero_false_branch_narrows_when_proven_nonnegative():
     rng = analysis.get_range(len_var, use_inst)
     assert rng.lo >= 1  # zero excluded!
 
+    rng = mono.get_range(len_var, use_inst)
+    assert rng.lo >= 1  # zero excluded!
+
 
 def test_iszero_false_branch_with_zero_constant_is_bottom():
     """iszero false branch with 0 input should produce BOTTOM (unreachable)."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0
@@ -538,9 +647,13 @@ def test_iszero_false_branch_with_zero_constant_is_bottom():
     # False branch of iszero 0 is unreachable, so range should be BOTTOM
     assert rng.is_empty
 
+    rng = mono.get_range(x_var, use_inst)
+    # False branch of iszero 0 is unreachable, so range should be BOTTOM
+    assert rng.is_empty
+
 
 def test_add_large_positive_ranges_go_to_top():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -553,9 +666,12 @@ def test_add_large_positive_ranges_go_to_top():
     rng = analysis.get_range(y_var, fn.get_basic_block("entry").instructions[-1])
     assert rng.is_top
 
+    rng = mono.get_range(y_var, fn.get_basic_block("entry").instructions[-1])
+    assert rng.is_top
+
 
 def test_add_near_overflow_does_not_wrap_incorrectly():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -571,9 +687,14 @@ def test_add_near_overflow_does_not_wrap_incorrectly():
     # Because each operand has width > 2**128 goes to TOP (correct & safe)
     assert rng.is_top
 
+    rng = mono.get_range(y_var, fn.get_basic_block("entry").instructions[-1])
+
+    # Because each operand has width > 2**128 goes to TOP (correct & safe)
+    assert rng.is_top
+
 
 def test_sub_can_go_negative_but_stays_sound():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 5
@@ -589,9 +710,14 @@ def test_sub_can_go_negative_but_stays_sound():
     assert rng.lo == -5
     assert rng.hi == -5
 
+    rng = mono.get_range(y_var, fn.get_basic_block("entry").instructions[-1])
+
+    assert rng.lo == -5
+    assert rng.hi == -5
+
 
 def test_and_mask_clears_high_bits_correctly():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %addr = calldataload 0
@@ -605,9 +731,13 @@ def test_and_mask_clears_high_bits_correctly():
     assert rng.lo == 0
     assert rng.hi == (1 << 160) - 1
 
+    rng = mono.get_range(lower_var, fn.get_basic_block("entry").instructions[-1])
+    assert rng.lo == 0
+    assert rng.hi == (1 << 160) - 1
+
 
 def test_sar_on_negative_value_propagates_sign():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = -1                           # all bits 1
@@ -622,9 +752,12 @@ def test_sar_on_negative_value_propagates_sign():
     rng = analysis.get_range(sar_inst.output, fn.get_basic_block("entry").instructions[-1])
     assert rng.lo == rng.hi == -1
 
+    rng = mono.get_range(sar_inst.output, fn.get_basic_block("entry").instructions[-1])
+    assert rng.lo == rng.hi == -1
+
 
 def test_sar_large_shift_handles_mixed_sign_correctly():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %a = calldataload 0
@@ -640,10 +773,13 @@ def test_sar_large_shift_handles_mixed_sign_correctly():
     rng = analysis.get_range(sar_inst.output, fn.get_basic_block("entry").instructions[-1])
     assert rng.lo == -1 and rng.hi == 0
 
+    rng = mono.get_range(sar_inst.output, fn.get_basic_block("entry").instructions[-1])
+    assert rng.lo == -1 and rng.hi == 0
+
 
 def test_phi_from_signed_and_unsigned_paths():
     """Phi where one arm is known non-negative, other can be negative"""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %cond = calldataload 0
@@ -669,9 +805,13 @@ def test_phi_from_signed_and_unsigned_paths():
     assert rng.lo == -42
     assert rng.hi == 100
 
+    rng = mono.get_range(v_var, fn.get_basic_block("merge").instructions[1])
+    assert rng.lo == -42
+    assert rng.hi == 100
+
 
 def test_eq_false_branch_does_not_narrow_to_nothing():
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -696,10 +836,15 @@ def test_eq_false_branch_does_not_narrow_to_nothing():
     assert rng.lo == 999
     assert analysis.get_range(x_var, use_inst).is_top
 
+    rng = mono.get_range(x_var, match_inst)
+    assert rng.hi == 999
+    assert rng.lo == 999
+    assert mono.get_range(x_var, use_inst).is_top
+
 
 def test_mul_constants():
     """Test multiplication of two constants."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 7
@@ -717,10 +862,14 @@ def test_mul_constants():
     assert rng.lo == 42
     assert rng.hi == 42
 
+    rng = mono.get_range(mul_inst.output, entry.instructions[-1])
+    assert rng.lo == 42
+    assert rng.hi == 42
+
 
 def test_mul_constant_by_range():
     """Test multiplication of a constant by a bounded range."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -739,10 +888,14 @@ def test_mul_constant_by_range():
     assert rng.lo == 0
     assert rng.hi == 45
 
+    rng = mono.get_range(mul_inst.output, entry.instructions[-1])
+    assert rng.lo == 0
+    assert rng.hi == 45
+
 
 def test_mul_two_ranges():
     """Test multiplication of two bounded ranges."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw1 = calldataload 0
@@ -764,10 +917,15 @@ def test_mul_two_ranges():
     assert rng.lo == 0
     assert rng.hi == 12
 
+    rng = mono.get_range(mul_inst.output, entry.instructions[-1])
+    # x in [0, 4], y in [0, 3] => z in [0, 12]
+    assert rng.lo == 0
+    assert rng.hi == 12
+
 
 def test_mul_overflow_goes_to_top():
     """Test that multiplication with potential overflow returns TOP."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -782,10 +940,14 @@ def test_mul_overflow_goes_to_top():
     # x is unbounded, so multiplication can overflow
     assert rng.is_top
 
+    rng = mono.get_range(mul_inst.output, entry.instructions[-1])
+    # x is unbounded, so multiplication can overflow
+    assert rng.is_top
+
 
 def test_mul_large_range_overflow():
     """Test that multiplication of large ranges goes to TOP due to width limit."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -801,10 +963,14 @@ def test_mul_large_range_overflow():
     # Range width > 2^128, should go to TOP
     assert rng.is_top
 
+    rng = mono.get_range(mul_inst.output, entry.instructions[-1])
+    # Range width > 2^128, should go to TOP
+    assert rng.is_top
+
 
 def test_mul_by_zero():
     """Test multiplication by zero constant."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -819,10 +985,14 @@ def test_mul_by_zero():
     assert rng.lo == 0
     assert rng.hi == 0
 
+    rng = mono.get_range(mul_inst.output, entry.instructions[-1])
+    assert rng.lo == 0
+    assert rng.hi == 0
+
 
 def test_mul_by_one():
     """Test multiplication by one preserves range."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -838,10 +1008,14 @@ def test_mul_by_one():
     assert rng.lo == 0
     assert rng.hi == 99
 
+    rng = mono.get_range(mul_inst.output, entry.instructions[-1])
+    assert rng.lo == 0
+    assert rng.hi == 99
+
 
 def test_mul_signed_goes_to_top():
     """Test that multiplication with signed ranges goes to TOP."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -857,10 +1031,14 @@ def test_mul_signed_goes_to_top():
     # Signed range includes negatives, so goes to TOP
     assert rng.is_top
 
+    rng = analysis.get_range(mul_inst.output, entry.instructions[-1])
+    # Signed range includes negatives, so goes to TOP
+    assert rng.is_top
+
 
 def test_mul_wraps_on_overflow_constants():
     """Test that constant multiplication wraps correctly on overflow."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = -1
@@ -876,6 +1054,11 @@ def test_mul_wraps_on_overflow_constants():
     assert rng.lo == -2
     assert rng.hi == -2
 
+    rng = mono.get_range(mul_inst.output, entry.instructions[-1])
+    # -1 * 2 = -2
+    assert rng.lo == -2
+    assert rng.hi == -2
+
 
 # =============================================================================
 # BITWISE OPERATION TESTS (or, xor, not)
@@ -884,7 +1067,7 @@ def test_mul_wraps_on_overflow_constants():
 
 def test_or_constants():
     """Test OR of two constants."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0xF0
@@ -900,10 +1083,15 @@ def test_or_constants():
     assert rng.lo == 255
     assert rng.hi == 255
 
+    rng = mono.get_range(or_inst.output, entry.instructions[-1])
+    # 0xF0 | 0x0F = 0xFF = 255
+    assert rng.lo == 255
+    assert rng.hi == 255
+
 
 def test_or_with_zero():
     """Test OR with zero returns the other operand's range."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -920,10 +1108,15 @@ def test_or_with_zero():
     assert rng.lo == 0
     assert rng.hi == 255
 
+    rng = mono.get_range(or_inst.output, entry.instructions[-1])
+    # x in [0, 255], OR with 0 should preserve the range
+    assert rng.lo == 0
+    assert rng.hi == 255
+
 
 def test_or_with_all_ones():
     """Test OR with -1 (all bits set) returns -1."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -939,10 +1132,15 @@ def test_or_with_all_ones():
     assert rng.lo == -1
     assert rng.hi == -1
 
+    rng = mono.get_range(or_inst.output, entry.instructions[-1])
+    # OR with -1 (all bits set) always gives -1
+    assert rng.lo == -1
+    assert rng.hi == -1
+
 
 def test_xor_constants():
     """Test XOR of two constants."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0xFF
@@ -958,10 +1156,15 @@ def test_xor_constants():
     assert rng.lo == 240
     assert rng.hi == 240
 
+    rng = mono.get_range(xor_inst.output, entry.instructions[-1])
+    # 0xFF ^ 0x0F = 0xF0 = 240
+    assert rng.lo == 240
+    assert rng.hi == 240
+
 
 def test_xor_self_is_zero():
     """Test XOR of a variable with itself is 0."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -977,10 +1180,15 @@ def test_xor_self_is_zero():
     assert rng.lo == 0
     assert rng.hi == 0
 
+    rng = mono.get_range(xor_inst.output, entry.instructions[-1])
+    # x ^ x = 0 always
+    assert rng.lo == 0
+    assert rng.hi == 0
+
 
 def test_xor_with_all_ones():
     """Test XOR with -1 flips all bits (same as NOT)."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0
@@ -996,10 +1204,15 @@ def test_xor_with_all_ones():
     assert rng.lo == -1
     assert rng.hi == -1
 
+    rng = mono.get_range(xor_inst.output, entry.instructions[-1])
+    # 0 ^ -1 = -1 (all bits set)
+    assert rng.lo == -1
+    assert rng.hi == -1
+
 
 def test_not_constant():
     """Test NOT of a constant."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0
@@ -1015,10 +1228,15 @@ def test_not_constant():
     assert rng.lo == -1
     assert rng.hi == -1
 
+    rng = mono.get_range(not_inst.output, entry.instructions[-1])
+    # ~0 = -1 (all bits set)
+    assert rng.lo == -1
+    assert rng.hi == -1
+
 
 def test_not_all_ones():
     """Test NOT of -1 (all bits set) gives 0."""
-    analysis, fn = _analyze("""
+    analysis, _, fn = _analyze("""
         function test {
         entry:
             %x = -1
@@ -1037,7 +1255,7 @@ def test_not_all_ones():
 
 def test_not_specific_value():
     """Test NOT of a specific non-zero value."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 255
@@ -1053,10 +1271,15 @@ def test_not_specific_value():
     assert rng.lo == -256
     assert rng.hi == -256
 
+    rng = mono.get_range(not_inst.output, entry.instructions[-1])
+    # ~255 = UNSIGNED_MAX - 255 = ...FFFFFF00 which is -256 in signed
+    assert rng.lo == -256
+    assert rng.hi == -256
+
 
 def test_not_unknown_is_top():
     """Test NOT of unknown value gives TOP."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -1068,6 +1291,9 @@ def test_not_unknown_is_top():
     entry = fn.get_basic_block("entry")
     not_inst = next(inst for inst in entry.instructions if inst.opcode == "not")
     rng = analysis.get_range(not_inst.output, entry.instructions[-1])
+    assert rng.is_top
+
+    rng = mono.get_range(not_inst.output, entry.instructions[-1])
     assert rng.is_top
 
 
@@ -1085,7 +1311,7 @@ def test_bug_lt_negative_constant_gives_wrong_result():
     because MAX_UINT > 1 in unsigned comparison.
     But the analysis returns 1 because it compares -1 < 1 using signed arithmetic.
     """
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = -1
@@ -1101,6 +1327,11 @@ def test_bug_lt_negative_constant_gives_wrong_result():
     # In EVM unsigned comparison: 0xFF..FF > 1, so lt returns 0
     assert rng.lo == 0 and rng.hi == 0, f"Expected {{0}}, got {rng}"
 
+    rng = mono.get_range(cmp_inst.output, entry.instructions[-1])
+    # Bug: Currently returns {1}, should return {0}
+    # In EVM unsigned comparison: 0xFF..FF > 1, so lt returns 0
+    assert rng.lo == 0 and rng.hi == 0, f"Expected {{0}}, got {rng}"
+
 
 def test_bug_eq_negative_constant_with_max_uint_miscompile():
     """
@@ -1109,7 +1340,7 @@ def test_bug_eq_negative_constant_with_max_uint_miscompile():
     """
     from vyper.venom.passes.assert_elimination import AssertEliminationPass
 
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = -1
@@ -1134,6 +1365,15 @@ def test_bug_eq_negative_constant_with_max_uint_miscompile():
         f"ok_range={ok_range}, but runtime can produce 0"
     )
 
+    ok_range = mono.get_range(ok_var, assert_inst)
+
+    # Runtime: eq(-1, MAX_UINT) = 1, ok = iszero 1 = 0, assert FAILS.
+    excludes = AssertEliminationPass._range_excludes_zero(ok_range)
+    assert not excludes, (
+        f"Miscompile: Assert incorrectly eliminated! "
+        f"ok_range={ok_range}, but runtime can produce 0"
+    )
+
 
 def test_bug_unsigned_lt_false_branch_excludes_negatives():
     """
@@ -1147,7 +1387,7 @@ def test_bug_unsigned_lt_false_branch_excludes_negatives():
 
     The analysis should track both possibilities, but it only tracks [100, 127].
     """
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -1175,6 +1415,15 @@ def test_bug_unsigned_lt_false_branch_excludes_negatives():
         x_range.lo < 0 or x_range.is_top
     ), f"Expected range to include negatives or be TOP, got {x_range}"
 
+    x_range = mono.get_range(x_var, large_bb.instructions[0])
+
+    # Bug: Currently returns [100, 127], missing negative values
+    # The range should include negative values (or be TOP/widened)
+    # because -128..-1 are large unsigned values that also satisfy "not lt 100"
+    assert (
+        x_range.lo < 0 or x_range.is_top
+    ), f"Expected range to include negatives or be TOP, got {x_range}"
+
 
 def test_bug_signextend_produces_bottom_for_out_of_range_input():
     """
@@ -1188,7 +1437,7 @@ def test_bug_signextend_produces_bottom_for_out_of_range_input():
     But the analysis intersects the input range [384, 384] with [-128, 127]
     which gives bottom (empty intersection).
     """
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 384
@@ -1206,6 +1455,13 @@ def test_bug_signextend_produces_bottom_for_out_of_range_input():
     assert not rng.is_empty, "Expected non-empty range, got bottom"
     assert rng.lo == -128 and rng.hi == -128, f"Expected {{-128}}, got {rng}"
 
+    rng = mono.get_range(se_inst.output, entry.instructions[-1])
+
+    # Bug: Currently returns bottom, should return {-128}
+    # The signextend of 0x180 takes low byte 0x80 and sign-extends to -128
+    assert not rng.is_empty, "Expected non-empty range, got bottom"
+    assert rng.lo == -128 and rng.hi == -128, f"Expected {{-128}}, got {rng}"
+
 
 def test_bug_and_with_signed_range_gives_narrow_hi():
     """
@@ -1217,7 +1473,7 @@ def test_bug_and_with_signed_range_gives_narrow_hi():
 
     So the result should be [0, 255], but analysis gives [0, 127].
     """
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -1230,6 +1486,12 @@ def test_bug_and_with_signed_range_gives_narrow_hi():
     entry = fn.get_basic_block("entry")
     and_inst = entry.instructions[2]
     rng = analysis.get_range(and_inst.output, entry.instructions[-1])
+
+    # Bug: Currently returns [0, 127], should return [0, 255]
+    # The AND of negative values like -128 (0xFF80) with 0xFF gives 0x80 = 128
+    assert rng.hi == 255, f"Expected hi=255, got {rng}"
+
+    rng = mono.get_range(and_inst.output, entry.instructions[-1])
 
     # Bug: Currently returns [0, 127], should return [0, 255]
     # The AND of negative values like -128 (0xFF80) with 0xFF gives 0x80 = 128
@@ -1248,7 +1510,7 @@ def test_bug_lt_false_branch_causes_assert_elimination_miscompile():
     """
     from vyper.venom.passes.assert_elimination import AssertEliminationPass
 
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -1282,6 +1544,17 @@ def test_bug_lt_false_branch_causes_assert_elimination_miscompile():
         f"check_range={check_range}, but runtime can produce 0"
     )
 
+    check_range = mono.get_range(check_var, assert_inst)
+
+    # Runtime: if x = -1 (0xFF..FF), lt -1, 100 = 0 (takes @over),
+    # then check = lt -1, 128 = 0, assert 0 FAILS!
+    # Bug: Analysis gives check = {1}, so assert is eliminated
+    excludes = AssertEliminationPass._range_excludes_zero(check_range)
+    assert not excludes, (
+        f"Miscompile: Assert incorrectly eliminated! "
+        f"check_range={check_range}, but runtime can produce 0"
+    )
+
 
 def test_bug_gt_true_branch_causes_assert_elimination_miscompile():
     """
@@ -1292,7 +1565,7 @@ def test_bug_gt_true_branch_causes_assert_elimination_miscompile():
     """
     from vyper.venom.passes.assert_elimination import AssertEliminationPass
 
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -1326,6 +1599,16 @@ def test_bug_gt_true_branch_causes_assert_elimination_miscompile():
         f"ok_range={ok_range}, but runtime can produce 0"
     )
 
+    ok_range = mono.get_range(ok_var, assert_inst)
+
+    # Runtime: if x = -1, gt -1, 50 = 1 (takes @high),
+    # check = gt -1, 200 = 1, ok = iszero 1 = 0, assert 0 FAILS!
+    excludes = AssertEliminationPass._range_excludes_zero(ok_range)
+    assert not excludes, (
+        f"Miscompile: Assert incorrectly eliminated! "
+        f"ok_range={ok_range}, but runtime can produce 0"
+    )
+
 
 def test_bug_iszero_false_branch_causes_assert_elimination_miscompile():
     """
@@ -1337,7 +1620,7 @@ def test_bug_iszero_false_branch_causes_assert_elimination_miscompile():
     """
     from vyper.venom.passes.assert_elimination import AssertEliminationPass
 
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -1370,6 +1653,16 @@ def test_bug_iszero_false_branch_causes_assert_elimination_miscompile():
         f"y_range={y_range}, but runtime can produce 0"
     )
 
+    y_range = mono.get_range(y_var, assert_inst)
+
+    # Runtime: if x = -128, iszero -128 = 0 (takes @nonzero),
+    # y = add -128, 128 = 0, assert 0 FAILS!
+    excludes = AssertEliminationPass._range_excludes_zero(y_range)
+    assert not excludes, (
+        f"Miscompile: Assert incorrectly eliminated! "
+        f"y_range={y_range}, but runtime can produce 0"
+    )
+
 
 def test_bug_phi_merge_with_bottom_causes_assert_elimination_miscompile():
     """
@@ -1382,7 +1675,7 @@ def test_bug_phi_merge_with_bottom_causes_assert_elimination_miscompile():
     """
     from vyper.venom.passes.assert_elimination import AssertEliminationPass
 
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %cond = calldataload 0
@@ -1421,6 +1714,16 @@ def test_bug_phi_merge_with_bottom_causes_assert_elimination_miscompile():
         f"check_range={check_range}, but runtime can produce 0"
     )
 
+    check_range = mono.get_range(check_var, assert_inst)
+
+    # Runtime via path1: y1 = signextend 0, 384 = -128,
+    # y = -128, check = eq -128, 1 = 0, assert 0 FAILS!
+    excludes = AssertEliminationPass._range_excludes_zero(check_range)
+    assert not excludes, (
+        f"Miscompile: Assert incorrectly eliminated! "
+        f"check_range={check_range}, but runtime can produce 0"
+    )
+
 
 # =============================================================================
 # BOUNDARY VALUE TESTS
@@ -1432,7 +1735,7 @@ def test_add_at_signed_min_boundary():
     """Test add with SIGNED_MIN constant (using negative literal)."""
     from vyper.venom.analysis.variable_range.value_range import SIGNED_MIN
 
-    analysis, fn = _analyze(f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %min = {SIGNED_MIN}
@@ -1448,11 +1751,16 @@ def test_add_at_signed_min_boundary():
     expected = SIGNED_MIN + 1
     assert rng.lo == expected and rng.hi == expected
 
+    rng = mono.get_range(add_inst.output, entry.instructions[-1])
+    # SIGNED_MIN + 1 = SIGNED_MIN + 1 (just above min)
+    expected = SIGNED_MIN + 1
+    assert rng.lo == expected and rng.hi == expected
+
 
 def test_sub_at_signed_min_boundary():
     """Test sub that would underflow past SIGNED_MIN."""
 
-    analysis, fn = _analyze(f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %min = {SIGNED_MIN}
@@ -1468,10 +1776,15 @@ def test_sub_at_signed_min_boundary():
     expected = SIGNED_MAX
     assert rng.lo == expected and rng.hi == expected
 
+    rng = mono.get_range(sub_inst.output, entry.instructions[-1])
+    # SIGNED_MIN - 1 wraps to SIGNED_MAX
+    expected = SIGNED_MAX
+    assert rng.lo == expected and rng.hi == expected
+
 
 def test_add_at_unsigned_max_boundary():
     """Test add at UNSIGNED_MAX that wraps to 0."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
@@ -1485,12 +1798,15 @@ def test_add_at_unsigned_max_boundary():
     rng = analysis.get_range(add_inst.output, entry.instructions[-1])
     assert rng.lo == 0 and rng.hi == 0
 
+    rng = mono.get_range(add_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
 
 def test_shr_by_255():
     """Test SHR by 255 bits on a large positive value."""
     from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX
 
-    analysis, fn = _analyze(f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %x = {SIGNED_MAX}
@@ -1505,10 +1821,14 @@ def test_shr_by_255():
     # SIGNED_MAX >> 255 = 0 (because bit 255 is 0 in SIGNED_MAX)
     assert rng.lo == 0 and rng.hi == 0
 
+    rng = mono.get_range(shr_inst.output, entry.instructions[-1])
+    # SIGNED_MAX >> 255 = 0 (because bit 255 is 0 in SIGNED_MAX)
+    assert rng.lo == 0 and rng.hi == 0
+
 
 def test_shr_by_256():
     """Test SHR by 256 bits - should always give 0."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
@@ -1522,12 +1842,15 @@ def test_shr_by_256():
     rng = analysis.get_range(shr_inst.output, entry.instructions[-1])
     assert rng.lo == 0 and rng.hi == 0
 
+    rng = mono.get_range(shr_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
 
 def test_shl_by_255():
     """Test SHL by 255 bits."""
     from vyper.venom.analysis.variable_range.value_range import SIGNED_MIN
 
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 1
@@ -1549,10 +1872,21 @@ def test_shl_by_255():
     expected_signed = SIGNED_MIN
     assert rng.lo == expected_signed or rng.lo == expected_unsigned
 
+    rng = mono.get_range(shl_inst.output, entry.instructions[-1])
+    # 1 << 255 = 2^255
+    # In signed representation: SIGNED_MIN (-2^255)
+    # In unsigned representation: 2^255
+    # The result should be constant and equal to 2^255 (either representation)
+    assert rng.is_constant
+    # Accept either signed or unsigned representation
+    expected_unsigned = 2**255
+    expected_signed = SIGNED_MIN
+    assert rng.lo == expected_signed or rng.lo == expected_unsigned
+
 
 def test_shl_by_256():
     """Test SHL by 256 bits - should always give 0."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
@@ -1566,10 +1900,13 @@ def test_shl_by_256():
     rng = analysis.get_range(shl_inst.output, entry.instructions[-1])
     assert rng.lo == 0 and rng.hi == 0
 
+    rng = mono.get_range(shl_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
 
 def test_sar_by_255():
     """Test SAR by 255 bits on negative value."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = -1
@@ -1584,10 +1921,14 @@ def test_sar_by_255():
     # -1 >> 255 = -1 (sign extension preserves -1)
     assert rng.lo == -1 and rng.hi == -1
 
+    rng = mono.get_range(sar_inst.output, entry.instructions[-1])
+    # -1 >> 255 = -1 (sign extension preserves -1)
+    assert rng.lo == -1 and rng.hi == -1
+
 
 def test_sar_by_256():
     """Test SAR by 256 bits - returns 0 or -1 based on sign."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = -100
@@ -1602,10 +1943,14 @@ def test_sar_by_256():
     # Negative value >> 256 = -1 (all sign bits)
     assert rng.lo == -1 and rng.hi == -1
 
+    rng = mono.get_range(sar_inst.output, entry.instructions[-1])
+    # Negative value >> 256 = -1 (all sign bits)
+    assert rng.lo == -1 and rng.hi == -1
+
 
 def test_div_by_zero_returns_zero():
     """Test that DIV by zero returns 0 (EVM spec)."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 12345
@@ -1619,10 +1964,13 @@ def test_div_by_zero_returns_zero():
     rng = analysis.get_range(div_inst.output, entry.instructions[-1])
     assert rng.lo == 0 and rng.hi == 0
 
+    rng = mono.get_range(div_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
 
 def test_mod_by_zero_returns_zero():
     """Test that MOD by zero returns 0 (EVM spec)."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 12345
@@ -1636,10 +1984,13 @@ def test_mod_by_zero_returns_zero():
     rng = analysis.get_range(mod_inst.output, entry.instructions[-1])
     assert rng.lo == 0 and rng.hi == 0
 
+    rng = mono.get_range(mod_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
 
 def test_byte_index_32():
     """Test byte with index exactly 32 (should return 0)."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
@@ -1653,10 +2004,13 @@ def test_byte_index_32():
     rng = analysis.get_range(byte_inst.output, entry.instructions[-1])
     assert rng.lo == 0 and rng.hi == 0
 
+    rng = mono.get_range(byte_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
 
 def test_byte_index_255():
     """Test byte with large index (should return 0)."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
@@ -1670,10 +2024,13 @@ def test_byte_index_255():
     rng = analysis.get_range(byte_inst.output, entry.instructions[-1])
     assert rng.lo == 0 and rng.hi == 0
 
+    rng = mono.get_range(byte_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
 
 def test_nested_conditional_refinement_3_levels():
     """Test refinement through 3 levels of nested conditionals."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %x = calldataload 0
@@ -1703,10 +2060,14 @@ def test_nested_conditional_refinement_3_levels():
     # After 3 levels: x < 1000, x < 100, x < 10 => x in [0, 9]
     assert rng.hi == 9
 
+    rng = mono.get_range(x_var, innermost_bb.instructions[0])
+    # After 3 levels: x < 1000, x < 100, x < 10 => x in [0, 9]
+    assert rng.hi == 9
+
 
 def test_phi_merge_4_branches():
     """Test phi merging values from 4 different branches."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %sel = calldataload 0
@@ -1747,10 +2108,14 @@ def test_phi_merge_4_branches():
     # Phi merges [10, 10], [20, 20], [30, 30], [40, 40] => [10, 40]
     assert rng.lo == 10 and rng.hi == 40
 
+    rng = mono.get_range(v_var, merge_bb.instructions[1])
+    # Phi merges [10, 10], [20, 20], [30, 30], [40, 40] => [10, 40]
+    assert rng.lo == 10 and rng.hi == 40
+
 
 def test_signextend_then_unsigned_comparison():
     """Test combination of signextend followed by unsigned comparison."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -1778,10 +2143,19 @@ def test_signextend_then_unsigned_comparison():
     # The key thing is soundness - if we get a narrow range, it should be correct
     assert under_range.hi <= 199 or under_range.is_top
 
+    under_range = mono.get_range(x_var, under_bb.instructions[0])
+    # x in [-128, 127] initially
+    # Unsigned lt 200: values [0, 127] satisfy lt 200
+    # But negative values [-128, -1] are large unsigned (>= 2^255) so don't satisfy lt 200
+    # So under branch should have x in [0, 127] (or could be narrower)
+    # Actually the analysis may return TOP or a wider range due to sign boundary issues
+    # The key thing is soundness - if we get a narrow range, it should be correct
+    assert under_range.hi <= 199 or under_range.is_top
+
 
 def test_loop_counter_bounds():
     """Test that loop counter ranges are properly tracked through back edges."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %i = 0
@@ -1809,9 +2183,18 @@ def test_loop_counter_bounds():
     # Counter in body: must satisfy lt 10, so in [0, 9]
     assert body_range.hi <= 9 or body_range.is_top
 
+    body_range = mono.get_range(counter_var, body_bb.instructions[0])
+    # Counter in body: must satisfy lt 10, so in [0, 9]
+    assert body_range.hi <= 9 or body_range.is_top
+
     # At exit, counter should be >= 10 (since lt 10 was false)
     exit_bb = fn.get_basic_block("exit")
     exit_range = analysis.get_range(counter_var, exit_bb.instructions[0])
+    # Counter at exit: must NOT satisfy lt 10
+    # This might be TOP or a range >= 10
+    assert exit_range.lo >= 10 or exit_range.is_top
+
+    exit_range = mono.get_range(counter_var, exit_bb.instructions[0])
     # Counter at exit: must NOT satisfy lt 10
     # This might be TOP or a range >= 10
     assert exit_range.lo >= 10 or exit_range.is_top
@@ -1836,7 +2219,7 @@ def test_soundness_literal_not_normalized_to_signed():
     # 2^255 as a literal (this is SIGNED_MIN in signed representation)
     val_2_255 = 2**255
 
-    analysis, fn = _analyze(f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %x = {SIGNED_MAX}
@@ -1856,6 +2239,15 @@ def test_soundness_literal_not_normalized_to_signed():
         f"2^255 should be normalized to SIGNED_MIN (-2^255) in signed representation."
     )
 
+    rng = mono.get_range(cmp_inst.output, entry.instructions[-1])
+
+    # SIGNED_MAX > SIGNED_MIN, so slt should return 0
+    # If the literal 2^255 is not normalized, the analysis might wrongly return 1
+    assert rng.lo == 0 and rng.hi == 0, (
+        f"Expected slt(SIGNED_MAX, 2^255) = {{0}}, got {rng}. "
+        f"2^255 should be normalized to SIGNED_MIN (-2^255) in signed representation."
+    )
+
 
 def test_soundness_literal_not_normalized_sgt():
     """
@@ -1867,7 +2259,7 @@ def test_soundness_literal_not_normalized_sgt():
 
     val_2_255 = 2**255
 
-    analysis, fn = _analyze(f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %x = {SIGNED_MAX}
@@ -1886,6 +2278,14 @@ def test_soundness_literal_not_normalized_sgt():
         f"2^255 should be normalized to SIGNED_MIN."
     )
 
+    rng = mono.get_range(cmp_inst.output, entry.instructions[-1])
+
+    # SIGNED_MAX > SIGNED_MIN, so sgt should return 1
+    assert rng.lo == 1 and rng.hi == 1, (
+        f"Expected sgt(SIGNED_MAX, 2^255) = {{1}}, got {rng}. "
+        f"2^255 should be normalized to SIGNED_MIN."
+    )
+
 
 def test_soundness_eq_literal_at_sign_boundary():
     """
@@ -1895,7 +2295,7 @@ def test_soundness_eq_literal_at_sign_boundary():
     """
     from vyper.venom.analysis.variable_range.value_range import UNSIGNED_MAX
 
-    analysis, fn = _analyze(f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %x = -1
@@ -1907,6 +2307,13 @@ def test_soundness_eq_literal_at_sign_boundary():
     entry = fn.get_basic_block("entry")
     cmp_inst = entry.instructions[1]
     rng = analysis.get_range(cmp_inst.output, entry.instructions[-1])
+
+    # -1 and UNSIGNED_MAX are the same 256-bit value
+    assert rng.lo == 1 and rng.hi == 1, (
+        f"Expected eq(-1, UNSIGNED_MAX) = {{1}}, got {rng}. " f"Both values are 0xFF...FF."
+    )
+
+    rng = mono.get_range(cmp_inst.output, entry.instructions[-1])
 
     # -1 and UNSIGNED_MAX are the same 256-bit value
     assert rng.lo == 1 and rng.hi == 1, (
@@ -1927,7 +2334,7 @@ def test_soundness_add_overflow_to_signed_boundary():
     # Create two ranges [0, 2^254] and add them
     bound = 2**254
 
-    analysis, fn = _analyze(f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %raw1 = calldataload 0
@@ -1956,6 +2363,21 @@ def test_soundness_add_overflow_to_signed_boundary():
             f"Expected TOP or range with hi <= SIGNED_MAX."
         )
 
+    rng = mono.get_range(add_inst.output, entry.instructions[-1])
+
+    # x in [0, 2^254], y in [0, 2^254]
+    # x + y could be up to 2^255 which is SIGNED_MIN (negative)
+    # So the result crosses the sign boundary and should be TOP
+    # If not TOP, at minimum the range should not claim to be non-negative
+    if not rng.is_top:
+        # If we get a concrete range, it's a soundness bug if hi > SIGNED_MAX
+        # because that means values SIGNED_MAX+1 to hi are actually negative
+        assert rng.hi <= SIGNED_MAX, (
+            f"Soundness bug: add result range {rng} has hi > SIGNED_MAX. "
+            f"Values above SIGNED_MAX are negative in signed representation. "
+            f"Expected TOP or range with hi <= SIGNED_MAX."
+        )
+
 
 def test_soundness_mul_overflow_to_signed_boundary():
     """
@@ -1970,7 +2392,7 @@ def test_soundness_mul_overflow_to_signed_boundary():
     # sqrt(SIGNED_MAX) ~ 2^127.5, so [0, 2^128] * [0, 2^128] can exceed SIGNED_MAX
     bound = 2**128
 
-    analysis, fn = _analyze(f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %raw1 = calldataload 0
@@ -1993,6 +2415,15 @@ def test_soundness_mul_overflow_to_signed_boundary():
             f"Expected TOP or range with hi <= SIGNED_MAX."
         )
 
+    rng = mono.get_range(mul_inst.output, entry.instructions[-1])
+
+    # Similar logic to add - result should be TOP or bounded by SIGNED_MAX
+    if not rng.is_top:
+        assert rng.hi <= SIGNED_MAX, (
+            f"Soundness bug: mul result range {rng} has hi > SIGNED_MAX. "
+            f"Expected TOP or range with hi <= SIGNED_MAX."
+        )
+
 
 def test_soundness_operand_range_normalizes_large_literal():
     """
@@ -2007,7 +2438,7 @@ def test_soundness_operand_range_normalizes_large_literal():
     large_val = 2**255 + 100
     expected_signed = SIGNED_MIN + 100
 
-    analysis, fn = _analyze(f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %x = {large_val}
@@ -2021,6 +2452,14 @@ def test_soundness_operand_range_normalizes_large_literal():
     # Get range at the add instruction (after assignment)
     add_inst = entry.instructions[1]
     rng = analysis.get_range(x_var, add_inst)
+
+    # The literal should be normalized to signed representation
+    assert rng.is_constant, f"Expected constant range, got {rng}"
+    assert rng.lo == expected_signed, (
+        f"Expected literal {large_val} to be normalized to {expected_signed}, " f"got {rng.lo}"
+    )
+
+    rng = mono.get_range(x_var, add_inst)
 
     # The literal should be normalized to signed representation
     assert rng.is_constant, f"Expected constant range, got {rng}"
@@ -2044,7 +2483,7 @@ def test_soundness_add_result_range_validity():
     # but could still overflow SIGNED_MAX when added
     bound = 2**127  # Well under RANGE_WIDTH_LIMIT
 
-    analysis, fn = _analyze(f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %raw1 = calldataload 0
@@ -2074,6 +2513,22 @@ def test_soundness_add_result_range_validity():
                 f"Values > SIGNED_MAX are negative."
             )
 
+    rng = mono.get_range(add_inst.output, entry.instructions[-1])
+
+    # Check range validity
+    if not rng.is_top and not rng.is_empty:
+        # In a valid range, lo <= hi
+        assert rng.lo <= rng.hi, (
+            f"Invalid range: lo={rng.lo} > hi={rng.hi}. "
+            f"This indicates sign boundary crossing without returning TOP."
+        )
+        # Additionally, if lo >= 0 (non-negative range), hi should be <= SIGNED_MAX
+        if rng.lo >= 0:
+            assert rng.hi <= SIGNED_MAX, (
+                f"Soundness bug: non-negative range {rng} has hi > SIGNED_MAX. "
+                f"Values > SIGNED_MAX are negative."
+            )
+
 
 # =============================================================================
 # SDIV AND SMOD TESTS
@@ -2082,7 +2537,7 @@ def test_soundness_add_result_range_validity():
 
 def test_sdiv_positive_range():
     """Test sdiv with a positive range dividend."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2098,10 +2553,14 @@ def test_sdiv_positive_range():
     # x in [0, 99], y = x / 10, so y in [0, 9]
     assert rng.lo == 0 and rng.hi == 9
 
+    rng = mono.get_range(sdiv_inst.output, entry.instructions[-1])
+    # x in [0, 99], y = x / 10, so y in [0, 9]
+    assert rng.lo == 0 and rng.hi == 9
+
 
 def test_sdiv_negative_range():
     """Test sdiv with a negative range dividend."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2118,10 +2577,14 @@ def test_sdiv_negative_range():
     # x in [-99, 0], y = x / 10, so y in [-9, 0] (truncation toward zero)
     assert rng.lo == -9 and rng.hi == 0
 
+    rng = mono.get_range(sdiv_inst.output, entry.instructions[-1])
+    # x in [-99, 0], y = x / 10, so y in [-9, 0] (truncation toward zero)
+    assert rng.lo == -9 and rng.hi == 0
+
 
 def test_sdiv_spanning_zero():
     """Test sdiv with a range spanning zero."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2137,10 +2600,14 @@ def test_sdiv_spanning_zero():
     # x in [-128, 127], y = x / 10, so y in [-12, 12]
     assert rng.lo == -12 and rng.hi == 12
 
+    rng = mono.get_range(sdiv_inst.output, entry.instructions[-1])
+    # x in [-128, 127], y = x / 10, so y in [-12, 12]
+    assert rng.lo == -12 and rng.hi == 12
+
 
 def test_sdiv_by_zero():
     """Test sdiv by zero returns 0 (EVM spec)."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2155,10 +2622,13 @@ def test_sdiv_by_zero():
     rng = analysis.get_range(sdiv_inst.output, entry.instructions[-1])
     assert rng.lo == 0 and rng.hi == 0
 
+    rng = mono.get_range(sdiv_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
 
 def test_sdiv_negative_divisor_returns_top():
     """Test sdiv with negative divisor returns TOP (conservative)."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2174,6 +2644,10 @@ def test_sdiv_negative_divisor_returns_top():
     # Currently returns TOP for negative divisors
     assert rng.is_top
 
+    rng = mono.get_range(sdiv_inst.output, entry.instructions[-1])
+    # Currently returns TOP for negative divisors
+    assert rng.is_top
+
 
 def test_sdiv_of_constant_wrapped_past_signed_max():
     """
@@ -2181,7 +2655,7 @@ def test_sdiv_of_constant_wrapped_past_signed_max():
     constant must be stored as SIGNED_MIN so that sdiv sees a negative
     dividend: sdiv(SIGNED_MIN, 2) = -2**254, not +2**254.
     """
-    analysis, fn = _analyze(f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %x = {SIGNED_MAX}
@@ -2198,10 +2672,13 @@ def test_sdiv_of_constant_wrapped_past_signed_max():
     assert analysis.get_range(add_inst.output, stop_inst) == ValueRange.constant(SIGNED_MIN)
     assert analysis.get_range(sdiv_inst.output, stop_inst) == ValueRange.constant(-(2**254))
 
+    assert mono.get_range(add_inst.output, stop_inst) == ValueRange.constant(SIGNED_MIN)
+    assert mono.get_range(sdiv_inst.output, stop_inst) == ValueRange.constant(-(2**254))
+
 
 def test_smod_positive_dividend():
     """Test smod with positive dividend range."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2217,10 +2694,14 @@ def test_smod_positive_dividend():
     # x in [0, 5], divisor = 10, result in [0, 5]
     assert rng.lo == 0 and rng.hi == 5
 
+    rng = mono.get_range(smod_inst.output, entry.instructions[-1])
+    # x in [0, 5], divisor = 10, result in [0, 5]
+    assert rng.lo == 0 and rng.hi == 5
+
 
 def test_smod_nonpositive_range():
     """Test smod with non-positive dividend range (including zero)."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2237,10 +2718,14 @@ def test_smod_nonpositive_range():
     # x in [-5, 0], divisor = 10, result in [-5, 0]
     assert rng.lo == -5 and rng.hi == 0
 
+    rng = mono.get_range(smod_inst.output, entry.instructions[-1])
+    # x in [-5, 0], divisor = 10, result in [-5, 0]
+    assert rng.lo == -5 and rng.hi == 0
+
 
 def test_smod_spanning_zero():
     """Test smod with dividend range spanning zero."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2256,10 +2741,14 @@ def test_smod_spanning_zero():
     # x in [-128, 127], divisor = 10, result in [-9, 9]
     assert rng.lo == -9 and rng.hi == 9
 
+    rng = mono.get_range(smod_inst.output, entry.instructions[-1])
+    # x in [-128, 127], divisor = 10, result in [-9, 9]
+    assert rng.lo == -9 and rng.hi == 9
+
 
 def test_smod_by_zero():
     """Test smod by zero returns 0 (EVM spec)."""
-    analysis, fn = _analyze("""
+    analysis, mono, fn = _analyze("""
         function test {
         entry:
             %raw = calldataload 0
@@ -2272,6 +2761,9 @@ def test_smod_by_zero():
     entry = fn.get_basic_block("entry")
     smod_inst = next(inst for inst in entry.instructions if inst.opcode == "smod")
     rng = analysis.get_range(smod_inst.output, entry.instructions[-1])
+    assert rng.lo == 0 and rng.hi == 0
+
+    rng = mono.get_range(smod_inst.output, entry.instructions[-1])
     assert rng.lo == 0 and rng.hi == 0
 
 
@@ -2351,7 +2843,7 @@ def test_sdiv_by_divisor_narrowed_to_unsigned_constant():
     as a signed divisor, so sdiv(%v, %d) with %v in [0, 99] can be -49.
     """
     word = 2**256 - 2
-    analysis, fn = _analyze(f"""
+    analysis, mono, fn = _analyze(f"""
         function test {{
         entry:
             %x = calldataload 0
@@ -2373,4 +2865,9 @@ def test_sdiv_by_divisor_narrowed_to_unsigned_constant():
     d_rng = analysis.get_range(sdiv_inst.operands[-2], sdiv_inst)
     assert d_rng == ValueRange.constant(word)
     rng = analysis.get_range(sdiv_inst.output, big.instructions[-1])
+    assert rng.is_top or rng.lo <= -49 <= rng.hi, f"-49 excluded from {rng}"
+
+    d_rng = mono.get_range(sdiv_inst.operands[-2], sdiv_inst)
+    assert d_rng == ValueRange.constant(word)
+    rng = mono.get_range(sdiv_inst.output, big.instructions[-1])
     assert rng.is_top or rng.lo <= -49 <= rng.hi, f"-49 excluded from {rng}"
