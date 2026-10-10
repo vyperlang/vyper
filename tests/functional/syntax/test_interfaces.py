@@ -500,6 +500,60 @@ def foobar():
     assert compiler.compile_code(code, input_bundle=input_bundle) is not None
 
 
+def test_wildcard_darray_return_extended(make_input_bundle):
+    # an unbounded return value passed to DynArray.extend must codegen
+    # against the dst capacity (the only concrete length available).
+    ifoo_code = """
+@view
+def bar() -> DynArray[uint256, ...]:
+    ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": ifoo_code})
+
+    code = """
+import foo as Foo
+
+my_array: DynArray[uint256, 5]
+
+@external
+def foo() -> DynArray[uint256, 5]:
+    x: Foo = Foo(0x1234567890123456789012345678901234567890)
+    self.my_array.extend(staticcall x.bar())
+    return self.my_array
+    """
+
+    assert compiler.compile_code(code, input_bundle=input_bundle) is not None
+
+
+def test_wildcard_darray_param_and_return_extended(make_input_bundle):
+    # both wildcard producers at once: the unbounded return is passed to
+    # DynArray.extend (dst-capacity fallback in visit_Call), while the
+    # wildcard param is fed a list literal (substitution in ExprVisitor.visit).
+    ifoo_code = """
+@view
+def bar(xs: DynArray[uint256, ...]) -> DynArray[uint256, ...]:
+    ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": ifoo_code})
+
+    code = """
+import foo as Foo
+
+my_array: DynArray[uint256, 5]
+
+@external
+def foo() -> DynArray[uint256, 5]:
+    x: Foo = Foo(0x1234567890123456789012345678901234567890)
+    self.my_array = [1, 2]
+    self.my_array.extend(staticcall x.bar([3, 4]))
+    return self.my_array
+"""
+
+    assert compiler.compile_code(code, input_bundle=input_bundle) is not None
+
+
 def test_builtins_not_found(make_input_bundle):
     code = """
 from vyper.interfaces import foobar
