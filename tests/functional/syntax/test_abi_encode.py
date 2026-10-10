@@ -92,6 +92,19 @@ def foo():
     assert excinfo.value.message == "`Never` does not have an abi encoding"
 
 
+def test_abi_encode_hashmap():
+    code = """
+h: HashMap[uint256, uint256]
+
+@external
+def foo() -> Bytes[64]:
+    return abi_encode(self.h)
+    """
+    with pytest.raises(InvalidOperation) as excinfo:
+        compiler.compile_code(code)
+    assert excinfo.value.message == "`HashMap[uint256, uint256]` does not have an abi encoding"
+
+
 valid_list = [
     """
 @external
