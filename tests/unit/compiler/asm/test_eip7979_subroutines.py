@@ -42,9 +42,9 @@ def _opcode_names(asm):
 
 def test_future_has_subroutine_opcodes():
     ops = _evm_opcodes[EVM_VERSIONS["future"]]
-    assert ops["CALLSUB"][0] == 0xB0
-    assert ops["CALLDEST"][0] == 0xB1
-    assert ops["RETURNSUB"][0] == 0xB2
+    assert ops["CALLDEST"][0] == 0xBB
+    assert ops["CALLSUB"][0] == 0xBC
+    assert ops["RETURNSUB"][0] == 0xBF
     assert "CALLSUB" not in _evm_opcodes[EVM_VERSIONS["prague"]]
 
 
@@ -76,8 +76,8 @@ def test_bytecode_contains_instructions():
     )
     code = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
     # a CALLSUB is always immediately preceded by a PUSH2 label
-    assert any(code[i] == 0x61 and code[i + 3] == 0xB0 for i in range(len(code) - 3))
-    assert 0xB2 in code
+    assert any(code[i] == 0x61 and code[i + 3] == 0xBC for i in range(len(code) - 3))
+    assert 0xBF in code
 
 
 def test_merge_jumpdests_keeps_subroutine_entries():

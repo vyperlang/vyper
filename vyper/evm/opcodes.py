@@ -187,9 +187,9 @@ OPCODE_OVERRIDES: dict[str, OpcodeMap] = {
     },
     # EIP-7979: call and return opcodes (mid, jumpdest, low)
     "future": {
-        "CALLSUB": (0xB0, 1, 0, 8),
-        "CALLDEST": (0xB1, 0, 0, 1),
-        "RETURNSUB": (0xB2, 0, 0, 5),
+        "CALLDEST": (0xBB, 0, 0, 1),
+        "CALLSUB": (0xBC, 1, 0, 8),
+        "RETURNSUB": (0xBF, 0, 0, 5),
     },
 }
 
