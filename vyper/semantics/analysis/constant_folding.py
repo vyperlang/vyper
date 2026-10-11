@@ -187,6 +187,16 @@ class ConstantFolder(VyperNodeVisitorBase):
         value = node.op._op(lvalue, rvalue)
         return vy_ast.NameConstant.from_node(node, value=value)
 
+    def visit_IfExp(self, node) -> vy_ast.ExprNode:
+        test = node.test.get_folded_value()
+        if not isinstance(test, vy_ast.NameConstant):
+            raise UnfoldableNode("not a boolean!", node.test)
+
+        # require both branches to fold, so that a branch which is not a
+        # compile-time constant is still rejected even if it is not taken.
+        body, orelse = node.body.get_folded_value(), node.orelse.get_folded_value()
+        return body if test.value else orelse
+
     def visit_List(self, node) -> vy_ast.ExprNode:
         elements = [e.get_folded_value() for e in node.elements]
         return type(node).from_node(node, elements=elements)
