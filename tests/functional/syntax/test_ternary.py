@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import TypeMismatch
+from vyper.exceptions import StateAccessViolation, TypeMismatch
 
 good_list = [
     # basic test
@@ -140,4 +140,40 @@ def foo(a: uint256, b: uint256, c: uint256) -> (uint256, uint256):
 @pytest.mark.parametrize("code,exc", fail_list)
 def test_functions_call_fail(code, exc):
     with pytest.raises(exc):
+        compile_code(code)
+
+
+def test_ternary_folds_in_constant(get_contract):
+    code = """
+A: constant(bool) = True
+B: constant(bool) = not A
+S: constant(String[8]) = "foo" if A else "bar"
+T: constant(String[8]) = "foo" if B else "bar"
+N: constant(uint256) = 2 if A else 3
+L: constant(uint256[N]) = [7, 8]
+
+@external
+def foo() -> (String[8], String[8], uint256, uint256):
+    return S, T, N, L[N - 1]
+    """
+    c = get_contract(code)
+    assert c.foo() == ("foo", "bar", 2, 8)
+
+
+fail_constant_list = [
+    # the branch that is not taken must still be a constant
+    """
+A: constant(bool) = True
+S: constant(uint256) = 1 if A else block.number
+    """,
+    # the test must be a constant
+    """
+S: constant(uint256) = 1 if block.number > 0 else 2
+    """,
+]
+
+
+@pytest.mark.parametrize("code", fail_constant_list)
+def test_ternary_in_constant_fail(code):
+    with pytest.raises(StateAccessViolation):
         compile_code(code)
