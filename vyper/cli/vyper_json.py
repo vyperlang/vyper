@@ -334,6 +334,7 @@ def get_settings(input_dict: dict) -> Settings:
     # TODO: maybe change these to camelCase for consistency
     enable_decimals = input_dict["settings"].get("enable_decimals", None)
     disable_static_exceptions = input_dict["settings"].get("disableStaticExceptions", None)
+    linear_selector_section = input_dict["settings"].get("linearSelectorSection", None)
 
     # Create Venom optimization flags with the optimization level
     venom_flags = VenomOptimizationFlags(level=optimize)
@@ -375,6 +376,7 @@ def get_settings(input_dict: dict) -> Settings:
         debug=debug,
         enable_decimals=enable_decimals,
         disable_static_exceptions=disable_static_exceptions,
+        linear_selector_section=linear_selector_section,
         venom_flags=venom_flags,
     )
 
