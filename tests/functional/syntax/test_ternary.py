@@ -161,19 +161,50 @@ def foo() -> (String[8], String[8], uint256, uint256):
 
 
 fail_constant_list = [
-    # the branch that is not taken must still be a constant
-    """
+    (  # the branch that is not taken must still be a constant
+        """
 A: constant(bool) = True
 S: constant(uint256) = 1 if A else block.number
     """,
-    # the test must be a constant
-    """
+        StateAccessViolation,
+    ),
+    (  # the test must be a constant
+        """
 S: constant(uint256) = 1 if block.number > 0 else 2
     """,
+        StateAccessViolation,
+    ),
+    (  # the branch that is not taken must still type check
+        """
+A: constant(bool) = True
+FOO: constant(uint256) = 2 if A else "bar"
+    """,
+        TypeMismatch,
+    ),
+    (  # the branch that is not taken must still type check: other direction
+        """
+A: constant(bool) = False
+FOO: constant(uint256) = "bar" if A else 2
+    """,
+        TypeMismatch,
+    ),
 ]
 
 
-@pytest.mark.parametrize("code", fail_constant_list)
-def test_ternary_in_constant_fail(code):
-    with pytest.raises(StateAccessViolation):
+@pytest.mark.parametrize("code,exc", fail_constant_list)
+def test_ternary_in_constant_fail(code, exc):
+    with pytest.raises(exc):
+        compile_code(code)
+
+
+# a type annotation is reduced to its folded value without visiting the
+# original expression, so the branch that is not taken is never type
+# checked. this needs type checking to run before folding.
+@pytest.mark.xfail(reason="ternary in a type annotation is folded before it is type checked")
+def test_ternary_in_annotation_fail():
+    code = """
+A: constant(bool) = True
+x: uint256[2 if A else "bad"]
+    """
+    with pytest.raises(TypeMismatch):
         compile_code(code)
