@@ -674,9 +674,10 @@ it back:
 .. code-block:: vyper
 
     xs[i].values.append(1)  # rejected
+    
     b: Batch = xs[i]
     b.values.append(1)
-    xs[i] = b
+    xs[i] = b  # allowed
 
 A struct with an unbounded member lives in memory only, like every unbounded
 sequence. It may not be returned inside a tuple. A ``DynArray`` of such structs,
