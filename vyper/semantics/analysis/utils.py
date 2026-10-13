@@ -525,6 +525,9 @@ def get_modifiability(node: vy_ast.ExprNode) -> Modifiability:
     Compute the modifiability of an expression without requiring it to
     resolve to a single type.
     """
+    if node._expr_info is not None:
+        return node._expr_info.modifiability
+
     # since expressions containing literals often have more than one type, they fail
     # get_expr_info, so recurse into the operands instead of asking for an ExprInfo
     # TODO: Remove this helper once every expression has a single type
