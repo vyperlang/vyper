@@ -10,12 +10,7 @@ from vyper.exceptions import (
     StructureException,
     UnfoldableNode,
 )
-from vyper.semantics.analysis.base import Modifiability
-from vyper.semantics.analysis.utils import (
-    check_modifiability,
-    validate_expected_type,
-    validate_unique_method_ids,
-)
+from vyper.semantics.analysis.utils import validate_expected_type, validate_unique_method_ids
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
@@ -30,7 +25,8 @@ if TYPE_CHECKING:
 class InterfaceT(_UserType):
     typeclass = "interface"
 
-    _type_members = {"address": AddressT()}
+    _builtin_members = {"address": AddressT()}
+    _view_builtin_members = ("address",)
     _is_prim_word = True
     is_valid_element_type = True
     _as_hashmap_key = True
@@ -112,9 +108,6 @@ class InterfaceT(_UserType):
 
     def _ctor_kwarg_types(self, node):
         return {}
-
-    def _ctor_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
-        return check_modifiability(node.args[0], modifiability)
 
     def validate_implements(
         self, node: vy_ast.ImplementsDecl, functions: dict[ContractFunctionT, vy_ast.VyperNode]
