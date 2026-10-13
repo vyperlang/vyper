@@ -200,7 +200,7 @@ def test_ternary_in_constant_fail(code, exc):
 # a type annotation is reduced to its folded value without visiting the
 # original expression, so the branch that is not taken is never type
 # checked. this needs type checking to run before folding.
-@pytest.mark.xfail(reason="ternary in a type annotation is folded before it is type checked")
+@pytest.mark.xfail()
 def test_ternary_in_annotation_fail():
     code = """
 A: constant(bool) = True
