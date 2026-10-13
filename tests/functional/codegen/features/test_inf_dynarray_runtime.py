@@ -340,6 +340,57 @@ def build(n: uint256) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
         assert c.build(n) == (list(range(n)), [i * 100 for i in range(n)])
 
 
+@pytest.mark.parametrize("inline", [True, False])
+def test_inf_dynarray_owned_internal_arg_append(get_contract, no_inlining_settings, inline):
+    # The caller has an owned buffer (both full and with spare capacity).
+    # Callee ingress must still clear capacity before either growth path.
+    code = """
+@internal
+def extend(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
+    for i: uint256 in range(5):
+        x.append(100 + i)
+    return x
+
+@external
+def build(n: uint256) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+    x: DynArray[uint256, INF] = []
+    for i: uint256 in range(n, bound=10):
+        x.append(i)
+    y: DynArray[uint256, INF] = self.extend(x)
+    return x, y
+    """
+    kwargs = {} if inline else {"compiler_settings": no_inlining_settings}
+    c = get_contract(code, **kwargs)
+    for n in (1, 3, 4, 8):
+        expected = list(range(n))
+        assert c.build(n) == (expected, expected + list(range(100, 105)))
+
+
+@pytest.mark.parametrize("inline", [True, False])
+def test_inf_dynarray_append_with_live_dynamic_rhs(get_contract, no_inlining_settings, inline):
+    # The internal return allocates above the owned array before append
+    # decides whether it can grow. The RHS must survive the copy fallback.
+    code = """
+@internal
+def item(i: uint256) -> Bytes[INF]:
+    return abi_encode(i)
+
+@internal
+def build() -> (DynArray[Bytes[32], INF], Bytes[INF]):
+    x: DynArray[Bytes[32], INF] = []
+    for i: uint256 in range(17):
+        x.append(convert(self.item(i), Bytes[32]))
+    return x, self.item(99)
+
+@external
+def run() -> (DynArray[Bytes[32], INF], Bytes[INF]):
+    return self.build()
+    """
+    kwargs = {} if inline else {"compiler_settings": no_inlining_settings}
+    c = get_contract(code, **kwargs)
+    assert c.run() == ([i.to_bytes(32, "big") for i in range(17)], (99).to_bytes(32, "big"))
+
+
 def test_inf_dynarray_pop_then_append_full_contents(get_contract):
     code = """
 @external
@@ -918,6 +969,80 @@ def get_literal(addr: address) -> DynArray[uint256, 4]:
     caller = get_contract(caller_code)
     assert caller.get_empty(target.address) == []
     assert caller.get_literal(target.address) == [5, 6]
+
+
+def test_wildcard_arg_dynamic_element_roundtrip(get_contract):
+    target_code = """
+@external
+def data(x: DynArray[Bytes[10], 5]) -> uint256:
+    return len(x)
+    """
+
+    caller_code = """
+interface Source:
+    def data(x: DynArray[Bytes[10], ...]) -> uint256: nonpayable
+
+@external
+def get_empty(addr: address) -> uint256:
+    return extcall Source(addr).data([])
+
+@external
+def get_bounded(addr: address, xs: DynArray[Bytes[10], 5]) -> uint256:
+    return extcall Source(addr).data(xs)
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get_empty(target.address) == 0
+    assert caller.get_bounded(target.address, [b"abc", b"defg"]) == 2
+
+
+def test_wildcard_arg_user_struct_element_empty(get_contract):
+    target_code = """
+struct S:
+    b: Bytes[10]
+
+@external
+def data(x: DynArray[S, 5]) -> uint256:
+    return len(x)
+    """
+
+    caller_code = """
+struct S:
+    b: Bytes[10]
+
+interface Source:
+    def data(x: DynArray[S, ...]) -> uint256: nonpayable
+
+@external
+def get_empty(addr: address) -> uint256:
+    return extcall Source(addr).data([])
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get_empty(target.address) == 0
+
+
+def test_wildcard_tuple_arg_empty_list_element(get_contract):
+    target_code = """
+@external
+def sink(input: (DynArray[uint256, 3], uint256)) -> uint256:
+    return len(input[0]) + input[1]
+    """
+
+    caller_code = """
+interface Sink:
+    def sink(input: (DynArray[uint256, ...], uint256)) -> uint256: nonpayable
+
+@external
+def do_it(addr: address) -> uint256:
+    return extcall Sink(addr).sink(([], 42))
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.do_it(target.address) == 42
 
 
 @pytest.mark.parametrize(
