@@ -649,6 +649,7 @@ class VenomCodegenContext:
         not the encoded length. Callers may use it only to size buffers and
         must take the real length from the encoder's return value.
         """
+        assert not type_contains_unbounded_sequence(typ.value_type)
         length = self.builder.mload(ptr)
         elem_abi_t = typ.value_type.abi_type
         # the elements are bounded, so the per-element bound is a compile-time
