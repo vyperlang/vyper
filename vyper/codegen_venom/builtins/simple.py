@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Union
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.layout import unbounded_member_cells
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import StructureException, TypeMismatch
 from vyper.semantics.types import (
@@ -15,7 +16,6 @@ from vyper.semantics.types import (
     is_runtime_sizable_type,
     is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
-    unbounded_member_cells,
 )
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import DArrayT

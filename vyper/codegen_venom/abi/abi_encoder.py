@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.core import is_tuple_like
+from vyper.codegen_venom.layout import struct_member_offsets
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import (
     DArrayT,
@@ -25,7 +26,6 @@ from vyper.semantics.types import (
     _BytestringT,
     is_unbounded_bytestring_type,
     is_unbounded_sequence_type,
-    struct_member_offsets,
     type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.shortcuts import UINT256_T

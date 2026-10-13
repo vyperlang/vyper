@@ -16,9 +16,22 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, BottomT, VyperType
-from vyper.semantics.types.infinity import INF, WILDCARD, LengthUpperBound
+from vyper.semantics.types.infinity import (
+    INF,
+    WILDCARD,
+    LengthUpperBound,
+    is_unbounded_sequence_type,
+)
+from vyper.utils import POINTER_CELL_SIZE
 
 # TODO maybe this should be merged with .types/base.py
+
+
+def member_slot_size(typ: VyperType) -> int:
+    """Return the bytes a struct member occupies inline in the struct."""
+    if is_unbounded_sequence_type(typ):
+        return POINTER_CELL_SIZE
+    return typ.size_in_bytes
 
 
 def type_from_abi(abi_type: dict) -> VyperType:

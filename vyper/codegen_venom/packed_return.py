@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable
 
+from vyper.codegen_venom.layout import struct_member_offsets
 from vyper.semantics.types import (
     DArrayT,
     StructT,
@@ -26,7 +27,6 @@ from vyper.semantics.types import (
     is_unbounded_bytestring_type,
     is_unbounded_dynarray_type,
     is_unbounded_sequence_type,
-    struct_member_offsets,
     type_contains_unbounded_sequence,
 )
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable

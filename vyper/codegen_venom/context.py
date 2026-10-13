@@ -18,14 +18,14 @@ from typing import Callable, ClassVar, Optional, Sequence
 from vyper.codegen.core import punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.bytestring_literal import LiteralPool, chain_instructions
+from vyper.codegen_venom.constants import POINTER_CELL_CAPACITY_OFFSET
+from vyper.codegen_venom.layout import unbounded_member_cells
 from vyper.codegen_venom.value import VyperValue
 from vyper.compiler.settings import _opt_codesize, _opt_lowering_only_ir
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic, MemoryAllocationException, StateAccessViolation
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
-    POINTER_CELL_CAPACITY_OFFSET,
-    POINTER_CELL_SIZE,
     TupleT,
     VyperType,
     _BytestringT,
@@ -36,13 +36,12 @@ from vyper.semantics.types import (
     is_unbounded_dynarray_type,
     is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
-    unbounded_member_cells,
 )
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
-from vyper.utils import IDENTITY_PRECOMPILE
+from vyper.utils import IDENTITY_PRECOMPILE, POINTER_CELL_SIZE
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 

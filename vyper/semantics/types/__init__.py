@@ -1,11 +1,11 @@
+from vyper.semantics.types.utils import member_slot_size
+
 from . import primitives, subscriptable, user
 from .base import INF_T, TYPE_T, VOID_TYPE, BottomT, KwargSettings, VyperType, is_type_t, map_void
 from .bytestrings import BytesT, StringT, _BytestringT
 from .function import ContractFunctionT, MemberFunctionT
 from .infinity import (
     INF,
-    POINTER_CELL_CAPACITY_OFFSET,
-    POINTER_CELL_SIZE,
     WILDCARD,
     LengthUpperBound,
     is_bounded_length,
@@ -16,11 +16,7 @@ from .infinity import (
     is_unbounded_bytestring_type,
     is_unbounded_dynarray_type,
     is_unbounded_sequence_type,
-    is_unsupported_constant_type,
-    member_slot_size,
-    struct_member_offsets,
     type_contains_unbounded_sequence,
-    unbounded_member_cells,
 )
 from .module import InterfaceT, ModuleT
 from .primitives import AddressT, BoolT, BytesM_T, DecimalT, IntegerT, SelfT

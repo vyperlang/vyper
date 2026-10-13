@@ -17,9 +17,9 @@ from vyper.semantics.analysis.utils import validate_expected_type, validate_kwar
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import BottomT, VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.infinity import is_runtime_sizable_type, member_slot_size
+from vyper.semantics.types.infinity import is_runtime_sizable_type
 from vyper.semantics.types.subscriptable import HashMapT
-from vyper.semantics.types.utils import type_from_abi, type_from_annotation
+from vyper.semantics.types.utils import member_slot_size, type_from_abi, type_from_annotation
 from vyper.utils import keccak256, method_id_int
 from vyper.warnings import Deprecation, vyper_warn
 

@@ -19,6 +19,7 @@ from vyper.codegen.core import (
     needs_external_call_wrap,
 )
 from vyper.codegen_venom.arithmetic import apply_binop
+from vyper.codegen_venom.layout import struct_member_offsets
 from vyper.exceptions import (
     CodegenPanic,
     CompilerPanic,
@@ -46,7 +47,6 @@ from vyper.semantics.types import (
     is_type_t,
     is_unbounded_dynarray_type,
     is_unbounded_sequence_type,
-    struct_member_offsets,
     type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.base import VOID_TYPE

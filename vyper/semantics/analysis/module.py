@@ -60,7 +60,9 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.function import ContractFunctionT, KeywordArg, _FunctionArg
 from vyper.semantics.types.infinity import (
-    is_unsupported_constant_type,
+    is_supported_unbounded_tuple_type,
+    is_unbounded_dynarray_type,
+    is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.module import ModuleT
@@ -440,6 +442,22 @@ def _validate_overrides(func_t: ContractFunctionT, node: vy_ast.FunctionDef):
             )
 
         abstract_t.set_overridden_by(func_t)
+
+
+def _is_unsupported_constant_type(typ: VyperType) -> bool:
+    """Return True if a constant cannot have type `typ`.
+
+    Constants hold INF only as a top-level sequence of elements without INF,
+    or a tuple of such sequences; a struct with INF members is never part of
+    a constant, including as the element of an INF DynArray.
+    """
+    if not type_contains_unbounded_sequence(typ):
+        return False
+    if is_supported_unbounded_tuple_type(typ):
+        return False
+    if is_unbounded_dynarray_type(typ):
+        return type_contains_unbounded_sequence(typ.value_type)
+    return not is_unbounded_sequence_type(typ)
 
 
 class ModuleAnalyzer(VyperNodeVisitorBase):
@@ -824,7 +842,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         )
 
         type_ = type_from_annotation(node.annotation, location)
-        if node.is_constant and is_unsupported_constant_type(type_):
+        if node.is_constant and _is_unsupported_constant_type(type_):
             raise StructureException(
                 "Constants cannot contain unbounded sequence types inside aggregate types",
                 node.annotation,

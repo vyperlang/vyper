@@ -27,12 +27,6 @@ class Inf(enum.Enum):
 
 INF = Inf.INF
 
-# An unbounded (INF) value has no inline representation, so a struct member or
-# a local of an INF type occupies a fixed-size cell holding its current payload
-# pointer and capacity instead. See `VenomCodegenContext.store_pointer_cell`.
-POINTER_CELL_SIZE = 64
-POINTER_CELL_CAPACITY_OFFSET = 32
-
 
 class Wildcard(enum.Enum):
     """Singleton representing a wildcard length (matches any length)."""
@@ -180,63 +174,11 @@ def is_runtime_sizable_return_type(typ: VyperType) -> bool:
     return is_runtime_sizable_type(typ)
 
 
-def is_unsupported_constant_type(typ: VyperType) -> bool:
-    """Return True if a constant cannot have type `typ`.
-
-    Constants hold INF only as a top-level sequence of elements without INF,
-    or a tuple of such sequences; a struct with INF members is never part of
-    a constant, including as the element of an INF DynArray.
-    """
-    if not type_contains_unbounded_sequence(typ):
-        return False
-    if is_supported_unbounded_tuple_type(typ):
-        return False
-    if is_unbounded_dynarray_type(typ):
-        return type_contains_unbounded_sequence(typ.value_type)
-    return not is_unbounded_sequence_type(typ)
-
-
 def length_to_json(length: LengthUpperBound) -> int | str:
     """Return a JSON-serializable representation of a length value."""
     if length is INF or length is WILDCARD:
         return str(length)
     return length
-
-
-def member_slot_size(typ: VyperType) -> int:
-    """Return the bytes a struct member occupies inline in the struct."""
-    if is_unbounded_sequence_type(typ):
-        return POINTER_CELL_SIZE
-    return typ.size_in_bytes
-
-
-def struct_member_offsets(struct_t: StructT) -> list[tuple[str, int, VyperType]]:
-    """Return `(name, byte offset, member type)` for every member of a struct
-    in memory, where an unbounded member takes a pointer cell."""
-    ret = []
-    offset = 0
-    for name, member_t in struct_t.member_types.items():
-        ret.append((name, offset, member_t))
-        offset += member_slot_size(member_t)
-    return ret
-
-
-def unbounded_member_cells(struct_t: StructT) -> list[tuple[int, VyperType]]:
-    """Return `(byte offset, member type)` for every pointer cell at a static
-    offset in a struct.
-
-    Cells of nested structs are included at their offset in the outer struct;
-    cells inside the elements of an array member are not.
-    """
-    from vyper.semantics.types.user import StructT
-
-    cells: list[tuple[int, VyperType]] = []
-    for _, offset, member_t in struct_member_offsets(struct_t):
-        if is_unbounded_sequence_type(member_t):
-            cells.append((offset, member_t))
-        elif isinstance(member_t, StructT):
-            cells.extend((offset + off, t) for off, t in unbounded_member_cells(member_t))
-    return cells
 
 
 def type_contains_unbounded_sequence(typ: VyperType) -> bool:
