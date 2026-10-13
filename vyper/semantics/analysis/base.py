@@ -61,10 +61,6 @@ class Modifiability(StringEnum):
     # could potentially add more fine-grained here as needed, like
     # CONSTANT_AFTER_DEPLOY, TX_CONSTANT, BLOCK_CONSTANT, etc.
 
-    # things that are not constant, but cannot be written to
-    # for example return values
-    READ_ONLY = enum.auto()
-
     # is writeable/can result in arbitrary state or memory changes
     MODIFIABLE = enum.auto()
 
@@ -293,38 +289,21 @@ class ExprInfo:
     """
 
     typ: VyperType
-
-    # how constant an expression is.
-    # this determines where it can be used (e.g. pure functions),
-    # and what it can be assigned to
-    # for example `a[i]` is only a compile-time constant if both `a` and `i` are
-    constancy: Modifiability
+    modifiability: Modifiability
 
     var_info: Optional[VarInfo] = None
     module_info: Optional[ModuleInfo] = None
     location: DataLocation = DataLocation.UNSET
-
-    # the minimum constancy required to write to this expression.
-    # usually the same as constancy (see `__post_init__`), but not always:
-    # for example if `a` is an immutable, `a[i]` can be assigned in the constructor,
-    # even if `i` is not RUNTIME_CONSTANT, e.g. if it is a loop variable.
-    writability: Modifiability = None  # type: ignore[assignment]
-
     attr: Optional[str] = None
     _writes: OrderedSet[VarAccess] = field(default_factory=OrderedSet)
     _reads: OrderedSet[VarAccess] = field(default_factory=OrderedSet)
 
     def __post_init__(self):
-        if self.writability is None:
-            self.writability = self.constancy
-
-        should_match = ("typ", "location")
+        should_match = ("typ", "location", "modifiability")
         if self.var_info is not None:
             for attr in should_match:
                 if getattr(self.var_info, attr) != getattr(self, attr):
                     raise CompilerPanic(f"Bad analysis: non-matching {attr}: {self}")
-            # a variable's modifiability is both its constancy and its writability
-            assert self.var_info.modifiability == self.constancy == self.writability
 
     @classmethod
     def from_varinfo(cls, var_info: VarInfo, **kwargs) -> "ExprInfo":
@@ -332,7 +311,7 @@ class ExprInfo:
             var_info.typ,
             var_info=var_info,
             location=var_info.location,
-            constancy=var_info.modifiability,
+            modifiability=var_info.modifiability,
             **kwargs,
         )
 
@@ -341,7 +320,7 @@ class ExprInfo:
         return cls(
             module_info.module_t,
             module_info=module_info,
-            constancy=Modifiability.CONSTANT,
+            modifiability=Modifiability.CONSTANT,
             **kwargs,
         )
 
@@ -349,7 +328,7 @@ class ExprInfo:
         """
         Return a copy of the ExprInfo but with the type set to something else
         """
-        to_copy = ("location", "constancy", "writability")
+        to_copy = ("location", "modifiability")
         fields = {k: getattr(self, k) for k in to_copy}
         for t in to_copy:
             assert t not in kwargs

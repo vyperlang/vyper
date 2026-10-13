@@ -26,14 +26,12 @@ class Namespace(dict):
         # TODO: break this cycle by providing an `init_vyper_namespace` in 3rd module
         from vyper.builtins.functions import get_builtin_functions
         from vyper.semantics import environment
-        from vyper.semantics.analysis.base import Modifiability, VarInfo
+        from vyper.semantics.analysis.base import VarInfo
         from vyper.semantics.types import PRIMITIVE_TYPES
 
         self.update(PRIMITIVE_TYPES)
         self.update(environment.CONSTANT_ENVIRONMENT_VARS)
-        # builtin functions are not assignable
-        builtins = get_builtin_functions().items()
-        self.update({k: VarInfo(b, modifiability=Modifiability.READ_ONLY) for (k, b) in builtins})
+        self.update({k: VarInfo(b) for (k, b) in get_builtin_functions().items()})
 
     def __eq__(self, other):
         return self is other

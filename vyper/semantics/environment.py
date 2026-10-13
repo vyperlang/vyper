@@ -67,9 +67,4 @@ def get_mutable_vars() -> Dict:
     Get a dictionary of mutable environment variables (those that are
     modified during the course of contract execution, such as `self`).
     """
-    # note: some members of `self` are mutable, but `self` itself is not a
-    # valid assignment target
-    return {
-        name: VarInfo(type_(), modifiability=Modifiability.READ_ONLY)
-        for name, type_ in MUTABLE_ENVIRONMENT_VARS.items()
-    }
+    return {name: VarInfo(type_()) for name, type_ in MUTABLE_ENVIRONMENT_VARS.items()}

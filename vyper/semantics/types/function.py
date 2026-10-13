@@ -28,8 +28,8 @@ from vyper.semantics.analysis.base import (
     VarOffset,
 )
 from vyper.semantics.analysis.utils import (
-    get_constancy,
     get_exact_type_from_node,
+    get_modifiability,
     uses_state,
     validate_expected_type,
 )
@@ -100,7 +100,7 @@ class ContractFunctionT(VyperType):
     _is_callable = True
 
     # the return value is only known at runtime
-    _constancy = Modifiability.READ_ONLY
+    _modifiability = Modifiability.MODIFIABLE
 
     def __init__(
         self,
@@ -1135,7 +1135,7 @@ def _parse_args(
                     value,
                 )
 
-            if get_constancy(value) > Modifiability.RUNTIME_CONSTANT:
+            if get_modifiability(value) > Modifiability.RUNTIME_CONSTANT:
                 raise StateAccessViolation("Value must be literal or environment variable", value)
 
             if not isinstance(value, vy_ast.Ellipsis):
@@ -1166,7 +1166,7 @@ class MemberFunctionT(VyperType):
     _is_callable = True
 
     # the return value is only known at runtime
-    _constancy = Modifiability.READ_ONLY
+    _modifiability = Modifiability.MODIFIABLE
 
     # keep LGTM linter happy
     def __eq__(self, other):

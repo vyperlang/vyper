@@ -432,7 +432,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if self.func.is_internal:
             location, modifiability = (DataLocation.MEMORY, Modifiability.MODIFIABLE)
         else:
-            location, modifiability = (DataLocation.CALLDATA, Modifiability.READ_ONLY)
+            location, modifiability = (DataLocation.CALLDATA, Modifiability.RUNTIME_CONSTANT)
 
         for arg in self.func.arguments:
             self.namespace[arg.name] = VarInfo(
@@ -583,10 +583,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if info.location == DataLocation.CALLDATA:
             raise ImmutableViolation("Cannot write to calldata")
 
-        if (
-            info.writability == Modifiability.RUNTIME_CONSTANT
-            and info.location == DataLocation.CODE
-        ):
+        if info.location == DataLocation.CODE:
             if not func_t.is_constructor:
                 raise ImmutableViolation("Immutable value can only be mutated in the constructor")
 
@@ -597,13 +594,13 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 if info.var_info._modification_count != 0:
                     raise ImmutableViolation("Immutable value cannot be modified after assignment")
                 info.var_info._modification_count += 1
-        elif info.writability <= Modifiability.READ_ONLY:
-            raise ImmutableViolation("Read-only expression cannot be mutated.")
 
-        assert info.location != DataLocation.UNSET
+        if info.location == DataLocation.UNSET:
+            raise ImmutableViolation("Read-only expression cannot be mutated.", target)
 
         var_access = _get_variable_access(target)
-        assert var_access is not None
+        if var_access is None:
+            raise ImmutableViolation("Cannot modify temporary value", target)
 
         info._writes.add(var_access)
 
@@ -774,8 +771,9 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
 
         with self.namespace.enter_scope(), self.enter_for_loop(iter_var):
             target_name = node.target.target.id
+            # maybe we should introduce a new Modifiability: LOOP_VARIABLE
             self.namespace[target_name] = VarInfo(
-                target_type, modifiability=Modifiability.READ_ONLY, decl_node=node.target
+                target_type, modifiability=Modifiability.RUNTIME_CONSTANT, decl_node=node.target
             )
 
             self.expr_visitor.visit(node.target.target, target_type)

@@ -8,8 +8,8 @@ from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic, TypeMismatch, UnfoldableNode
 from vyper.semantics.analysis.base import Modifiability, StateMutability
 from vyper.semantics.analysis.utils import (
-    get_constancy,
     get_exact_type_from_node,
+    get_modifiability,
     validate_expected_type,
 )
 from vyper.semantics.types import TYPE_T, KwargSettings, VyperType
@@ -85,7 +85,7 @@ class BuiltinFunctionT(VyperType):
     _has_varargs = False
     _inputs: list[tuple[str, Any]] = []
     _kwargs: dict[str, KwargSettings] = {}
-    _constancy: Modifiability = Modifiability.READ_ONLY
+    _modifiability: Modifiability = Modifiability.MODIFIABLE
     _return_type: Optional[VyperType] = None
     _equality_attrs = ("_id",)
     _is_terminus = False
@@ -123,7 +123,7 @@ class BuiltinFunctionT(VyperType):
             kwarg_settings = self._kwargs[kwarg.arg]
             if (
                 kwarg_settings.require_literal
-                and get_constancy(kwarg.value) > Modifiability.CONSTANT
+                and get_modifiability(kwarg.value) > Modifiability.CONSTANT
             ):
                 raise TypeMismatch("Value must be literal", kwarg.value)
             # `kwarg_settings.typ` is sometimes not a VyperType
