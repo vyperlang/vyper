@@ -48,6 +48,6 @@ we will add an entry to the list of security advisories for posterity and refere
 - If you think you have found a security vulnerability caused by the compiler with a project that has used Vyper,
 please report the vulnerability to the relevant project's security disclosure program before reporting to us. Additionally, please privately disclose the compiler vulnerability at https://github.com/vyperlang/vyper/security/advisories.
 
-- Automated vulnerability scanning services (e.g. [Anthropic's OSS Scanner](https://red.anthropic.com/oss-scanner)) and other agent-driven scanning pipelines, whether fully automated or human-operated, may deliver their findings to `security@vyperlang.org`. Researchers should use the advisory link above.
+- `security@vyperlang.org` is the project contact for administrative questions from approved automated or human-operated security-scanning services. It is not a vulnerability-reporting channel; researchers must use the advisory link above.
 
 - **Please Do Not Log An Issue** mentioning the vulnerability.
