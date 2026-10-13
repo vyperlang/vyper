@@ -184,11 +184,21 @@ class Expr:
     or check `node.has_folded_value` before isinstance checks on node type.
     """
 
-    def __init__(self, node: vy_ast.VyperNode, ctx: VenomCodegenContext, as_ptr: bool = False):
+    def __init__(
+        self,
+        node: vy_ast.VyperNode,
+        ctx: VenomCodegenContext,
+        as_ptr: bool = False,
+        darray_indices: Optional[list[tuple[IROperand, IROperand, DataLocation]]] = None,
+    ):
         self.node = node.reduced()
         self.ctx = ctx
         self.builder = ctx.builder
         self.as_ptr = as_ptr  # Assignment targets must retain their original location.
+        # When given, collects (array_ptr, index, location) for each DynArray
+        # subscript on a target's path, so the caller can check the indices
+        # again after later side effects shrink those arrays.
+        self.darray_indices = darray_indices
 
     def lower(self) -> VyperValue:
         """Dispatch to type-specific lowering method.
@@ -1013,7 +1023,9 @@ class Expr:
         if overlap and self.as_ptr:
             raise CompilerPanic("risky overlap")
 
-        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
+        base_vv = Expr(
+            node.value, self.ctx, as_ptr=self.as_ptr, darray_indices=self.darray_indices
+        ).lower()
         if overlap:
             base_vv = self.ctx.materialize_value(base_vv, base_typ)
 
@@ -1035,6 +1047,8 @@ class Expr:
         if isinstance(base_typ, DArrayT):
             # Dynamic array: load length from first word.
             length = self.ctx.load_word(base, data_loc)
+            if self.darray_indices is not None:
+                self.darray_indices.append((base, index, data_loc))
         else:
             # Static array: compile-time length
             length = IRLiteral(base_typ.count)
@@ -1162,7 +1176,9 @@ class Expr:
         """
         node = self.node
         assert isinstance(node, vy_ast.Subscript)
-        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
+        base_vv = Expr(
+            node.value, self.ctx, as_ptr=self.as_ptr, darray_indices=self.darray_indices
+        ).lower()
         base = base_vv.operand  # Extract pointer for address math
         base_typ = base_vv.typ
 
@@ -1204,7 +1220,9 @@ class Expr:
         """
         node = self.node
         assert isinstance(node, vy_ast.Attribute)
-        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
+        base_vv = Expr(
+            node.value, self.ctx, as_ptr=self.as_ptr, darray_indices=self.darray_indices
+        ).lower()
         base = base_vv.operand  # Extract pointer for address math
         base_typ = node.value._metadata["type"]
         attr = node.attr
@@ -1725,8 +1743,10 @@ class Expr:
         if is_unbounded_dynarray_type(darray_typ):
             return self._lower_unbounded_dynarray_append()
 
-        # Get the array VyperValue
-        darray_vv = Expr(darray_node, self.ctx).lower()
+        # Lower as a target so risky overlap panics: mutating an rvalue
+        # snapshot would silently drop the write.
+        darray_indices: list[tuple[IROperand, IROperand, DataLocation]] = []
+        darray_vv = Expr(darray_node, self.ctx, as_ptr=True, darray_indices=darray_indices).lower()
         darray_ptr = darray_vv.operand
 
         # Get the element value.
@@ -1751,6 +1771,16 @@ class Expr:
             elem_src_typ = elem_typ
         else:
             elem_val = arg_val
+
+        # The argument can shrink arrays on the receiver's path (e.g.
+        # `rows[1].append(rows.pop()[0])`). Check the receiver's indices
+        # again so appending to a removed element reverts.
+        if _subscript_base_length_can_stale(darray_node) and _subscript_read_write_overlap(
+            darray_node, arg_node
+        ):
+            for array_ptr, index, loc in darray_indices:
+                length = self.ctx.load_word(array_ptr, loc)
+                self.builder.assert_(self.builder.lt(index, length))
 
         # Get location from VyperValue
         data_loc = darray_vv.location
@@ -1801,10 +1831,11 @@ class Expr:
         The pointer cell carries the owned payload capacity next to the
         payload pointer (see VenomCodegenContext.store_pointer_cell). When
         the payload has spare room the element is written in place; otherwise
-        a payload of `max(2 * capacity, length + 1)` elements is allocated
-        and the old contents copied over, making repeated appends amortized
-        linear in aggregate. Non-append stores leave capacity at 0, so the
-        first append after an assignment/decode allocates the exact new size
+        the payload grows to `max(2 * capacity, length + 1)` elements, in
+        place if it is owned and ends at the FMP, otherwise by copying to a
+        new allocation. Repeated appends are amortized linear in aggregate.
+        Non-append stores leave capacity at 0, so the first append after an
+        assignment/decode allocates the exact new size
         (no 2x memory jump on a large ingested array) and doubling starts
         from there.
         """
@@ -1870,8 +1901,32 @@ class Expr:
         min_cap = self.ctx.checked_add(length, IRLiteral(1))
         new_cap = b.select(b.lt(doubled, min_cap), min_cap, doubled)
         new_size = self.ctx.dynarray_runtime_size_from_length(new_cap, darray_typ)
-        new_ptr = self.ctx.allocate_scratch(new_size)
         old_size = b.add(IRLiteral(32), data_size)
+
+        # At capacity, old_size is the full owned allocation size. Extending
+        # a top-most payload preserves all its aliases and avoids retaining
+        # a superseded buffer. Capacity zero denotes a borrowed payload and
+        # must take the copy path even if it happens to end at the FMP.
+        extend_bb = b.create_block("append_extend")
+        copy_bb = b.create_block("append_copy")
+        old_end = b.add(old_ptr, old_size)
+        fmp = b.getfmp()
+        can_extend = b.and_(b.iszero(b.iszero(capacity)), b.eq(old_end, fmp))
+        b.jnz(can_extend, extend_bb.label, copy_bb.label)
+
+        b.append_block(extend_bb)
+        b.set_block(extend_bb)
+        # Keep the captured FMP live through the branch, preventing a
+        # synthesized rewind between the top-most check and the advance.
+        new_end = self.ctx.checked_add(fmp, b.sub(new_size, old_size))
+        b.setfmp(new_end)
+        self.ctx.store_pointer_cell(cell, old_ptr, new_cap)
+        b.mstore(target_cell._ptr, old_ptr)
+        b.jmp(join_bb.label)
+
+        b.append_block(copy_bb)
+        b.set_block(copy_bb)
+        new_ptr = self.ctx.allocate_scratch(new_size)
         self.ctx.copy_memory_dynamic(new_ptr, old_ptr, old_size)
         self.ctx.store_pointer_cell(cell, new_ptr, new_cap)
         b.mstore(target_cell._ptr, new_ptr)
@@ -1908,8 +1963,9 @@ class Expr:
         darray_typ = darray_node._metadata["type"]
         elem_typ = darray_typ.value_type
 
-        # Get the array VyperValue
-        darray_vv = Expr(darray_node, self.ctx).lower()
+        # Lower as a target so risky overlap panics: mutating an rvalue
+        # snapshot would silently drop the write.
+        darray_vv = Expr(darray_node, self.ctx, as_ptr=True).lower()
         darray_ptr = darray_vv.operand
 
         # Get location from VyperValue

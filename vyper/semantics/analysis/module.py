@@ -41,9 +41,9 @@ from vyper.semantics.analysis.imports import ImportAnalyzer
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.local import ExprVisitor, analyze_functions, check_module_uses
 from vyper.semantics.analysis.utils import (
-    check_modifiability,
     get_exact_type_from_node,
     get_expr_info,
+    get_modifiability,
     structurally_equivalent,
 )
 from vyper.semantics.data_locations import DataLocation
@@ -879,7 +879,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase[None]):
             assert node.value is not None  # checked in VariableDecl.validate()
             ExprVisitor().visit(node.value, type_)  # performs validate_expected_type
 
-            if not check_modifiability(node.value, Modifiability.CONSTANT):
+            if get_modifiability(node.value) > Modifiability.CONSTANT:
                 raise StateAccessViolation("Value must be a literal", node.value)
 
             _validate_self_namespace()
