@@ -241,8 +241,7 @@ def _get_element_ptr(
 
         # Dynamic tuples reach the encoder one member at a time; only a
         # struct has pointer cells in its inline memory layout.
-        is_struct = isinstance(parent_typ, StructT)
-        if is_struct:
+        if isinstance(parent_typ, StructT):
             _, offset, elem_typ = struct_member_offsets(parent_typ)[idx]
         else:
             items = parent_typ.tuple_items()  # type: ignore[attr-defined]
@@ -256,7 +255,7 @@ def _get_element_ptr(
 
         elem_ptr: IROperand
         elem_ptr = b.add(parent_ptr, IRLiteral(offset))
-        if is_struct and is_unbounded_sequence_type(elem_typ):
+        if isinstance(parent_typ, StructT) and is_unbounded_sequence_type(elem_typ):
             # what gets encoded is the payload the cell points at
             assert isinstance(elem_ptr, IRVariable)
             elem_ptr = b.mload(elem_ptr)

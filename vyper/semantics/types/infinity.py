@@ -1,5 +1,16 @@
+from __future__ import annotations
+
 import enum
-from typing import Any, TypeAlias, TypeGuard
+from typing import TYPE_CHECKING, TypeAlias, TypeGuard
+
+if TYPE_CHECKING:
+    from vyper.semantics.types.base import VyperType
+    from vyper.semantics.types.bytestrings import _BytestringT
+    from vyper.semantics.types.subscriptable import DArrayT
+    from vyper.semantics.types.user import StructT
+
+# Concrete type imports stay local: those modules import INF while defining
+# their types.
 
 
 class Inf(enum.Enum):
@@ -45,24 +56,26 @@ def is_bounded_length(_lengthval: LengthUpperBound) -> TypeGuard[int]:
     return _lengthval is not INF and _lengthval is not WILDCARD
 
 
-def is_unbounded_bytestring_type(typ) -> bool:
+def is_unbounded_bytestring_type(typ: VyperType | None) -> TypeGuard[_BytestringT]:
     """Return True if `typ` is a Bytes/String with INF length."""
-    return getattr(typ, "_is_bytestring", False) and getattr(typ, "length", None) is INF
+    from vyper.semantics.types.bytestrings import _BytestringT
+
+    return isinstance(typ, _BytestringT) and typ.length is INF
 
 
-def is_unbounded_dynarray_type(typ) -> bool:
+def is_unbounded_dynarray_type(typ: VyperType | None) -> TypeGuard[DArrayT]:
     """Return True if `typ` is a DynArray with INF length."""
-    return (
-        getattr(typ, "typeclass", None) == "dynamic_array" and getattr(typ, "length", None) is INF
-    )
+    from vyper.semantics.types.subscriptable import DArrayT
+
+    return isinstance(typ, DArrayT) and typ.length is INF
 
 
-def is_unbounded_sequence_type(typ) -> bool:
+def is_unbounded_sequence_type(typ: VyperType | None) -> TypeGuard[_BytestringT | DArrayT]:
     """Return True if `typ` is a direct Bytes/String/DynArray with INF length."""
     return is_unbounded_bytestring_type(typ) or is_unbounded_dynarray_type(typ)
 
 
-def is_supported_unbounded_tuple_type(typ) -> bool:
+def is_supported_unbounded_tuple_type(typ: VyperType) -> bool:
     """Return True for tuples whose INF members are direct sequences of bounded elements.
 
     Such a tuple is built in the dynamic tuple frame
@@ -71,7 +84,9 @@ def is_supported_unbounded_tuple_type(typ) -> bool:
     the sequence: a struct with INF members or an INF DynArray of such
     structs has no single payload to point at.
     """
-    if getattr(typ, "typeclass", None) != "tuple":
+    from vyper.semantics.types.subscriptable import TupleT
+
+    if not isinstance(typ, TupleT):
         return False
 
     for member_t in typ.member_types:
@@ -92,7 +107,7 @@ def is_supported_unbounded_tuple_type(typ) -> bool:
     return True
 
 
-def is_runtime_sizable_type(typ) -> bool:
+def is_runtime_sizable_type(typ: VyperType) -> bool:
     """Return True if a value of `typ` has a memory layout and a runtime encoded size.
 
     The ABI can encode any shape holding INF; what the compiler needs is a
@@ -120,33 +135,38 @@ def is_runtime_sizable_type(typ) -> bool:
     and error members, `abi_encode`, `print`, `create_*` constructor
     arguments and `empty`).
     """
+    from vyper.semantics.types.subscriptable import DArrayT
+    from vyper.semantics.types.user import StructT
+
     if not type_contains_unbounded_sequence(typ):
         return True
 
     if is_unbounded_bytestring_type(typ):
         return True
 
-    if getattr(typ, "typeclass", None) == "dynamic_array":
+    if isinstance(typ, DArrayT):
         elem_t = typ.value_type
         if not type_contains_unbounded_sequence(elem_t):
             return True
         return is_pointer_cell_struct_type(elem_t)
 
-    if getattr(typ, "typeclass", None) == "struct":
+    if isinstance(typ, StructT):
         return all(is_runtime_sizable_type(t) for t in typ.members.values())
 
     return False
 
 
-def is_pointer_cell_struct_type(typ) -> bool:
+def is_pointer_cell_struct_type(typ: VyperType | None) -> TypeGuard[StructT]:
     """Return True for a struct with INF members, each held in a pointer cell."""
-    if getattr(typ, "typeclass", None) != "struct":
+    from vyper.semantics.types.user import StructT
+
+    if not isinstance(typ, StructT):
         return False
 
     return type_contains_unbounded_sequence(typ) and is_runtime_sizable_type(typ)
 
 
-def is_runtime_sizable_return_type(typ) -> bool:
+def is_runtime_sizable_return_type(typ: VyperType) -> bool:
     """Return True if a return value of `typ` can be sized at runtime.
 
     Everything `is_runtime_sizable_type` accepts, plus a tuple whose INF
@@ -160,7 +180,7 @@ def is_runtime_sizable_return_type(typ) -> bool:
     return is_runtime_sizable_type(typ)
 
 
-def is_unsupported_constant_type(typ) -> bool:
+def is_unsupported_constant_type(typ: VyperType) -> bool:
     """Return True if a constant cannot have type `typ`.
 
     Constants hold INF only as a top-level sequence of elements without INF,
@@ -183,14 +203,14 @@ def length_to_json(length: LengthUpperBound) -> int | str:
     return length
 
 
-def member_slot_size(typ) -> int:
+def member_slot_size(typ: VyperType) -> int:
     """Return the bytes a struct member occupies inline in the struct."""
     if is_unbounded_sequence_type(typ):
         return POINTER_CELL_SIZE
     return typ.size_in_bytes
 
 
-def struct_member_offsets(struct_t) -> list[tuple[str, int, Any]]:
+def struct_member_offsets(struct_t: StructT) -> list[tuple[str, int, VyperType]]:
     """Return `(name, byte offset, member type)` for every member of a struct
     in memory, where an unbounded member takes a pointer cell."""
     ret = []
@@ -201,46 +221,48 @@ def struct_member_offsets(struct_t) -> list[tuple[str, int, Any]]:
     return ret
 
 
-def unbounded_member_cells(struct_t) -> list[tuple[int, Any]]:
+def unbounded_member_cells(struct_t: StructT) -> list[tuple[int, VyperType]]:
     """Return `(byte offset, member type)` for every pointer cell at a static
     offset in a struct.
 
     Cells of nested structs are included at their offset in the outer struct;
     cells inside the elements of an array member are not.
     """
-    cells = []
+    from vyper.semantics.types.user import StructT
+
+    cells: list[tuple[int, VyperType]] = []
     for _, offset, member_t in struct_member_offsets(struct_t):
         if is_unbounded_sequence_type(member_t):
             cells.append((offset, member_t))
-        elif getattr(member_t, "typeclass", None) == "struct":
+        elif isinstance(member_t, StructT):
             cells.extend((offset + off, t) for off, t in unbounded_member_cells(member_t))
     return cells
 
 
-def type_contains_unbounded_sequence(typ) -> bool:
+def type_contains_unbounded_sequence(typ: VyperType) -> bool:
     """Return True if `typ` is or contains a Bytes/String/DynArray with INF length."""
-    if getattr(typ, "_is_bytestring", False):
-        return getattr(typ, "length", None) is INF
+    from vyper.semantics.types.bytestrings import _BytestringT
+    from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT, TupleT
+    from vyper.semantics.types.user import ErrorT, EventT, StructT
 
-    typeclass = getattr(typ, "typeclass", None)
+    if isinstance(typ, _BytestringT):
+        return typ.length is INF
 
-    if typeclass == "dynamic_array":
-        return getattr(typ, "length", None) is INF or type_contains_unbounded_sequence(
-            typ.value_type
-        )
+    if isinstance(typ, DArrayT):
+        return typ.length is INF or type_contains_unbounded_sequence(typ.value_type)
 
-    if typeclass == "static_array":
+    if isinstance(typ, SArrayT):
         return type_contains_unbounded_sequence(typ.value_type)
 
-    if typeclass == "hashmap":
+    if isinstance(typ, HashMapT):
         return type_contains_unbounded_sequence(typ.key_type) or type_contains_unbounded_sequence(
             typ.value_type
         )
 
-    if typeclass == "tuple":
+    if isinstance(typ, TupleT):
         return any(type_contains_unbounded_sequence(t) for t in typ.member_types)
 
-    if typeclass in ("struct", "error", "event"):
+    if isinstance(typ, (StructT, ErrorT, EventT)):
         return any(type_contains_unbounded_sequence(t) for t in typ.members.values())
 
     return False
