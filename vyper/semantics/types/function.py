@@ -1136,7 +1136,7 @@ def _parse_args(
                 )
 
             if get_modifiability(value) > Modifiability.RUNTIME_CONSTANT:
-                raise StateAccessViolation("Value must be literal or environment variable", value)
+                raise StateAccessViolation("Value must be a literal or environment variable", value)
 
             if not isinstance(value, vy_ast.Ellipsis):
                 validate_expected_type(value, type_)

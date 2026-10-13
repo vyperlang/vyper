@@ -125,7 +125,7 @@ class BuiltinFunctionT(VyperType):
                 kwarg_settings.require_literal
                 and get_modifiability(kwarg.value) > Modifiability.CONSTANT
             ):
-                raise TypeMismatch("Value must be literal", kwarg.value)
+                raise TypeMismatch("Value must be a literal", kwarg.value)
             # `kwarg_settings.typ` is sometimes not a VyperType
             # This violates the contract of _validate_single, but it still works
             self._validate_single(kwarg.value, kwarg_settings.typ)
