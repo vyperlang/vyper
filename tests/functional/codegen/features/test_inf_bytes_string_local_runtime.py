@@ -2321,7 +2321,7 @@ error Oops:
 
 @external
 def boom(x: Bytes[INF]):
-    raise Oops(x)
+    raise Oops(x=x)
     """
 
     c = get_contract(code)
@@ -2359,7 +2359,7 @@ error Oops:
 
 @external
 def boom(xs: DynArray[uint256, INF]):
-    raise Oops(xs)
+    raise Oops(xs=xs)
     """
 
     c = get_contract(code)
@@ -2377,7 +2377,7 @@ error Oops:
 @external
 def boom():
     x: DynArray[uint256, INF] = [1, 2, 3]
-    raise Oops(x, x.pop())
+    raise Oops(xs=x, popped=x.pop())
     """
 
     c = get_contract(code)

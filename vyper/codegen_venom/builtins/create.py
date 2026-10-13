@@ -190,9 +190,13 @@ def _prepare_ctor_args(ctx: VenomCodegenContext, ctor_arg_nodes: list[vy_ast.Vyp
 
 
 def _encode_ctor_args_to_buf(
-    ctx: VenomCodegenContext, dst: IRVariable, ctor_tuple_typ: TupleT, ctor_arg_vvs
+    ctx: VenomCodegenContext,
+    dst: IRVariable,
+    ctor_tuple_typ: TupleT,
+    ctor_arg_vvs,
+    bufsz: Optional[int],
 ) -> IROperand:
-    return abi_encode_values_to_buf(ctx, dst, ctor_arg_vvs, ctor_tuple_typ)
+    return abi_encode_values_to_buf(ctx, dst, ctor_arg_vvs, ctor_tuple_typ, bufsz)
 
 
 # EIP-1167 bytecode components
@@ -387,9 +391,12 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     bytecode_max_len = None if bytecode_is_unbounded else bytecode_typ.maxlen
     ctx.copy_memory_dynamic(buf_ptr, bytecode_ptr, bytecode_len, bytecode_max_len)
 
-    # Encode ctor args after bytecode
+    # Encode ctor args after bytecode. Either allocation reserves
+    # ctor_abi_size bytes past the bytecode, so the args region has a static
+    # bound whenever the args do, even though args_start is a runtime offset.
     args_start = b.add(buf_ptr, bytecode_len)
-    args_len = _encode_ctor_args_to_buf(ctx, args_start, ctor_tuple_typ, ctor_arg_vvs)
+    args_bufsz = None if runtime_ctor_args else ctor_abi_size.value
+    args_len = _encode_ctor_args_to_buf(ctx, args_start, ctor_tuple_typ, ctor_arg_vvs, args_bufsz)
 
     # Total length = bytecode_len + args_len
     if runtime_initcode:
@@ -633,7 +640,9 @@ def lower_create_from_blueprint(node: vy_ast.Call, ctx: VenomCodegenContext) -> 
             args_ptr = args_buf._ptr
             args_max_size = ctor_abi_size.value
         assert isinstance(args_ptr, IRVariable)
-        args_len = _encode_ctor_args_to_buf(ctx, args_ptr, ctor_tuple_typ, ctor_arg_vvs)
+        args_len = _encode_ctor_args_to_buf(
+            ctx, args_ptr, ctor_tuple_typ, ctor_arg_vvs, args_max_size
+        )
     else:
         # No constructor arguments
         args_len = IRLiteral(0)

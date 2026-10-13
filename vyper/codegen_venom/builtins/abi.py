@@ -188,7 +188,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             ctx.zero_bytestring_padding(buf_ptr, alloc_size)
 
         def encode_unbounded(dst: IRVariable) -> IROperand:
-            return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type)
+            return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type, None)
 
         _build_abi_encoded_bytes(
             ctx, buf_ptr, method_id, encode_unbounded, ctx.checked_add, zero_tail_padding=True
@@ -197,7 +197,8 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         return ctx.dynamic_memory_value(buf_ptr, node._metadata["type"], annotation="abi_encode")
 
     # Calculate buffer size
-    maxlen = encode_type.abi_type.size_bound()
+    bufsz = encode_type.abi_type.size_bound()
+    maxlen = bufsz
     if method_id is not None:
         maxlen += 4
 
@@ -207,7 +208,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     assert isinstance(buf_val.operand, IRVariable)
 
     def encode_bounded(dst: IRVariable) -> IROperand:
-        return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type)
+        return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type, bufsz)
 
     _build_abi_encoded_bytes(ctx, buf_val.operand, method_id, encode_bounded, b.add)
 
@@ -308,11 +309,14 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     src_vv = VyperValue.from_ptr(ptr, wrapped_typ)
     abi_decode_to_buf(ctx, output_val.operand, src_vv, hi=hi)
 
-    # Return with output_typ (unwrapped type if applicable)
-    if unwrap_tuple and wrapped_typ != output_typ:
-        # For single-element tuple, element 0 is at offset 0
-        return VyperValue.from_ptr(output_val.ptr(), output_typ)
-    return output_val
+    # sanity check as in the legacy, it cannot be done right
+    # after creating of wrapped_typ since the unbounded
+    # types do not have this info
+    assert wrapped_typ.memory_bytes_required == output_typ.memory_bytes_required
+
+    # the output should be always of type that is
+    # propageted in the signature as in the legacy
+    return VyperValue.from_ptr(output_val.ptr(), output_typ)
 
 
 HANDLERS = {
