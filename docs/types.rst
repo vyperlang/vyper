@@ -679,11 +679,12 @@ it back:
     b.values.append(1)
     xs[i] = b  # allowed
 
-A struct with an unbounded member lives in memory only, like every unbounded
-sequence. It may not be returned inside a tuple. A ``DynArray`` of such structs,
-and a struct containing one, work everywhere the struct does, with one exception:
-the array cannot itself be a ``DynArray`` element
-(``DynArray[DynArray[Batch, 3], 2]`` is rejected).
+Structs with unbounded members, and types containing such structs, are supported
+only in memory and cannot be returned inside tuples.
+
+A ``DynArray`` of such structs cannot itself be a ``DynArray`` element:
+``DynArray[Batch, 3]`` is supported, but ``DynArray[DynArray[Batch, 3], 2]`` is
+rejected.
 
 .. TODO: Support nested DynArray types whose innermost elements are structs
    with unbounded members.
