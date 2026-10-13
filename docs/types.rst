@@ -667,7 +667,7 @@ following restrictions.
 
 .. TODO: Support mutation of unbounded members through array elements.
 
-Writing an unbounded member of an array element, or anything inside it, is
+Writing to an unbounded member of an array element, or to anything inside it, is
 rejected; other members, including a whole nested struct, and whole elements
 can be assigned. Copy the element to a local variable, modify it, then store
 it back:
