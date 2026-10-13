@@ -194,7 +194,8 @@ class ConstantFolder(VyperNodeVisitorBase):
 
         # require both branches to fold, so that a branch which is not a
         # compile-time constant is still rejected even if it is not taken.
-        body, orelse = node.body.get_folded_value(), node.orelse.get_folded_value()
+        body = node.body.get_folded_value()
+        orelse = node.orelse.get_folded_value()
         return body if test.value else orelse
 
     def visit_List(self, node) -> vy_ast.ExprNode:
