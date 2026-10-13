@@ -1435,6 +1435,18 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[DynArray[uint256, 3], 3]:
     """,
         lambda xs: [[]],
     ),
+    # `Never` nested under a fixed-size array: the bottom-type scan must
+    # recurse through SArrayT elements too, not just DynArrayT elements
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[DynArray[uint256, 3][2], 3]:
+    ys: DynArray[DynArray[uint256, 3][2], 3] = []
+    ys.extend([[[], []]])
+    return ys
+        """,
+        lambda xs: [[[], []]],
+    ),
     # widening element type src (memory dst): the staging buffer re-lays
     # the elements out at the dst stride (Bytes[2] -> Bytes[64] changes
     # the stride from 64 to 96 bytes)

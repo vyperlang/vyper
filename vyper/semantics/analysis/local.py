@@ -112,7 +112,7 @@ def _expr_contains_unbounded_sequence(node: vy_ast.VyperNode, typ: VyperType) ->
 def _dynarray_contains_bottom(typ: VyperType) -> bool:
     if isinstance(typ, BottomT):
         return True
-    if isinstance(typ, DArrayT):
+    if isinstance(typ, (DArrayT, SArrayT)):
         return _dynarray_contains_bottom(typ.value_type)
     return False
 
