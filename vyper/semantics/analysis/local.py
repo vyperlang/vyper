@@ -1201,13 +1201,19 @@ class ExprVisitor(VyperNodeVisitorBase):
                     # this currently catches `DynArray.extend(...)` only.
                     # prefer a bounded type with a concrete element type;
                     # an unbounded (INF) type is also fine since codegen
-                    # handles runtime lengths. if there is no usable type
-                    # (e.g. `x.extend([])`, or `[[]]` where `Never` is nested
-                    # below the top level), fall back to the destination type.
+                    # handles runtime lengths. wildcard-length candidates
+                    # (e.g. a wildcard interface return) are excluded so
+                    # that they specialize against the destination type,
+                    # the only concrete length available at the call site.
+                    # if there is no usable type (e.g. `x.extend([])`, or
+                    # `[[]]` where `Never` is nested below the top level),
+                    # fall back to the destination type.
                     possible_types = [
                         t
                         for t in get_possible_types_from_node(arg)
-                        if t.is_subtype_of(arg_type) and not _dynarray_contains_bottom(t.value_type)
+                        if t.is_subtype_of(arg_type)
+                        and not _dynarray_contains_bottom(t.value_type)
+                        and not t.has_wildcard
                     ]
                     arg_type = next(
                         (t for t in possible_types if is_bounded_length(t.length)),
