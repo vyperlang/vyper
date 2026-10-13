@@ -155,7 +155,8 @@ class VenomCodegenContext:
         return var
 
     # Layout of the cell holding an unbounded (INF) value's payload pointer
-    # and capacity; defined next to the struct member sizing that shares it.
+    # and capacity. The size is shared with type sizing in vyper.utils; the
+    # capacity offset is codegen-only.
     POINTER_CELL_SIZE = POINTER_CELL_SIZE
     POINTER_CELL_CAPACITY_OFFSET = POINTER_CELL_CAPACITY_OFFSET
 
