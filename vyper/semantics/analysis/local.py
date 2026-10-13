@@ -201,7 +201,7 @@ def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name, typ: VyperType) 
             )
         # allow type exprs in the value node, e.g. MyFlag.A
         parent_info = get_expr_info(node.value, is_callable=True)
-        if isinstance(parent_info.typ, AddressT) and node.attr in AddressT._type_members:
+        if isinstance(parent_info.typ, AddressT) and node.attr in AddressT._builtin_members:
             raise StateAccessViolation("not allowed to query address members in pure functions")
 
     if (varinfo := info.var_info) is None:
@@ -219,9 +219,9 @@ def _validate_pure_access(node: vy_ast.Attribute | vy_ast.Name, typ: VyperType) 
 
 
 # analyse the variable access for the attribute chain for a node
-# e.x. `x` will return varinfo for `x`
-# `module.foo` will return VarAccess for `module.foo`
-# `self.my_struct.x.y` will return VarAccess for `self.my_struct.x.y`
+# e.x. `x` will return `VarAccess(<x>, ())`
+# `module.foo` will return `VarAccess(<module.foo>, ())`
+# `self.my_struct.x.y` will return `VarAccess(<self.my_struct>, ('x', 'y'))`
 def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
     path: list[str | object] = []
     info = get_expr_info(node)
@@ -239,13 +239,9 @@ def _get_variable_access(node: vy_ast.ExprNode) -> Optional[VarAccess]:
         if (attr := info.attr) is not None:
             path.append(attr)
 
-        assert isinstance(node, (vy_ast.Subscript, vy_ast.Attribute))  # help mypy
         node = node.value
         info = get_expr_info(node)
 
-    # ignore `self.` as it interferes with VarAccess comparison across modules
-    if len(path) > 0 and path[-1] == "self":
-        path.pop()
     path.reverse()
 
     return VarAccess(info.var_info, tuple(path))
@@ -588,29 +584,23 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if info.location == DataLocation.CALLDATA:
             raise ImmutableViolation("Cannot write to calldata")
 
-        if info.modifiability == Modifiability.RUNTIME_CONSTANT:
-            if info.location == DataLocation.CODE:
-                if not func_t.is_constructor:
-                    raise ImmutableViolation("Immutable value cannot be written to")
+        if info.location == DataLocation.CODE:
+            if not func_t.is_constructor:
+                raise ImmutableViolation("Immutable value can only be mutated in the constructor")
 
-                # handle immutables
-                if info.var_info is not None:  # don't handle complex (struct,array) immutables
-                    # special handling for immutable variables in the ctor
-                    # TODO: maybe we want to remove this restriction.
-                    if info.var_info._modification_count != 0:
-                        raise ImmutableViolation(
-                            "Immutable value cannot be modified after assignment"
-                        )
-                    info.var_info._modification_count += 1
-            else:
-                raise ImmutableViolation("Environment variable cannot be written to")
+            # handle immutables
+            if info.var_info is not None:  # don't handle complex (struct,array) immutables
+                # special handling for immutable variables in the ctor
+                # TODO: maybe we want to remove this restriction.
+                if info.var_info._modification_count != 0:
+                    raise ImmutableViolation("Immutable value cannot be modified after assignment")
+                info.var_info._modification_count += 1
 
-        if info.modifiability == Modifiability.CONSTANT:
-            raise ImmutableViolation("Constant value cannot be written to.")
+        if info.location == DataLocation.UNSET:
+            raise ImmutableViolation("Read-only expression cannot be mutated.", target)
 
         var_access = _get_variable_access(target)
-        if var_access is None:
-            raise ImmutableViolation("Cannot modify temporary value", target)
+        assert var_access is not None
 
         info._writes.add(var_access)
 
@@ -706,6 +696,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         iter_val = iter_node.reduced()
 
         if isinstance(iter_val, vy_ast.List):
+            # TODO: This branch only exists because get_exact_type_from_node on e.g. `[1, 2]`
+            # raises, once every node has a single type, remove this branch
             len_ = len(iter_val.elements)
             if len_ == 0:
                 raise StructureException("For loop must have at least 1 iteration", iter_node)
@@ -722,6 +714,10 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         if not isinstance(iter_type, (DArrayT, SArrayT)):
             raise InvalidType("Not an iterable type", iter_node)
 
+        # lint as error: the loop will never run
+        if iter_type.count == 0:
+            raise StructureException("For loop must have at least 1 iteration", iter_node)
+
         if not iter_type.value_type.is_subtype_of(target_type):
             # Isn't the expected type the target type ?
             raise TypeMismatch(f"Expected type of {iter_type.value_type}", target_node)
@@ -733,7 +729,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         return _get_variable_access(iter_val)
 
     # TODO: Implement a more standard "mutability of this expression" method and use it here
-    def _check_for_loop_modifiability(self, iter_node: vy_ast.VyperNode):
+    def _check_for_loop_mutability(self, iter_node: vy_ast.VyperNode):
         "Checks the expression X in `for something in X` does not modify state"
 
         args = None
@@ -785,7 +781,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             for stmt in node.body:
                 self.visit(stmt)
 
-        self._check_for_loop_modifiability(node.iter)
+        self._check_for_loop_mutability(node.iter)
 
     def visit_If(self, node):
         self.expr_visitor.visit(node.test, BoolT())
@@ -880,7 +876,7 @@ class ExprVisitor(VyperNodeVisitorBase):
         # that provably bounded expressions get a bounded annotation.
         if any(isinstance(getattr(t, "value_type", None), BottomT) for t in possible_types):
             # the empty list literal infers as the single type
-            # `DynArray[Never, 1]`, which matches any expected type and so
+            # `DynArray[Never, 0]`, which matches any expected type and so
             # disambiguates nothing. enumerate its element types instead.
             possible_types = empty_list_candidate_types()
 

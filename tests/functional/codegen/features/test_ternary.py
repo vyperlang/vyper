@@ -399,3 +399,94 @@ def foo(c: bool, a: DynArray[uint256, 5], b: DynArray[uint256, 5]):
     c.foo(test, a, b)
     (log,) = get_logs(c, "Picked")
     assert log.args.xs == (a if test else b)
+
+
+@pytest.mark.parametrize("test", [True, False])
+def test_ternary_as_for_loop_iterable(get_contract, test):
+    # the loop allocates new buffers while it is still reading the selected
+    # arm, so the buffer an arm was copied into must stay live for the
+    # whole loop, whichever arm is taken
+    code = """
+a: DynArray[DynArray[uint256, 4], 3]
+b: DynArray[DynArray[uint256, 4], 3]
+
+@external
+def set(a: DynArray[DynArray[uint256, 4], 3], b: DynArray[DynArray[uint256, 4], 3]):
+    self.a = a
+    self.b = b
+
+@external
+def from_storage(c: bool) -> DynArray[DynArray[uint256, 4], 3]:
+    ys: DynArray[DynArray[uint256, 4], 3] = []
+    for x: DynArray[uint256, 4] in (self.a if c else self.b):
+        ys.append(x)
+    return ys
+
+@external
+def storage_or_memory(
+    c: bool, xs: DynArray[DynArray[uint256, 4], 3]
+) -> DynArray[DynArray[uint256, 4], 3]:
+    ys: DynArray[DynArray[uint256, 4], 3] = []
+    for x: DynArray[uint256, 4] in (self.a if c else xs):
+        ys.append(x)
+    return ys
+
+@external
+def memory_or_storage(
+    c: bool, xs: DynArray[DynArray[uint256, 4], 3]
+) -> DynArray[DynArray[uint256, 4], 3]:
+    ys: DynArray[DynArray[uint256, 4], 3] = []
+    for x: DynArray[uint256, 4] in (xs if c else self.a):
+        ys.append(x)
+    return ys
+    """
+    a = [[1, 2], [], [3]]
+    b = [[4, 5, 6, 7], [8]]
+    xs = [[9], [10, 11, 12]]
+    c = get_contract(code)
+    c.set(a, b)
+    assert c.from_storage(test) == (a if test else b)
+    assert c.storage_or_memory(test, xs) == (a if test else xs)
+    assert c.memory_or_storage(test, xs) == (xs if test else a)
+
+
+@pytest.mark.parametrize("test", [True, False])
+def test_ternary_tuple_assigned_to_storage(get_contract, test):
+    # the selected tuple is copied into storage word by word through the
+    # merged pointer; every member of either arm must reach storage
+    code = """
+x: (uint256, Bytes[64])
+y: (uint256, Bytes[64])
+target: (uint256, Bytes[64])
+
+@external
+def set(n: uint256, s: Bytes[64], m: uint256, t: Bytes[64]):
+    u: (uint256, Bytes[64]) = (n, s)
+    v: (uint256, Bytes[64]) = (m, t)
+    self.x = u
+    self.y = v
+
+@external
+def from_storage(c: bool):
+    self.target = self.x if c else self.y
+
+@external
+def from_memory(c: bool, n: uint256, s: Bytes[64], m: uint256, t: Bytes[64]):
+    u: (uint256, Bytes[64]) = (n, s)
+    v: (uint256, Bytes[64]) = (m, t)
+    self.target = u if c else v
+
+@external
+def get_target() -> (uint256, Bytes[64]):
+    return self.target
+    """
+    x = (7, b"0123456789")
+    y = (3, b"q" * 64)
+    c = get_contract(code)
+    c.set(*x, *y)
+
+    c.from_storage(test)
+    assert c.get_target() == (x if test else y)
+
+    c.from_memory(test, *y, *x)
+    assert c.get_target() == (y if test else x)

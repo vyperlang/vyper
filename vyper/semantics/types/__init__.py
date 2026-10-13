@@ -1,5 +1,5 @@
 from . import primitives, subscriptable, user
-from .base import TYPE_T, VOID_TYPE, BottomT, KwargSettings, VyperType, is_type_t, map_void
+from .base import INF_T, TYPE_T, VOID_TYPE, BottomT, KwargSettings, VyperType, is_type_t, map_void
 from .bytestrings import BytesT, StringT, _BytestringT
 from .function import ContractFunctionT, MemberFunctionT
 from .infinity import (

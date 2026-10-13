@@ -22,6 +22,7 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.base import ExprInfo, Modifiability, ModuleInfo, VarAccess, VarInfo
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
+from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, BottomT, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
@@ -31,7 +32,7 @@ if TYPE_CHECKING:
 
 from vyper.semantics.types.primitives import AddressT, BoolT, BytesM_T, IntegerT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
-from vyper.utils import OrderedSet, checksum_encode, int_to_fourbytes
+from vyper.utils import OrderedSet, int_to_fourbytes, is_checksum_encoded
 from vyper.warnings import Deprecation, vyper_warn
 
 
@@ -46,7 +47,7 @@ def empty_list_candidate_types():
     Enumerate the possible types of the empty list literal `[]`, one per
     primitive element type.
 
-    `types_from_List` infers `[]` as the single type `DynArray[Never, 1]`,
+    `types_from_List` infers `[]` as the single type `DynArray[Never, 0]`,
     which is enough to typecheck against a concrete expected type, but it
     erases the element type. Callers which need to match `[]` against an
     expected type that is not fully concrete (i.e. contains a wildcard) need
@@ -64,9 +65,9 @@ def empty_list_candidate_types():
             # the given type, so as a candidate it could not match anything.
             assert isinstance(t, type) and issubclass(t, VyperType), t
             continue
-        # 1 is minimum possible length for dynarray,
+        # 0 is minimum possible length for dynarray,
         # can be assigned to anything
-        ret.append(DArrayT(t, 1))
+        ret.append(DArrayT(t, 0))
     return ret
 
 
@@ -108,7 +109,7 @@ class _ExprAnalyser:
     def __init__(self):
         self.namespace = get_namespace()
 
-    def get_expr_info(self, node: vy_ast.VyperNode, is_callable: bool = False) -> ExprInfo:
+    def get_expr_info(self, node: vy_ast.ExprNode, is_callable: bool = False) -> ExprInfo:
         t = self.get_exact_type_from_node(node, include_type_exprs=is_callable)
 
         # if it's a Name, we have varinfo for it
@@ -122,7 +123,7 @@ class _ExprAnalyser:
                 return ExprInfo.from_moduleinfo(info)
 
             if isinstance(info, VyperType):
-                return ExprInfo(TYPE_T(info))
+                return ExprInfo(TYPE_T(info), modifiability=Modifiability.CONSTANT)
 
             raise CompilerPanic(f"unreachable! {info}", node)
 
@@ -144,14 +145,48 @@ class _ExprAnalyser:
             if isinstance(t, ModuleInfo):
                 return ExprInfo.from_moduleinfo(t, attr=attr)
 
+            if info.typ._builtin_members and attr in info.typ._builtin_members:
+                # built-in members are special in that they are not assignable
+
+                if attr in info.typ._view_builtin_members:
+                    # a view member displays the same data as the value it is
+                    # reached through, so it is exactly as modifiable:
+                    # foo: constant(Foo) = Foo(<addr>)
+                    # x: constant(address) = foo.address
+                    modifiability = info.modifiability
+                else:
+                    # a non-view member fetches runtime information, it cannot be CONSTANT
+                    modifiability = max(info.modifiability, Modifiability.RUNTIME_CONSTANT)
+
+                return ExprInfo(
+                    t, attr=attr, location=DataLocation.UNSET, modifiability=modifiability
+                )
+
+            if getattr(t, "_is_callable", False):
+                # function members can only be called, never assigned to
+                return ExprInfo(
+                    t,
+                    attr=attr,
+                    location=DataLocation.UNSET,
+                    modifiability=Modifiability.MODIFIABLE,
+                )
+
             return info.copy_with_type(t, attr=attr)
 
         # If it's a Subscript, propagate the subscriptable varinfo
         if isinstance(node, vy_ast.Subscript):
-            info = self.get_expr_info(node.value)
-            return info.copy_with_type(t)
+            info = get_expr_info(node.value)
 
-        return ExprInfo(t)
+            # the expression is only as modifiable as its most modifiable
+            # part. e.g. `a[block.number]` is not a compile-time constant,
+            # even when `a` is.
+            modifiability = max(info.modifiability, get_modifiability(node.slice))
+            return ExprInfo(t, location=info.location, modifiability=modifiability)
+
+        # any other expression (e.g. a call, a ternary, a binop or a literal) is a
+        # temporary value; it has no location, so it can never be written to.
+        # it can however still be constant (cf. `get_modifiability`)
+        return ExprInfo(t, modifiability=get_modifiability(node))
 
     def get_exact_type_from_node(self, node, include_type_exprs=False):
         """
@@ -368,7 +403,15 @@ class _ExprAnalyser:
             raise OverflowException(
                 "Numeric literal is outside of allowable range for number types", node
             )
-        raise InvalidLiteral(f"Could not determine type for literal value '{node.value}'", node)
+
+        msg = f"Could not determine type for literal value '{node.value}'"
+        hint = None
+        # add a hint on address checksum mismatch
+        if isinstance(node, vy_ast.Hex) and node.n_bytes == 20:
+            assert not is_checksum_encoded(node.value)
+            hint = AddressT._checksum_error_msg(node)
+
+        raise InvalidLiteral(msg, node, hint=hint)
 
     def types_from_IfExp(self, node):
         validate_expected_type(node.test, BoolT())
@@ -386,7 +429,7 @@ class _ExprAnalyser:
 
         if len(node.elements) == 0:
             # can't have an empty SArrayT
-            return [DArrayT(BottomT(), 1)]
+            return [DArrayT(BottomT(), 0)]
 
         types_list = get_common_types(*node.elements)
 
@@ -475,6 +518,61 @@ def _filter(type_, fn_name, node):
         return True
     except InvalidOperation:
         return False
+
+
+def get_modifiability(node: vy_ast.ExprNode) -> Modifiability:
+    """
+    Compute the modifiability of an expression without requiring it to
+    resolve to a single type.
+    """
+    if node._expr_info is not None:
+        return node._expr_info.modifiability
+
+    # since expressions containing literals often have more than one type, they fail
+    # get_expr_info, so recurse into the operands instead of asking for an ExprInfo
+    # TODO: Remove this helper once every expression has a single type
+
+    if node.is_literal_value or node.has_folded_value:
+        return Modifiability.CONSTANT
+
+    if isinstance(
+        node,
+        (vy_ast.BinOp, vy_ast.Compare, vy_ast.BoolOp, vy_ast.UnaryOp, vy_ast.List, vy_ast.Tuple),
+    ):
+        # the expression is only as modifiable as its most modifiable part.
+        # note an empty list or tuple is a compile-time constant
+        operands = node.get_children(vy_ast.ExprNode)
+        return max((get_modifiability(i) for i in operands), default=Modifiability.CONSTANT)
+
+    if isinstance(node, vy_ast.IfExp):
+        # TODO: Move this with the above once constant-folding for ternaries is implemented
+        return Modifiability.MODIFIABLE
+
+    if isinstance(node, (vy_ast.ExtCall, vy_ast.StaticCall)):
+        # an external call can never be constant
+        return Modifiability.MODIFIABLE
+
+    if isinstance(node, vy_ast.Call):
+        call_type = get_exact_type_from_node(node.func)
+
+        if isinstance(call_type, TYPE_T):
+            # a constructor call is as modifiable as its most modifiable argument.
+            args = (*node.args, *(kw.value for kw in node.keywords))
+            return max((get_modifiability(arg) for arg in args), default=Modifiability.CONSTANT)
+
+        # a type is callable if and only if it has _modifiability
+        if not hasattr(call_type, "_modifiability"):
+            raise StructureException(f"{call_type} is not callable", node)
+
+        # currently we don't need to check the modifiability of the arguments.
+        # this is however quite fragile.
+        # a better fix would be to do the same check as for TYPE_T above,
+        # however this fails because of built-ins taking types as arguments:
+        # get_modifiability -> get_expr_info -> get_exact_type_from_node
+        # and `get_exact_type_from_node` fails on types like `uint256[3]`, `Bytes`
+        return call_type._modifiability
+
+    return get_expr_info(node).modifiability
 
 
 def get_possible_types_from_node(node):
@@ -597,7 +695,14 @@ def validate_expected_type(node, expected_type):
             # fail block
             pass
 
-    given_types = _ExprAnalyser().get_possible_types_from_node(node)
+    try:
+        given_types = _ExprAnalyser().get_possible_types_from_node(node)
+    except InvalidLiteral as i:
+        # throw more specific error if the cause of the failure was an incorrect checksum
+        if AddressT() in expected_type and isinstance(node, vy_ast.Hex) and node.n_bytes == 20:
+            assert not is_checksum_encoded(node.value)
+            AddressT.raise_bad_checksum(node)
+        raise i
 
     for given, expected in itertools.product(given_types, expected_type):
         if given.is_subtype_of(expected):
@@ -641,7 +746,9 @@ def validate_expected_type(node, expected_type):
 
         suggestion_str = ""
         if expected_type[0] == AddressT() and given_types[0] == BytesM_T(20):
-            suggestion_str = f" Did you mean {checksum_encode(node.value)}?"
+            # call `validate_literal` for its side effect of throwing an exception for
+            # address checksum mismatch
+            AddressT().validate_literal(node)
 
         raise TypeMismatch(
             f"Expected {expected_str} but literal can only be cast as {given_str}.{suggestion_str}",
@@ -671,36 +778,6 @@ def validate_unique_method_ids(functions: List) -> None:
                 f"Methods produce colliding method ID `0x{collision_hex}`: {collision_str}"
             )
         seen.add(method_id)
-
-
-def check_modifiability(node: vy_ast.ExprNode, modifiability: Modifiability) -> bool:
-    """
-    Check if the given node is not more modifiable than the given modifiability.
-    """
-    if node.is_literal_value or node.has_folded_value:
-        return True
-
-    if isinstance(node, (vy_ast.BinOp, vy_ast.Compare)):
-        return all(check_modifiability(i, modifiability) for i in (node.left, node.right))
-
-    if isinstance(node, vy_ast.BoolOp):
-        return all(check_modifiability(i, modifiability) for i in node.values)
-
-    if isinstance(node, vy_ast.UnaryOp):
-        return check_modifiability(node.operand, modifiability)
-
-    if isinstance(node, (vy_ast.Tuple, vy_ast.List)):
-        return all(check_modifiability(item, modifiability) for item in node.elements)
-
-    if isinstance(node, vy_ast.Call):
-        call_type = get_exact_type_from_node(node.func)
-
-        # structs and interfaces
-        if hasattr(call_type, "check_modifiability_for_call"):
-            return call_type.check_modifiability_for_call(node, modifiability)
-
-    info = get_expr_info(node)
-    return info.modifiability <= modifiability
 
 
 # TODO: move this into part of regular analysis in `local.py`
