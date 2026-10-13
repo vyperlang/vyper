@@ -12,7 +12,7 @@ from vyper.exceptions import (
     TypeMismatch,
     UndeclaredDefinition,
 )
-from vyper.semantics.types import INF, BytesT, DArrayT, StringT
+from vyper.semantics.types import INF, BoolT, BytesT, DArrayT, StringT, TupleT
 from vyper.semantics.types.infinity import WILDCARD, Inf, Wildcard
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
@@ -868,6 +868,43 @@ def test_adhoc_bytes_sources_allowed_in_legacy(code):
     # inside len()/slice()/raw_call() which never materialize an unbounded
     # sequence value
     compiler.compile_code(code, settings=Settings(experimental_codegen=False))
+
+
+@pytest.mark.parametrize("call_kwargs", ["", ", is_static_call=True", ", is_delegate_call=True"])
+@pytest.mark.parametrize("revert_on_failure", [True, False])
+def test_raw_call_unbounded_outsize_return_type(call_kwargs, revert_on_failure):
+    return_annotation = "Bytes[INF]" if revert_on_failure else "(bool, Bytes[INF])"
+    code = f"""
+@external
+def foo(a: address) -> {return_annotation}:
+    return raw_call(a, b"", max_outsize=INF, revert_on_failure={revert_on_failure}{call_kwargs})
+    """
+    module = compiler.CompilerData(
+        code, settings=Settings(experimental_codegen=True)
+    ).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.get("func.id") == "raw_call"]
+    return_type = call.func._metadata["type"].fetch_call_return(call)
+    if revert_on_failure:
+        assert return_type == BytesT(INF)
+    else:
+        assert return_type == TupleT([BoolT(), BytesT(INF)])
+
+
+@pytest.mark.parametrize(
+    ("revert_on_failure", "abi_types"), [(True, ["bytes"]), (False, ["bool", "bytes"])]
+)
+def test_raw_call_unbounded_outsize_abi(revert_on_failure, abi_types):
+    return_annotation = "Bytes[INF]" if revert_on_failure else "(bool, Bytes[INF])"
+    code = f"""
+@external
+def foo(target: address) -> {return_annotation}:
+    return raw_call(target, b"", max_outsize=INF, revert_on_failure={revert_on_failure})
+    """
+    out = compiler.compile_code(
+        code, output_formats=["abi"], settings=Settings(experimental_codegen=True)
+    )
+    (fn,) = out["abi"]
+    assert [output["type"] for output in fn["outputs"]] == abi_types
 
 
 def test_exported_inf_function(compile_inf_code, make_input_bundle):

@@ -236,8 +236,13 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
     copies, `setfmp` (advancing the register over the packed data) and a `retfmp` terminator.
     `FmpLoweringPass` later threads the register and materializes the physical convention
     (hidden FMP param/operand, `ret` with the hidden adopted-FMP value).
-- FMP virtual-register opcodes (exist only between `DretDesugarPass` and `FmpLoweringPass`)
+- FMP virtual-register opcodes (eliminated by `FmpLoweringPass`)
   - `%v = getfmp` reads the FMP virtual register; `setfmp %v` writes it.
+    Besides return packing, unbounded-array append uses these to extend an owned
+    payload whose end equals the current FMP: growth reads its own capture and advances
+    the FMP by the checked size difference. A `setfmp` closes only the captures its
+    operand derives from, so a surrounding return-pack anchor keeps vetoing reclaim
+    across the write. A capture used only to update the FMP does not escape into memory.
   - ```
     retfmp <ordinary returns...>, <packed dst ptrs...>, return_pc
     ```

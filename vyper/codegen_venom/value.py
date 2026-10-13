@@ -48,12 +48,6 @@ class VyperValue:
             raise CompilerPanic("cannot get ptr from stack value")
         return self._ptr
 
-    def stack_value(self) -> IROperand:
-        if self._ptr is not None:  # pragma: nocover
-            raise CompilerPanic("cannot get stack_value from located value")
-        assert self._operand is not None
-        return self._operand
-
     @property
     def operand(self) -> IROperand:
         if self._operand is not None:

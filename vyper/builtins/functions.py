@@ -65,6 +65,7 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.types import (
     INF,
+    INF_T,
     TYPE_T,
     AddressT,
     BoolT,
@@ -1027,7 +1028,7 @@ class RawCall(BuiltinFunctionT):
     _id = "raw_call"
     _inputs = [("to", AddressT()), ("data", BytesT.any())]
     _kwargs = {
-        "max_outsize": KwargSettings(UINT256_T, 0, require_literal=True),
+        "max_outsize": KwargSettings((UINT256_T, INF_T), 0, require_literal=True),
         "gas": KwargSettings(UINT256_T, "gas"),
         "value": KwargSettings(UINT256_T, zero_value),
         "is_delegate_call": KwargSettings(BoolT(), False, require_literal=True),
@@ -1035,13 +1036,32 @@ class RawCall(BuiltinFunctionT):
         "revert_on_failure": KwargSettings(BoolT(), True, require_literal=True),
     }
 
+    def _is_unbounded_outsize(self, kwarg) -> bool:
+        if kwarg.arg != "max_outsize":
+            return False
+        outsize = kwarg.value.reduced()
+        if not isinstance(outsize, vy_ast.Name):
+            return False
+        return outsize.id == "INF"
+
+    # `max_outsize` declares a pair of accepted types; local analysis annotates
+    # the kwarg value with the inferred type, so narrow it to the one in use
+    def infer_kwarg_types(self, node):
+        ret = super().infer_kwarg_types(node)
+        for kwarg in node.keywords:
+            if kwarg.arg != "max_outsize":
+                continue
+            ret[kwarg.arg] = INF_T if self._is_unbounded_outsize(kwarg) else UINT256_T
+        return ret
+
     def fetch_call_return(self, node):
         self._validate_arg_types(node)
 
         kwargz = {i.arg: i.value for i in node.keywords}
 
+        unbounded_outsize = any(self._is_unbounded_outsize(kwarg) for kwarg in node.keywords)
         outsize = kwargz.get("max_outsize")
-        if outsize is not None:
+        if outsize is not None and not unbounded_outsize:
             outsize = outsize.get_folded_value()
 
         revert_on_failure = kwargz.get("revert_on_failure")
@@ -1049,6 +1069,11 @@ class RawCall(BuiltinFunctionT):
             revert_on_failure = revert_on_failure.get_folded_value().value
         else:
             revert_on_failure = True
+
+        if unbounded_outsize:
+            if revert_on_failure:
+                return BytesT(INF)
+            return TupleT([BoolT(), BytesT(INF)])
 
         if outsize is None or outsize.value == 0:
             if revert_on_failure:
