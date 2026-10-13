@@ -1,6 +1,7 @@
 """Memory layout of struct members and their unbounded payload cells."""
 
-from vyper.semantics.types import StructT, VyperType, is_unbounded_sequence_type, member_slot_size
+from vyper.semantics.types import StructT, VyperType, is_unbounded_sequence_type
+from vyper.semantics.types.utils import member_slot_size
 
 
 def struct_member_offsets(struct_t: StructT) -> list[tuple[str, int, VyperType]]:

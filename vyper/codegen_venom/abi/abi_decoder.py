@@ -38,10 +38,10 @@ from vyper.semantics.types import (
     is_unbounded_bytestring_type,
     is_unbounded_dynarray_type,
     is_unbounded_sequence_type,
-    member_slot_size,
     type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
+from vyper.semantics.types.utils import member_slot_size
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:

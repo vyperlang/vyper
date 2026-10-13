@@ -1,5 +1,3 @@
-from vyper.semantics.types.utils import member_slot_size
-
 from . import primitives, subscriptable, user
 from .base import INF_T, TYPE_T, VOID_TYPE, BottomT, KwargSettings, VyperType, is_type_t, map_void
 from .bytestrings import BytesT, StringT, _BytestringT
@@ -10,7 +8,6 @@ from .infinity import (
     LengthUpperBound,
     is_bounded_length,
     is_pointer_cell_struct_type,
-    is_runtime_sizable_return_type,
     is_runtime_sizable_type,
     is_supported_unbounded_tuple_type,
     is_unbounded_bytestring_type,
