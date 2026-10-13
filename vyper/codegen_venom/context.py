@@ -552,6 +552,19 @@ class VenomCodegenContext:
         self.builder.assert_(no_overflow)
         return ret
 
+    def add_size(
+        self, left: IROperand, right: IROperand, left_unbounded: bool, right_unbounded: bool
+    ) -> tuple[IROperand, bool]:
+        """Add sizes and return whether the sum depends on an unbounded value.
+
+        Once either operand is unbounded, this and subsequent additions need
+        overflow checks. Bounded operands retain the plain-add path.
+        """
+        if left_unbounded or right_unbounded:
+            return self.checked_add(left, right), True
+
+        return self.builder.add(left, right), False
+
     def bytestring_runtime_size_from_length(self, length: IROperand) -> IROperand:
         """Return runtime memory size for a bytestring with `length` bytes."""
         padded_length = self.ceil32(length)

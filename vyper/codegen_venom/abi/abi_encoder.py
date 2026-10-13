@@ -65,19 +65,6 @@ def runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IR
     return IRLiteral(typ.abi_type.size_bound())
 
 
-def _abi_size_add(
-    ctx: VenomCodegenContext,
-    left: IROperand,
-    right: IROperand,
-    left_unbounded: bool,
-    right_unbounded: bool,
-) -> tuple[IROperand, bool]:
-    if left_unbounded or right_unbounded:
-        return ctx.checked_add(left, right), True
-
-    return ctx.builder.add(left, right), False
-
-
 def _runtime_abi_size_for_struct(
     ctx: VenomCodegenContext, arg_vv: VyperValue, typ: StructT
 ) -> IROperand:
@@ -98,8 +85,7 @@ def _runtime_abi_size_for_struct(
         member_ptr, _ = _get_element_ptr(ctx, ptr, IRLiteral(i), typ)
         assert isinstance(member_ptr, IRVariable)
         member_vv = ctx.dynamic_memory_value(member_ptr, member_t)
-        size, size_unbounded = _abi_size_add(
-            ctx,
+        size, size_unbounded = ctx.add_size(
             size,
             runtime_abi_size_for_arg(ctx, member_vv),
             size_unbounded,
@@ -150,8 +136,8 @@ def runtime_abi_size_for_encode(
         for arg_vv in arg_vals:
             if arg_vv.typ.abi_type.is_dynamic():
                 arg_unbounded = type_contains_unbounded_sequence(arg_vv.typ)
-                size, size_unbounded = _abi_size_add(
-                    ctx, size, runtime_abi_size_for_arg(ctx, arg_vv), size_unbounded, arg_unbounded
+                size, size_unbounded = ctx.add_size(
+                    size, runtime_abi_size_for_arg(ctx, arg_vv), size_unbounded, arg_unbounded
                 )
         return size
 
@@ -220,8 +206,8 @@ def abi_encode_values_to_buf(
             child_len = _abi_encode_to_buf(ctx, child_dst, child_src, typ)
             b.mstore(static_loc, dyn_ofst)
             arg_unbounded = type_contains_unbounded_sequence(typ)
-            new_dyn_ofst, dyn_ofst_unbounded = _abi_size_add(
-                ctx, dyn_ofst, child_len, dyn_ofst_unbounded, arg_unbounded
+            new_dyn_ofst, dyn_ofst_unbounded = ctx.add_size(
+                dyn_ofst, child_len, dyn_ofst_unbounded, arg_unbounded
             )
             ctx.ptr_store(dyn_ofst_val.ptr(), new_dyn_ofst)
         else:
