@@ -8,8 +8,8 @@ from vyper.codegen.ir_node import IRnode
 from vyper.exceptions import CompilerPanic, TypeMismatch, UnfoldableNode
 from vyper.semantics.analysis.base import Modifiability, StateMutability
 from vyper.semantics.analysis.utils import (
-    check_modifiability,
     get_exact_type_from_node,
+    get_modifiability,
     validate_expected_type,
 )
 from vyper.semantics.types import TYPE_T, KwargSettings, VyperType
@@ -121,10 +121,11 @@ class BuiltinFunctionT(VyperType):
 
         for kwarg in node.keywords:
             kwarg_settings = self._kwargs[kwarg.arg]
-            if kwarg_settings.require_literal and not check_modifiability(
-                kwarg.value, Modifiability.CONSTANT
+            if (
+                kwarg_settings.require_literal
+                and get_modifiability(kwarg.value) > Modifiability.CONSTANT
             ):
-                raise TypeMismatch("Value must be literal", kwarg.value)
+                raise TypeMismatch("Value must be a literal", kwarg.value)
             # `kwarg_settings.typ` is sometimes not a VyperType
             # This violates the contract of _validate_single, but it still works
             self._validate_single(kwarg.value, kwarg_settings.typ)
@@ -138,9 +139,6 @@ class BuiltinFunctionT(VyperType):
             # call get_exact_type_from_node for its side effects -
             # ensures the type can be inferred exactly.
             get_exact_type_from_node(arg)
-
-    def check_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
-        return self._modifiability <= modifiability
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         self._validate_arg_types(node)

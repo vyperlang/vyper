@@ -175,7 +175,7 @@ def f(xs: DynArray[Batch, 3]):
     for b: Batch in xs:
         b.values.append(1)
     """,
-        "Environment variable cannot be written to",
+        "Read-only expression cannot be mutated",
     ),
     (
         BATCH + """
@@ -205,7 +205,7 @@ def g() -> Batch:
 def f():
     self.g().values.append(1)
     """,
-        "Cannot modify temporary value",
+        "Read-only expression cannot be mutated",
     ),
 ]
 
@@ -236,7 +236,7 @@ def f():
     with pytest.raises(ImmutableViolation) as e:
         compile_code(code, settings=Settings(experimental_codegen=True), input_bundle=input_bundle)
 
-    assert "Constant value cannot be written to" in str(e.value)
+    assert "Read-only expression cannot be mutated" in str(e.value)
 
 
 # a struct with unbounded members is never part of a constant
