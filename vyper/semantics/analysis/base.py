@@ -44,12 +44,14 @@ class StateMutability(StringEnum):
         #       specifying a state mutability modifier at all. Do the same here.
 
 
-# classify the constancy of an expression
+# classify the **constancy** of an expression
 # CMC 2023-12-31 note that we now have three ways of classifying mutability in
 # the codebase: StateMutability (for functions), Modifiability (for expressions
 # and variables) and Constancy (in codegen). context.Constancy can/should
 # probably be refactored away though as those kinds of checks should be done
 # during analysis.
+# Note: This is not used to check whether an expression is modifiable, location is used instead
+# TODO: Rename to something like Constancy, given the above
 class Modifiability(StringEnum):
     # compile-time / always constant
     CONSTANT = enum.auto()
