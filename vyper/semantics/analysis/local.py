@@ -599,8 +599,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             raise ImmutableViolation("Read-only expression cannot be mutated.", target)
 
         var_access = _get_variable_access(target)
-        if var_access is None:
-            raise ImmutableViolation("Cannot modify temporary value", target)
+        assert var_access is not None
 
         info._writes.add(var_access)
 
