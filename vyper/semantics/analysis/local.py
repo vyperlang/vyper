@@ -129,7 +129,7 @@ def _modifies_unbounded_member_through_subscript(target: vy_ast.ExprNode) -> boo
     while isinstance(node, (vy_ast.Attribute, vy_ast.Subscript)):
         if isinstance(node, vy_ast.Attribute):
             # an INF-typed attribute of something that is not a struct is a
-            # module-level constant, whose own diagnostic is the useful one
+            # module-level variable, not a struct member
             if isinstance(get_expr_info(node.value).typ, StructT) and is_unbounded_sequence_type(
                 get_expr_info(node).typ
             ):
