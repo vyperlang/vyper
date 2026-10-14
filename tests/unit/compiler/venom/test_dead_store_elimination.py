@@ -1106,49 +1106,59 @@ def test_mstore_before_ret_is_not_dead():
     _check_no_change(pre, hevm=False)
 
 
-def test_sstore_before_ret_is_not_dead():
+@pytest.mark.parametrize("location", [STORAGE, TRANSIENT])
+def test_store_before_ret_is_not_dead(location):
     """Memory stores before ret (internal function return) are live because
     the caller can observe memory after the function returns.
     Regression test: DSE was eliminating the free memory pointer update
     in alloc()-style functions, causing all allocations to alias."""
-    pre = """
+
+    opcode = location.store_op
+    
+    pre = f"""
     _global:
         %retpc = retpc_param
-        sstore 64, 1
+        {opcode} 64, 1
         ret %retpc, 1
     """
-    _check_no_change(pre, hevm=False)
+    _check_no_change_generic(pre, addr_space=location, hevm=False)
 
 
-def test_sstore_before_retfmp_is_not_dead():
+@pytest.mark.parametrize("location", [MEMORY, STORAGE, TRANSIENT])
+def test_store_before_retfmp_is_not_dead(location):
     """Memory stores before ret (internal function return) are live because
     the caller can observe memory after the function returns.
     Regression test: DSE was eliminating the free memory pointer update
     in alloc()-style functions, causing all allocations to alias."""
-    pre = """
+
+    opcode = location.store_op
+        
+    pre = f"""
     _global:
         %retpc = retpc_param
         %fmp = fmp_param
-        sstore 64, 1
-        retfmp %retpc, %fmp, 1
+        {opcode} 64, 1
+        retfmp %fmp, 1, %retpc
     """
-    _check_no_change_generic(pre, STORAGE, hevm=False)
+    _check_no_change_generic(pre, addr_space=location, hevm=False)
 
-
-def test_mstore_before_retfmp_is_not_dead():
+@pytest.mark.parametrize("location", [MEMORY, STORAGE, TRANSIENT])
+def test_store_before_dret_is_not_dead(location):
     """Memory stores before ret (internal function return) are live because
     the caller can observe memory after the function returns.
     Regression test: DSE was eliminating the free memory pointer update
     in alloc()-style functions, causing all allocations to alias."""
-    pre = """
+
+    opcode = location.store_op
+        
+    pre = f"""
     _global:
         %retpc = retpc_param
-        %fmp = fmp_param
-        mstore 64, 1
-        retfmp %retpc, %fmp, 1
+        %src = dalloc 32
+        {opcode} 64, 1
+        dret 1, %src, 32, %retpc
     """
-    _check_no_change(pre, hevm=False)
-
+    _check_no_change_generic(pre, addr_space=location, hevm=False)
 
 def test_mstore_before_ret_clobbered_is_dead():
     """A store before ret that is clobbered by a later store IS dead."""
