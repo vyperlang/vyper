@@ -35,7 +35,7 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.shortcuts import UINT160_T, UINT256_T
 from vyper.semantics.types.user import FlagT
-from vyper.utils import evm_div, DECIMAL_DIVISOR, unsigned_to_signed
+from vyper.utils import DECIMAL_DIVISOR, evm_div, unsigned_to_signed
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
