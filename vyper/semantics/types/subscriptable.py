@@ -9,6 +9,7 @@ from vyper.exceptions import (
     StructureException,
     UnknownAttribute,
 )
+from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import BottomT, VyperType
 from vyper.semantics.types.infinity import (
@@ -317,6 +318,11 @@ class DArrayT(_SequenceT):
             # `extend` accepts a DynArray of any length for the same value type
             any_length = DArrayT(self.value_type, INF)
             return MemberFunctionT(self, "extend", [any_length], None, True)
+
+        if key not in self.members and is_bounded_length(self.length):
+            namespace = {**self.members, "extend": None}
+            hint = get_levenshtein_error_suggestions(key, namespace, 0.3)
+            raise UnknownAttribute(f"{repr(self)} has no member '{key}'.", node, hint=hint)
 
         return super().get_member(key, node)
 
