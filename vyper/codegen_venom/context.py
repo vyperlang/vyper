@@ -13,7 +13,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Sequence
+from typing import ClassVar, Optional, Sequence
 
 from vyper.codegen.core import punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
@@ -71,7 +71,7 @@ class LocalVariable:
     name: str
     value: VyperValue  # must be located in MEMORY
     mutable: bool = True
-    scopes: set = field(default_factory=set)
+    scopes: set[int] = field(default_factory=set)
     is_pointer_cell: bool = False
 
     def __post_init__(self):
@@ -441,7 +441,7 @@ class VenomCodegenContext:
         return self.dynamic_memory_value(ptr, var.value.typ, annotation=var.name)
 
     def lookup(self, name: str) -> LocalVariable:
-        """Get variable by name."""
+        """Get a local registered in the current scope, as guaranteed by semantic analysis."""
         return self.variables[name]
 
     def unwrap(self, vv: VyperValue) -> IROperand:
@@ -1092,13 +1092,11 @@ class VenomCodegenContext:
         dst_elem_t = dst_typ.value_type
         src_elem_t = src_typ.value_type
         dst_elem_size = dst_elem_t.memory_bytes_required
-        src_elem_size = src_elem_t.memory_bytes_required
-
         src_data = self._with_byte_offset(src, 32)
         dst_data = self._with_byte_offset(dst, 32)
 
         # Fast path when element layouts match: copy exactly `length` elements.
-        if src_elem_t == dst_elem_t and src_elem_size == dst_elem_size:
+        if src_elem_t == dst_elem_t:
             data_size = b.mul(length, IRLiteral(dst_elem_size))
             assert isinstance(dst_data, IRVariable)
             self.copy_memory_dynamic(dst_data, src_data, data_size, self.data_size_bound(src_typ))
@@ -1233,7 +1231,7 @@ class VenomCodegenContext:
         b.get_last_inst("staticcall").memory_read_max_size = max_length
         b.assert_(success)
 
-    _ALLOCATION_LIMIT: int = 2**64
+    _ALLOCATION_LIMIT: ClassVar[int] = 2**64
 
     def allocate_buffer(self, size: int, annotation: Optional[str] = None) -> Buffer:
         """Allocate anonymous memory buffer. Use buf.base_ptr() to get a Ptr."""
@@ -1359,7 +1357,6 @@ class VenomCodegenContext:
         Byte-addressed spaces (memory) use scale=32.
 
         Used for storage↔memory and transient↔memory bulk copies.
-        One parameterized loop → one HOL inductive proof covers all 4 directions.
         """
         b = self.builder
 

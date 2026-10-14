@@ -414,7 +414,7 @@ class DecimalT(NumericT):
 class AddressT(_PrimT):
     _id = "address"
     _valid_literal = (vy_ast.Hex,)
-    _type_members = {
+    _builtin_members = {
         "balance": UINT(256),
         "codehash": BytesM_T(32),
         "codesize": UINT(256),
@@ -457,3 +457,6 @@ class SelfT(AddressT):
         # compares true to AddressT
         # This checks if either is a subtype of the other, which doesn't seem correct
         return isinstance(other, type(self)) or isinstance(self, type(other))
+
+
+AnyPrimType = Union[AddressT, BoolT, BytesM_T, DecimalT, IntegerT]
