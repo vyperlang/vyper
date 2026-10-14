@@ -295,7 +295,7 @@ def foo() -> uint256:
     ):
         with pytest.raises(ImmutableViolation) as e:
             compile_code(code)
-        assert e.value.message == "Cannot modify temporary value"
+        assert e.value.message == "Read-only expression cannot be mutated."
 
 
 def test_dynarray_inf_assign_bounded_to_unbounded(compile_inf_code):
