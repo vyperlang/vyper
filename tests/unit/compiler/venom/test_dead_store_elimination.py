@@ -1114,7 +1114,7 @@ def test_store_before_ret_is_not_dead(location):
     in alloc()-style functions, causing all allocations to alias."""
 
     opcode = location.store_op
-    
+
     pre = f"""
     _global:
         %retpc = retpc_param
@@ -1132,7 +1132,7 @@ def test_store_before_retfmp_is_not_dead(location):
     in alloc()-style functions, causing all allocations to alias."""
 
     opcode = location.store_op
-        
+
     pre = f"""
     _global:
         %retpc = retpc_param
@@ -1142,6 +1142,7 @@ def test_store_before_retfmp_is_not_dead(location):
     """
     _check_no_change_generic(pre, addr_space=location, hevm=False)
 
+
 @pytest.mark.parametrize("location", [MEMORY, STORAGE, TRANSIENT])
 def test_store_before_dret_is_not_dead(location):
     """Memory stores before ret (internal function return) are live because
@@ -1150,7 +1151,7 @@ def test_store_before_dret_is_not_dead(location):
     in alloc()-style functions, causing all allocations to alias."""
 
     opcode = location.store_op
-        
+
     pre = f"""
     _global:
         %retpc = retpc_param
@@ -1159,6 +1160,7 @@ def test_store_before_dret_is_not_dead(location):
         dret 1, %src, 32, %retpc
     """
     _check_no_change_generic(pre, addr_space=location, hevm=False)
+
 
 def test_mstore_before_ret_clobbered_is_dead():
     """A store before ret that is clobbered by a later store IS dead."""
