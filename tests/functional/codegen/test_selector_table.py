@@ -512,9 +512,12 @@ def generate_methods(draw, max_calldata_bytes):
 # dense selector table packing boundaries at 256 and 65336
 @pytest.mark.parametrize("max_calldata_bytes", [255, 256, 65336])
 @pytest.mark.fuzzing
-def test_selector_table_fuzz(max_calldata_bytes, opt_level, env, get_contract, tx_failed, get_logs, experimental_codegen):
+def test_selector_table_fuzz(
+    max_calldata_bytes, opt_level, env, get_contract, tx_failed, get_logs, experimental_codegen
+):
     if experimental_codegen:
         pytest.xfail("This creates recursion error in the dft")
+
     def abi_sig(func_id, calldata_words, n_default_args):
         params = [] if not calldata_words else [f"uint256[{calldata_words}]"]
         params.extend(["uint256"] * n_default_args)
