@@ -1923,7 +1923,8 @@ def foo():
     """
     with pytest.raises(ImmutableViolation) as e:
         get_contract(code)
-    assert e.value.message == "Cannot modify temporary value"
+
+    assert e.value.message == "Read-only expression cannot be mutated."
 
 
 def test_dynarray_append_single_field_struct_storage(get_contract):
