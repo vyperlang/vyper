@@ -1743,9 +1743,10 @@ class Expr:
         if is_unbounded_dynarray_type(darray_typ):
             return self._lower_unbounded_dynarray_append()
 
-        # Get the array VyperValue
+        # Lower as a target so risky overlap panics: mutating an rvalue
+        # snapshot would silently drop the write.
         darray_indices: list[tuple[IROperand, IROperand, DataLocation]] = []
-        darray_vv = Expr(darray_node, self.ctx, darray_indices=darray_indices).lower()
+        darray_vv = Expr(darray_node, self.ctx, as_ptr=True, darray_indices=darray_indices).lower()
         darray_ptr = darray_vv.operand
 
         # Get the element value.
@@ -1962,8 +1963,9 @@ class Expr:
         darray_typ = darray_node._metadata["type"]
         elem_typ = darray_typ.value_type
 
-        # Get the array VyperValue
-        darray_vv = Expr(darray_node, self.ctx).lower()
+        # Lower as a target so risky overlap panics: mutating an rvalue
+        # snapshot would silently drop the write.
+        darray_vv = Expr(darray_node, self.ctx, as_ptr=True).lower()
         darray_ptr = darray_vv.operand
 
         # Get location from VyperValue

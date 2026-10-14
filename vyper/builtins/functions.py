@@ -57,9 +57,9 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.base import Modifiability, StateMutability
 from vyper.semantics.analysis.utils import (
-    check_modifiability,
     get_common_types,
     get_exact_type_from_node,
+    get_modifiability,
     get_possible_types_from_node,
     validate_expected_type,
 )
@@ -751,8 +751,7 @@ class MethodID(FoldedFunctionT):
         return type_
 
     def infer_arg_types(self, node, expected_return_typ=None):
-        is_constant = check_modifiability(node.args[0], Modifiability.CONSTANT)
-        if not is_constant:
+        if get_modifiability(node.args[0]) > Modifiability.CONSTANT:
             raise StructureException("Value must be a literal", node.args[0])
         return [self._inputs[0][1]]
 
