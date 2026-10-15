@@ -79,6 +79,7 @@ class IRAnalysesCache:
             raise CompilerPanic("isolated caches cannot request global analyses")
         global_cache = self.function.ctx.global_analyses_cache
         if global_cache is None:
+            self.analyses_cache.clear()  # Discard results from the previous registry.
             global_cache = IRGlobalAnalysesCache(self.function.ctx, {self.function: self})
             self.function.ctx.global_analyses_cache = global_cache
         # Compiler phases replace the registry. Bind once per registry so local
