@@ -151,7 +151,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
             module_or_interface = _type_from_annotation(node.value)
         elif isinstance(node.value, vy_ast.Name):
             try:
-                module_or_interface = namespace[node.value.id]  # type: ignore
+                module_or_interface = namespace[node.value.id]
             except UndeclaredDefinition:
                 raise InvalidType(err_msg, node) from None
         else:
@@ -174,7 +174,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         # maybe handle this somewhere upstream in ast validation
         raise InvalidType(err_msg, node)
 
-    if node.id not in namespace:  # type: ignore
+    if node.id not in namespace:
         hint = get_levenshtein_error_suggestions(node.node_source_code, namespace, 0.3)
         raise UnknownType(
             f"No builtin or user-defined type named '{node.node_source_code}'.", node, hint=hint

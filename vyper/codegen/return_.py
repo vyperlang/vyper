@@ -68,7 +68,7 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
 
             return_len = get_bytearray_length(buf)
             return_offset = bytes_data_ptr(buf)
-            jump_to_exit += [return_offset, return_len]  # type: ignore
+            jump_to_exit += [return_offset, return_len]
 
             return finalize(fill_return_buffer)
 
@@ -88,7 +88,7 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
 
         if can_skip_encode:
             assert ir_val.typ.memory_bytes_required == maxlen  # type: ignore
-            jump_to_exit += [ir_val, maxlen]  # type: ignore
+            jump_to_exit += [ir_val, maxlen]
             return finalize(["pass"])
 
         ir_val = wrap_value_for_external_return(ir_val)
@@ -102,6 +102,6 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
         return_len = abi_encode(return_buffer_ofst, ir_val, context, returns_len=True, bufsz=maxlen)
 
         # append ofst and len to exit_to the cleanup subroutine
-        jump_to_exit += [return_buffer_ofst, return_len]  # type: ignore
+        jump_to_exit += [return_buffer_ofst, return_len]
 
         return finalize(["pass"])

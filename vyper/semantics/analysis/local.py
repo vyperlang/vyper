@@ -1251,7 +1251,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                     mutability = func_type.get_mutability_at_call_site(node)
                 else:
                     mutability = func_type.mutability
-                self._check_call_mutability(mutability)  # type: ignore
+                self._check_call_mutability(mutability)
 
             arg_types = func_type.infer_arg_types(node, expected_return_typ=typ)  # type: ignore
             for arg, arg_type in zip(node.args, arg_types):
