@@ -89,29 +89,34 @@ class OutputBundle:
         # different depths (e.g. `from .. import x` in a file under the cwd
         # reaching a file above it). such an import would not resolve when
         # the bundle is recompiled, so bail with a user-facing error.
-        anonymized_paths = {c: path for path, c in sources.items()}
+        # key by resolved path: the same file reached through different
+        # import spellings gives distinct `CompilerInput`s, which collapse
+        # to a single entry in `sources`, and every edge has to be checked.
+        anonymized_paths = {_posix_relpath(c.resolved_path): path for path, c in sources.items()}
 
         import_analysis = self.compiler_data.resolved_imports
         modules = {self.compiler_data.file_input: import_analysis.toplevel_module}
         modules.update(import_analysis.compiler_inputs)
 
         for importer, module_ast in modules.items():
-            if importer not in anonymized_paths or not isinstance(module_ast, vy_ast.Module):
+            importer_path = _posix_relpath(importer.resolved_path)
+            if importer_path not in anonymized_paths or not isinstance(module_ast, vy_ast.Module):
                 continue
-            importer_dir = posixpath.dirname(_posix_relpath(importer.resolved_path))
-            anonymized_importer_dir = posixpath.dirname(anonymized_paths[importer])
+            importer_dir = posixpath.dirname(importer_path)
+            anonymized_importer_dir = posixpath.dirname(anonymized_paths[importer_path])
 
             for node in module_ast.get_children(vy_ast.ImportFrom):
                 if node.level == 0:
                     continue
                 for info in node._metadata["import_infos"]:
                     importee = info.compiler_input
-                    if importee not in anonymized_paths:
+                    importee_path = _posix_relpath(importee.resolved_path)
+                    if importee.from_builtin or importee_path not in anonymized_paths:
                         continue
-                    original = posixpath.relpath(
-                        _posix_relpath(importee.resolved_path), importer_dir
+                    original = posixpath.relpath(importee_path, importer_dir)
+                    bundled = posixpath.relpath(
+                        anonymized_paths[importee_path], anonymized_importer_dir
                     )
-                    bundled = posixpath.relpath(anonymized_paths[importee], anonymized_importer_dir)
                     if original != bundled:
                         raise BundleError(
                             f"cannot bundle `{importee.resolved_path}`: it is imported"
