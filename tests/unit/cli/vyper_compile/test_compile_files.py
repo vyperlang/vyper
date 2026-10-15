@@ -660,6 +660,41 @@ y: constant(uint256) = escaped.x
         compile_files([contract_file], [output_format], paths=[".."])
 
 
+# the same file reached both through a relative import crossing the cwd and
+# through a search path gives two `CompilerInput`s for one bundled source. the
+# crossing import must be rejected whichever of the two is kept in the bundle.
+@pytest.mark.parametrize("crossing_first", [True, False])
+def test_output_bundle_relative_import_crossing_cwd_diamond(
+    make_file, tmp_path, monkeypatch, crossing_first
+):
+    escaped_source = """
+x: constant(uint256) = 1
+    """
+    helper_source = """
+import escaped
+
+z: constant(uint256) = escaped.x
+    """
+    imports = ["from .. import escaped", "import helper"]
+    if not crossing_first:
+        imports.reverse()
+    contract_source = "\n".join(imports) + """
+
+y: constant(uint256) = escaped.x + helper.z
+    """
+    make_file("escaped.vy", escaped_source)
+    make_file("pkg/helper.vy", helper_source)
+    contract_file = make_file("pkg/main.vy", contract_source)
+
+    monkeypatch.chdir(tmp_path / "pkg")
+
+    # sanity: compilation itself succeeds, only bundling fails
+    _ = compile_files([contract_file], ["bytecode"], paths=["..", "."])
+
+    with pytest.raises(BundleError, match="escaped.vy"):
+        compile_files([contract_file], ["archive"], paths=["..", "."])
+
+
 # relative imports between files at the same depth above the cwd still
 # round-trip through the bundle
 def test_output_bundle_relative_import_above_cwd(make_file, tmp_path, monkeypatch):
