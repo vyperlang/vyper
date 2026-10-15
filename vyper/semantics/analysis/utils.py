@@ -349,7 +349,7 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
                 # `types_list` for `[x]` is `[DArray(T,1), SArray(T, 1)]`
                 # and both `DArray(T,1).get_subscripted_type` and `SArray(T,1).get_subscripted_type`
                 # will return `T`, leading to a duplicate
-                if not _is_type_in_list(elem_t, ret):
+                if not any(t2.is_equivalent_to(elem_t) for t2 in ret):
                     ret.append(elem_t)
             return ret
 
@@ -400,7 +400,7 @@ def get_modifiability(node: vy_ast.ExprNode) -> Modifiability:
         return Modifiability.MODIFIABLE
 
     if isinstance(node, vy_ast.Call):
-        call_type = get_exact_type_from_node(node.func)
+        call_type = get_exact_type_from_node(node.func, allow_type_exprs=True)
 
         if isinstance(call_type, TYPE_T):
             # a constructor call is as modifiable as its most modifiable argument.
