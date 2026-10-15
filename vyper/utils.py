@@ -184,7 +184,7 @@ class StringEnum(enum.Enum):
         if not isinstance(other, self.__class__):
             raise CompilerPanic(f"bad comparison: ({type(other)}, {type(self)})")
         options = self.__class__.options()
-        return options.index(self) < options.index(other)  # type: ignore
+        return options.index(self) < options.index(other)
 
     def __le__(self, other: object) -> bool:
         return self.__eq__(other) or self.__lt__(other)
