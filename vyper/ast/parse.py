@@ -35,7 +35,7 @@ def parse_to_ast(
         e.resolved_path = resolved_path
         raise e
     except Exception as e:
-        raise CompilerPanic(f"unhandled exception during parsing: {type(e).__name__}: {e}") from e
+        raise CompilerPanic("unhandled exception during parsing") from e
 
 
 def _parse_to_ast(

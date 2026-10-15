@@ -76,10 +76,10 @@ def test_deeply_nested_type_raises_compiler_panic(typ):
         code = f"x: {typ}"
         with pytest.raises(CompilerPanic) as excinfo:
             parse_to_ast(code)
-        assert excinfo.value.message.startswith(
-            "unhandled exception during parsing: "
-            "RecursionError: maximum recursion depth exceeded"
-        )
+        assert excinfo.value.message == "unhandled exception during parsing"
+        cause = excinfo.value.__cause__
+        assert isinstance(cause, RecursionError)
+        assert str(cause).startswith("maximum recursion depth exceeded")
     finally:
         sys.setrecursionlimit(old_limit)
 
