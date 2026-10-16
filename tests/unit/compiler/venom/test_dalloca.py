@@ -245,13 +245,16 @@ def test_dalloca_lowering_invalidates_stale_analyses():
     ac.request_analysis(VariableRangeAnalysis)
     ac.request_analysis(ReadonlyMemoryArgsGlobalAnalysis)
 
+    assert ctx.global_analyses_cache is not None
+    canonical = ctx.global_analyses_cache.function_analyses_caches[fn]
+
     FmpLoweringPass(ac, fn).run_pass()
 
-    assert LoadAnalysis not in ac.analyses_cache
-    assert MemSSA not in ac.analyses_cache
-    assert MemoryAliasAnalysis not in ac.analyses_cache
-    assert VarDefinition not in ac.analyses_cache
-    assert VariableRangeAnalysis not in ac.analyses_cache
+    assert LoadAnalysis not in canonical.analyses_cache
+    assert MemSSA not in canonical.analyses_cache
+    assert MemoryAliasAnalysis not in canonical.analyses_cache
+    assert VarDefinition not in canonical.analyses_cache
+    assert VariableRangeAnalysis not in canonical.analyses_cache
     assert ReadonlyMemoryArgsGlobalAnalysis not in ctx.global_analyses_cache.analyses_cache
 
 
