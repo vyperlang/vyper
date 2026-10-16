@@ -277,10 +277,8 @@ class BasePtrAnalysis(IRAnalysis):
         """Extract memory location info from an instruction"""
         if addr_space == MEMORY:
             return self._get_memory_write_location(inst)
-        elif addr_space == STORAGE:
-            return self._get_storage_write_location(inst)
-        elif addr_space == TRANSIENT:
-            return self._get_transient_write_location(inst)
+        elif addr_space in (STORAGE, TRANSIENT):
+            return self._get_storage_transient_write_location(inst, addr_space)
         else:  # pragma: nocover
             raise CompilerPanic(f"Invalid location type: {addr_space}")
 
@@ -288,10 +286,8 @@ class BasePtrAnalysis(IRAnalysis):
         """Extract memory location info from an instruction"""
         if addr_space == MEMORY:
             return self._get_memory_read_location(inst)
-        elif addr_space == STORAGE:
-            return self._get_storage_read_location(inst)
-        elif addr_space == TRANSIENT:
-            return self._get_transient_read_location(inst)
+        elif addr_space in (STORAGE, TRANSIENT):
+            return self._get_storage_transient_read_location(inst, addr_space)
         elif addr_space in (CALLDATA, DATA, CODE, RETURNDATA):
             return self._get_copyable_read_location(inst, addr_space)
         else:  # pragma: nocover
@@ -327,77 +323,31 @@ class BasePtrAnalysis(IRAnalysis):
 
     # REVIEW: this should be refactored too, like get_storage_read_location
     # and get_storage_write_location
-    def _get_storage_write_location(self, inst) -> MemoryLocation:
+    def _get_storage_transient_write_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
         opcode = inst.opcode
-        if opcode == "sstore":
+        if opcode == addr_space.store_op:
             dst = inst.operands[1]
-            access_ops = InstAccessOps(ofst=dst, size=IRLiteral(address_space.STORAGE.word_scale))
+            access_ops = InstAccessOps(ofst=dst, size=IRLiteral(addr_space.word_scale))
             return self.segment_from_ops(access_ops)
-
-        shared = self._get_storage_and_transient_write_location(opcode)
-        if shared:
-            return shared
-
-        assert effects.STORAGE not in inst.get_write_effects()
-        return MemoryLocation.EMPTY
-
-    def _get_transient_write_location(self, inst) -> MemoryLocation:
-        opcode = inst.opcode
-        if opcode == "tstore":
-            dst = inst.operands[1]
-            access_ops = InstAccessOps(ofst=dst, size=IRLiteral(address_space.TRANSIENT.word_scale))
-            return self.segment_from_ops(access_ops)
-
-        shared = self._get_storage_and_transient_write_location(opcode)
-        if shared:
-            return shared
-
-        assert effects.TRANSIENT not in inst.get_write_effects()
-        return MemoryLocation.EMPTY
-
-    def _get_storage_and_transient_write_location(self, opcode) -> MemoryLocation | None:
-        if opcode in ("call", "delegatecall", "staticcall"):
+        elif opcode in ("call", "delegatecall", "staticcall"):
             return MemoryLocation.UNDEFINED
         elif opcode == "invoke":
             return MemoryLocation.UNDEFINED
         elif opcode in ("create", "create2"):
             return MemoryLocation.UNDEFINED
 
-        return None
+        eff = {STORAGE: effects.STORAGE, TRANSIENT: effects.TRANSIENT}
+        assert eff[addr_space] not in inst.get_write_effects()
+        return MemoryLocation.EMPTY
 
     # REVIEW: should be in MemoryLocation -- does not use base ptr analysis
-    def _get_storage_read_location(self, inst) -> MemoryLocation:
+    def _get_storage_transient_read_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
         opcode = inst.opcode
-        if opcode == "sload":
+        if opcode == addr_space.load_op:
             ofst = inst.operands[0]
-            access_ops = InstAccessOps(ofst=ofst, size=IRLiteral(address_space.STORAGE.word_scale))
+            access_ops = InstAccessOps(ofst=ofst, size=IRLiteral(addr_space.word_scale))
             return self.segment_from_ops(access_ops)
-
-        shared = self._get_storage_and_transient_read_location(opcode)
-        if shared:
-            return shared
-
-        assert effects.STORAGE not in inst.get_read_effects(), inst
-        return MemoryLocation.EMPTY
-
-    def _get_transient_read_location(self, inst) -> MemoryLocation:
-        opcode = inst.opcode
-        if opcode == "tload":
-            ofst = inst.operands[0]
-            access_ops = InstAccessOps(
-                ofst=ofst, size=IRLiteral(address_space.TRANSIENT.word_scale)
-            )
-            return self.segment_from_ops(access_ops)
-
-        shared = self._get_storage_and_transient_read_location(opcode)
-        if shared:
-            return shared
-
-        assert effects.TRANSIENT not in inst.get_read_effects(), inst
-        return MemoryLocation.EMPTY
-
-    def _get_storage_and_transient_read_location(self, opcode) -> MemoryLocation | None:
-        if opcode in ("call", "delegatecall", "staticcall"):
+        elif opcode in ("call", "delegatecall", "staticcall"):
             return MemoryLocation.UNDEFINED
         elif opcode == "invoke":
             return MemoryLocation.UNDEFINED
@@ -416,7 +366,10 @@ class BasePtrAnalysis(IRAnalysis):
             # "future" reads which could happen in the caller.
             # while not a "true" read, this case makes the code in DSE simpler.
             return MemoryLocation.UNDEFINED
-        return None
+
+        eff = {STORAGE: effects.STORAGE, TRANSIENT: effects.TRANSIENT}
+        assert eff[addr_space] not in inst.get_read_effects(), inst
+        return MemoryLocation.EMPTY
 
     def _get_copyable_read_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
         """
