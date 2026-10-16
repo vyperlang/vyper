@@ -8,6 +8,7 @@ import pytest
 from test_inf_abi_dynamic_elements_adversarial import _word
 
 from tests.evm_backends.abi import abi_encode
+from tests.evm_backends.pyevm_env import PyEvmEnv
 from vyper.utils import method_id
 
 
@@ -120,6 +121,31 @@ def test_multicall_uniform_batches(get_contract):
     for n in (5, 20, 40):
         calls = [_call("add(uint256,uint256)", "(uint256,uint256)", (i, 1)) for i in range(n)]
         assert c.multicall(calls) == [_word(i + 1) for i in range(n)]
+
+
+def test_multicall_append_memory_growth(env, get_contract):
+    c = get_contract(_MULTICALL_CODE)
+    # Py-evm retains the access list between message calls. Warm the self
+    # delegatecall before comparing batches so only batch size varies.
+    c.multicall([_call("add(uint256,uint256)", "(uint256,uint256)", (0, 1))])
+    gas = {}
+    for n in (20, 40, 80):
+        calls = [_call("add(uint256,uint256)", "(uint256,uint256)", (i, 1)) for i in range(n)]
+        assert c.multicall(calls) == [_word(i + 1) for i in range(n)]
+        gas[n] = env.last_result.gas_used
+
+        if isinstance(env, PyEvmEnv):
+            capacity = 1 << (n - 1).bit_length()
+            # One decoded input, one capacity-sized result payload, and
+            # the actual ABI output. Leave room for static buffers/headers;
+            # retaining the old doubled payloads exceeds this bound.
+            limit = (n + capacity) * 1056 + n * 96 + 8192
+            assert len(env._last_computation._memory) <= limit
+
+    # Memory expansion still makes marginal cost rise, but retaining each
+    # superseded payload made the ratio >1.56 (py-evm), >1.47 (revm).
+    # Revm also includes transaction/calldata gas; this bound covers both.
+    assert (gas[80] - gas[40]) * 100 < 145 * 2 * (gas[40] - gas[20])
 
 
 _AGGREGATE_CODE = """
