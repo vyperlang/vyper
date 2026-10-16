@@ -6,12 +6,13 @@ from vyper.evm.assembler.instructions import (
     PUSHLABEL,
     DataHeader,
     Label,
+    SubroutineLabel,
     is_label,
 )
 from vyper.exceptions import CompilerPanic
 from vyper.ir.optimizer import COMMUTATIVE_OPS
 
-_TERMINAL_OPS = ("JUMP", "RETURN", "REVERT", "STOP", "INVALID")
+_TERMINAL_OPS = ("JUMP", "RETURN", "REVERT", "STOP", "INVALID", "RETURNSUB")
 
 
 def _prune_unreachable_code(assembly):
@@ -113,6 +114,14 @@ def _merge_jumpdests(assembly):
                 # (could also remove PUSH_OFST and DATA_ITEM, but doesn't
                 #  affect correctness)
                 new_symbol = assembly[i + 1]
+                # EIP-7979: a CALLSUB may only land on a CALLDEST, so a
+                # subroutine entry can only be replaced by another one;
+                # make the surviving label a subroutine entry.
+                if isinstance(current_symbol, SubroutineLabel) and not isinstance(
+                    new_symbol, SubroutineLabel
+                ):
+                    new_symbol = SubroutineLabel(new_symbol.label)
+                    assembly[i + 1] = new_symbol
                 if new_symbol != current_symbol:
                     for j in range(len(assembly)):
                         if (
@@ -121,7 +130,13 @@ def _merge_jumpdests(assembly):
                         ):
                             assembly[j].label = new_symbol
                             changed = True
-            elif isinstance(assembly[i + 1], PUSHLABEL) and assembly[i + 2] == "JUMP":
+            elif (
+                isinstance(assembly[i + 1], PUSHLABEL)
+                and assembly[i + 2] == "JUMP"
+                # EIP-7979: threading through a subroutine entry would
+                # redirect its CALLSUBs onto a plain label.
+                and not isinstance(current_symbol, SubroutineLabel)
+            ):
                 # LABEL x PUSHLABEL y JUMP
                 # replace all instances of PUSHLABEL x with PUSHLABEL y
                 # (could also remove PUSH_OFST and DATA_ITEM, but doesn't
