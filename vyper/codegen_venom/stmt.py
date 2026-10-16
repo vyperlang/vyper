@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.codegen.core import calculate_type_for_external_return, has_length_word
+from vyper.codegen.core import calculate_type_for_external_return, has_length_word, punnable
 from vyper.codegen_venom.abi import (
     abi_encode_to_buf,
     abi_encode_values_to_buf,
@@ -910,23 +910,17 @@ class Stmt:
         assert isinstance(item_value.operand, IRVariable)
         self.ctx.forvars[varname] = True
 
-        # Non-memory sources are copied with the element type's strides, so a
-        # widened loop variable type (the type checker allows e.g. iterating
-        # DynArray[Bytes[10], 2] as DynArray[Bytes[512], 2]) needs the element
-        # staged in the element layout first, then re-laid out for the target.
-        # A prim word has no layout to differ, and store_memory() would take
-        # the staging buffer for a value, so it keeps the direct copy.
+        # Non-memory sources are copied with the element type's strides, so the
+        # loop variable only reads back correctly if the data present has the
+        # element's layout. The type checker allows a widened loop variable
+        # (e.g. iterating DynArray[Bytes[10], 2] as DynArray[Bytes[512], 2]),
+        # so stage the element in its own layout and re-lay it out below.
+        # `punnable`, not `same_memory_layout`: the loop variable is the wider
+        # buffer, so equal sizes are not required, only an equal layout.
         elem_typ = array_typ.value_type
-        needs_staging = (
-            location is not DataLocation.MEMORY
-            and target_type != elem_typ
-            and not target_type._is_prim_word
-        )
-        staged_elem = (
-            self.ctx.new_temporary_value(elem_typ, annotation=f"{varname}_element")
-            if needs_staging
-            else None
-        )
+        staged_elem = None
+        if location is not DataLocation.MEMORY and not punnable(elem_typ, target_type):
+            staged_elem = self.ctx.new_temporary_value(elem_typ, annotation=f"{varname} element")
 
         # Create blocks
         entry_block = self.builder.create_block("iter_entry")
@@ -976,11 +970,9 @@ class Stmt:
                 total_offset = index_offset
             elem_addr = self.builder.add(array, total_offset)
 
-            # Copy element to loop variable (always in memory). Type
-            # mismatches (target_type != value_type) are possible for any
-            # source location; non-memory sources copy `elem_size` of the
-            # element type, so they land in `staged_elem` whenever the target
-            # layout differs and are re-laid out below.
+            # Copy element to loop variable (always in memory). A non-memory
+            # source copies `elem_size` of the element type, so it lands in
+            # `staged_elem` when the layouts differ and is re-laid out below.
             dst = item_value.operand
             copy_dst = staged_elem.operand if staged_elem is not None else dst
             if is_slot_addressed:
