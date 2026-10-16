@@ -13,6 +13,16 @@ foo: constant(address) = 0x6b175474e89094c44da98b954eedeac495271d0F
 def foo():
     bar: address = 0x6b175474e89094c44da98b954eedeac495271d0F
     """,
+    # the valid checksum of this address is all lowercase, so its
+    # normalized value is checksum encoded but its source spelling is not
+    """
+foo: constant(address) = 0xDe709f2102306220921060314715629080e2fb77
+    """,
+    """
+@external
+def foo():
+    bar: address = 0xDe709f2102306220921060314715629080e2fb77
+    """,
 ]
 
 
