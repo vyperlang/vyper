@@ -1026,6 +1026,13 @@ class Expr:
         if overlap and self.as_ptr:
             raise CompilerPanic("risky overlap")
         if overlap:
+            # Storage bounds need not fit in memory. The generic materializer
+            # copies the entire declared capacity, even for a one-element
+            # array, so a single indexed read can become prohibitively costly.
+            # Keep the legacy rejection until we have a runtime-sized storage
+            # snapshot; memory values already require their declared capacity.
+            if base_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT):
+                raise CompilerPanic("risky overlap")
             # An unbounded member of an array element cannot be mutated in
             # place, so its payload survives removal of the containing frame.
             if not is_unbounded_sequence_type(base_typ):
