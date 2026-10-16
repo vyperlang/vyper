@@ -490,6 +490,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         # there are constructor issues.
         _ns.update({k: self.namespace[k] for k in self.namespace._scopes[-1]})  # type: ignore
         _ns._scopes = self.namespace._scopes.copy()
+        _ns.import_decls = self.namespace.import_decls.copy()
         self.ast._metadata["namespace"] = _ns
 
     def _visit_nodes_linear(self, node_type):
@@ -911,7 +912,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             import_info._typ = module_info
 
-            self.namespace[import_info.alias] = module_info
+            self.namespace.set_import(import_info.alias, module_info, alias_node)
 
     def _load_import(
         self, import_info: ImportInfo, alias_node: vy_ast.alias

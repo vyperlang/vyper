@@ -103,10 +103,6 @@ struct Foo:
     assert excinfo.value.message == "'Foo' has already been declared"
 
 
-@pytest.mark.xfail(
-    reason="json abi imports are constructed with `decl_node=None`, "
-    "so they get mistaken for built-ins"
-)
 @pytest.mark.parametrize(
     "second_decl",
     [
@@ -130,10 +126,6 @@ import jsonabi as Foo
     assert excinfo.value.message == "'Foo' has already been declared"
 
 
-@pytest.mark.xfail(
-    reason="a .vyi import gets the `decl_node` of the imported module, "
-    "so the collision points into the imported file"
-)
 def test_collision_with_vyi_import_points_at_the_import_stmt(make_input_bundle):
     # the alias is declared by the import statement, not by the imported file
     code = """
