@@ -85,7 +85,6 @@ class Namespace(dict):
         super().clear()
         self.__init__()
 
-    # TODO: This should also include the location of the conflicting definition
     def validate_assignment(self, attr):
         validate_identifier(attr)
 
