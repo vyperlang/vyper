@@ -1,4 +1,4 @@
-from vyper.codegen_venom.module import generate_runtime_venom
+from vyper.codegen_venom.module import generate_venom_runtime
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings, anchor_settings
@@ -9,7 +9,7 @@ def _compile_frontend_ir(source):
     settings = Settings(experimental_codegen=True)
     with anchor_settings(settings):
         compiler_data = CompilerData(source, settings=settings)
-        return generate_runtime_venom(compiler_data.global_ctx, settings)
+        return generate_venom_runtime(compiler_data.global_ctx, settings)
 
 
 def _opcodes(ctx):

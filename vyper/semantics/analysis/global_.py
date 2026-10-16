@@ -145,11 +145,13 @@ def _validate_legacy_codegen_no_unbounded_sequences(module_t: ModuleT, msg: str)
         for arg in func_t.arguments:
             if arg.ast_source is None:  # pragma: nocover
                 raise CompilerPanic("function argument missing declaration node")
+            assert isinstance(arg.ast_source, vy_ast.arg)
             _reject_legacy_unbounded_sequence(arg.typ, arg.ast_source.annotation, msg)
 
         if func_t.return_type is not None:
             if func_t.ast_def is None:  # pragma: nocover
                 raise CompilerPanic("function return type missing declaration node")
+            assert isinstance(func_t.ast_def, vy_ast.FunctionDef)
             _reject_legacy_unbounded_sequence(func_t.return_type, func_t.ast_def.returns, msg)
 
         if func_t.ast_def is None:  # pragma: nocover

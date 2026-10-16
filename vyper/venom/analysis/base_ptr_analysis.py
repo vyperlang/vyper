@@ -1,5 +1,4 @@
 import dataclasses as dc
-from collections import deque
 from dataclasses import dataclass
 from typing import Optional
 
@@ -15,9 +14,10 @@ from vyper.evm.address_space import (
     AddrSpace,
 )
 from vyper.exceptions import CompilerPanic
+from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.memory_location import (
     Allocation,
     InstAccessOps,
@@ -97,7 +97,7 @@ class BasePtrAnalysis(IRAnalysis):
     pointers.
     """
 
-    var_to_mem: dict[IRVariable, set[Ptr]]
+    var_to_mem: dict[IRVariable, OrderedSet[Ptr]]
     vars_in_allocations: dict[Allocation, set[IRVariable]]
     _untracked_root_memo: dict[IRVariable, bool]
     _untracked_root_active: set[IRVariable]
@@ -108,18 +108,21 @@ class BasePtrAnalysis(IRAnalysis):
         self._untracked_root_active = set()
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
-        worklist = deque(self.cfg.dfs_pre_walk)
-
-        while len(worklist) > 0:
-            bb: IRBasicBlock = worklist.popleft()
-
+        # facts are per variable, not per program point: a use can sit any
+        # number of blocks below the definition (e.g. a phi operand from a
+        # predecessor visited after the join, read in a loop body behind a
+        # header with no pointer instructions), so re-visiting only the
+        # successors of a changed block can miss it. sweep every block until
+        # nothing changes. facts only grow, and there are finitely many
+        # variables and allocations; conflicting offsets for an allocation
+        # collapse to None, so this terminates.
+        blocks = list(self.cfg.dfs_pre_walk)
+        changed = True
+        while changed:
             changed = False
-            for inst in bb.instructions:
-                changed |= self._handle_inst(inst)
-
-            if changed:
-                for succ in self.cfg.cfg_out(bb):
-                    worklist.append(succ)
+            for bb in blocks:
+                for inst in bb.instructions:
+                    changed |= self._handle_inst(inst)
 
         self.vars_in_allocations = dict()
         for var, ptrs in self.var_to_mem.items():
@@ -132,7 +135,7 @@ class BasePtrAnalysis(IRAnalysis):
         self.new(var, Ptr(allocation, offset))
 
     def new(self, var: IRVariable, ptr: Ptr):
-        self.var_to_mem[var] = {ptr}
+        self.var_to_mem[var] = OrderedSet([ptr])
         if ptr.base_alloca not in self.vars_in_allocations:
             self.vars_in_allocations[ptr.base_alloca] = set()
         self.vars_in_allocations[ptr.base_alloca].add(var)
@@ -149,7 +152,7 @@ class BasePtrAnalysis(IRAnalysis):
         # subsequent bumps/invokes and does not alias any known region.
         if opcode == "bump":
             ptr_out = inst.get_outputs()[0]
-            return self._add_possible_ptrs(ptr_out, {Ptr.from_alloca(inst)})
+            return self._add_possible_ptrs(ptr_out, OrderedSet([Ptr.from_alloca(inst)]))
 
         # `getfmp` (a read of the FMP virtual register) intentionally gets no
         # pointer facts: its output is an *untracked* base, so anything rooted
@@ -161,14 +164,14 @@ class BasePtrAnalysis(IRAnalysis):
             return False
 
         if opcode in ("alloca", "dalloca"):
-            return self._add_possible_ptrs(inst.output, {Ptr.from_alloca(inst)})
+            return self._add_possible_ptrs(inst.output, OrderedSet([Ptr.from_alloca(inst)]))
 
         elif opcode in ("add", "sub"):
             rhs, lhs = inst.operands
-            lhs_ptrs = self.get_possible_ptrs(lhs) if isinstance(lhs, IRVariable) else set()
-            rhs_ptrs = self.get_possible_ptrs(rhs) if isinstance(rhs, IRVariable) else set()
+            lhs_ptrs = self.get_possible_ptrs(lhs) if isinstance(lhs, IRVariable) else OrderedSet()
+            rhs_ptrs = self.get_possible_ptrs(rhs) if isinstance(rhs, IRVariable) else OrderedSet()
 
-            out_ptrs: set[Ptr] = set()
+            out_ptrs: OrderedSet[Ptr] = OrderedSet()
 
             # Preserve exact offsets when one side is a pointer and the other
             # is a known integer literal.
@@ -190,7 +193,7 @@ class BasePtrAnalysis(IRAnalysis):
                 return self._add_possible_ptrs(inst.output, out_ptrs)
 
         elif opcode == "phi":
-            phi_sources = set()
+            phi_sources: OrderedSet[Ptr] = OrderedSet()
             for _, var in inst.phi_operands:
                 assert isinstance(var, IRVariable)  # mypy help
                 var_sources = self.get_possible_ptrs(var)
@@ -202,7 +205,7 @@ class BasePtrAnalysis(IRAnalysis):
 
         return False
 
-    def _add_possible_ptrs(self, var: IRVariable, ptrs: set[Ptr]) -> bool:
+    def _add_possible_ptrs(self, var: IRVariable, ptrs: OrderedSet[Ptr]) -> bool:
         if len(ptrs) == 0:
             return False
 
@@ -212,7 +215,7 @@ class BasePtrAnalysis(IRAnalysis):
         # values on different paths. Keep facts monotonic so a later
         # non-pointer assignment cannot erase a base pointer that may still
         # reach a use through another path.
-        original = self.var_to_mem.get(var, set())
+        original = self.var_to_mem.get(var, OrderedSet())
         new_ptrs = self._normalize_ptrs(original | ptrs)
         if new_ptrs == original:
             return False
@@ -220,12 +223,12 @@ class BasePtrAnalysis(IRAnalysis):
         self.var_to_mem[var] = new_ptrs
         return True
 
-    def _normalize_ptrs(self, ptrs: set[Ptr]) -> set[Ptr]:
+    def _normalize_ptrs(self, ptrs: OrderedSet[Ptr]) -> OrderedSet[Ptr]:
         offsets_by_base: dict[Allocation, set[int | None]] = {}
         for ptr in ptrs:
             offsets_by_base.setdefault(ptr.base_alloca, set()).add(ptr.offset)
 
-        ret: set[Ptr] = set()
+        ret: OrderedSet[Ptr] = OrderedSet()
         for base_alloca, offsets in offsets_by_base.items():
             if len(offsets) == 1:
                 ret.add(Ptr(base_alloca, next(iter(offsets))))
@@ -262,6 +265,9 @@ class BasePtrAnalysis(IRAnalysis):
         assert isinstance(offset, IRVariable)
         ptr = self.ptr_from_op(offset)
         if ptr is None:
+            return MemoryLocation(offset=None, size=size)
+
+        if self.pointer_may_include_untracked_root(offset):
             return MemoryLocation(offset=None, size=size)
 
         return MemoryLocation(offset=ptr.offset, size=size, alloca=ptr.base_alloca)
@@ -386,10 +392,10 @@ class BasePtrAnalysis(IRAnalysis):
 
         return MemoryLocation.EMPTY
 
-    def get_possible_ptrs(self, var: IRVariable) -> set[Ptr]:
-        return self.var_to_mem.get(var, set())
+    def get_possible_ptrs(self, var: IRVariable) -> OrderedSet[Ptr]:
+        return self.var_to_mem.get(var, OrderedSet())
 
-    def escaping_allocations(self) -> set[Allocation]:
+    def escaping_allocations(self) -> OrderedSet[Allocation]:
         """
         The allocations whose pointer escapes SSA tracking (see
         `escaping_operands`). Accesses through a re-entered pointer are
@@ -398,7 +404,7 @@ class BasePtrAnalysis(IRAnalysis):
         MemLivenessAnalysis keeps such an `alloca` live to the end of the
         function.
         """
-        escaped: set[Allocation] = set()
+        escaped: OrderedSet[Allocation] = OrderedSet()
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 for op in escaping_operands(inst):
