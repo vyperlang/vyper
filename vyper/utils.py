@@ -434,6 +434,11 @@ class MemoryPositions:
     RESERVED_MEMORY = 64
 
 
+# An INF local or struct member holds a payload pointer and capacity.
+# Shared by type sizing and Venom codegen.
+POINTER_CELL_SIZE = 64
+
+
 # Sizes of different data types. Used to clamp types.
 class SizeLimits:
     MAX_INT128 = 2**127 - 1
