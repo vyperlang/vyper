@@ -89,8 +89,7 @@ class Namespace(dict):
         validate_identifier(attr)
 
         if attr in self:
-            prev = super().__getitem__(attr)
-            prev_decl = getattr(prev, "decl_node", None)
+            prev_decl = super().__getitem__(attr).decl_node
             if prev_decl is None:
                 msg = f"'{attr}' is already the name of a built-in"
             else:
