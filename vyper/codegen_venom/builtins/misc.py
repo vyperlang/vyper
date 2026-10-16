@@ -462,7 +462,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
             dyn_buf_ptr = ctx.allocate_scratch(ctx.checked_add(IRLiteral(32), encoded_size))
             b.mstore(dyn_buf_ptr, IRLiteral(mid))
             dyn_data_dst = b.add(dyn_buf_ptr, IRLiteral(32))
-            encoded_len = abi_encode_values_to_buf(ctx, dyn_data_dst, arg_vals, tuple_t)
+            encoded_len = abi_encode_values_to_buf(ctx, dyn_data_dst, arg_vals, tuple_t, None)
             call_start = b.add(dyn_buf_ptr, IRLiteral(28))
             call_len = b.add(IRLiteral(4), encoded_len)
         else:
@@ -472,7 +472,9 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
             payload_len = runtime_abi_size_for_encode(ctx, arg_vals, tuple_t)
             dyn_payload_ptr = ctx.allocate_scratch(ctx.checked_add(IRLiteral(32), payload_len))
             payload_data_dst = b.add(dyn_payload_ptr, IRLiteral(32))
-            encoded_payload_len = abi_encode_values_to_buf(ctx, payload_data_dst, arg_vals, tuple_t)
+            encoded_payload_len = abi_encode_values_to_buf(
+                ctx, payload_data_dst, arg_vals, tuple_t, None
+            )
             b.mstore(dyn_payload_ptr, encoded_payload_len)
 
             schema_vv, schema_t = _schema_string_value(ctx, schema)
@@ -485,7 +487,9 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
             dyn_buf_ptr = ctx.allocate_scratch(ctx.checked_add(IRLiteral(32), outer_abi_size))
             b.mstore(dyn_buf_ptr, IRLiteral(mid))
             dyn_data_dst = b.add(dyn_buf_ptr, IRLiteral(32))
-            encoded_len = abi_encode_values_to_buf(ctx, dyn_data_dst, outer_vals, outer_tuple_t)
+            encoded_len = abi_encode_values_to_buf(
+                ctx, dyn_data_dst, outer_vals, outer_tuple_t, None
+            )
             call_start = b.add(dyn_buf_ptr, IRLiteral(28))
             call_len = b.add(IRLiteral(4), encoded_len)
 
@@ -507,7 +511,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         b.mstore(buf._ptr, IRLiteral(mid))
 
         data_dst = b.add(buf._ptr, IRLiteral(32))
-        encoded_len = abi_encode_values_to_buf(ctx, data_dst, arg_vals, tuple_t)
+        encoded_len = abi_encode_values_to_buf(ctx, data_dst, arg_vals, tuple_t, buflen - 32)
 
         # staticcall(gas, CONSOLE_ADDRESS, buf+28, 4+encoded_len, 0, 0)
         # buf+28 positions the 4-byte method_id at the start of calldata
@@ -529,7 +533,9 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
         payload_buf = ctx.allocate_buffer(32 + payload_buflen)
 
         payload_data_dst = b.add(payload_buf._ptr, IRLiteral(32))
-        payload_len = abi_encode_values_to_buf(ctx, payload_data_dst, arg_vals, tuple_t)
+        payload_len = abi_encode_values_to_buf(
+            ctx, payload_data_dst, arg_vals, tuple_t, payload_buflen
+        )
 
         # Store payload length
         b.mstore(payload_buf._ptr, payload_len)
@@ -557,7 +563,9 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 
         # Encode outer tuple
         data_dst = b.add(buf._ptr, IRLiteral(32))
-        encoded_len = abi_encode_to_buf(ctx, data_dst, outer_val.operand, outer_tuple_t)
+        encoded_len = abi_encode_to_buf(
+            ctx, data_dst, outer_val.operand, outer_tuple_t, final_buflen - 32
+        )
 
         call_start = b.add(buf._ptr, IRLiteral(28))
         call_len = b.add(IRLiteral(4), encoded_len)

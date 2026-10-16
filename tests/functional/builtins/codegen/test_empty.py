@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import ArrayIndexException, InstantiationException, InvalidType, TypeMismatch
+from vyper.exceptions import InstantiationException, InvalidType, TypeMismatch
 
 
 @pytest.mark.parametrize(
@@ -771,7 +771,7 @@ def test():
 def test():
     a: Bytes[32] = empty(Bytes[0])
     """,
-            ArrayIndexException,
+            InvalidType,
         ),
     ],
 )

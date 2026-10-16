@@ -67,8 +67,8 @@ class MakeSSA(IRPass):
 
         args: list[IROperand] = []
         for bb in self.cfg.cfg_in(basic_block):
-            args.append(bb.label)  # type: ignore
-            args.append(var)  # type: ignore
+            args.append(bb.label)
+            args.append(var)
 
         basic_block.insert_instruction(IRInstruction("phi", args, [var]), 0)
 

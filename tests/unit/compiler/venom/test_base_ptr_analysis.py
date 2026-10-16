@@ -2,6 +2,7 @@ from tests.venom_utils import parse_from_basic_block
 from vyper.evm.address_space import MEMORY
 from vyper.venom.analysis import BasePtrAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis.base_ptr_analysis import Ptr
 from vyper.venom.basicblock import IRVariable
 from vyper.venom.memory_location import Allocation, MemoryLocation
 
@@ -160,3 +161,46 @@ def test_aliases_of_allocation_reassigned_to_non_pointer_returns_none():
 
         alloca = fn.entry.instructions[0]
         assert base_ptr.aliases_of_allocation(Allocation(alloca)) is None
+
+
+def test_base_ptr_phi_facts_reach_uses_past_unchanged_blocks():
+    # the analysis walks one arm into `join` and everything below it before
+    # it visits the other arm, so that arm's allocation reaches %x only on
+    # a later visit of `join`. %y is two blocks further down, behind a
+    # block with no pointer instructions, and must still see both
+    # allocations.
+    code = """
+    main:
+        %c = calldataload 0
+        jnz %c, @then, @else
+    then:
+        %a = alloca 64
+        jmp @join
+    else:
+        %b = alloca 64
+        jmp @join
+    join:
+        %x = phi @then, %a, @else, %b
+        jmp @mid
+    mid:
+        jmp @use
+    use:
+        %y = add 32, %x
+        %v = mload %y
+        sink %v
+    """
+
+    ctx = parse_from_basic_block(code)
+    fn = next(ctx.get_functions())
+    ac = IRAnalysesCache(fn)
+    base_ptr = ac.request_analysis(BasePtrAnalysis)
+
+    alloca_a = fn.get_basic_block("then").instructions[0]
+    alloca_b = fn.get_basic_block("else").instructions[0]
+    expected = {Ptr(Allocation(alloca_a), 32), Ptr(Allocation(alloca_b), 32)}
+    assert set(base_ptr.get_possible_ptrs(IRVariable("%y"))) == expected
+
+    # a read through %y may touch either allocation, so it cannot be pinned
+    # to one of them
+    load = fn.get_basic_block("use").instructions[1]
+    assert base_ptr.get_read_location(load, MEMORY) == MemoryLocation(offset=None, size=32)

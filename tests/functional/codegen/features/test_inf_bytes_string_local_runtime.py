@@ -2137,8 +2137,12 @@ def deploy({target_arg}s: Bytes[INF], x: Bytes[INF], y: uint256) -> address:
 
     with pytest.raises(StructureException) as e:
         compile_code(code, settings=compiler_settings)
-    message = "constructor arguments cannot contain nested unbounded sequence types"
+    message = (
+        "Unsupported unbounded sequence nesting in constructor argument type: "
+        "(Bytes[INF], uint256)"
+    )
     assert e.value.message == message
+    assert e.value.annotations[0].node_source_code == "(x, y)"
 
 
 def test_inf_bytes_raw_log_data(env, get_contract):
@@ -2321,7 +2325,7 @@ error Oops:
 
 @external
 def boom(x: Bytes[INF]):
-    raise Oops(x)
+    raise Oops(x=x)
     """
 
     c = get_contract(code)
@@ -2359,7 +2363,7 @@ error Oops:
 
 @external
 def boom(xs: DynArray[uint256, INF]):
-    raise Oops(xs)
+    raise Oops(xs=xs)
     """
 
     c = get_contract(code)
@@ -2377,7 +2381,7 @@ error Oops:
 @external
 def boom():
     x: DynArray[uint256, INF] = [1, 2, 3]
-    raise Oops(x, x.pop())
+    raise Oops(xs=x, popped=x.pop())
     """
 
     c = get_contract(code)
