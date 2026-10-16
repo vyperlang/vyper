@@ -321,6 +321,7 @@ def test_storage_iteration_element_widening(get_contract):
     A `for` loop over a non-memory array copies each element with the element
     type's strides, but the loop body reads the loop variable with the
     annotated (wider) type, so every member past the first came back empty.
+    `last_row_tail` also pins later iterations, not just the first.
     """
     code = """
 stored: DynArray[DynArray[Bytes[10], 2], 3]
@@ -349,10 +350,11 @@ def last_row_tail() -> Bytes[512]:
     assert c.last_row_tail() == b"q"
 
 
-def test_storage_iteration_element_widening_non_punnable(get_contract):
+def test_storage_iteration_element_widening_overlapping_strides(get_contract):
     """
-    `Bytes[64]` elements read as `Bytes[96]` put the length word where the
-    body expects data, which drove a copy off a garbage length (out of gas).
+    With `Bytes[64]` elements read as `Bytes[96]`, the wide stride lands a
+    length word where the body expects data, so the element copy ran off a
+    garbage length and exhausted the gas.
     """
     code = """
 stored: DynArray[DynArray[Bytes[64], 2], 3]
