@@ -18,9 +18,11 @@ from vyper.codegen_venom.abi import (
     runtime_abi_size_for_encode,
 )
 from vyper.codegen_venom.arithmetic import apply_binop
+from vyper.compiler.settings import OptimizationLevel, get_global_settings
 from vyper.exceptions import (
     CodegenPanic,
     CompilerPanic,
+    StaticAssertionException,
     TypeCheckFailure,
     TypeMismatch,
     tag_exceptions,
@@ -53,6 +55,10 @@ from .eval_order import (
 from .expr import Expr, get_referenced_variables, is_unbounded_struct_member
 from .packed_return import pack_value_with_payloads
 from .value import VyperValue
+
+
+def _is_unreachable(msg: vy_ast.VyperNode) -> bool:
+    return isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE"
 
 
 def _contains_writeable_call(node: vy_ast.VyperNode) -> bool:
@@ -1622,6 +1628,9 @@ class Stmt:
         assert isinstance(node, vy_ast.Assert)
         cond = Expr(node.test, self.ctx).lower_value()
 
+        if node.msg is None or _is_unreachable(node.msg):
+            self._check_static_assert(cond)
+
         if node.msg:
             self._assert_with_reason(cond, node.msg)
         else:
@@ -1641,6 +1650,29 @@ class Stmt:
             # Ok block: continue
             self.builder.append_block(ok_block)
             self.builder.set_block(ok_block)
+
+    def _check_static_assert(self, cond: IROperand) -> None:
+        """Reject a bare or UNREACHABLE assert whose condition is constant-false.
+
+        These lower to `jnz` rather than to an `assert` instruction, so the
+        static check in SCCP never sees them. Asserts with a reason are left
+        alone, as in the legacy pipeline (`assert False, "msg"` is an idiom).
+
+        Source: vyper/ir/optimizer.py:_optimize (the `assert` case)
+        """
+        if not isinstance(cond, IRLiteral) or cond.value != 0:
+            return
+
+        settings = get_global_settings()
+        if settings and settings.disable_static_exceptions:
+            return  # leave the assertion in place; it will revert at runtime
+        if settings and settings.optimize == OptimizationLevel.NONE:
+            # neither pipeline raises static exceptions at -O none
+            return
+
+        raise StaticAssertionException(
+            "assertion found to fail at compile time. (hint: did you mean `raise`?)", self.node
+        )
 
     def lower_Raise(self) -> None:
         """Lower raise statement.
@@ -1677,7 +1709,7 @@ class Stmt:
 
         Source: vyper/codegen/stmt.py:_assert_reason
         """
-        if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
+        if _is_unreachable(msg):
             # UNREACHABLE: use invalid opcode on failure
             ok_block = self.builder.create_block("assert_ok")
             fail_block = self.builder.create_block("assert_fail")
