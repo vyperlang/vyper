@@ -742,6 +742,19 @@ def foo() -> address:
     assert excinfo.value.message == "`Never` does not have an abi encoding"
 
 
+def test_create_from_blueprint_hashmap_ctor_args():
+    code = """
+h: HashMap[uint256, uint256]
+
+@external
+def foo() -> address:
+    return create_from_blueprint(msg.sender, self.h)
+    """
+    with pytest.raises(InvalidOperation) as excinfo:
+        compile_code(code)
+    assert excinfo.value.message == "`HashMap[uint256, uint256]` does not have an abi encoding"
+
+
 def test_create_copy_of_complex_kwargs(get_contract, env):
     # test msize allocator does not get trampled by salt= kwarg
     complex_salt = """
@@ -830,6 +843,19 @@ def foo() -> address:
     with pytest.raises(InvalidOperation) as excinfo:
         compile_code(code)
     assert excinfo.value.message == "`Never` does not have an abi encoding"
+
+
+def test_raw_create_hashmap_ctor_args():
+    code = """
+h: HashMap[uint256, uint256]
+
+@external
+def foo() -> address:
+    return raw_create(b"", self.h)
+    """
+    with pytest.raises(InvalidOperation) as excinfo:
+        compile_code(code)
+    assert excinfo.value.message == "`HashMap[uint256, uint256]` does not have an abi encoding"
 
 
 def test_raw_create(get_contract, env):
