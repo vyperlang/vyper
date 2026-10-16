@@ -117,8 +117,7 @@ def lower_abi_encode(call: BuiltinCall) -> VyperValue:
         encode_type = TupleT(tuple(arg_types))
 
     if any(type_contains_unbounded_sequence(t) for t in arg_types):
-        encoded_size = runtime_abi_size_for_encode(ctx, arg_vals, encode_type)
-        alloc_size = encoded_size
+        alloc_size = runtime_abi_size_for_encode(ctx, arg_vals, encode_type)
         if method_id is not None:
             # ABI encodings are word-aligned. The 4-byte method ID therefore
             # occupies another full word in the bytestring payload allocation.
@@ -128,15 +127,12 @@ def lower_abi_encode(call: BuiltinCall) -> VyperValue:
         if method_id is None:
             # Safe margin: buf is exactly `[length word] + alloc_size`, and the
             # padding zero write lands at `buf_ptr + ceil32(alloc_size)`.
-            #
-            # With method_id, `alloc_size` can over-estimate the runtime
-            # encoded length (bounded dynamic args are sized by their bound),
-            # so this write can land past the value's actual last word;
-            # _build_abi_encoded_bytes zeroes the tail padding instead.
+            # `alloc_size` may over-estimate the encoded length, but it is a sum
+            # of word multiples, so the zeroed word is the allocation's last word.
             ctx.zero_bytestring_padding(buf_ptr, alloc_size)
 
         def encode_unbounded(dst: IRVariable) -> IROperand:
-            return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type)
+            return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type, None)
 
         _build_abi_encoded_bytes(
             ctx, buf_ptr, method_id, encode_unbounded, ctx.checked_add, zero_tail_padding=True
@@ -145,7 +141,8 @@ def lower_abi_encode(call: BuiltinCall) -> VyperValue:
         return ctx.dynamic_memory_value(buf_ptr, node._metadata["type"], annotation="abi_encode")
 
     # Calculate buffer size
-    maxlen = encode_type.abi_type.size_bound()
+    bufsz = encode_type.abi_type.size_bound()
+    maxlen = bufsz
     if method_id is not None:
         maxlen += 4
 
@@ -155,7 +152,7 @@ def lower_abi_encode(call: BuiltinCall) -> VyperValue:
     assert isinstance(buf_val.operand, IRVariable)
 
     def encode_bounded(dst: IRVariable) -> IROperand:
-        return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type)
+        return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type, bufsz)
 
     _build_abi_encoded_bytes(ctx, buf_val.operand, method_id, encode_bounded, b.add)
 
@@ -190,10 +187,14 @@ def lower_abi_decode(call: BuiltinCall) -> VyperValue:
 
     # Reject bounded input buffers which cannot fit the decoded value. An
     # unbounded input is checked against its runtime length below.
-    if not is_unbounded_sequence_type(output_typ):
-        abi_size_bound = wrapped_typ.abi_type.size_bound()
-        input_max_len = data_node._metadata["type"].maxlen
-        if is_bounded_length(input_max_len) and input_max_len < abi_size_bound:
+    input_max_len = data_node._metadata["type"].maxlen
+    if is_bounded_length(input_max_len):
+        if type_contains_unbounded_sequence(output_typ):
+            # no size bound; the input must at least hold the static head
+            abi_size_bound = wrapped_typ.abi_type.static_size()
+        else:
+            abi_size_bound = wrapped_typ.abi_type.size_bound()
+        if input_max_len < abi_size_bound:
             raise StructureException(
                 (
                     "Mismatch between size of input and size of decoded types. "
@@ -234,18 +235,23 @@ def lower_abi_decode(call: BuiltinCall) -> VyperValue:
 
     # Validate size
     abi_min_size = wrapped_typ.abi_type.static_size()
-    abi_max_size = wrapped_typ.abi_type.size_bound()
-
-    if abi_min_size == abi_max_size:
-        # Fixed size: assert exact match
-        b.assert_(b.eq(data_len, IRLiteral(abi_min_size)))
-    else:
-        # Variable size: assert min <= len <= max
-        # ge(a, b) = iszero(lt(a, b))
-        # le(a, b) = iszero(gt(a, b))
+    if type_contains_unbounded_sequence(output_typ):
+        # a struct with unbounded members has no size bound; the decoder
+        # checks every member against `hi` instead
         ge_min = b.iszero(b.lt(data_len, IRLiteral(abi_min_size)))
-        le_max = b.iszero(b.gt(data_len, IRLiteral(abi_max_size)))
-        b.assert_(b.and_(ge_min, le_max))
+        b.assert_(ge_min)
+    else:
+        abi_max_size = wrapped_typ.abi_type.size_bound()
+        if abi_min_size == abi_max_size:
+            # Fixed size: assert exact match
+            b.assert_(b.eq(data_len, IRLiteral(abi_min_size)))
+        else:
+            # Variable size: assert min <= len <= max
+            # ge(a, b) = iszero(lt(a, b))
+            # le(a, b) = iszero(gt(a, b))
+            ge_min = b.iszero(b.lt(data_len, IRLiteral(abi_min_size)))
+            le_max = b.iszero(b.gt(data_len, IRLiteral(abi_max_size)))
+            b.assert_(b.and_(ge_min, le_max))
 
     # Allocate output buffer
     output_val = ctx.new_temporary_value(wrapped_typ)
@@ -257,11 +263,14 @@ def lower_abi_decode(call: BuiltinCall) -> VyperValue:
     src_vv = VyperValue.from_ptr(ptr, wrapped_typ)
     abi_decode_to_buf(ctx, output_val.operand, src_vv, hi=hi)
 
-    # Return with output_typ (unwrapped type if applicable)
-    if unwrap_tuple and wrapped_typ != output_typ:
-        # For single-element tuple, element 0 is at offset 0
-        return VyperValue.from_ptr(output_val.ptr(), output_typ)
-    return output_val
+    # sanity check as in the legacy, it cannot be done right
+    # after creating of wrapped_typ since the unbounded
+    # types do not have this info
+    assert wrapped_typ.memory_bytes_required == output_typ.memory_bytes_required
+
+    # the output should be always of type that is
+    # propageted in the signature as in the legacy
+    return VyperValue.from_ptr(output_val.ptr(), output_typ)
 
 
 HANDLERS = {

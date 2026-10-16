@@ -14,6 +14,7 @@ from vyper import ast as vy_ast
 from vyper.codegen_venom.arithmetic import clamp_basetype
 from vyper.codegen_venom.builtins._call import BuiltinCall, is_slice_view
 from vyper.codegen_venom.value import VyperValue
+from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import (
     BytesM_T,
     BytesT,
@@ -56,13 +57,17 @@ def _lower_concat_bounded(call: BuiltinCall) -> VyperValue:
     b = ctx.builder
     args = node.args
 
-    # Calculate max output length (for buffer allocation)
+    # Calculate max output length and the furthest data byte any store can
+    # reach: bytesM args are written with full-word mstores, which can extend
+    # up to 31 bytes past ceil32(max_len)
     max_len = 0
+    data_bound = 0
     for arg in args:
         arg_t = arg._metadata["type"]
         if isinstance(arg_t, _BytestringT):
             max_len += arg_t.maxlen
         else:  # BytesM_T
+            data_bound = max(data_bound, max_len + 32)
             max_len += arg_t.m
 
     # Determine output type (string or bytes)
@@ -73,8 +78,9 @@ def _lower_concat_bounded(call: BuiltinCall) -> VyperValue:
     else:
         out_typ = BytesT(max_len)
 
-    # Allocate output buffer (length word + data)
-    out_val = ctx.new_temporary_value(out_typ)
+    bufsize = max(out_typ.memory_bytes_required, 32 + data_bound)
+    out_buf = ctx.allocate_buffer(bufsize)
+    out_val = VyperValue.from_ptr(out_buf.base_ptr(), out_typ)
     data_ptr = ctx.add_offset(out_val.ptr(), IRLiteral(32))
 
     # Track current offset as a variable
@@ -151,11 +157,9 @@ def lower_concat(call: BuiltinCall) -> VyperValue:
             lowered_args.append((arg_t, arg_val, arg_len))
 
         arg_unbounded = is_unbounded_bytestring_type(arg_t)
-        if total_len_unbounded or arg_unbounded:
-            total_len = ctx.checked_add(total_len, arg_len)
-            total_len_unbounded = True
-        else:
-            total_len = b.add(total_len, arg_len)
+        total_len, total_len_unbounded = ctx.add_size(
+            total_len, arg_len, total_len_unbounded, arg_unbounded
+        )
 
     # Allocate output buffer (length word + data)
     out_ptr: IROperand
@@ -189,11 +193,9 @@ def lower_concat(call: BuiltinCall) -> VyperValue:
             dst = b.add(data_ptr, offset)
             ctx.copy_memory_dynamic(dst, arg_data, arg_len, ctx.data_size_bound(arg_t))
             arg_unbounded = is_unbounded_bytestring_type(arg_t)
-            if offset_unbounded or arg_unbounded:
-                new_offset = ctx.checked_add(offset, arg_len)
-                offset_unbounded = True
-            else:
-                new_offset = b.add(offset, arg_len)
+            new_offset, offset_unbounded = ctx.add_size(
+                offset, arg_len, offset_unbounded, arg_unbounded
+            )
             ctx.ptr_store(offset_local.ptr(), new_offset)
         else:
             # Fixed bytesM: the value is already left-aligned in 32 bytes
@@ -201,10 +203,7 @@ def lower_concat(call: BuiltinCall) -> VyperValue:
             offset = ctx.ptr_load(offset_local.ptr())
             dst = b.add(data_ptr, offset)
             b.mstore(dst, arg_val)
-            if offset_unbounded:
-                new_offset = ctx.checked_add(offset, arg_len)
-            else:
-                new_offset = b.add(offset, arg_len)
+            new_offset, offset_unbounded = ctx.add_size(offset, arg_len, offset_unbounded, False)
             ctx.ptr_store(offset_local.ptr(), new_offset)
 
     # Store final length at output buffer
@@ -252,13 +251,8 @@ def lower_slice(call: BuiltinCall) -> VyperValue:
         tmp_buf = ctx.allocate_buffer(32)
         b.mstore(tmp_buf._ptr, src_val)
         src_data = tmp_buf._ptr
-    else:
-        # bytes32 or other 32-byte type
-        src_val = call.operand(src_node)
-        src_len = IRLiteral(32)
-        tmp_buf = ctx.allocate_buffer(32)
-        b.mstore(tmp_buf._ptr, src_val)
-        src_data = tmp_buf._ptr
+    else:  # pragma: nocover
+        raise CompilerPanic(f"Unexpected slice source type: {src_t}")
 
     start = call.operand(start_node)
     length = call.operand(length_node)
@@ -363,13 +357,8 @@ def lower_extract32(call: BuiltinCall) -> IROperand:
         assert isinstance(src_ptr, IRVariable)
         src_len = b.mload(src_ptr)
         src_data = b.add(src_ptr, IRLiteral(32))
-    else:
-        # bytes32 or other fixed type - shouldn't happen but handle it
-        src_val = call.operand(src_node)
-        src_len = IRLiteral(32)
-        tmp_buf = ctx.allocate_buffer(32)
-        b.mstore(tmp_buf._ptr, src_val)
-        src_data = tmp_buf._ptr
+    else:  # pragma: nocover
+        raise CompilerPanic(f"Unexpected extract32 source type: {src_t}")
 
     start = call.operand(start_node)
 

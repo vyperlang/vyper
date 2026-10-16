@@ -11,7 +11,7 @@ from vyper.codegen_venom.eval_order import expression_can_mutate_memory_or_stora
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types import TYPE_T, AddressT, VyperType
+from vyper.semantics.types import INF_T, TYPE_T, AddressT, VyperType
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
@@ -98,7 +98,9 @@ class BuiltinCall:
 
         for kw in node.keywords:
             settings = self.func_t._kwargs[kw.arg]
-            if isinstance(kw.value._metadata["type"], TYPE_T):
+            kw_t = kw.value._metadata["type"]
+            # `max_outsize=INF` is resolved by the handler from the return type
+            if isinstance(kw_t, TYPE_T) or kw_t is INF_T:
                 continue
             if settings.require_literal:
                 folded = kw.value.reduced()

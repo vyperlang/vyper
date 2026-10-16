@@ -8,6 +8,7 @@ Hashing built-in functions.
 from __future__ import annotations
 
 from vyper.codegen_venom.builtins._call import BuiltinCall
+from vyper.codegen_venom.constants import SHA256_PRECOMPILE
 from vyper.semantics.types import BytesM_T, _BytestringT
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -65,12 +66,7 @@ def lower_sha256(call: BuiltinCall) -> IROperand:
 
     # Call SHA256 precompile: staticcall(gas, 0x2, in_ptr, in_len, out_ptr, 32)
     success = b.staticcall(
-        b.gas(),
-        IRLiteral(2),
-        data_ptr,
-        length,
-        out_buf._ptr,
-        IRLiteral(32),  # SHA256 precompile address
+        b.gas(), IRLiteral(SHA256_PRECOMPILE), data_ptr, length, out_buf._ptr, IRLiteral(32)
     )
 
     # Assert success (precompile should always succeed with valid input)

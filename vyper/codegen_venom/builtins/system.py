@@ -14,7 +14,7 @@ from typing import Optional, Union
 from vyper.codegen_venom.builtins._call import BuiltinCall, is_msg_data
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import ArgumentException, StateAccessViolation
-from vyper.semantics.types import BoolT, BytesT, TupleT
+from vyper.semantics.types import BoolT, BytesT, TupleT, is_unbounded_bytestring_type
 from vyper.semantics.types.shortcuts import BYTES32_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
@@ -32,6 +32,8 @@ def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
         - bool if max_outsize=0 and revert_on_failure=False
         - Bytes[N] if max_outsize>0 and revert_on_failure=True
         - (bool, Bytes[N]) if max_outsize>0 and revert_on_failure=False
+        - Bytes[INF] / (bool, Bytes[INF]) for an unbounded return, sized by
+          returndatasize at runtime
     """
     node = call.node
     ctx = call.ctx
@@ -41,8 +43,19 @@ def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
     # Parse positional args
     to = call.operand(node.args[0])
 
+    # the node annotation may be widened by the consumer, so the call's own
+    # return type decides whether the output is bounded
+    return_t = node.func._metadata["type"].fetch_call_return(node)
+    out_t = return_t.member_types[1] if isinstance(return_t, TupleT) else return_t
+    unbounded_outsize = is_unbounded_bytestring_type(out_t)
+
     # Parse kwargs (need to know is_static before constancy check)
-    max_outsize = call.literal("max_outsize")
+    if unbounded_outsize:
+        # the whole returndata is copied after the call; the call itself
+        # gets no output buffer
+        max_outsize = 0
+    else:
+        max_outsize = call.literal("max_outsize")
     is_delegate = call.literal("is_delegate_call")
     is_static = call.literal("is_static_call")
     revert_on_failure = call.literal("revert_on_failure")
@@ -84,6 +97,7 @@ def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
     out_val: Optional["VyperValue"]
     out_ptr: IROperand
     if max_outsize > 0:
+        assert isinstance(out_t, BytesT) and out_t.length == max_outsize
         out_val = ctx.new_temporary_value(BytesT(max_outsize))
         out_ptr = b.add(out_val.operand, IRLiteral(32))
     else:
@@ -130,6 +144,8 @@ def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
         b.append_block(ok_label)
         b.set_block(ok_label)
 
+        if unbounded_outsize:
+            return ctx.materialize_returndata_bytes(out_t)
         if max_outsize > 0:
             # Store actual return size (capped at max_outsize)
             ret_size = b.returndatasize()
@@ -143,6 +159,10 @@ def lower_raw_call(call: BuiltinCall) -> Union[IROperand, VyperValue]:
         # No return value (returns None in Vyper)
         return IRLiteral(0)
     else:
+        if unbounded_outsize:
+            assert isinstance(return_t, TupleT)
+            returndata = ctx.materialize_returndata_bytes(out_t)
+            return ctx.dynamic_tuple_frame_from_outputs([success, returndata.operand], return_t)
         if max_outsize > 0:
             # Store actual return size (capped at max_outsize)
             ret_size = b.returndatasize()

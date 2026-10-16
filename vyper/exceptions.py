@@ -264,6 +264,10 @@ class InvalidLiteral(VyperException):
     """Invalid literal value."""
 
 
+class BadChecksumAddress(InvalidLiteral):
+    """Invalid literal address value."""
+
+
 class InvalidAttribute(VyperException):
     """Reference to an attribute that does not exist."""
 
@@ -363,10 +367,6 @@ class JSONError(Exception):
         super().__init__(msg)
         self.lineno = lineno
         self.col_offset = col_offset
-
-
-class ParserException(Exception):
-    """Contract source cannot be parsed."""
 
 
 class BadArchive(Exception):
