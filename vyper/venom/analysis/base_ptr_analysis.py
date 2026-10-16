@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from typing import Optional
 
 import vyper.venom.effects as effects
-from vyper.evm import address_space
 from vyper.evm.address_space import (
     CALLDATA,
     CODE,
