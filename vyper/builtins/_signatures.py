@@ -1,4 +1,5 @@
 import functools
+from enum import Enum, auto
 from typing import Any, Optional
 
 from vyper import ast as vy_ast
@@ -14,6 +15,12 @@ from vyper.semantics.analysis.utils import (
 )
 from vyper.semantics.types import TYPE_T, KwargSettings, VyperType
 from vyper.semantics.types.utils import type_from_annotation
+
+
+class ContextDefault(Enum):
+    """A runtime builtin default supplied by the active codegen context."""
+
+    GAS = auto()
 
 
 def process_arg(arg, expected_arg_type, context):
@@ -37,6 +44,16 @@ def process_kwarg(kwarg_node, kwarg_settings, expected_kwarg_type, context):
         return kwarg_node.get_folded_value().value
 
     return process_arg(kwarg_node, expected_kwarg_type, context)
+
+
+def process_kwarg_default(kwarg_settings):
+    """Adapt a backend-neutral builtin default to legacy IR."""
+    default = kwarg_settings.default
+    if default is ContextDefault.GAS:
+        return IRnode.from_list("gas", typ=kwarg_settings.typ)
+    if not kwarg_settings.require_literal and type(default) is int:
+        return IRnode.from_list(default, typ=kwarg_settings.typ)
+    return default
 
 
 def process_inputs(wrapped_fn):
@@ -68,7 +85,7 @@ def process_inputs(wrapped_fn):
         # add kwargs which were not specified in the source
         for k, expected_arg in self._kwargs.items():
             if k not in kwsubs:
-                kwsubs[k] = expected_arg.default
+                kwsubs[k] = process_kwarg_default(expected_arg)
 
         for k, v in kwsubs.items():
             if isinstance(v, IRnode):
