@@ -317,3 +317,29 @@ def test_read_only_expression_violations(bad_code):
 
     assert e.value.message == "Read-only expression cannot be mutated."
     assert e.value.hint is None
+
+
+@pytest.mark.parametrize(
+    "bad_code",
+    [
+        """
+interface I:
+    def get_msg() -> String[20]: nonpayable
+
+@external
+def f(x: bool, target: address):
+    assert x, extcall I(target).get_msg()
+    """,
+        """
+interface I:
+    def get_msg() -> String[20]: nonpayable
+
+@external
+def f(x: bool, target: address):
+    raise extcall I(target).get_msg()
+    """,
+    ],
+)
+def test_state_modifying_call_in_revert_reason(bad_code):
+    with raises(StateAccessViolation):
+        compiler.compile_code(bad_code)

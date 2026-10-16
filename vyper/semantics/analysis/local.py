@@ -579,6 +579,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         except TypeMismatch as e:
             raise InvalidType("revert reason must fit within String[1024]") from e
         self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
+        for c in msg_node.get_descendants(vy_ast.Call, include_self=True):
+            if getattr(c.func._metadata["type"], "is_modifying", False):
+                raise StateAccessViolation(
+                    "May not call state modifying function within a revert reason.", c
+                )
         # CMC 2023-10-19 nice to have: tag UNREACHABLE nodes with a special type
 
     def visit_Assert(self, node):
