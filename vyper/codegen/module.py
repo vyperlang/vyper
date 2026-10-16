@@ -56,10 +56,6 @@ def _is_internal(func_ast):
     return func_ast._metadata["func_type"].is_internal
 
 
-def _is_payable(func_ast):
-    return func_ast._metadata["func_type"].is_payable
-
-
 def _annotated_method_id(abi_sig):
     method_id = method_id_int(abi_sig)
     annotation = f"{hex(method_id)}: {abi_sig}"
@@ -77,9 +73,6 @@ def _ir_for_fallback_or_ctor(func_ast, *args, **kwargs):
     assert func_t.is_fallback or func_t.is_constructor
 
     ret = ["seq"]
-    if not func_t.is_payable:
-        callvalue_check = ["assert", ["iszero", "callvalue"]]
-        ret.append(IRnode.from_list(callvalue_check, error_msg="nonpayable check"))
 
     func_ir = generate_ir_for_external_function(func_ast, *args, **kwargs)
     assert len(func_ir.entry_points) == 1
@@ -173,7 +166,7 @@ def _selector_section_dense(external_functions, module_t):
     func_info_size = 4 + 2 + FN_METADATA_BYTES
     # grab function info.
     # method id <4 bytes> | label <2 bytes> | func info <1-3 bytes>
-    # func info (1-3 bytes, packed) for: expected calldatasize, is_nonpayable bit
+    # func info (1-3 bytes) for: expected calldatasize
     # NOTE: might be able to improve codesize if we use variable # of bytes
     # per bucket
 
@@ -196,15 +189,10 @@ def _selector_section_dense(external_functions, module_t):
 
     func_info = IRnode.from_list(["mload", 0])
     fn_metadata_mask = 2 ** (FN_METADATA_BYTES * 8) - 1
-    calldatasize_mask = fn_metadata_mask - 1  # ex. 0xFFFE
     with func_info.cache_when_complex("func_info") as (b1, func_info):
         x = ["seq"]
 
-        # expected calldatasize always satisfies (x - 4) % 32 == 0
-        # the lower 5 bits are always 0b00100, so we can use those
-        # bits for other purposes.
-        is_nonpayable = ["and", 1, func_info]
-        expected_calldatasize = ["and", calldatasize_mask, func_info]
+        expected_calldatasize = ["and", fn_metadata_mask, func_info]
 
         label_bits_ofst = FN_METADATA_BYTES * 8
         function_label = ["and", 0xFFFF, shr(label_bits_ofst, func_info)]
@@ -219,14 +207,10 @@ def _selector_section_dense(external_functions, module_t):
         should_fallback = ["iszero", ["and", calldatasize_valid, method_id_correct]]
         x.append(["if", should_fallback, ["goto", "fallback"]])
 
-        # assert callvalue == 0 if nonpayable
-        bad_callvalue = ["mul", is_nonpayable, "callvalue"]
         # assert calldatasize at least minimum for the abi type
         bad_calldatasize = ["lt", "calldatasize", expected_calldatasize]
-        failed_entry_conditions = ["or", bad_callvalue, bad_calldatasize]
         check_entry_conditions = IRnode.from_list(
-            ["assert", ["iszero", failed_entry_conditions]],
-            error_msg="bad calldatasize or callvalue",
+            ["assert", ["iszero", bad_calldatasize]], error_msg="bad calldatasize"
         )
         x.append(check_entry_conditions)
         jump_targets = [func.args[0].value for func in function_irs]
@@ -254,10 +238,7 @@ def _selector_section_dense(external_functions, module_t):
 
             method_id_bytes = method_id.to_bytes(4, "big")
             symbol = ["symbol", label_for_entry_point(abi_sig, entry_point)]
-            func_metadata_int = entry_point.min_calldatasize | int(
-                not entry_point.func_t.is_payable
-            )
-            func_metadata = func_metadata_int.to_bytes(FN_METADATA_BYTES, "big")
+            func_metadata = entry_point.min_calldatasize.to_bytes(FN_METADATA_BYTES, "big")
 
             function_infos.extend([method_id_bytes, symbol, func_metadata])
 
@@ -274,7 +255,7 @@ def _selector_section_dense(external_functions, module_t):
 # with O(1) jumptable for selector table.
 # uses two level strategy: uses `method_id % n_methods` to calculate
 # a bucket, and then descends into linear search from there.
-# costs about 126 gas for typical (nonpayable, >0 args, avg bucket size 1.5)
+# costs about 126 gas for typical (>0 args, avg bucket size 1.5)
 # function and 24 bytes of code (+ ~23 bytes of global overhead)
 def _selector_section_sparse(external_functions, module_t):
     ret = ["seq"]
@@ -333,23 +314,16 @@ def _selector_section_sparse(external_functions, module_t):
         for method_id in bucket:
             sig = sig_of[method_id]
             entry_point = entry_points[sig]
-            func_t = entry_point.func_t
             expected_calldatasize = entry_point.min_calldatasize
 
             dispatch = ["seq"]  # code to dispatch into the function
-            skip_callvalue_check = func_t.is_payable
-            skip_calldatasize_check = expected_calldatasize == 4
-            bad_callvalue = [0] if skip_callvalue_check else ["callvalue"]
-            bad_calldatasize = (
-                [0] if skip_calldatasize_check else ["lt", "calldatasize", expected_calldatasize]
-            )
-
-            dispatch.append(
-                IRnode.from_list(
-                    ["assert", ["iszero", ["or", bad_callvalue, bad_calldatasize]]],
-                    error_msg="bad calldatasize or callvalue",
+            if expected_calldatasize > 4:
+                bad_calldatasize = ["lt", "calldatasize", expected_calldatasize]
+                dispatch.append(
+                    IRnode.from_list(
+                        ["assert", ["iszero", bad_calldatasize]], error_msg="bad calldatasize"
+                    )
                 )
-            )
             # we could skip a jumpdest per method if we out-lined the entry point
             # so the dispatcher looks just like -
             # ```(if (eq <calldata_method_id> method_id)
@@ -393,14 +367,9 @@ def _selector_section_linear(external_functions, module_t):
     dispatcher = ["seq"]
 
     for sig, entry_point in entry_points.items():
-        func_t = entry_point.func_t
         expected_calldatasize = entry_point.min_calldatasize
 
         dispatch = ["seq"]  # code to dispatch into the function
-
-        if not func_t.is_payable:
-            callvalue_check = ["assert", ["iszero", "callvalue"]]
-            dispatch.append(IRnode.from_list(callvalue_check, error_msg="nonpayable check"))
 
         good_calldatasize = ["ge", "calldatasize", expected_calldatasize]
         calldatasize_check = ["assert", good_calldatasize]

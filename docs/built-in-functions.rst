@@ -199,13 +199,11 @@ Vyper has four built-ins for contract creation; the first three contract creatio
     .. code-block:: vyper
 
         @external
-        @payable
         def foo(_target: address) -> Bytes[32]:
             response: Bytes[32] = raw_call(_target, method_id("someMethodName()"), max_outsize=32, value=msg.value)
             return response
 
         @external
-        @payable
         def bar(_target: address) -> Bytes[32]:
             success: bool = False
             response: Bytes[32] = b""
@@ -229,7 +227,6 @@ Vyper has four built-ins for contract creation; the first three contract creatio
         #pragma experimental-codegen
 
         @external
-        @payable
         def forward(_target: address) -> Bytes[INF]:
             return raw_call(_target, msg.data, max_outsize=INF, value=msg.value)
 

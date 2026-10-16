@@ -40,7 +40,6 @@ seller: address
 arbitrator: address
 
 @deploy
-@payable
 def __init__(_seller: address, _arbitrator: address):
     if self.buyer == empty(address):
         self.buyer = msg.sender

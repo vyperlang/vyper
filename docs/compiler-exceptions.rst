@@ -132,7 +132,7 @@ of the error within the code:
 
 .. py:exception:: NonPayableViolation
 
-    Raises when attempting to access ``msg.value`` from within a function that has not been marked as ``@payable``.
+    Raises when attempting to access ``msg.value`` from within a ``@view`` or ``@pure`` function.
 
     .. code-block:: vyper
 

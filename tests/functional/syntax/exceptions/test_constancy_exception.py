@@ -82,7 +82,6 @@ def b():
     self.a(10)""",
         # view cannot call payable internal
         """
-@payable
 @internal
 def _foo() -> uint256:
     return msg.value

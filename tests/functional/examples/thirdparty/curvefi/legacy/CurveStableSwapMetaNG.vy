@@ -56,7 +56,7 @@ interface Factory:
     def views_implementation() -> address: view
 
 interface WETH:
-    def deposit(): payable
+    def deposit(): nonpayable
     def withdraw(_amount: uint256): nonpayable
 
 interface ERC1271:
@@ -337,7 +337,6 @@ def __init__(
 # ------------------ Token transfers in and out of the AMM -------------------
 
 
-@payable
 @external
 def __default__():
     if msg.value > 0:
@@ -518,7 +517,6 @@ def _balances() -> DynArray[uint256, MAX_COINS]:
 # -------------------------- AMM Main Functions ------------------------------
 
 
-@payable
 @external
 def exchange(
     i: int128,
@@ -725,7 +723,6 @@ def exchange_underlying_received(
     )
 
 
-@payable
 @external
 def add_liquidity(
     _amounts: DynArray[uint256, MAX_COINS],

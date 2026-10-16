@@ -627,7 +627,7 @@ def test_slice_order_of_eval(get_contract):
 var:DynArray[Bytes[96], 1]
 
 interface Bar:
-    def bar() -> uint256: payable
+    def bar() -> uint256: nonpayable
 
 @external
 def bar() -> uint256:
@@ -650,7 +650,7 @@ def test_slice_order_of_eval2(get_contract):
 var:DynArray[Bytes[96], 1]
 
 interface Bar:
-    def bar() -> uint256: payable
+    def bar() -> uint256: nonpayable
 
 @external
 def bar() -> uint256:

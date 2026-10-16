@@ -316,7 +316,6 @@ def __init__(implementation_: address):
     self.admin = msg.sender
 
 @external
-@payable
 @raw_return
 def __default__() -> Bytes[RESPONSE_SZ]:
     return raw_call(

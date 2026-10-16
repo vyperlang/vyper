@@ -33,7 +33,6 @@ def __init__(_beneficiary: address, _auction_start: uint256, _bidding_time: uint
 # The value will only be refunded if the
 # auction is not won.
 @external
-@payable
 def bid():
     # Check if bidding period has started.
     assert block.timestamp >= self.auctionStart

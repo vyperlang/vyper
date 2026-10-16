@@ -31,12 +31,12 @@ def foo() -> uint256:
     assert c.foo() == 0
 
 
-def test_invalid_constant_and_payable(get_contract, assert_compile_failed):
+def test_invalid_constant_and_nonpayable(get_contract, assert_compile_failed):
     code = """
 @external
-@payable
+@nonpayable
 @view
-def foo() -> num:
+def foo() -> uint256:
     return 5
 """
     assert_compile_failed(lambda: get_contract(code), FunctionDeclarationException)

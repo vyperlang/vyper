@@ -537,7 +537,6 @@ def test_create_from_blueprint_complex_value(
 var: uint256
 
 @deploy
-@payable
 def __init__(x: uint256):
     self.var = x
 
@@ -560,7 +559,6 @@ def foo() -> uint256:
     return 3
 
 @external
-@payable
 def test(target: address):
     self.created_address = create_from_blueprint(
         target,
@@ -595,7 +593,6 @@ def test_create_from_blueprint_complex_salt_raw_args(
 var: uint256
 
 @deploy
-@payable
 def __init__(x: uint256):
     self.var = x
 
@@ -619,7 +616,6 @@ def foo() -> bytes32:
     return salt
 
 @external
-@payable
 def test(target: address):
     self.created_address = create_from_blueprint(
         target,
@@ -653,7 +649,6 @@ def test_create_from_blueprint_complex_salt_no_constructor_args(
 var: uint256
 
 @deploy
-@payable
 def __init__():
     self.var = 12
 
@@ -669,7 +664,6 @@ created_address: public(address)
 salt: constant(bytes32) = keccak256("kebab")
 
 @external
-@payable
 def test(target: address):
     self.created_address = create_from_blueprint(
         target,
@@ -769,7 +763,6 @@ def test(target: address) -> address:
 created_address: public(address)
 
 @external
-@payable
 def test(target: address) -> address:
     value: uint256 = 2
     self.created_address = create_copy_of(target, value = [2,2,2][value])
@@ -1041,7 +1034,6 @@ def test_raw_create_revert_value_kws(
 foo: public(uint256)
 
 @deploy
-@payable
 def __init__(constructor_reverts: bool):
     assert not constructor_reverts
     {value_assert}
@@ -1085,7 +1077,6 @@ def test_raw_create_dynamic_arg(get_contract, env):
 foo: public(uint256)
 
 @deploy
-@payable
 def __init__(a: DynArray[uint256, 10]):
     for i: uint256 in range(1, 4):
         assert a[i - 1] == i
@@ -1205,7 +1196,6 @@ def test_raw_create_order_of_eval_of_kwargs(get_contract, env, create2_address_o
 foo: public(uint256)
 
 @deploy
-@payable
 def __init__(arg: uint256):
     self.foo = arg
     """

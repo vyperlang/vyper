@@ -49,7 +49,6 @@ def stockAvailable() -> uint256:
 
 # Give some value to the company and get stock in return.
 @external
-@payable
 def buyStock():
     # Note: full amount is given to company (no fractional shares),
     #       so be sure to send exact amount to buy shares

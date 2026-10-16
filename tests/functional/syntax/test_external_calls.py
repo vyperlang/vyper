@@ -4,17 +4,7 @@ from vyper.compiler import compile_code
 from vyper.exceptions import CallViolation, StructureException
 
 good = [
-    # payable and nonpayable, "plain" (no assignment)
-    """
-interface Foo:
-    def foo(): payable
-    def bar() -> uint256: nonpayable
-
-@external
-def foo(f: Foo):
-    extcall f.foo()
-    extcall f.bar()
-    """,
+    # nonpayable, "plain" (no assignment)
     """
 interface Foo:
     def foo(): nonpayable
@@ -25,15 +15,7 @@ def foo(f: Foo):
     extcall f.foo()
     extcall f.bar()
     """,
-    # payable and nonpayable, with assignment
-    """
-interface Foo:
-    def foo() -> uint256: payable
-
-@external
-def foo(f: Foo):
-    s: uint256 = extcall f.foo()
-    """,
+    # nonpayable, with assignment
     """
 interface Foo:
     def foo() -> uint256: nonpayable
@@ -108,19 +90,6 @@ def bar(f: Foo):
     """,
         CallViolation,
         "Calls to external nonpayable functions must use the `extcall` keyword.",
-        "try `extcall f.foo()`",
-    ),
-    (
-        """
-interface Foo:
-    def foo() -> uint256: payable
-
-@internal
-def bar(f: Foo):
-    f.foo()
-    """,
-        CallViolation,
-        "Calls to external payable functions must use the `extcall` keyword.",
         "try `extcall f.foo()`",
     ),
     (

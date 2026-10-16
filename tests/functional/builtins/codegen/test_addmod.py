@@ -18,7 +18,7 @@ def _uint256_addmod(x: uint256, y: uint256, z: uint256) -> uint256:
 def test_uint256_addmod_ext_call(side_effects_contract, assert_side_effects_invoked, get_contract):
     code = """
 interface Foo:
-    def foo(x: uint256) -> uint256: payable
+    def foo(x: uint256) -> uint256: nonpayable
 
 @external
 def foo(f: Foo) -> uint256:

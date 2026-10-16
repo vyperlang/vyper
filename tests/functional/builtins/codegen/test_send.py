@@ -43,7 +43,6 @@ def test_call(receiver: address):
 last_sender: public(address)
 
 @external
-@payable
 def __default__():
     self.last_sender = msg.sender
     """
@@ -86,7 +85,6 @@ def test_send_stipend(receiver: address):
 last_sender: public(address)
 
 @external
-@payable
 def __default__():
     self.last_sender = msg.sender
     """

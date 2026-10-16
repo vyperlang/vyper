@@ -109,14 +109,14 @@ interface IERC1155Receiver:
        id: uint256,
        amount: uint256,
        data: Bytes[CALLBACK_NUMBYTES],
-   ) -> bytes32: payable
+   ) -> bytes32: nonpayable
     def onERC1155BatchReceived(
         operator: address,
         sender: address,
         ids: DynArray[uint256, BATCH_SIZE],
         amounts: DynArray[uint256, BATCH_SIZE],
         data: Bytes[CALLBACK_NUMBYTES],
-    ) -> bytes4: payable
+    ) -> bytes4: nonpayable
 
 interface IERC1155MetadataURI:
     def uri(id: uint256) -> String[MAX_URI_LENGTH]: view
