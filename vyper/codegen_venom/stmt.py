@@ -910,6 +910,24 @@ class Stmt:
         assert isinstance(item_value.operand, IRVariable)
         self.ctx.forvars[varname] = True
 
+        # Non-memory sources are copied with the element type's strides, so a
+        # widened loop variable type (the type checker allows e.g. iterating
+        # DynArray[Bytes[10], 2] as DynArray[Bytes[512], 2]) needs the element
+        # staged in the element layout first, then re-laid out for the target.
+        # A prim word has no layout to differ, and store_memory() would take
+        # the staging buffer for a value, so it keeps the direct copy.
+        elem_typ = array_typ.value_type
+        needs_staging = (
+            location is not DataLocation.MEMORY
+            and target_type != elem_typ
+            and not target_type._is_prim_word
+        )
+        staged_elem = (
+            self.ctx.new_temporary_value(elem_typ, annotation=f"{varname}_element")
+            if needs_staging
+            else None
+        )
+
         # Create blocks
         entry_block = self.builder.create_block("iter_entry")
         cond_block = self.builder.create_block("iter_cond")
@@ -958,21 +976,20 @@ class Stmt:
                 total_offset = index_offset
             elem_addr = self.builder.add(array, total_offset)
 
-            # Copy element to loop variable (always in memory).
-            # Note: type mismatches (target_type != value_type) are possible
-            # for any source location (the type checker allows e.g.
-            # Bytes[704] target with Bytes[540] elements). For non-memory
-            # sources, the linear copy is safe for flat types since the
-            # source is smaller than the destination buffer. Only the
-            # memory path uses type-aware copying (store_memory).
+            # Copy element to loop variable (always in memory). Type
+            # mismatches (target_type != value_type) are possible for any
+            # source location; non-memory sources copy `elem_size` of the
+            # element type, so they land in `staged_elem` whenever the target
+            # layout differs and are re-laid out below.
             dst = item_value.operand
+            copy_dst = staged_elem.operand if staged_elem is not None else dst
             if is_slot_addressed:
                 # Word-addressed (STORAGE, TRANSIENT)
-                self.ctx.slot_to_memory(elem_addr, dst, elem_size, location)
+                self.ctx.slot_to_memory(elem_addr, copy_dst, elem_size, location)
             elif location is not DataLocation.MEMORY:
                 # Byte-addressed non-memory (IMMUTABLES, CODE, CALLDATA):
                 # location-aware copy via load_word dispatch
-                self.ctx.copy_to_memory(dst, elem_addr, elem_size, location)
+                self.ctx.copy_to_memory(copy_dst, elem_addr, elem_size, location)
             elif target_type._is_prim_word:
                 # Memory, single word
                 val = self.builder.mload(elem_addr)
@@ -980,7 +997,10 @@ class Stmt:
             else:
                 # Memory, complex type: type-aware copy handles
                 # layout mismatches (e.g. DynArray[Bytes[540]] -> Bytes[704])
-                self.ctx.store_memory(elem_addr, dst, target_type, src_typ=array_typ.value_type)
+                self.ctx.store_memory(elem_addr, dst, target_type, src_typ=elem_typ)
+
+            if staged_elem is not None:
+                self.ctx.store_memory(copy_dst, dst, target_type, src_typ=elem_typ)
 
             self._lower_body(node.body)
             body_finish = self.builder.current_block
