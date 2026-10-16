@@ -1,6 +1,7 @@
 import importlib
 import io
 import json
+import posixpath
 import zipfile
 from dataclasses import dataclass
 from functools import cached_property
@@ -8,6 +9,7 @@ from pathlib import PurePath
 from typing import Optional
 
 import vyper
+from vyper import ast as vy_ast
 from vyper.compiler.input_bundle import CompilerInput, JSONInput, _NotFound
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import Settings
@@ -34,6 +36,10 @@ def _anonymize(p: str):
     # posix style paths.
     # cf. https://stackoverflow.com/a/122485
     return PurePath(*segments).as_posix()
+
+
+def _posix_relpath(p) -> str:
+    return PurePath(safe_relpath(p)).as_posix()
 
 
 # data structure containing things that should be in an output bundle,
@@ -71,7 +77,54 @@ class OutputBundle:
             # since it corresponds more directly to search path semantics.
             sources[_anonymize(path)] = c
 
+        self._check_relative_imports(sources)
+
         return sources
+
+    def _check_relative_imports(self, sources: dict[str, CompilerInput]) -> None:
+        # a relative import resolves from the directory of the importing
+        # file, not through a search path. `_anonymize` rewrites the `..`
+        # segments of source paths, which preserves relative imports
+        # between files at the same `..` depth, but not between files at
+        # different depths (e.g. `from .. import x` in a file under the cwd
+        # reaching a file above it). such an import would not resolve when
+        # the bundle is recompiled, so bail with a user-facing error.
+        # key by resolved path: the same file reached through different
+        # import spellings gives distinct `CompilerInput`s, which collapse
+        # to a single entry in `sources`, and every edge has to be checked.
+        anonymized_paths = {_posix_relpath(c.resolved_path): path for path, c in sources.items()}
+
+        import_analysis = self.compiler_data.resolved_imports
+        modules = {self.compiler_data.file_input: import_analysis.toplevel_module}
+        modules.update(import_analysis.compiler_inputs)
+
+        for importer, module_ast in modules.items():
+            importer_path = _posix_relpath(importer.resolved_path)
+            if importer_path not in anonymized_paths or not isinstance(module_ast, vy_ast.Module):
+                continue
+            importer_dir = posixpath.dirname(importer_path)
+            anonymized_importer_dir = posixpath.dirname(anonymized_paths[importer_path])
+
+            for node in module_ast.get_children(vy_ast.ImportFrom):
+                if node.level == 0:
+                    continue
+                for info in node._metadata["import_infos"]:
+                    importee = info.compiler_input
+                    importee_path = _posix_relpath(importee.resolved_path)
+                    if importee.from_builtin or importee_path not in anonymized_paths:
+                        continue
+                    original = posixpath.relpath(importee_path, importer_dir)
+                    bundled = posixpath.relpath(
+                        anonymized_paths[importee_path], anonymized_importer_dir
+                    )
+                    if original != bundled:
+                        raise BundleError(
+                            f"cannot bundle `{importee.resolved_path}`: it is imported"
+                            f" relatively from `{importer.resolved_path}`, and the import"
+                            " would not resolve inside the bundle",
+                            hint="run the compiler from a common parent directory of all"
+                            " source files",
+                        )
 
     @cached_property
     def compilation_target_path(self):

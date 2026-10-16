@@ -632,6 +632,102 @@ y: constant(uint256) = escaped.x
         compile_files([contract_file], ["archive"])
 
 
+# a file above the cwd which is covered by a search path is bundled, but a
+# relative import reaching it from below the cwd does not resolve once the
+# `..` segments are rewritten. it should be rejected instead of producing a
+# bundle which does not recompile (GH 5226)
+@pytest.mark.parametrize("output_format", ["archive", "solc_json"])
+def test_output_bundle_relative_import_crossing_cwd(
+    make_file, tmp_path, monkeypatch, output_format
+):
+    escaped_source = """
+x: constant(uint256) = 1
+    """
+    contract_source = """
+from .. import escaped
+
+y: constant(uint256) = escaped.x
+    """
+    make_file("escaped.vy", escaped_source)
+    contract_file = make_file("pkg/main.vy", contract_source)
+
+    monkeypatch.chdir(tmp_path / "pkg")
+
+    # sanity: compilation itself succeeds, only bundling fails
+    _ = compile_files([contract_file], ["bytecode"], paths=[".."])
+
+    with pytest.raises(BundleError, match="escaped.vy"):
+        compile_files([contract_file], [output_format], paths=[".."])
+
+
+# the same file reached both through a relative import crossing the cwd and
+# through a search path gives two `CompilerInput`s for one bundled source. the
+# crossing import must be rejected whichever of the two is kept in the bundle.
+@pytest.mark.parametrize("crossing_first", [True, False])
+def test_output_bundle_relative_import_crossing_cwd_diamond(
+    make_file, tmp_path, monkeypatch, crossing_first
+):
+    escaped_source = """
+x: constant(uint256) = 1
+    """
+    helper_source = """
+import escaped
+
+z: constant(uint256) = escaped.x
+    """
+    imports = ["from .. import escaped", "import helper"]
+    if not crossing_first:
+        imports.reverse()
+    contract_source = "\n".join(imports) + """
+
+y: constant(uint256) = escaped.x + helper.z
+    """
+    make_file("escaped.vy", escaped_source)
+    make_file("pkg/helper.vy", helper_source)
+    contract_file = make_file("pkg/main.vy", contract_source)
+
+    monkeypatch.chdir(tmp_path / "pkg")
+
+    # sanity: compilation itself succeeds, only bundling fails
+    _ = compile_files([contract_file], ["bytecode"], paths=["..", "."])
+
+    with pytest.raises(BundleError, match="escaped.vy"):
+        compile_files([contract_file], ["archive"], paths=["..", "."])
+
+
+# relative imports between files at the same depth above the cwd still
+# round-trip through the bundle
+def test_output_bundle_relative_import_above_cwd(make_file, tmp_path, monkeypatch):
+    b_source = """
+x: constant(uint256) = 1
+    """
+    a_source = """
+from . import b
+
+y: constant(uint256) = b.x
+    """
+    contract_source = """
+from lib import a
+
+@external
+def foo() -> uint256:
+    return a.y
+    """
+    make_file("lib/b.vy", b_source)
+    make_file("lib/a.vy", a_source)
+    contract_file = make_file("pkg/main.vy", contract_source)
+
+    monkeypatch.chdir(tmp_path / "pkg")
+
+    bytecode = compile_files([contract_file], ["bytecode"], paths=[".."])[contract_file]
+    archive = compile_files([contract_file], ["archive"], paths=[".."])[contract_file]
+    archive_path = tmp_path / "out.zip"
+    archive_path.write_bytes(archive["archive"])
+
+    out = compile_files([archive_path], ["bytecode"])
+    assert out[archive_path]["bytecode"] == bytecode["bytecode"]
+
+
 # maybe this belongs in tests/unit/compiler?
 def test_integrity_sum(input_files):
     tmpdir, library_file, jsonabi_file, storage_layout_path, contract_file, integrity = input_files
