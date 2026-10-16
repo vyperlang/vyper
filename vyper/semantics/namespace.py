@@ -32,6 +32,7 @@ class Namespace(dict):
         self.update(PRIMITIVE_TYPES)
         self.update(environment.CONSTANT_ENVIRONMENT_VARS)
         self.update({k: VarInfo(b) for (k, b) in get_builtin_functions().items()})
+        self.import_decls = {}
 
     def __eq__(self, other):
         return self is other
@@ -42,6 +43,12 @@ class Namespace(dict):
             self._scopes[-1].add(attr)
         assert isinstance(attr, str), f"not a string: {attr}"
         super().__setitem__(attr, obj)
+
+    def set_import(self, attr, obj, alias_node):
+        self.__setitem__(attr, obj)
+        assert attr not in self.import_decls
+
+        self.import_decls[attr] = alias_node
 
     def __getitem__(self, key):
         if key not in self:
@@ -58,6 +65,7 @@ class Namespace(dict):
             raise CompilerPanic("Bad use of namespace as a context manager")
         for key in self._scopes.pop():
             del self[key]
+            self.import_decls.pop(key, None)
 
     def enter_scope(self):
         """
@@ -89,11 +97,11 @@ class Namespace(dict):
         validate_identifier(attr)
 
         if attr in self:
-            prev = super().__getitem__(attr)
-            prev_decl = getattr(prev, "decl_node", None)
-            msg = f"'{attr}' has already been declared"
+            prev_decl = self.import_decls.get(attr, super().__getitem__(attr).decl_node)
             if prev_decl is None:
-                msg += f" as a {prev}"
+                msg = f"'{attr}' is already the name of a built-in"
+            else:
+                msg = f"'{attr}' has already been declared"
             raise NamespaceCollision(msg, prev_decl=prev_decl)
 
 

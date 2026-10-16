@@ -1,5 +1,6 @@
 import pytest
 
+from vyper import ast as vy_ast
 from vyper import compiler
 from vyper.exceptions import NamespaceCollision
 
@@ -34,14 +35,6 @@ def foo():
     x: int128 = 0
     x: int128 = 0
     """,
-    """
-@external
-def foo():
-    msg: bool = True
-    """,
-    """
-int128: Bytes[3]
-    """,
 ]
 
 
@@ -49,6 +42,103 @@ int128: Bytes[3]
 def test_insufficient_arguments(bad_code):
     with pytest.raises(NamespaceCollision):
         compiler.compile_code(bad_code)
+
+
+def test_builtin_name_collision():
+    code = """
+@external
+def foo():
+    msg: bool = True
+    """
+    with pytest.raises(NamespaceCollision) as excinfo:
+        compiler.compile_code(code)
+    assert excinfo.value.message == "'msg' is already the name of a built-in"
+
+
+def test_builtin_type_collision():
+    code = """
+int128: Bytes[3]
+    """
+    with pytest.raises(NamespaceCollision) as excinfo:
+        compiler.compile_code(code)
+    assert excinfo.value.message == "'int128' is already the name of a built-in"
+
+
+def test_import_alias_collision_is_not_reported_as_builtin(make_input_bundle):
+    code = """
+import lib1 as lib
+import lib2 as lib
+    """
+    input_bundle = make_input_bundle({"lib1.vy": "", "lib2.vy": ""})
+    with pytest.raises(NamespaceCollision) as excinfo:
+        compiler.compile_code(code, input_bundle=input_bundle)
+    assert excinfo.value.message == "'lib' has already been declared"
+
+
+def test_flag_collision_is_not_reported_as_builtin():
+    code = """
+flag Foo:
+    A
+    B
+
+flag Foo:
+    C
+    D
+    """
+    with pytest.raises(NamespaceCollision) as excinfo:
+        compiler.compile_code(code)
+    assert excinfo.value.message == "'Foo' has already been declared"
+
+
+def test_struct_collision_is_not_reported_as_builtin():
+    code = """
+struct Foo:
+    x: uint256
+
+struct Foo:
+    y: uint256
+    """
+    with pytest.raises(NamespaceCollision) as excinfo:
+        compiler.compile_code(code)
+    assert excinfo.value.message == "'Foo' has already been declared"
+
+
+@pytest.mark.parametrize(
+    "second_decl",
+    [
+        "import jsonabi2 as Foo",
+        "import lib as Foo",
+        "flag Foo:\n    A",
+        "struct Foo:\n    x: uint256",
+        "interface Foo:\n    def bar(): nonpayable",
+        "Foo: uint256",
+    ],
+)
+def test_collision_with_json_import_is_not_reported_as_builtin(make_input_bundle, second_decl):
+    code = f"""
+import jsonabi as Foo
+
+{second_decl}
+    """
+    input_bundle = make_input_bundle({"jsonabi.json": "[]", "jsonabi2.json": "[]", "lib.vy": ""})
+    with pytest.raises(NamespaceCollision) as excinfo:
+        compiler.compile_code(code, input_bundle=input_bundle)
+    assert excinfo.value.message == "'Foo' has already been declared"
+
+
+def test_collision_with_vyi_import_points_at_the_import_stmt(make_input_bundle):
+    # the alias is declared by the import statement, not by the imported file
+    code = """
+import ifacemod as Foo
+
+flag Foo:
+    A
+    """
+    input_bundle = make_input_bundle({"ifacemod.vyi": "@external\ndef bar(): ..."})
+    with pytest.raises(NamespaceCollision) as excinfo:
+        compiler.compile_code(code, input_bundle=input_bundle)
+    assert excinfo.value.message == "'Foo' has already been declared"
+    assert isinstance(excinfo.value.prev_decl, vy_ast.alias)
 
 
 pass_list = [
