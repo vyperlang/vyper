@@ -83,7 +83,7 @@ def _parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
 # one source token of a (non-raw) string literal: a line continuation, an escape
 # sequence, a `\r\n` line ending or a single character
 _LITERAL_TOKEN = re.compile(
-    r"\\\r?\n|\\N\{[^}]*\}|\\x[0-9a-fA-F]{2}|\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}"
+    r"\\(?:\r\n|\r|\n)|\\N\{[^}]*\}|\\x[0-9a-fA-F]{2}|\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}"
     r"|\\[0-7]{1,3}|\\[\\'\"abfnrtv]|\r\n|.",
     re.DOTALL,
 )
@@ -127,6 +127,10 @@ def _docstring_offsets(doc_node: vy_ast.Str) -> List[int]:
             if token.type == tokenize.STRING:
                 row, col = token.start
                 offsets.extend(_literal_offsets(token.string, line_starts[row - 1] + col))
+            # the node source can run past the docstring (its end column is a
+            # utf-8 byte offset), so stop once the whole value is mapped
+            if len(offsets) >= len(doc_node.value):
+                break
     except (tokenize.TokenError, SyntaxError):  # pragma: nocover
         return []
 
@@ -143,10 +147,11 @@ def _docstring_position(doc_node: vy_ast.Str, offsets: List[int], offset: int) -
     # fall back to the start of the docstring if the offsets couldn't be mapped
     pos = offsets[offset] if offsets else 0
 
-    lineno = doc_node.lineno + raw.count("\n", 0, pos)
-    if lineno == doc_node.lineno:
-        return lineno, doc_node.col_offset + pos
-    return lineno, pos - raw.rfind("\n", 0, pos) - 1
+    # count every universal newline form, like the parser does
+    line_breaks = list(re.finditer(r"\r\n|\r|\n", raw[:pos]))
+    if not line_breaks:
+        return doc_node.lineno, doc_node.col_offset + pos
+    return doc_node.lineno + len(line_breaks), pos - line_breaks[-1].end()
 
 
 def _parse_docstring(
