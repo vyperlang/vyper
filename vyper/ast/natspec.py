@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 
 from vyper.ast import nodes as vy_ast
-from vyper.ast.utils import LineNumbers
 from vyper.exceptions import NatSpecSyntaxException
 
 SINGLE_FIELDS = ("title", "author", "license", "notice", "dev")
@@ -49,14 +48,13 @@ def _parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
     userdoc, devdoc = {}, {}
     source: str = annotated_vyper_module.full_source_code
 
-    docstring = annotated_vyper_module.get("doc_string.value")
-    if docstring:
-        devdoc.update(_parse_docstring(source, docstring, ("param", "return")))
+    if annotated_vyper_module.get("doc_string.value"):
+        doc_node = annotated_vyper_module.doc_string
+        devdoc.update(_parse_docstring(source, doc_node, ("param", "return")))
         if "notice" in devdoc:
             userdoc["notice"] = devdoc.pop("notice")
 
     for node in [i for i in annotated_vyper_module.body if i.get("doc_string.value")]:
-        docstring = node.doc_string.value
         func_type = node._metadata["func_type"]
         if func_type.visibility != FunctionVisibility.EXTERNAL:
             continue
@@ -70,7 +68,7 @@ def _parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
 
         args = tuple(i.arg for i in node.args.args)
         invalid_fields = ("title", "license")
-        fn_natspec = _parse_docstring(source, docstring, invalid_fields, args, ret_len)
+        fn_natspec = _parse_docstring(source, node.doc_string, invalid_fields, args, ret_len)
         for method_id in func_type.method_ids:
             if "notice" in fn_natspec:
                 userdoc.setdefault("methods", {})[method_id] = {"notice": fn_natspec.pop("notice")}
@@ -80,9 +78,24 @@ def _parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
     return NatspecOutput(userdoc=userdoc, devdoc=devdoc)
 
 
+def _docstring_position(doc_node: vy_ast.Str, offset: int) -> Tuple[int, int]:
+    # map an offset in the parsed docstring to a (line, column) in the source.
+    # count lines rather than characters, since the parsed value can differ from
+    # the source text (escape sequences, `\r\n` line endings)
+    docstring = doc_node.value
+    lineno = doc_node.lineno + docstring.count("\n", 0, offset)
+    if lineno == doc_node.lineno:
+        # same line as the opening quotes
+        raw = doc_node.node_source_code
+        body = raw.lstrip("rRuU")
+        quote_len = 3 if body[:3] in ('"""', "'''") else 1
+        return lineno, doc_node.col_offset + len(raw) - len(body) + quote_len + offset
+    return lineno, offset - docstring.rfind("\n", 0, offset) - 1
+
+
 def _parse_docstring(
     source: str,
-    docstring: str,
+    doc_node: vy_ast.Str,
     invalid_fields: Tuple,
     params: Optional[Tuple] = None,
     return_length: int = 0,
@@ -91,8 +104,7 @@ def _parse_docstring(
     if params is None:
         params = tuple()
 
-    line_no = LineNumbers(source)
-    start = source.index(docstring)
+    docstring = doc_node.value
 
     translate_map = {"return": "returns", "dev": "details", "param": "params"}
 
@@ -100,7 +112,7 @@ def _parse_docstring(
 
     for match in re.finditer(pattern, docstring):
         tag, value = match.groups()
-        err_args = (source, *line_no.offset_to_line(start + match.start(1)))
+        err_args = (source, *_docstring_position(doc_node, match.start(1)))
 
         if tag not in SINGLE_FIELDS + PARAM_FIELDS and not tag.startswith("custom:"):
             raise NatSpecSyntaxException(f"Unknown NatSpec field '@{tag}'", *err_args)
@@ -148,7 +160,9 @@ def _parse_docstring(
         natspec["notice"] = " ".join(docstring.split())
     elif not docstring.strip().startswith("@"):
         raise NatSpecSyntaxException(
-            "NatSpec docstring opens with untagged comment", source, *line_no.offset_to_line(start)
+            "NatSpec docstring opens with untagged comment",
+            source,
+            *_docstring_position(doc_node, 0),
         )
 
     return natspec

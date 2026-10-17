@@ -452,3 +452,59 @@ def foo() -> (int128,uint256):
 
     with pytest.raises(NatSpecSyntaxException, match=r'contract "VyperContract\.vy:\d+"'):
         parse_natspec(code)
+
+
+def test_escape_sequence_in_docstring():
+    code = r"""
+@external
+def foo():
+    '''
+    @notice tab\there
+    '''
+    pass
+    """
+
+    natspec = parse_natspec(code)
+    assert natspec.userdoc == {"methods": {"foo()": {"notice": "tab here"}}}
+
+
+def test_crlf_line_endings():
+    code = """
+'''
+@title A contract
+'''
+
+@external
+def foo():
+    '''
+    @notice hello
+    '''
+    pass
+    """.replace("\n", "\r\n")
+
+    natspec = parse_natspec(code)
+    assert natspec.userdoc == {"methods": {"foo()": {"notice": "hello"}}}
+    assert natspec.devdoc == {"title": "A contract"}
+
+
+def test_error_location_with_identical_docstrings():
+    code = """
+@external
+def foo(x: uint256):
+    '''
+    @param x the amount
+    '''
+    pass
+
+@external
+def bar(y: uint256):
+    '''
+    @param x the amount
+    '''
+    pass
+    """
+
+    with pytest.raises(NatSpecSyntaxException, match="Method has no parameter 'x'") as e:
+        parse_natspec(code)
+    # points at the docstring of `bar`, not the identical one of `foo`
+    assert "line 12:5" in str(e.value)
