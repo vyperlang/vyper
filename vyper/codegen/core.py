@@ -542,6 +542,55 @@ def pop_dyn_array(darray_node, return_popped_item):
             return IRnode.from_list(b1.resolve(b2.resolve(ret)), typ=typ, location=location)
 
 
+def extend_dyn_array(dst, src, context):
+    assert isinstance(dst.typ, DArrayT)
+
+    if not is_bounded_length(dst.typ.count):
+        raise CodegenPanic("extend not yet implemented for unbounded DynArray")
+
+    ret = ["seq"]
+
+    # a list literal cannot be indexed with a runtime loop variable,
+    # force it to memory first
+    if not src.is_pointer:
+        tmp = context.new_internal_variable(src.typ)
+        ret.append(make_setter(tmp, src))
+        src = tmp
+
+    with dst.cache_when_complex("dst") as (b1, dst):
+        dst_len = get_dyn_array_count(dst)
+        dst_bound = dst.typ.count
+
+        with (
+            src.cache_when_complex("src") as (b2, src),
+            dst_len.cache_when_complex("old_dst_len") as (b3, dst_len),
+        ):
+            # the src length word must be loaded after any staging store
+            # above (the staging is in `ret`, and a `with` evaluates its
+            # value before the body), so this cache wraps only the
+            # post-staging statements instead of the whole `ret`.
+            body = ["seq"]
+            src_len = get_dyn_array_count(src)
+            with src_len.cache_when_complex("src_len") as (b4, src_len):
+                new_len = IRnode.from_list(["add", dst_len, src_len], typ=UINT256_T)
+
+                assertion = ["assert", ["le", new_len, dst_bound]]
+                body.append(IRnode.from_list(assertion, error_msg=f"{dst.typ} bounds check"))
+
+                i = IRnode.from_list(context.fresh_varname("extend_ix"), typ=UINT256_T)
+                dst_key = IRnode.from_list(["add", dst_len, i], typ=UINT256_T)
+                dst_i = get_element_ptr(dst, dst_key, array_bounds_check=False)
+                src_i = get_element_ptr(src, i, array_bounds_check=False)
+                body.append(["repeat", i, 0, src_len, src.typ.count, make_setter(dst_i, src_i)])
+
+                # store new length
+                body.append(ensure_eval_once("extend_dynarray", STORE(dst, new_len)))
+
+            ret.append(b4.resolve(body))
+
+            return IRnode.from_list(b1.resolve(b2.resolve(b3.resolve(ret))))
+
+
 # add an offset to a pointer, keeping location and encoding info
 def add_ofst(ptr, ofst):
     ret = ["add", ptr, ofst]

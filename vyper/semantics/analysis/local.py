@@ -62,6 +62,7 @@ from vyper.semantics.types import (
     StructT,
     TupleT,
     VyperType,
+    is_bounded_length,
     is_type_t,
     map_void,
 )
@@ -145,6 +146,14 @@ def _reaches_through_subscript(node: vy_ast.VyperNode) -> bool:
             return True
         node = node.value
 
+    return False
+
+
+def _dynarray_contains_bottom(typ: VyperType) -> bool:
+    if isinstance(typ, BottomT):
+        return True
+    if isinstance(typ, (DArrayT, SArrayT)):
+        return _dynarray_contains_bottom(typ.value_type)
     return False
 
 
@@ -1238,6 +1247,35 @@ class ExprVisitor(VyperNodeVisitorBase):
                 self.function_analyzer._handle_modification(node.func.value)
             assert len(node.args) == len(func_type.arg_types)
             for arg, arg_type in zip(node.args, func_type.arg_types):
+                if isinstance(arg_type, DArrayT) and not is_bounded_length(arg_type.length):
+                    # derive a usable type for the arg node if not done yet.
+                    # this currently catches `DynArray.extend(...)` only.
+                    # prefer a bounded type with a concrete element type;
+                    # an unbounded (INF) type is also fine since codegen
+                    # handles runtime lengths. wildcard-length candidates
+                    # (e.g. a wildcard interface return) are excluded so
+                    # that they specialize against the destination type,
+                    # the only concrete length available at the call site.
+                    # candidates whose element types contain `Never` (empty
+                    # literals carry no element type, e.g. `x.extend([[]])`)
+                    # borrow the dst element type but keep their own length:
+                    # the source length is extend's runtime contract, so an
+                    # over-capacity source reverts at runtime instead of
+                    # failing type checking.
+                    dst_typ = func_type.underlying_type
+                    assert isinstance(dst_typ, DArrayT)  # mypy hint
+                    possible_types = []
+                    for t in get_possible_types_from_node(arg):
+                        if t.has_wildcard:
+                            continue
+                        if isinstance(t, DArrayT) and _dynarray_contains_bottom(t.value_type):
+                            t = DArrayT(dst_typ.value_type, t.length)
+                        if t.is_subtype_of(arg_type):
+                            possible_types.append(t)
+                    arg_type = next(
+                        (t for t in possible_types if is_bounded_length(t.length)),
+                        next(iter(possible_types), dst_typ),
+                    )
                 self.visit(arg, arg_type)
         else:
             # builtin functions and interfaces

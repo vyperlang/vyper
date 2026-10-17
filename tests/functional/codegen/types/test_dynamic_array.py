@@ -17,6 +17,7 @@ from vyper.exceptions import (
     OverflowException,
     StateAccessViolation,
     TypeMismatch,
+    UnknownAttribute,
 )
 
 
@@ -1315,6 +1316,890 @@ flag Foobar:
         assert c.foo(test_data) == expected_result
 
 
+extend_tests = [
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    self.my_array.extend(xs)
+    return self.my_array
+    """,
+        lambda xs: xs,
+    ),
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    self.my_array.extend(xs)
+    for x: uint256 in xs:
+        self.my_array.pop()
+    return self.my_array
+    """,
+        lambda xs: [],
+    ),
+    # check order of evaluation.
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> (DynArray[uint256, 5], uint256):
+    self.my_array.extend(xs)
+    return self.my_array, self.my_array.pop()
+    """,
+        lambda xs: None if len(xs) == 0 else (xs, xs[-1]),
+    ),
+    # check order of evaluation.
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> (uint256, DynArray[uint256, 5]):
+    self.my_array.extend(xs)
+    return self.my_array.pop(), self.my_array
+    """,
+        lambda xs: None if len(xs) == 0 else (xs[-1], xs[:-1]),
+    ),
+    # test memory arrays
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    ys: DynArray[uint256, 5] = []
+    ys.extend(xs)
+    return ys
+    """,
+        lambda xs: xs,
+    ),
+    # pop to 0 elems
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    ys: DynArray[uint256, 5] = []
+    ys.extend(xs)
+    for x: uint256 in xs:
+        ys.pop()
+    return ys
+    """,
+        lambda xs: [],
+    ),
+    # check underflow
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    ys: DynArray[uint256, 5] = []
+    ys.extend(xs)
+    for x: uint256 in xs:
+        ys.pop()
+    ys.pop()  # fail
+    return ys
+    """,
+        lambda xs: None,
+    ),
+    # extend a nonempty dst; covers empty src (test_data == []) and the
+    # capacity clamp (None sentinel) in one case
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    ys: DynArray[uint256, 5] = [1, 2]
+    ys.extend(xs)
+    return ys
+    """,
+        lambda xs: [1, 2] + xs if len(xs) <= 3 else None,
+    ),
+    # empty list literal src (dst-type fallback in local analysis)
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    ys: DynArray[uint256, 5] = [1, 2]
+    ys.extend([])
+    ys.extend(xs)
+    return ys
+    """,
+        lambda xs: [1, 2] + xs if len(xs) <= 3 else None,
+    ),
+    # nested empty list literal src (`Never` is below the top level of the
+    # inferred literal type; the dst-type fallback covers this too)
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[DynArray[uint256, 3], 3]:
+    ys: DynArray[DynArray[uint256, 3], 3] = []
+    ys.extend([[]])
+    return ys
+    """,
+        lambda xs: [[]],
+    ),
+    # `Never` nested under a fixed-size array: the bottom-type scan must
+    # recurse through SArrayT elements too, not just DynArrayT elements
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[DynArray[uint256, 3][2], 3]:
+    ys: DynArray[DynArray[uint256, 3][2], 3] = []
+    ys.extend([[[], []]])
+    return ys
+        """,
+        lambda xs: [[[], []]],
+    ),
+    # widening element type src (memory dst): the staging buffer re-lays
+    # the elements out at the dst stride (Bytes[2] -> Bytes[64] changes
+    # the stride from 64 to 96 bytes)
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[Bytes[64], 3]:
+    src: DynArray[Bytes[2], 2] = [b"a", b"b"]
+    dst: DynArray[Bytes[64], 3] = []
+    dst.extend(src)
+    return dst
+    """,
+        lambda xs: [b"a", b"b"],
+    ),
+    # widening element type src (storage dst)
+    (
+        """
+my_array: DynArray[Bytes[64], 3]
+
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[Bytes[64], 3]:
+    src: DynArray[Bytes[2], 2] = [b"c", b"d"]
+    self.my_array = []
+    self.my_array.extend(src)
+    return self.my_array
+    """,
+        lambda xs: [b"c", b"d"],
+    ),
+    # nonempty list literal src
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    ys: DynArray[uint256, 5] = [1, 2]
+    ys.extend([3, 4])
+    ys.extend(xs)
+    return ys
+    """,
+        lambda xs: [1, 2, 3, 4] + xs if len(xs) <= 1 else None,
+    ),
+    # list literal src into storage dst
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    self.my_array = [1]
+    self.my_array.extend([2, 3])
+    self.my_array.extend(xs)
+    return self.my_array
+    """,
+        lambda xs: [1, 2, 3] + xs if len(xs) <= 2 else None,
+    ),
+    # list literal src into memory dst; the literal's length alone exceeds the
+    # dst capacity, which is not rejected at compile time but reverts at runtime
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 1]:
+    a: DynArray[uint256, 1] = []
+    a.extend([1, 2])
+    return a
+    """,
+        lambda xs: None,
+    ),
+    # boundary: list literal src exactly fills the dst capacity
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 2]:
+    a: DynArray[uint256, 2] = []
+    a.extend([1, 2])
+    return a
+    """,
+        lambda xs: [1, 2],
+    ),
+    # smaller-capacity src into larger-capacity dst
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    self.my_array = [1, 2]
+    zs: DynArray[uint256, 3] = [3]
+    self.my_array.extend(zs)
+    self.my_array.extend(xs)
+    return self.my_array
+    """,
+        lambda xs: [1, 2, 3] + xs if len(xs) <= 2 else None,
+    ),
+    # self-aliasing (memory)
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 6]:
+    ys: DynArray[uint256, 6] = [1, 2, 3]
+    ys.extend(ys)
+    return ys
+    """,
+        lambda xs: [1, 2, 3, 1, 2, 3],
+    ),
+    # self-aliasing (storage)
+    (
+        """
+my_array: DynArray[uint256, 6]
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 6]:
+    self.my_array = [1, 2, 3]
+    self.my_array.extend(self.my_array)
+    return self.my_array
+    """,
+        lambda xs: [1, 2, 3, 1, 2, 3],
+    ),
+]
+
+
+@pytest.mark.parametrize("code,check_result", extend_tests)
+@pytest.mark.parametrize("test_data", [[1, 2, 3, 4, 5][:i] for i in range(6)])
+def test_extend(get_contract, tx_failed, code, check_result, test_data):
+    c = get_contract(code)
+    expected_result = check_result(test_data)
+    if expected_result is None:
+        # None is sentinel to indicate txn should revert
+        with tx_failed():
+            c.foo(test_data)
+    else:
+        assert c.foo(test_data) == expected_result
+
+
+transient_extend_tests = [
+    (
+        """
+my_array: transient(DynArray[uint256, 5])
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    self.my_array.extend(xs)
+    return self.my_array
+    """,
+        lambda xs: xs,
+    ),
+    # complex (multi-word) elements
+    (
+        """
+my_array: transient(DynArray[Bytes[32], 3])
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[Bytes[32], 3]:
+    self.my_array = [b"a"]
+    bs: DynArray[Bytes[32], 2] = [b"b", b"c"]
+    self.my_array.extend(bs)
+    return self.my_array
+    """,
+        lambda xs: [b"a", b"b", b"c"],
+    ),
+    # self-aliasing
+    (
+        """
+my_array: transient(DynArray[uint256, 6])
+@external
+def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 6]:
+    self.my_array = [1, 2, 3]
+    self.my_array.extend(self.my_array)
+    return self.my_array
+    """,
+        lambda xs: [1, 2, 3, 1, 2, 3],
+    ),
+]
+
+
+@pytest.mark.requires_evm_version("cancun")
+@pytest.mark.parametrize("code,check_result", transient_extend_tests)
+@pytest.mark.parametrize("test_data", [[1, 2, 3, 4, 5][:i] for i in range(6)])
+def test_extend_transient(get_contract, tx_failed, code, check_result, test_data):
+    c = get_contract(code)
+    expected_result = check_result(test_data)
+    if expected_result is None:
+        # None is sentinel to indicate txn should revert
+        with tx_failed():
+            c.foo(test_data)
+    else:
+        assert c.foo(test_data) == expected_result
+
+
+def test_extend_storage_src(get_contract):
+    # distinct storage variables: no staging copy, storage->storage elements
+    code = """
+a: DynArray[uint256, 5]
+b: DynArray[uint256, 5]
+
+@external
+def foo() -> DynArray[uint256, 5]:
+    self.a = [1]
+    self.b = [2, 3]
+    self.a.extend(self.b)
+    return self.a
+    """
+    c = get_contract(code)
+    assert c.foo() == [1, 2, 3]
+
+
+def test_extend_nested_empty_literal_over_capacity(get_contract, tx_failed):
+    # the source length is not part of extend's static contract, even when
+    # the element types are only known from the dst (`Never` in the
+    # inferred type): the fallback borrows the dst element type but keeps
+    # the source's own length, so over-capacity reverts at runtime like
+    # every other source form
+    code = """
+@external
+def foo() -> DynArray[DynArray[uint256, 3], 1]:
+    a: DynArray[DynArray[uint256, 3], 1] = []
+    a.extend([[], []])
+    return a
+    """
+    c = get_contract(code)
+    with tx_failed():
+        c.foo()
+
+
+def test_extend_empty_literal_ternary(get_contract, tx_failed):
+    # ternary of empty literals: the runtime length depends on the branch
+    # taken, so the capacity check must stay a runtime check - one arm
+    # fits the dst, the other reverts
+    code = """
+@external
+def foo(flag: bool) -> DynArray[DynArray[uint256, 3], 1]:
+    dst: DynArray[DynArray[uint256, 3], 1] = []
+    dst.extend([[], []] if flag else [[]])
+    return dst
+    """
+    c = get_contract(code)
+    assert c.foo(False) == [[]]
+    with tx_failed():
+        c.foo(True)
+
+
+def test_extend_multiple_nested_empty_literals(get_contract, tx_failed):
+    # all leaves are empty literals, so the inferred source type is
+    # Never-shaped at every level (DynArray[DynArray[DynArray[Never, 0], 2], 3]);
+    # the fallback replaces the element type with the dst's
+    # (DynArray[DynArray[uint256, 2], 2]) while keeping the literal's own
+    # lengths. the copy must preserve the per-level lengths (2/1/0) and the
+    # copied empties must behave as full-capacity arrays of the replaced
+    # subtype - appends up to the dst subtype capacities must succeed.
+    code = """
+rows: DynArray[DynArray[DynArray[uint256, 2], 2], 3]
+
+@external
+def foo() -> DynArray[DynArray[DynArray[uint256, 2], 2], 3]:
+    x: DynArray[DynArray[DynArray[uint256, 2], 2], 3] = []
+    x.extend([[[], []], [[]], []])
+    x[0][0].append(7)
+    x[0][0].append(8)
+    x[1].append([9])
+    return x
+
+@external
+def bar() -> DynArray[DynArray[DynArray[uint256, 2], 2], 3]:
+    self.rows = []
+    self.rows.extend([[[], []], [[]], []])
+    self.rows[2].append([1, 2])
+    return self.rows
+
+@external
+def baz():
+    x: DynArray[DynArray[DynArray[uint256, 2], 2], 2] = [[[]]]
+    # the literal is longer than the dst capacity, so this only compiles
+    # because the repaired type keeps the literal's length 3; the capacity
+    # check reverts at runtime (1 + 3 > 2)
+    x.extend([[[], []], [[]], []])
+    """
+    c = get_contract(code)
+    assert c.foo() == [[[7, 8], []], [[], [9]], []]
+    assert c.bar() == [[[], []], [[]], [[1, 2]]]
+    with tx_failed():
+        c.baz()
+
+
+@pytest.mark.requires_evm_version("cancun")
+def test_extend_transient_src(get_contract):
+    code = """
+a: DynArray[uint256, 5]
+b: transient(DynArray[uint256, 5])
+
+@external
+def foo() -> DynArray[uint256, 5]:
+    self.a = [1]
+    self.b = [2, 3]
+    self.a.extend(self.b)
+    return self.a
+    """
+    c = get_contract(code)
+    assert c.foo() == [1, 2, 3]
+
+
+@pytest.mark.requires_evm_version("cancun")
+def test_extend_transient_dst_storage_src(get_contract):
+    code = """
+a: transient(DynArray[uint256, 5])
+b: DynArray[uint256, 5]
+
+@external
+def foo() -> DynArray[uint256, 5]:
+    self.a = [1]
+    self.b = [2, 3]
+    self.a.extend(self.b)
+    return self.a
+    """
+    c = get_contract(code)
+    assert c.foo() == [1, 2, 3]
+
+
+def test_extend_nested_storage_receiver(get_contract, tx_failed):
+    # receiver inside a storage DynArray: word-scaled slot arithmetic
+    code = """
+rows: DynArray[DynArray[uint256, 3], 3]
+
+@external
+def foo() -> DynArray[DynArray[uint256, 3], 3]:
+    self.rows = [[1], [2]]
+    self.rows[1].extend([5, 6])
+    return self.rows
+
+@external
+def bar():
+    self.rows = [[1], [2]]
+    self.rows[1].extend([5, 6, 9])  # 1 + 3 exceeds the row capacity
+    """
+    c = get_contract(code)
+    assert c.foo() == [[1], [2, 5, 6]]
+    with tx_failed():
+        c.bar()
+
+
+def test_extend_mapping_and_struct_receivers(get_contract):
+    code = """
+struct Row:
+    arr: DynArray[uint256, 3]
+
+m: HashMap[uint256, DynArray[uint256, 3]]
+s: Row
+
+@external
+def foo() -> (DynArray[uint256, 3], DynArray[uint256, 3]):
+    self.m[7] = [1]
+    self.m[7].extend([2, 3])
+    self.s.arr = [4]
+    self.s.arr.extend([5, 6])
+    return self.m[7], self.s.arr
+    """
+    c = get_contract(code)
+    assert c.foo() == ([1, 2, 3], [4, 5, 6])
+
+
+@pytest.mark.requires_evm_version("cancun")
+def test_extend_transient_over_capacity(get_contract, tx_failed):
+    # the capacity assert must fire for transient receivers as well
+    code = """
+my_array: transient(DynArray[uint256, 2])
+
+@external
+def foo() -> DynArray[uint256, 2]:
+    self.my_array = [1]
+    self.my_array.extend([2])
+    return self.my_array
+
+@external
+def bar():
+    self.my_array = [1]
+    self.my_array.extend([2, 3])  # 1 + 2 exceeds the capacity of 2
+    """
+    c = get_contract(code)
+    assert c.foo() == [1, 2]
+    with tx_failed():
+        c.bar()
+
+
+invalid_extend = [
+    (
+        """
+@external
+def foo() -> DynArray[uint256, 3]:
+    x: DynArray[uint256, 3] = []
+    y: DynArray[int128, 2] = [1, 2]
+    x.extend(y)
+    return x
+    """,
+        TypeMismatch,  # value type mismatch
+    ),
+    (
+        """
+@external
+def foo():
+    x: DynArray[uint256, 3] = []
+    x.extend()
+    """,
+        ArgumentException,
+    ),
+    (
+        """
+@external
+def foo():
+    x: DynArray[uint256, 3] = []
+    x.extend([1], [2])
+    """,
+        ArgumentException,
+    ),
+    (
+        """
+@external
+def foo(x: DynArray[uint256, 3]) -> DynArray[uint256, 3]:
+    x.extend([1])
+    return x
+    """,
+        ImmutableViolation,  # calldata receiver
+    ),
+    (
+        """
+foo: DynArray[uint256, 3]
+@external
+@view
+def bar() -> DynArray[uint256, 3]:
+    self.foo.extend([1])
+    return self.foo
+        """,
+        StateAccessViolation,  # @view receiver
+    ),
+]
+
+
+@pytest.mark.parametrize("code,exception_type", invalid_extend)
+def test_invalid_extend(get_contract, assert_compile_failed, code, exception_type):
+    assert_compile_failed(lambda: get_contract(code), exception_type)
+
+
+def test_extend_unbounded_receiver(make_input_bundle):
+    # `extend` exists only on bounded DynArrays; an unbounded receiver from a
+    # staticcall has no concrete capacity to check against.
+    ifoo_code = """
+@view
+def bar() -> DynArray[uint256, ...]:
+    ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": ifoo_code})
+
+    code = """
+import foo as Foo
+
+@external
+def foo() -> DynArray[uint256, 5]:
+    x: Foo = Foo(0x1234567890123456789012345678901234567890)
+    arr: DynArray[uint256, 5] = []
+    x.bar().extend([1])
+    return arr
+"""
+
+    with pytest.raises(UnknownAttribute) as exc_info:
+        compile_code(code, input_bundle=input_bundle)
+    assert "concrete length" in exc_info.value.message
+    assert "x.bar()" in exc_info.value.message
+
+
+def test_extend_wildcard_return_runtime(make_input_bundle, get_contract, tx_failed):
+    # the wildcard interface return is decoded against the dst capacity
+    # (the only concrete length at the call site); a callee returning
+    # more than the dst capacity must revert, not overflow the buffer
+    ifoo_code = """
+@view
+def bar() -> DynArray[uint256, ...]:
+    ...
+"""
+
+    short_impl = """
+@view
+@external
+def bar() -> DynArray[uint256, 10]:
+    return [1, 2, 3]
+"""
+
+    long_impl = """
+@view
+@external
+def bar() -> DynArray[uint256, 10]:
+    return [1, 2, 3, 4, 5, 6, 7, 8, 9]
+"""
+
+    caller_code = """
+import foo as Foo
+
+my_array: DynArray[uint256, 5]
+
+@external
+def extend_from(x: address) -> DynArray[uint256, 5]:
+    y: Foo = Foo(x)
+    self.my_array = [1]
+    self.my_array.extend(staticcall y.bar())
+    return self.my_array
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": ifoo_code})
+    short_c = get_contract(short_impl, input_bundle=input_bundle)
+    long_c = get_contract(long_impl, input_bundle=input_bundle)
+    c = get_contract(caller_code, input_bundle=input_bundle)
+
+    assert c.extend_from(short_c.address) == [1, 1, 2, 3]
+    with tx_failed():
+        c.extend_from(long_c.address)
+
+
+# `extend` accepts a DynArray of any length, so long as the value type is
+# identical; the capacity check happens at runtime.
+longer_src_extend_tests = [
+    (
+        """
+my_array: DynArray[uint256, 5]
+@external
+def foo(xs: DynArray[uint256, 6]) -> DynArray[uint256, 5]:
+    self.my_array = [1]
+    self.my_array.extend(xs)
+    return self.my_array
+    """,
+        lambda xs: [1] + xs if len(xs) <= 4 else None,
+    ),
+    (
+        """
+@external
+def foo(y: DynArray[uint256, 4]) -> DynArray[uint256, 3]:
+    x: DynArray[uint256, 3] = []
+    x.extend(y)
+    return x
+    """,
+        lambda y: y if len(y) <= 3 else None,
+    ),
+    # `empty()` src of larger capacity than the dst
+    (
+        """
+@external
+def foo(xs: DynArray[uint256, 6]) -> DynArray[uint256, 3]:
+    x: DynArray[uint256, 3] = [1, 2, 3]
+    x.extend(empty(DynArray[uint256, 10]))
+    return x
+    """,
+        lambda xs: [1, 2, 3],
+    ),
+    # struct elements; second element fits the dst capacity
+    (
+        """
+struct Foo:
+    x: uint256
+
+my_array: DynArray[Foo, 2]
+@external
+def foo(xs: DynArray[uint256, 6]) -> DynArray[Foo, 2]:
+    self.my_array = [Foo(x=1)]
+    fs: DynArray[Foo, 5] = [Foo(x=2)]
+    self.my_array.extend(fs)
+    return self.my_array
+    """,
+        lambda xs: [(1,), (2,)],
+    ),
+    # struct elements; dst capacity exceeded
+    (
+        """
+struct Foo:
+    x: uint256
+
+my_array: DynArray[Foo, 2]
+@external
+def foo(xs: DynArray[uint256, 6]) -> DynArray[Foo, 2]:
+    self.my_array = [Foo(x=1)]
+    fs: DynArray[Foo, 5] = [Foo(x=2), Foo(x=3)]
+    self.my_array.extend(fs)
+    return self.my_array
+    """,
+        lambda xs: None,
+    ),
+]
+
+
+@pytest.mark.parametrize("code,check_result", longer_src_extend_tests)
+@pytest.mark.parametrize("test_data", [[1, 2, 3, 4, 5, 6][:i] for i in range(7)])
+def test_extend_longer_src(get_contract, tx_failed, code, check_result, test_data):
+    c = get_contract(code)
+    expected_result = check_result(test_data)
+    if expected_result is None:
+        # None is sentinel to indicate txn should revert
+        with tx_failed():
+            c.foo(test_data)
+    else:
+        assert c.foo(test_data) == expected_result
+
+
+def test_extend_nested_runtime_index(get_contract):
+    # the receiver passes through a DynArray element and the index expression
+    # (`x[0][1].pop()`) resizes an array the receiver derives from, so the
+    # receiver pointer can go stale while the index is evaluated. like
+    # append/pop, this must not compile: extend would otherwise write into an
+    # rvalue snapshot and silently drop the write.
+    code = """
+@external
+def foo() -> DynArray[DynArray[DynArray[uint256, 3], 3], 3]:
+    x: DynArray[DynArray[DynArray[uint256, 3], 3], 3] = [[[7, 3], [8, 1]]]
+    x[0][x[0][1].pop()].extend([5])
+    return x
+    """
+
+    with pytest.raises(CompilerPanic):
+        get_contract(code)
+
+
+def test_extend_popped_row(get_contract, tx_failed):
+    # `rows.pop()` shrinks `rows` while it is being used to derive the
+    # receiver `rows[1]`, detaching the row the receiver points at. extending
+    # a detached row must not silently succeed: both backends re-validate the
+    # receiver's index after the argument is evaluated and revert.
+    code = """
+@external
+def foo() -> DynArray[DynArray[uint256, 3], 3]:
+    rows: DynArray[DynArray[uint256, 3], 3] = [[1], [2]]
+    rows[1].extend(rows.pop())
+    return rows
+    """
+
+    c = get_contract(code)
+    with tx_failed():
+        c.foo()
+
+
+def test_extend_inf_src(experimental_codegen, get_contract):
+    # extend() from an unbounded source: codegen handles the runtime length,
+    # so the INF-typed arg must not be rejected by the analyzer
+    if not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
+
+    code = """
+@external
+def foo() -> DynArray[uint256, 3]:
+    src: DynArray[uint256, INF] = [1, 2]
+    dst: DynArray[uint256, 3] = []
+    dst.extend(src)
+    return dst
+    """
+    c = get_contract(code)
+    assert c.foo() == [1, 2]
+
+
+extend_complex_tests = [
+    (
+        """
+@external
+def foo(x: {typ}) -> DynArray[{typ}, 2]:
+    ys: DynArray[{typ}, 1] = []
+    temp: DynArray[{typ}, 1] = [x]
+    ys.extend(temp)
+    return ys
+    """,
+        lambda x: [x],
+    ),
+    (
+        """
+@external
+def foo(x: {typ}) -> DynArray[{typ}, 3]:
+    ys: DynArray[{typ}, 3] = []
+    temp: DynArray[{typ}, 3] = [x]
+    ys.extend(temp)
+    ys.extend(temp)
+    ys.extend(temp)
+    return ys
+    """,
+        lambda x: [x, x, x],
+    ),
+    (
+        """
+my_array: DynArray[{typ}, 1]
+@external
+def foo(x: {typ}) -> DynArray[{typ}, 2]:
+    temp: DynArray[{typ}, 1] = [x]
+    self.my_array.extend(temp)
+    self.my_array.extend(temp)  # fail
+    return self.my_array
+    """,
+        lambda x: None,
+    ),
+    (
+        """
+my_array: DynArray[{typ}, 5]
+@external
+def foo(x: {typ}) -> (DynArray[{typ}, 5], {typ}):
+    temp: DynArray[{typ}, 1] = [x]
+    self.my_array.extend(temp)
+    return self.my_array, self.my_array.pop()
+    """,
+        lambda x: ([x], x),
+    ),
+    (
+        """
+my_array: DynArray[{typ}, 5]
+@external
+def foo(x: {typ}) -> ({typ}, DynArray[{typ}, 5]):
+    temp: DynArray[{typ}, 1] = [x]
+    self.my_array.extend(temp)
+    return self.my_array.pop(), self.my_array
+    """,
+        lambda x: (x, []),
+    ),
+]
+
+
+@pytest.mark.parametrize("code_template,check_result", extend_complex_tests)
+@pytest.mark.parametrize(
+    "subtype",
+    [
+        "uint256[3]",
+        "DynArray[uint256,3]",
+        "DynArray[uint8, 4]",
+        "Foo",
+        "DynArray[Foobar, 3]",
+        "Bytes[32]",
+    ],
+)
+def test_extend_complex(get_contract, tx_failed, code_template, check_result, subtype):
+    code = code_template.format(typ=subtype)
+    test_data = [1, 2, 3]
+    if subtype == "Foo":
+        test_data = tuple(test_data)
+        struct_def = """
+struct Foo:
+    x: uint256
+    y: uint256
+    z: uint256
+        """
+        code = struct_def + "\n" + code
+    elif subtype == "DynArray[Foobar, 3]":
+        flag_def = """
+flag Foobar:
+    FOO
+    BAR
+    BAZ
+        """
+        code = flag_def + "\n" + code
+        test_data = [2 ** (i - 1) for i in test_data]
+    elif subtype == "Bytes[32]":
+        test_data = b"123"
+
+    c = get_contract(code)
+    expected_result = check_result(test_data)
+    if expected_result is None:
+        # None is sentinel to indicate txn should revert
+        with tx_failed():
+            c.foo(test_data)
+    else:
+        assert c.foo(test_data) == expected_result
+
+
 def test_so_many_things_you_should_never_do(get_contract):
     code = """
 @internal
@@ -2467,3 +3352,24 @@ def foo(x: DynArray[uint256, 0]) -> uint256:
     assert c.foo([]) == 0
     with tx_failed():
         c.foo([1])
+
+
+def test_zero_length_dynarray_extend(get_contract, tx_failed):
+    # extend on a zero-capacity receiver: an empty src is a no-op; any
+    # element exceeds the capacity and reverts at runtime
+    code = """
+@external
+def foo() -> DynArray[uint256, 0]:
+    x: DynArray[uint256, 0] = []
+    x.extend([])
+    return x
+
+@external
+def bar():
+    x: DynArray[uint256, 0] = []
+    x.extend([1])
+    """
+    c = get_contract(code)
+    assert c.foo() == []
+    with tx_failed():
+        c.bar()
