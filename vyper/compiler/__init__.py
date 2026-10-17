@@ -174,6 +174,6 @@ def compile_code(
         source_id=source_id,
         contents=source_code,
         path=contract_path,
-        resolved_path=resolved_path or contract_path,  # type: ignore
+        resolved_path=resolved_path or contract_path,
     )
     return compile_from_file_input(file_input, *args, **kwargs)
