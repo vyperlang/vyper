@@ -7,7 +7,7 @@ alongside the operand. Use ctx.unwrap(vv) to load the value.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Optional
 
 from vyper.codegen_venom.buffer import Ptr
@@ -16,6 +16,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.venom.basicblock import IROperand
 
 if TYPE_CHECKING:
+    from vyper.codegen_venom.reference import ValueReference
     from vyper.semantics.types.base import VyperType
 
 
@@ -28,16 +29,23 @@ class VyperValue:
     - Stack value: _operand is set, _ptr is None
     - Located value: _ptr is set, _operand is None
 
+    Located values can carry reference obligations across later side effects.
+    Projections and pointer casts preserve them; loading a word or copying into
+    fresh memory produces a value independent of the original reference.
+
     Use factory methods to construct.
     """
 
     typ: "VyperType"
     _operand: Optional[IROperand] = None
     _ptr: Optional[Ptr] = None
+    reference: Optional[ValueReference] = None
 
     def __post_init__(self):
         if (self._operand is None) == (self._ptr is None):  # pragma: nocover
             raise CompilerPanic("VyperValue: exactly one of _operand or _ptr must be set")
+        if self._ptr is None and self.reference is not None:  # pragma: nocover
+            raise CompilerPanic("stack values cannot carry a reference")
 
     @property
     def is_stack_value(self) -> bool:
@@ -59,10 +67,15 @@ class VyperValue:
     def location(self) -> Optional[DataLocation]:
         return self._ptr.location if self._ptr else None
 
+    def with_reference(self, reference: Optional[ValueReference]) -> "VyperValue":
+        return replace(self, reference=reference)
+
     @classmethod
     def from_stack_op(cls, operand: IROperand, typ: "VyperType") -> "VyperValue":
         return cls(typ=typ, _operand=operand)
 
     @classmethod
-    def from_ptr(cls, ptr: Ptr, typ: "VyperType") -> "VyperValue":
-        return cls(typ=typ, _ptr=ptr)
+    def from_ptr(
+        cls, ptr: Ptr, typ: "VyperType", reference: Optional[ValueReference] = None
+    ) -> "VyperValue":
+        return cls(typ=typ, _ptr=ptr, reference=reference)
