@@ -1,3 +1,4 @@
+import bisect
 import io
 import re
 import tokenize
@@ -140,18 +141,24 @@ def _docstring_offsets(doc_node: vy_ast.Str) -> List[int]:
     return offsets
 
 
-def _docstring_position(doc_node: vy_ast.Str, offsets: List[int], offset: int) -> Tuple[int, int]:
+def _line_break_ends(doc_node: vy_ast.Str) -> List[int]:
+    # end offset of every line break in the docstring's source, counting every
+    # universal newline form like the parser does
+    return [m.end() for m in re.finditer(r"\r\n|\r|\n", doc_node.node_source_code)]
+
+
+def _docstring_position(
+    doc_node: vy_ast.Str, offsets: List[int], line_ends: List[int], offset: int
+) -> Tuple[int, int]:
     # map an offset in the parsed docstring to a (line, column) in the source,
-    # using the offsets from `_docstring_offsets`
-    raw = doc_node.node_source_code
+    # using the precomputed `_docstring_offsets` and `_line_break_ends`
     # fall back to the start of the docstring if the offsets couldn't be mapped
     pos = offsets[offset] if offsets else 0
 
-    # count every universal newline form, like the parser does
-    line_breaks = list(re.finditer(r"\r\n|\r|\n", raw[:pos]))
-    if not line_breaks:
+    line = bisect.bisect_right(line_ends, pos)
+    if line == 0:
         return doc_node.lineno, doc_node.col_offset + pos
-    return doc_node.lineno + len(line_breaks), pos - line_breaks[-1].end()
+    return doc_node.lineno + line, pos - line_ends[line - 1]
 
 
 def _parse_docstring(
@@ -168,6 +175,7 @@ def _parse_docstring(
     docstring = doc_node.value
     # built once per docstring, not once per tag
     offsets = _docstring_offsets(doc_node)
+    line_ends = _line_break_ends(doc_node)
 
     translate_map = {"return": "returns", "dev": "details", "param": "params"}
 
@@ -175,7 +183,7 @@ def _parse_docstring(
 
     for match in re.finditer(pattern, docstring):
         tag, value = match.groups()
-        err_args = (source, *_docstring_position(doc_node, offsets, match.start(1)))
+        err_args = (source, *_docstring_position(doc_node, offsets, line_ends, match.start(1)))
 
         if tag not in SINGLE_FIELDS + PARAM_FIELDS and not tag.startswith("custom:"):
             raise NatSpecSyntaxException(f"Unknown NatSpec field '@{tag}'", *err_args)
@@ -225,7 +233,7 @@ def _parse_docstring(
         raise NatSpecSyntaxException(
             "NatSpec docstring opens with untagged comment",
             source,
-            *_docstring_position(doc_node, offsets, 0),
+            *_docstring_position(doc_node, offsets, line_ends, 0),
         )
 
     return natspec
