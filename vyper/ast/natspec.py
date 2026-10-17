@@ -1,6 +1,8 @@
+import io
 import re
+import tokenize
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from vyper.ast import nodes as vy_ast
 from vyper.exceptions import NatSpecSyntaxException
@@ -88,21 +90,19 @@ _LITERAL_TOKEN = re.compile(
 _RAW_LITERAL_TOKEN = re.compile(r"\r\n|.", re.DOTALL)
 
 
-def _docstring_position(doc_node: vy_ast.Str, offset: int) -> Tuple[int, int]:
-    # map an offset in the parsed docstring to a (line, column) in the source.
-    # the parsed value can differ from the source text (escape sequences, line
-    # continuations, `\r\n` line endings), so walk the raw string literal.
-    raw = doc_node.node_source_code
-    body = raw.lstrip("rRuU")
+def _literal_offsets(literal: str, base: int) -> List[int]:
+    # source offset of each character that one string literal contributes to
+    # the parsed value. the parsed value can differ from the source text
+    # (escape sequences, line continuations, `\r\n` line endings).
+    body = literal.lstrip("rRuU")
     quote_len = 3 if body[:3] in ('"""', "'''") else 1
-    start = len(raw) - len(body) + quote_len
-    content = raw[start : len(raw) - quote_len]
+    start = len(literal) - len(body) + quote_len
+    content = literal[start : len(literal) - quote_len]
 
-    is_raw = "r" in raw[: len(raw) - len(body)].lower()
+    is_raw = "r" in literal[: len(literal) - len(body)].lower()
     pattern = _RAW_LITERAL_TOKEN if is_raw else _LITERAL_TOKEN
 
-    # source offset (within `content`) of each character of the parsed value
-    content_offsets = []
+    offsets = []
     for match in pattern.finditer(content):
         token = match.group()
         if len(token) > 1 and token.startswith("\\") and not is_raw:
@@ -110,14 +110,31 @@ def _docstring_position(doc_node: vy_ast.Str, offset: int) -> Tuple[int, int]:
             length = 0 if token[1] in "\r\n" else 1
         else:
             length = 1
-        content_offsets.extend([match.start()] * length)
-    content_offsets.append(len(content))
+        offsets.extend([base + start + match.start()] * length)
+    return offsets
 
-    if len(content_offsets) == len(doc_node.value) + 1:
-        pos = start + content_offsets[offset]
+
+def _docstring_position(doc_node: vy_ast.Str, offset: int) -> Tuple[int, int]:
+    # map an offset in the parsed docstring to a (line, column) in the source.
+    # the docstring can be made of several implicitly concatenated literals, so
+    # walk each string token of its source.
+    raw = doc_node.node_source_code
+    line_starts = [0] + [i + 1 for i, c in enumerate(raw) if c == "\n"]
+
+    offsets: List[int] = []
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(raw).readline):
+            if token.type == tokenize.STRING:
+                row, col = token.start
+                offsets.extend(_literal_offsets(token.string, line_starts[row - 1] + col))
+    except (tokenize.TokenError, SyntaxError):  # pragma: nocover
+        offsets = []
+
+    if len(offsets) == len(doc_node.value):
+        pos = offsets[offset]
     else:  # pragma: nocover
         # unexpected literal form: fall back to the start of the docstring
-        pos = start
+        pos = 0
 
     lineno = doc_node.lineno + raw.count("\n", 0, pos)
     if lineno == doc_node.lineno:

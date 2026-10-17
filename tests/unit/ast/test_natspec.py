@@ -524,3 +524,32 @@ def foo():
     with pytest.raises(NatSpecSyntaxException, match="Unknown NatSpec field '@noticee'") as e:
         parse_natspec(code)
     assert "line 6:5" in str(e.value)
+
+
+def test_error_location_in_concatenated_docstring():
+    code = """
+@external
+def foo():
+    '''@notice ok
+    @noticee typo''' ''
+    pass
+    """
+
+    with pytest.raises(NatSpecSyntaxException, match="Unknown NatSpec field '@noticee'") as e:
+        parse_natspec(code)
+    assert "line 5:5" in str(e.value)
+
+
+def test_error_location_in_second_docstring_literal():
+    code = """
+@external
+def foo():
+    ('''@notice ok'''
+     '''
+    @noticee typo''')
+    pass
+    """
+
+    with pytest.raises(NatSpecSyntaxException, match="Unknown NatSpec field '@noticee'") as e:
+        parse_natspec(code)
+    assert "line 6:5" in str(e.value)
