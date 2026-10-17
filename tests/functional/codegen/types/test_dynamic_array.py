@@ -1646,6 +1646,83 @@ def foo() -> DynArray[uint256, 5]:
     assert c.foo() == [1, 2, 3]
 
 
+def test_extend_nested_empty_literal_over_capacity(get_contract, tx_failed):
+    # the source length is not part of extend's static contract, even when
+    # the element types are only known from the dst (`Never` in the
+    # inferred type): the fallback borrows the dst element type but keeps
+    # the source's own length, so over-capacity reverts at runtime like
+    # every other source form
+    code = """
+@external
+def foo() -> DynArray[DynArray[uint256, 3], 1]:
+    a: DynArray[DynArray[uint256, 3], 1] = []
+    a.extend([[], []])
+    return a
+    """
+    c = get_contract(code)
+    with tx_failed():
+        c.foo()
+
+
+def test_extend_empty_literal_ternary(get_contract, tx_failed):
+    # ternary of empty literals: the runtime length depends on the branch
+    # taken, so the capacity check must stay a runtime check - one arm
+    # fits the dst, the other reverts
+    code = """
+@external
+def foo(flag: bool) -> DynArray[DynArray[uint256, 3], 1]:
+    dst: DynArray[DynArray[uint256, 3], 1] = []
+    dst.extend([[], []] if flag else [[]])
+    return dst
+    """
+    c = get_contract(code)
+    assert c.foo(False) == [[]]
+    with tx_failed():
+        c.foo(True)
+
+
+def test_extend_multiple_nested_empty_literals(get_contract, tx_failed):
+    # all leaves are empty literals, so the inferred source type is
+    # Never-shaped at every level (DynArray[DynArray[DynArray[Never, 0], 2], 3]);
+    # the fallback replaces the element type with the dst's
+    # (DynArray[DynArray[uint256, 2], 2]) while keeping the literal's own
+    # lengths. the copy must preserve the per-level lengths (2/1/0) and the
+    # copied empties must behave as full-capacity arrays of the replaced
+    # subtype - appends up to the dst subtype capacities must succeed.
+    code = """
+rows: DynArray[DynArray[DynArray[uint256, 2], 2], 3]
+
+@external
+def foo() -> DynArray[DynArray[DynArray[uint256, 2], 2], 3]:
+    x: DynArray[DynArray[DynArray[uint256, 2], 2], 3] = []
+    x.extend([[[], []], [[]], []])
+    x[0][0].append(7)
+    x[0][0].append(8)
+    x[1].append([9])
+    return x
+
+@external
+def bar() -> DynArray[DynArray[DynArray[uint256, 2], 2], 3]:
+    self.rows = []
+    self.rows.extend([[[], []], [[]], []])
+    self.rows[2].append([1, 2])
+    return self.rows
+
+@external
+def baz():
+    x: DynArray[DynArray[DynArray[uint256, 2], 2], 2] = [[[]]]
+    # the literal is longer than the dst capacity, so this only compiles
+    # because the repaired type keeps the literal's length 3; the capacity
+    # check reverts at runtime (1 + 3 > 2)
+    x.extend([[[], []], [[]], []])
+    """
+    c = get_contract(code)
+    assert c.foo() == [[[7, 8], []], [[], [9]], []]
+    assert c.bar() == [[[], []], [[]], [[1, 2]]]
+    with tx_failed():
+        c.baz()
+
+
 @pytest.mark.requires_evm_version("cancun")
 def test_extend_transient_src(get_contract):
     code = """
