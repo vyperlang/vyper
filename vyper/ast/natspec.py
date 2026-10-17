@@ -78,19 +78,51 @@ def _parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
     return NatspecOutput(userdoc=userdoc, devdoc=devdoc)
 
 
+# one source token of a (non-raw) string literal: a line continuation, an escape
+# sequence, a `\r\n` line ending or a single character
+_LITERAL_TOKEN = re.compile(
+    r"\\\r?\n|\\N\{[^}]*\}|\\x[0-9a-fA-F]{2}|\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}"
+    r"|\\[0-7]{1,3}|\\[\\'\"abfnrtv]|\r\n|.",
+    re.DOTALL,
+)
+_RAW_LITERAL_TOKEN = re.compile(r"\r\n|.", re.DOTALL)
+
+
 def _docstring_position(doc_node: vy_ast.Str, offset: int) -> Tuple[int, int]:
     # map an offset in the parsed docstring to a (line, column) in the source.
-    # count lines rather than characters, since the parsed value can differ from
-    # the source text (escape sequences, `\r\n` line endings)
-    docstring = doc_node.value
-    lineno = doc_node.lineno + docstring.count("\n", 0, offset)
+    # the parsed value can differ from the source text (escape sequences, line
+    # continuations, `\r\n` line endings), so walk the raw string literal.
+    raw = doc_node.node_source_code
+    body = raw.lstrip("rRuU")
+    quote_len = 3 if body[:3] in ('"""', "'''") else 1
+    start = len(raw) - len(body) + quote_len
+    content = raw[start : len(raw) - quote_len]
+
+    is_raw = "r" in raw[: len(raw) - len(body)].lower()
+    pattern = _RAW_LITERAL_TOKEN if is_raw else _LITERAL_TOKEN
+
+    # source offset (within `content`) of each character of the parsed value
+    content_offsets = []
+    for match in pattern.finditer(content):
+        token = match.group()
+        if len(token) > 1 and token.startswith("\\") and not is_raw:
+            # a line continuation adds nothing, any other escape one character
+            length = 0 if token[1] in "\r\n" else 1
+        else:
+            length = 1
+        content_offsets.extend([match.start()] * length)
+    content_offsets.append(len(content))
+
+    if len(content_offsets) == len(doc_node.value) + 1:
+        pos = start + content_offsets[offset]
+    else:  # pragma: nocover
+        # unexpected literal form: fall back to the start of the docstring
+        pos = start
+
+    lineno = doc_node.lineno + raw.count("\n", 0, pos)
     if lineno == doc_node.lineno:
-        # same line as the opening quotes
-        raw = doc_node.node_source_code
-        body = raw.lstrip("rRuU")
-        quote_len = 3 if body[:3] in ('"""', "'''") else 1
-        return lineno, doc_node.col_offset + len(raw) - len(body) + quote_len + offset
-    return lineno, offset - docstring.rfind("\n", 0, offset) - 1
+        return lineno, doc_node.col_offset + pos
+    return lineno, pos - raw.rfind("\n", 0, pos) - 1
 
 
 def _parse_docstring(

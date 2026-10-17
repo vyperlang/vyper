@@ -508,3 +508,19 @@ def bar(y: uint256):
         parse_natspec(code)
     # points at the docstring of `bar`, not the identical one of `foo`
     assert "line 12:5" in str(e.value)
+
+
+def test_error_location_after_line_continuation():
+    code = r"""
+@external
+def foo():
+    '''\
+    @notice hello
+    @noticee typo
+    '''
+    pass
+    """
+
+    with pytest.raises(NatSpecSyntaxException, match="Unknown NatSpec field '@noticee'") as e:
+        parse_natspec(code)
+    assert "line 6:5" in str(e.value)
