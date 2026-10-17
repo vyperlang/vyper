@@ -114,10 +114,10 @@ def _literal_offsets(literal: str, base: int) -> List[int]:
     return offsets
 
 
-def _docstring_position(doc_node: vy_ast.Str, offset: int) -> Tuple[int, int]:
-    # map an offset in the parsed docstring to a (line, column) in the source.
-    # the docstring can be made of several implicitly concatenated literals, so
-    # walk each string token of its source.
+def _docstring_offsets(doc_node: vy_ast.Str) -> List[int]:
+    # source offset (within the docstring's source) of each character of the
+    # parsed docstring. the docstring can be made of several implicitly
+    # concatenated literals, so walk each string token of its source.
     raw = doc_node.node_source_code
     line_starts = [0] + [i + 1 for i, c in enumerate(raw) if c == "\n"]
 
@@ -128,13 +128,20 @@ def _docstring_position(doc_node: vy_ast.Str, offset: int) -> Tuple[int, int]:
                 row, col = token.start
                 offsets.extend(_literal_offsets(token.string, line_starts[row - 1] + col))
     except (tokenize.TokenError, SyntaxError):  # pragma: nocover
-        offsets = []
+        return []
 
-    if len(offsets) == len(doc_node.value):
-        pos = offsets[offset]
-    else:  # pragma: nocover
-        # unexpected literal form: fall back to the start of the docstring
-        pos = 0
+    if len(offsets) != len(doc_node.value):  # pragma: nocover
+        # unexpected literal form
+        return []
+    return offsets
+
+
+def _docstring_position(doc_node: vy_ast.Str, offsets: List[int], offset: int) -> Tuple[int, int]:
+    # map an offset in the parsed docstring to a (line, column) in the source,
+    # using the offsets from `_docstring_offsets`
+    raw = doc_node.node_source_code
+    # fall back to the start of the docstring if the offsets couldn't be mapped
+    pos = offsets[offset] if offsets else 0
 
     lineno = doc_node.lineno + raw.count("\n", 0, pos)
     if lineno == doc_node.lineno:
@@ -154,6 +161,8 @@ def _parse_docstring(
         params = tuple()
 
     docstring = doc_node.value
+    # built once per docstring, not once per tag
+    offsets = _docstring_offsets(doc_node)
 
     translate_map = {"return": "returns", "dev": "details", "param": "params"}
 
@@ -161,7 +170,7 @@ def _parse_docstring(
 
     for match in re.finditer(pattern, docstring):
         tag, value = match.groups()
-        err_args = (source, *_docstring_position(doc_node, match.start(1)))
+        err_args = (source, *_docstring_position(doc_node, offsets, match.start(1)))
 
         if tag not in SINGLE_FIELDS + PARAM_FIELDS and not tag.startswith("custom:"):
             raise NatSpecSyntaxException(f"Unknown NatSpec field '@{tag}'", *err_args)
@@ -211,7 +220,7 @@ def _parse_docstring(
         raise NatSpecSyntaxException(
             "NatSpec docstring opens with untagged comment",
             source,
-            *_docstring_position(doc_node, 0),
+            *_docstring_position(doc_node, offsets, 0),
         )
 
     return natspec
