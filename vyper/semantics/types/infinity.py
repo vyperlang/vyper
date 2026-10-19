@@ -107,17 +107,15 @@ def is_runtime_sizable_type(typ: VyperType) -> bool:
     The ABI can encode any shape holding INF; what the compiler needs is a
     place in memory for every INF sequence and a way to size an encoding
     buffer from the value at hand. Both exist when every INF sequence sits
-    at a compile-time offset from its container and holds bounded elements,
-    so that its size follows from its length word: a bounded type
-    (trivially), a direct `Bytes[INF]`, `String[INF]` or `DynArray[T, INF]`
-    with a fixed-size `T` (bounded, or a struct as below, but not an INF
-    sequence), a struct whose INF members are such types, and a
-    DynArray, bounded or INF, of such structs, also nested. An INF struct
-    member occupies a `POINTER_CELL_SIZE` cell (see
-    `VenomCodegenContext.store_pointer_cell`), which keeps the struct at a
-    compile-time size and makes its encoded size the static head plus the
-    members' runtime sizes; an array of such structs keeps a compile-time
-    stride, and sizing it walks the elements.
+    at a compile-time offset from its container and holds elements of a
+    compile-time stride, so that its size follows from its length word: a bounded type
+    (trivially), a direct `Bytes[INF]`, `String[INF]` or `DynArray[T, INF]`,
+    a struct whose INF members are such types, and a DynArray, bounded or
+    INF, whose elements are any of these, also nested. An INF struct member
+    or array element occupies a `POINTER_CELL_SIZE` cell (see
+    `VenomCodegenContext.store_pointer_cell`), which keeps the container at
+    a compile-time size or stride and makes its encoded size the static head
+    plus the runtime sizes of what the cells point at.
 
     Rejected: a tuple with an INF member (its frame exists only as a return
     value, see `is_runtime_sizable_return_type`), and a static array or
@@ -139,10 +137,10 @@ def is_runtime_sizable_type(typ: VyperType) -> bool:
         return True
 
     if isinstance(typ, DArrayT):
-        elem_t = typ.value_type
-        if not type_contains_unbounded_sequence(elem_t):
-            return True
-        return is_pointer_cell_struct_type(elem_t)
+        # an INF-bearing element is held in a pointer cell, so the array keeps
+        # a compile-time stride whatever the element is: a struct with INF
+        # members, or an INF sequence itself, nested to any depth
+        return is_runtime_sizable_type(typ.value_type)
 
     if isinstance(typ, StructT):
         return all(is_runtime_sizable_type(t) for t in typ.members.values())
