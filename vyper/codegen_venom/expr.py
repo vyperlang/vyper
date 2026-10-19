@@ -1045,7 +1045,14 @@ class Expr:
         assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
-        elem_size = elem_typ.get_size_in(data_loc)
+        # an unbounded element is a pointer cell in the array's memory, not
+        # the value (see `VenomCodegenContext.store_pointer_cell`)
+        elem_is_cell = is_unbounded_sequence_type(elem_typ)
+        if isinstance(base_typ, DArrayT) and data_loc == DataLocation.MEMORY:
+            elem_size = self.ctx.dynarray_elem_stride(base_typ)
+        else:
+            assert not elem_is_cell
+            elem_size = elem_typ.get_size_in(data_loc)
 
         # Bounds checking
         length: IROperand
@@ -1082,6 +1089,17 @@ class Expr:
         # Compute element offset: index * elem_size
         offset = self.builder.mul(index, IRLiteral(elem_size))
         elem_ptr = self.builder.add(data_ptr, offset)
+
+        if elem_is_cell:
+            # reading the cell as the value would hand back the payload
+            # address. The element is read-only, so no ownership is acquired,
+            # and the payload is never mutated in place, so it stays valid
+            # independently of the element's frame: no reference is kept.
+            assert not self.as_ptr, "semantic analysis rejects writes to unbounded elements"
+            assert isinstance(elem_ptr, IRVariable)
+            payload = self.builder.mload(elem_ptr)
+            assert isinstance(payload, IRVariable)
+            return self.ctx.dynamic_memory_value(payload, elem_typ, annotation="element")
 
         reference = base_vv.reference
         if isinstance(base_typ, DArrayT):

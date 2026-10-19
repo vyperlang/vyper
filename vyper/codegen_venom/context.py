@@ -41,6 +41,7 @@ from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
+from vyper.semantics.types.utils import member_slot_size
 from vyper.utils import IDENTITY_PRECOMPILE, POINTER_CELL_SIZE
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
@@ -629,9 +630,18 @@ class VenomCodegenContext:
         length = self.builder.mload(ptr)
         return self.unchecked_bytestring_runtime_size_from_length(length)
 
+    @staticmethod
+    def dynarray_elem_stride(typ: DArrayT) -> int:
+        """Return the bytes one element occupies inline in a DynArray's memory.
+
+        An unbounded element is a pointer cell (`member_slot_size`), so the
+        stride is a compile-time constant for every element type.
+        """
+        return member_slot_size(typ.value_type)
+
     def dynarray_runtime_size_from_length(self, length: IROperand, typ: DArrayT) -> IROperand:
         """Return runtime memory size for a DynArray with `length` elements."""
-        elem_size = typ.value_type.memory_bytes_required
+        elem_size = self.dynarray_elem_stride(typ)
         data_size = self.checked_mul(length, IRLiteral(elem_size))
         return self.checked_add(IRLiteral(32), data_size)
 
@@ -639,7 +649,7 @@ class VenomCodegenContext:
         self, length: IROperand, typ: DArrayT
     ) -> IROperand:
         """Return 32 + len * elem_size when type caps already prove no overflow."""
-        elem_size = typ.value_type.memory_bytes_required
+        elem_size = self.dynarray_elem_stride(typ)
         data_size = self.builder.mul(length, IRLiteral(elem_size))
         return self.builder.add(IRLiteral(32), data_size)
 
@@ -1186,7 +1196,7 @@ class VenomCodegenContext:
 
         dst_elem_t = dst_typ.value_type
         src_elem_t = src_typ.value_type
-        dst_elem_size = dst_elem_t.memory_bytes_required
+        dst_elem_size = self.dynarray_elem_stride(dst_typ)
         src_data = self._with_byte_offset(src, 32)
         dst_data = self._with_byte_offset(dst, 32)
 
@@ -1209,14 +1219,33 @@ class VenomCodegenContext:
     ) -> None:
         """Copy `length` array elements one at a time, converting layouts."""
         b = self.builder
-        dst_elem_size = dst_elem_t.memory_bytes_required
-        src_elem_size = src_elem_t.memory_bytes_required
+        dst_elem_size = member_slot_size(dst_elem_t)
+        src_elem_size = member_slot_size(src_elem_t)
 
         def copy_element(counter: IRVariable) -> None:
             src_ofst = b.mul(counter, IRLiteral(src_elem_size))
             dst_ofst = b.mul(counter, IRLiteral(dst_elem_size))
             src_elem_ptr = b.add(src_data, src_ofst)
             dst_elem_ptr = b.add(dst_data, dst_ofst)
+            if is_unbounded_sequence_type(dst_elem_t):
+                # the destination element is a pointer cell: copy the source
+                # element into an exact-sized payload of its own, whether it
+                # is a widened inline element or the payload behind a cell of
+                # a different element type
+                assert isinstance(src_elem_ptr, IRVariable)
+                if is_unbounded_sequence_type(src_elem_t):
+                    src_elem_ptr = b.mload(src_elem_ptr)
+                    assert isinstance(src_elem_ptr, IRVariable)
+                    src_vv = self.dynamic_memory_value(src_elem_ptr, src_elem_t)
+                else:
+                    src_vv = VyperValue.from_ptr(
+                        Buffer(src_elem_ptr, src_elem_t.memory_bytes_required).base_ptr(),
+                        src_elem_t,
+                    )
+                payload = self.copy_sequence_to_scratch(src_vv, dst_elem_t, annotation="element")
+                assert isinstance(dst_elem_ptr, IRVariable)
+                self.store_pointer_cell(dst_elem_ptr, payload.operand, IRLiteral(0))
+                return
             self._store_memory_typed(dst_elem_ptr, dst_elem_t, src_elem_ptr, src_elem_t)
 
         self.emit_counted_loop(length, copy_element, "typed_elem_copy")
