@@ -97,7 +97,11 @@ class Namespace(dict):
         validate_identifier(attr)
 
         if attr in self:
-            prev_decl = self.import_decls.get(attr, super().__getitem__(attr).decl_node)
+            if attr in self.import_decls:
+                # point at the alias node rather than the imported declaration
+                prev_decl = self.import_decls[attr]
+            else:
+                prev_decl = super().__getitem__(attr).decl_node
             if prev_decl is None:
                 msg = f"'{attr}' is already the name of a built-in"
             else:
