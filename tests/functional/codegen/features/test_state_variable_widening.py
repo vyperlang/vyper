@@ -2,6 +2,7 @@ import pytest
 
 SHORT = [b"a", b"0123456789", b""]
 NESTED = [[1, 2], [], [3]]
+NESTED_BYTES = [[b"a", b"0123456789"], [], [b"z", b"q"]]
 
 
 def test_storage_dynarray_bytes_widening(get_contract):
@@ -313,3 +314,95 @@ def storage_via_call() -> DynArray[Bytes[512], 5]:
     assert c.storage_via_local() == SHORT
     assert c.storage_via_return() == SHORT
     assert c.storage_via_call() == SHORT
+
+
+def test_storage_iteration_element_widening(get_contract):
+    """
+    A `for` loop over a non-memory array copies each element with the element
+    type's strides, but the loop body reads the loop variable with the
+    annotated (wider) type, so every member past the first came back empty.
+    `last_row_tail` also pins later iterations, not just the first.
+    """
+    code = """
+stored: DynArray[DynArray[Bytes[10], 2], 3]
+
+@external
+def store(xs: DynArray[DynArray[Bytes[10], 2], 3]):
+    self.stored = xs
+
+@external
+def first_row() -> (uint256, Bytes[512], Bytes[512]):
+    for x: DynArray[Bytes[512], 2] in self.stored:
+        return len(x), x[0], x[1]
+    return 0, b"", b""
+
+@external
+def last_row_tail() -> Bytes[512]:
+    out: Bytes[512] = b""
+    for x: DynArray[Bytes[512], 2] in self.stored:
+        if len(x) == 2:
+            out = x[1]
+    return out
+    """
+    c = get_contract(code)
+    c.store(NESTED_BYTES)
+    assert c.first_row() == (2, b"a", b"0123456789")
+    assert c.last_row_tail() == b"q"
+
+
+def test_storage_iteration_element_widening_overlapping_strides(get_contract):
+    """
+    With `Bytes[64]` elements read as `Bytes[96]`, the wide stride lands a
+    length word where the body expects data, so the element copy ran off a
+    garbage length and exhausted the gas.
+    """
+    code = """
+stored: DynArray[DynArray[Bytes[64], 2], 3]
+
+@external
+def store(xs: DynArray[DynArray[Bytes[64], 2], 3]):
+    self.stored = xs
+
+@external
+def tail() -> Bytes[96]:
+    for x: DynArray[Bytes[96], 2] in self.stored:
+        return x[1]
+    return b""
+    """
+    c = get_contract(code)
+    c.store([[b"one", b"twotwo"]])
+    assert c.tail() == b"twotwo"
+
+
+@pytest.mark.requires_evm_version("cancun")
+def test_transient_iteration_element_widening(get_contract):
+    code = """
+stored: transient(DynArray[DynArray[Bytes[10], 2], 3])
+
+@external
+def first_row(xs: DynArray[DynArray[Bytes[10], 2], 3]) -> (uint256, Bytes[512], Bytes[512]):
+    self.stored = xs
+    for x: DynArray[Bytes[512], 2] in self.stored:
+        return len(x), x[0], x[1]
+    return 0, b"", b""
+    """
+    c = get_contract(code)
+    assert c.first_row(NESTED_BYTES) == (2, b"a", b"0123456789")
+
+
+def test_immutable_iteration_element_widening(get_contract):
+    code = """
+X: immutable(DynArray[DynArray[Bytes[10], 2], 3])
+
+@deploy
+def __init__(xs: DynArray[DynArray[Bytes[10], 2], 3]):
+    self.X = xs
+
+@external
+def first_row() -> (uint256, Bytes[512], Bytes[512]):
+    for x: DynArray[Bytes[512], 2] in self.X:
+        return len(x), x[0], x[1]
+    return 0, b"", b""
+    """
+    c = get_contract(code, NESTED_BYTES)
+    assert c.first_row() == (2, b"a", b"0123456789")
