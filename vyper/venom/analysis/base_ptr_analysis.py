@@ -360,7 +360,7 @@ class BasePtrAnalysis(IRAnalysis):
             # while not a "true" read, this case makes the code in DSE simpler.
             return MemoryLocation.UNDEFINED
         elif opcode in RET_INSTRUCTIONS:
-            # `ret` escapes our control and returns execution to the
+            # `ret`/`retfmp`/`dret` escapes our control and returns execution to the
             # caller function. to be conservative, we model these as
             # "future" reads which could happen in the caller.
             # while not a "true" read, this case makes the code in DSE simpler.
