@@ -1155,7 +1155,7 @@ def test_store_before_dret_is_not_dead(location):
     pre = f"""
     _global:
         %retpc = retpc_param
-        %src = dalloc 32
+        %src = dalloca 32
         {opcode} 64, 1
         dret 1, %src, 32, %retpc
     """
