@@ -60,7 +60,9 @@ def uses_packed_return(typ: VyperType | None) -> bool:
     if is_pointer_cell_struct_type(typ):
         return True
     if isinstance(typ, DArrayT):
-        return is_pointer_cell_struct_type(typ.value_type)
+        # a pointer-cell struct element, or an unbounded element, which is
+        # itself a pointer cell
+        return type_contains_unbounded_sequence(typ.value_type)
     return False
 
 

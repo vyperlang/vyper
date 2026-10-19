@@ -63,14 +63,19 @@ def _for_each_cell(
         elem_t = typ.value_type
         if not type_contains_unbounded_sequence(elem_t):
             return
-        # `is_runtime_sizable_type`: INF-bearing elements are pointer-cell structs
-        assert isinstance(elem_t, StructT)
         length = b.mload(ptr)
         data = b.add(ptr, IRLiteral(32))
+        stride = ctx.dynarray_elem_stride(typ)
 
         def visit_element(counter: IRVariable) -> None:
-            elem_ptr = b.add(data, b.mul(counter, IRLiteral(elem_t.memory_bytes_required)))
-            _for_each_cell(ctx, elem_ptr, elem_t, visit)
+            elem_ptr = b.add(data, b.mul(counter, IRLiteral(stride)))
+            assert isinstance(elem_ptr, IRVariable)
+            if is_unbounded_sequence_type(elem_t):
+                # the element itself is a pointer cell
+                visit(elem_ptr, elem_t)
+            else:
+                # a pointer-cell struct or a bounded array holding cells
+                _for_each_cell(ctx, elem_ptr, elem_t, visit)
 
         ctx.emit_counted_loop(length, visit_element, "cell_walk")
         return
