@@ -1136,7 +1136,7 @@ def test_store_before_retfmp_is_not_dead(location):
     pre = f"""
     _global:
         %retpc = retpc_param
-        %fmp = fmp_param
+        %fmp = getfmp
         {opcode} 64, 1
         retfmp %fmp, 1, %retpc
     """
