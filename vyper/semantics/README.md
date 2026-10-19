@@ -121,6 +121,9 @@ additional restrictions:
 
 * Attempting to replace an existing field raises `NamespaceCollision`
 * Attempting to access a key that does not exist raises `UndeclaredDefinition`
+* Values must expose a `decl_node` attribute, e.g. `VarInfo`, `VyperType` or
+`ModuleInfo`. It is used to point at the previous declaration when reporting a
+`NamespaceCollision`.
 
 To ensure that only one copy of `Namespace` exists throughout the package, you
 should access it using the `get_namespace` method:
@@ -149,7 +152,7 @@ Values added while inside the context are removed when the context is exited.
 
 ```python
 with namespace.enter_scope():
-    namespace['foo'] = 42
+    namespace['foo'] = VarInfo(UINT256_T)
 
 namespace['foo']  # this raises an UndeclaredDefinition
 ```

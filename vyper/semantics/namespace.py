@@ -9,6 +9,10 @@ class Namespace(dict):
     """
     Dictionary subclass that represents the namespace of a contract.
 
+    Values must expose a `decl_node` attribute (the AST node the item was
+    declared at, or `None` for built-ins); it is used to report the location
+    of the previous declaration on a `NamespaceCollision`.
+
     Attributes
     ----------
     _scopes : List[Set]
