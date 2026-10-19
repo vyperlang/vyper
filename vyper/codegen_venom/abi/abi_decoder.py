@@ -384,9 +384,11 @@ def decode_unbounded_sequence_to_scratch(
         # For dynamic elements the bound is loose because head offsets may
         # alias: a payload of P bytes can validly claim P/32 elements, each
         # reserving the element's inline memory size (`memsize(T) / 32` times
-        # P, e.g. 17x for Bytes[512]). For structs with INF members this bounds
-        # only the frames: aliased tails are decoded separately, so n elements
-        # sharing an m-word tail can allocate O(n*m) bytes from O(n+m) input.
+        # P, e.g. 17x for Bytes[512]). For INF-bearing elements (structs with
+        # INF members, or unbounded elements, which are pointer cells) this
+        # bounds only the cells: aliased tails are decoded separately, so n
+        # elements sharing an m-word tail can allocate O(n*m) bytes from
+        # O(n+m) input, with no compile-time ceiling on m.
         # Calldata charges decoding to the sender; returndata and abi_decode
         # of foreign bytes charge the decoding contract. Returndata decoding
         # happens after the call and is not limited by the callee's gas cap.
@@ -439,7 +441,7 @@ def _decode_dyn_array(
 
     # Need element-by-element decode
     elem_static_size = elem_abi_t.embedded_static_size()
-    elem_mem_size = elem_typ.memory_bytes_required
+    elem_mem_size = ctx.dynarray_elem_stride(typ)
 
     # Create loop blocks
     loop_header = b.create_block("darr_dec_hdr")
@@ -496,8 +498,18 @@ def _decode_dyn_array(
     dst_data = b.add(dst, IRLiteral(32))
     elem_dst = b.add(dst_data, b.mul(i, IRLiteral(elem_mem_size)))
 
-    # Recursively decode element
-    _abi_decode_to_buf(ctx, elem_dst, elem_src, hi)
+    if is_unbounded_sequence_type(elem_typ):
+        # An unbounded element has no inline payload: decode it into its own
+        # allocation and write the element's pointer cell, as for a struct
+        # member. Elements may alias each other in the input; each one is
+        # decoded on its own (see the note in `decode_unbounded_sequence_to_scratch`).
+        assert isinstance(elem_dst, IRVariable)
+        element = decode_unbounded_sequence_to_scratch(ctx, elem_src, elem_typ, hi, "element")
+        # capacity 0: the decoded payload is exact-sized and read-only
+        ctx.store_pointer_cell(elem_dst, element.operand, IRLiteral(0))
+    else:
+        # Recursively decode element
+        _abi_decode_to_buf(ctx, elem_dst, elem_src, hi)
 
     # Increment counter
     new_i = b.add(i, IRLiteral(1))
