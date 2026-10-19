@@ -13,6 +13,8 @@ class Namespace(dict):
     ----------
     _scopes : List[Set]
         List of sets containing the key names for each scope
+    import_decls : Dict[str, vy_ast.alias]
+        Maps (aliased) module names to their import nodes, only used to improve error messages
     """
 
     def __new__(cls, *args, **kwargs):
