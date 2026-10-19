@@ -116,7 +116,7 @@ class _BytestringT(VyperType):
         if node.get("value.id") != cls._id:
             raise UnexpectedValue("Node id does not match type name")
 
-        length = get_index_value(node.slice)  # type: ignore
+        length = get_index_value(node.slice)
 
         if length == 0:
             raise InvalidType(f"{cls._id} cannot have length of 0", node.slice)
