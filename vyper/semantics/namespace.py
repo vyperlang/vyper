@@ -21,6 +21,8 @@ class Namespace(dict):
         Maps (aliased) module names to their import nodes, only used to improve error messages
     """
 
+    _scopes: list[set]
+
     def __new__(cls, *args, **kwargs):
         self = super().__new__(cls, *args, **kwargs)
         self._scopes = []
@@ -94,6 +96,22 @@ class Namespace(dict):
     def update(self, other):
         for key, value in other.items():
             self.__setitem__(key, value)
+
+    def copy(self) -> "Namespace":
+        """
+        Return a copy of this namespace.
+
+        Note: The copy is shallow: the "machinery" is fresh, but the values are shared
+        (Even outside Namespace, we try to never copy nodes, so metadata is never stale)
+        """
+
+        _ns = Namespace()
+        _ns.update(self)
+        _ns._scopes = [s.copy() for s in self._scopes]  # 2-deep copy, to keep elements shared
+        _ns.import_decls = self.import_decls.copy()
+        return _ns
+
+    __copy__ = copy
 
     def clear(self):
         super().clear()

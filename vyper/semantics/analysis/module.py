@@ -485,13 +485,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             self.visit(n)
 
         # attach namespace to the module for downstream use.
-        _ns = Namespace()
-        # note that we don't just copy the namespace because
-        # there are constructor issues.
-        _ns.update({k: self.namespace[k] for k in self.namespace._scopes[-1]})  # type: ignore
-        _ns._scopes = self.namespace._scopes.copy()
-        _ns.import_decls = self.namespace.import_decls.copy()
-        self.ast._metadata["namespace"] = _ns
+        self.ast._metadata["namespace"] = self.namespace.copy()
 
     def _visit_nodes_linear(self, node_type):
         for node in self._to_visit.copy():
