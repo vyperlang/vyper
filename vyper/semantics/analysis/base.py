@@ -50,12 +50,14 @@ class StateMutability(StringEnum):
         #       specifying a state mutability modifier at all. Do the same here.
 
 
-# classify the constancy of an expression
+# classify the **constancy** of an expression
 # CMC 2023-12-31 note that we now have three ways of classifying mutability in
 # the codebase: StateMutability (for functions), Modifiability (for expressions
 # and variables) and Constancy (in codegen). context.Constancy can/should
 # probably be refactored away though as those kinds of checks should be done
 # during analysis.
+# Note: This is not used to check whether an expression is modifiable, location is used instead
+# TODO: Rename to something like Constancy, given the above
 class Modifiability(StringEnum):
     # compile-time / always constant
     CONSTANT = enum.auto()
@@ -69,16 +71,6 @@ class Modifiability(StringEnum):
 
     # is writeable/can result in arbitrary state or memory changes
     MODIFIABLE = enum.auto()
-
-    @classmethod
-    def from_state_mutability(cls, mutability: StateMutability):
-        if mutability == StateMutability.PURE:
-            return cls.CONSTANT
-        if mutability == StateMutability.VIEW:
-            return cls.RUNTIME_CONSTANT
-        # sanity check in case more StateMutability levels are added in the future
-        assert mutability in (StateMutability.PAYABLE, StateMutability.NONPAYABLE)
-        return cls.MODIFIABLE
 
 
 @dataclass
@@ -240,6 +232,8 @@ class VarInfo:
     @property
     def is_constant(self):
         res = self.location == DataLocation.UNSET
+        # Note: This assert never raises, but is wrong in general:
+        # environment vars have an UNSET location but some are only RUNTIME_CONSTANT, e.g. block.
         assert res == (self.modifiability == Modifiability.CONSTANT)
         return res
 
@@ -303,10 +297,11 @@ class ExprInfo:
     """
 
     typ: VyperType
+    modifiability: Modifiability
+
     var_info: Optional[VarInfo] = None
     module_info: Optional[ModuleInfo] = None
     location: DataLocation = DataLocation.UNSET
-    modifiability: Modifiability = Modifiability.MODIFIABLE
     attr: Optional[str] = None
     _writes: OrderedSet[VarAccess] = field(default_factory=OrderedSet)
     _reads: OrderedSet[VarAccess] = field(default_factory=OrderedSet)
@@ -330,12 +325,11 @@ class ExprInfo:
 
     @classmethod
     def from_moduleinfo(cls, module_info: ModuleInfo, **kwargs) -> "ExprInfo":
-        modifiability = Modifiability.RUNTIME_CONSTANT
-        if module_info.ownership >= ModuleOwnership.USES:
-            modifiability = Modifiability.MODIFIABLE
-
         return cls(
-            module_info.module_t, module_info=module_info, modifiability=modifiability, **kwargs
+            module_info.module_t,
+            module_info=module_info,
+            modifiability=Modifiability.CONSTANT,
+            **kwargs,
         )
 
     def copy_with_type(self, typ: VyperType, **kwargs) -> "ExprInfo":

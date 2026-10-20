@@ -1,3 +1,23 @@
+import pytest
+
+
+# concat must not clobber memory allocated after its output buffer
+@pytest.mark.parametrize("prefix_len,suffix_len", [(1, 1), (31, 1), (1, 31)])
+def test_concat_preserves_adjacent_memory(get_contract, prefix_len, suffix_len):
+    code = f"""
+@external
+def foo(
+    a: bytes{prefix_len}, b: bytes{suffix_len}, guard: bytes32[2]
+) -> (Bytes[{prefix_len + suffix_len}], bytes32[2]):
+    return concat(a, b), guard
+    """
+    c = get_contract(code)
+    prefix = b"\xcc" * prefix_len
+    suffix = b"\xbb" * suffix_len
+    guard = [b"\xff" * 32, b"\xaa" * 32]
+    assert c.foo(prefix, suffix, guard) == (prefix + suffix, guard)
+
+
 def test_concat(get_contract):
     test_concat = """
 @external

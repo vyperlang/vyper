@@ -260,6 +260,34 @@ def check() -> DynArray[uint256, INF]:
     assert c.check() == [10, 20, 30]
 
 
+@pytest.mark.parametrize("reassign", [True, False])
+def test_inf_dynarray_internal_param_conditional_reassign_append(get_contract, reassign):
+    # after the `if`, the local's payload pointer is either the caller's `y`
+    # or a fresh buffer; the append writes through that merged pointer
+    code = """
+@internal
+def build(y: DynArray[uint256, INF], reassign: bool) -> DynArray[uint256, INF]:
+    x: DynArray[uint256, INF] = y
+    if reassign:
+        x = [1, 2, 3]
+    x.append(9)
+    return x
+
+@external
+def foo(y: DynArray[uint256, INF], reassign: bool) -> DynArray[uint256, INF]:
+    return self.build(y, reassign)
+
+@external
+def bar(y: DynArray[uint256, INF], reassign: bool) -> uint256:
+    return len(self.build(y, reassign))
+    """
+    c = get_contract(code)
+
+    expected = ([1, 2, 3] if reassign else [7, 8]) + [9]
+    assert c.foo([7, 8], reassign) == expected
+    assert c.bar([7, 8], reassign) == len(expected)
+
+
 def test_inf_dynarray_append_after_kwarg_default(get_contract):
     code = """
 @external
@@ -310,6 +338,57 @@ def build(n: uint256) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
     c = get_contract(code)
     for n in [0, 1, 7, 20]:
         assert c.build(n) == (list(range(n)), [i * 100 for i in range(n)])
+
+
+@pytest.mark.parametrize("inline", [True, False])
+def test_inf_dynarray_owned_internal_arg_append(get_contract, no_inlining_settings, inline):
+    # The caller has an owned buffer (both full and with spare capacity).
+    # Callee ingress must still clear capacity before either growth path.
+    code = """
+@internal
+def extend(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
+    for i: uint256 in range(5):
+        x.append(100 + i)
+    return x
+
+@external
+def build(n: uint256) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+    x: DynArray[uint256, INF] = []
+    for i: uint256 in range(n, bound=10):
+        x.append(i)
+    y: DynArray[uint256, INF] = self.extend(x)
+    return x, y
+    """
+    kwargs = {} if inline else {"compiler_settings": no_inlining_settings}
+    c = get_contract(code, **kwargs)
+    for n in (1, 3, 4, 8):
+        expected = list(range(n))
+        assert c.build(n) == (expected, expected + list(range(100, 105)))
+
+
+@pytest.mark.parametrize("inline", [True, False])
+def test_inf_dynarray_append_with_live_dynamic_rhs(get_contract, no_inlining_settings, inline):
+    # The internal return allocates above the owned array before append
+    # decides whether it can grow. The RHS must survive the copy fallback.
+    code = """
+@internal
+def item(i: uint256) -> Bytes[INF]:
+    return abi_encode(i)
+
+@internal
+def build() -> (DynArray[Bytes[32], INF], Bytes[INF]):
+    x: DynArray[Bytes[32], INF] = []
+    for i: uint256 in range(17):
+        x.append(convert(self.item(i), Bytes[32]))
+    return x, self.item(99)
+
+@external
+def run() -> (DynArray[Bytes[32], INF], Bytes[INF]):
+    return self.build()
+    """
+    kwargs = {} if inline else {"compiler_settings": no_inlining_settings}
+    c = get_contract(code, **kwargs)
+    assert c.run() == ([i.to_bytes(32, "big") for i in range(17)], (99).to_bytes(32, "big"))
 
 
 def test_inf_dynarray_pop_then_append_full_contents(get_contract):
@@ -631,6 +710,27 @@ def pair(x: DynArray[uint256, INF]) -> (uint256, DynArray[uint256, INF]):
     assert c.pair(payload) == (17, payload)
 
 
+@pytest.mark.parametrize("return_expr", ["(x,)", "self._one(x)"])
+def test_inf_dynarray_singleton_tuple_return(env, get_contract, no_inlining_settings, return_expr):
+    code = f"""
+@internal
+def _one(x: DynArray[uint256, INF]) -> (DynArray[uint256, INF],):
+    return (x,)
+
+@external
+def one(x: DynArray[uint256, INF]) -> (DynArray[uint256, INF],):
+    return {return_expr}
+    """
+
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    for payload in ([], [1, 2, 3], list(range(257))):
+        calldata = method_id("one(uint256[])") + abi_encode("(uint256[])", (payload,))
+        # Compare raw bytes so both the return wrapper and singleton tuple
+        # must be encoded, including their separate offset words.
+        expected = abi_encode("((uint256[]))", ((payload,),))
+        assert env.message_call(c.address, data=calldata) == expected
+
+
 def test_inf_dynarray_internal_tuple_unpack_no_inline(get_contract, no_inlining_settings):
     code = """
 @internal
@@ -890,6 +990,185 @@ def get_literal(addr: address) -> DynArray[uint256, 4]:
     caller = get_contract(caller_code)
     assert caller.get_empty(target.address) == []
     assert caller.get_literal(target.address) == [5, 6]
+
+
+def test_wildcard_arg_dynamic_element_roundtrip(get_contract):
+    target_code = """
+@external
+def data(x: DynArray[Bytes[10], 5]) -> uint256:
+    return len(x)
+    """
+
+    caller_code = """
+interface Source:
+    def data(x: DynArray[Bytes[10], ...]) -> uint256: nonpayable
+
+@external
+def get_empty(addr: address) -> uint256:
+    return extcall Source(addr).data([])
+
+@external
+def get_bounded(addr: address, xs: DynArray[Bytes[10], 5]) -> uint256:
+    return extcall Source(addr).data(xs)
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get_empty(target.address) == 0
+    assert caller.get_bounded(target.address, [b"abc", b"defg"]) == 2
+
+
+def test_wildcard_arg_user_struct_element_empty(get_contract):
+    target_code = """
+struct S:
+    b: Bytes[10]
+
+@external
+def data(x: DynArray[S, 5]) -> uint256:
+    return len(x)
+    """
+
+    caller_code = """
+struct S:
+    b: Bytes[10]
+
+interface Source:
+    def data(x: DynArray[S, ...]) -> uint256: nonpayable
+
+@external
+def get_empty(addr: address) -> uint256:
+    return extcall Source(addr).data([])
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get_empty(target.address) == 0
+
+
+def test_wildcard_tuple_arg_empty_list_element(get_contract):
+    target_code = """
+@external
+def sink(input: (DynArray[uint256, 3], uint256)) -> uint256:
+    return len(input[0]) + input[1]
+    """
+
+    caller_code = """
+interface Sink:
+    def sink(input: (DynArray[uint256, ...], uint256)) -> uint256: nonpayable
+
+@external
+def do_it(addr: address) -> uint256:
+    return extcall Sink(addr).sink(([], 42))
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.do_it(target.address) == 42
+
+
+@pytest.mark.parametrize(
+    "caller_code",
+    [
+        # wildcard tuple return resolved by the bounded parameter type
+        """
+interface Target:
+    def source() -> (Bytes[...], DynArray[uint256, ...]): nonpayable
+    def sink(x: (Bytes[10], DynArray[uint256, 3])): nonpayable
+
+@external
+def forward(addr: address):
+    extcall Target(addr).sink(extcall Target(addr).source())
+        """,
+        # bounded local tuple passed to a wildcard parameter
+        """
+interface Target:
+    def sink(x: (Bytes[10], DynArray[uint256, ...])): nonpayable
+
+@external
+def forward(addr: address):
+    x: (Bytes[10], DynArray[uint256, 3]) = (b"hello", [1, 2, 3])
+    extcall Target(addr).sink(x)
+        """,
+        # tuple literal built inline for a wildcard parameter. the wildcard
+        # call return lands on the bounded member and resolves to it
+        """
+interface Target:
+    def source_bytes() -> Bytes[...]: nonpayable
+    def sink(x: (Bytes[10], DynArray[uint256, ...])): nonpayable
+
+@external
+def forward(addr: address):
+    extcall Target(addr).sink((extcall Target(addr).source_bytes(), [1, 2, 3]))
+        """,
+        # wildcard tuple return assigned to a bounded local, then forwarded.
+        # this is the supported way to pass a wildcard tuple return on to a
+        # wildcard parameter, which cannot take the call directly
+        """
+interface Target:
+    def source() -> (Bytes[...], DynArray[uint256, ...]): nonpayable
+    def sink(x: (Bytes[10], DynArray[uint256, ...])): nonpayable
+
+@external
+def forward(addr: address):
+    x: (Bytes[10], DynArray[uint256, 3]) = extcall Target(addr).source()
+    extcall Target(addr).sink(x)
+        """,
+    ],
+)
+def test_wildcard_tuple_arg_roundtrip(get_contract, caller_code):
+    target_code = """
+b: Bytes[10]
+xs: DynArray[uint256, 3]
+
+@external
+def source() -> (Bytes[INF], DynArray[uint256, INF]):
+    return b"hello", [1, 2, 3]
+
+@external
+def source_bytes() -> Bytes[INF]:
+    return b"hello"
+
+@external
+def sink(x: (Bytes[10], DynArray[uint256, 3])):
+    self.b, self.xs = x
+
+@external
+@view
+def stored() -> (Bytes[10], DynArray[uint256, 3]):
+    return self.b, self.xs
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    caller.forward(target.address)
+    assert target.stored() == (b"hello", [1, 2, 3])
+
+
+def test_wildcard_tuple_return_discarded(get_contract):
+    # with no expected type the wildcard tuple return resolves to INF members,
+    # which is a valid return shape, so the discarded call stays legal
+    target_code = """
+calls: public(uint256)
+
+@external
+def source() -> (Bytes[INF], DynArray[uint256, INF]):
+    self.calls += 1
+    return b"hello", [1, 2, 3]
+    """
+
+    caller_code = """
+interface Target:
+    def source() -> (Bytes[...], DynArray[uint256, ...]): nonpayable
+
+@external
+def call_source(addr: address):
+    extcall Target(addr).source()
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    caller.call_source(target.address)
+    assert target.calls() == 1
 
 
 def test_inf_dynarray_abi_encode_default_tuple(get_contract):

@@ -173,7 +173,7 @@ error LibError:
 
 @external
 def fail():
-    raise LibError(1)
+    raise LibError(code=1)
     """
     main = """
 import lib
@@ -331,8 +331,6 @@ def bar():
     main = """
 import lib1
 
-initializes: lib1
-
 exports: lib1.foo
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
@@ -472,8 +470,6 @@ def foo():
     main = """
 import lib1
 
-initializes: lib1
-
 exports: lib1.foo
     """
     input_bundle = make_input_bundle({"lib1.vy": lib1})
@@ -506,7 +502,6 @@ def foo():
     """
     main = """
 import lib1
-initializes: lib1
 
 # not exported/reachable from selector table
 @internal

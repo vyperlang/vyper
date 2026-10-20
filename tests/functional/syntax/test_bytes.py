@@ -1,7 +1,13 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InvalidOperation, StructureException, SyntaxException, TypeMismatch
+from vyper.exceptions import (
+    InvalidOperation,
+    InvalidType,
+    StructureException,
+    SyntaxException,
+    TypeMismatch,
+)
 
 fail_list = [
     (
@@ -166,3 +172,14 @@ def baa():
 @pytest.mark.parametrize("good_code", valid_list)
 def test_bytes_success(good_code):
     assert compiler.compile_code(good_code) is not None
+
+
+def test_bytes_length_zero():
+    code = """
+@external
+def foo():
+    x: Bytes[0] = b""
+    """
+    with pytest.raises(InvalidType) as excinfo:
+        compiler.compile_code(code)
+    assert excinfo.value.message == "Bytes cannot have length of 0"

@@ -14,21 +14,13 @@ from vyper.exceptions import (
     UnfoldableNode,
     VariableDeclarationException,
 )
-from vyper.semantics.analysis.base import Modifiability
-from vyper.semantics.analysis.utils import (
-    check_modifiability,
-    validate_expected_type,
-    validate_kwargs,
-)
+from vyper.semantics.analysis.utils import validate_expected_type, validate_kwargs
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import BottomT, VyperType
 from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.infinity import (
-    type_contains_nested_unbounded_sequence,
-    type_contains_unbounded_sequence,
-)
+from vyper.semantics.types.infinity import is_runtime_sizable_type
 from vyper.semantics.types.subscriptable import HashMapT
-from vyper.semantics.types.utils import type_from_abi, type_from_annotation
+from vyper.semantics.types.utils import member_slot_size, type_from_abi, type_from_annotation
 from vyper.utils import keccak256, method_id_int
 from vyper.warnings import Deprecation, vyper_warn
 
@@ -342,7 +334,7 @@ class EventT(_UserType):
                 indexed.append(False)
 
             member_type = type_from_annotation(annotation)
-            if type_contains_nested_unbounded_sequence(member_type):
+            if not is_runtime_sizable_type(member_type):
                 raise StructureException(
                     "Event members cannot contain unbounded sequence types inside aggregate types",
                     annotation,
@@ -445,7 +437,7 @@ class ErrorT(_UserType):
 
         for member_name, node in _iter_user_type_members(base_node, "Error"):
             member_type = type_from_annotation(node.annotation)
-            if type_contains_nested_unbounded_sequence(member_type):
+            if not is_runtime_sizable_type(member_type):
                 raise StructureException(
                     "Custom error members cannot contain unbounded sequence types "
                     "inside aggregate types",
@@ -456,19 +448,23 @@ class ErrorT(_UserType):
         return cls(base_node.name, members, base_node)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> "ErrorT":
-        if len(node.keywords) > 0:
-            if len(node.args) > 0:
-                raise InstantiationException(
-                    "Error instantiation requires either all keyword arguments "
-                    "or all positional arguments",
-                    node,
+        if len(node.args) > 0:
+            if len(node.keywords) == 0 and len(node.args) == len(self.arguments):
+                # There are only positional arguments, and there is the correct number
+                # Assume the user put them in the right order
+                correct_kwargs = ", ".join(
+                    f"{argname}={val.node_source_code}"
+                    for argname, val in zip(self.arguments.keys(), node.args)
                 )
+                hint = f"did you mean `{node.func.node_source_code}({correct_kwargs})` ?"
+            else:
+                # Don't try to guess what the user meant
+                hint = None
 
-            validate_kwargs(node, self.arguments, self.typeclass)
-        else:
-            validate_call_args(node, len(self.arguments))
-            for arg, expected in zip(node.args, self.arguments.values()):
-                validate_expected_type(arg, expected)
+            msg = "Instantiating errors with positional arguments is not allowed"
+            raise InstantiationException(msg, node, self.decl_node, hint=hint)
+
+        validate_kwargs(node, self.arguments, self.typeclass)
 
         return self
 
@@ -482,12 +478,6 @@ class ErrorT(_UserType):
 
     def _ctor_kwarg_types(self, node):
         return self.arguments
-
-    def _ctor_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
-        for arg in (*node.args, *[kw.value for kw in node.keywords]):
-            if not check_modifiability(arg, modifiability):
-                return False
-        return True
 
     def to_toplevel_abi_dict(self) -> list[dict]:
         return [
@@ -568,9 +558,11 @@ class StructT(_UserType):
                 )
 
             member_type = type_from_annotation(node.annotation)
-            if type_contains_unbounded_sequence(member_type):
+            if not is_runtime_sizable_type(member_type):
                 raise StructureException(
-                    "Structs cannot contain unbounded sequence types", node.annotation
+                    "Struct members cannot contain unbounded sequence types "
+                    "inside aggregate types",
+                    node.annotation,
                 )
             members[member_name] = member_type
             node.target._metadata["type"] = member_type
@@ -601,7 +593,9 @@ class StructT(_UserType):
 
     @property
     def size_in_bytes(self):
-        return sum(i.size_in_bytes for i in self.member_types.values())
+        # an INF member occupies a pointer cell rather than an inline payload,
+        # so a struct always has a compile-time size (see `member_slot_size`)
+        return sum(member_slot_size(t) for t in self.member_types.values())
 
     @property
     def abi_type(self) -> ABIType:
@@ -624,6 +618,3 @@ class StructT(_UserType):
         validate_kwargs(node, self.member_types, self.typeclass)
 
         return self
-
-    def _ctor_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
-        return all(check_modifiability(k.value, modifiability) for k in node.keywords)

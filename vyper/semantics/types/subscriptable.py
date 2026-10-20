@@ -10,6 +10,7 @@ from vyper.semantics.types.infinity import (
     WILDCARD,
     LengthUpperBound,
     is_bounded_length,
+    is_pointer_cell_struct_type,
     length_to_json,
     type_contains_unbounded_sequence,
 )
@@ -120,7 +121,7 @@ class _SequenceT(_SubscriptableT):
 
     def __init__(self, value_type: VyperType, length: LengthUpperBound):
         if is_bounded_length(length):
-            if not 0 < length < 2**256:
+            if not 0 <= length < 2**256:
                 raise InvalidType("Array length is invalid")
 
             if length >= 2**64:
@@ -171,7 +172,12 @@ class SArrayT(_SequenceT):
 
     _id = "$SArray"
 
+    length: int  # narrows type from parent
+
     def __init__(self, value_type: VyperType, length: int) -> None:
+        if length == 0:
+            raise InvalidType("Array length is invalid")
+
         super().__init__(value_type, length)
 
     def __repr__(self):
@@ -247,6 +253,9 @@ class SArrayT(_SequenceT):
         # note: validates index
         length = get_index_value(node.slice)
 
+        if length == 0:
+            raise InvalidType("Static arrays cannot have a length of 0", node.slice)
+
         if not is_bounded_length(length):
             raise InvalidType("Static arrays cannot have unbounded length", node.slice)
 
@@ -319,14 +328,13 @@ class DArrayT(_SequenceT):
 
     @staticmethod
     def _validate_unbounded_shape(value_type, length, node=None):
-        if type_contains_unbounded_sequence(value_type):
+        if type_contains_unbounded_sequence(value_type) and not is_pointer_cell_struct_type(
+            value_type
+        ):
+            # a struct element keeps a compile-time stride (its INF members are
+            # pointer cells), so it is addressable at a fixed element size
             raise StructureException(
                 "DynArray element types cannot contain unbounded sequence types", node
-            )
-
-        if length is INF and value_type.abi_type.is_dynamic():
-            raise StructureException(
-                "DynArray[..., INF] is only supported with ABI-static element types", node
             )
 
     def resolve_wildcard(self):

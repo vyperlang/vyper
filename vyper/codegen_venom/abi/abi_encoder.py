@@ -15,15 +15,17 @@ from typing import TYPE_CHECKING
 
 from vyper.codegen.abi_encoder import abi_encoding_matches_vyper
 from vyper.codegen.core import is_tuple_like
+from vyper.codegen_venom.layout import struct_member_offsets
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import (
     DArrayT,
     SArrayT,
+    StructT,
     TupleT,
     VyperType,
     _BytestringT,
     is_unbounded_bytestring_type,
-    is_unbounded_dynarray_type,
+    is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.shortcuts import UINT256_T
@@ -35,6 +37,16 @@ if TYPE_CHECKING:
 
 
 def runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IROperand:
+    """Return a runtime upper bound on the ABI-encoded size of `arg_vv`.
+
+    Bounded types are sized by their static bound; unbounded bytestrings and
+    unbounded DynArrays with ABI-static elements are exact; unbounded DynArrays
+    with ABI-dynamic elements are bounded per element (see
+    `VenomCodegenContext.dynarray_runtime_abi_size`); structs with INF members
+    and DynArrays of such structs are summed member by member and element by
+    element. Use it only to size buffers; the encoded length is the encoder's
+    return value.
+    """
     typ = arg_vv.typ
     if isinstance(typ, _BytestringT):
         ptr = ctx.unwrap(arg_vv)
@@ -42,47 +54,131 @@ def runtime_abi_size_for_arg(ctx: VenomCodegenContext, arg_vv: VyperValue) -> IR
         if is_unbounded_bytestring_type(typ):
             return ctx.bytestring_runtime_size(ptr)
         return ctx.unchecked_bytestring_runtime_size(ptr)
-    if isinstance(typ, DArrayT) and is_unbounded_dynarray_type(typ):
+    if isinstance(typ, DArrayT) and type_contains_unbounded_sequence(typ):
         ptr = ctx.unwrap(arg_vv)
         assert isinstance(ptr, IRVariable)
-        return ctx.dynarray_runtime_abi_size(ptr, typ)
+        if not type_contains_unbounded_sequence(typ.value_type):
+            return ctx.dynarray_runtime_abi_size(ptr, typ)
+        return _runtime_abi_size_for_dynarray(ctx, ptr, typ)
+    if isinstance(typ, StructT) and type_contains_unbounded_sequence(typ):
+        return _runtime_abi_size_for_struct(ctx, arg_vv, typ)
     return IRLiteral(typ.abi_type.size_bound())
 
 
-def _abi_size_add(
-    ctx: VenomCodegenContext,
-    left: IROperand,
-    right: IROperand,
-    left_unbounded: bool,
-    right_unbounded: bool,
-) -> tuple[IROperand, bool]:
-    if left_unbounded or right_unbounded:
-        return ctx.checked_add(left, right), True
+def _runtime_abi_size_for_struct(
+    ctx: VenomCodegenContext, arg_vv: VyperValue, typ: StructT
+) -> IROperand:
+    """Return a runtime bound on the ABI-encoded size of a struct with INF members.
 
-    return ctx.builder.add(left, right), False
+    `abi_type.size_bound()` multiplies by the element bound, which is INF
+    here. The head is still a compile-time constant, so only the members that
+    land in the tail have to be measured at runtime.
+    """
+    ptr = ctx.unwrap(arg_vv)
+    assert isinstance(ptr, IRVariable)
+
+    size: IROperand = IRLiteral(typ.abi_type.static_size())
+    size_unbounded = False
+    for i, (_key, member_t) in enumerate(typ.tuple_items()):
+        if not member_t.abi_type.is_dynamic():
+            continue
+        member_ptr, _ = _get_element_ptr(ctx, ptr, IRLiteral(i), typ)
+        assert isinstance(member_ptr, IRVariable)
+        member_vv = ctx.dynamic_memory_value(member_ptr, member_t)
+        size, size_unbounded = ctx.add_size(
+            size,
+            runtime_abi_size_for_arg(ctx, member_vv),
+            size_unbounded,
+            type_contains_unbounded_sequence(member_t),
+        )
+    return size
+
+
+def _runtime_abi_size_for_dynarray(
+    ctx: VenomCodegenContext, ptr: IRVariable, typ: DArrayT
+) -> IROperand:
+    """Return a runtime bound on the ABI-encoded size of a DynArray whose elements hold INF.
+
+    The elements keep a compile-time stride (their INF members are pointer
+    cells) but no compile-time encoded size, so each one is sized in turn.
+    """
+    b = ctx.builder
+    elem_t = typ.value_type
+    elem_abi_t = elem_t.abi_type
+    assert elem_abi_t.is_dynamic()
+
+    length = b.mload(ptr)
+    # the head: the length word and one offset word per element
+    head = ctx.checked_mul(length, IRLiteral(elem_abi_t.embedded_static_size()))
+    size = b.assign(ctx.checked_add(IRLiteral(32), head))
+    data = b.add(ptr, IRLiteral(32))
+
+    def add_element_size(counter: IRVariable) -> None:
+        elem_ptr = b.add(data, b.mul(counter, IRLiteral(elem_t.memory_bytes_required)))
+        elem_vv = ctx.dynamic_memory_value(elem_ptr, elem_t)
+        b.assign_to(ctx.checked_add(size, runtime_abi_size_for_arg(ctx, elem_vv)), size)
+
+    ctx.emit_counted_loop(length, add_element_size, "dyn_abi_size")
+    return size
 
 
 def runtime_abi_size_for_encode(
     ctx: VenomCodegenContext, arg_vals: list[VyperValue], encode_type: VyperType
 ) -> IROperand:
+    """Return a runtime upper bound on the ABI-encoded size of `arg_vals` as `encode_type`.
+
+    Same contract as `runtime_abi_size_for_arg`: allocation only, the
+    encoded length is the encoder's return value.
+    """
     if isinstance(encode_type, TupleT):
         size: IROperand = IRLiteral(encode_type.abi_type.static_size())
         size_unbounded = False
         for arg_vv in arg_vals:
             if arg_vv.typ.abi_type.is_dynamic():
                 arg_unbounded = type_contains_unbounded_sequence(arg_vv.typ)
-                size, size_unbounded = _abi_size_add(
-                    ctx, size, runtime_abi_size_for_arg(ctx, arg_vv), size_unbounded, arg_unbounded
+                size, size_unbounded = ctx.add_size(
+                    size, runtime_abi_size_for_arg(ctx, arg_vv), size_unbounded, arg_unbounded
                 )
         return size
 
     return runtime_abi_size_for_arg(ctx, arg_vals[0])
 
 
+def _check_buffer_size(typ: VyperType, bufsz: int | None) -> None:
+    """Check that `bufsz` bytes at the destination can hold an encoding of `typ`.
+
+    `bufsz` is None for runtime-sized buffers, which have no static bound.
+    """
+    if bufsz is None:
+        return
+
+    if type_contains_unbounded_sequence(typ):
+        raise CompilerPanic(f"static buffer provided to abi_encode for unbounded type {typ}")
+
+    size_bound = typ.abi_type.size_bound()
+    if bufsz < size_bound:
+        raise CompilerPanic("buffer provided to abi_encode not large enough")
+
+    if size_bound < typ.memory_bytes_required:
+        raise CompilerPanic("Bad ABI size calc")
+
+
 def abi_encode_values_to_buf(
-    ctx: VenomCodegenContext, dst: IRVariable, arg_vals: list[VyperValue], encode_type: VyperType
+    ctx: VenomCodegenContext,
+    dst: IRVariable,
+    arg_vals: list[VyperValue],
+    encode_type: VyperType,
+    bufsz: int | None,
 ) -> IROperand:
+    """
+    Encode `arg_vals` to ABI format at dst as a value of `encode_type`.
+
+    `bufsz` is the number of bytes available at dst (the allocation size
+    minus any prefix before dst), or None for a runtime-sized buffer.
+    """
     b = ctx.builder
+
+    _check_buffer_size(encode_type, bufsz)
 
     if not isinstance(encode_type, TupleT):
         if encode_type._is_prim_word:
@@ -91,7 +187,7 @@ def abi_encode_values_to_buf(
 
         src = ctx.unwrap(arg_vals[0])
         assert isinstance(src, IRVariable)
-        return abi_encode_to_buf(ctx, dst, src, encode_type)
+        return _abi_encode_to_buf(ctx, dst, src, encode_type)
 
     dyn_ofst_val = ctx.new_temporary_value(UINT256_T)
     ctx.ptr_store(dyn_ofst_val.ptr(), IRLiteral(encode_type.abi_type.static_size()))
@@ -107,11 +203,11 @@ def abi_encode_values_to_buf(
             child_dst = b.add(dst, dyn_ofst)
             child_src = ctx.unwrap(arg_vv)
             assert isinstance(child_src, IRVariable)
-            child_len = abi_encode_to_buf(ctx, child_dst, child_src, typ)
+            child_len = _abi_encode_to_buf(ctx, child_dst, child_src, typ)
             b.mstore(static_loc, dyn_ofst)
             arg_unbounded = type_contains_unbounded_sequence(typ)
-            new_dyn_ofst, dyn_ofst_unbounded = _abi_size_add(
-                ctx, dyn_ofst, child_len, dyn_ofst_unbounded, arg_unbounded
+            new_dyn_ofst, dyn_ofst_unbounded = ctx.add_size(
+                dyn_ofst, child_len, dyn_ofst_unbounded, arg_unbounded
             )
             ctx.ptr_store(dyn_ofst_val.ptr(), new_dyn_ofst)
         else:
@@ -133,7 +229,7 @@ def _get_element_ptr(
     """
     Get pointer to element and its type.
 
-    For tuples/structs, key is an index/name, for arrays key is an index.
+    The key is an integer index for tuples, structs, and static arrays.
     Returns (element_ptr, element_type).
     """
     b = ctx.builder
@@ -143,18 +239,26 @@ def _get_element_ptr(
         # Calculate offset: sum of preceding element sizes
         idx = key.value
 
-        items = parent_typ.tuple_items()  # type: ignore[attr-defined]
-        offset = 0
-        for i, (_k, t) in enumerate(items):
-            if i == idx:
-                elem_typ = t
-                break
-            offset += t.memory_bytes_required
-        else:  # pragma: nocover
-            raise CompilerPanic(f"Tuple index {idx} out of range")
+        # Dynamic tuples reach the encoder one member at a time; only a
+        # struct has pointer cells in its inline memory layout.
+        if isinstance(parent_typ, StructT):
+            _, offset, elem_typ = struct_member_offsets(parent_typ)[idx]
+        else:
+            items = parent_typ.tuple_items()  # type: ignore[attr-defined]
+            offset = 0
+            for i, (_k, elem_typ) in enumerate(items):
+                if i == idx:
+                    break
+                offset += elem_typ.memory_bytes_required
+            else:  # pragma: nocover
+                raise CompilerPanic(f"Tuple index {idx} out of range")
 
         elem_ptr: IROperand
         elem_ptr = b.add(parent_ptr, IRLiteral(offset))
+        if isinstance(parent_typ, StructT) and is_unbounded_sequence_type(elem_typ):
+            # what gets encoded is the payload the cell points at
+            assert isinstance(elem_ptr, IRVariable)
+            elem_ptr = b.mload(elem_ptr)
         return elem_ptr, elem_typ
 
     elif isinstance(parent_typ, SArrayT):
@@ -165,18 +269,6 @@ def _get_element_ptr(
         offset_val = key.value * elem_size
         sarray_elem_ptr = b.add(parent_ptr, IRLiteral(offset_val))
         return sarray_elem_ptr, elem_typ
-
-    elif isinstance(parent_typ, DArrayT):
-        # Dynamic array: skip length word, then index * elem_size
-        elem_typ = parent_typ.value_type
-        elem_size = elem_typ.memory_bytes_required
-
-        # Skip length word (32 bytes)
-        data_ptr = b.add(parent_ptr, IRLiteral(32))
-
-        offset_val = key.value * elem_size
-        darray_elem_ptr = b.add(data_ptr, IRLiteral(offset_val))
-        return darray_elem_ptr, elem_typ
 
     else:  # pragma: nocover
         raise CompilerPanic(f"Cannot get element ptr of type {parent_typ}")
@@ -229,7 +321,7 @@ def _encode_child(
         child_ptr: Pointer to child data in memory
         child_typ: Type of child
         static_ofst: Compile-time offset in static section
-        dyn_ofst_ptr: Pointer to memory variable tracking dynamic section offset
+        dyn_ofst_val: Memory value tracking the dynamic section offset
     """
     b = ctx.builder
     child_abi_t = child_typ.abi_type
@@ -255,7 +347,6 @@ def _encode_child(
         child_len = _abi_encode_to_buf(ctx, child_dst, child_ptr, child_typ)
 
         # 3. Write static section offset (safe now — child data is already encoded).
-        assert isinstance(static_loc, IRVariable)
         b.mstore(static_loc, dyn_ofst)
 
         # 4. Update dyn_ofst
@@ -412,6 +503,7 @@ def _abi_encode_to_buf(
     # Fast path: if ABI encoding matches Vyper memory layout, just copy
     if abi_encoding_matches_vyper(src_typ):
         size = src_typ.memory_bytes_required
+        assert abi_t.embedded_static_size() == size
         ctx.copy_memory(dst, src, size)
         return IRLiteral(abi_t.embedded_static_size())
 
@@ -458,12 +550,8 @@ def _abi_encode_to_buf(
             dyn_ofst_val = None
 
         static_ofst = 0
-        for idx, (key, elem_typ) in enumerate(items):
-            # Get source element pointer
-            if is_tuple_like(src_typ):
-                elem_ptr, _ = _get_element_ptr(ctx, src, IRLiteral(idx), src_typ)
-            else:
-                elem_ptr, _ = _get_element_ptr(ctx, src, IRLiteral(key), src_typ)
+        for idx, (_key, elem_typ) in enumerate(items):
+            elem_ptr, _ = _get_element_ptr(ctx, src, IRLiteral(idx), src_typ)
 
             if has_dynamic:
                 assert dyn_ofst_val is not None
@@ -486,7 +574,7 @@ def _abi_encode_to_buf(
 
 
 def abi_encode_to_buf(
-    ctx: VenomCodegenContext, dst: IRVariable, src: IROperand, src_typ: VyperType
+    ctx: VenomCodegenContext, dst: IRVariable, src: IROperand, src_typ: VyperType, bufsz: int | None
 ) -> IROperand:
     """
     Public entry point for ABI encoding.
@@ -502,8 +590,11 @@ def abi_encode_to_buf(
         dst: Destination buffer pointer (in memory)
         src: Source value/pointer
         src_typ: Type of source
+        bufsz: Bytes available at dst (the allocation size minus any prefix
+            before dst), or None for a runtime-sized buffer
 
     Returns:
         Encoded length (dead variable elimination cleans up if unused)
     """
+    _check_buffer_size(src_typ, bufsz)
     return _abi_encode_to_buf(ctx, dst, src, src_typ)
