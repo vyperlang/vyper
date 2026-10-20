@@ -2109,11 +2109,7 @@ class Expr:
 
         # Lower as a target so risky overlap panics: mutating an rvalue
         # snapshot would silently drop the write.
-        dst_darray_indices: list[tuple[IROperand, IROperand, DataLocation]] = []
-        dst_darray_vv = Expr(
-            dst_darray_node, self.ctx, as_ptr=True, darray_indices=dst_darray_indices
-        ).lower()
-        dst_darray_ptr = dst_darray_vv.operand
+        dst_darray_vv = Expr(dst_darray_node, self.ctx, as_ptr=True).lower()
 
         # Get the src value.
         assert len(node.args) == 1
@@ -2124,14 +2120,10 @@ class Expr:
         assert isinstance(src_darray_typ, DArrayT)
 
         # The argument can shrink arrays on the receiver's path (e.g.
-        # `rows[1].extend(rows.pop())`). Check the receiver's indices again
-        # so extending a removed element reverts.
-        if _subscript_base_length_can_stale(dst_darray_node) and _subscript_read_write_overlap(
-            dst_darray_node, src_darray_node
-        ):
-            for array_ptr, index, loc in dst_darray_indices:
-                length = self.ctx.load_word(array_ptr, loc)
-                self.builder.assert_(self.builder.lt(index, length))
+        # `rows[1].extend(rows.pop())`); re-resolve the receiver's live
+        # reference so extending a removed element reverts.
+        dst_darray_vv = self._resolve_after(dst_darray_vv, src_darray_node, dst_darray_node)
+        dst_darray_ptr = dst_darray_vv.operand
 
         # 1. Stage src to a runtime-sized scratch buffer to guard against
         # aliasing (e.g. arr.extend(arr)).
