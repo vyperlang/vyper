@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.codegen.core import calculate_type_for_external_return, has_length_word
+from vyper.codegen.core import calculate_type_for_external_return, has_length_word, punnable
 from vyper.codegen_venom.abi import (
     abi_encode_to_buf,
     abi_encode_values_to_buf,
@@ -855,6 +855,18 @@ class Stmt:
         assert isinstance(item_value.operand, IRVariable)
         self.ctx.forvars[varname] = True
 
+        # Non-memory sources are copied with the element type's strides, so the
+        # loop variable only reads back correctly if the data present has the
+        # element's layout. The type checker allows a widened loop variable
+        # (e.g. iterating DynArray[Bytes[10], 2] as DynArray[Bytes[512], 2]),
+        # so stage the element in its own layout and re-lay it out below.
+        # `punnable`, not `same_memory_layout`: the loop variable is the wider
+        # buffer, so equal sizes are not required, only an equal layout.
+        elem_typ = array_typ.value_type
+        staged_elem = None
+        if location is not DataLocation.MEMORY and not punnable(elem_typ, target_type):
+            staged_elem = self.ctx.new_temporary_value(elem_typ, annotation=f"{varname} element")
+
         # Create blocks
         entry_block = self.builder.create_block("iter_entry")
         cond_block = self.builder.create_block("iter_cond")
@@ -903,21 +915,18 @@ class Stmt:
                 total_offset = index_offset
             elem_addr = self.builder.add(array, total_offset)
 
-            # Copy element to loop variable (always in memory).
-            # Note: type mismatches (target_type != value_type) are possible
-            # for any source location (the type checker allows e.g.
-            # Bytes[704] target with Bytes[540] elements). For non-memory
-            # sources, the linear copy is safe for flat types since the
-            # source is smaller than the destination buffer. Only the
-            # memory path uses type-aware copying (store_memory).
+            # Copy element to loop variable (always in memory). A non-memory
+            # source copies `elem_size` of the element type, so it lands in
+            # `staged_elem` when the layouts differ and is re-laid out below.
             dst = item_value.operand
+            copy_dst = staged_elem.operand if staged_elem is not None else dst
             if is_slot_addressed:
                 # Word-addressed (STORAGE, TRANSIENT)
-                self.ctx.slot_to_memory(elem_addr, dst, elem_size, location)
+                self.ctx.slot_to_memory(elem_addr, copy_dst, elem_size, location)
             elif location is not DataLocation.MEMORY:
                 # Byte-addressed non-memory (IMMUTABLES, CODE, CALLDATA):
                 # location-aware copy via load_word dispatch
-                self.ctx.copy_to_memory(dst, elem_addr, elem_size, location)
+                self.ctx.copy_to_memory(copy_dst, elem_addr, elem_size, location)
             elif target_type._is_prim_word:
                 # Memory, single word
                 val = self.builder.mload(elem_addr)
@@ -925,7 +934,10 @@ class Stmt:
             else:
                 # Memory, complex type: type-aware copy handles
                 # layout mismatches (e.g. DynArray[Bytes[540]] -> Bytes[704])
-                self.ctx.store_memory(elem_addr, dst, target_type, src_typ=array_typ.value_type)
+                self.ctx.store_memory(elem_addr, dst, target_type, src_typ=elem_typ)
+
+            if staged_elem is not None:
+                self.ctx.store_memory(copy_dst, dst, target_type, src_typ=elem_typ)
 
             self._lower_body(node.body)
             body_finish = self.builder.current_block
