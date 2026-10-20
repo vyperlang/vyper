@@ -149,14 +149,6 @@ def _reaches_through_subscript(node: vy_ast.VyperNode) -> bool:
     return False
 
 
-def _dynarray_contains_bottom(typ: VyperType) -> bool:
-    if isinstance(typ, BottomT):
-        return True
-    if isinstance(typ, (DArrayT, SArrayT)):
-        return _dynarray_contains_bottom(typ.value_type)
-    return False
-
-
 def analyze_functions(vy_module: vy_ast.Module) -> None:
     """Analyzes a vyper ast and validates the function bodies"""
     err_list = ExceptionList()
@@ -1256,22 +1248,23 @@ class ExprVisitor(VyperNodeVisitorBase):
                     # (e.g. a wildcard interface return) are excluded so
                     # that they specialize against the destination type,
                     # the only concrete length available at the call site.
-                    # candidates whose element types contain `Never` (empty
-                    # literals carry no element type, e.g. `x.extend([[]])`)
-                    # borrow the dst element type but keep their own length:
-                    # the source length is extend's runtime contract, so an
-                    # over-capacity source reverts at runtime instead of
-                    # failing type checking.
+                    # interpolating against the parameter type fills `Never`
+                    # holes (empty literals carry no element type, e.g.
+                    # `x.extend([[]])`) with the dst element type while
+                    # keeping the candidate's own lengths: the source length
+                    # is extend's runtime contract, so an over-capacity
+                    # source reverts at runtime instead of failing type
+                    # checking.
                     dst_typ = func_type.underlying_type
                     assert isinstance(dst_typ, DArrayT)  # mypy hint
-                    possible_types = []
+                    possible_types: list[DArrayT] = []
                     for t in get_possible_types_from_node(arg):
-                        if t.has_wildcard:
+                        if t.has_wildcard or not t.is_subtype_of(arg_type):
                             continue
-                        if isinstance(t, DArrayT) and _dynarray_contains_bottom(t.value_type):
-                            t = DArrayT(dst_typ.value_type, t.length)
-                        if t.is_subtype_of(arg_type):
-                            possible_types.append(t)
+                        interpolated = self._interpolate(t, arg_type, pos=arg)
+                        # interpolation against a DArrayT preserves the subtype
+                        assert isinstance(interpolated, DArrayT)
+                        possible_types.append(interpolated)
                     arg_type = next(
                         (t for t in possible_types if is_bounded_length(t.length)),
                         next(iter(possible_types), dst_typ),
