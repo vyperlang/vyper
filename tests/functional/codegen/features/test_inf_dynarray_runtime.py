@@ -710,6 +710,27 @@ def pair(x: DynArray[uint256, INF]) -> (uint256, DynArray[uint256, INF]):
     assert c.pair(payload) == (17, payload)
 
 
+@pytest.mark.parametrize("return_expr", ["(x,)", "self._one(x)"])
+def test_inf_dynarray_singleton_tuple_return(env, get_contract, no_inlining_settings, return_expr):
+    code = f"""
+@internal
+def _one(x: DynArray[uint256, INF]) -> (DynArray[uint256, INF],):
+    return (x,)
+
+@external
+def one(x: DynArray[uint256, INF]) -> (DynArray[uint256, INF],):
+    return {return_expr}
+    """
+
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    for payload in ([], [1, 2, 3], list(range(257))):
+        calldata = method_id("one(uint256[])") + abi_encode("(uint256[])", (payload,))
+        # Compare raw bytes so both the return wrapper and singleton tuple
+        # must be encoded, including their separate offset words.
+        expected = abi_encode("((uint256[]))", ((payload,),))
+        assert env.message_call(c.address, data=calldata) == expected
+
+
 def test_inf_dynarray_internal_tuple_unpack_no_inline(get_contract, no_inlining_settings):
     code = """
 @internal
@@ -969,6 +990,80 @@ def get_literal(addr: address) -> DynArray[uint256, 4]:
     caller = get_contract(caller_code)
     assert caller.get_empty(target.address) == []
     assert caller.get_literal(target.address) == [5, 6]
+
+
+def test_wildcard_arg_dynamic_element_roundtrip(get_contract):
+    target_code = """
+@external
+def data(x: DynArray[Bytes[10], 5]) -> uint256:
+    return len(x)
+    """
+
+    caller_code = """
+interface Source:
+    def data(x: DynArray[Bytes[10], ...]) -> uint256: nonpayable
+
+@external
+def get_empty(addr: address) -> uint256:
+    return extcall Source(addr).data([])
+
+@external
+def get_bounded(addr: address, xs: DynArray[Bytes[10], 5]) -> uint256:
+    return extcall Source(addr).data(xs)
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get_empty(target.address) == 0
+    assert caller.get_bounded(target.address, [b"abc", b"defg"]) == 2
+
+
+def test_wildcard_arg_user_struct_element_empty(get_contract):
+    target_code = """
+struct S:
+    b: Bytes[10]
+
+@external
+def data(x: DynArray[S, 5]) -> uint256:
+    return len(x)
+    """
+
+    caller_code = """
+struct S:
+    b: Bytes[10]
+
+interface Source:
+    def data(x: DynArray[S, ...]) -> uint256: nonpayable
+
+@external
+def get_empty(addr: address) -> uint256:
+    return extcall Source(addr).data([])
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.get_empty(target.address) == 0
+
+
+def test_wildcard_tuple_arg_empty_list_element(get_contract):
+    target_code = """
+@external
+def sink(input: (DynArray[uint256, 3], uint256)) -> uint256:
+    return len(input[0]) + input[1]
+    """
+
+    caller_code = """
+interface Sink:
+    def sink(input: (DynArray[uint256, ...], uint256)) -> uint256: nonpayable
+
+@external
+def do_it(addr: address) -> uint256:
+    return extcall Sink(addr).sink(([], 42))
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.do_it(target.address) == 42
 
 
 @pytest.mark.parametrize(

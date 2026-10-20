@@ -111,9 +111,7 @@ def exc_handler_to_dict(file_path: Optional[str], exception: Exception, componen
         "message": str(exception).strip('"'),
     }
     if hasattr(exception, "message"):
-        err_dict.update(
-            {"message": exception.message, "formattedMessage": str(exception)}  # type: ignore
-        )
+        err_dict.update({"message": exception.message, "formattedMessage": str(exception)})
     if file_path is not None:
         err_dict["sourceLocation"] = {"file": file_path}
         if getattr(exception, "lineno", None) is not None:
