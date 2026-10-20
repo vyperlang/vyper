@@ -645,7 +645,13 @@ class VenomCompiler:
         # for making sure its output stack layout works no matter which
         # bb it jumps into).
         layout = self.liveness.out_vars(in_bb)
-        to_pop = list(layout.difference(inputs))
+        to_pop = []
+        for item in stack._stack:
+            if not isinstance(item, IRVariable):
+                continue
+            if item not in inputs and item not in layout:
+                to_pop.append(item)
+        to_pop.extend(list(layout.difference(inputs)))
         self._assert_dead_stack_prefix(stack)
         physical_to_pop = [
             var for var in to_pop if stack.get_depth(var) is not StackModel.NOT_IN_STACK
@@ -744,13 +750,9 @@ class VenomCompiler:
             # example, for `%56 = %label1 %13 %label2 %14`, we will
             # find an instance of %13 *or* %14 in the stack and replace it with %56.
             to_be_replaced = stack.peek(depth)
-            if to_be_replaced in next_liveness:
-                # this branch seems unreachable (maybe due to make_ssa)
-                # %13/%14 is still live(!), so we make a copy of it
-                self.spiller.dup(assembly, stack, depth)
-                stack.poke(0, ret)
-            else:
-                stack.poke(depth, ret)
+            # SingleUseExpansion copies phi operands that are live past the phi
+            assert to_be_replaced not in next_liveness
+            stack.poke(depth, ret)
             return apply_line_numbers(inst, assembly)
 
         if opcode == "offset":

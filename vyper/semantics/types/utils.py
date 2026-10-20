@@ -16,9 +16,22 @@ from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_sug
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, BottomT, VyperType
-from vyper.semantics.types.infinity import INF, WILDCARD, LengthUpperBound
+from vyper.semantics.types.infinity import (
+    INF,
+    WILDCARD,
+    LengthUpperBound,
+    is_unbounded_sequence_type,
+)
+from vyper.utils import POINTER_CELL_SIZE
 
 # TODO maybe this should be merged with .types/base.py
+
+
+def member_slot_size(typ: VyperType) -> int:
+    """Return the bytes a struct member occupies inline in the struct."""
+    if is_unbounded_sequence_type(typ):
+        return POINTER_CELL_SIZE
+    return typ.size_in_bytes
 
 
 def type_from_abi(abi_type: dict) -> VyperType:
@@ -138,7 +151,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
             module_or_interface = _type_from_annotation(node.value)
         elif isinstance(node.value, vy_ast.Name):
             try:
-                module_or_interface = namespace[node.value.id]  # type: ignore
+                module_or_interface = namespace[node.value.id]
             except UndeclaredDefinition:
                 raise InvalidType(err_msg, node) from None
         else:
@@ -161,7 +174,7 @@ def _type_from_annotation(node: vy_ast.VyperNode) -> VyperType:
         # maybe handle this somewhere upstream in ast validation
         raise InvalidType(err_msg, node)
 
-    if node.id not in namespace:  # type: ignore
+    if node.id not in namespace:
         hint = get_levenshtein_error_suggestions(node.node_source_code, namespace, 0.3)
         raise UnknownType(
             f"No builtin or user-defined type named '{node.node_source_code}'.", node, hint=hint
@@ -198,9 +211,8 @@ def get_index_value(node: vy_ast.VyperNode) -> LengthUpperBound:
 
     Returns
     -------
-    int
-        Literal integer value.
-        In the future, will return `None` if the subscript is an Ellipsis
+    LengthUpperBound
+        Either an integer, INF or Wildcard (for `...`)
     """
     # this is imported to improve error messages
     # TODO: revisit this!
@@ -231,7 +243,7 @@ def get_index_value(node: vy_ast.VyperNode) -> LengthUpperBound:
             pass
         raise InvalidType("Subscript must be a literal integer", node)
 
-    if node.value <= 0:
-        raise ArrayIndexException("Subscript must be greater than 0", node)
+    if node.value < 0:
+        raise ArrayIndexException("Subscript must be at least 0", node)
 
     return node.value
