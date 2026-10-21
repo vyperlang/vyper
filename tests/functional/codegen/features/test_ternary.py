@@ -383,6 +383,28 @@ def foo(c: bool, a: DynArray[uint256, 5], b: DynArray[uint256, 5]) -> DynArray[u
     assert c.foo(test, a, b) == (a if test else b)
 
 
+def test_ternary_wildcard_arg_empty_arm(get_contract):
+    target_code = """
+@external
+def sink(input: DynArray[Bytes[10], 3]) -> uint256:
+    return len(input)
+    """
+
+    caller_code = """
+interface Sink:
+    def sink(input: DynArray[Bytes[10], ...]) -> uint256: nonpayable
+
+@external
+def do_it(addr: address, b: bool) -> uint256:
+    return extcall Sink(addr).sink([] if b else [b"x"])
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.do_it(target.address, True) == 0
+    assert caller.do_it(target.address, False) == 1
+
+
 @pytest.mark.parametrize("test", [True, False])
 def test_ternary_as_event_argument(get_contract, get_logs, test):
     code = """
@@ -399,6 +421,30 @@ def foo(c: bool, a: DynArray[uint256, 5], b: DynArray[uint256, 5]):
     c.foo(test, a, b)
     (log,) = get_logs(c, "Picked")
     assert log.args.xs == (a if test else b)
+
+
+@pytest.mark.parametrize("test", [True, False])
+def test_ternary_wildcard_arg_self_arm(get_contract, env, test):
+    target_code = """
+@external
+def sink(input: DynArray[address, 3]) -> DynArray[address, 3]:
+    return input
+    """
+
+    caller_code = """
+interface Sink:
+    def sink(input: DynArray[address, ...]) -> DynArray[address, 3]: nonpayable
+
+@external
+def do_it(addr: address, other: address, b: bool) -> DynArray[address, 3]:
+    return extcall Sink(addr).sink([self] if b else [other])
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    other = env.accounts[1]
+    expected = [caller.address if test else other]
+    assert caller.do_it(target.address, other, test) == expected
 
 
 @pytest.mark.parametrize("test", [True, False])
@@ -490,3 +536,66 @@ def get_target() -> (uint256, Bytes[64]):
 
     c.from_memory(test, *y, *x)
     assert c.get_target() == (y if test else x)
+
+
+# GH issue 5199: `[]` and `empty(...)` arms have no location and used to
+# panic in make_setter
+empty_arm_cases = [
+    ("DynArray[uint256, 2]", "[]", "[]", [], []),
+    ("DynArray[uint256, 2]", "[]", "[1]", [], [1]),
+    ("DynArray[uint256, 2]", "[1, 2]", "[]", [1, 2], []),
+    ("DynArray[uint256, 2]", "empty(DynArray[uint256, 2])", "empty(DynArray[uint256, 2])", [], []),
+    ("DynArray[uint256, 2]", "empty(DynArray[uint256, 2])", "[3]", [], [3]),
+    ("uint256[2]", "empty(uint256[2])", "[1, 2]", [0, 0], [1, 2]),
+    ("uint256[2]", "empty(uint256[2])", "empty(uint256[2])", [0, 0], [0, 0]),
+    ("Bytes[10]", "empty(Bytes[10])", "empty(Bytes[10])", b"", b""),
+    ("Bytes[10]", "b'ab'", "empty(Bytes[10])", b"ab", b""),
+    ("String[10]", "empty(String[10])", '"ab"', "", "ab"),
+]
+
+
+@pytest.mark.parametrize("typ,body,orelse,body_value,orelse_value", empty_arm_cases)
+@pytest.mark.parametrize("test", [True, False])
+def test_ternary_empty_arm(get_contract, typ, body, orelse, body_value, orelse_value, test):
+    code = f"""
+@external
+def foo(t: bool) -> {typ}:
+    tmp: {typ} = {body} if t else {orelse}
+    return tmp
+
+@external
+def bar(t: bool) -> {typ}:
+    return {body} if t else {orelse}
+    """
+    c = get_contract(code)
+    expected = body_value if test else orelse_value
+    assert c.foo(test) == expected
+    assert c.bar(test) == expected
+
+
+@pytest.mark.parametrize("test", [True, False])
+def test_ternary_empty_struct_arm(get_contract, test):
+    code = """
+struct S:
+    a: uint256
+    b: DynArray[uint256, 3]
+
+@external
+def foo(t: bool) -> S:
+    x: S = empty(S) if t else S(a=1, b=[2, 3])
+    return x
+
+@external
+def bar(t: bool) -> S:
+    return S(a=1, b=[2, 3]) if t else empty(S)
+
+@external
+def baz(t: bool) -> S:
+    return empty(S) if t else empty(S)
+    """
+    c = get_contract(code)
+    empty_s = (0, [])
+    s = (1, [2, 3])
+    assert c.foo(test) == (empty_s if test else s)
+    assert c.bar(test) == (s if test else empty_s)
+    assert c.baz(test) == empty_s

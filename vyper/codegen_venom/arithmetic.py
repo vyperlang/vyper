@@ -12,11 +12,10 @@ from typing import Optional, Union
 from vyper import ast as vy_ast
 from vyper.codegen.arithmetic import calculate_largest_base, calculate_largest_power
 from vyper.exceptions import CompilerPanic, TypeCheckFailure
-from vyper.semantics.types import AddressT, BoolT, BytesM_T, DecimalT, IntegerT
+from vyper.semantics.types import AddressT, BoolT, BytesM_T, DecimalT, IntegerT, VyperType
+from vyper.semantics.types.primitives import AnyPrimType
 from vyper.venom.basicblock import IRLiteral, IROperand
 from vyper.venom.builder import VenomBuilder
-
-AnyPrimType = Union[AddressT, BoolT, BytesM_T, DecimalT, IntegerT]  # TODO: move to shared location
 
 
 def safe_add(
@@ -278,14 +277,13 @@ def apply_binop(
     op: vy_ast.VyperNode,
     left: IROperand,
     right: IROperand,
-    typ,
+    typ: VyperType,
     base_literal: Optional[int] = None,
     exp_literal: Optional[int] = None,
 ) -> IROperand:
     """Apply a binary operation with appropriate overflow checking.
 
     Shared dispatch for both BinOp expressions and AugAssign statements.
-    One function → one HOL proof covers both lower_BinOp and lower_AugAssign.
 
     For Pow, pass base_literal/exp_literal if the operand is a compile-time
     constant (needed for bounds computation).
@@ -307,6 +305,7 @@ def apply_binop(
         return b.shr(right, left)
 
     # Arithmetic operations with overflow checks
+    assert isinstance(typ, (IntegerT, DecimalT))
     if isinstance(op, vy_ast.Add):
         return safe_add(b, left, right, typ)
     if isinstance(op, vy_ast.Sub):
@@ -314,12 +313,15 @@ def apply_binop(
     if isinstance(op, vy_ast.Mult):
         return safe_mul(b, left, right, typ)
     if isinstance(op, vy_ast.Div):
+        assert isinstance(typ, DecimalT)
         return safe_div(b, left, right, typ)
     if isinstance(op, vy_ast.FloorDiv):
+        assert isinstance(typ, IntegerT)
         return safe_floordiv(b, left, right, typ)
     if isinstance(op, vy_ast.Mod):
         return safe_mod(b, left, right, typ)
     if isinstance(op, vy_ast.Pow):
+        assert isinstance(typ, IntegerT)
         return safe_pow(b, left, right, typ, base_literal=base_literal, exp_literal=exp_literal)
 
     raise CompilerPanic(f"Unsupported binary operation: {type(op)}")  # pragma: nocover
