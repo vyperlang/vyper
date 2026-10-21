@@ -4,6 +4,9 @@ Constants used throughout codegen_venom.
 
 from __future__ import annotations
 
+# Pointer-cell layout: payload pointer followed by capacity.
+POINTER_CELL_CAPACITY_OFFSET = 32
+
 # ABI encoding
 SELECTOR_BYTES = 4
 SELECTOR_SHIFT_BITS = 224  # 256 - 32, right-align 4-byte selector in 32-byte word
