@@ -1,5 +1,6 @@
 import contextlib
 
+from vyper import ast as vy_ast
 from vyper.ast.identifiers import validate_identifier
 from vyper.exceptions import CompilerPanic, NamespaceCollision, UndeclaredDefinition
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
@@ -22,10 +23,12 @@ class Namespace(dict):
     """
 
     _scopes: list[set]
+    import_decls: dict[str, vy_ast.alias]
 
     def __new__(cls, *args, **kwargs):
         self = super().__new__(cls, *args, **kwargs)
         self._scopes = []
+        self.import_decls = {}
         return self
 
     def __init__(self):
@@ -40,7 +43,6 @@ class Namespace(dict):
         self.update(PRIMITIVE_TYPES)
         self.update(environment.CONSTANT_ENVIRONMENT_VARS)
         self.update({k: VarInfo(b) for (k, b) in get_builtin_functions().items()})
-        self.import_decls = {}
 
     def __eq__(self, other):
         return self is other
