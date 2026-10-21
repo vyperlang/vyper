@@ -188,6 +188,64 @@ def echo_inf(xs: DynArray[DynArray[Batch, INF], INF]) -> DynArray[DynArray[Batch
     assert c.echo_inf(xs) == xs
 
 
+def test_widened_internal_return(get_contract):
+    # the packer walks the declared layout, where an element is a pointer
+    # cell; a source with inline elements has to be laid out that way first,
+    # or inline length words are read as payload pointers
+    code = """
+@internal
+def g3(xs: DynArray[Bytes[10], 3]) -> DynArray[Bytes[INF], 3]:
+    return xs
+
+@internal
+def g(xs: DynArray[Bytes[10], 3]) -> DynArray[Bytes[INF], INF]:
+    return xs
+
+@external
+def f3(xs: DynArray[Bytes[10], 3]) -> DynArray[Bytes[INF], 3]:
+    return self.g3(xs)
+
+@external
+def f(xs: DynArray[Bytes[10], 3]) -> DynArray[Bytes[INF], INF]:
+    return self.g(xs)
+    """
+    c = get_contract(code)
+    assert c.f3([b""]) == [b""]
+    assert c.f3([b"ab", b"0123456789"]) == [b"ab", b"0123456789"]
+    assert c.f([b"ab"]) == [b"ab"]
+    assert c.f([]) == []
+
+
+def test_bounded_outer_copy_arg_and_ternary(get_contract):
+    # layout compatibility (`punnable`) must see a pointer cell as a cell, not
+    # as an inline value of the same size
+    code = """
+@internal
+def _first_len(xs: DynArray[Bytes[INF], 3]) -> uint256:
+    return len(xs[0])
+
+@external
+def copy3(xs: DynArray[Bytes[INF], 3]) -> DynArray[Bytes[INF], 3]:
+    ys: DynArray[Bytes[INF], 3] = xs
+    return ys
+
+@external
+def first_len(xs: DynArray[Bytes[INF], 3]) -> uint256:
+    return self._first_len(xs)
+
+@external
+def pick(
+    xs: DynArray[Bytes[INF], INF], ys: DynArray[Bytes[INF], INF], b: bool
+) -> DynArray[Bytes[INF], INF]:
+    return xs if b else ys
+    """
+    c = get_contract(code)
+    assert c.copy3([b"ab", b""]) == [b"ab", b""]
+    assert c.first_len([b"abc"]) == 3
+    assert c.pick([b"x"], [b"y"], True) == [b"x"]
+    assert c.pick([b"x"], [b"y"], False) == [b"y"]
+
+
 def test_staticcall_return(get_contract, env):
     code = """
 interface I:
