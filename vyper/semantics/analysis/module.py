@@ -898,25 +898,21 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._add_import(node)
 
     def _add_import(self, node: vy_ast.Import | vy_ast.ImportFrom) -> None:
-        import_infos = node._metadata["import_infos"]
-        assert len(node.names) == len(import_infos)
-        for alias_node, import_info in zip(node.names, import_infos):
+        for import_info in node._metadata["import_infos"]:
             # similar structure to import analyzer
-            module_info = self._load_import(import_info, alias_node)
+            module_info = self._load_import(import_info)
 
             import_info._typ = module_info
 
-            self.namespace.set_import(import_info.alias, module_info, alias_node)
+            self.namespace.set_import(import_info.alias, module_info, import_info.decl_node)
 
-    def _load_import(
-        self, import_info: ImportInfo, alias_node: vy_ast.alias
-    ) -> ModuleInfo | InterfaceT:
+    def _load_import(self, import_info: ImportInfo) -> ModuleInfo | InterfaceT:
         path = import_info.compiler_input.path
         if path.suffix == ".vy":
             module_ast = import_info.parsed
             with override_global_namespace(Namespace()):
                 module_t = _compute_module_type_r(module_ast)
-                return ModuleInfo(module_t, alias_node)
+                return ModuleInfo(module_t, import_info.decl_node)
 
         if path.suffix == ".vyi":
             module_ast = import_info.parsed

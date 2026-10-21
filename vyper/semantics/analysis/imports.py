@@ -174,9 +174,7 @@ class ImportAnalyzer:
         for alias_node in import_node.names:
             # x.y[name] as y[alias]
             name = alias_node.name
-            alias = alias_node.asname
-            if alias is None:
-                alias = name
+            alias = alias_node.local_name
 
             # don't handle things like `import x.y`
             if "." in alias:
@@ -194,7 +192,7 @@ class ImportAnalyzer:
             self._compiler_inputs[compiler_input] = ast
 
             import_node._metadata["import_infos"].append(
-                ImportInfo(alias, qualified_module_name, compiler_input, ast)
+                ImportInfo(alias_node, qualified_module_name, compiler_input, ast)
             )
 
     # load an InterfaceT or ModuleInfo from an import.
