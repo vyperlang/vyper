@@ -44,39 +44,35 @@ def test_insufficient_arguments(bad_code):
         compiler.compile_code(bad_code)
 
 
-def test_builtin_name_collision():
-    code = """
+@pytest.mark.parametrize(
+    "code, expected_message",
+    [
+        pytest.param(
+            """
 @external
 def foo():
     msg: bool = True
-    """
-    with pytest.raises(NamespaceCollision) as excinfo:
-        compiler.compile_code(code)
-    assert excinfo.value.message == "'msg' is already the name of a built-in"
-
-
-def test_builtin_type_collision():
-    code = """
+    """,
+            "'msg' is already the name of a built-in",
+            id="builtin_name",
+        ),
+        pytest.param(
+            """
 int128: Bytes[3]
-    """
-    with pytest.raises(NamespaceCollision) as excinfo:
-        compiler.compile_code(code)
-    assert excinfo.value.message == "'int128' is already the name of a built-in"
-
-
-def test_import_alias_collision_is_not_reported_as_builtin(make_input_bundle):
-    code = """
+    """,
+            "'int128' is already the name of a built-in",
+            id="builtin_type",
+        ),
+        pytest.param(
+            """
 import lib1 as lib
 import lib2 as lib
-    """
-    input_bundle = make_input_bundle({"lib1.vy": "", "lib2.vy": ""})
-    with pytest.raises(NamespaceCollision) as excinfo:
-        compiler.compile_code(code, input_bundle=input_bundle)
-    assert excinfo.value.message == "'lib' has already been declared"
-
-
-def test_flag_collision_is_not_reported_as_builtin():
-    code = """
+    """,
+            "'lib' has already been declared",
+            id="import_alias_is_not_a_builtin",
+        ),
+        pytest.param(
+            """
 flag Foo:
     A
     B
@@ -84,23 +80,28 @@ flag Foo:
 flag Foo:
     C
     D
-    """
-    with pytest.raises(NamespaceCollision) as excinfo:
-        compiler.compile_code(code)
-    assert excinfo.value.message == "'Foo' has already been declared"
-
-
-def test_struct_collision_is_not_reported_as_builtin():
-    code = """
+    """,
+            "'Foo' has already been declared",
+            id="flag_is_not_a_builtin",
+        ),
+        pytest.param(
+            """
 struct Foo:
     x: uint256
 
 struct Foo:
     y: uint256
-    """
+    """,
+            "'Foo' has already been declared",
+            id="struct_is_not_a_builtin",
+        ),
+    ],
+)
+def test_collision_message(make_input_bundle, code, expected_message):
+    input_bundle = make_input_bundle({"lib1.vy": "", "lib2.vy": ""})
     with pytest.raises(NamespaceCollision) as excinfo:
-        compiler.compile_code(code)
-    assert excinfo.value.message == "'Foo' has already been declared"
+        compiler.compile_code(code, input_bundle=input_bundle)
+    assert excinfo.value.message == expected_message
 
 
 @pytest.mark.parametrize(
