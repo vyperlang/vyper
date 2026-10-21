@@ -3,6 +3,7 @@ from typing import Iterator, Optional
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_GIntM, ABI_Tuple, ABIType
+from vyper.ast.identifiers import validate_identifier
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     EventDeclarationException,
@@ -16,12 +17,9 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.utils import validate_expected_type, validate_kwargs
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import BottomT, VyperType
-from vyper.semantics.types.infinity import (
-    type_contains_nested_unbounded_sequence,
-    type_contains_unbounded_sequence,
-)
+from vyper.semantics.types.infinity import is_runtime_sizable_type
 from vyper.semantics.types.subscriptable import HashMapT
-from vyper.semantics.types.utils import type_from_abi, type_from_annotation
+from vyper.semantics.types.utils import member_slot_size, type_from_abi, type_from_annotation
 from vyper.utils import keccak256, method_id_int
 from vyper.warnings import Deprecation, vyper_warn
 
@@ -101,6 +99,11 @@ def _get_user_type_member_name(node: vy_ast.AnnAssign, seen: set[str], type_labe
 
 def _abi_input_name(item: dict, index: int, members: dict[str, VyperType]) -> str:
     name = item.get("name") or f"_arg{index}"
+    try:
+        validate_identifier(name)
+    except StructureException:
+        name = f"_arg{index}"
+
     if name not in members:
         return name
 
@@ -309,10 +312,10 @@ class EventT(_UserType):
         """
         members: dict = {}
         inputs = abi.get("inputs", [])
-        indexed: list = [i["indexed"] for i in inputs]
-        for item in inputs:
-            members[item["name"]] = type_from_abi(item)
-
+        indexed: list = [i.get("indexed", False) for i in inputs]
+        for i, item in enumerate(inputs):
+            name = _abi_input_name(item, i, members)
+            members[name] = type_from_abi(item)
         return cls(abi["name"], members, indexed, is_anonymous=abi.get("anonymous", False))
 
     @classmethod
@@ -341,7 +344,7 @@ class EventT(_UserType):
                 indexed.append(False)
 
             member_type = type_from_annotation(annotation)
-            if type_contains_nested_unbounded_sequence(member_type):
+            if not is_runtime_sizable_type(member_type):
                 raise StructureException(
                     "Event members cannot contain unbounded sequence types inside aggregate types",
                     annotation,
@@ -452,7 +455,7 @@ class ErrorT(_UserType):
 
         for member_name, node in _iter_user_type_members(base_node, "Error"):
             member_type = type_from_annotation(node.annotation)
-            if type_contains_nested_unbounded_sequence(member_type):
+            if not is_runtime_sizable_type(member_type):
                 raise StructureException(
                     "Custom error members cannot contain unbounded sequence types "
                     "inside aggregate types",
@@ -573,9 +576,11 @@ class StructT(_UserType):
                 )
 
             member_type = type_from_annotation(node.annotation)
-            if type_contains_unbounded_sequence(member_type):
+            if not is_runtime_sizable_type(member_type):
                 raise StructureException(
-                    "Structs cannot contain unbounded sequence types", node.annotation
+                    "Struct members cannot contain unbounded sequence types "
+                    "inside aggregate types",
+                    node.annotation,
                 )
             members[member_name] = member_type
             node.target._metadata["type"] = member_type
@@ -606,7 +611,9 @@ class StructT(_UserType):
 
     @property
     def size_in_bytes(self):
-        return sum(i.size_in_bytes for i in self.member_types.values())
+        # an INF member occupies a pointer cell rather than an inline payload,
+        # so a struct always has a compile-time size (see `member_slot_size`)
+        return sum(member_slot_size(t) for t in self.member_types.values())
 
     @property
     def abi_type(self) -> ABIType:

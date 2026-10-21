@@ -10,6 +10,7 @@ from vyper.semantics.types.infinity import (
     WILDCARD,
     LengthUpperBound,
     is_bounded_length,
+    is_pointer_cell_struct_type,
     length_to_json,
     type_contains_unbounded_sequence,
 )
@@ -171,6 +172,8 @@ class SArrayT(_SequenceT):
 
     _id = "$SArray"
 
+    length: int  # narrows type from parent
+
     def __init__(self, value_type: VyperType, length: int) -> None:
         if length == 0:
             raise InvalidType("Array length is invalid")
@@ -325,7 +328,11 @@ class DArrayT(_SequenceT):
 
     @staticmethod
     def _validate_unbounded_shape(value_type, length, node=None):
-        if type_contains_unbounded_sequence(value_type):
+        if type_contains_unbounded_sequence(value_type) and not is_pointer_cell_struct_type(
+            value_type
+        ):
+            # a struct element keeps a compile-time stride (its INF members are
+            # pointer cells), so it is addressable at a fixed element size
             raise StructureException(
                 "DynArray element types cannot contain unbounded sequence types", node
             )

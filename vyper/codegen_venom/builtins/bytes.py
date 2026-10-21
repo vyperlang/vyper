@@ -155,11 +155,9 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             lowered_args.append((arg_t, arg_val, arg_len))
 
         arg_unbounded = is_unbounded_bytestring_type(arg_t)
-        if total_len_unbounded or arg_unbounded:
-            total_len = ctx.checked_add(total_len, arg_len)
-            total_len_unbounded = True
-        else:
-            total_len = b.add(total_len, arg_len)
+        total_len, total_len_unbounded = ctx.add_size(
+            total_len, arg_len, total_len_unbounded, arg_unbounded
+        )
 
     # Allocate output buffer (length word + data)
     out_ptr: IROperand
@@ -193,11 +191,9 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             dst = b.add(data_ptr, offset)
             ctx.copy_memory_dynamic(dst, arg_data, arg_len, ctx.data_size_bound(arg_t))
             arg_unbounded = is_unbounded_bytestring_type(arg_t)
-            if offset_unbounded or arg_unbounded:
-                new_offset = ctx.checked_add(offset, arg_len)
-                offset_unbounded = True
-            else:
-                new_offset = b.add(offset, arg_len)
+            new_offset, offset_unbounded = ctx.add_size(
+                offset, arg_len, offset_unbounded, arg_unbounded
+            )
             ctx.ptr_store(offset_local.ptr(), new_offset)
         else:
             # Fixed bytesM: the value is already left-aligned in 32 bytes
@@ -205,10 +201,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             offset = ctx.ptr_load(offset_local.ptr())
             dst = b.add(data_ptr, offset)
             b.mstore(dst, arg_val)
-            if offset_unbounded:
-                new_offset = ctx.checked_add(offset, arg_len)
-            else:
-                new_offset = b.add(offset, arg_len)
+            new_offset, offset_unbounded = ctx.add_size(offset, arg_len, offset_unbounded, False)
             ctx.ptr_store(offset_local.ptr(), new_offset)
 
     # Store final length at output buffer
