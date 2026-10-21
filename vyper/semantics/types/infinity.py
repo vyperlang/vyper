@@ -137,9 +137,10 @@ def is_runtime_sizable_type(typ: VyperType) -> bool:
         return True
 
     if isinstance(typ, DArrayT):
-        # an INF-bearing element is held in a pointer cell, so the array keeps
-        # a compile-time stride whatever the element is: a struct with INF
-        # members, or an INF sequence itself, nested to any depth
+        # every INF-bearing element has a compile-time stride: a struct with
+        # INF members stays inline (its members are the pointer cells), and
+        # a direct INF sequence element is itself a pointer cell, so nesting
+        # to any depth keeps the array addressable
         return is_runtime_sizable_type(typ.value_type)
 
     if isinstance(typ, StructT):
