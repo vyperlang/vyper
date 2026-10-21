@@ -37,7 +37,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.bytestrings import BytesT
 from vyper.semantics.types.infinity import is_runtime_sizable_return_type, is_runtime_sizable_type
-from vyper.semantics.types.primitives import BoolT
+from vyper.semantics.types.primitives import AddressT, BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
 from vyper.semantics.types.user import ErrorT, EventT
@@ -678,7 +678,16 @@ class ContractFunctionT(VyperType):
         # return type checking is covariant
         if return_t is not None:
             assert other_return_t is not None  # help mypy
-            if not return_t.is_subtype_of(other_return_t):
+
+            # break an import cycle (module.py imports from this module)
+            from vyper.semantics.types.module import InterfaceT
+
+            # allow interfaces returns where address is expected
+            is_subtype_like = return_t.is_subtype_of(other_return_t) or (
+                isinstance(return_t, InterfaceT) and isinstance(other_return_t, AddressT)
+            )
+
+            if not is_subtype_like:
                 return False
 
         return self.mutability == other.mutability
