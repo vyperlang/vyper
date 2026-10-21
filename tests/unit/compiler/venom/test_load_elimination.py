@@ -696,3 +696,35 @@ def test_aliased_pointer_store_load():
         sink %val
     """
     _check_pre_post(pre, post)
+
+
+@pytest.mark.parametrize("untracked", ["mload 1000", "param"])
+@pytest.mark.parametrize(
+    "store", ["mstore %ptr, 42", "mcopy %ptr, 500, 32", "calldatacopy %ptr, 0, 32"]
+)
+def test_store_through_phi_with_untracked_arm(store, untracked):
+    """
+    `%ptr` merges alloca `%a` with an address the base pointer analysis knows
+    nothing about (a pointer loaded from memory, or a param). Its only pointer
+    fact is `%a`, but the store may hit `%b`, so the cached load of `%b` must
+    be invalidated.
+    """
+    pre = f"""
+    main:
+        %par = param
+        %u = {untracked}
+        %a = alloca 32
+        %b = alloca 32
+        %v1 = mload %b
+        jnz %par, @then, @else
+    then:
+        jmp @join
+    else:
+        jmp @join
+    join:
+        %ptr = phi @then, %a, @else, %u
+        {store}
+        %v2 = mload %b
+        sink %v1, %v2
+    """
+    _check_no_change(pre)

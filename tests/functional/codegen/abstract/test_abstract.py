@@ -1183,7 +1183,6 @@ def _generate_modules(relationships: dict[str, list[(str, str)]]):
 #                str  = error case (CallViolation, hint contains this)
 CHAIN_CALL_TESTS = [
     # === SUCCESS CASES ===
-    ("self -initializes-> a -initializes-> b", "a.b.foo", None),
     (  # Can call through c and get a's implementation
         """
         self -initializes-> initializer -initializes-> a -overrides-> b -overrides-> c

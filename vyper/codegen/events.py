@@ -17,8 +17,8 @@ def _encode_log_topics(expr, event_id, arg_nodes, context):
         elif isinstance(arg.typ, _BytestringT):
             value = keccak256_helper(arg, context=context)
         else:
-            # TODO block at higher level
-            raise TypeMismatch("Event indexes may only be value types", expr)
+            # unreachable: rejected at the log site in `EventT._ctor_call_return`
+            raise TypeMismatch("Event indexes may only be value types", expr)  # pragma: nocover
 
         topics.append(value)
 

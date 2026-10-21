@@ -2,8 +2,9 @@ from tests.venom_utils import parse_from_basic_block
 from vyper.evm.address_space import MEMORY
 from vyper.venom.analysis import BasePtrAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis.base_ptr_analysis import Ptr
 from vyper.venom.basicblock import IRVariable
-from vyper.venom.memory_location import MemoryLocation
+from vyper.venom.memory_location import Allocation, MemoryLocation
 
 
 def test_base_ptr_basic():
@@ -89,3 +90,117 @@ def test_base_ptr_loop_offsets_collapse_to_unknown():
     assert ptr is not None
     assert ptr.base_alloca.inst.opcode == "dalloca"
     assert ptr.offset is None
+
+
+def test_aliases_of_allocation():
+    code = """
+    main:
+        %p = alloca 64
+        %a0 = add 0, %p
+        %a32 = add 32, %p
+        %v = mload %a0
+        sink %v
+    """
+
+    ctx = parse_from_basic_block(code)
+    fn = next(ctx.get_functions())
+    ac = IRAnalysesCache(fn)
+    base_ptr = ac.request_analysis(BasePtrAnalysis)
+
+    alloca = fn.entry.instructions[0]
+    aliases = base_ptr.aliases_of_allocation(Allocation(alloca))
+
+    assert aliases == {IRVariable("%p"), IRVariable("%a0"), IRVariable("%a32")}
+
+
+def test_aliases_of_allocation_ambiguous_returns_none():
+    # %x merges pointers into two different allocations, so it cannot be
+    # attributed unambiguously to either one.
+    code = """
+    main:
+        %p = alloca 64
+        %q = alloca 64
+        %cond = 1
+        jnz %cond, @b1, @b2
+    b1:
+        %x1 = add 0, %p
+        jmp @join
+    b2:
+        %x2 = add 0, %q
+        jmp @join
+    join:
+        %x = phi @b1, %x1, @b2, %x2
+        %v = mload %x
+        sink %v
+    """
+
+    ctx = parse_from_basic_block(code)
+    fn = next(ctx.get_functions())
+    ac = IRAnalysesCache(fn)
+    base_ptr = ac.request_analysis(BasePtrAnalysis)
+
+    alloca_p = fn.entry.instructions[0]
+    assert base_ptr.aliases_of_allocation(Allocation(alloca_p)) is None
+
+
+def test_aliases_of_allocation_reassigned_to_non_pointer_returns_none():
+    for replacement in ("%p = 0", "%p = calldataload 0"):
+        code = f"""
+        main:
+            %tmp = alloca 64
+            %p = %tmp
+            {replacement}
+            %v = mload %p
+            sink %v
+        """
+
+        ctx = parse_from_basic_block(code)
+        fn = next(ctx.get_functions())
+        ac = IRAnalysesCache(fn)
+        base_ptr = ac.request_analysis(BasePtrAnalysis)
+
+        alloca = fn.entry.instructions[0]
+        assert base_ptr.aliases_of_allocation(Allocation(alloca)) is None
+
+
+def test_base_ptr_phi_facts_reach_uses_past_unchanged_blocks():
+    # the analysis walks one arm into `join` and everything below it before
+    # it visits the other arm, so that arm's allocation reaches %x only on
+    # a later visit of `join`. %y is two blocks further down, behind a
+    # block with no pointer instructions, and must still see both
+    # allocations.
+    code = """
+    main:
+        %c = calldataload 0
+        jnz %c, @then, @else
+    then:
+        %a = alloca 64
+        jmp @join
+    else:
+        %b = alloca 64
+        jmp @join
+    join:
+        %x = phi @then, %a, @else, %b
+        jmp @mid
+    mid:
+        jmp @use
+    use:
+        %y = add 32, %x
+        %v = mload %y
+        sink %v
+    """
+
+    ctx = parse_from_basic_block(code)
+    fn = next(ctx.get_functions())
+    ac = IRAnalysesCache(fn)
+    base_ptr = ac.request_analysis(BasePtrAnalysis)
+
+    alloca_a = fn.get_basic_block("then").instructions[0]
+    alloca_b = fn.get_basic_block("else").instructions[0]
+    expected = {Ptr(Allocation(alloca_a), 32), Ptr(Allocation(alloca_b), 32)}
+    assert set(base_ptr.get_possible_ptrs(IRVariable("%y"))) == expected
+
+    # a read through %y may touch either allocation, so it cannot be pinned
+    # to one of them
+    load = fn.get_basic_block("use").instructions[1]
+    assert base_ptr.get_read_location(load, MEMORY) == MemoryLocation(offset=None, size=32)
