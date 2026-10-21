@@ -134,7 +134,7 @@ def resolve_symbols(
 
 def note_line_num(line_number_map, pc, item):
     # Record AST attached to pc
-    if isinstance(item, TaggedInstruction):  # type: ignore
+    if isinstance(item, TaggedInstruction):
         if (ast_node := item.ast_source) is not None:
             ast_node = ast_node.get_original_node()
             if hasattr(ast_node, "node_id"):

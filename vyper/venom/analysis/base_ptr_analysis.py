@@ -1,5 +1,4 @@
 import dataclasses as dc
-from collections import deque
 from dataclasses import dataclass
 from typing import Optional
 
@@ -18,7 +17,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import RET_INSTRUCTIONS, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.memory_location import (
     Allocation,
     InstAccessOps,
@@ -109,18 +108,21 @@ class BasePtrAnalysis(IRAnalysis):
         self._untracked_root_active = set()
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
 
-        worklist = deque(self.cfg.dfs_pre_walk)
-
-        while len(worklist) > 0:
-            bb: IRBasicBlock = worklist.popleft()
-
+        # facts are per variable, not per program point: a use can sit any
+        # number of blocks below the definition (e.g. a phi operand from a
+        # predecessor visited after the join, read in a loop body behind a
+        # header with no pointer instructions), so re-visiting only the
+        # successors of a changed block can miss it. sweep every block until
+        # nothing changes. facts only grow, and there are finitely many
+        # variables and allocations; conflicting offsets for an allocation
+        # collapse to None, so this terminates.
+        blocks = list(self.cfg.dfs_pre_walk)
+        changed = True
+        while changed:
             changed = False
-            for inst in bb.instructions:
-                changed |= self._handle_inst(inst)
-
-            if changed:
-                for succ in self.cfg.cfg_out(bb):
-                    worklist.append(succ)
+            for bb in blocks:
+                for inst in bb.instructions:
+                    changed |= self._handle_inst(inst)
 
         self.vars_in_allocations = dict()
         for var, ptrs in self.var_to_mem.items():
@@ -275,7 +277,7 @@ class BasePtrAnalysis(IRAnalysis):
         if addr_space == MEMORY:
             return self._get_memory_write_location(inst)
         elif addr_space in (STORAGE, TRANSIENT):
-            return self._get_storage_write_location(inst, addr_space)
+            return self._get_storage_transient_write_location(inst, addr_space)
         else:  # pragma: nocover
             raise CompilerPanic(f"Invalid location type: {addr_space}")
 
@@ -284,7 +286,7 @@ class BasePtrAnalysis(IRAnalysis):
         if addr_space == MEMORY:
             return self._get_memory_read_location(inst)
         elif addr_space in (STORAGE, TRANSIENT):
-            return self._get_storage_read_location(inst, addr_space)
+            return self._get_storage_transient_read_location(inst, addr_space)
         elif addr_space in (CALLDATA, DATA, CODE, RETURNDATA):
             return self._get_copyable_read_location(inst, addr_space)
         else:  # pragma: nocover
@@ -310,7 +312,7 @@ class BasePtrAnalysis(IRAnalysis):
             return MemoryLocation.UNDEFINED
         if inst.opcode == "invoke":
             return MemoryLocation.UNDEFINED
-        if inst.opcode == "ret":
+        if inst.opcode in RET_INSTRUCTIONS:
             return MemoryLocation.UNDEFINED
 
         if inst.get_read_effects() & effects.MEMORY == effects.EMPTY:
@@ -320,7 +322,7 @@ class BasePtrAnalysis(IRAnalysis):
 
     # REVIEW: this should be refactored too, like get_storage_read_location
     # and get_storage_write_location
-    def _get_storage_write_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
+    def _get_storage_transient_write_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
         opcode = inst.opcode
         if opcode == addr_space.store_op:
             dst = inst.operands[1]
@@ -333,11 +335,12 @@ class BasePtrAnalysis(IRAnalysis):
         elif opcode in ("create", "create2"):
             return MemoryLocation.UNDEFINED
 
-        # TODO: add sanity check that the inst has no write effects in this addr_space
+        eff = {STORAGE: effects.STORAGE, TRANSIENT: effects.TRANSIENT}
+        assert eff[addr_space] not in inst.get_write_effects()
         return MemoryLocation.EMPTY
 
     # REVIEW: should be in MemoryLocation -- does not use base ptr analysis
-    def _get_storage_read_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
+    def _get_storage_transient_read_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
         opcode = inst.opcode
         if opcode == addr_space.load_op:
             ofst = inst.operands[0]
@@ -356,14 +359,15 @@ class BasePtrAnalysis(IRAnalysis):
             # which could happen in the next program invocation.
             # while not a "true" read, this case makes the code in DSE simpler.
             return MemoryLocation.UNDEFINED
-        elif opcode == "ret":
-            # `ret` escapes our control and returns execution to the
+        elif opcode in RET_INSTRUCTIONS:
+            # `ret`/`retfmp`/`dret` escapes our control and returns execution to the
             # caller function. to be conservative, we model these as
             # "future" reads which could happen in the caller.
             # while not a "true" read, this case makes the code in DSE simpler.
             return MemoryLocation.UNDEFINED
 
-        # TODO: add sanity check that the inst has no read effects in this addr_space
+        eff = {STORAGE: effects.STORAGE, TRANSIENT: effects.TRANSIENT}
+        assert eff[addr_space] not in inst.get_read_effects(), inst
         return MemoryLocation.EMPTY
 
     def _get_copyable_read_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:

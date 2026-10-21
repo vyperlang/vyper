@@ -28,18 +28,15 @@ from vyper.semantics.analysis.base import (
     VarOffset,
 )
 from vyper.semantics.analysis.utils import (
-    check_modifiability,
     get_exact_type_from_node,
+    get_modifiability,
     uses_state,
     validate_expected_type,
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.bytestrings import BytesT
-from vyper.semantics.types.infinity import (
-    type_contains_nested_unbounded_sequence,
-    type_contains_unsupported_unbounded_sequence,
-)
+from vyper.semantics.types.infinity import is_runtime_sizable_return_type, is_runtime_sizable_type
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
@@ -98,6 +95,9 @@ class ContractFunctionT(VyperType):
     typeclass = "contract_function"
 
     _is_callable = True
+
+    # the return value is only known at runtime
+    _modifiability = Modifiability.MODIFIABLE
 
     def __init__(
         self,
@@ -860,7 +860,7 @@ class ContractFunctionT(VyperType):
 
     # calculate the abi signature for a given set of kwargs
     def abi_signature_for_kwargs(self, kwargs: list[KeywordArg]) -> str:
-        args = self.positional_args + kwargs  # type: ignore
+        args = self.positional_args + kwargs
         return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
 
@@ -880,7 +880,7 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
         return None
     # note: consider, for cleanliness, adding DataLocation.RETURN_VALUE
     ret = type_from_annotation(funcdef.returns, DataLocation.MEMORY)
-    if type_contains_unsupported_unbounded_sequence(ret):
+    if not is_runtime_sizable_return_type(ret):
         raise StructureException(
             "Function returns cannot contain unbounded sequence types inside aggregate types",
             funcdef.returns,
@@ -1103,7 +1103,7 @@ def _parse_args(
             raise ArgumentException(f"Function parameter '{argname}' is missing a type", arg)
 
         type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
-        if type_contains_nested_unbounded_sequence(type_):
+        if not is_runtime_sizable_type(type_):
             msg = "Function parameters cannot contain unbounded sequence types"
             msg += " inside aggregate types"
             raise StructureException(msg, arg.annotation)
@@ -1129,7 +1129,7 @@ def _parse_args(
                     value,
                 )
 
-            if not check_modifiability(value, Modifiability.RUNTIME_CONSTANT):
+            if get_modifiability(value) > Modifiability.RUNTIME_CONSTANT:
                 raise StateAccessViolation("Value must be immutable or constant", value)
 
             if not isinstance(value, vy_ast.Ellipsis):
@@ -1158,6 +1158,9 @@ class MemberFunctionT(VyperType):
 
     typeclass = "member_function"
     _is_callable = True
+
+    # the return value is only known at runtime
+    _modifiability = Modifiability.MODIFIABLE
 
     # keep LGTM linter happy
     def __eq__(self, other):
