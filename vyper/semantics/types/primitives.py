@@ -2,11 +2,12 @@
 
 from decimal import Decimal
 from functools import cached_property
-from typing import Any, Tuple, Union
+from typing import Any, NoReturn, Tuple, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_Address, ABI_Bool, ABI_BytesM, ABI_GIntM, ABIType
 from vyper.exceptions import (
+    BadChecksumAddress,
     CompilerPanic,
     InvalidLiteral,
     InvalidOperation,
@@ -413,7 +414,7 @@ class DecimalT(NumericT):
 class AddressT(_PrimT):
     _id = "address"
     _valid_literal = (vy_ast.Hex,)
-    _type_members = {
+    _builtin_members = {
         "balance": UINT(256),
         "codehash": BytesM_T(32),
         "codesize": UINT(256),
@@ -431,13 +432,18 @@ class AddressT(_PrimT):
         if node.n_bytes != 20:
             raise InvalidLiteral(f"Invalid address. Expected 20 bytes, got {node.n_bytes}.", node)
 
-        addr = node.value
-        if not is_checksum_encoded(addr):
-            raise InvalidLiteral(
-                "Address checksum mismatch. If you are sure this is the right "
-                f"address, the correct checksummed form is: {checksum_encode(addr)}",
-                node,
-            )
+        if not is_checksum_encoded(node.value):
+            self.raise_bad_checksum(node)
+
+    @classmethod
+    def _checksum_error_msg(cls, node: vy_ast.Hex) -> str:
+        msg = "Address checksum mismatch. If you are sure this is the right "
+        msg += f"address, the correct checksummed form is: {checksum_encode(node.value)}"
+        return msg
+
+    @classmethod
+    def raise_bad_checksum(cls, node: vy_ast.Hex) -> NoReturn:
+        raise BadChecksumAddress(cls._checksum_error_msg(node), node)
 
     def compare_type(self, other):
         from vyper.semantics.types.module import InterfaceT
@@ -457,3 +463,6 @@ class SelfT(AddressT):
         # compares true to AddressT
         # This checks if either is a subtype of the other, which doesn't seem correct
         return isinstance(other, type(self)) or isinstance(self, type(other))
+
+
+AnyPrimType = Union[AddressT, BoolT, BytesM_T, DecimalT, IntegerT]

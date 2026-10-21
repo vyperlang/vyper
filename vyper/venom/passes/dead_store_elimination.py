@@ -112,7 +112,7 @@ class DeadStoreElimination(IRPass):
                 break
 
             # the loc use is reachable from the query def
-            some_reachable |= self._is_reachable_from(inst, query_def.inst)
+            some_reachable |= self.reachable.is_reachable_from(inst, query_def.inst)
         else:
             # there were only reads so just return if some of them where reachable
             return some_reachable
@@ -190,12 +190,3 @@ class DeadStoreElimination(IRPass):
         # If the memory definition is clobbered by another memory access,
         # it is a dead store.
         return not self._is_memory_def_live(mem_def)
-
-    def _is_reachable_from(self, inst: IRInstruction, start_inst: IRInstruction) -> bool:
-        if inst.parent == start_inst.parent:
-            bb = inst.parent
-            start_index = bb.instructions.index(start_inst)
-            index = bb.instructions.index(inst)
-            return start_index < index or bb in self.reachable.reachable[bb]
-
-        return inst.parent in self.reachable.reachable[start_inst.parent]

@@ -33,8 +33,14 @@ class ConcretizeMemLocPass(IRPass):
         already_allocated = [item for item in livesets if self.allocator.is_allocated(item[0])]
         to_allocate = [item for item in livesets if not self.allocator.is_allocated(item[0])]
         # (note this is *heuristic*; our goal is to minimize conflicts
-        # between livesets)
-        to_allocate.sort(key=lambda x: len(x[1]), reverse=False)
+        # between livesets). escaped allocas are live to the end of the
+        # function and so conflict with everything after their first use;
+        # allocate them first so they take the lowest offsets. memory
+        # expansion is paid for the highest address touched, so a small
+        # always-live alloca must not sit above a large, rarely-touched
+        # buffer.
+        escaped = self.mem_liveness.escaped
+        to_allocate.sort(key=lambda x: (x[0] not in escaped, len(x[1])))
 
         self.allocator.add_allocated([mem for mem, _ in already_allocated])
 

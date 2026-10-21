@@ -9,6 +9,7 @@ from vyper.venom.analysis import (
     DFGAnalysis,
     LivenessAnalysis,
     MemoryAliasAnalysis,
+    MemSSA,
 )
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
@@ -85,9 +86,15 @@ class MemoryCopyElisionPass(IRPass):
             if not change:
                 break
 
-        # Invalidate analyses that may be affected by IR modifications
+        # Invalidate analyses that may be affected by IR modifications.
+        # MemoryAliasAnalysis captures the DFG instance it was built with, so
+        # it must not outlive the DFG invalidation below.
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
+        # MemSSA keeps per-instruction memory defs/uses, so it is stale after
+        # an elided or rewritten copy. Its invalidation also cascades to the
+        # alias analysis when MemSSA was cached.
+        self.analyses_cache.invalidate_analysis(MemSSA)
         self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
         self.analyses_cache.invalidate_analysis(MemoryAliasAnalysis)
         self.analyses_cache.invalidate_analysis(TranslateAnalysis)
@@ -260,8 +267,11 @@ class MemoryCopyElisionPass(IRPass):
         # fixed-size copies (where size is a literal) are tracked in self.copies.
         # Variable-size copies have is_fixed=False and aren't tracked.
         src = self.copy_forwarding.copy_source(previous)
-        inst.opcode = previous.opcode
-        inst.operands[1] = src
+        size, _, dst = inst.operands
+        # go through the updater so that `memory_read_max_size` is dropped when
+        # the rewrite turns this into a non-memory read (e.g. calldatacopy);
+        # a stale bound would then describe an operand which no longer exists.
+        self.updater.update(inst, previous.opcode, [size, src, dst])
 
     def _try_elide_redundant_copy(self, inst: IRInstruction) -> bool:
         """

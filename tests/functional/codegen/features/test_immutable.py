@@ -1,6 +1,7 @@
 import pytest
 
 from vyper.compiler.settings import OptimizationLevel
+from vyper.utils import method_id
 
 
 @pytest.mark.parametrize(
@@ -147,6 +148,27 @@ def get_my_list() -> uint256[3]:
     values = (100, 42, 23230)
     c = get_contract(code, *values)
     assert c.get_my_list() == list(values)
+
+
+def test_list_immutable_subscript_assignment_in_loop(get_contract):
+    # the loop variable is read-only, but it is only an index: it does not
+    # make `my_list` any less writable inside the constructor
+    code = """
+my_list: immutable(uint256[3])
+
+@deploy
+def __init__():
+    my_list = [0, 0, 0]
+    for i: uint256 in range(3):
+        my_list[i] = i * 2
+
+@view
+@external
+def get_my_list() -> uint256[3]:
+    return my_list
+    """
+    c = get_contract(code)
+    assert c.get_my_list() == [0, 2, 4]
 
 
 def test_dynarray_immutable(get_contract):
@@ -741,3 +763,28 @@ def __init__(arg: uint256):
 
     with tx_failed():
         get_contract(code, arg)
+
+
+@pytest.mark.parametrize(
+    "terminator,revert_reason",
+    [('raise "nope"', "nope"), ('raw_revert(method_id("Nope()"))', method_id("Nope()").hex())],
+)
+def test_always_reverting_constructor_with_immutables(
+    get_contract, tx_failed, terminator, revert_reason
+):
+    # the `deploy` fragment declares the `mem_deploy_end` constant, which is
+    # referenced by the immutable store in the constructor. when the
+    # constructor always reverts, that fragment is unreachable; the
+    # declaration must survive dead code elimination anyway.
+    code = f"""
+V: public(immutable(uint256))
+
+@deploy
+def __init__():
+    self.V = 1
+    {terminator}
+    """
+
+    # deployment reverts, with the revert reason from the constructor
+    with tx_failed(exc_text=revert_reason):
+        get_contract(code)

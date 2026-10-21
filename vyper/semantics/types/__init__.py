@@ -1,8 +1,20 @@
 from . import primitives, subscriptable, user
-from .base import TYPE_T, VOID_TYPE, BottomT, KwargSettings, VyperType, is_type_t, map_void
+from .base import INF_T, TYPE_T, VOID_TYPE, BottomT, KwargSettings, VyperType, is_type_t, map_void
 from .bytestrings import BytesT, StringT, _BytestringT
 from .function import ContractFunctionT, MemberFunctionT
-from .infinity import INF, WILDCARD, LengthUpperBound, is_bounded_length
+from .infinity import (
+    INF,
+    WILDCARD,
+    LengthUpperBound,
+    is_bounded_length,
+    is_pointer_cell_struct_type,
+    is_runtime_sizable_type,
+    is_supported_unbounded_tuple_type,
+    is_unbounded_bytestring_type,
+    is_unbounded_dynarray_type,
+    is_unbounded_sequence_type,
+    type_contains_unbounded_sequence,
+)
 from .module import InterfaceT, ModuleT
 from .primitives import AddressT, BoolT, BytesM_T, DecimalT, IntegerT, SelfT
 from .subscriptable import DArrayT, HashMapT, SArrayT, TupleT

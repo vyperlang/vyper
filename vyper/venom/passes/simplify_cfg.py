@@ -50,6 +50,13 @@ class SimplifyCFGPass(IRPass):
         assert b.label in jump_inst.operands, f"{b.label} {jump_inst.operands}"
         jump_inst.operands[jump_inst.operands.index(b.label)] = next_bb.label
 
+        # Bypassing the jump can make both arms of a `jnz` converge on the same
+        # block. Canonicalize to `jmp`, otherwise consumers which expect a `jnz`
+        # to have two successors (e.g. BranchOptimizationPass) see only one.
+        if jump_inst.opcode == "jnz" and jump_inst.operands[1] == jump_inst.operands[2]:
+            jump_inst.opcode = "jmp"
+            jump_inst.operands = [jump_inst.operands[1]]
+
         self._schedule_label_replacement(b.label, next_bb.label)
 
         # Update CFG

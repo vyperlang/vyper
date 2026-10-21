@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from vyper import compiler
@@ -139,3 +141,94 @@ def test():
     c.test()
     (log,) = get_logs(c, "Test")
     assert log.args.n == 1
+
+
+@pytest.mark.parametrize(
+    "typ",
+    ["uint256[2]", "DynArray[uint256, 3]", "DynArray[uint256, INF]", "(uint256, uint256)", "Foo"],
+)
+def test_indexed_reference_type_fails(typ):
+    code = f"""
+struct Foo:
+    a: uint256
+
+event E:
+    x: indexed({typ})
+
+@external
+def foo():
+    log E(x=empty({typ}))
+"""
+    with pytest.raises(StructureException) as e:
+        compiler.compile_code(code)
+    assert e.value.message == "Event indexes may only be value types"
+
+
+@pytest.mark.parametrize(
+    ("typ", "value"),
+    [
+        ("uint256", "1"),
+        ("int128", "-1"),
+        ("bool", "True"),
+        ("address", "msg.sender"),
+        ("bytes32", "empty(bytes32)"),
+        ("bytes4", "empty(bytes4)"),
+        ("Flg", "Flg.A"),
+        ("IFoo", "IFoo(msg.sender)"),
+        ("Bytes[10]", "b'ab'"),
+        ("String[10]", "'ab'"),
+    ],
+)
+def test_indexed_value_type(typ, value):
+    code = f"""
+flag Flg:
+    A
+
+interface IFoo:
+    def f(): nonpayable
+
+event E:
+    x: indexed({typ})
+
+@external
+def foo():
+    log E(x={value})
+    """
+    assert compiler.compile_code(code) is not None
+
+
+@pytest.mark.parametrize(("typ", "value"), [("Bytes[INF]", "b'ab'"), ("String[INF]", "'ab'")])
+def test_indexed_inf_bytestring(compile_inf_code, typ, value):
+    code = f"""
+event E:
+    x: indexed({typ})
+
+@external
+def foo():
+    log E(x={value})
+    """
+    compile_inf_code(code)
+
+
+def test_json_abi_indexed_reference_type_fails(make_input_bundle):
+    # json abi events bypass `EventT.from_EventDef`; the log-site check
+    # rejects an indexed member without a topic encoding for them too
+    abi = [
+        {
+            "anonymous": False,
+            "inputs": [{"indexed": True, "name": "x", "type": "uint256[2]"}],
+            "name": "EvArr",
+            "type": "event",
+        }
+    ]
+    code = """
+import JSONInterface
+
+@external
+def foo():
+    log JSONInterface.EvArr(x=[1, 2])
+    """
+    input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(abi)})
+    with pytest.raises(StructureException) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+    assert e.value.message == "Event indexes may only be value types"
