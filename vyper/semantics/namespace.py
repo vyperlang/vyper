@@ -18,17 +18,17 @@ class Namespace(dict):
     ----------
     _scopes : List[Set]
         List of sets containing the key names for each scope
-    import_decls : Dict[str, vy_ast.alias]
+    _import_decls : Dict[str, vy_ast.alias]
         Maps (aliased) module names to their import nodes, only used to improve error messages
     """
 
     _scopes: list[set]
-    import_decls: dict[str, vy_ast.alias]
+    _import_decls: dict[str, vy_ast.alias]
 
     def __new__(cls, *args, **kwargs):
         self = super().__new__(cls, *args, **kwargs)
         self._scopes = []
-        self.import_decls = {}
+        self._import_decls = {}
         return self
 
     def __init__(self):
@@ -56,9 +56,9 @@ class Namespace(dict):
 
     def set_import(self, attr, obj, alias_node):
         self.__setitem__(attr, obj)
-        assert attr not in self.import_decls
+        assert attr not in self._import_decls
 
-        self.import_decls[attr] = alias_node
+        self._import_decls[attr] = alias_node
 
     def __getitem__(self, key):
         if key not in self:
@@ -75,7 +75,7 @@ class Namespace(dict):
             raise CompilerPanic("Bad use of namespace as a context manager")
         for key in self._scopes.pop():
             del self[key]
-            self.import_decls.pop(key, None)
+            self._import_decls.pop(key, None)
 
     def enter_scope(self):
         """
@@ -110,7 +110,7 @@ class Namespace(dict):
         _ns = Namespace()
         _ns.update(self)
         _ns._scopes = [s.copy() for s in self._scopes]  # 2-deep copy, to keep elements shared
-        _ns.import_decls = self.import_decls.copy()
+        _ns._import_decls = self._import_decls.copy()
         return _ns
 
     __copy__ = copy
@@ -123,9 +123,9 @@ class Namespace(dict):
         validate_identifier(attr)
 
         if attr in self:
-            if attr in self.import_decls:
-                # point at the alias node rather than the imported declaration
-                prev_decl = self.import_decls[attr]
+            if attr in self._import_decls:
+                # point at the alias node rather than the module
+                prev_decl = self._import_decls[attr]
             else:
                 prev_decl = super().__getitem__(attr).decl_node
             if prev_decl is None:
