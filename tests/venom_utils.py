@@ -52,6 +52,7 @@ def assert_bb_eq(bb1: IRBasicBlock, bb2: IRBasicBlock):
 def assert_fn_eq(fn1: IRFunction, fn2: IRFunction):
     assert fn1.name.value == fn2.name.value
     assert fn1._fmp_signature == fn2._fmp_signature
+    assert fn1.noinline == fn2.noinline
     assert len(fn1._basic_block_dict) == len(fn2._basic_block_dict)
 
     for name1, bb1 in fn1._basic_block_dict.items():

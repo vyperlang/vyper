@@ -41,9 +41,9 @@ from vyper.semantics.analysis.imports import ImportAnalyzer
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.analysis.local import ExprVisitor, analyze_functions, check_module_uses
 from vyper.semantics.analysis.utils import (
-    check_modifiability,
     get_exact_type_from_node,
     get_expr_info,
+    get_modifiability,
     structurally_equivalent,
 )
 from vyper.semantics.data_locations import DataLocation
@@ -59,6 +59,12 @@ from vyper.semantics.types import (
     is_type_t,
 )
 from vyper.semantics.types.function import ContractFunctionT, KeywordArg, _FunctionArg
+from vyper.semantics.types.infinity import (
+    is_supported_unbounded_tuple_type,
+    is_unbounded_dynarray_type,
+    is_unbounded_sequence_type,
+    type_contains_unbounded_sequence,
+)
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.utils import type_from_annotation
 from vyper.utils import OrderedSet
@@ -148,8 +154,22 @@ def _analyze_module_bodies(module_ast: vy_ast.Module) -> None:
     with override_global_namespace(namespace):
         analyze_functions(module_ast)
         _validate_exports_uses(module_ast, module_t)
+        _validate_initializable_modules(module_ast, module_t)
         _validate_initialized_modules(module_ast, module_t)
         _validate_used_modules(module_ast, module_t)
+
+
+def _validate_initializable_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
+    """Check all `initializes:` modules are stateful or abstract."""
+    for info in module_t.initialized_modules:
+        initialized_t = info.module_info.module_t
+        if not (initialized_t.is_stateful or initialized_t.is_abstract):
+            alias = info.module_info.alias
+            raise InitializerException(
+                f"Cannot initialize a stateless concrete module `{alias}`!",
+                info.node,
+                hint=f"remove `initializes: {alias}`",
+            )
 
 
 def _validate_used_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
@@ -410,6 +430,7 @@ def _validate_overrides(func_t: ContractFunctionT, node: vy_ast.FunctionDef):
 
         if abstract_t._overridden_by is not None:
             existing_override = abstract_t._overridden_by.ast_def
+            assert existing_override is not None
             existing_override_path = existing_override.module_node.path
             msg = f"`{module_info.alias}.{node.name}` was already overridden"
             msg += f" in `{existing_override_path}`!"
@@ -421,6 +442,22 @@ def _validate_overrides(func_t: ContractFunctionT, node: vy_ast.FunctionDef):
             )
 
         abstract_t.set_overridden_by(func_t)
+
+
+def _is_supported_constant_type(typ: VyperType) -> bool:
+    """Return True if a constant can have type `typ`.
+
+    Constants hold INF only as a top-level sequence of elements without INF,
+    or a tuple of such sequences; a struct with INF members is never part of
+    a constant, including as the element of an INF DynArray.
+    """
+    if not type_contains_unbounded_sequence(typ):
+        return True
+    if is_supported_unbounded_tuple_type(typ):
+        return True
+    if is_unbounded_dynarray_type(typ):
+        return not type_contains_unbounded_sequence(typ.value_type)
+    return is_unbounded_sequence_type(typ)
 
 
 class ModuleAnalyzer(VyperNodeVisitorBase):
@@ -488,7 +525,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         _ns = Namespace()
         # note that we don't just copy the namespace because
         # there are constructor issues.
-        _ns.update({k: self.namespace[k] for k in self.namespace._scopes[-1]})  # type: ignore
+        _ns.update({k: self.namespace[k] for k in self.namespace._scopes[-1]})
         _ns._scopes = self.namespace._scopes.copy()
         self.ast._metadata["namespace"] = _ns
 
@@ -774,19 +811,18 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             # mutability is checked automatically preventing assignment
             # outside of the constructor, here we just check a value is assigned,
             # not necessarily where
+            # `self.<name> = ...`: Assign(target=Attribute(value=Name("self"), attr=<name>))
             assignments = self.ast.get_descendants(
-                vy_ast.Assign, filters={"target.id": node.target.id}
+                vy_ast.Assign, filters={"target.value.id": "self", "target.attr": name}
             )
-            if not assignments:
-                # Special error message for common wrong usages via `self.<immutable name>`
-                wrong_self_attribute = self.ast.get_descendants(
-                    vy_ast.Attribute, {"value.id": "self", "attr": node.target.id}
-                )
-                message = (
-                    "Immutable variables must be accessed without 'self'"
-                    if len(wrong_self_attribute) > 0
-                    else "Immutable definition requires an assignment in the constructor"
-                )
+            # `<name> = ...`: Assign(target=<name>)
+            deprecated_assignments = self.ast.get_descendants(
+                vy_ast.Assign, filters={"target.id": name}
+            )
+
+            if not assignments and not deprecated_assignments:
+
+                message = "Immutable definition requires an assignment in the constructor"
                 raise ImmutableViolation(message, node)
 
         location = (
@@ -806,6 +842,20 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         )
 
         type_ = type_from_annotation(node.annotation, location)
+        if node.is_constant and not _is_supported_constant_type(type_):
+            raise StructureException(
+                "Constants cannot contain unbounded sequence types inside aggregate types",
+                node.annotation,
+            )
+
+        if type_contains_unbounded_sequence(type_) and location in (
+            DataLocation.STORAGE,
+            DataLocation.TRANSIENT,
+            DataLocation.CODE,
+        ):
+            raise StructureException(
+                "Module variables cannot use unbounded sequence types", node.annotation
+            )
 
         if node.is_transient and not version_check(begin="cancun"):
             raise EvmVersionException("`transient` is not available pre-cancun", node.annotation)
@@ -830,9 +880,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         def _finalize():
             # add the variable name to `self` namespace if the variable is either
-            # 1. a public constant or immutable; or
-            # 2. a storage variable, whether private or public
-            if (node.is_constant or node.is_immutable) and not node.is_public:
+            # 1. a public constant; or
+            # 2. a storage/transient/immutable variable, whether private or public
+            if node.is_constant and not node.is_public:
                 return
 
             self._self_t.typ.add_member(name, var_info)
@@ -847,7 +897,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             assert node.value is not None  # checked in VariableDecl.validate()
             ExprVisitor().visit(node.value, type_)  # performs validate_expected_type
 
-            if not check_modifiability(node.value, Modifiability.CONSTANT):
+            if get_modifiability(node.value) > Modifiability.CONSTANT:
                 raise StateAccessViolation("Value must be a literal", node.value)
 
             _validate_self_namespace()
@@ -855,11 +905,12 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             return _finalize()
 
         assert node.value is None  # checked in VariableDecl.validate()
-        if node.is_immutable:
-            _validate_self_namespace()
-            return _finalize()
 
         self.namespace.validate_assignment(name)
+
+        if node.is_immutable:
+            # TODO: Remove once referring to immutables without going through self is forbidden
+            self.namespace[name] = var_info
 
         return _finalize()
 

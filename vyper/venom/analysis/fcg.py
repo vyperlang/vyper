@@ -57,4 +57,7 @@ class FCGGlobalAnalysis(IRGlobalAnalysis):
         return [fn for fn in self.ctx.get_functions() if fn not in self._reachable]
 
     def invalidate(self):
-        pass
+        # Imported lazily to avoid an analysis-package import cycle.
+        from vyper.venom.stack_safety import StackCleanupSafety
+
+        self.global_analyses_cache.invalidate_analysis(StackCleanupSafety)

@@ -22,7 +22,6 @@ See [Tools and Resources](https://docs.vyperlang.org/en/latest/resources.html) f
 See [Documentation](http://docs.vyperlang.org/en/latest/index.html) for the documentation and overall design goals of the Vyper language.
 
 See [learn.vyperlang.org](https://learn.vyperlang.org/) for **learning Vyper by building a Pokémon game**.
-See [try.vyperlang.org](https://try.vyperlang.org/) to use Vyper in a hosted jupyter environment!
 
 **Note: Vyper is constantly evolving, use with care and understand the risks associated with smart contract development.**
 
@@ -93,6 +92,28 @@ Make sure you have `pip` (version 25.1 or above), `setuptools`, and `pytest` ins
         * `--disable-warnings`: Hide warnings which occurred during tests
 * `make mypy` to type check your changes
 * `make lint` to check your files are correctly formatted (also runs mypy)
+
+### Docker Setup
+
+Note: This is only useful for contributors, if you just want to use vyper, look [here](https://docs.vyperlang.org/en/latest/installing-vyper.html#docker).
+
+#### Build the image:
+
+`docker build . -t vyper -f Dockerfile`
+
+#### Check it runs:
+
+`docker run -v $(pwd):/code vyper --help`
+
+#### Run vyper:
+
+It works like `vyper` locally, with the difference that you should add `/code/` before the local path:
+
+`docker run -v $(pwd):/code vyper /code/<path to vy file>`
+
+Example:
+* `vyper -f abi_python examples/name_registry/name_registry.vy` becomes
+* `docker run -v $(pwd):/code vyper -f abi_python /code/examples/name_registry/name_registry.vy`
 
 ### Other Tips
 

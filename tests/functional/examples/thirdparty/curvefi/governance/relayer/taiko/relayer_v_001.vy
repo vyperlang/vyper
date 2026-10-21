@@ -42,7 +42,7 @@ def __init__(_broadcaster: address, _agent_blueprint: address):
         if mul10 == 0:
             break
         addr += mul16 * ((chain.id // mul10) % 10)
-    BRIDGE = IBridge(convert(addr, address))
+    self.BRIDGE = IBridge(convert(addr, address))
 
     Relayer.__init__(_broadcaster, _agent_blueprint)
 
@@ -56,8 +56,8 @@ def onMessageInvocation(_data: Bytes[10000]):
     @notice Call handler from Taiko bridge
     @param _data ABI encoded data of governance messages
     """
-    assert msg.sender == BRIDGE.address
-    context: Context = staticcall BRIDGE.context()
+    assert msg.sender == self.BRIDGE.address
+    context: Context = staticcall self.BRIDGE.context()
     assert context.msgFrom == Relayer.BROADCASTER
     assert context.srcChainId == 1
 

@@ -1,5 +1,8 @@
 import pytest
 
+from vyper.compiler.settings import OptimizationLevel
+from vyper.exceptions import InvalidType
+
 
 def test_assert_refund(env, get_contract, tx_failed):
     code = """
@@ -100,6 +103,42 @@ def test():
 @pytest.mark.parametrize("code", invalid_code)
 def test_invalid_assertions(get_contract, assert_compile_failed, code):
     assert_compile_failed(lambda: get_contract(code))
+
+
+def test_reason_string_literal_exceeds_max_length(get_contract, assert_compile_failed):
+    # a string-literal revert reason longer than 1024 bytes must be rejected,
+    # just like an over-long `String[N]` variable would be. See issue #3252.
+    long_reason = "a" * 1025
+    raise_code = f"""
+@external
+def foo():
+    raise "{long_reason}"
+    """
+    assert_code = f"""
+@external
+def foo():
+    assert False, "{long_reason}"
+    """
+    assert_compile_failed(lambda: get_contract(raise_code), InvalidType)
+    assert_compile_failed(lambda: get_contract(assert_code), InvalidType)
+
+
+def test_reason_string_literal_at_max_length(get_contract):
+    # a string-literal revert reason of exactly 1024 bytes is still valid, for
+    # both `raise` and `assert`. See issue #3252.
+    max_reason = "a" * 1024
+    raise_code = f"""
+@external
+def foo():
+    raise "{max_reason}"
+    """
+    assert_code = f"""
+@external
+def foo():
+    assert False, "{max_reason}"
+    """
+    assert get_contract(raise_code) is not None
+    assert get_contract(assert_code) is not None
 
 
 valid_code = [
@@ -208,3 +247,25 @@ def test() -> int128:
     c = get_contract(code)
     with tx_failed(exc_text="oops"):
         c.test()
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "the argument must be larger than ten, but it was not",
+        "the argument must be larger than ten, but it was not; please retry with a larger value",
+    ],
+)
+@pytest.mark.parametrize("opt", [OptimizationLevel.GAS, OptimizationLevel.CODESIZE])
+def test_assert_reason_long_literal(get_contract, tx_failed, reason, opt):
+    assert len(reason) > 32
+    code = f"""
+@external
+def foo(a: uint256) -> uint256:
+    assert a > 10, "{reason}"
+    return a
+    """
+    c = get_contract(code, override_opt_level=opt)
+    assert c.foo(11) == 11
+    with tx_failed(exc_text=reason):
+        c.foo(10)

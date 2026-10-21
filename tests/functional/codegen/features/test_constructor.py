@@ -254,7 +254,7 @@ x: public(immutable(uint256))
 
 @deploy
 def __init__(i: uint256):
-    x = self.foo0(i)
+    self.x = self.foo0(i)
 """
     for i in range(16):
         code += f"""
@@ -291,15 +291,113 @@ I_BYTES32: public(immutable(bytes32))
 
 @deploy
 def __init__():
-    I_UINT = CONST_UINT
-    I_ADDR = CONST_ADDR
-    I_BYTES32 = CONST_BYTES32
+    self.I_UINT = CONST_UINT
+    self.I_ADDR = CONST_ADDR
+    self.I_BYTES32 = CONST_BYTES32
     """
     print(code)
     c = get_contract(code)
     assert c.I_UINT() == CONST_UINT
     assert c.I_ADDR() == CONST_ADDR
     assert c.I_BYTES32() == bytes.fromhex(CONST_BYTES32.removeprefix("0x"))
+
+
+def test_constructor_ending_with_return(env, get_contract):
+    code = """
+VALUE: public(immutable(uint256))
+
+x: public(uint256)
+
+@deploy
+def __init__():
+    self.VALUE = 42
+    self.x = 1
+    return
+    """
+    c = get_contract(code)
+    assert len(env.get_code(c.address)) > 0
+    assert c.VALUE() == 42
+    assert c.x() == 1
+
+
+@pytest.mark.parametrize("a,expected_x", [(42, 42), (1, 999)])
+def test_constructor_conditional_return(env, get_contract, a, expected_x):
+    code = """
+x: public(uint256)
+
+@deploy
+def __init__(a: uint256):
+    self.x = a
+    if a > 10:
+        return
+    self.x = 999
+    """
+    c = get_contract(code, a)
+    assert len(env.get_code(c.address)) > 0
+    assert c.x() == expected_x
+
+
+@pytest.mark.parametrize("a,expected_x", [(0, 5), (1, 1), (2, 2)])
+def test_constructor_nested_return(env, get_contract, a, expected_x):
+    code = """
+x: public(uint256)
+
+@deploy
+def __init__(a: uint256):
+    if a > 0:
+        self.x = a
+        if a > 1:
+            return
+        return
+    self.x = 5
+    """
+    c = get_contract(code, a)
+    assert len(env.get_code(c.address)) > 0
+    assert c.x() == expected_x
+
+
+@pytest.mark.parametrize("a", [0, 3, 9])
+def test_constructor_return_in_loop(env, get_contract, a):
+    code = """
+V: public(immutable(uint256))
+
+total: public(uint256)
+
+@deploy
+def __init__(a: uint256):
+    self.V = a * 7
+    for i: uint256 in range(5):
+        if i == a:
+            return
+        self.total += i
+    """
+    c = get_contract(code, a)
+    assert len(env.get_code(c.address)) > 0
+    assert c.V() == a * 7
+    assert c.total() == sum(range(min(a, 5)))
+
+
+@pytest.mark.parametrize("a,expected_counter", [(42, 0), (1, 999)])
+def test_constructor_conditional_return_with_immutables(env, get_contract, a, expected_counter):
+    code = """
+VALUE: public(immutable(uint256))
+NAME: public(immutable(String[8]))
+
+counter: public(uint256)
+
+@deploy
+def __init__(a: uint256):
+    self.NAME = "vyper"
+    self.VALUE = a
+    if a > 10:
+        return
+    self.counter = 999
+    """
+    c = get_contract(code, a)
+    assert len(env.get_code(c.address)) > 0
+    assert c.VALUE() == a
+    assert c.NAME() == "vyper"
+    assert c.counter() == expected_counter
 
 
 @pytest.mark.parametrize("should_fail", [True, False])

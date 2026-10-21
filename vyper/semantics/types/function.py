@@ -28,14 +28,15 @@ from vyper.semantics.analysis.base import (
     VarOffset,
 )
 from vyper.semantics.analysis.utils import (
-    check_modifiability,
     get_exact_type_from_node,
+    get_modifiability,
     uses_state,
     validate_expected_type,
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.bytestrings import BytesT
+from vyper.semantics.types.infinity import is_runtime_sizable_return_type, is_runtime_sizable_type
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
@@ -98,6 +99,9 @@ class ContractFunctionT(VyperType):
     typeclass = "contract_function"
 
     _is_callable = True
+
+    # the return value is only known at runtime
+    _modifiability = Modifiability.MODIFIABLE
 
     def __init__(
         self,
@@ -297,13 +301,14 @@ class ContractFunctionT(VyperType):
         ContractFunctionT object.
         """
         positional_args = []
-        for item in abi["inputs"]:
+        for item in abi.get("inputs", []):
             positional_args.append(PositionalArg(item["name"], type_from_abi(item)))
         return_type = None
-        if len(abi["outputs"]) == 1:
-            return_type = type_from_abi(abi["outputs"][0])
-        elif len(abi["outputs"]) > 1:
-            return_type = TupleT(tuple(type_from_abi(i) for i in abi["outputs"]))
+        outputs = abi.get("outputs", [])
+        if len(outputs) == 1:
+            return_type = type_from_abi(outputs[0])
+        elif len(outputs) > 1:
+            return_type = TupleT(tuple(type_from_abi(i) for i in outputs))
         return cls(
             abi["name"],
             positional_args,
@@ -859,7 +864,7 @@ class ContractFunctionT(VyperType):
 
     # calculate the abi signature for a given set of kwargs
     def abi_signature_for_kwargs(self, kwargs: list[KeywordArg]) -> str:
-        args = self.positional_args + kwargs  # type: ignore
+        args = self.positional_args + kwargs
         return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
 
@@ -878,7 +883,13 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
     if funcdef.returns is None:
         return None
     # note: consider, for cleanliness, adding DataLocation.RETURN_VALUE
-    return type_from_annotation(funcdef.returns, DataLocation.MEMORY)
+    ret = type_from_annotation(funcdef.returns, DataLocation.MEMORY)
+    if not is_runtime_sizable_return_type(ret):
+        raise StructureException(
+            "Function returns cannot contain unbounded sequence types inside aggregate types",
+            funcdef.returns,
+        )
+    return ret
 
 
 @dataclass
@@ -1098,6 +1109,11 @@ def _parse_args(
             raise ArgumentException(f"Function argument '{argname}' is missing a type", arg)
 
         type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
+        if not is_runtime_sizable_type(type_):
+            raise StructureException(
+                "Function arguments cannot contain unbounded sequence types inside aggregate types",
+                arg.annotation,
+            )
 
         if i < n_positional_args:
             positional_args.append(PositionalArg(argname, type_, ast_source=arg))
@@ -1120,8 +1136,8 @@ def _parse_args(
                     value,
                 )
 
-            if not check_modifiability(value, Modifiability.RUNTIME_CONSTANT):
-                raise StateAccessViolation("Value must be literal or environment variable", value)
+            if get_modifiability(value) > Modifiability.RUNTIME_CONSTANT:
+                raise StateAccessViolation("Value must be a literal or environment variable", value)
 
             if not isinstance(value, vy_ast.Ellipsis):
                 validate_expected_type(value, type_)
@@ -1149,6 +1165,9 @@ class MemberFunctionT(VyperType):
 
     typeclass = "member_function"
     _is_callable = True
+
+    # the return value is only known at runtime
+    _modifiability = Modifiability.MODIFIABLE
 
     # keep LGTM linter happy
     def __eq__(self, other):

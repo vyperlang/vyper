@@ -111,12 +111,12 @@ IMMUTABLE_SLICE: immutable(Bytes[{length_bound}])
 
 @deploy
 def __init__(inp: Bytes[{length_bound}], start: uint256, length: uint256):
-    IMMUTABLE_BYTES = inp
-    IMMUTABLE_SLICE = slice(IMMUTABLE_BYTES, {_start}, {_length})
+    self.IMMUTABLE_BYTES = inp
+    self.IMMUTABLE_SLICE = slice(self.IMMUTABLE_BYTES, {_start}, {_length})
 
 @external
 def do_splice() -> Bytes[{length_bound}]:
-    return IMMUTABLE_SLICE
+    return self.IMMUTABLE_SLICE
     """
 
     def _get_contract():
@@ -185,10 +185,10 @@ foo: transient(Bytes[{length_bound}])
 IMMUTABLE_BYTES: immutable(Bytes[{length_bound}])
 @deploy
 def __init__(foo: Bytes[{length_bound}]):
-    IMMUTABLE_BYTES = foo
+    self.IMMUTABLE_BYTES = foo
     """
         spliced_code = ""
-        foo = "IMMUTABLE_BYTES"
+        foo = "self.IMMUTABLE_BYTES"
     elif location == "literal":
         spliced_code = ""
         foo = f"{bytesdata}"
@@ -315,11 +315,11 @@ LENGTH: immutable(uint256)
 
 @deploy
 def __init__():
-    LENGTH = 5
+    self.LENGTH = 5
 
 @external
 def do_slice(inp: Bytes[50]) -> Bytes[50]:
-    return slice(inp, 0, LENGTH)
+    return slice(inp, 0, self.LENGTH)
     """
     c = get_contract(code)
     x = c.do_slice(b"abcdefghijklmnopqrstuvwxyz1234")

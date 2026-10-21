@@ -561,6 +561,139 @@ In the ABI, they are represented as ``_Type[]``. For instance, ``DynArray[int128
     Defining a dynamic array in storage whose size is significantly larger than ``2**64`` can result in security vulnerabilities due to risk of overflow.
 
 
+.. index:: unbounded sequences, INF
+
+.. _unbounded_types:
+
+Unbounded Sequence Types
+------------------------
+
+When using the experimental code generator, ``Bytes``, ``String`` and ``DynArray``
+may use ``INF`` as the length bound:
+
+.. code-block:: vyper
+
+    #pragma experimental-codegen
+
+    @external
+    def echo(x: Bytes[INF]) -> Bytes[INF]:
+        return x
+
+    @external
+    def values(xs: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
+        ys: DynArray[uint256, INF] = xs
+        ys.append(42)
+        return ys
+
+An *unbounded sequence type* is ``Bytes[INF]``, ``String[INF]``, or
+``DynArray[T, INF]``. An *unbounded type* is an unbounded sequence type or any
+type that contains one, directly or indirectly. Unbounded types have no
+compile-time upper bound on the total memory needed to hold their values,
+including separately allocated member data. A struct with unbounded members
+can still have a fixed-size inline layout.
+
+``Bytes[INF]`` and ``String[INF]`` can hold any runtime length. ``DynArray[T, INF]``
+can hold any runtime item count. ``T`` must have a fixed-size layout: a bounded
+type, which may be ABI-dynamic, such as ``Bytes[512]``, ``DynArray[uint256, 3]``
+or a struct with bytestring members, or a struct with unbounded members (see
+below), but not an unbounded sequence itself:
+
+.. code-block:: vyper
+
+    @external
+    def multicall(calls: DynArray[Bytes[512], INF]) -> DynArray[Bytes[512], INF]:
+        results: DynArray[Bytes[512], INF] = []
+        for data: Bytes[512] in calls:
+            results.append(raw_call(self, data, max_outsize=512, is_delegate_call=True))
+        return results
+
+Every element reserves the full memory size of ``T``, whatever its actual
+length: three 5-byte elements of ``DynArray[Bytes[512], INF]`` occupy
+``3 * 544`` bytes of memory, and encoding them reserves ``3 * 576`` bytes of
+buffer. Decoding reserves that memory from the claimed element count before
+the elements are validated, and element offsets in the input may overlap, so a
+malformed but accepted payload can cost memory expansion of up to
+``memsize(T) / 32`` times its own size (17x for ``Bytes[512]``). ``INF``
+decoders also check every element against the readable region
+(``calldatasize`` or the returndata size), so truncated trailing data is
+rejected where a bounded array in calldata would be zero-filled.
+
+Unbounded sequence values are supported for memory locals, function arguments,
+function returns, event and custom error members, ABI encoding and decoding, and
+bytes-oriented builtins such as ``concat``, ``slice``, ``convert``, ``empty`` and
+``print``. Top-level return tuples may contain unbounded sequence members,
+for example ``(uint256, Bytes[INF])``.
+
+Unbounded types are not supported in storage, transient storage, immutable
+module variables, static arrays, or mappings. An unbounded sequence type cannot
+be the element type of another ``DynArray``, bounded or unbounded. For example,
+``DynArray[Bytes[INF], INF]`` and ``DynArray[DynArray[uint256, INF], 3]`` are
+rejected. Tuple arguments and local tuple variables containing unbounded types
+are also rejected.
+
+.. _unbounded_struct_members:
+
+Unbounded Struct Members
+************************
+
+A struct member may itself be an unbounded sequence. Such a struct keeps its
+usual ABI encoding -- ``Batch`` below is the ABI tuple ``(address,uint256[])``
+-- so a signed batch or configuration struct does not have to pick an arbitrary
+field cap:
+
+.. code-block:: vyper
+
+    #pragma experimental-codegen
+
+    struct Batch:
+        owner: address
+        values: DynArray[uint256, INF]
+
+    @external
+    def total(b: Batch) -> uint256:
+        acc: uint256 = 0
+        for v: uint256 in b.values:
+            acc += v
+        return acc
+
+In addition to bounded types, struct members may use ``Bytes[INF]``,
+``String[INF]``, or ``DynArray[T, INF]``, subject to the element-type restrictions
+above. Members may also be structs with unbounded members, or ``DynArray`` types
+whose elements are such structs. Tuples containing unbounded sequences, such as
+``(Bytes[INF], uint256)``, are not supported as struct members.
+
+Structs with unbounded members behave like other structs, subject to the
+following restrictions.
+
+.. TODO: Support mutation of unbounded members through array elements.
+
+Writing to an unbounded member of an array element, or to anything inside it, is
+rejected. Copy the element to a local variable, modify it, then store
+it back:
+
+.. code-block:: vyper
+
+    xs[i].values.append(1)  # rejected
+
+    b: Batch = xs[i]
+    b.values.append(1)
+    xs[i] = b  # allowed
+
+Structs with unbounded members, and types containing such structs, are supported
+only in memory and cannot be returned inside tuples.
+
+A ``DynArray`` of such structs cannot itself be a ``DynArray`` element:
+``DynArray[Batch, 3]`` is supported, but ``DynArray[DynArray[Batch, 3], 2]`` is
+rejected.
+
+.. TODO: Support nested DynArray types whose innermost elements are structs
+   with unbounded members.
+
+.. note::
+    ``INF`` sequence types require ``#pragma experimental-codegen`` or compiling
+    with ``--experimental-codegen``. The legacy code generator rejects them.
+
+
 .. _types-struct:
 
 Structs
@@ -584,6 +717,23 @@ Struct members can be accessed via ``struct.argname``.
 
     # Accessing a value
     exampleStruct.value1 = 1
+
+.. note::
+
+    As with other assignments in Vyper, assigning a struct copies its value.
+    Changes to the copy, including changes to nested members, do not affect
+    the original.
+
+    .. code-block:: vyper
+
+        struct Numbers:
+            values: DynArray[uint256, 3]
+
+        original: Numbers = Numbers(values=[1, 2])
+        copied: Numbers = original
+        copied.values[0] = 7
+        copied.values.append(3)
+        # original.values is still [1, 2]
 
 .. index:: !mapping
 

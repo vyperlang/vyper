@@ -42,12 +42,16 @@ class ReadonlyInvokeArgCopyForwardingPass(InvokeCopyForwardingBase):
             return False
 
         root = self._assign_root_var(dst)
+        if root is None:
+            return False
         root_inst = self.dfg.get_producing_instruction(root)
         if root_inst is None or root_inst.opcode != "alloca":
             return False
         dst_alloca = Allocation(root_inst)
 
         aliases = self._collect_assign_aliases(root)
+        if aliases is None:
+            return False
         rewrite_sites: set[tuple[IRInstruction, int]] = set()
 
         for _, use, pos in self._iter_alias_use_positions(aliases):
@@ -82,6 +86,8 @@ class ReadonlyInvokeArgCopyForwardingPass(InvokeCopyForwardingBase):
             return False
 
         src = self._assign_root(copy_inst.operands[1])
+        if src is None:
+            return False
         if isinstance(src, IRVariable) and src in aliases:
             return False
         if isinstance(src, IRVariable) and self._has_mutable_same_source_sibling_arg(
@@ -115,6 +121,6 @@ class ReadonlyInvokeArgCopyForwardingPass(InvokeCopyForwardingBase):
                 if self._is_readonly_invoke_operand(invoke_inst, pos):
                     continue
                 root = self._assign_root(op)
-                if root == src_root:
+                if root is None or root == src_root:
                     return True
         return False

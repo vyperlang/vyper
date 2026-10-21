@@ -82,15 +82,15 @@ def __init__(_gauge_factory: address, _gauge_type: int128):
     self.gauge_factory = GaugeFactory(_gauge_factory)
     self.gauge_type = _gauge_type
 
-    deployer = msg.sender
+    self.deployer = msg.sender
 
 
 @external
 def set_owner(_owner: address):
     
-    assert msg.sender == deployer
-    assert self.admin == deployer
-    assert _owner != deployer
+    assert msg.sender == self.deployer
+    assert self.admin == self.deployer
+    assert _owner != self.deployer
 
     self.admin = _owner
     log NewAdmin(admin=_owner)

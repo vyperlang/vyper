@@ -201,7 +201,7 @@ def foo() -> Bytes[32]:
 
 # test raw_return from storage, transient, constant and immutable
 # calldata Bytes[..] need clamp and thus are internally coppied to memory
-@pytest.mark.parametrize("to_ret", ["self.s", "self.t", "c", "i"])
+@pytest.mark.parametrize("to_ret", ["self.s", "self.t", "c", "self.i"])
 def test_raw_return_from_location(env, get_contract, to_ret):
     has_transient = version_check(begin="cancun")
     if to_ret == "self.t" and not has_transient:
@@ -219,7 +219,7 @@ i: immutable(Bytes[32])
 @deploy
 def __init__():
     self.s = b'cow'
-    i = b'cow'
+    self.i = b'cow'
 
 @external
 @raw_return

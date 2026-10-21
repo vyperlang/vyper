@@ -6,7 +6,14 @@ from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, DynamicMemoryAnalysis, IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGGlobalAnalysis
 from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLabel, IROperand, IRVariable
+from vyper.venom.basicblock import (
+    IRBasicBlock,
+    IRInstruction,
+    IRLabel,
+    IRLiteral,
+    IROperand,
+    IRVariable,
+)
 from vyper.venom.call_layout import InvokeLayout, has_dret
 from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
@@ -75,6 +82,9 @@ class FunctionInlinerPass(IRGlobalPass):
             if call_count == 0:
                 continue
 
+            if func.noinline:
+                continue
+
             # Always inline if there is only one call site.
             if call_count == 1:
                 return func
@@ -128,6 +138,7 @@ class FunctionInlinerPass(IRGlobalPass):
         # pre-lowering) + target-as-return-pc: identical to the old
         # operands[1:] + [operands[0]] reorder for raw IR.
         binding_ops = InvokeLayout(self.ctx, call_site).bound_params
+        binding_ops = (*binding_ops[:-1], IRLiteral(0))
 
         for bb in func_copy.get_basic_blocks():
             bb.parent = call_site_func
@@ -217,7 +228,6 @@ class FunctionInlinerPass(IRGlobalPass):
         new_func_label = IRLabel(f"{prefix}{func.name.value}")
         clone = IRFunction(new_func_label)
         # clear the bb that is added by default
-        # consider using func.copy() intead?
         clone.clear_basic_blocks()
         for bb in func.get_basic_blocks():
             clone.append_basic_block(self._clone_basic_block(clone, bb, prefix))
@@ -256,6 +266,7 @@ class FunctionInlinerPass(IRGlobalPass):
         clone.annotation = inst.annotation
         clone.ast_source = inst.ast_source
         clone.error_msg = inst.error_msg
+        clone.memory_read_max_size = inst.memory_read_max_size
 
         if inst.opcode == "alloca":
             self.ctx.mem_allocator.clone_alloca(inst, clone)
