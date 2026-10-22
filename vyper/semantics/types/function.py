@@ -1095,21 +1095,18 @@ def _parse_args(
     for i, arg in enumerate(funcdef.args.args):
         argname = arg.arg
         if argname in ("gas", "value", "skip_contract_check", "default_return_value"):
-            raise ArgumentException(
-                f"Cannot use '{argname}' as a variable name in a function input", arg
-            )
+            raise ArgumentException(f"Cannot use '{argname}' as a parameter name", arg)
         if argname in argnames:
-            raise ArgumentException(f"Function contains multiple inputs named {argname}", arg)
+            raise ArgumentException(f"Function contains multiple parameters named {argname}", arg)
 
         if arg.annotation is None:
-            raise ArgumentException(f"Function argument '{argname}' is missing a type", arg)
+            raise ArgumentException(f"Function parameter '{argname}' is missing a type", arg)
 
         type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
         if not is_runtime_sizable_type(type_):
-            raise StructureException(
-                "Function arguments cannot contain unbounded sequence types inside aggregate types",
-                arg.annotation,
-            )
+            msg = "Function parameters cannot contain unbounded sequence types"
+            msg += " inside aggregate types"
+            raise StructureException(msg, arg.annotation)
 
         if i < n_positional_args:
             positional_args.append(PositionalArg(argname, type_, ast_source=arg))
@@ -1133,7 +1130,7 @@ def _parse_args(
                 )
 
             if get_modifiability(value) > Modifiability.RUNTIME_CONSTANT:
-                raise StateAccessViolation("Value must be a literal or environment variable", value)
+                raise StateAccessViolation("Value must be immutable or constant", value)
 
             if not isinstance(value, vy_ast.Ellipsis):
                 validate_expected_type(value, type_)
