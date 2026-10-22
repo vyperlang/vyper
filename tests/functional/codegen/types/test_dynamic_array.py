@@ -1210,6 +1210,31 @@ def test_invalid_append_pop(get_contract, assert_compile_failed, code, exception
     assert_compile_failed(lambda: get_contract(code), exception_type)
 
 
+def test_append_empty_literal_nested(get_contract):
+    # the arg loop in visit_Call must not narrow an empty literal to a
+    # zero-capacity type for bounded params: legacy codegen's zero-fill
+    # requires the declared element type
+    code = """
+rows: DynArray[DynArray[int128, 3], 3]
+deep: DynArray[DynArray[DynArray[int128, 2], 3], 3]
+
+@external
+def foo() -> DynArray[DynArray[int128, 3], 3]:
+    self.rows = [[1]]
+    self.rows.append([])
+    return self.rows
+
+@external
+def bar() -> DynArray[DynArray[DynArray[int128, 2], 3], 3]:
+    self.deep = [[[1]]]
+    self.deep.append([[]])
+    return self.deep
+    """
+    c = get_contract(code)
+    assert c.foo() == [[1], []]
+    assert c.bar() == [[[1]], [[]]]
+
+
 @pytest.mark.parametrize("code,check_result", append_pop_tests)
 # TODO change this to fuzz random data
 @pytest.mark.parametrize("test_data", [[1, 2, 3, 4, 5][:i] for i in range(6)])
