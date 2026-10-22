@@ -181,9 +181,6 @@ class ConstantFolder(VyperNodeVisitorBase):
                 f"Invalid literal types for {node.op.description} comparison", node
             )
         lvalue, rvalue = left.value, right.value
-        if isinstance(left, vy_ast.Hex):
-            # Hex values are str, convert to be case-unsensitive.
-            lvalue, rvalue = lvalue.lower(), rvalue.lower()
         value = node.op._op(lvalue, rvalue)
         return vy_ast.NameConstant.from_node(node, value=value)
 

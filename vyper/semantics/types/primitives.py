@@ -117,12 +117,10 @@ class BytesM_T(_PrimT):
 
         assert isinstance(node, vy_ast.Hex)  # keep mypy happy
 
-        val = node.value
-
         if node.n_bytes != self.m:
             raise InvalidLiteral(f"Invalid literal for type {self}", node)
 
-        nibbles = val[2:]  # strip leading 0x
+        nibbles = node.original_value[2:]  # strip leading 0x
         if nibbles not in (nibbles.lower(), nibbles.upper()):
             raise InvalidLiteral(f"Cannot mix uppercase and lowercase for {self} literal", node)
 
@@ -432,7 +430,7 @@ class AddressT(_PrimT):
         if node.n_bytes != 20:
             raise InvalidLiteral(f"Invalid address. Expected 20 bytes, got {node.n_bytes}.", node)
 
-        if not is_checksum_encoded(node.value):
+        if not is_checksum_encoded(node.original_value):
             self.raise_bad_checksum(node)
 
     @classmethod
