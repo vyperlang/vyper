@@ -126,6 +126,15 @@ def getDeposited() -> uint256:
     return self.deposited
 """
 
+DECIMAL_ARRAYS = """
+#pragma enable-decimals
+
+@external
+@view
+def quote(values: decimal[2]) -> decimal[2][3]:
+    return [values, values, values]
+"""
+
 
 class TestFallbackABIHandling:
     # Not a round-trip: fallback entries are skipped by from_json_abi.
@@ -225,6 +234,15 @@ class TestTupleReturnRoundtrip:
         abi = _compile_abi(TUPLE_RETURN)
         assert len(abi) == 1
         fn = ContractFunctionT.from_abi(abi[0])
+        assert fn.to_toplevel_abi_dict() == [abi[0]]
+
+
+class TestDecimalArrayRoundtrip:
+    def test_function_abi_survives_roundtrip(self):
+        abi = _compile_abi(DECIMAL_ARRAYS)
+        assert len(abi) == 1
+        fn = ContractFunctionT.from_abi(abi[0])
+
         assert fn.to_toplevel_abi_dict() == [abi[0]]
 
 
