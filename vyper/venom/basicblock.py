@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Iterator, Optional, Sequence, Union
 
 import vyper.venom.effects as effects
 from vyper.codegen.ir_node import IRnode
+from vyper.evm.opcodes import get_opcodes
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 
@@ -110,6 +111,81 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "jnz",
         "log",
         "nop",
+    ]
+)
+
+ONE_TO_ONE_INSTRUCTIONS = frozenset(
+    [
+        "revert",
+        "coinbase",
+        "calldatasize",
+        "calldatacopy",
+        "mcopy",
+        "calldataload",
+        "gas",
+        "gasprice",
+        "gaslimit",
+        "chainid",
+        "address",
+        "origin",
+        "number",
+        "extcodesize",
+        "extcodehash",
+        "codecopy",
+        "extcodecopy",
+        "returndatasize",
+        "returndatacopy",
+        "callvalue",
+        "selfbalance",
+        "sload",
+        "sstore",
+        "mload",
+        "mstore",
+        "tload",
+        "tstore",
+        "timestamp",
+        "caller",
+        "blockhash",
+        "selfdestruct",
+        "signextend",
+        "stop",
+        "shr",
+        "shl",
+        "sar",
+        "and",
+        "xor",
+        "or",
+        "add",
+        "sub",
+        "mul",
+        "div",
+        "smul",
+        "sdiv",
+        "mod",
+        "smod",
+        "exp",
+        "addmod",
+        "mulmod",
+        "eq",
+        "iszero",
+        "not",
+        "lt",
+        "gt",
+        "slt",
+        "sgt",
+        "create",
+        "create2",
+        "balance",
+        "call",
+        "staticcall",
+        "delegatecall",
+        "codesize",
+        "basefee",
+        "blobhash",
+        "blobbasefee",
+        "prevrandao",
+        "difficulty",
+        "invalid",
     ]
 )
 
@@ -323,6 +399,10 @@ class IRInstruction:
         return self.opcode in PARAM_INSTRUCTIONS
 
     @property
+    def is_evm_inst(self) -> bool:
+        return self.opcode in ONE_TO_ONE_INSTRUCTIONS
+
+    @property
     def is_pseudo(self) -> bool:
         """
         Check if instruction is pseudo, i.e. not an actual instruction but
@@ -473,6 +553,73 @@ class IRInstruction:
         if self.opcode == "bump":
             return 2  # DUP2 ADD
         return 2
+
+    @property
+    def gas_cost(self) -> int:
+        """Approximate local gas cost, not a bound on execution gas.
+
+        Uses the active fork's opcode costs and estimates pseudo-instructions
+        from their lowering. Excludes general operand preparation, stack
+        scheduling, dynamic charges (including memory expansion), and callee
+        execution. Branch costs are before fallthrough optimization; assertions
+        count only their successful path.
+        """
+        opcode = self.opcode
+        opcodes = get_opcodes()
+
+        def gas(opcode: str) -> int:
+            return opcodes[opcode.upper()][3]
+
+        if self.is_evm_inst:
+            # Signed and unsigned multiplication use the same EVM instruction.
+            return gas("mul" if opcode == "smul" else opcode)
+        elif opcode in ("alloca", "initial_fmp", "assign", "offset"):
+            # Model a materialized value as one PUSH (or DUP for an assign).
+            return gas("push1")
+        elif opcode == "bump":
+            return gas("dup2") + gas("add")
+        elif opcode == "dalloca":
+            # ceil32(size), followed by bump: PUSH1 31 ADD PUSH1 31 NOT AND DUP2 ADD.
+            return 2 * gas("push1") + 2 * gas("add") + gas("not") + gas("and") + gas("dup2")
+        elif opcode == "dret":
+            # Only the return jump; packing/copying depends on the dynamic payload.
+            return gas("jump")
+        elif opcode in ("getfmp", "setfmp") or self.is_param:
+            return 0
+        elif opcode in ("dbname", "phi", "nop"):
+            return 0
+        elif opcode == "jnz":
+            # Include the false-path jump (the more expensive local path).
+            return 2 * gas("push1") + gas("jumpi") + gas("jump")
+        elif opcode == "jmp":
+            return gas("push1") + gas("jump")
+        elif opcode == "invoke":
+            # Push return PC and callee address; include the return JUMPDEST.
+            return 2 * gas("push1") + gas("jump") + gas("jumpdest")
+        elif opcode in ("djmp", "ret", "retfmp"):
+            return gas("jump")
+        elif opcode in ("return", "sha3"):
+            return gas(opcode)
+        elif opcode == "assert":
+            return gas("iszero") + gas("push1") + gas("jumpi")
+        elif opcode == "assert_unreachable":
+            return gas("push1") + gas("jumpi") + gas("jumpdest")
+        elif opcode == "log":
+            topic_count = self.operands[0]
+            assert isinstance(topic_count, IRLiteral) and 0 <= topic_count.value <= 4
+            return gas(f"log{topic_count.value}")
+        elif opcode == "iload":
+            return gas("mload")
+        elif opcode == "istore":
+            return gas("swap1") + gas("mstore")
+        elif opcode == "dload":
+            return gas("add") + gas("codecopy") + gas("mload")
+        elif opcode == "dloadbytes":
+            return gas("add") + gas("codecopy")
+        elif opcode in TEST_INSTRUCTIONS:  # pragma: nocover
+            return 0
+        else:
+            raise CompilerPanic(f"Unknown opcode: {opcode}")
 
     def get_ast_source(self) -> Optional[IRnode]:
         if self.ast_source:
