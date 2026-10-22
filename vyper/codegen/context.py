@@ -1,4 +1,5 @@
 import contextlib
+import contextvars
 import enum
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -15,15 +16,18 @@ class Constancy(enum.Enum):
     Constant = 1
 
 
-_alloca_id = 0
+_alloca_id = contextvars.ContextVar("alloca_id", default=0)
 
 
 def _generate_alloca_id():
     # note: this gets reset between compiler runs by codegen.core.reset_names
-    global _alloca_id
+    alloca_id = _alloca_id.get() + 1
+    _alloca_id.set(alloca_id)
+    return alloca_id
 
-    _alloca_id += 1
-    return _alloca_id
+
+def reset_alloca_id():
+    _alloca_id.set(0)
 
 
 @dataclass(frozen=True)
