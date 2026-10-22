@@ -1955,6 +1955,95 @@ def extend_from(x: address) -> DynArray[uint256, 5]:
         c.extend_from(long_c.address)
 
 
+def test_extend_wildcard_element_return_runtime(make_input_bundle, get_contract, tx_failed):
+    # wildcard inside the element type with a concrete outer bound: the
+    # fallback interpolates the candidate (dst element type fills the
+    # inner wildcard, the declared outer bound of 3 is kept) instead of
+    # borrowing the dst capacity, which would trip the return
+    # specialization sanity check when the dst capacity exceeds the
+    # declared outer bound. all three capacity relations are covered:
+    # greater (5), equal (3, the boundary of the subtype check against
+    # the declared return), and smaller (2, length checked at runtime).
+    ifoo_code = """
+@view
+def bar() -> DynArray[DynArray[uint256, ...], 3]:
+    ...
+"""
+
+    impl = """
+@view
+@external
+def bar() -> DynArray[DynArray[uint256, 2], 3]:
+    return [[1, 2], [3]]
+"""
+
+    impl_long_inner = """
+@view
+@external
+def bar() -> DynArray[DynArray[uint256, 3], 3]:
+    return [[1, 2, 3]]
+"""
+
+    caller_code = """
+import foo as Foo
+
+a: DynArray[DynArray[uint256, 2], 5]
+
+@external
+def go(x: address) -> DynArray[DynArray[uint256, 2], 5]:
+    self.a = [[9]]
+    self.a.extend(staticcall Foo(x).bar())
+    return self.a
+"""
+
+    # dst capacity (2) smaller than the declared outer bound (3): the
+    # interpolated type keeps the declared bound, so this compiles and the
+    # capacity check happens at runtime
+    small_caller_code = """
+import foo as Foo
+
+a: DynArray[DynArray[uint256, 2], 2]
+
+@external
+def go(x: address) -> DynArray[DynArray[uint256, 2], 2]:
+    self.a.extend(staticcall Foo(x).bar())
+    return self.a
+"""
+
+    # dst capacity equal to the declared outer bound
+    eq_caller_code = """
+import foo as Foo
+
+a: DynArray[DynArray[uint256, 2], 3]
+
+@external
+def go(x: address) -> DynArray[DynArray[uint256, 2], 3]:
+    self.a = [[9]]
+    self.a.extend(staticcall Foo(x).bar())
+    return self.a
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": ifoo_code})
+    impl_c = get_contract(impl, input_bundle=input_bundle)
+    long_inner_c = get_contract(impl_long_inner, input_bundle=input_bundle)
+
+    c = get_contract(caller_code, input_bundle=input_bundle)
+    assert c.go(impl_c.address) == [[9], [1, 2], [3]]
+    with tx_failed():
+        # inner array longer than the dst element capacity: decode clamp
+        c.go(long_inner_c.address)
+
+    small_c = get_contract(small_caller_code, input_bundle=input_bundle)
+    assert small_c.go(impl_c.address) == [[1, 2], [3]]
+    with tx_failed():
+        # 2 + 2 exceeds the dst capacity of 2
+        small_c.go(impl_c.address)
+
+    eq_c = get_contract(eq_caller_code, input_bundle=input_bundle)
+    # 1 + 2 fits the capacity of 3 exactly
+    assert eq_c.go(impl_c.address) == [[9], [1, 2], [3]]
+
+
 # `extend` accepts a DynArray of any length, so long as the value type is
 # identical; the capacity check happens at runtime.
 longer_src_extend_tests = [
