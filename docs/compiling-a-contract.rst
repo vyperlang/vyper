@@ -140,6 +140,14 @@ Enabling Experimental Code Generation
 When compiling, you can use the CLI flag ``--experimental-codegen`` (or its alias ``--venom-experimental``) to activate the new `Venom IR <https://github.com/vyperlang/vyper/blob/master/vyper/venom/README.md>`_.
 Venom IR is inspired by LLVM IR and enables new advanced analysis and optimizations.
 
+With experimental codegen, use ``ir`` or ``ir_runtime`` to inspect Venom IR.
+The Python API formats ``ir_dict`` and ``ir_runtime_dict`` (CLI ``ir_json`` and
+the standard JSON ``ir``/``ir_runtime`` outputs) describe legacy IR and are unsupported with
+``--experimental-codegen``. They raise an error rather than invoking the legacy
+backend alongside Venom.
+The standard JSON wildcard output selection omits legacy IR in experimental
+mode; request ``cfg`` or ``cfg_runtime`` to inspect the Venom control-flow graph.
+
 .. _evm-version:
 
 Setting the Target EVM Version
