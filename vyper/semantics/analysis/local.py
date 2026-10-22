@@ -1239,19 +1239,13 @@ class ExprVisitor(VyperNodeVisitorBase):
                 self.function_analyzer._handle_modification(node.func.value)
             assert len(node.args) == len(func_type.arg_types)
             for arg, arg_type in zip(node.args, func_type.arg_types):
-                # extend's parameter is `DynArray[..., INF]`; derive a
-                # concrete expected type for the arg. candidates with a
-                # wildcard top-level length specialize against the
-                # destination type (the only concrete length at the call
-                # site). interpolating against the parameter type fills
-                # `Never` holes (empty literals carry no element type,
-                # e.g. `x.extend([[]])`) and element wildcards with the
-                # dst element type while keeping the candidate's own
-                # lengths: the source length is extend's runtime
-                # contract, so an over-capacity source reverts at
-                # runtime instead of failing type checking.
-                dst_typ = func_type.underlying_type
-                assert isinstance(dst_typ, DArrayT)  # mypy hint
+                # derive a concrete expected type for the arg. candidates
+                # with a wildcard top-level length specialize against the
+                # fallback type below. interpolating against the parameter
+                # type fills `Never` holes (empty literals carry no element
+                # type, e.g. `x.extend([[]])`) and element wildcards with
+                # the parameter's element type while keeping the candidate's
+                # own lengths.
                 possible_types: list[VyperType] = []
                 for t in get_possible_types_from_node(arg):
                     if isinstance(t, DArrayT) and t.length is WILDCARD:
@@ -1261,7 +1255,16 @@ class ExprVisitor(VyperNodeVisitorBase):
                     interpolated = self._interpolate(t, arg_type, pos=arg)
                     assert not interpolated.has_wildcard
                     possible_types.append(interpolated)
-                arg_type = next(iter(possible_types), dst_typ)
+                fallback = arg_type
+                if isinstance(arg_type, DArrayT) and not is_bounded_length(arg_type.length):
+                    # extend's parameter is `DynArray[..., INF]`: fall back
+                    # to the destination type, the only concrete length at
+                    # the call site. the source length is extend's runtime
+                    # contract, so an over-capacity source reverts at
+                    # runtime instead of failing type checking.
+                    fallback = func_type.underlying_type
+                    assert isinstance(fallback, DArrayT)  # mypy hint
+                arg_type = next(iter(possible_types), fallback)
                 self.visit(arg, arg_type)
         else:
             # builtin functions and interfaces
