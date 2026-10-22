@@ -404,7 +404,7 @@ def generate_passing_cases():
             # only add convertible cases
             if _py_convert(c, i_typ, o_typ) is not None:
                 ret.append((i_typ, o_typ, c))
-    return sorted(ret)
+    return sorted(ret, key=lambda x: (str(x[0]), str(x[1]), x[2]))
 
 
 def generate_reverting_cases():
@@ -414,7 +414,7 @@ def generate_reverting_cases():
         for c in cases:
             if _py_convert(c, i_typ, o_typ) is None:
                 ret.append((i_typ, o_typ, c))
-    return sorted(ret)
+    return sorted(ret, key=lambda x: (str(x[0]), str(x[1]), x[2]))
 
 
 def _vyper_literal(val, typ):
