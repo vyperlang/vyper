@@ -69,7 +69,7 @@ Orchestrated by `vyper/compiler/phases.py` (`CompilerData`). Each phase is lazy.
 
 ## Code Style
 
-Enforced by `make lint` (also what CI runs). Includes `black`, `flake8`, `isort`, `mypy`.
+Enforced by `make lint` (also what CI runs). Includes `black`, `ruff`, `mypy`.
 
 - Line length: 100
 - No inline imports; standard library → third-party → local

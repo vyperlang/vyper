@@ -62,14 +62,14 @@ def returnten() -> int128:
 @external
 def create_and_call_returnten(inp: address) -> int128:
     x: address = create_minimal_proxy_to(inp)
-    o: int128 = extract32(raw_call(x, b"\\xd0\\x1f\\xb1\\xb8", max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
+    o: int128 = extract32(raw_call(x, b"\\xd0\\x1f\\xb1\\xb8", max_outsize=32, gas=50000), 0, output_type=int128)
     return o
 
 @external
 def create_and_return_proxy(inp: address) -> address:
     x: address = create_minimal_proxy_to(inp)
     return x
-    """
+    """  # noqa: E501
 
     c2 = get_contract(outer_code)
     assert c2.create_and_call_returnten(c.address) == 10
@@ -103,13 +103,13 @@ def returnten() -> int128:
 @external
 def create_and_call_returnten(inp: address) -> int128:
     x: address = create_minimal_proxy_to(inp)
-    o: int128 = extract32(raw_call(x, b"\\xd0\\x1f\\xb1\\xb8", max_outsize=32, gas=50000), 0, output_type=int128)  # noqa: E501
+    o: int128 = extract32(raw_call(x, b"\\xd0\\x1f\\xb1\\xb8", max_outsize=32, gas=50000), 0, output_type=int128)
     return o
 
 @external
 def create_and_return_proxy(inp: address) -> address:
     return create_minimal_proxy_to(inp)
-    """
+    """  # noqa: E501
 
     c2 = get_contract(outer_code)
 
@@ -144,7 +144,7 @@ def __init__(_owner_setter: address):
 @external
 def set(i: int128, owner: address):
     # delegate setting owners to other contract.s
-    cdata: Bytes[68] = concat(method_id("set_owner(int128,address)"), convert(i, bytes32), convert(owner, bytes32))  # noqa: E501
+    cdata: Bytes[68] = concat(method_id("set_owner(int128,address)"), convert(i, bytes32), convert(owner, bytes32))
     raw_call(
         self.owner_setter_contract,
         cdata,
@@ -152,7 +152,7 @@ def set(i: int128, owner: address):
         max_outsize=0,
         is_delegate_call=True
     )
-    """
+    """  # noqa: E501
 
     a0, a1, a2 = env.accounts[:3]
     outer_contract = get_contract(outer_code, inner_contract.address)
