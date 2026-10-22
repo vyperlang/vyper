@@ -287,3 +287,38 @@ def foo(x: {impl_arg}):
     assert e.value._message == (
         f"Contract does not implement all interface functions: {expected_sig}"
     )
+
+
+def test_implements_with_exported_module_public_interface(make_input_bundle):
+    # GH issue 3954 (https://github.com/vyperlang/vyper/issues/3954#issuecomment-2058442252)
+    # the public getter satisfying the interface comes from an exported module
+    lib = """
+from ethereum.ercs import IERC20
+
+asset: public(immutable(IERC20))
+
+@deploy
+def __init__(asset_: IERC20):
+    self.asset = asset_
+    """
+    main = """
+from ethereum.ercs import IERC20
+
+import lib
+
+initializes: lib
+
+interface IAsset:
+    def asset() -> address: view
+
+implements: IAsset
+
+exports: lib.__interface__
+
+@deploy
+def __init__(asset_: IERC20):
+    lib.__init__(asset_)
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib})
+
+    assert compile_code(main, input_bundle=input_bundle) is not None
