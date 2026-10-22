@@ -1240,35 +1240,29 @@ class ExprVisitor(VyperNodeVisitorBase):
             assert len(node.args) == len(func_type.arg_types)
             for arg, arg_type in zip(node.args, func_type.arg_types):
                 if isinstance(arg_type, DArrayT) and not is_bounded_length(arg_type.length):
-                    # derive a usable type for the arg node if not done yet.
-                    # this currently catches `DynArray.extend(...)` only.
-                    # prefer a bounded type with a concrete element type;
-                    # an unbounded (INF) type is also fine since codegen
-                    # handles runtime lengths. wildcard-length candidates
-                    # (e.g. a wildcard interface return) are excluded so
-                    # that they specialize against the destination type,
-                    # the only concrete length available at the call site.
-                    # interpolating against the parameter type fills `Never`
-                    # holes (empty literals carry no element type, e.g.
-                    # `x.extend([[]])`) with the dst element type while
-                    # keeping the candidate's own lengths: the source length
-                    # is extend's runtime contract, so an over-capacity
-                    # source reverts at runtime instead of failing type
-                    # checking.
+                    # extend's parameter is `DynArray[..., INF]`; derive a
+                    # concrete expected type for the arg. candidates with a
+                    # wildcard top-level length specialize against the
+                    # destination type (the only concrete length at the call
+                    # site). interpolating against the parameter type fills
+                    # `Never` holes (empty literals carry no element type,
+                    # e.g. `x.extend([[]])`) and element wildcards with the
+                    # dst element type while keeping the candidate's own
+                    # lengths: the source length is extend's runtime
+                    # contract, so an over-capacity source reverts at
+                    # runtime instead of failing type checking.
                     dst_typ = func_type.underlying_type
                     assert isinstance(dst_typ, DArrayT)  # mypy hint
-                    possible_types: list[DArrayT] = []
+                    possible_types: list[VyperType] = []
                     for t in get_possible_types_from_node(arg):
-                        if t.has_wildcard or not t.is_subtype_of(arg_type):
+                        if isinstance(t, DArrayT) and t.length is WILDCARD:
+                            continue
+                        if not t.is_subtype_of(arg_type):
                             continue
                         interpolated = self._interpolate(t, arg_type, pos=arg)
-                        # interpolation against a DArrayT preserves the subtype
-                        assert isinstance(interpolated, DArrayT)
+                        assert not interpolated.has_wildcard
                         possible_types.append(interpolated)
-                    arg_type = next(
-                        (t for t in possible_types if is_bounded_length(t.length)),
-                        next(iter(possible_types), dst_typ),
-                    )
+                    arg_type = next(iter(possible_types), dst_typ)
                 self.visit(arg, arg_type)
         else:
             # builtin functions and interfaces
