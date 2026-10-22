@@ -21,11 +21,12 @@ from vyper.codegen_venom.abi import (
     abi_encode_values_to_buf,
     runtime_abi_size_for_encode,
 )
+from vyper.codegen_venom.builtins._kwargs import get_bool_kwarg
 from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PRECOMPILE
 from vyper.codegen_venom.eval_order import later_expressions_can_mutate_memory_or_storage
 from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import CompilerPanic, EvmVersionException
+from vyper.exceptions import EvmVersionException
 from vyper.semantics.types import (
     INF,
     BytesT,
@@ -392,27 +393,6 @@ def lower_epsilon(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 # =============================================================================
 
 
-def _get_kwarg_value(node: vy_ast.Call, kwarg_name: str, default=None):
-    """Extract a keyword argument value from a Call node."""
-    for kw in node.keywords:
-        if kw.arg == kwarg_name:
-            return kw.value
-    return default
-
-
-def _get_bool_kwarg(node: vy_ast.Call, kwarg_name: str, default: bool) -> bool:
-    """Extract a boolean keyword argument (must be literal)."""
-    kw_node = _get_kwarg_value(node, kwarg_name)
-    if kw_node is None:
-        return default
-    kw_node = kw_node.reduced()
-    if isinstance(kw_node, vy_ast.NameConstant):
-        return kw_node.value
-    if isinstance(kw_node, vy_ast.Int):
-        return bool(kw_node.value)
-    raise CompilerPanic(f"unfoldable boolean kwarg: {kwarg_name}", kw_node)
-
-
 def _schema_string_value(ctx: "VenomCodegenContext", schema: bytes) -> tuple[VyperValue, StringT]:
     schema_vv = ctx.const_bytestring_value(schema, StringT, annotation="print schema")
     assert isinstance(schema_vv.typ, StringT)
@@ -438,7 +418,7 @@ def lower_print(node: vy_ast.Call, ctx: "VenomCodegenContext") -> IROperand:
 
     b = ctx.builder
 
-    hardhat_compat = _get_bool_kwarg(node, "hardhat_compat", default=False)
+    hardhat_compat = get_bool_kwarg(node, "hardhat_compat", default=False)
 
     # Get arg types and values
     arg_types = [arg._metadata["type"] for arg in node.args]
