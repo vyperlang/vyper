@@ -73,7 +73,7 @@ class LoopInvariantHoisting(IRPass):
     def run_pass(self, /, gas_heuristic: int = 2):
         self.gas_heuristic = gas_heuristic
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
-        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)  # type: ignore
+        self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.loop_analysis = self.analyses_cache.request_analysis(NaturalLoopDetectionAnalysis)
         self.loops = self.loop_analysis.loops
