@@ -12,8 +12,25 @@ from vyper.exceptions import (
     TypeMismatch,
     UndeclaredDefinition,
 )
-from vyper.semantics.types import INF, BoolT, BytesT, DArrayT, StringT, TupleT
-from vyper.semantics.types.infinity import WILDCARD, Inf, Wildcard
+from vyper.semantics.types import (
+    INF,
+    AddressT,
+    BoolT,
+    BytesT,
+    DArrayT,
+    SArrayT,
+    StringT,
+    StructT,
+    TupleT,
+)
+from vyper.semantics.types.infinity import (
+    WILDCARD,
+    Inf,
+    Wildcard,
+    is_runtime_sizable_return_type,
+    is_runtime_sizable_type,
+    is_supported_unbounded_tuple_type,
+)
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.utils import type_from_annotation
 
@@ -77,6 +94,40 @@ def test_dynarray_from_annotation_inf(build_node):
     assert t.length is INF
     assert isinstance(t, DArrayT)
     assert t.value_type == UINT256_T
+
+
+def test_runtime_sizable_predicates():
+    batch = StructT("Batch", {"owner": AddressT(), "values": DArrayT(UINT256_T, INF)})
+    outer = StructT("Outer", {"tag": UINT256_T, "inner": batch})
+    holder = StructT("Holder", {"batches": DArrayT(batch, 5)})
+
+    assert is_runtime_sizable_type(UINT256_T)
+    assert is_runtime_sizable_type(BytesT(INF))
+    assert is_runtime_sizable_type(DArrayT(BytesT(512), INF))
+    assert is_runtime_sizable_type(batch)
+    assert is_runtime_sizable_type(outer)
+    # the elements keep a compile-time stride; the array is sized element by element
+    assert is_runtime_sizable_type(DArrayT(batch, 3))
+    assert is_runtime_sizable_type(DArrayT(batch, INF))
+    assert is_runtime_sizable_type(holder)
+    assert is_runtime_sizable_type(DArrayT(holder, 2))
+    assert not is_runtime_sizable_type(DArrayT(BytesT(INF), 3))
+    # a tuple frame exists only as a return value
+    assert not is_runtime_sizable_type(TupleT((BytesT(INF), UINT256_T)))
+    assert is_runtime_sizable_return_type(TupleT((BytesT(INF), UINT256_T)))
+    assert not is_runtime_sizable_return_type(TupleT((batch, UINT256_T)))
+    assert not is_runtime_sizable_return_type(TupleT((DArrayT(batch, INF), UINT256_T)))
+    assert is_runtime_sizable_return_type(DArrayT(batch, INF))
+
+    # a frame slot holds one payload pointer
+    assert is_supported_unbounded_tuple_type(TupleT((DArrayT(UINT256_T, INF),)))
+    assert is_supported_unbounded_tuple_type(TupleT((DArrayT(BytesT(512), INF),)))
+    assert not is_supported_unbounded_tuple_type(TupleT((DArrayT(batch, INF),)))
+    assert not is_supported_unbounded_tuple_type(TupleT((batch,)))
+
+    # a static array holding INF has no memory layout
+    assert not is_runtime_sizable_type(SArrayT(BytesT(INF), 2))
+    assert not is_runtime_sizable_return_type(SArrayT(BytesT(INF), 2))
 
 
 def test_wildcard_singleton():
@@ -295,11 +346,11 @@ x: Bytes[...]
     """,
         InvalidType,
     ),
-    # Unbounded sequence types are not supported inside structs
+    # A struct member may be an unbounded sequence, but not contain one
     (
         """
 struct S:
-    x: Bytes[INF]
+    x: (Bytes[INF], uint256)
     """,
         StructureException,
     ),
@@ -658,8 +709,9 @@ def foo(x: Bytes[INF]):
     """
     with pytest.raises(StructureException) as e:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
-    message = "print arguments cannot contain unbounded sequence types inside aggregate types"
+    message = "Unsupported unbounded sequence nesting in print argument type: (Bytes[INF],)"
     assert e.value.message == message
+    assert e.value.annotations[0].node_source_code == "(x,)"
 
 
 @pytest.mark.parametrize(
@@ -983,7 +1035,7 @@ def foo(x: uint256 = len(empty(Bytes[INF]))) -> uint256:
     """
     with pytest.raises(StateAccessViolation) as e:
         compiler.compile_code(code)
-    assert e.value.message == "Value must be literal or environment variable"
+    assert e.value.message == "Value must be a literal or environment variable"
 
 
 def test_legacy_codegen_allows_bounded_local_user_type():
@@ -1108,33 +1160,6 @@ def f(a: address) -> DynArray[Bytes[10], 5]:
     compiler.compile_code(accepted)
 
 
-def test_wildcard_arg_dynamic_element_resolves_to_inf():
-    # no expected bound: the wildcard resolves to DynArray[Bytes[10], INF]
-    inf_code = """
-interface I:
-    def foo(xs: DynArray[Bytes[10], ...]): nonpayable
-
-@external
-def f(a: address):
-    extcall I(a).foo([])
-    """
-    module = compiler.CompilerData(
-        inf_code, settings=Settings(experimental_codegen=True)
-    ).annotated_vyper_module
-    (arg,) = module.get_descendants(vy_ast.List)
-    assert arg._metadata["type"] == DArrayT(BytesT(10), INF)
-
-    accepted = """
-interface I:
-    def foo(xs: DynArray[Bytes[10], ...]): nonpayable
-
-@external
-def f(a: address, xs: DynArray[Bytes[10], 5]):
-    extcall I(a).foo(xs)
-    """
-    compiler.compile_code(accepted)
-
-
 @pytest.mark.parametrize("element_type", ["Bytes[...]", "DynArray[uint256, ...]"])
 def test_wildcard_arg_rejects_resolved_unbounded_element(element_type):
     code = f"""
@@ -1163,6 +1188,35 @@ def f(a: address):
     extcall I(a).foo({arg_source})
     """
     compiler.compile_code(code)
+
+
+def test_wildcard_arg_subscripted_list_literal():
+    code = """
+interface I:
+    def foo(xs: DynArray[uint256, ...]): nonpayable
+
+@external
+def f(a: address, xs: DynArray[uint256, 5]):
+    extcall I(a).foo([xs][0])
+    """
+    compiler.compile_code(code)
+
+
+def test_wildcard_arg_ternary_sarray_element():
+    # Note: this should pass once we use expected type typing
+    code = """
+interface I:
+    def bar() -> DynArray[uint256, ...]: nonpayable
+    def foo(xs: DynArray[uint256, ...][1]): nonpayable
+
+@external
+def f(a: address, c: bool, ys: DynArray[uint256, 5][1]):
+    extcall I(a).foo([extcall I(a).bar()] if c else ys)
+    """
+    with pytest.raises(StructureException) as e:
+        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+    message = "Function arguments cannot contain unbounded sequence types inside aggregate types"
+    assert e.value.message == message
 
 
 def test_wildcard_tuple_interface_arg_rejects_inf_source():
@@ -1255,7 +1309,8 @@ interface I:
 def f(a: address):
     print(extcall I(a).source())
     """,
-            "print arguments cannot contain unbounded sequence types inside aggregate types",
+            "Unsupported unbounded sequence nesting in print argument type: "
+            "(Bytes[INF], DynArray[uint256, INF])",
         ),
         (
             """
@@ -1266,7 +1321,8 @@ interface I:
 def f(a: address, code: Bytes[100]) -> address:
     return raw_create(code, extcall I(a).source())
     """,
-            "constructor arguments cannot contain nested unbounded sequence types",
+            "Unsupported unbounded sequence nesting in constructor argument type: "
+            "(Bytes[INF], DynArray[uint256, INF])",
         ),
         (
             """
@@ -1277,7 +1333,8 @@ interface I:
 def f(a: address, target: address) -> address:
     return create_from_blueprint(target, extcall I(a).source())
     """,
-            "constructor arguments cannot contain nested unbounded sequence types",
+            "Unsupported unbounded sequence nesting in constructor argument type: "
+            "(Bytes[INF], DynArray[uint256, INF])",
         ),
     ],
 )
