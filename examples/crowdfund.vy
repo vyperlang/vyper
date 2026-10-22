@@ -24,7 +24,6 @@ def __init__(_beneficiary: address, _goal: uint256, _timelimit: uint256):
 
 # Participate in this crowdfunding campaign
 @external
-@payable
 def participate():
     assert block.timestamp < self.deadline, "deadline has expired"
     assert not self.finalized

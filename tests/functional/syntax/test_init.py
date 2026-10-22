@@ -11,7 +11,6 @@ def __init__():
     """,
     """
 @deploy
-@payable
 def __init__():
     pass
     """,

@@ -269,11 +269,10 @@ Vyper:
 .. code-block:: vyper
 
     @external
-    @payable
     def deposit() -> uint256:
         return msg.value
 
-Decorators specify visibility (``@external``, ``@internal``) and mutability (``@payable``, ``@view``, ``@pure``).
+Decorators specify visibility (``@external``, ``@internal``) and mutability (``@view``, ``@pure``). There is no ``@payable`` decorator: every function can receive ether, and any function which is not ``@view`` or ``@pure`` can read ``msg.value``.
 
 Constructor
 -----------
@@ -482,7 +481,6 @@ Vyper:
 .. code-block:: vyper
 
     @external
-    @payable
     def __default__():
         pass
 

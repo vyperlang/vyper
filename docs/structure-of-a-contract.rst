@@ -224,7 +224,6 @@ Events provide an interface for the EVM's logging facilities. Events may be logg
     total_paid: int128
 
     @external
-    @payable
     def pay():
         self.total_paid += msg.value
         log Payment(msg.value, msg.sender)

@@ -169,7 +169,7 @@ def build_interface_output(compiler_data: CompilerData) -> str:
         for func in interface.functions.values():
             if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
                 continue
-            if func.mutability != StateMutability.NONPAYABLE:
+            if func.mutability in (StateMutability.PURE, StateMutability.VIEW):
                 out += f"@{func.mutability.value}\n"
             args = ", ".join([f"{arg.name}: {arg.typ}" for arg in func.arguments])
             return_value = f" -> {func.return_type}" if func.return_type is not None else ""

@@ -26,7 +26,6 @@ event Sent:
     sender: indexed(address)
 
 @external
-@payable
 def __default__():
     log Sent(sender=msg.sender)
     """
@@ -44,13 +43,11 @@ event Sent:
     sender: indexed(address)
 
 @external
-@payable
 def fooBar(a: int128 = 12345) -> int128:
     log Sent(sender=empty(address))
     return a
 
 @external
-@payable
 def __default__():
     log Sent(sender=msg.sender)
     """
@@ -62,7 +59,7 @@ def __default__():
     assert env.get_balance(c.address) == to_wei(0.1, "ether")
 
 
-def test_basic_default_not_payable(env, tx_failed, get_contract):
+def test_basic_default_accepts_value(env, get_logs, get_contract):
     code = """
 event Sent:
     sender: indexed(address)
@@ -74,13 +71,14 @@ def __default__():
     c = get_contract(code)
     env.set_balance(env.deployer, 10**17)
 
-    with tx_failed():
-        env.message_call(c.address, value=10**17, data=b"")  # call default function
+    env.message_call(c.address, value=10**17, data=b"")  # call default function
+    (log,) = get_logs(c, "Sent")
+    assert env.deployer == log.args.sender
+    assert env.get_balance(c.address) == 10**17
 
 
 def test_multi_arg_default(assert_compile_failed, get_contract):
     code = """
-@payable
 @external
 def __default__(arg1: int128):
     pass
@@ -116,7 +114,6 @@ event Sent:
     sig: uint256
 
 @external
-@payable
 # function selector: 0x00000000
 def blockHashAskewLimitary(v: uint256) -> uint256:
     log Sent(sig=2)
@@ -162,7 +159,6 @@ event Sent:
     sig: uint256
 
 @external
-@payable
 # function selector: 0x00000000
 def wycpnbqcyf() -> uint256:
     log Sent(sig=2)
@@ -202,7 +198,6 @@ event Sent:
     sig: uint256
 
 @external
-@payable
 # function selector: 0xd88e0b00
 def fow() -> uint256:
     log Sent(sig=2)

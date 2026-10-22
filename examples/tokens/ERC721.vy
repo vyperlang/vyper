@@ -207,7 +207,6 @@ def _transferFrom(_from: address, _to: address, _tokenId: uint256, _sender: addr
 ### TRANSFER FUNCTIONS ###
 
 @external
-@payable
 def transferFrom(_from: address, _to: address, _tokenId: uint256):
     """
     @dev Throws unless `msg.sender` is the current owner, an authorized operator, or the approved
@@ -225,7 +224,6 @@ def transferFrom(_from: address, _to: address, _tokenId: uint256):
 
 
 @external
-@payable
 def safeTransferFrom(
         _from: address,
         _to: address,
@@ -254,7 +252,6 @@ def safeTransferFrom(
 
 
 @external
-@payable
 def approve(_approved: address, _tokenId: uint256):
     """
     @dev Set or reaffirm the approved address for an NFT. The zero address indicates there is no approved address.

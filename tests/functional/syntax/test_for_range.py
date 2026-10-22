@@ -332,7 +332,7 @@ def foo():
     (
         """
 interface I:
-    def bar() -> uint256: payable
+    def bar() -> uint256: nonpayable
 
 @external
 def bar(t: address):

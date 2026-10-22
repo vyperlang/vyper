@@ -30,7 +30,6 @@ Vyper supports structured documentation for contracts and external functions usi
     """
 
     @external
-    @payable
     def doesEat(food: String[30], qty: uint256) -> bool:
         """
         @notice Determine if Bugs will accept `qty` of `food` to eat

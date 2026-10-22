@@ -370,7 +370,6 @@ def send_funds(_amount: uint256):
     )
 
 @external
-@payable
 def __default__():
     pass
     """
@@ -387,7 +386,6 @@ def set_callback(c: address):
     self.callback = Callback(c)
 
 @external
-@payable
 @nonreentrant
 def protected_function(val: String[100], do_callback: bool) -> uint256:
     self.special_value = val
@@ -401,7 +399,6 @@ def protected_function(val: String[100], do_callback: bool) -> uint256:
         return 2
 
 @external
-@payable
 def unprotected_function(val: String[100], do_callback: bool):
     self.special_value = val
     _amount: uint256 = msg.value
@@ -411,7 +408,6 @@ def unprotected_function(val: String[100], do_callback: bool):
         extcall self.callback.send_funds(_amount)
 
 @external
-@payable
 @nonreentrant
 def __default__():
     pass

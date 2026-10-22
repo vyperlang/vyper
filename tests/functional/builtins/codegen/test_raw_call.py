@@ -319,14 +319,12 @@ def test_raw_call(_target: address) -> bool:
 def test_max_outsize_0_call(get_contract):
     target_source = """
 @external
-@payable
 def bar() -> uint256:
     return 123
     """
 
     caller_source = """
 @external
-@payable
 def foo(_addr: address) -> bool:
     success: bool = raw_call(_addr, method_id("bar()"), max_outsize=0, revert_on_failure=False)
     return success
