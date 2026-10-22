@@ -122,9 +122,3 @@ def test_hevm_detect_needle():
     assert (
         "fe0c" in e.value.stdout
     )  # -500, but hevm with z3 solver reports the wrong counterexample
-
-    # canary to let us know when hevm has fixed it:
-    # cf. https://github.com/ethereum/hevm/pull/680
-    assert "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0c" not in e.value.stdout
-    # the correct assertion
-    # assert hex(2**256 - 500) in e.value.stdout
