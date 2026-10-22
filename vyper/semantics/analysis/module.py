@@ -522,12 +522,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             self.visit(n)
 
         # attach namespace to the module for downstream use.
-        _ns = Namespace()
-        # note that we don't just copy the namespace because
-        # there are constructor issues.
-        _ns.update({k: self.namespace[k] for k in self.namespace._scopes[-1]})
-        _ns._scopes = self.namespace._scopes.copy()
-        self.ast._metadata["namespace"] = _ns
+        self.ast._metadata["namespace"] = self.namespace.copy()
 
     def _visit_nodes_linear(self, node_type):
         for node in self._to_visit.copy():
@@ -960,7 +955,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
             import_info._typ = module_info
 
-            self.namespace[import_info.alias] = module_info
+            self.namespace.set_import(import_info.alias, module_info, import_info.decl_node)
 
     def _load_import(self, import_info: ImportInfo) -> ModuleInfo | InterfaceT:
         path = import_info.compiler_input.path
@@ -968,7 +963,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
             module_ast = import_info.parsed
             with override_global_namespace(Namespace()):
                 module_t = _compute_module_type_r(module_ast)
-                return ModuleInfo(module_t, import_info.alias)
+                return ModuleInfo(module_t, import_info.decl_node)
 
         if path.suffix == ".vyi":
             module_ast = import_info.parsed

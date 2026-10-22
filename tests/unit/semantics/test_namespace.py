@@ -2,8 +2,13 @@ import pytest
 
 from vyper.exceptions import CompilerPanic, NamespaceCollision, UndeclaredDefinition
 from vyper.semantics import environment
-from vyper.semantics.namespace import get_namespace
+from vyper.semantics.analysis.base import VarInfo
+from vyper.semantics.namespace import Namespace, get_namespace
 from vyper.semantics.types import PRIMITIVE_TYPES
+from vyper.semantics.types.shortcuts import INT128_T, UINT256_T
+
+FOO = VarInfo(UINT256_T)
+BAR = VarInfo(INT128_T)
 
 
 def test_get_namespace():
@@ -13,12 +18,32 @@ def test_get_namespace():
 
 
 def test_builtin_context_manager(namespace):
-    namespace["foo"] = 42
+    namespace["foo"] = FOO
     with namespace.enter_scope():
-        namespace["bar"] = 1337
+        namespace["bar"] = BAR
 
-    assert namespace["foo"] == 42
+    assert namespace["foo"] == FOO
     assert "bar" not in namespace
+
+
+def test_copy(namespace):
+    with namespace.enter_scope():
+        namespace["foo"] = FOO
+        ns2 = namespace.copy()
+
+        assert isinstance(ns2, Namespace)
+        # note: `Namespace.__eq__` is identity, so compare as plain dicts
+        assert dict(ns2) == dict(namespace)
+        assert ns2._scopes == namespace._scopes
+
+        # mutating the copy does not touch the original
+        ns2["bar"] = BAR
+        assert "bar" not in namespace
+        assert "bar" not in namespace._scopes[-1]
+
+        # the copy still validates
+        with pytest.raises(NamespaceCollision):
+            ns2["foo"] = BAR
 
 
 def test_builtin_types(namespace):
@@ -52,11 +77,11 @@ def test_context_manager_mutable_vars(namespace):
 
 def test_context_manager(namespace):
     with namespace.enter_scope():
-        namespace["foo"] = 42
+        namespace["foo"] = FOO
         with namespace.enter_scope():
-            namespace["bar"] = 1337
+            namespace["bar"] = BAR
 
-        assert namespace["foo"] == 42
+        assert namespace["foo"] == FOO
         assert "bar" not in namespace
 
     assert "foo" not in namespace
@@ -70,17 +95,17 @@ def test_incorrect_context_invocation(namespace):
 
 def test_namespace_collision(namespace):
     with namespace.enter_scope():
-        namespace["foo"] = 42
+        namespace["foo"] = FOO
         with pytest.raises(NamespaceCollision):
-            namespace["foo"] = 1337
+            namespace["foo"] = BAR
 
 
 def test_namespace_collision_across_scopes(namespace):
     with namespace.enter_scope():
-        namespace["foo"] = 42
+        namespace["foo"] = FOO
         with namespace.enter_scope():
             with pytest.raises(NamespaceCollision):
-                namespace["foo"] = 1337
+                namespace["foo"] = BAR
 
 
 def test_undeclared_definition(namespace):
@@ -91,6 +116,6 @@ def test_undeclared_definition(namespace):
 def test_undeclared_definition_across_scopes(namespace):
     with namespace.enter_scope():
         with namespace.enter_scope():
-            namespace["foo"] = 42
+            namespace["foo"] = FOO
     with pytest.raises(UndeclaredDefinition):
         namespace["foo"]

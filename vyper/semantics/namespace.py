@@ -1,5 +1,6 @@
 import contextlib
 
+from vyper import ast as vy_ast
 from vyper.ast.identifiers import validate_identifier
 from vyper.exceptions import CompilerPanic, NamespaceCollision, UndeclaredDefinition
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
@@ -9,15 +10,25 @@ class Namespace(dict):
     """
     Dictionary subclass that represents the namespace of a contract.
 
+    Values must expose a `decl_node` attribute (the AST node the item was
+    declared at, or `None` for built-ins); it is used to report the location
+    of the previous declaration on a `NamespaceCollision`.
+
     Attributes
     ----------
     _scopes : List[Set]
         List of sets containing the key names for each scope
+    _import_decls : Dict[str, vy_ast.alias]
+        Maps (aliased) module names to their import nodes, only used to improve error messages
     """
+
+    _scopes: list[set]
+    _import_decls: dict[str, vy_ast.alias]
 
     def __new__(cls, *args, **kwargs):
         self = super().__new__(cls, *args, **kwargs)
         self._scopes = []
+        self._import_decls = {}
         return self
 
     def __init__(self):
@@ -43,6 +54,12 @@ class Namespace(dict):
         assert isinstance(attr, str), f"not a string: {attr}"
         super().__setitem__(attr, obj)
 
+    def set_import(self, attr, obj, alias_node):
+        self.__setitem__(attr, obj)
+        assert attr not in self._import_decls
+
+        self._import_decls[attr] = alias_node
+
     def __getitem__(self, key):
         if key not in self:
             hint = get_levenshtein_error_suggestions(key, self, 0.2)
@@ -58,6 +75,7 @@ class Namespace(dict):
             raise CompilerPanic("Bad use of namespace as a context manager")
         for key in self._scopes.pop():
             del self[key]
+            self._import_decls.pop(key, None)
 
     def enter_scope(self):
         """
@@ -81,6 +99,22 @@ class Namespace(dict):
         for key, value in other.items():
             self.__setitem__(key, value)
 
+    def copy(self) -> "Namespace":
+        """
+        Return a copy of this namespace.
+
+        Note: The copy is shallow: the "machinery" is fresh, but the values are shared
+        (Even outside Namespace, we try to never copy nodes, so metadata is never stale)
+        """
+
+        _ns = Namespace()
+        _ns.update(self)
+        _ns._scopes = [s.copy() for s in self._scopes]  # 2-deep copy, to keep elements shared
+        _ns._import_decls = self._import_decls.copy()
+        return _ns
+
+    __copy__ = copy
+
     def clear(self):
         super().clear()
         self.__init__()
@@ -89,11 +123,15 @@ class Namespace(dict):
         validate_identifier(attr)
 
         if attr in self:
-            prev = super().__getitem__(attr)
-            prev_decl = getattr(prev, "decl_node", None)
-            msg = f"'{attr}' has already been declared"
+            if attr in self._import_decls:
+                # point at the alias node rather than the module
+                prev_decl = self._import_decls[attr]
+            else:
+                prev_decl = super().__getitem__(attr).decl_node
             if prev_decl is None:
-                msg += f" as a {prev}"
+                msg = f"'{attr}' is already the name of a built-in"
+            else:
+                msg = f"'{attr}' has already been declared"
             raise NamespaceCollision(msg, prev_decl=prev_decl)
 
 
