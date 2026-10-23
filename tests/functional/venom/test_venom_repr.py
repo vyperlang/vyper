@@ -8,7 +8,7 @@ from tests.venom_utils import assert_ctx_eq, parse_venom
 from vyper.compiler import compile_code
 from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.phases import generate_bytecode
-from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
+from vyper.compiler.settings import VenomOptimizationFlags
 from vyper.venom import generate_assembly_experimental, run_passes_on
 from vyper.venom.context import IRContext
 

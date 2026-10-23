@@ -159,7 +159,7 @@ def __init__():
     # log changes offset of HexString, and the hex_string_locations tracked
     # location is incorrect when visiting ast
     log X(a = x"6161")
-    """
+    """,
 ]
 
 

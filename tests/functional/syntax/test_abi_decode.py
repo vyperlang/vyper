@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import CompilerPanic, TypeMismatch, UnfoldableNode
+from vyper.exceptions import TypeMismatch, UnfoldableNode
 
 fail_list = [
     (
