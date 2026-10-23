@@ -452,3 +452,127 @@ def foo() -> (int128,uint256):
 
     with pytest.raises(NatSpecSyntaxException, match=r'contract "VyperContract\.vy:\d+"'):
         parse_natspec(code)
+
+
+def test_escape_sequence_in_docstring():
+    code = r"""
+@external
+def foo():
+    '''
+    @notice tab\there
+    '''
+    pass
+    """
+
+    natspec = parse_natspec(code)
+    assert natspec.userdoc == {"methods": {"foo()": {"notice": "tab here"}}}
+
+
+def test_crlf_line_endings():
+    code = """
+'''
+@title A contract
+'''
+
+@external
+def foo():
+    '''
+    @notice hello
+    '''
+    pass
+    """.replace("\n", "\r\n")
+
+    natspec = parse_natspec(code)
+    assert natspec.userdoc == {"methods": {"foo()": {"notice": "hello"}}}
+    assert natspec.devdoc == {"title": "A contract"}
+
+
+def test_error_location_with_identical_docstrings():
+    code = """
+@external
+def foo(x: uint256):
+    '''
+    @param x the amount
+    '''
+    pass
+
+@external
+def bar(y: uint256):
+    '''
+    @param x the amount
+    '''
+    pass
+    """
+
+    with pytest.raises(NatSpecSyntaxException, match="Method has no parameter 'x'") as e:
+        parse_natspec(code)
+    # points at the docstring of `bar`, not the identical one of `foo`
+    assert "line 12:5" in str(e.value)
+
+
+def test_error_location_after_line_continuation():
+    code = r"""
+@external
+def foo():
+    '''\
+    @notice hello
+    @noticee typo
+    '''
+    pass
+    """
+
+    with pytest.raises(NatSpecSyntaxException, match="Unknown NatSpec field '@noticee'") as e:
+        parse_natspec(code)
+    assert "line 6:5" in str(e.value)
+
+
+def test_error_location_in_concatenated_docstring():
+    code = """
+@external
+def foo():
+    '''@notice ok
+    @noticee typo''' ''
+    pass
+    """
+
+    with pytest.raises(NatSpecSyntaxException, match="Unknown NatSpec field '@noticee'") as e:
+        parse_natspec(code)
+    assert "line 5:5" in str(e.value)
+
+
+def test_error_location_in_second_docstring_literal():
+    code = """
+@external
+def foo():
+    ('''@notice ok'''
+     '''
+    @noticee typo''')
+    pass
+    """
+
+    with pytest.raises(NatSpecSyntaxException, match="Unknown NatSpec field '@noticee'") as e:
+        parse_natspec(code)
+    assert "line 6:5" in str(e.value)
+
+
+def test_error_location_in_unicode_docstring():
+    code = """'''@noticee x ééééééééééééé'''
+X: constant(String[3]) = '''foo'''
+    """
+
+    with pytest.raises(NatSpecSyntaxException, match="Unknown NatSpec field '@noticee'") as e:
+        parse_natspec(code)
+    assert "line 1:4" in str(e.value)
+
+
+def test_error_location_with_cr_line_endings():
+    code = """
+'''
+@notice ok
+@noticee typo
+'''
+    """.replace("\n", "\r")
+
+    with pytest.raises(NatSpecSyntaxException, match="Unknown NatSpec field '@noticee'") as e:
+        parse_natspec(code)
+    assert "line 4:1" in str(e.value)
