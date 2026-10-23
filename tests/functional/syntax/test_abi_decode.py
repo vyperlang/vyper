@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import CompilerPanic, TypeMismatch, UnfoldableNode
+from vyper.exceptions import TypeMismatch, UnfoldableNode
 
 fail_list = [
     (
@@ -51,7 +51,7 @@ def test_abi_decode_success(good_code):
 
 
 # UnfoldableNode on legacy, CompilerPanic in venom
-@pytest.mark.xfail(raises=(UnfoldableNode, CompilerPanic))
+@pytest.mark.xfail(raises=UnfoldableNode)
 def test_abi_decode_unwrap_tuple_foldable_expr():
     code = """
 @external

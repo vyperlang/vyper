@@ -51,7 +51,6 @@ def test_bitwise_opcodes(typ):
 
 
 @pytest.mark.parametrize("typ", ["uint256", "bytes32"])
-@pytest.mark.xfail  # fails due to bad vyper grammar
 def test_not_roundtrip(get_contract, typ):
     code = f"""
 @external
