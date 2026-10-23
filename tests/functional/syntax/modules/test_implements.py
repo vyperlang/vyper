@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import StructureException
+from vyper.exceptions import InterfaceViolation, StructureException
 
 
 def test_implements_from_vyi(make_input_bundle):
@@ -144,3 +144,181 @@ def bar():  # implementation
 
     assert e.value._message == "some_interface implemented more than once"
     assert e.value._hint is None
+
+
+@pytest.mark.parametrize(
+    "var_decl,iface_method,store_stmt",
+    [
+        pytest.param(
+            "foo: public(IERC20)", "def foo() -> address: view", "self.foo = asset_", id="storage"
+        ),
+        pytest.param(  # GH issue 3954
+            "foo: public(immutable(IERC20))",
+            "def foo() -> address: view",
+            "self.foo = asset_",
+            id="immutable",
+        ),
+        pytest.param(
+            "foo: public(HashMap[uint256, IERC20])",
+            "def foo(k: uint256) -> address: view",
+            "self.foo[7] = asset_",
+            id="hashmap",
+        ),
+        pytest.param(
+            "foo: public(DynArray[IERC20, 3])",
+            "def foo(i: uint256) -> address: view",
+            "self.foo.append(asset_)",
+            id="dynarray",
+        ),
+        pytest.param(  # GH issue 4721
+            "foo: public(IERC20)",
+            "def foo() -> IERC20: view",
+            "self.foo = asset_",
+            id="interface_return",
+        ),
+    ],
+)
+def test_implements_with_public_interface(var_decl, iface_method, store_stmt):
+    """
+    Tests that `var_decl` correctly implements `iface_method`
+
+    For example `foo: public(IERC20)` implements `def foo() -> address: view`
+    """
+
+    main = f"""
+from ethereum.ercs import IERC20
+
+{var_decl}
+
+interface IAsset:
+    {iface_method}
+
+implements: IAsset
+
+@deploy
+def __init__(asset_: IERC20):
+    {store_stmt}
+    """
+    compile_code(main)
+
+
+@pytest.mark.parametrize(
+    "iface_return,impl_return,return_stmt",
+    [
+        pytest.param("address", "IERC20", "return self.asset", id="address"),
+        pytest.param(
+            "address[3]", "IERC20[3]", "return [self.asset, self.asset, self.asset]", id="sarray"
+        ),
+        pytest.param(
+            "DynArray[address, 3]", "DynArray[IERC20, 3]", "return [self.asset]", id="dynarray"
+        ),
+        pytest.param("(address, uint256)", "(IERC20, uint256)", "return self.asset, 1", id="tuple"),
+        pytest.param(
+            "DynArray[address[2], 3]",
+            "DynArray[IERC20[2], 3]",
+            "return [[self.asset, self.asset]]",
+            id="nested_dynarray_sarray",
+        ),
+        pytest.param(
+            "(DynArray[address, 2], address[1])",
+            "(DynArray[IERC20, 2], IERC20[1])",
+            "return [self.asset], [self.asset]",
+            id="nested_tuple",
+        ),
+    ],
+)
+def test_implements_interface_for_address_in_return_type(iface_return, impl_return, return_stmt):
+    main = f"""
+from ethereum.ercs import IERC20
+
+interface IAsset:
+    def foo() -> {iface_return}: view
+
+implements: IAsset
+
+asset: IERC20
+
+@external
+@view
+def foo() -> {impl_return}:
+    {return_stmt}
+    """
+    # the interface's own (address-based) signature, for comparison
+    reference = f"""
+asset: address
+
+@external
+@view
+def foo() -> {iface_return}:
+    {return_stmt}
+    """
+
+    # must not change the external signature
+    assert (
+        compile_code(main, output_formats=["abi"])["abi"]
+        == compile_code(reference, output_formats=["abi"])["abi"]
+    )
+
+
+@pytest.mark.parametrize(
+    "iface_arg,impl_arg,expected_sig",
+    [
+        ("address", "IERC20", "foo(address)"),
+        ("IERC20", "address", "foo(interface vyper/builtins/interfaces/IERC20.vyi)"),
+    ],
+)
+def test_implements_interface_for_address_not_in_argument_type(iface_arg, impl_arg, expected_sig):
+    # weak subtyping is deliberately not applied to arguments
+    main = f"""
+from ethereum.ercs import IERC20
+
+interface IAsset:
+    def foo(x: {iface_arg}): nonpayable
+
+implements: IAsset
+
+@external
+def foo(x: {impl_arg}):
+    pass
+    """
+    with pytest.raises(InterfaceViolation) as e:
+        compile_code(main)
+
+    assert e.value._message == (
+        f"Contract does not implement all interface functions: {expected_sig}"
+    )
+
+
+def test_implements_with_exported_module_public_interface(make_input_bundle):
+    # GH issue 3954 (https://github.com/vyperlang/vyper/issues/3954#issuecomment-2058442252)
+    # the public getter satisfying the interface comes from an exported module
+    lib = """
+from ethereum.ercs import IERC20
+
+asset: public(immutable(IERC20))
+
+@deploy
+def __init__(asset_: IERC20):
+    self.asset = asset_
+    """
+    main = """
+from ethereum.ercs import IERC20
+
+import lib
+
+initializes: lib
+
+interface IAsset:
+    def asset() -> address: view
+
+implements: IAsset
+
+exports: lib.__interface__
+
+@deploy
+def __init__(asset_: IERC20):
+    lib.__init__(asset_)
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib})
+
+    assert compile_code(main, input_bundle=input_bundle) is not None
