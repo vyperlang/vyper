@@ -111,7 +111,10 @@ def test_runtime_sizable_predicates():
     assert is_runtime_sizable_type(DArrayT(batch, INF))
     assert is_runtime_sizable_type(holder)
     assert is_runtime_sizable_type(DArrayT(holder, 2))
-    assert not is_runtime_sizable_type(DArrayT(BytesT(INF), 3))
+    # an unbounded element is a pointer cell, so the array keeps a stride
+    assert is_runtime_sizable_type(DArrayT(BytesT(INF), 3))
+    assert is_runtime_sizable_type(DArrayT(BytesT(INF), INF))
+    assert is_runtime_sizable_type(DArrayT(DArrayT(BytesT(INF), INF), INF))
     # a tuple frame exists only as a return value
     assert not is_runtime_sizable_type(TupleT((BytesT(INF), UINT256_T)))
     assert is_runtime_sizable_return_type(TupleT((BytesT(INF), UINT256_T)))
@@ -621,27 +624,23 @@ def test_inf_module_variable_locations_rejected(code):
 
 
 @pytest.mark.parametrize(
-    ("typ", "message"),
+    "typ",
     [
-        (
-            "DynArray[Bytes[INF], INF]",
-            "DynArray element types cannot contain unbounded sequence types",
-        ),
-        (
-            "DynArray[DynArray[uint256, INF], INF]",
-            "DynArray element types cannot contain unbounded sequence types",
-        ),
+        "DynArray[Bytes[INF], INF]",
+        "DynArray[DynArray[uint256, INF], INF]",
+        "DynArray[DynArray[Bytes[INF], INF], INF]",
+        "DynArray[Bytes[INF], 5]",
     ],
 )
-def test_inf_deferred_dynarray_shapes_rejected(typ, message):
+def test_inf_element_dynarray_shapes_accepted(typ):
+    # an unbounded element is held in a pointer cell, so the array keeps a
+    # compile-time stride; nesting depth and a bounded outer length are both fine
     code = f"""
 @external
 def foo(x: {typ}):
     pass
     """
-    with pytest.raises(StructureException) as e:
-        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
-    assert e.value.message == message
+    assert compiler.compile_code(code, settings=Settings(experimental_codegen=True)) is not None
 
 
 @pytest.mark.parametrize(

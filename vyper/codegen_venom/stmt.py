@@ -1067,8 +1067,15 @@ class Stmt:
             assert returns_count == 0
             assert ret_src_typ is not None
             if uses_packed_return(ret_typ):
-                assert not self.ctx.unbounded_dynarray_element_layout_differs(ret_typ, ret_src_typ)
-                buf, size = pack_value_with_payloads(self.ctx, ret_val, ret_typ)
+                # the packer walks the declared layout, in which an unbounded
+                # element is a pointer cell; a source with inline elements
+                # (e.g. DynArray[Bytes[10], 3] returned as DynArray[Bytes[INF], 3])
+                # is laid out as ret_typ first. A wider outer bound alone is
+                # punnable and copies nothing.
+                ret_vv = self.ctx.dynamic_memory_value(ret_val, ret_src_typ)
+                ret_vv = self.ctx.ensure_memory_layout(ret_vv, ret_typ, annotation="return")
+                assert isinstance(ret_vv.operand, IRVariable)
+                buf, size = pack_value_with_payloads(self.ctx, ret_vv.operand, ret_typ)
                 self.builder.dret(IRLiteral(1), buf, size, return_pc)
                 return
 
