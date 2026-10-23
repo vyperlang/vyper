@@ -21,7 +21,7 @@ from vyper.codegen_venom.abi import (
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.eval_order import later_expressions_can_mutate_memory_or_storage
 from vyper.codegen_venom.value import VyperValue
-from vyper.exceptions import CompilerPanic, StructureException, UnfoldableNode
+from vyper.exceptions import StructureException, UnfoldableNode
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     BytesT,

@@ -25,7 +25,7 @@ from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PR
 from vyper.codegen_venom.eval_order import later_expressions_can_mutate_memory_or_storage
 from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import CompilerPanic, EvmVersionException, UnfoldableNode
+from vyper.exceptions import EvmVersionException, UnfoldableNode
 from vyper.semantics.types import (
     INF,
     BytesT,

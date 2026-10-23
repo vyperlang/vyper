@@ -460,7 +460,8 @@ class Stmt:
                 var.is_state_variable() and _contains_writeable_call(right_node)
             ):
                 # NOTE: should this be unreachable maybe it should be concrete error
-                # since it is excerside in tests/functional/codegen/features/testassignment.py:test_augassign_oob
+                # since it is exercised in
+                # tests/functional/codegen/features/testassignment.py:test_augassign_oob
                 raise CodegenPanic("unreachable")
 
         # Get target pointer (with location info)
