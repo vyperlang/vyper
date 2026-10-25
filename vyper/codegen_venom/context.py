@@ -13,11 +13,13 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import ClassVar, Optional, Sequence
+from typing import Callable, ClassVar, Optional, Sequence
 
 from vyper.codegen.core import punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.bytestring_literal import LiteralPool, chain_instructions
+from vyper.codegen_venom.constants import POINTER_CELL_CAPACITY_OFFSET
+from vyper.codegen_venom.layout import unbounded_member_cells
 from vyper.codegen_venom.value import VyperValue
 from vyper.compiler.settings import _opt_codesize, _opt_lowering_only_ir
 from vyper.evm.opcodes import version_check
@@ -28,6 +30,7 @@ from vyper.semantics.types import (
     VyperType,
     _BytestringT,
     is_bounded_length,
+    is_pointer_cell_struct_type,
     is_supported_unbounded_tuple_type,
     is_unbounded_bytestring_type,
     is_unbounded_dynarray_type,
@@ -38,7 +41,7 @@ from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
-from vyper.utils import IDENTITY_PRECOMPILE
+from vyper.utils import IDENTITY_PRECOMPILE, POINTER_CELL_SIZE
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 
@@ -151,10 +154,11 @@ class VenomCodegenContext:
         self.variables[name] = var
         return var
 
-    # Size of an unbounded (INF) local's pointer cell: two adjacent words,
-    # [payload_ptr][capacity]. See `store_pointer_cell`.
-    POINTER_CELL_SIZE = 64
-    POINTER_CELL_CAPACITY_OFFSET = 32
+    # Layout of the cell holding an unbounded (INF) value's payload pointer
+    # and capacity. The size is shared with type sizing in vyper.utils; the
+    # capacity offset is codegen-only.
+    POINTER_CELL_SIZE = POINTER_CELL_SIZE
+    POINTER_CELL_CAPACITY_OFFSET = POINTER_CELL_CAPACITY_OFFSET
 
     def new_pointer_cell_variable(
         self, name: str, typ: VyperType, mutable: bool = True
@@ -205,9 +209,16 @@ class VenomCodegenContext:
         The 64-byte cell holds two words: the payload pointer at `cell` and
         the capacity at `cell + 32`. Capacity is the element count the owned
         payload has room for; 0 is a sentinel meaning "no owned spare room",
-        which forces reallocation on the next append. Every store except
-        DynArray append passes 0 (Bytes[INF]/String[INF] cells keep it
-        permanently 0 — bytestrings have no append).
+        which forces reallocation on the next append. For a struct member it
+        also means the payload may not be owned at all: a struct copy shares
+        the payload between the cells of both structs (see
+        `zero_pointer_cell_capacities`), so a write through a member cell at
+        capacity 0 copies the payload first
+        (`materialize_owned_dynarray_cell`). A local's payload is never
+        shared, so its element stores and pops stay in place at capacity 0.
+        Every store except DynArray append and the materializing copy passes
+        0 (Bytes[INF]/String[INF] cells keep it permanently 0 — bytestrings
+        have no append).
         """
         assert isinstance(cell, IRVariable)
         self.builder.mstore(cell, ptr)
@@ -223,6 +234,55 @@ class VenomCodegenContext:
         assert isinstance(ptr, IRVariable)
         assert isinstance(capacity, IRVariable)
         return ptr, capacity
+
+    def zero_pointer_cell_capacities(self, struct_ptr: IROperand, typ: StructT) -> None:
+        """Mark every pointer cell of a struct as sharing its payload.
+
+        A flat copy of the struct copies the cells, so both structs then
+        reference the same payloads. With capacity 0 on both sides the next
+        write through either cell reallocates instead of writing into the
+        shared payload.
+        """
+        for offset, _ in unbounded_member_cells(typ):
+            capacity_slot = self.builder.add(
+                struct_ptr, IRLiteral(offset + self.POINTER_CELL_CAPACITY_OFFSET)
+            )
+            self.builder.mstore(capacity_slot, IRLiteral(0))
+
+    def materialize_owned_dynarray_cell(self, cell: IRVariable, typ: DArrayT) -> IRVariable:
+        """Return the payload pointer of a member cell that may be written in place.
+
+        A cell with capacity 0 may share its payload with other cells (see
+        `zero_pointer_cell_capacities`), so its payload is first copied into
+        a fresh buffer with capacity equal to the length. From then on the
+        cell is the only reference to that payload. Lowering the same member
+        as an lvalue more than once within a statement (`b.xs[b.xs.pop()] =
+        v`) relies on the copied cell having capacity = length: a second
+        lowering must find the cell owned and reuse the payload.
+        """
+        b = self.builder
+        ptr, capacity = self.load_pointer_cell(cell)
+
+        copy_bb = b.create_block("cell_copy")
+        owned_bb = b.create_block("cell_owned")
+        b.jnz(capacity, owned_bb.label, copy_bb.label)
+
+        b.append_block(copy_bb)
+        b.set_block(copy_bb)
+        length = b.mload(ptr)
+        # the payload was allocated with a checked size, so recomputing it
+        # cannot overflow
+        size = self.unchecked_dynarray_runtime_size_from_length(length, typ)
+        new_ptr = self.allocate_scratch(size)
+        self.copy_memory_dynamic(new_ptr, ptr, size)
+        self.store_pointer_cell(cell, new_ptr, length)
+        b.jmp(owned_bb.label)
+
+        b.append_block(owned_bb)
+        b.set_block(owned_bb)
+        payload = b.mload(cell)
+        assert isinstance(payload, IRVariable)
+        return payload
 
     def register_variable(
         self, name: str, typ: VyperType, ptr: IRVariable, mutable: bool = True
@@ -469,7 +529,10 @@ class VenomCodegenContext:
         return self.load_word(vv.operand, vv.location)
 
     def store_vyper_value(self, vv: VyperValue, ptr: IRVariable, typ: VyperType) -> None:
-        """Store a VyperValue into memory, preserving its source layout."""
+        """Store a VyperValue into memory, preserving its source layout.
+
+        This is `make_setter` for a destination given as a bare memory pointer.
+        """
         self.store_memory(self.unwrap(vv), ptr, typ, src_typ=vv.typ)
 
     def ceil32(self, size: IROperand) -> IROperand:
@@ -491,6 +554,19 @@ class VenomCodegenContext:
         )
         self.builder.assert_(no_overflow)
         return ret
+
+    def add_size(
+        self, left: IROperand, right: IROperand, left_unbounded: bool, right_unbounded: bool
+    ) -> tuple[IROperand, bool]:
+        """Add sizes and return whether the sum depends on an unbounded value.
+
+        Once either operand is unbounded, this and subsequent additions need
+        overflow checks. Bounded operands retain the plain-add path.
+        """
+        if left_unbounded or right_unbounded:
+            return self.checked_add(left, right), True
+
+        return self.builder.add(left, right), False
 
     def bytestring_runtime_size_from_length(self, length: IROperand) -> IROperand:
         """Return runtime memory size for a bytestring with `length` bytes."""
@@ -589,10 +665,12 @@ class VenomCodegenContext:
         not the encoded length. Callers may use it only to size buffers and
         must take the real length from the encoder's return value.
         """
+        assert not type_contains_unbounded_sequence(typ.value_type)
         length = self.builder.mload(ptr)
         elem_abi_t = typ.value_type.abi_type
-        # Element types are bounded (semantic analysis rejects nested INF), so
-        # the per-element bound is a compile-time constant.
+        # the elements are bounded, so the per-element bound is a compile-time
+        # constant; an array of INF-bearing elements is sized element by
+        # element instead (`abi_encoder._runtime_abi_size_for_dynarray`)
         elem_bound = elem_abi_t.embedded_static_size() + elem_abi_t.embedded_dynamic_size_bound()
         data_size = self.checked_mul(length, IRLiteral(elem_bound))
         return self.checked_add(IRLiteral(32), data_size)
@@ -964,7 +1042,13 @@ class VenomCodegenContext:
             return ptr
 
     def store_memory(
-        self, val: IROperand, ptr: IRVariable, typ: VyperType, src_typ: Optional[VyperType] = None
+        self,
+        val: IROperand,
+        ptr: IRVariable,
+        typ: VyperType,
+        src_typ: Optional[VyperType] = None,
+        *,
+        stage: bool = False,
     ) -> None:
         """Store value to memory pointer.
 
@@ -972,6 +1056,8 @@ class VenomCodegenContext:
         For complex types (structs, arrays), val is a source pointer and
         we copy from val to ptr.
         For bytestrings, copies actual length from source, not max size.
+        Callers request staging when source and destination may overlap. A
+        struct's ownership transition happens once, before either copy.
 
         Note: Single-word structs are NOT primitive word types - they are
         complex types that happen to fit in one word. The caller passes
@@ -979,6 +1065,18 @@ class VenomCodegenContext:
         """
         if src_typ is None:
             src_typ = typ
+
+        if is_pointer_cell_struct_type(src_typ):
+            assert isinstance(src_typ, StructT)
+            assert src_typ == typ
+            self.zero_pointer_cell_capacities(val, src_typ)
+
+        if stage:
+            assert not typ._is_prim_word
+            temporary = self.new_temporary_value(src_typ)
+            assert isinstance(temporary.operand, IRVariable)
+            self.copy_memory(temporary.operand, val, src_typ.memory_bytes_required)
+            val = temporary.operand
 
         if typ._is_prim_word:
             assert isinstance(ptr, IRVariable)
@@ -1117,9 +1215,28 @@ class VenomCodegenContext:
         dst_elem_size = dst_elem_t.memory_bytes_required
         src_elem_size = src_elem_t.memory_bytes_required
 
-        cond_block = b.create_block("typed_elem_copy_cond")
-        body_block = b.create_block("typed_elem_copy_body")
-        exit_block = b.create_block("typed_elem_copy_exit")
+        def copy_element(counter: IRVariable) -> None:
+            src_ofst = b.mul(counter, IRLiteral(src_elem_size))
+            dst_ofst = b.mul(counter, IRLiteral(dst_elem_size))
+            src_elem_ptr = b.add(src_data, src_ofst)
+            dst_elem_ptr = b.add(dst_data, dst_ofst)
+            self._store_memory_typed(dst_elem_ptr, dst_elem_t, src_elem_ptr, src_elem_t)
+
+        self.emit_counted_loop(length, copy_element, "typed_elem_copy")
+
+    def emit_counted_loop(
+        self, length: IROperand, body: Callable[[IRVariable], None], label: str
+    ) -> None:
+        """Emit `body(i)` for every i in [0, length).
+
+        `label` prefixes the loop's block labels. The counter is a stack
+        variable reassigned in whatever block `body` ends in; MakeSSA gives
+        it the loop phi.
+        """
+        b = self.builder
+        cond_block = b.create_block(f"{label}_cond")
+        body_block = b.create_block(f"{label}_body")
+        exit_block = b.create_block(f"{label}_exit")
 
         counter = b.assign(IRLiteral(0))
         b.jmp(cond_block.label)
@@ -1127,23 +1244,14 @@ class VenomCodegenContext:
         b.append_block(cond_block)
         b.set_block(cond_block)
         done = b.iszero(b.lt(counter, length))
-        cond_finish = b.current_block
+        b.jnz(done, exit_block.label, body_block.label)
 
         b.append_block(body_block)
         b.set_block(body_block)
-
-        src_ofst = b.mul(counter, IRLiteral(src_elem_size))
-        dst_ofst = b.mul(counter, IRLiteral(dst_elem_size))
-        src_elem_ptr = b.add(src_data, src_ofst)
-        dst_elem_ptr = b.add(dst_data, dst_ofst)
-
-        self._store_memory_typed(dst_elem_ptr, dst_elem_t, src_elem_ptr, src_elem_t)
-
-        new_counter = b.add(counter, IRLiteral(1))
-        b.assign_to(new_counter, counter)
+        body(counter)
+        b.assign_to(b.add(counter, IRLiteral(1)), counter)
         b.jmp(cond_block.label)
 
-        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
         b.append_block(exit_block)
         b.set_block(exit_block)
 
@@ -1534,3 +1642,146 @@ class VenomCodegenContext:
             raise CompilerPanic("cannot store to CODE")
         else:  # pragma: nocover
             raise CompilerPanic(f"cannot store to: {location}")
+
+    def make_setter(self, dst_ptr: Ptr, typ: VyperType, src_vv: VyperValue) -> None:
+        """Store `src_vv` into `dst_ptr` as `typ`.
+
+        Like legacy make_setter, this does not stage the source: callers
+        copy it to a temporary when it may alias `dst_ptr` (see
+        `Stmt._assign_value`). `src_vv` is a stack value or located in
+        memory, storage, transient storage or immutables.
+        """
+        if typ._is_prim_word:
+            self.ptr_store(dst_ptr, self.unwrap(src_vv))
+            return
+
+        src_typ = src_vv.typ
+        src = self.unwrap(src_vv)  # always a memory ptr for complex types
+
+        if (
+            not same_memory_layout(src_typ, typ)
+            and dst_ptr.location is not DataLocation.MEMORY
+            and not (isinstance(src_typ, _BytestringT) and isinstance(typ, _BytestringT))
+        ):
+            # Normalize source into destination layout before writing to
+            # storage/transient/code locations that don't carry src_typ.
+            normalized = self.new_temporary_value(typ)
+            assert isinstance(normalized.operand, IRVariable)
+            self.store_memory(src, normalized.operand, typ, src_typ=src_typ)
+            src = normalized.operand
+            src_typ = typ
+
+        loc = dst_ptr.location
+        is_slot_addressed = loc in (DataLocation.STORAGE, DataLocation.TRANSIENT)
+
+        if is_slot_addressed:
+            # DynArray special case: only copy length + actual elements, not full capacity.
+            # This matches legacy codegen behavior (core.py:_dynarray_make_setter).
+            if isinstance(typ, DArrayT):
+                transient = loc is DataLocation.TRANSIENT
+                self._copy_dynarray_to_storage(src, dst_ptr.operand, typ, transient=transient)
+            else:
+                # store_storage / store_transient handle single-word mload internally.
+                store_fn = (
+                    self.store_transient if loc is DataLocation.TRANSIENT else self.store_storage
+                )
+                store_fn(src, dst_ptr.operand, typ)
+        elif loc == DataLocation.IMMUTABLES:
+            # Immutables in constructor
+            if typ.memory_bytes_required <= 32:
+                assert isinstance(src, IRVariable)
+                val = self.builder.mload(src)
+                self.ptr_store(dst_ptr, val)
+            else:
+                self.store_immutable(src, dst_ptr.operand, typ)
+        else:
+            assert loc is DataLocation.MEMORY
+            assert isinstance(dst_ptr.operand, IRVariable)
+            # Memory destination: use layout-aware copy when types differ.
+            self.store_memory(src, dst_ptr.operand, typ, src_typ=src_typ)
+
+    def _copy_dynarray_to_storage(
+        self, src: IROperand, dst_slot: IROperand, typ: DArrayT, transient: bool
+    ) -> None:
+        """Copy DynArray from memory to storage, writing only length + actual elements.
+
+        This matches legacy codegen behavior (core.py:_dynarray_make_setter) which
+        only copies the actual elements, not the full capacity. This is important
+        for hevm symbolic equivalence - slots beyond length should not be modified.
+
+        Args:
+            src: Memory pointer to source DynArray
+            dst_slot: Storage slot for destination
+            typ: DynArray type
+            transient: If True, use tstore instead of sstore
+        """
+        b = self.builder
+
+        # Load length from source (at offset 0)
+        assert isinstance(src, IRVariable)
+        length = b.mload(src)
+
+        elem_typ = typ.value_type
+        elem_words = elem_typ.storage_size_in_words
+
+        # Create loop blocks
+        cond_block = b.create_block("dyn_cond")
+        body_block = b.create_block("dyn_body")
+        exit_block = b.create_block("dyn_exit")
+
+        # Entry: counter = 0, jump to cond
+        counter = b.assign(IRLiteral(0))
+        b.jmp(cond_block.label)
+
+        # Condition: if counter >= length, goto exit, else body
+        b.append_block(cond_block)
+        b.set_block(cond_block)
+        # done = counter >= length = iszero(lt(counter, length))
+        done = b.iszero(b.lt(counter, length))
+        cond_finish = b.current_block
+
+        # Body: copy one element
+        b.append_block(body_block)
+        b.set_block(body_block)
+
+        if elem_words == 1:
+            # Simple case: each element is one storage word
+            # src_offset = 32 + counter * 32
+            src_offset = b.add(IRLiteral(32), b.mul(counter, IRLiteral(32)))
+            src_ptr = b.add(src, src_offset)
+            val = b.mload(src_ptr)
+
+            # dst_slot_i = dst_slot + counter + 1 (skip length word)
+            dst_slot_i = b.add(dst_slot, b.add(counter, IRLiteral(1)))
+            if transient:
+                b.tstore(dst_slot_i, val)
+            else:
+                b.sstore(dst_slot_i, val)
+        else:
+            # Complex case: element spans multiple words
+            elem_mem_size = elem_typ.memory_bytes_required
+            src_offset = b.add(IRLiteral(32), b.mul(counter, IRLiteral(elem_mem_size)))
+            src_ptr = b.add(src, src_offset)
+
+            # dst_slot_i = dst_slot + 1 + counter * elem_words
+            dst_slot_i = b.add(dst_slot, b.add(IRLiteral(1), b.mul(counter, IRLiteral(elem_words))))
+            if transient:
+                self.store_transient(src_ptr, dst_slot_i, elem_typ)
+            else:
+                self.store_storage(src_ptr, dst_slot_i, elem_typ)
+
+        # Increment counter and loop
+        new_counter = b.add(counter, IRLiteral(1))
+        b.assign_to(new_counter, counter)
+        b.jmp(cond_block.label)
+
+        # Wire up conditional jump (done after body to have block refs)
+        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
+
+        # Exit block: write length last (matches legacy behavior)
+        b.append_block(exit_block)
+        b.set_block(exit_block)
+        if transient:
+            b.tstore(dst_slot, length)
+        else:
+            b.sstore(dst_slot, length)
