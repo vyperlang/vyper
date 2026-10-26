@@ -50,7 +50,12 @@ from .eval_order import (
     expression_can_mutate_memory_or_storage,
     later_expressions_can_mutate_memory_or_storage,
 )
-from .expr import Expr, get_referenced_variables, is_unbounded_struct_member
+from .expr import (
+    Expr,
+    get_referenced_variables,
+    is_unbounded_array_element,
+    is_unbounded_struct_member,
+)
 from .packed_return import pack_value_with_payloads
 from .value import VyperValue
 
@@ -179,6 +184,17 @@ class Stmt:
             src = Expr(node.value, self.ctx).lower()
             cell = Expr(target, self.ctx).struct_member_cell_ptr()
             self._assign_unbounded_sequence_cell(cell, src, target_typ, annotation=target.attr)
+            return
+
+        if is_unbounded_array_element(target):
+            # likewise for an element: the array may share payloads with its
+            # copies, so the cell is rebound and the old payload left alone.
+            # RHS first, then the target: the index may read the array.
+            assert isinstance(target, vy_ast.Subscript)
+            src = Expr(node.value, self.ctx).lower()
+            payload = self.ctx.element_payload(src, target_typ, node.value, annotation="element")
+            cell = Expr(target, self.ctx, as_ptr=True).array_element_cell_ptr()
+            self.ctx.store_pointer_cell(cell, payload, IRLiteral(0))
             return
 
         # Special case: empty Bytestring/DynArray assignment — just zero the
@@ -755,10 +771,24 @@ class Stmt:
             raise CompilerPanic(f"Cannot iterate over type: {array_typ}")
 
         # Element size (in slots for storage, bytes for memory)
-        elem_size = array_typ.value_type.get_size_in(location)
+        if isinstance(array_typ, DArrayT) and location == DataLocation.MEMORY:
+            elem_size = self.ctx.dynarray_elem_stride(array_typ)
+        else:
+            elem_size = array_typ.value_type.get_size_in(location)
 
-        # Allocate loop variable (copy of element, not reference)
-        item_value = self.ctx.new_temporary_value(target_type, annotation=varname)
+        # Allocate loop variable (copy of element, not reference). An
+        # unbounded element has no inline value: the loop variable is a
+        # pointer cell rebound to each element's payload, which is read-only.
+        elem_is_cell = isinstance(array_typ, DArrayT) and is_unbounded_sequence_type(
+            array_typ.value_type
+        )
+        if elem_is_cell:
+            assert location == DataLocation.MEMORY
+            assert target_type == array_typ.value_type
+            cell_buf = self.ctx.allocate_buffer(self.ctx.POINTER_CELL_SIZE, annotation=varname)
+            item_value = VyperValue.from_ptr(cell_buf.base_ptr(), target_type)
+        else:
+            item_value = self.ctx.new_temporary_value(target_type, annotation=varname)
         assert isinstance(item_value.operand, IRVariable)
         self.ctx.forvars[varname] = True
 
@@ -805,7 +835,12 @@ class Stmt:
 
         # Set up loop targets
         with self.ctx.loop_scope(exit_block.label, incr_block.label):
-            self.ctx.register_variable(varname, target_type, item_value.operand, mutable=False)
+            if elem_is_cell:
+                self.ctx.register_pointer_cell_variable(
+                    varname, target_type, item_value.operand, mutable=False
+                )
+            else:
+                self.ctx.register_variable(varname, target_type, item_value.operand, mutable=False)
             # Body block: compute element address, copy to loop var
             self.builder.append_block(body_block)
             self.builder.set_block(body_block)
@@ -827,7 +862,12 @@ class Stmt:
             # `staged_elem` when the layouts differ and is re-laid out below.
             dst = item_value.operand
             copy_dst = staged_elem.operand if staged_elem is not None else dst
-            if is_slot_addressed:
+            if elem_is_cell:
+                # rebind the loop variable's cell to the element's payload
+                assert isinstance(elem_addr, IRVariable)
+                payload = self.builder.mload(elem_addr)
+                self.ctx.store_pointer_cell(dst, payload, IRLiteral(0))
+            elif is_slot_addressed:
                 # Word-addressed (STORAGE, TRANSIENT)
                 self.ctx.slot_to_memory(elem_addr, copy_dst, elem_size, location)
             elif location is not DataLocation.MEMORY:
