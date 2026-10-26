@@ -69,7 +69,6 @@ class TaggedInstruction(str):
 
     def __init__(self, sstr, ast_source=None, error_msg=None):
         self.error_msg = error_msg
-        self.pc_debugger = False
 
         self.ast_source = ast_source
 
@@ -175,14 +174,6 @@ def JUMP(label: Label):
 
 def JUMPI(label: Label):
     return [PUSHLABEL(label), "JUMPI"]
-
-
-def mkdebug(pc_debugger, ast_source):
-    # compile debug instructions
-    # (this is dead code -- CMC 2025-05-08)
-    i = TaggedInstruction("DEBUG", ast_source)
-    i.pc_debugger = pc_debugger
-    return [i]
 
 
 AssemblyInstruction = (

@@ -1,6 +1,7 @@
 """
 isort:skip_file
 """
+
 import sys
 
 from . import nodes, validation

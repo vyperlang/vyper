@@ -23,8 +23,6 @@ OUTPUT_FORMATS = {
     # requires ir_node
     "external_interface": output.build_external_interface_output,
     "interface": output.build_interface_output,
-    "bb": output.build_bb_output,
-    "bb_runtime": output.build_bb_runtime_output,
     "cfg": output.build_cfg_output,
     "cfg_runtime": output.build_cfg_runtime_output,
     "ir": output.build_ir_output,
@@ -176,6 +174,6 @@ def compile_code(
         source_id=source_id,
         contents=source_code,
         path=contract_path,
-        resolved_path=resolved_path or contract_path,  # type: ignore
+        resolved_path=resolved_path or contract_path,
     )
     return compile_from_file_input(file_input, *args, **kwargs)

@@ -6,10 +6,10 @@ from eth_utils import to_wei
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code, compile_from_file_input
 from vyper.exceptions import (
-    ArgumentException,
     DuplicateImport,
     InterfaceViolation,
     NamespaceCollision,
+    StructureException,
 )
 
 
@@ -154,6 +154,89 @@ def bar() -> uint256:
     assert compile_code(main, input_bundle=input_bundle) is not None
 
 
+def test_json_interface_event_without_indexed(make_input_bundle):
+    event_abi = [
+        {
+            "type": "event",
+            "name": "Transfer",
+            "inputs": [
+                {"name": "from", "type": "address"},
+                {"name": "to", "type": "address"},
+                {"name": "value", "type": "uint256"},
+            ],
+        }
+    ]
+
+    input_bundle = make_input_bundle({"token.json": json.dumps(event_abi)})
+
+    main = """
+import token as Token
+
+@external
+def foo():
+    log Token.Transfer(_arg0=msg.sender, to=msg.sender, value=1)
+    """
+
+    out = compile_code(main, input_bundle=input_bundle, output_formats=["interface"])["interface"]
+
+    assert "_arg0: address" in out
+    assert "from: address" not in out
+    compile_code(out, contract_path="main.vyi", output_formats=["interface"])
+
+
+def test_json_interface_event_duplicate_input_names(make_input_bundle):
+    event_abi = [
+        {
+            "type": "event",
+            "name": "Transfer",
+            "inputs": [
+                {"name": "from", "type": "address"},
+                {"name": "from", "type": "address"},
+                {"name": "value", "type": "uint256"},
+            ],
+        }
+    ]
+
+    input_bundle = make_input_bundle({"token.json": json.dumps(event_abi)})
+
+    main = """
+import token as Token
+
+@external
+def foo() -> bool:
+    return True
+    """
+
+    assert compile_code(main, input_bundle=input_bundle) is not None
+
+
+def test_json_interface_function_name_conflicts_with_builtin_member(make_input_bundle):
+    abi = [
+        {
+            "type": "function",
+            "name": "address",
+            "inputs": [],
+            "outputs": [{"type": "address"}],
+            "stateMutability": "view",
+        }
+    ]
+
+    input_bundle = make_input_bundle({"token.json": json.dumps(abi)})
+
+    main = """
+import token as Token
+
+@external
+def foo() -> bool:
+    return True
+    """
+
+    with pytest.raises(NamespaceCollision) as exc:
+        compile_code(main, input_bundle=input_bundle)
+
+    assert exc.value.message == "Member 'address' already exists in token.json"
+
+
 VALID_IMPORT_CODE = [
     # import statement, import path without suffix
     ("import a as Foo", "a.vyi"),
@@ -205,6 +288,99 @@ def test_extract_file_interface_imports_raises(code, exception_type, make_input_
     file_input = input_bundle.load_file("mock.vy")
     with pytest.raises(exception_type):
         compile_from_file_input(file_input, input_bundle=input_bundle)
+
+
+def test_duplicate_import_via_different_paths(make_input_bundle):
+    # test that importing the same module via different relative paths
+    # is correctly detected as a duplicate import
+    lib_code = """
+@internal
+def foo() -> uint256:
+    return 42
+    """
+
+    main_code = """
+from . import lib as lib1
+from ..pkg import lib as lib2
+
+@external
+def bar() -> uint256:
+    return lib1.foo()
+    """
+
+    input_bundle = make_input_bundle({"pkg/lib.vy": lib_code, "pkg/main.vy": main_code})
+    file_input = input_bundle.load_file("pkg/main.vy")
+    with pytest.raises(DuplicateImport):
+        compile_from_file_input(file_input, input_bundle=input_bundle)
+
+
+def test_duplicate_import_via_different_paths_vyi(make_input_bundle):
+    # test duplicate .vyi import detection via different relative paths
+    iface_code = """
+@external
+def foo() -> uint256:
+    ...
+    """
+
+    main_code = """
+from . import iface as iface1
+from ..pkg import iface as iface2
+
+@external
+def bar() -> uint256:
+    return 42
+    """
+
+    input_bundle = make_input_bundle({"pkg/iface.vyi": iface_code, "pkg/main.vy": main_code})
+    file_input = input_bundle.load_file("pkg/main.vy")
+    with pytest.raises(DuplicateImport):
+        compile_from_file_input(file_input, input_bundle=input_bundle)
+
+
+def test_duplicate_import_via_different_paths_json(make_input_bundle):
+    # test duplicate .json import detection via different relative paths
+    abi_code = json.dumps([{"name": "foo", "type": "function", "inputs": [], "outputs": []}])
+
+    main_code = """
+from . import abi as abi1
+from ..pkg import abi as abi2
+
+@external
+def bar() -> uint256:
+    return 42
+    """
+
+    input_bundle = make_input_bundle({"pkg/abi.json": abi_code, "pkg/main.vy": main_code})
+    file_input = input_bundle.load_file("pkg/main.vy")
+    with pytest.raises(DuplicateImport):
+        compile_from_file_input(file_input, input_bundle=input_bundle)
+
+
+def test_json_interface_invalid_state_mutability(make_input_bundle):
+    bad_abi = [
+        {
+            "type": "function",
+            "name": "foo",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "banana",
+        }
+    ]
+    code = """
+import bad_mut as ifc
+
+@external
+def f(addr: address):
+    extcall ifc(addr).foo()
+    """
+
+    input_bundle = make_input_bundle({"bad_mut.json": json.dumps(bad_abi)})
+    with pytest.raises(StructureException) as exc_info:
+        compile_code(code, input_bundle=input_bundle)
+    assert exc_info.value.message == (
+        "Invalid stateMutability 'banana': "
+        "expected one of ['pure', 'view', 'nonpayable', 'payable']"
+    )
 
 
 def test_external_call_to_interface(env, get_contract, make_input_bundle):
@@ -275,7 +451,7 @@ def test_external_call_to_interface_kwarg(get_contract, kwarg, typ, expected, ma
     interface_code = f"""
 @external
 @view
-def foo(_max: {typ} = {kwarg}) -> {typ}:
+def foo(_max: {typ} = ...) -> {typ}:
     ...
     """
     code1 = f"""
@@ -463,66 +639,82 @@ def test_fail2() -> Bytes[3]:
         c.test_fail2()
 
 
-# test data returned from external interface gets clamped
-def test_json_abi_bytes_clampers(get_contract, tx_failed, assert_compile_failed, make_input_bundle):
+def test_json_abi_bytes_slice(
+    get_contract, experimental_codegen, make_input_bundle, compile_inf_code
+):
+    external_contract = """
+@external
+def returns_Bytes3() -> Bytes[3]:
+    return b"123"
+    """
+    ext_c = get_contract(external_contract)
+
+    contract = """
+import JSONInterface
+@external
+def foo(x: JSONInterface) -> Bytes[2]:
+    return slice(extcall x.returns_Bytes3(), 0, 2)
+    """
+
+    input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(ext_c.abi)})
+
+    # legacy codegen has no lowering for unbounded extcall return values
+    compile_inf_code(contract, input_bundle=input_bundle)
+    if not experimental_codegen:
+        return
+
+    c = get_contract(contract, input_bundle=input_bundle)
+
+    assert ext_c.returns_Bytes3() == b"123"
+    assert c.foo(ext_c.address) == b"12"  # slice takes first 2 elements
+
+
+def test_json_abi_bytes_convert(get_contract, tx_failed, assert_compile_failed, make_input_bundle):
     external_contract = """
 @external
 def returns_Bytes3() -> Bytes[3]:
     return b"123"
     """
 
-    should_not_compile = """
-import BadJSONInterface
-@external
-def foo(x: BadJSONInterface) -> Bytes[2]:
-    return slice(extcall x.returns_Bytes3(), 0, 2)
-    """
-
     code = """
-import BadJSONInterface
+import JSONInterface
 
-foo: BadJSONInterface
+foo: JSONInterface
 
 @deploy
-def __init__(addr: BadJSONInterface):
+def __init__(addr: JSONInterface):
     self.foo = addr
 
 @external
 def test_fail1() -> Bytes[2]:
-    # should compile, but raise runtime exception
+    # should compile, but reverts
     return extcall self.foo.returns_Bytes3()
 
 @external
 def test_fail2() -> Bytes[2]:
-    # should compile, but raise runtime exception
+    # should compile, but reverts
     x: Bytes[2] = extcall self.foo.returns_Bytes3()
     return x
 
 @external
-def test_fail3() -> Bytes[3]:
-    # should revert - returns_Bytes3 is inferred to have return type Bytes[2]
-    # (because test_fail3 comes after test_fail1)
+def test_succeed() -> Bytes[3]:
+    # should compile and not revert
     return extcall self.foo.returns_Bytes3()
     """
 
-    bad_c = get_contract(external_contract)
+    ext_c = get_contract(external_contract)
+    assert ext_c.returns_Bytes3() == b"123"
 
-    bad_json_interface = json.dumps(compile_code(external_contract, output_formats=["abi"])["abi"])
-    input_bundle = make_input_bundle({"BadJSONInterface.json": bad_json_interface})
+    input_bundle = make_input_bundle({"JSONInterface.json": json.dumps(ext_c.abi)})
 
-    assert_compile_failed(
-        lambda: get_contract(should_not_compile, input_bundle=input_bundle), ArgumentException
-    )
-
-    c = get_contract(code, bad_c.address, input_bundle=input_bundle)
-    assert bad_c.returns_Bytes3() == b"123"
+    c = get_contract(code, ext_c.address, input_bundle=input_bundle)
 
     with tx_failed():
         c.test_fail1()
     with tx_failed():
         c.test_fail2()
-    with tx_failed():
-        c.test_fail3()
+
+    assert c.test_succeed() == b"123"
 
 
 def test_units_interface(env, get_contract, make_input_bundle):
@@ -694,11 +886,12 @@ def test_json_interface_implements(type_str, make_input_bundle, make_file):
 
 
 @pytest.mark.parametrize("type_str,value", type_str_params)
-def test_json_interface_calls(get_contract, type_str, value, make_input_bundle, make_file):
-    code = interface_test_code.format(type_str)
+def test_json_interface_calls(get_contract, type_str, value, make_input_bundle):
+    interface_code = interface_test_code.format(type_str)
 
-    abi = compile_code(code, output_formats=["abi"])["abi"]
-    c1 = get_contract(code)
+    c1 = get_contract(interface_code)
+
+    return_expr = "staticcall jsonabi(a).test_json(b)"
 
     code = f"""
 import jsonabi as jsonabi
@@ -706,15 +899,16 @@ import jsonabi as jsonabi
 @external
 @view
 def test_call(a: address, b: {type_str}) -> {type_str}:
-    return staticcall jsonabi(a).test_json(b)
+    return {return_expr}
     """
-    input_bundle = make_input_bundle({"jsonabi.json": json.dumps(abi)})
+    input_bundleV2 = make_input_bundle({"jsonabi.json": json.dumps(c1.abi)})
 
-    c2 = get_contract(code, input_bundle=input_bundle)
+    c2 = get_contract(code, input_bundle=input_bundleV2)
     assert c2.test_call(c1.address, value) == value
 
-    make_file("jsonabi.json", json.dumps(convert_v1_abi(abi)))
-    c3 = get_contract(code, input_bundle=input_bundle)
+    input_bundleV1 = make_input_bundle({"jsonabi.json": json.dumps(convert_v1_abi(c1.abi))})
+
+    c3 = get_contract(code, input_bundle=input_bundleV1)
     assert c3.test_call(c1.address, value) == value
 
 

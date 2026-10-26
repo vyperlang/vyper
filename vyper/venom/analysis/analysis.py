@@ -2,13 +2,31 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Type, TypeVar
 
+from vyper.exceptions import CompilerPanic
+
 if TYPE_CHECKING:
+    from vyper.venom.context import IRContext
     from vyper.venom.function import IRFunction
 
 
-class IRAnalysis:
+class IRAnalysisBase:
     """
-    Base class for all Venom IR analyses.
+    Common base for all Venom IR analyses (per-function and global).
+    """
+
+    def analyze(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def invalidate(self):
+        pass
+
+
+T = TypeVar("T", bound=IRAnalysisBase)
+
+
+class IRAnalysis(IRAnalysisBase):
+    """
+    Base class for per-function Venom IR analyses.
     """
 
     function: IRFunction
@@ -18,21 +36,25 @@ class IRAnalysis:
         self.analyses_cache = analyses_cache
         self.function = function
 
-    def analyze(self, *args, **kwargs):
-        """
-        Override this method to perform the analysis.
-        """
-        raise NotImplementedError
 
-    def invalidate(self):
-        """
-        Override this method to respond to an invalidation request, and possibly
-        invalidate any other analyses that depend on this one.
-        """
-        pass
+class IRGlobalAnalysis(IRAnalysisBase):
+    """
+    Base class for analyses over the entire IR context.
+    """
+
+    ctx: IRContext
+    global_analyses_cache: IRGlobalAnalysesCache
+
+    def __init__(self, global_analyses_cache: IRGlobalAnalysesCache, ctx: IRContext):
+        self.global_analyses_cache = global_analyses_cache
+        self.ctx = ctx
+
+    @property
+    def analyses_caches(self) -> dict[IRFunction, IRAnalysesCache]:
+        return self.global_analyses_cache.function_analyses_caches
 
 
-T = TypeVar("T", bound=IRAnalysis)
+GT = TypeVar("GT", bound=IRGlobalAnalysis)
 
 
 class IRAnalysesCache:
@@ -43,17 +65,50 @@ class IRAnalysesCache:
     function: IRFunction
     analyses_cache: dict[Type[IRAnalysis], IRAnalysis]
 
-    def __init__(self, function: IRFunction):
+    def __init__(self, function: IRFunction, *, isolated: bool = False):
+        # Validators need fresh local analyses even when a pass missed an
+        # invalidation. Such caches never participate in the shared registry.
+        self.isolated = isolated
         self.analyses_cache = {}
         self.function = function
+        self._global_cache: IRGlobalAnalysesCache | None = None
+        self._canonical: IRAnalysesCache = self
 
-    # python3.12:
-    #   def request_analysis[T](self, analysis_cls: Type[T], *args, **kwargs) -> T:
+    def _ensure_global_analyses_cache(self) -> "IRGlobalAnalysesCache":
+        if self.isolated:
+            raise CompilerPanic("isolated caches cannot request global analyses")
+        global_cache = self.function.ctx.global_analyses_cache
+        if global_cache is None:
+            self.analyses_cache.clear()  # Discard results from the previous registry.
+            global_cache = IRGlobalAnalysesCache(self.function.ctx, {self.function: self})
+            self.function.ctx.global_analyses_cache = global_cache
+        # Compiler phases replace the registry. Bind once per registry so local
+        # cache hits do not scan functions or repeatedly register consumers.
+        if self._global_cache is not global_cache:
+            self._canonical = global_cache.register_function_cache(self)
+            self._global_cache = global_cache
+        return global_cache
+
+    def _canonical_cache(self) -> "IRAnalysesCache":
+        if self.isolated:
+            return self
+        self._ensure_global_analyses_cache()
+        return self._canonical
+
     def request_analysis(self, analysis_cls: Type[T], *args, **kwargs) -> T:
         """
         Request a specific analysis to be run on the IR. The result is cached and
         returned if the analysis has already been run.
         """
+        if issubclass(analysis_cls, IRGlobalAnalysis):
+            return self._ensure_global_analyses_cache().request_analysis(
+                analysis_cls, *args, **kwargs
+            )
+
+        cache = self._canonical_cache()
+        if cache is not self:
+            return cache.request_analysis(analysis_cls, *args, **kwargs)
+
         assert issubclass(analysis_cls, IRAnalysis), f"{analysis_cls} is not an IRAnalysis"
         if analysis_cls in self.analyses_cache:
             ret = self.analyses_cache[analysis_cls]
@@ -66,10 +121,20 @@ class IRAnalysesCache:
 
         return analysis
 
-    def invalidate_analysis(self, analysis_cls: Type[IRAnalysis]):
+    def invalidate_analysis(self, analysis_cls: Type[IRAnalysisBase]):
         """
         Invalidate a specific analysis. This will remove the analysis from the cache.
         """
+        if issubclass(analysis_cls, IRGlobalAnalysis):
+            if not self.isolated:
+                self._ensure_global_analyses_cache().invalidate_analysis(analysis_cls)
+            return
+
+        cache = self._canonical_cache()
+        if cache is not self:
+            cache.invalidate_analysis(analysis_cls)
+            return
+
         assert issubclass(analysis_cls, IRAnalysis), f"{analysis_cls} is not an IRAnalysis"
         analysis = self.analyses_cache.pop(analysis_cls, None)
         if analysis is not None:
@@ -80,7 +145,79 @@ class IRAnalysesCache:
         Force a specific analysis to be run on the IR even if it has already been run,
         and is cached.
         """
+        if issubclass(analysis_cls, IRGlobalAnalysis):
+            return self._ensure_global_analyses_cache().force_analysis(
+                analysis_cls, *args, **kwargs
+            )
+
+        cache = self._canonical_cache()
+        if cache is not self:
+            return cache.force_analysis(analysis_cls, *args, **kwargs)
+
         assert issubclass(analysis_cls, IRAnalysis), f"{analysis_cls} is not an IRAnalysis"
+        if analysis_cls in self.analyses_cache:
+            self.invalidate_analysis(analysis_cls)
+
+        return self.request_analysis(analysis_cls, *args, **kwargs)
+
+
+class IRGlobalAnalysesCache:
+    """
+    A cache for global IR analyses.
+    """
+
+    ctx: IRContext
+    function_analyses_caches: dict[IRFunction, IRAnalysesCache]
+    analyses_cache: dict[Type[IRGlobalAnalysis], IRGlobalAnalysis]
+
+    def __init__(self, ctx: IRContext, function_analyses_caches: dict[IRFunction, IRAnalysesCache]):
+        self.ctx = ctx
+        self.function_analyses_caches = function_analyses_caches
+        self.analyses_cache = {}
+        self._ensure_function_caches()
+
+    def _ensure_function_caches(self) -> None:
+        for fn in self.ctx.functions.values():
+            if fn not in self.function_analyses_caches:
+                self.function_analyses_caches[fn] = IRAnalysesCache(fn)
+
+    def register_function_cache(self, cache: IRAnalysesCache) -> IRAnalysesCache:
+        """Return this registry's stable cache for the function.
+
+        A cache keeps its identity for the lifetime of the registry, including
+        analyses and their invalidation hooks. Later consumers delegate to it.
+        """
+        return self.function_analyses_caches.setdefault(cache.function, cache)
+
+    def request_analysis(self, analysis_cls: Type[GT], *args, **kwargs) -> GT:
+        assert issubclass(
+            analysis_cls, IRGlobalAnalysis
+        ), f"{analysis_cls} is not an IRGlobalAnalysis"
+        if analysis_cls in self.analyses_cache:
+            ret = self.analyses_cache[analysis_cls]
+            assert isinstance(ret, analysis_cls)
+            return ret
+
+        # Passes may add functions after this registry was created. Populate
+        # their caches before constructing a fresh context-wide analysis.
+        self._ensure_function_caches()
+        analysis = analysis_cls(self, self.ctx)
+        self.analyses_cache[analysis_cls] = analysis
+        analysis.analyze(*args, **kwargs)
+        return analysis
+
+    def invalidate_analysis(self, analysis_cls: Type[IRGlobalAnalysis]):
+        assert issubclass(
+            analysis_cls, IRGlobalAnalysis
+        ), f"{analysis_cls} is not an IRGlobalAnalysis"
+        analysis = self.analyses_cache.pop(analysis_cls, None)
+        if analysis is not None:
+            analysis.invalidate()
+
+    def force_analysis(self, analysis_cls: Type[GT], *args, **kwargs) -> GT:
+        assert issubclass(
+            analysis_cls, IRGlobalAnalysis
+        ), f"{analysis_cls} is not an IRGlobalAnalysis"
         if analysis_cls in self.analyses_cache:
             self.invalidate_analysis(analysis_cls)
 

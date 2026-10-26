@@ -1,0 +1,72 @@
+name: Bytecode Size Report
+
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  bytecode-size:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout merge commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          path: head
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Checkout base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.base_ref }}
+          path: base
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Copy scripts to base
+        run: cp -r head/.github/scripts base/.github/
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install vyper (base)
+        working-directory: base
+        run: pip install .
+
+      - name: Measure base bytecode sizes
+        working-directory: base
+        run: python .github/scripts/measure_bytecode.py > ../base-sizes.json
+
+      - name: Install vyper (merge)
+        working-directory: head
+        run: pip install .
+
+      - name: Measure merge bytecode sizes
+        working-directory: head
+        run: python .github/scripts/measure_bytecode.py > ../head-sizes.json
+
+      - name: Generate report
+        run: |
+          python3 head/.github/scripts/compare_bytecode.py base-sizes.json head-sizes.json > report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload size data
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bytecode-size-report
+          path: |
+            base-sizes.json
+            head-sizes.json
+            report.md

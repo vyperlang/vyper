@@ -107,7 +107,7 @@ def __init__(_fee_receiver: address):
 
     self.fee_receiver = _fee_receiver
     self.admin = msg.sender
-    deployer = msg.sender
+    self.deployer = msg.sender
 
     log UpdateFeeReceiver(_old_fee_receiver=empty(address), _new_fee_receiver=_fee_receiver)
     log TransferOwnership(_old_owner=empty(address), _new_owner=msg.sender)
@@ -116,12 +116,12 @@ def __init__(_fee_receiver: address):
 @external
 def set_owner(_owner: address):
     
-    assert msg.sender == deployer
-    assert self.admin == deployer
-    assert _owner != deployer
+    assert msg.sender == self.deployer
+    assert self.admin == self.deployer
+    assert _owner != self.deployer
 
     self.admin = _owner
-    log TransferOwnership(_old_owner=deployer, _new_owner=_owner)
+    log TransferOwnership(_old_owner=self.deployer, _new_owner=_owner)
 
 
 @internal

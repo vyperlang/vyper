@@ -24,7 +24,7 @@ interface IAgent:
     def execute(_messages: DynArray[Message, MAX_MESSAGES]): nonpayable
 
 
-enum Agent:
+flag Agent:
     OWNERSHIP
     PARAMETER
     EMERGENCY
@@ -55,18 +55,18 @@ ORIGIN_NETWORK: public(immutable(uint32))
 
 @deploy
 def __init__(_broadcaster: address, _agent_blueprint: address, _messenger: address, _origin_network: uint32):
-    BROADCASTER = _broadcaster
-    MESSENGER = _messenger
-    log SetMessenger(_messenger)
-    ORIGIN_NETWORK = _origin_network
+    self.BROADCASTER = _broadcaster
+    self.MESSENGER = _messenger
+    log SetMessenger(messenger=_messenger)
+    self.ORIGIN_NETWORK = _origin_network
 
-    OWNERSHIP_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
-    PARAMETER_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
-    EMERGENCY_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
+    self.OWNERSHIP_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
+    self.PARAMETER_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
+    self.EMERGENCY_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
 
-    self.agent[Agent.OWNERSHIP] = OWNERSHIP_AGENT
-    self.agent[Agent.PARAMETER] = PARAMETER_AGENT
-    self.agent[Agent.EMERGENCY] = EMERGENCY_AGENT
+    self.agent[Agent.OWNERSHIP] = self.OWNERSHIP_AGENT
+    self.agent[Agent.PARAMETER] = self.PARAMETER_AGENT
+    self.agent[Agent.EMERGENCY] = self.EMERGENCY_AGENT
 
 
 @external
@@ -80,13 +80,13 @@ def relay(_agent: Agent, _messages: DynArray[Message, MAX_MESSAGES]):
 
     extcall IAgent(self.agent[_agent]).execute(_messages)
 
-    log Relay(_agent, _messages)
+    log Relay(agent=_agent, messages=_messages)
 
 
 @external
 def onMessageReceived(_origin_address: address, _origin_network: uint32, _data: Bytes[MAX_MESSAGE_RECEIVED]):
-    assert msg.sender == MESSENGER
-    assert _origin_address == BROADCASTER
-    assert _origin_network == ORIGIN_NETWORK
+    assert msg.sender == self.MESSENGER
+    assert _origin_address == self.BROADCASTER
+    assert _origin_network == self.ORIGIN_NETWORK
 
     raw_call(self, _data)  # .relay()

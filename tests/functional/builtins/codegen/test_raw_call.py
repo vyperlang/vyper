@@ -601,6 +601,44 @@ def bar(f: uint256) -> Bytes[100]:
     )
 
 
+def test_raw_call_msg_data_kwarg_evaluation_order(get_contract, experimental_codegen):
+    code = """
+identity: constant(address) = 0x0000000000000000000000000000000000000004
+
+marker: public(uint256)
+
+@internal
+def set_value() -> uint256:
+    self.marker = 1
+    return 0
+
+@internal
+def set_gas() -> uint256:
+    self.marker = 2
+    return msg.gas
+
+@external
+def value_then_gas() -> uint256:
+    raw_call(identity, msg.data, value=self.set_value(), gas=self.set_gas())
+    return self.marker
+
+@external
+def gas_then_value() -> uint256:
+    raw_call(identity, msg.data, gas=self.set_gas(), value=self.set_value())
+    return self.marker
+    """
+    c = get_contract(code)
+
+    assert c.value_then_gas() == 2
+    # Legacy codegen evaluates raw_call kwargs in operand order; #2863 tracks
+    # fixing it to source order.
+    gas_then_value = c.gas_then_value()
+    if experimental_codegen:
+        assert gas_then_value == 1
+    else:
+        assert gas_then_value == 2
+
+
 uncompilable_code = [
     (
         """
@@ -669,3 +707,30 @@ def foo(a: address):
 @pytest.mark.parametrize("source_code,exc", uncompilable_code)
 def test_invalid_type_exception(assert_compile_failed, get_contract, source_code, exc):
     assert_compile_failed(lambda: get_contract(source_code), exc)
+
+
+def test_raw_call_storage_bytes_data(get_contract):
+    """raw_call correctly handles storage bytes being passed as data argument."""
+    # Test that storage bytes are properly copied to memory before call
+    # Uses identity precompile to echo back the data
+    code = """
+stored_data: Bytes[100]
+
+@external
+def set_data(data: Bytes[100]):
+    self.stored_data = data
+
+@external
+def call_with_storage_bytes() -> Bytes[100]:
+    # Pass storage bytes directly to raw_call
+    return raw_call(
+        0x0000000000000000000000000000000000000004,  # identity precompile
+        self.stored_data,
+        max_outsize=100
+    )
+    """
+
+    c = get_contract(code)
+    test_data = b"hello world"
+    c.set_data(test_data)
+    assert c.call_with_storage_bytes() == test_data

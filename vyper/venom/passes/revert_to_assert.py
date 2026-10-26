@@ -9,6 +9,8 @@ from vyper.venom.passes.base_pass import IRPass
 
 class RevertToAssert(IRPass):
     cfg: CFGAnalysis
+    # Rewriting jnz->jmp creates dead revert tails that should be folded away next.
+    required_immediate_successors = ("SimplifyCFGPass",)
 
     def run_pass(self):
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)

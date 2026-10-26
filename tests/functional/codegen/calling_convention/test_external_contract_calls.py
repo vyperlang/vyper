@@ -1047,7 +1047,7 @@ def foo(arg1: uint256=1) -> uint256:
 
     contract_2 = """
 interface Foo:
-    def foo(arg1: uint256=1) -> uint256: nonpayable
+    def foo(arg1: uint256=...) -> uint256: nonpayable
 
 @external
 def bar(addr: address) -> uint256:
@@ -1071,7 +1071,7 @@ def foo(arg1: uint256, arg2: uint256=1) -> uint256:
 
     contract_2 = """
 interface Foo:
-    def foo(arg1: uint256, arg2: uint256=1) -> uint256: nonpayable
+    def foo(arg1: uint256, arg2: uint256=...) -> uint256: nonpayable
 
 @external
 def bar(addr: address, arg1: uint256) -> uint256:
@@ -2448,6 +2448,82 @@ def bar(foo: Foo):
     with tx_failed():
         c.bar(bad_1.address)
     c.bar(bad_2.address)
+
+
+def test_default_return_value_reads_storage_before_empty_returndata_call(
+    get_contract, experimental_codegen
+):
+    callee_code = """
+interface Caller:
+    def set_x(v: uint256): nonpayable
+
+@external
+def set_x_without_return(c: address):
+    extcall Caller(c).set_x(99)
+    """
+
+    caller_code = """
+interface Callee:
+    def set_x_without_return(c: address) -> uint256: nonpayable
+
+x: public(uint256)
+
+@external
+def set_x(v: uint256):
+    self.x = v
+
+@external
+def run(callee: address) -> uint256:
+    self.x = 7
+    return extcall Callee(callee).set_x_without_return(self, default_return_value=self.x)
+    """
+
+    callee = get_contract(callee_code)
+    caller = get_contract(caller_code)
+
+    output = caller.run(callee.address)
+    if experimental_codegen:
+        assert output == 7
+    else:
+        assert output == 99
+    assert caller.x() == 99
+
+
+def test_external_call_kwarg_source_order(env, get_contract, experimental_codegen):
+    code = """
+interface Foo:
+    def pay() -> uint256: payable
+
+counter: public(uint256)
+
+@internal
+def bump() -> uint256:
+    self.counter += 1
+    return self.counter
+
+@external
+@payable
+def pay() -> uint256:
+    return msg.value * 10
+
+@external
+@payable
+def run() -> uint256:
+    self.counter = 0
+    return extcall Foo(self).pay(gas=50000 + self.bump(), value=self.bump())
+    """
+
+    c = get_contract(code)
+    env.set_balance(env.deployer, 10**18)
+
+    output = c.run(value=10)
+    if experimental_codegen:
+        assert output == 20
+    else:
+        # Legacy codegen evaluates call kwargs in operand order; #2863 tracks
+        # fixing it to source order.
+        assert output == 10
+    assert c.counter() == 2
 
 
 def test_contract_address_evaluation(get_contract):

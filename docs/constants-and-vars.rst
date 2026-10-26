@@ -21,7 +21,7 @@ Name                  Type             Value
 ``block.gaslimit``    ``uint256``      Current block's gas limit
 ``block.basefee``     ``uint256``      Current block's base fee
 ``block.blobbasefee`` ``uint256``      Current block's blob gas base fee
-``block.prevhash``    ``bytes32``      Equivalent to ``blockhash(block.number - 1)``
+``block.prevhash``    ``bytes32``      Equivalent to ``blockhash(block.number - 1)``, :ref:`except at block 0 <prevhash-at-block-zero>`
 ``block.timestamp``   ``uint256``      Current block epoch timestamp
 ``chain.id``          ``uint256``      Chain ID
 ``msg.data``          ``Bytes``        Message data
@@ -37,6 +37,12 @@ Name                  Type             Value
 
     ``block.prevrandao`` is an alias for the ``block.difficulty`` opcode. Since ``block.difficulty`` is considered deprecated according to `EIP-4399 <https://eips.ethereum.org/EIPS/eip-4399>`_ after "The Merge" (Paris hard fork), we recommend using ``block.prevrandao``.
 
+.. _prevhash-at-block-zero:
+
+.. note::
+
+    ``block.prevhash`` skips the bounds checks that :func:`blockhash <blockhash>` performs. The two only differ at block ``0``, where ``blockhash(block.number - 1)`` reverts on the underflow of ``block.number - 1`` and ``block.prevhash`` returns ``empty(bytes32)``. Live networks are long past block ``0``, but a local test environment can start there.
+
 .. note::
 
     ``msg.data`` requires the usage of :func:`slice <slice>` to explicitly extract a section of calldata. If the extracted section exceeds the bounds of calldata, this will throw. You can check the size of ``msg.data`` using :func:`len <len>`.
@@ -46,7 +52,7 @@ Name                  Type             Value
 The self Variable
 -----------------
 
-``self`` is an environment variable used to reference a contract from within itself. Along with the normal :ref:`address<address>` members, ``self`` allows you to read and write to state variables and to call private functions within the contract.
+``self`` is an environment variable used to reference a contract from within itself. Along with the normal :ref:`address<address>` members, ``self`` allows you to read and write to state variables and to call internal functions within the contract.
 
 ==================== ================ ==========================
 Name                 Type             Value

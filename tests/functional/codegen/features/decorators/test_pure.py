@@ -93,12 +93,12 @@ COUNTER: immutable(uint256)
 
 @deploy
 def __init__():
-    COUNTER = 1234
+    self.COUNTER = 1234
 
 @pure
 @external
 def foo() -> uint256:
-    return COUNTER
+    return self.COUNTER
     """
     with pytest.raises(StateAccessViolation):
         compile_code(code)
@@ -139,7 +139,7 @@ COUNTER: immutable(uint256)
 
 @deploy
 def __init__():
-    COUNTER = 123
+    self.COUNTER = 123
     """
     code = """
 import lib1
@@ -170,6 +170,39 @@ def _foo() -> uint256:
 @external
 def foo() -> uint256:
     return self._foo()  # Fails because of calling non-pure fn
+    """
+    with pytest.raises(StateAccessViolation):
+        compile_code(code)
+
+
+def test_invalid_call_nonpayable():
+    # pure cannot call nonpayable internal
+    code = """
+@internal
+def _foo() -> uint256:
+    return 5
+
+@pure
+@external
+def foo() -> uint256:
+    return self._foo()
+    """
+    with pytest.raises(StateAccessViolation):
+        compile_code(code)
+
+
+def test_invalid_call_payable():
+    # pure cannot call payable internal
+    code = """
+@payable
+@internal
+def _foo() -> uint256:
+    return msg.value
+
+@pure
+@external
+def foo() -> uint256:
+    return self._foo()
     """
     with pytest.raises(StateAccessViolation):
         compile_code(code)

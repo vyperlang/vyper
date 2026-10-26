@@ -12,7 +12,7 @@ y: public(immutable(int128))
 
 @deploy
 def __init__():
-    y = 0
+    self.y = 0
     """,
     """
 x: public(int128)

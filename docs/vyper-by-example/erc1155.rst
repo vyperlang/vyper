@@ -1,0 +1,26 @@
+.. index:: tokens;ERC1155, ERC1155
+
+ERC1155 Multi-Token
+*******************
+
+.. _erc1155:
+
+.. warning::
+
+   This is example code for learning purposes. Do not use in production without thorough review and testing.
+
+ERC1155 supports both fungible and non-fungible tokens in a single contract.
+This implementation includes ownership and pause functionality.
+
+.. literalinclude:: ../../examples/tokens/ERC1155ownable.vy
+  :language: vyper
+  :linenos:
+
+Features beyond the base ERC1155 standard:
+
+- **Ownable**: Only the owner can mint tokens
+- **Pausable**: Owner can pause all transfers
+- **Batch operations**: ``mintBatch``, ``burnBatch``, ``safeBatchTransferFrom``
+- **Dynamic URI**: Optional per-token metadata URIs
+
+The ``BATCH_SIZE`` constant (128) limits array sizes for gas predictability—a Vyper requirement.

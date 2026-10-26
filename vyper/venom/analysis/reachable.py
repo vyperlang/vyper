@@ -3,7 +3,7 @@ from collections import defaultdict
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.basicblock import IRBasicBlock
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction
 
 
 class ReachableAnalysis(IRAnalysis):
@@ -19,6 +19,19 @@ class ReachableAnalysis(IRAnalysis):
 
         self._compute_reachable_r(self.function.entry)
 
+        while True:
+            change = False
+            for bb in self.reachable:
+                orig_reachable = self.reachable[bb].copy()
+                for reachable_bb in orig_reachable:
+                    self.reachable[bb].update(self.reachable[reachable_bb])
+
+                if orig_reachable != self.reachable[bb]:
+                    change = True
+
+            if not change:
+                break
+
     def _compute_reachable_r(self, bb):
         if bb in self.reachable:
             return
@@ -29,6 +42,22 @@ class ReachableAnalysis(IRAnalysis):
         for out_bb in self.cfg.cfg_out(bb):
             self._compute_reachable_r(out_bb)
             s.update(self.reachable[out_bb])
+
+    def is_reachable_from(self, inst: IRInstruction, start_inst: IRInstruction) -> bool:
+        """
+        Instruction-granularity reachability: can execution reach `inst` after
+        executing `start_inst`? Within a single block this means `inst` comes
+        after `start_inst`, or the block lies on a cycle (so `inst` is revisited
+        via a back-edge). Across blocks, `inst`'s block must be reachable from
+        `start_inst`'s block.
+        """
+        if inst.parent == start_inst.parent:
+            bb = inst.parent
+            start_index = bb.instructions.index(start_inst)
+            index = bb.instructions.index(inst)
+            return start_index < index or bb in self.reachable[bb]
+
+        return inst.parent in self.reachable[start_inst.parent]
 
     def invalidate(self):
         del self.reachable

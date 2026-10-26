@@ -10,6 +10,7 @@
 """
 
 from ethereum.ercs import IERC20
+import math
 implements: IERC20  # <--------------------- AMM contract is also the LP token.
 
 # ------------------------------- Version ------------------------------------
@@ -225,14 +226,14 @@ def __init__(
     initial_price: uint256,
 ):
 
-    MATH = Math(_math)
+    self.MATH = Math(_math)
 
-    factory = Factory(msg.sender)
-    name = _name
-    symbol = _symbol
-    coins = _coins
+    self.factory = Factory(msg.sender)
+    self.name = _name
+    self.symbol = _symbol
+    self.coins = _coins
 
-    PRECISIONS = self._unpack_2(packed_precisions)  # <-- Precisions of coins.
+    self.PRECISIONS = self._unpack_2(packed_precisions)  # <-- Precisions of coins.
 
     # --------------- Validate A and gamma parameters here and not in staticcall factory.
     gamma_A: uint256[2] = self._unpack_2(packed_gamma_A)  # gamma is at idx 0.
@@ -264,21 +265,21 @@ def __init__(
     #     DOMAIN_SEPARATOR will be re-calculated each time `permit` is called.
     #                   Otherwise, it will always use CACHED_DOMAIN_SEPARATOR.
     #                       see: `_domain_separator()` for its implementation.
-    NAME_HASH = keccak256(name)
-    salt = _salt
-    CACHED_CHAIN_ID = chain.id
-    CACHED_DOMAIN_SEPARATOR = keccak256(
+    self.NAME_HASH = keccak256(self.name)
+    self.salt = _salt
+    self.CACHED_CHAIN_ID = chain.id
+    self.CACHED_DOMAIN_SEPARATOR = keccak256(
         abi_encode(
             EIP712_TYPEHASH,
-            NAME_HASH,
+            self.NAME_HASH,
             VERSION_HASH,
             chain.id,
             self,
-            salt,
+            self.salt,
         )
     )
 
-    log Transfer(empty(address), self, 0)  # <------- Fire empty transfer from
+    log Transfer(sender=empty(address), receiver=self, value=0)  # <------- Fire empty transfer from
     #                                       0x0 to self for indexers to catch.
 
 
@@ -302,7 +303,7 @@ def _transfer_in(
             This is only enabled for exchange_received.
     @return The amount of tokens received.
     """
-    coin_balance: uint256 = staticcall IERC20(coins[_coin_idx]).balanceOf(self)
+    coin_balance: uint256 = staticcall IERC20(self.coins[_coin_idx]).balanceOf(self)
 
     if expect_optimistic_transfer:  # Only enabled in exchange_received:
         # it expects the caller of exchange_received to have sent tokens to
@@ -325,14 +326,14 @@ def _transfer_in(
     # ----------------------------------------------- IERC20 transferFrom flow.
 
     # EXTERNAL CALL
-    assert extcall IERC20(coins[_coin_idx]).transferFrom(
+    assert extcall IERC20(self.coins[_coin_idx]).transferFrom(
         sender,
         self,
         _dx,
         default_return_value=True
     )
 
-    dx: uint256 = staticcall IERC20(coins[_coin_idx]).balanceOf(self) - coin_balance
+    dx: uint256 = staticcall IERC20(self.coins[_coin_idx]).balanceOf(self) - coin_balance
     self.balances[_coin_idx] += dx
     return dx
 
@@ -352,7 +353,7 @@ def _transfer_out(_coin_idx: uint256, _amount: uint256, receiver: address):
     self.balances[_coin_idx] -= _amount
 
     # EXTERNAL CALL
-    assert extcall IERC20(coins[_coin_idx]).transfer(
+    assert extcall IERC20(self.coins[_coin_idx]).transfer(
         receiver,
         _amount,
         default_return_value=True
@@ -401,7 +402,7 @@ def exchange(
     self._transfer_out(j, out[0], receiver)
 
     # log:
-    log TokenExchange(msg.sender, i, dx_received, j, out[0], out[1], out[2])
+    log TokenExchange(buyer=msg.sender, sold_id=i, tokens_sold=dx_received, bought_id=j, tokens_bought=out[0], fee=out[1], packed_price_scale=out[2])
 
     return out[0]
 
@@ -450,7 +451,7 @@ def exchange_received(
     self._transfer_out(j, out[0], receiver)
 
     # log:
-    log TokenExchange(msg.sender, i, dx_received, j, out[0], out[1], out[2])
+    log TokenExchange(buyer=msg.sender, sold_id=i, tokens_sold=dx_received, bought_id=j, tokens_bought=out[0], fee=out[1], packed_price_scale=out[2])
 
     return out[0]
 
@@ -501,12 +502,12 @@ def add_liquidity(
             xp[i] = xp[i] + amounts_received[i]
 
     xp = [
-        xp[0] * PRECISIONS[0],
-        unsafe_div(xp[1] * price_scale * PRECISIONS[1], PRECISION)
+        xp[0] * self.PRECISIONS[0],
+        unsafe_div(xp[1] * price_scale * self.PRECISIONS[1], PRECISION)
     ]
     xp_old = [
-        xp_old[0] * PRECISIONS[0],
-        unsafe_div(xp_old[1] * price_scale * PRECISIONS[1], PRECISION)
+        xp_old[0] * self.PRECISIONS[0],
+        unsafe_div(xp_old[1] * price_scale * self.PRECISIONS[1], PRECISION)
     ]
 
     for i: uint256 in range(N_COINS):
@@ -518,13 +519,13 @@ def add_liquidity(
     if self.future_A_gamma_time > block.timestamp:  # <--- A_gamma is ramping.
 
         # ----- Recalculate the invariant if A or gamma are undergoing a ramp.
-        old_D = staticcall MATH.newton_D(A_gamma[0], A_gamma[1], xp_old, 0)
+        old_D = staticcall self.MATH.newton_D(A_gamma[0], A_gamma[1], xp_old, 0)
 
     else:
 
         old_D = self.D
 
-    D: uint256 = staticcall MATH.newton_D(A_gamma[0], A_gamma[1], xp, 0)
+    D: uint256 = staticcall self.MATH.newton_D(A_gamma[0], A_gamma[1], xp, 0)
 
     token_supply: uint256 = self.totalSupply
     if old_D > 0:
@@ -563,11 +564,11 @@ def add_liquidity(
     # ---------------------------------------------- Log and claim admin fees.
 
     log AddLiquidity(
-        receiver,
-        amounts_received,
-        d_token_fee,
-        token_supply,
-        price_scale
+        provider=receiver,
+        token_amounts=amounts_received,
+        fee=d_token_fee,
+        token_supply=token_supply,
+        packed_price_scale=price_scale
     )
 
     return d_token
@@ -636,7 +637,7 @@ def remove_liquidity(
         # before external calls:
         self._transfer_out(i, withdraw_amounts[i], receiver)
 
-    log RemoveLiquidity(msg.sender, withdraw_amounts, total_supply - _amount)
+    log RemoveLiquidity(provider=msg.sender, token_amounts=withdraw_amounts, token_supply=total_supply - _amount)
 
     return withdraw_amounts
 
@@ -696,7 +697,7 @@ def remove_liquidity_one_coin(
     self._transfer_out(i, dy, receiver)
 
     log RemoveLiquidityOne(
-        msg.sender, token_amount, i, dy, approx_fee, packed_price_scale
+        provider=msg.sender, token_amount=token_amount, coin_index=i, coin_amount=dy, approx_fee=approx_fee, packed_price_scale=packed_price_scale
     )
 
     return dy
@@ -766,8 +767,8 @@ def _exchange(
 
     price_scale: uint256 = self.cached_price_scale
     xp = [
-        xp[0] * PRECISIONS[0],
-        unsafe_div(xp[1] * price_scale * PRECISIONS[1], PRECISION)
+        xp[0] * self.PRECISIONS[0],
+        unsafe_div(xp[1] * price_scale * self.PRECISIONS[1], PRECISION)
     ]
 
     # ----------- Update invariant if A, gamma are undergoing ramps ---------
@@ -775,34 +776,34 @@ def _exchange(
     t: uint256 = self.future_A_gamma_time
     if t > block.timestamp:
 
-        x0 *= PRECISIONS[i]
+        x0 *= self.PRECISIONS[i]
 
         if i > 0:
             x0 = unsafe_div(x0 * price_scale, PRECISION)
 
         x1: uint256 = xp[i]  # <------------------ Back up old value in xp ...
         xp[i] = x0                                                         # |
-        self.D = staticcall MATH.newton_D(A_gamma[0], A_gamma[1], xp, 0)              # |
+        self.D = staticcall self.MATH.newton_D(A_gamma[0], A_gamma[1], xp, 0)              # |
         xp[i] = x1  # <-------------------------------------- ... and restore.
 
     # ----------------------- Calculate dy and fees --------------------------
 
     D: uint256 = self.D
-    y_out: uint256[2] = staticcall MATH.get_y(A_gamma[0], A_gamma[1], xp, D, j)
+    y_out: uint256[2] = staticcall self.MATH.get_y(A_gamma[0], A_gamma[1], xp, D, j)
     dy = xp[j] - y_out[0]
     xp[j] -= dy
     dy -= 1
 
     if j > 0:
         dy = dy * PRECISION // price_scale
-    dy //= PRECISIONS[j]
+    dy //= self.PRECISIONS[j]
 
     fee: uint256 = unsafe_div(self._fee(xp) * dy, 10**10)
     dy -= fee  # <--------------------- Subtract fee from the outgoing amount.
     assert dy >= min_dy, "Slippage"
     y -= dy
 
-    y *= PRECISIONS[j]
+    y *= self.PRECISIONS[j]
     if j > 0:
         y = unsafe_div(y * price_scale, PRECISION)
     xp[j] = y  # <------------------------------------------------- Update xp.
@@ -857,7 +858,7 @@ def tweak_price(
 
         # ------------------ Calculate moving average params -----------------
 
-        alpha = staticcall MATH.wad_exp(
+        alpha = staticcall self.MATH.wad_exp(
             -convert(
                 unsafe_div(
                     unsafe_sub(block.timestamp, last_timestamp) * 10**18,
@@ -889,12 +890,12 @@ def tweak_price(
 
     D_unadjusted: uint256 = new_D
     if new_D == 0:  #  <--------------------------- _exchange sets new_D to 0.
-        D_unadjusted = staticcall MATH.newton_D(A_gamma[0], A_gamma[1], _xp, K0_prev)
+        D_unadjusted = staticcall self.MATH.newton_D(A_gamma[0], A_gamma[1], _xp, K0_prev)
 
     # ----------------------- Calculate last_prices --------------------------
 
     self.last_prices = unsafe_div(
-        staticcall MATH.get_p(_xp, D_unadjusted, A_gamma) * price_scale,
+        staticcall self.MATH.get_p(_xp, D_unadjusted, A_gamma) * price_scale,
         10**18
     )
 
@@ -910,7 +911,7 @@ def tweak_price(
 
     if old_virtual_price > 0:
 
-        xcp: uint256 = isqrt(xp[0] * xp[1])
+        xcp: uint256 = math.isqrt(xp[0] * xp[1])
         virtual_price = 10**18 * xcp // total_supply
 
         xcp_profit = unsafe_div(
@@ -968,7 +969,7 @@ def tweak_price(
             ]
 
             # ------------------------------------------ Update D with new xp.
-            D: uint256 = staticcall MATH.newton_D(A_gamma[0], A_gamma[1], xp, 0)
+            D: uint256 = staticcall self.MATH.newton_D(A_gamma[0], A_gamma[1], xp, 0)
 
             # ------------------------------------- Convert xp to real prices.
             xp = [
@@ -979,7 +980,7 @@ def tweak_price(
             # ---------- Calculate new virtual_price using new xp and D. Reuse
             #              `old_virtual_price` (but it has new virtual_price).
             old_virtual_price = unsafe_div(
-                10**18 * isqrt(xp[0] * xp[1]), total_supply
+                10**18 * math.isqrt(xp[0] * xp[1]), total_supply
             )  # <----- unsafe_div because we did safediv before (if vp>1e18)
 
             # ---------------------------- Proceed if we've got enough profit.
@@ -1043,7 +1044,7 @@ def _claim_admin_fees():
     D: uint256 = self.D
     vprice: uint256 = self.virtual_price
     price_scale: uint256 = self.cached_price_scale
-    fee_receiver: address = staticcall factory.fee_receiver()
+    fee_receiver: address = staticcall self.factory.fee_receiver()
     balances: uint256[N_COINS] = self.balances
 
     #  Admin fees are calculated as follows.
@@ -1121,7 +1122,7 @@ def _claim_admin_fees():
             # update to self.balances occurs before external contract calls:
             self._transfer_out(i, admin_tokens[i], fee_receiver)
 
-        log ClaimAdminFee(fee_receiver, admin_tokens)
+        log ClaimAdminFee(admin=fee_receiver, tokens=admin_tokens)
 
 
 @internal
@@ -1132,8 +1133,8 @@ def xp(
 ) -> uint256[N_COINS]:
 
     return [
-        balances[0] * PRECISIONS[0],
-        unsafe_div(balances[1] * PRECISIONS[1] * price_scale, PRECISION)
+        balances[0] * self.PRECISIONS[0],
+        unsafe_div(balances[1] * self.PRECISIONS[1] * price_scale, PRECISION)
     ]
 
 
@@ -1189,7 +1190,7 @@ def get_xcp(D: uint256, price_scale: uint256) -> uint256:
         D * PRECISION // (price_scale * N_COINS)
     ]
 
-    return isqrt(x[0] * x[1])  # <------------------- Geometric Mean.
+    return math.isqrt(x[0] * x[1])  # <------------------- Geometric Mean.
 
 
 @view
@@ -1235,16 +1236,16 @@ def _calc_withdraw_one_coin(
 
     # -------------------------- Calculate D0 and xp -------------------------
 
-    price_scale_i: uint256 = self.cached_price_scale * PRECISIONS[1]
+    price_scale_i: uint256 = self.cached_price_scale * self.PRECISIONS[1]
     xp: uint256[N_COINS] = [
-        xx[0] * PRECISIONS[0],
+        xx[0] * self.PRECISIONS[0],
         unsafe_div(xx[1] * price_scale_i, PRECISION)
     ]
     if i == 0:
-        price_scale_i = PRECISION * PRECISIONS[0]
+        price_scale_i = PRECISION * self.PRECISIONS[0]
 
     if update_D:  # <-------------- D is updated if pool is undergoing a ramp.
-        D0 = staticcall MATH.newton_D(A_gamma[0], A_gamma[1], xp, 0)
+        D0 = staticcall self.MATH.newton_D(A_gamma[0], A_gamma[1], xp, 0)
     else:
         D0 = self.D
 
@@ -1280,7 +1281,7 @@ def _calc_withdraw_one_coin(
     # ------------------------------------------------------------------------
     D -= (dD - D_fee)  # <----------------------------------- Charge fee on D.
     # --------------------------------- Calculate `y_out`` with `(D - D_fee)`.
-    y: uint256 = (staticcall MATH.get_y(A_gamma[0], A_gamma[1], xp, D, i))[0]
+    y: uint256 = (staticcall self.MATH.get_y(A_gamma[0], A_gamma[1], xp, D, i))[0]
     dy: uint256 = (xp[i] - y) * PRECISION // price_scale_i
     xp[i] = y
 
@@ -1294,7 +1295,7 @@ def _calc_withdraw_one_coin(
 def _approve(_owner: address, _spender: address, _value: uint256):
     self.allowance[_owner][_spender] = _value
 
-    log Approval(_owner, _spender, _value)
+    log Approval(owner=_owner, spender=_spender, value=_value)
 
 
 @internal
@@ -1304,24 +1305,24 @@ def _transfer(_from: address, _to: address, _value: uint256):
     self.balanceOf[_from] -= _value
     self.balanceOf[_to] += _value
 
-    log Transfer(_from, _to, _value)
+    log Transfer(sender=_from, receiver=_to, value=_value)
 
 
 @view
 @internal
 def _domain_separator() -> bytes32:
-    if chain.id != CACHED_CHAIN_ID:
+    if chain.id != self.CACHED_CHAIN_ID:
         return keccak256(
             abi_encode(
                 EIP712_TYPEHASH,
-                NAME_HASH,
+                self.NAME_HASH,
                 VERSION_HASH,
                 chain.id,
                 self,
-                salt,
+                self.salt,
             )
         )
-    return CACHED_DOMAIN_SEPARATOR
+    return self.CACHED_DOMAIN_SEPARATOR
 
 
 @external
@@ -1432,7 +1433,7 @@ def mint(_to: address, _value: uint256) -> bool:
     self.totalSupply += _value
     self.balanceOf[_to] += _value
 
-    log Transfer(empty(address), _to, _value)
+    log Transfer(sender=empty(address), receiver=_to, value=_value)
     return True
 
 
@@ -1447,7 +1448,7 @@ def burnFrom(_to: address, _value: uint256) -> bool:
     self.totalSupply -= _value
     self.balanceOf[_to] -= _value
 
-    log Transfer(_to, empty(address), _value)
+    log Transfer(sender=_to, receiver=empty(address), value=_value)
     return True
 
 
@@ -1475,7 +1476,7 @@ def internal_price_oracle() -> uint256:
 
         last_prices: uint256 = self.last_prices
         ma_time: uint256 = self._unpack_3(self.packed_rebalancing_params)[2]
-        alpha: uint256 = staticcall MATH.wad_exp(
+        alpha: uint256 = staticcall self.MATH.wad_exp(
             -convert(
                 unsafe_sub(block.timestamp, last_prices_timestamp) * 10**18 // ma_time,
                 int256,
@@ -1498,7 +1499,7 @@ def fee_receiver() -> address:
     @notice Returns the address of the admin fee receiver.
     @return address Fee receiver.
     """
-    return staticcall factory.fee_receiver()
+    return staticcall self.factory.fee_receiver()
 
 
 @external
@@ -1508,7 +1509,7 @@ def admin() -> address:
     @notice Returns the address of the pool's admin.
     @return address Admin.
     """
-    return staticcall factory.admin()
+    return staticcall self.factory.admin()
 
 
 @external
@@ -1522,7 +1523,7 @@ def calc_token_amount(amounts: uint256[N_COINS], deposit: bool) -> uint256:
     @param deposit True if it is a deposit action, False if withdrawn.
     @return uint256 Amount of LP tokens deposited or withdrawn.
     """
-    view_contract: address = staticcall factory.views_implementation()
+    view_contract: address = staticcall self.factory.views_implementation()
     return staticcall Views(view_contract).calc_token_amount(amounts, deposit, self)
 
 
@@ -1537,7 +1538,7 @@ def get_dy(i: uint256, j: uint256, dx: uint256) -> uint256:
     @param dx amount of input coin[i] tokens
     @return uint256 Exact amount of output j tokens for dx amount of i input tokens.
     """
-    view_contract: address = staticcall factory.views_implementation()
+    view_contract: address = staticcall self.factory.views_implementation()
     return staticcall Views(view_contract).get_dy(i, j, dx, self)
 
 
@@ -1555,7 +1556,7 @@ def get_dx(i: uint256, j: uint256, dy: uint256) -> uint256:
     @param dy amount of input coin[j] tokens received
     @return uint256 Approximate amount of input i tokens to get dy amount of j tokens.
     """
-    view_contract: address = staticcall factory.views_implementation()
+    view_contract: address = staticcall self.factory.views_implementation()
     return staticcall Views(view_contract).get_dx(i, j, dy, self)
 
 
@@ -1568,7 +1569,7 @@ def lp_price() -> uint256:
             0th index
     @return uint256 LP price.
     """
-    return 2 * self.virtual_price * isqrt(self.internal_price_oracle() * 10**18) // 10**18
+    return 2 * self.virtual_price * math.isqrt(self.internal_price_oracle() * 10**18) // 10**18
 
 
 @external
@@ -1747,7 +1748,7 @@ def precisions() -> uint256[N_COINS]:  # <-------------- For by view contract.
     @notice Returns the precisions of each coin in the pool.
     @return uint256[3] precisions of coins.
     """
-    return PRECISIONS
+    return self.PRECISIONS
 
 
 @external
@@ -1785,7 +1786,7 @@ def ramp_A_gamma(
     @param future_gamma The future gamma value.
     @param future_time The timestamp at which the ramping will end.
     """
-    assert msg.sender == staticcall factory.admin()  # dev: only owner
+    assert msg.sender == staticcall self.factory.admin()  # dev: only owner
     assert block.timestamp > self.future_A_gamma_time # dev: ramp undergoing
     assert future_time > block.timestamp + MIN_RAMP_TIME - 1  # dev: insufficient time
 
@@ -1815,12 +1816,12 @@ def ramp_A_gamma(
     self.future_A_gamma = future_A_gamma
 
     log RampAgamma(
-        A_gamma[0],
-        future_A,
-        A_gamma[1],
-        future_gamma,
-        block.timestamp,
-        future_time,
+        initial_A=A_gamma[0],
+        future_A=future_A,
+        initial_gamma=A_gamma[1],
+        future_gamma=future_gamma,
+        initial_time=block.timestamp,
+        future_time=future_time,
     )
 
 
@@ -1830,7 +1831,7 @@ def stop_ramp_A_gamma():
     @notice Stop Ramping A and gamma parameters immediately.
     @dev Only accessible by factory admin.
     """
-    assert msg.sender == staticcall factory.admin()  # dev: only owner
+    assert msg.sender == staticcall self.factory.admin()  # dev: only owner
 
     A_gamma: uint256[2] = self._A_gamma()
     current_A_gamma: uint256 = A_gamma[0] << 128
@@ -1842,7 +1843,7 @@ def stop_ramp_A_gamma():
 
     # ------ Now (block.timestamp < t1) is always False, so we return saved A.
 
-    log StopRampA(A_gamma[0], A_gamma[1], block.timestamp)
+    log StopRampA(current_A=A_gamma[0], current_gamma=A_gamma[1], time=block.timestamp)
 
 
 @external
@@ -1865,7 +1866,7 @@ def apply_new_parameters(
     @param _new_adjustment_step The new adjustment step.
     @param _new_ma_time The new ma time. ma_time is time_in_seconds//ln(2).
     """
-    assert msg.sender == staticcall factory.admin()  # dev: only owner
+    assert msg.sender == staticcall self.factory.admin()  # dev: only owner
 
     # ----------------------------- Set fee params ---------------------------
 
@@ -1917,10 +1918,10 @@ def apply_new_parameters(
     # ---------------------------------- LOG ---------------------------------
 
     log NewParameters(
-        new_mid_fee,
-        new_out_fee,
-        new_fee_gamma,
-        new_allowed_extra_profit,
-        new_adjustment_step,
-        new_ma_time,
+        mid_fee=new_mid_fee,
+        out_fee=new_out_fee,
+        fee_gamma=new_fee_gamma,
+        allowed_extra_profit=new_allowed_extra_profit,
+        adjustment_step=new_adjustment_step,
+        ma_time=new_ma_time,
     )

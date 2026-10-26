@@ -5,6 +5,7 @@ import pytest
 
 import vyper
 from vyper.cli.vyper_json import compile_json
+from vyper.exceptions import ImmutableViolation
 
 deprecated = [
     """
@@ -24,6 +25,24 @@ event Foo:
 @external
 def foo():
     log Foo({a: 128, b: 256})
+    """,
+    """
+imm: immutable(uint256)
+
+@deploy
+def __init__(x: uint256):
+    self.imm = x
+
+@external
+def report() -> uint256:
+    return imm
+    """,
+    """
+imm: immutable(uint256)
+
+@deploy
+def __init__(x: uint256):
+    imm = x
     """,
 ]
 
@@ -51,6 +70,26 @@ def bar():
     for w in ws:
         msg = w.message.message
         assert "selfdestruct" in msg and "deprecated" in msg
+
+
+def test_multiple_immutable_bare_access_warnings():
+    code = """
+imm: immutable(uint256)
+
+@deploy
+def __init__(x: uint256, y: uint256):
+    imm = x
+    imm = y
+    """
+    with warnings.catch_warnings(record=True) as ws:
+        with pytest.raises(ImmutableViolation):
+            vyper.compile_code(code)
+
+    assert len(ws) == 2
+    for w in ws:
+        assert isinstance(w.message, vyper.warnings.Deprecation)
+        assert w.message.message == "immutables should now be accessed through `self`"
+        assert w.message.hint == "use `self.imm` instead"
 
 
 def test_deprecated_optimize_boolean_flag():

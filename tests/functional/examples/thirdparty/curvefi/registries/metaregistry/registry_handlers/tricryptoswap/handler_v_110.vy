@@ -11,7 +11,7 @@ version: public(constant(String[8])) = "1.1.0"
 
 
 interface BaseRegistry:
-    def find_pool_for_coins(_from: address, _to: address, i: uint256 = 0) -> address: view
+    def find_pool_for_coins(_from: address, _to: address, i: uint256 = ...) -> address: view
     def get_coin_indices(_pool: address, _from: address, _to: address) -> (uint256, uint256): view
     def get_balances(_pool: address) -> uint256[MAX_COINS]: view
     def get_coins(_pool: address) -> address[MAX_COINS]: view

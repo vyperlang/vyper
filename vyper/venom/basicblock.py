@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Any, ClassVar, Iterator, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Iterator, Optional, Sequence, Union
 
 import vyper.venom.effects as effects
 from vyper.codegen.ir_node import IRnode
@@ -14,11 +14,37 @@ if TYPE_CHECKING:
     from vyper.venom.function import IRFunction
 
 # instructions which can terminate a basic block
-BB_TERMINATORS = frozenset(["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink"])
-
-VOLATILE_INSTRUCTIONS = frozenset(
+BB_TERMINATORS = frozenset(
     [
-        "param",
+        "jmp",
+        "djmp",
+        "jnz",
+        "ret",
+        "dret",
+        "retfmp",
+        "return",
+        "revert",
+        "stop",
+        "sink",
+        "invalid",
+        "selfdestruct",
+    ]
+)
+
+# Terminators that halt program/message call execution
+HALTING_TERMINATORS = frozenset(["return", "revert", "stop", "invalid", "selfdestruct"])
+
+# internal-function return terminators (subset of BB_TERMINATORS)
+RET_INSTRUCTIONS = frozenset(["ret", "dret", "retfmp"])
+
+# entry stack-slot naming instructions. `fmp_param` names the hidden FMP
+# slot and `retpc_param` the return-PC slot of the lowered internal calling
+# convention; all three assemble identically (they are names for values
+# already on the stack at function entry).
+PARAM_INSTRUCTIONS = frozenset(["param", "fmp_param", "retpc_param"])
+
+VOLATILE_INSTRUCTIONS = PARAM_INSTRUCTIONS | frozenset(
+    [
         "call",
         "staticcall",
         "delegatecall",
@@ -37,6 +63,9 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "dloadbytes",
         "return",
         "ret",
+        "dret",
+        "retfmp",
+        "setfmp",
         "sink",
         "jmp",
         "jnz",
@@ -48,6 +77,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "assert",
         "assert_unreachable",
         "stop",
+        "dalloca",
     ]
 )
 
@@ -65,6 +95,9 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "extcodecopy",
         "return",
         "ret",
+        "dret",
+        "retfmp",
+        "setfmp",
         "sink",
         "revert",
         "assert",
@@ -94,6 +127,7 @@ CFG_ALTERING_INSTRUCTIONS = frozenset(["jmp", "djmp", "jnz"])
 COMMUTATIVE_INSTRUCTIONS = frozenset(["add", "mul", "smul", "or", "xor", "and", "eq"])
 
 COMPARATOR_INSTRUCTIONS = ("gt", "lt", "sgt", "slt")
+
 
 ir_printer = ContextVar("ir_printer", default=None)
 
@@ -170,58 +204,9 @@ class IRLiteral(IROperand):
     def __repr__(self) -> str:
         if abs(self.value) < 1024:
             return str(self.value)
+        if self.value < 0:
+            return f"-0x{abs(self.value):x}"
         return f"0x{self.value:x}"
-
-
-class IRAbstractMemLoc(IROperand):
-    """
-    operand representing an offset into an alloca'ed memory segment
-    which has not be concretized (allocated) yet.
-    """
-
-    _id: int
-
-    # size of the memory segment
-    size: int
-
-    # offset inside of a memory segment
-    offset: int
-
-    _curr_id: ClassVar[int] = 0
-    FREE_VAR1: ClassVar[IRAbstractMemLoc]
-    FREE_VAR2: ClassVar[IRAbstractMemLoc]
-
-    def __init__(self, size: int, offset: int = 0, force_id=None):
-        if force_id is None:
-            self._id = IRAbstractMemLoc._curr_id
-            IRAbstractMemLoc._curr_id += 1
-        else:
-            self._id = force_id
-        super().__init__(self._id)
-        self.size = size
-        self.offset = offset
-
-    def __hash__(self) -> int:
-        return self._id
-
-    def __eq__(self, other) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self._id == other._id and self.offset == other.offset
-
-    def __repr__(self) -> str:
-        return f"[{self._id},{self.size} + {self.offset}]"
-
-    def without_offset(self) -> IRAbstractMemLoc:
-        return IRAbstractMemLoc(self.size, force_id=self._id)
-
-    def with_offset(self, offset: int) -> IRAbstractMemLoc:
-        return IRAbstractMemLoc(self.size, offset=offset, force_id=self._id)
-
-
-# cannot assign in class since it is not defined in that place
-IRAbstractMemLoc.FREE_VAR1 = IRAbstractMemLoc(32)
-IRAbstractMemLoc.FREE_VAR2 = IRAbstractMemLoc(32)
 
 
 class IRVariable(IROperand):
@@ -285,12 +270,15 @@ class IRInstruction:
     annotation: Optional[str]
     ast_source: Optional[IRnode]
     error_msg: Optional[str]
+    memory_read_max_size: Optional[int]
 
     def __init__(
         self,
         opcode: str,
         operands: list[IROperand] | Iterator[IROperand],
+        /,
         outputs: Optional[list[IRVariable]] = None,
+        annotation: Optional[str] = None,
     ):
         assert isinstance(opcode, str), "opcode must be an str"
         assert isinstance(operands, list | Iterator), "operands must be a list"
@@ -298,9 +286,13 @@ class IRInstruction:
         self.operands = list(operands)  # in case we get an iterator
         self._outputs = list(outputs) if outputs is not None else []
 
-        self.annotation = None
+        self.annotation = annotation
+
         self.ast_source = None
         self.error_msg = None
+        # Optional frontend proof for dynamic memory reads. This is metadata,
+        # not an IR operand, so it cannot affect emitted code.
+        self.memory_read_max_size = None
 
     @property
     def is_volatile(self) -> bool:
@@ -328,7 +320,7 @@ class IRInstruction:
 
     @property
     def is_param(self) -> bool:
-        return self.opcode == "param"
+        return self.opcode in PARAM_INSTRUCTIONS
 
     @property
     def is_pseudo(self) -> bool:
@@ -404,6 +396,7 @@ class IRInstruction:
         self.opcode = "nop"
         self._outputs = []
         self.operands = []
+        self.memory_read_max_size = None
 
     def flip(self):
         """
@@ -462,10 +455,23 @@ class IRInstruction:
 
     @property
     def code_size_cost(self) -> int:
-        if self.opcode in ("ret", "param"):
+        if self.opcode in RET_INSTRUCTIONS or self.is_param:
             return 0
-        if self.opcode in ("assign", "palloca", "alloca", "calloca"):
+        if self.opcode in ("assign", "alloca", "getfmp", "setfmp"):
+            # getfmp/setfmp lower to assigns of the threaded FMP variable
             return 1
+        if self.opcode == "initial_fmp":
+            # Pure value: repeated initial_fmp instructions intentionally may
+            # CSE together. Lowers to PUSH {initial_fmp_value}; typical values
+            # fit in PUSH1 (2 bytes) but may grow for large static frames.
+            return 2
+        if self.opcode == "dalloca":
+            # `dalloca` is high-level sugar and is eliminated by FmpLoweringPass
+            # before assembly emission. The lowered generic form is:
+            #   PUSH1 31 + ADD, PUSH1 31 + NOT, AND, DUP2 + ADD
+            return 10
+        if self.opcode == "bump":
+            return 2  # DUP2 ADD
         return 2
 
     def get_ast_source(self) -> Optional[IRnode]:
@@ -482,6 +488,8 @@ class IRInstruction:
         ret.annotation = self.annotation
         ret.ast_source = self.ast_source
         ret.error_msg = self.error_msg
+        ret.memory_read_max_size = self.memory_read_max_size
+        ret.parent = self.parent
         return ret
 
     def str_short(self) -> str:
@@ -492,7 +500,7 @@ class IRInstruction:
         opcode = f"{self.opcode} " if self.opcode != "assign" else ""
         s += opcode
         operands = self.operands
-        if opcode not in ["jmp", "jnz", "djmp", "invoke"]:
+        if self.opcode not in ("jmp", "jnz", "djmp", "phi", "dret", "retfmp"):
             operands = list(reversed(operands))
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
         return s
@@ -507,7 +515,7 @@ class IRInstruction:
         operands = self.operands
         if self.opcode == "invoke":
             operands = [operands[0]] + list(reversed(operands[1:]))
-        elif self.opcode not in ("jmp", "jnz", "djmp", "phi"):
+        elif self.opcode not in ("jmp", "jnz", "djmp", "phi", "dret", "retfmp"):
             operands = reversed(operands)  # type: ignore
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
 
@@ -577,6 +585,7 @@ class IRBasicBlock:
     def append_instruction(
         self,
         opcode: str,
+        /,
         *args: Union[IROperand, int],
         ret: Optional[IRVariable] = None,
         annotation: str = None,
@@ -676,7 +685,7 @@ class IRBasicBlock:
             assert inst.parent == self  # sanity check
 
         def key(inst):
-            if inst.opcode in ("phi", "param"):
+            if inst.opcode == "phi" or inst.is_param:
                 return 0
             if inst.is_bb_terminator:
                 return 2
@@ -699,7 +708,7 @@ class IRBasicBlock:
     @property
     def param_instructions(self) -> Iterator[IRInstruction]:
         for inst in self.instructions:
-            if inst.opcode == "param":
+            if inst.is_param:
                 yield inst
             else:
                 return
@@ -752,7 +761,8 @@ class IRBasicBlock:
     @property
     def is_terminated(self) -> bool:
         """
-        Check if the basic block is terminal, i.e. the last instruction is a terminator.
+        Check if the basic block is properly terminated, i.e. the
+        last instruction is a bb terminator instruction.
         """
         # it's ok to return False here, since we use this to check
         # if we can/need to append instructions to the basic block.
@@ -760,12 +770,14 @@ class IRBasicBlock:
             return False
         return self.instructions[-1].is_bb_terminator
 
-    def copy(self) -> IRBasicBlock:
-        bb = IRBasicBlock(self.label, self.parent)
-        bb.instructions = [inst.copy() for inst in self.instructions]
-        for inst in bb.instructions:
-            inst.parent = bb
-        return bb
+    @property
+    def is_halting(self) -> bool:
+        """
+        Check if the basic block halts program execution
+        """
+        if len(self.instructions) == 0:
+            return False
+        return self.instructions[-1].opcode in HALTING_TERMINATORS
 
     def __repr__(self) -> str:
         printer = ir_printer.get()

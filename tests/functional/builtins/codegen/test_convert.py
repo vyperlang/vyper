@@ -1,3 +1,4 @@
+import dataclasses
 import enum
 import itertools
 import math
@@ -9,7 +10,8 @@ import pytest
 
 from tests.utils import decimal_to_int
 from vyper.compiler import compile_code
-from vyper.exceptions import InvalidLiteral, InvalidType, TypeMismatch
+from vyper.compiler.settings import Settings
+from vyper.exceptions import InvalidLiteral, InvalidType, StaticAssertionException, TypeMismatch
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.shortcuts import BYTES20_T, BYTES32_T, UINT, UINT160_T, UINT256_T
 from vyper.utils import (
@@ -402,7 +404,7 @@ def generate_passing_cases():
             # only add convertible cases
             if _py_convert(c, i_typ, o_typ) is not None:
                 ret.append((i_typ, o_typ, c))
-    return sorted(ret)
+    return sorted(ret, key=lambda x: (str(x[0]), str(x[1]), x[2]))
 
 
 def generate_reverting_cases():
@@ -412,7 +414,7 @@ def generate_reverting_cases():
         for c in cases:
             if _py_convert(c, i_typ, o_typ) is None:
                 ret.append((i_typ, o_typ, c))
-    return sorted(ret)
+    return sorted(ret, key=lambda x: (str(x[0]), str(x[1]), x[2]))
 
 
 def _vyper_literal(val, typ):
@@ -539,6 +541,36 @@ def foo(a: {typ}) -> Status:
         assert_compile_failed(lambda: get_contract(contract), TypeMismatch)
 
 
+def test_first_flag_member_to_bytes32(get_contract):
+    contract = """
+flag MyFlag:
+    MEMBER1
+    MEMBER2
+
+@external
+@pure
+def foo() -> bytes32:
+    return convert(MyFlag.MEMBER1, bytes32)
+    """
+    c = get_contract(contract)
+    assert c.foo() == (1).to_bytes(32, "big")
+
+
+def test_second_flag_member_to_bytes32(get_contract):
+    contract = """
+flag MyFlag:
+    MEMBER1
+    MEMBER2
+
+@external
+@pure
+def foo() -> bytes32:
+    return convert(MyFlag.MEMBER2, bytes32)
+    """
+    c = get_contract(contract)
+    assert c.foo() == (2).to_bytes(32, "big")
+
+
 # uint256 conversion is currently valid due to type inference on literals
 # not quite working yet
 same_type_conversion_blocked = sorted(TEST_TYPES - {UINT256_T})
@@ -662,9 +694,59 @@ def foo() -> {t_bytes}:
     assert c2.foo() == test_data
 
 
+def test_conversion_tmp_negative_int_to_decimal_bounds(
+    get_contract, tx_failed, compiler_settings, assert_compile_failed
+):
+    code = """
+@external
+def foo():
+    bar: int136 = -18707220957835557353007165858768422651596
+    foobar: decimal = convert(bar, decimal)
+    """
+
+    compiler_settings = dataclasses.replace(compiler_settings, disable_static_exceptions=True)
+
+    c = get_contract(code, compiler_settings=compiler_settings)
+
+    with tx_failed():
+        c.foo()
+
+    code = """
+@external
+def foo():
+    foobar: decimal = convert(-18707220957835557353007165858768422651596, decimal)
+    """
+
+    assert_compile_failed(lambda: get_contract(code), InvalidLiteral)
+
+
+def test_conversion_hex(get_contract, assert_compile_failed):
+    code = """
+@external
+def foo() -> uint8:
+    return convert(0xffff, uint8)
+    """
+    assert_compile_failed(lambda: get_contract(code), InvalidLiteral)
+
+
+def test_conversion_constant_different_leghts(get_contract):
+    code = r"""
+FOO: constant(Bytes[2]) = b'\xff'
+
+@external
+def foo() -> int16:
+    return convert(FOO, int16)
+    """
+
+    c = get_contract(code)
+    assert c.foo() == -1
+
+
 @pytest.mark.parametrize("i_typ,o_typ,val", generate_reverting_cases())
 @pytest.mark.fuzzing
-def test_conversion_failures(get_contract, assert_compile_failed, tx_failed, i_typ, o_typ, val):
+def test_conversion_failures(
+    get_contract, assert_compile_failed, tx_failed, compiler_settings, i_typ, o_typ, val
+):
     """
     Test multiple contracts and check for a specific exception.
     If no exception is provided, a runtime revert is expected (e.g. clamping).
@@ -704,9 +786,15 @@ def foo():
     foobar: {o_typ} = convert(bar, {o_typ})
     """
 
-    c2 = get_contract(contract_2)
+    compiler_settings_no_static = dataclasses.replace(
+        compiler_settings, disable_static_exceptions=True
+    )
+    c2 = get_contract(contract_2, compiler_settings=compiler_settings_no_static)
     with tx_failed():
         c2.foo()
+
+    if compiler_settings.experimental_codegen:
+        assert_compile_failed(lambda: get_contract(contract_2), StaticAssertionException)
 
     contract_3 = f"""
 @external
@@ -714,12 +802,38 @@ def foo(bar: {i_typ}) -> {o_typ}:
     return convert(bar, {o_typ})
     """
 
-    c3 = get_contract(contract_3)
+    c3 = get_contract(contract_3, compiler_settings=compiler_settings_no_static)
     input_val = val
     if isinstance(i_typ, DecimalT):
         input_val = decimal_to_int(input_val)
     with tx_failed():
         c3.foo(input_val)
+
+
+@pytest.mark.parametrize(
+    "bad_code",
+    [
+        """
+@external
+def foo(x: uint256) -> bytes1:
+    return convert(x, bytes1)
+        """,
+        """
+@external
+def foo(x: int128) -> address:
+    return convert(x, address)
+        """,
+        """
+@external
+def foo(x: address) -> int256:
+    return convert(x, int256)
+        """,
+    ],
+)
+def test_venom_bytecode_output_rejects_invalid_conversions(bad_code):
+    settings = Settings(experimental_codegen=True)
+    with pytest.raises(TypeMismatch):
+        compile_code(bad_code, output_formats=["bytecode"], settings=settings)
 
 
 @pytest.mark.parametrize(
@@ -751,3 +865,68 @@ def test() -> uint256:
 """
     c = get_contract(source)
     assert c.test() == expected
+
+
+def test_convert_zero_bytes_to_bool(get_contract):
+    """Bytes with zero content convert to False."""
+    code = """
+@external
+def test_zero() -> bool:
+    return convert(b"\\x00", bool)
+
+@external
+def test_empty() -> bool:
+    return convert(b"", bool)
+
+@external
+def test_nonzero() -> bool:
+    return convert(b"\\x01", bool)
+
+@external
+def test_nonzero_multi() -> bool:
+    return convert(b"\\x00\\x01", bool)
+    """
+    c = get_contract(code)
+    assert c.test_zero() is False
+    assert c.test_empty() is False
+    assert c.test_nonzero() is True
+    assert c.test_nonzero_multi() is True
+
+
+def test_convert_storage_bytes_to_uint(get_contract):
+    """Regression test: convert correctly handles storage bytes."""
+    code = """
+stored: Bytes[32]
+
+@external
+def test_convert() -> uint256:
+    self.stored = b"\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x2a"
+    return convert(self.stored, uint256)
+    """  # noqa: E501
+    c = get_contract(code)
+    assert c.test_convert() == 42
+
+
+def test_convert_int256_to_decimal_bounds(get_contract, tx_failed):
+    code = """
+@external
+def foo(x: int256) -> decimal:
+    return convert(x, decimal)
+    """
+    c = get_contract(code)
+
+    # the decimal bounds are not whole numbers, so the largest-magnitude
+    # convertible integers are the bounds rounded towards zero
+    lo, hi = DecimalT().ast_bounds
+    min_int = round_towards_zero(lo)
+    max_int = round_towards_zero(hi)
+    assert Decimal(min_int - 1) < lo < Decimal(min_int)
+    assert Decimal(max_int) < hi < Decimal(max_int + 1)
+
+    assert c.foo(min_int) == min_int * DECIMAL_DIVISOR
+    assert c.foo(max_int) == max_int * DECIMAL_DIVISOR
+
+    with tx_failed():
+        c.foo(min_int - 1)
+    with tx_failed():
+        c.foo(max_int + 1)

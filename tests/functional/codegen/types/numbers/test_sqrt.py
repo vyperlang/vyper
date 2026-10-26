@@ -152,22 +152,45 @@ def test_sqrt_bounds(sqrt_contract, value):
     assert vyper_sqrt == actual_sqrt
 
 
+def _check_sqrt_valid_range(sqrt_contract, value):
+    vyper_sqrt = sqrt_contract.test(decimal_to_int(value))
+    actual_sqrt = decimal_sqrt(value)
+    assert vyper_sqrt == actual_sqrt
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        Decimal(SizeLimits.MAX_INT128),
+        Decimal(0),
+        # cf. GHSA-2p94-8669-xg86 for the following three examples:
+        Decimal("0.9999999998"),
+        Decimal("0.9999999997"),
+        Decimal("1.1000000000"),
+    ],
+)
+def test_sqrt_valid_range(sqrt_contract, value):
+    _check_sqrt_valid_range(sqrt_contract, value)
+
+
 @pytest.mark.fuzzing
 @hypothesis.given(
     value=hypothesis.strategies.decimals(
         min_value=Decimal(0), max_value=Decimal(SizeLimits.MAX_INT128), places=DECIMAL_PLACES
     )
 )
-@hypothesis.example(value=Decimal(SizeLimits.MAX_INT128))
-@hypothesis.example(value=Decimal(0))
-# cf. GHSA-2p94-8669-xg86 for the following three examples:
-@hypothesis.example(value=Decimal("0.9999999998"))
-@hypothesis.example(value=Decimal("0.9999999997"))
-@hypothesis.example(value=Decimal("1.1000000000"))
-def test_sqrt_valid_range(sqrt_contract, value):
-    vyper_sqrt = sqrt_contract.test(decimal_to_int(value))
-    actual_sqrt = decimal_sqrt(value)
-    assert vyper_sqrt == actual_sqrt
+def test_sqrt_valid_range_fuzz(sqrt_contract, value):
+    _check_sqrt_valid_range(sqrt_contract, value)
+
+
+def _check_sqrt_invalid_range(tx_failed, sqrt_contract, value):
+    with tx_failed():
+        sqrt_contract.test(decimal_to_int(value))
+
+
+@pytest.mark.parametrize("value", [Decimal(SizeLimits.MIN_INT128), Decimal("-1E10")])
+def test_sqrt_invalid_range(tx_failed, sqrt_contract, value):
+    _check_sqrt_invalid_range(tx_failed, sqrt_contract, value)
 
 
 @pytest.mark.fuzzing
@@ -176,11 +199,8 @@ def test_sqrt_valid_range(sqrt_contract, value):
         min_value=Decimal(SizeLimits.MIN_INT128), max_value=Decimal("-1E10"), places=DECIMAL_PLACES
     )
 )
-@hypothesis.example(value=Decimal(SizeLimits.MIN_INT128))
-@hypothesis.example(value=Decimal("-1E10"))
-def test_sqrt_invalid_range(tx_failed, sqrt_contract, value):
-    with tx_failed():
-        sqrt_contract.test(decimal_to_int(value))
+def test_sqrt_invalid_range_fuzz(tx_failed, sqrt_contract, value):
+    _check_sqrt_invalid_range(tx_failed, sqrt_contract, value)
 
 
 def test_sqrt_eval_once(get_contract):
@@ -212,6 +232,7 @@ import math
 def foo() -> decimal:
     return sqrt(2.0)
     """
-    pattern = "The `sqrt` builtin was removed. Instead import module `math` and use `math.sqrt()"
-    with pytest.raises(UnimplementedException, match=pattern):
+    with pytest.raises(UnimplementedException) as e:
         compile_code(code)
+    expected = "The `sqrt` builtin was removed. Instead import module `math` and use `math.sqrt()`"
+    assert e.value.message == expected

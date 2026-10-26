@@ -60,6 +60,8 @@ of the error within the code:
 
     .. code-block:: vyper
 
+        #pragma enable-decimals
+
         @external
         def foo():
             bar: decimal = 3.123456789123456789
@@ -134,7 +136,7 @@ of the error within the code:
 
     .. code-block:: vyper
 
-        @public
+        @external
         def _foo():
             bar: uint256 = msg.value
 
@@ -172,19 +174,21 @@ of the error within the code:
 
 .. py:exception:: TypeMismatch
 
-    Raises when attempting to perform an action between two or more objects with known, dislike types.
+    Raises when attempting to perform an action between two or more objects with incompatible types.
 
     .. code-block:: vyper
 
-        @external
-        def foo(:
-            bar: int128 = 3
-            foo: decimal = 4.2
+        #pragma enable-decimals
 
-            if foo + bar > 4:
+        @external
+        def foo():
+            bar: int128 = 3
+            baz: decimal = 4.2
+
+            if baz + bar > 4:
                 pass
 
-    ``foo`` has a type of ``int128`` and ``bar`` has a type of ``decimal``, so attempting to add them together  raises a ``TypeMismatch``.
+    ``bar`` has a type of ``int128`` and ``baz`` has a type of ``decimal``, so attempting to add them together raises a ``TypeMismatch``.
 
 .. py:exception:: UndeclaredDefinition
 
