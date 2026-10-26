@@ -111,7 +111,7 @@ def test_runtime_sizable_predicates():
     assert is_runtime_sizable_type(DArrayT(batch, INF))
     assert is_runtime_sizable_type(holder)
     assert is_runtime_sizable_type(DArrayT(holder, 2))
-    # an unbounded element is a pointer cell, so the array keeps a stride
+    # unbounded elements, under a bounded or unbounded array, and nested
     assert is_runtime_sizable_type(DArrayT(BytesT(INF), 3))
     assert is_runtime_sizable_type(DArrayT(BytesT(INF), INF))
     assert is_runtime_sizable_type(DArrayT(DArrayT(BytesT(INF), INF), INF))
@@ -621,26 +621,6 @@ def test_inf_module_variable_locations_rejected(code):
     with pytest.raises(StructureException) as e:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
     assert e.value.message == "Module variables cannot use unbounded sequence types"
-
-
-@pytest.mark.parametrize(
-    "typ",
-    [
-        "DynArray[Bytes[INF], INF]",
-        "DynArray[DynArray[uint256, INF], INF]",
-        "DynArray[DynArray[Bytes[INF], INF], INF]",
-        "DynArray[Bytes[INF], 5]",
-    ],
-)
-def test_inf_element_dynarray_shapes_accepted(typ):
-    # an unbounded element is held in a pointer cell, so the array keeps a
-    # compile-time stride; nesting depth and a bounded outer length are both fine
-    code = f"""
-@external
-def foo(x: {typ}):
-    pass
-    """
-    assert compiler.compile_code(code, settings=Settings(experimental_codegen=True)) is not None
 
 
 @pytest.mark.parametrize(

@@ -242,7 +242,16 @@ def foo():
     compile_inf_code(code)
 
 
-@pytest.mark.parametrize("typ", ["DynArray[DynArray[uint256, INF], 5]", "DynArray[Bytes[INF], 5]"])
+@pytest.mark.parametrize(
+    "typ",
+    [
+        "DynArray[DynArray[uint256, INF], 5]",
+        "DynArray[Bytes[INF], 5]",
+        "DynArray[Bytes[INF], INF]",
+        "DynArray[DynArray[uint256, INF], INF]",
+        "DynArray[DynArray[Bytes[INF], INF], INF]",
+    ],
+)
 def test_dynarray_inf_elements(compile_inf_code, typ):
     code = f"""
 @external

@@ -35,8 +35,7 @@ def elem(xs: DynArray[Bytes[INF], INF], i: uint256) -> Bytes[INF]:
 
 @external
 def elem_len(xs: DynArray[Bytes[INF], INF], i: uint256) -> uint256:
-    # the element is a pointer cell; reading the cell as the value would
-    # return the payload address here instead of the length
+    # the element's own length, not its address in memory
     return len(xs[i])
     """
     c = get_contract(code)
@@ -78,6 +77,18 @@ def echo5(xs: DynArray[Bytes[INF], 5]) -> DynArray[Bytes[INF], 5]:
 @external
 def ints(xs: DynArray[DynArray[uint256, INF], INF], i: uint256, j: uint256) -> uint256:
     return xs[i][j]
+
+@external
+def echo3(
+    xs: DynArray[DynArray[DynArray[uint256, INF], INF], INF]
+) -> DynArray[DynArray[DynArray[uint256, INF], INF], INF]:
+    return xs
+
+@external
+def deep(
+    xs: DynArray[DynArray[DynArray[uint256, INF], INF], INF], i: uint256, j: uint256, k: uint256
+) -> uint256:
+    return xs[i][j][k]
     """
     c = get_contract(code)
     assert c.echo2(NESTED) == NESTED
@@ -85,9 +96,12 @@ def ints(xs: DynArray[DynArray[uint256, INF], INF], i: uint256, j: uint256) -> u
     assert c.inner(NESTED, 2, 0) == b"zz"
     assert c.echo5(VALUES[:3]) == VALUES[:3]
     assert c.ints([[1, 2], [], [3]], 2, 0) == 3
+    deep = [[[1, 2], []], [], [[3], [4, 5, 6]]]
+    assert c.echo3(deep) == deep
+    assert c.deep(deep, 2, 1, 2) == 6
 
 
-def test_bounded_outer_count_cap(get_contract, env, tx_failed):
+def test_bounded_outer_count_cap(get_contract, tx_failed):
     code = """
 @external
 def echo5(xs: DynArray[Bytes[INF], 5]) -> DynArray[Bytes[INF], 5]:
@@ -126,7 +140,7 @@ def roundtrip(data: Bytes[INF]) -> Bytes[INF]:
 
 @external
 def widen(xs: DynArray[Bytes[10], 3]) -> DynArray[Bytes[INF], INF]:
-    # inline bounded elements are copied into their own payloads
+    # bounded elements widen to unbounded ones
     ys: DynArray[Bytes[INF], INF] = xs
     return ys
 
@@ -151,8 +165,8 @@ def emit(xs: DynArray[Bytes[INF], INF]):
 
 
 def test_nested_arrays_of_unbounded_structs(get_contract):
-    # a bounded array of pointer-cell structs is an inline element (its stride
-    # is static); the walker that packs internal returns recurses into it
+    # a bounded array of structs with unbounded members can itself be an
+    # element, including in an internal function's return value
     code = """
 struct Batch:
     owner: address
@@ -189,9 +203,7 @@ def echo_inf(xs: DynArray[DynArray[Batch, INF], INF]) -> DynArray[DynArray[Batch
 
 
 def test_widened_internal_return(get_contract):
-    # the packer walks the declared layout, where an element is a pointer
-    # cell; a source with inline elements has to be laid out that way first,
-    # or inline length words are read as payload pointers
+    # an internal function may return bounded elements as unbounded ones
     code = """
 @internal
 def g3(xs: DynArray[Bytes[10], 3]) -> DynArray[Bytes[INF], 3]:
@@ -217,8 +229,8 @@ def f(xs: DynArray[Bytes[10], 3]) -> DynArray[Bytes[INF], INF]:
 
 
 def test_bounded_outer_copy_arg_and_ternary(get_contract):
-    # layout compatibility (`punnable`) must see a pointer cell as a cell, not
-    # as an inline value of the same size
+    # a bounded array of unbounded elements keeps its elements when copied,
+    # passed to an internal function or chosen by a ternary
     code = """
 @internal
 def _first_len(xs: DynArray[Bytes[INF], 3]) -> uint256:
@@ -277,7 +289,7 @@ def replace(xs: DynArray[Bytes[INF], INF], i: uint256, v: Bytes[INF]) -> DynArra
 def copy_then_store(xs: DynArray[Bytes[INF], INF]) -> (Bytes[INF], Bytes[INF]):
     ys: DynArray[Bytes[INF], INF] = xs
     ys[0] = b"zz"
-    # the copy and the original hold separate cells; the original is untouched
+    # writing the copy leaves the original untouched
     return xs[0], ys[0]
 
 @external
@@ -358,13 +370,10 @@ def from_calls(t: address) -> DynArray[Bytes[INF], INF]:
     assert c.from_calls(ret.address) == [b"\x11" * 40] * 3
 
 
-def test_store_converted_value(get_contract, env):
-    # unlike an external call result, `convert(s, Bytes[INF])` is `s`'s own
-    # buffer, so the element must get a copy which survives writes to `s`
+def test_store_converted_value(get_contract):
+    # an element built from `convert(s, Bytes[INF])` keeps its value when `s`
+    # is written afterwards
     code = """
-interface I:
-    def g() -> Bytes[INF]: view
-
 @external
 def append_converted() -> DynArray[Bytes[INF], INF]:
     s: String[10] = "one"
@@ -387,20 +396,11 @@ def literal_converted() -> DynArray[Bytes[INF], INF]:
     xs: DynArray[Bytes[INF], INF] = [convert(s, Bytes[INF])]
     s = "two"
     return xs
-
-@external
-def from_staticcalls(a: address) -> DynArray[Bytes[INF], INF]:
-    xs: DynArray[Bytes[INF], INF] = [b"z", staticcall I(a).g()]
-    xs.append(staticcall I(a).g())
-    xs[0] = staticcall I(a).g()
-    return xs
     """
     c = get_contract(code)
     assert c.append_converted() == [b"one"]
     assert c.store_converted() == [b"one"]
     assert c.literal_converted() == [b"one"]
-    ret = deploy_raw_returner(env, eth_abi_encode(["bytes"], [b"\x22" * 40]))
-    assert c.from_staticcalls(ret.address) == [b"\x22" * 40] * 3
 
 
 def test_assigned_values_stay_independent(get_contract):
@@ -437,9 +437,12 @@ def write_element_copy(
 
 
 def test_assign_call_and_builtin_results(get_contract, env):
-    # a local, struct member or element assigned a call or builtin result
-    # holds that result
+    # a local, struct member or element given a call or builtin result holds
+    # that result
     code = """
+interface I:
+    def g() -> Bytes[INF]: view
+
 struct S:
     data: Bytes[INF]
 
@@ -454,12 +457,21 @@ def assign(
     xs[0] = raw_call(b, b"", max_outsize=INF, is_static_call=True)
     xs[1] = slice(v, 1, 3)
     return x, s.data, xs[0], xs[1]
+
+@external
+def from_staticcalls(a: address) -> DynArray[Bytes[INF], INF]:
+    xs: DynArray[Bytes[INF], INF] = [b"z", staticcall I(a).g()]
+    xs.append(staticcall I(a).g())
+    xs[0] = staticcall I(a).g()
+    return xs
     """
     c = get_contract(code)
     a = deploy_raw_returner(env, b"\x11" * 40)
     b = deploy_raw_returner(env, b"\x22" * 7)
     expected = (b"\x11" * 40, b"\x11" * 40 + b"abcdef", b"\x22" * 7, b"bcd")
     assert c.assign(a.address, b.address, b"abcdef") == expected
+    ret = deploy_raw_returner(env, eth_abi_encode(["bytes"], [b"\x22" * 40]))
+    assert c.from_staticcalls(ret.address) == [b"\x22" * 40] * 3
 
 
 def test_tuple_unpack_into_elements(get_contract):
@@ -561,8 +573,8 @@ def write_other_while_iterating(xs: DynArray[Bytes[INF], INF]) -> DynArray[Bytes
 
 
 def test_iterate_as_wider_rows(get_contract):
-    # a Bytes[10] element takes 64 bytes and a Bytes[65] one 128, so each row
-    # is copied into the loop variable's layout
+    # the loop variable's rows hold longer elements than the iterated ones,
+    # long enough to need more memory each (Bytes[20] would not)
     code = """
 @external
 def total(xss: DynArray[DynArray[Bytes[10], INF], INF]) -> uint256:
@@ -584,6 +596,32 @@ def rows(xss: DynArray[DynArray[Bytes[10], INF], INF]) -> DynArray[DynArray[Byte
     assert c.total(xss) == 17
     assert c.rows(xss) == xss
     assert c.rows([]) == []
+
+
+def test_string_elements(get_contract):
+    code = """
+@external
+def echo(xs: DynArray[String[INF], INF]) -> DynArray[String[INF], INF]:
+    return xs
+
+@external
+def replace(
+    xs: DynArray[String[INF], INF], i: uint256, v: String[INF]
+) -> DynArray[String[INF], INF]:
+    ys: DynArray[String[INF], INF] = xs
+    ys[i] = v
+    return ys
+
+@external
+def literal() -> DynArray[String[INF], INF]:
+    return ["a", "", "a string longer than one thirty-two byte word"]
+    """
+    c = get_contract(code)
+    words = ["ab", "", "c" * 70]
+    assert c.echo(words) == words
+    assert c.echo([]) == []
+    assert c.replace(words, 1, "new" * 30) == ["ab", "new" * 30, "c" * 70]
+    assert c.literal() == ["a", "", "a string longer than one thirty-two byte word"]
 
 
 # --- malformed and adversarial input ----------------------------------------
@@ -615,8 +653,8 @@ def _bytes_array_calldata(count, offsets, tail):
 
 def test_aliased_heads_decode_each_element(get_contract, env):
     # the ABI allows every element offset to point at the same tail; each
-    # element is decoded into its own payload, so n elements sharing one
-    # m-word tail cost O(n*m) memory (see `decode_unbounded_sequence_to_scratch`)
+    # element is decoded into its own memory, so n elements sharing one
+    # m-word tail cost O(n*m) memory
     c = get_contract(ADV_CODE)
     n = 16
     tail = (40).to_bytes(32, "big") + b"x" * 40 + b"\x00" * 24
@@ -673,6 +711,15 @@ def f(xs: DynArray[DynArray[uint256, INF], INF]):
     (
         """
 @external
+def f(xs: DynArray[DynArray[uint256, INF], INF]) -> uint256:
+    ys: DynArray[DynArray[uint256, INF], INF] = xs
+    return ys[0].pop()
+        """,
+        "Cannot modify an unbounded element in place",
+    ),
+    (
+        """
+@external
 def f(xs: DynArray[DynArray[Bytes[INF], INF], INF]):
     ys: DynArray[DynArray[Bytes[INF], INF], INF] = xs
     ys[0][1] = b"a"
@@ -697,6 +744,17 @@ def f(a: address):
     extcall I(a).foo([])
         """,
         "DynArray element types cannot contain unbounded sequence types",
+    ),
+    (
+        """
+interface I:
+    def foo(xs: DynArray[uint256, ...][2]): nonpayable
+
+@external
+def f(a: address, x: DynArray[uint256, INF]):
+    extcall I(a).foo([x, x])
+        """,
+        "Function arguments cannot contain unbounded sequence types inside aggregate types",
     ),
 ]
 
