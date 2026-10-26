@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.codegen.core import calculate_type_for_external_return, has_length_word
+from vyper.codegen.core import calculate_type_for_external_return, has_length_word, punnable
 from vyper.codegen_venom.abi import (
     abi_encode_to_buf,
     abi_encode_values_to_buf,
@@ -232,79 +232,22 @@ class Stmt:
             self.ctx.ptr_store(dst_ptr, IRLiteral(0))
             return
 
-        if typ._is_prim_word:
-            self.ctx.ptr_store(dst_ptr, self.ctx.unwrap(src))
-        else:
-            self._copy_complex_type(dst_ptr, src, typ)
-
-    def _copy_complex_type(self, dst_ptr: Ptr, src_vv: VyperValue, typ: VyperType) -> None:
-        """Copy complex type into `dst_ptr`.
-
-        Materializes `src_vv` to memory (via unwrap), then stages through a
-        temporary buffer when source and destination are both in memory
-        (potential aliasing).  MemoryCopyElisionPass eliminates the staging
-        copy when src/dst are provably non-overlapping.
-        """
-        src_loc = src_vv.location  # None for stack values, else DataLocation
-        src_typ = src_vv.typ
-        src = self.ctx.unwrap(src_vv)  # always a memory ptr for complex types
-
-        if src_loc is DataLocation.MEMORY and dst_ptr.location is DataLocation.MEMORY:
+        # Stage when both src and dst are in memory to guard against aliasing.
+        # MemoryCopyElisionPass will eliminate the redundant copy when
+        # src/dst are provably non-overlapping (different allocas).
+        # store_memory handles struct ownership before making the staging copy.
+        if (
+            not typ._is_prim_word
+            and src.location is DataLocation.MEMORY
+            and dst_ptr.location is DataLocation.MEMORY
+        ):
             assert isinstance(dst_ptr.operand, IRVariable)
-            self.ctx.store_memory(src, dst_ptr.operand, typ, src_typ=src_typ, stage=True)
+            self.ctx.store_memory(
+                self.ctx.unwrap(src), dst_ptr.operand, typ, src_typ=src.typ, stage=True
+            )
             return
 
-        self._store_complex_type(dst_ptr, src, typ, src_typ)
-
-    def _store_complex_type(
-        self, dst_ptr: Ptr, src: IROperand, typ: VyperType, src_typ: VyperType
-    ) -> None:
-        """Store complex value from memory `src` into `dst_ptr` (no overlap guard).
-
-        Only called from `_copy_complex_type` which handles staging when needed.
-        """
-        if (
-            not same_memory_layout(src_typ, typ)
-            and dst_ptr.location is not DataLocation.MEMORY
-            and not (isinstance(src_typ, _BytestringT) and isinstance(typ, _BytestringT))
-        ):
-            # Normalize source into destination layout before writing to
-            # storage/transient/code locations that don't carry src_typ.
-            normalized = self.ctx.new_temporary_value(typ)
-            assert isinstance(normalized.operand, IRVariable)
-            self.ctx.store_memory(src, normalized.operand, typ, src_typ=src_typ)
-            src = normalized.operand
-            src_typ = typ
-
-        loc = dst_ptr.location
-        is_slot_addressed = loc in (DataLocation.STORAGE, DataLocation.TRANSIENT)
-
-        if is_slot_addressed:
-            # DynArray special case: only copy length + actual elements, not full capacity.
-            # This matches legacy codegen behavior (core.py:_dynarray_make_setter).
-            if isinstance(typ, DArrayT):
-                transient = loc is DataLocation.TRANSIENT
-                self._copy_dynarray_to_storage(src, dst_ptr.operand, typ, transient=transient)
-            else:
-                # store_storage / store_transient handle single-word mload internally.
-                store_fn = (
-                    self.ctx.store_transient
-                    if loc is DataLocation.TRANSIENT
-                    else self.ctx.store_storage
-                )
-                store_fn(src, dst_ptr.operand, typ)
-        elif loc == DataLocation.IMMUTABLES:
-            # Immutables in constructor
-            if typ.memory_bytes_required <= 32:
-                assert isinstance(src, IRVariable)
-                val = self.builder.mload(src)
-                self.ctx.ptr_store(dst_ptr, val)
-            else:
-                self.ctx.store_immutable(src, dst_ptr.operand, typ)
-        else:
-            assert isinstance(dst_ptr.operand, IRVariable)
-            # Memory destination: use layout-aware copy when types differ.
-            self.ctx.store_memory(src, dst_ptr.operand, typ, src_typ=src_typ)
+        self.ctx.make_setter(dst_ptr, typ, src)
 
     def _lower_tuple_unpack(self) -> None:
         """Lower tuple unpacking assignment: a, b = expr.
@@ -385,11 +328,13 @@ class Stmt:
 
             target_ptr = self._get_target_ptr(target_node)
 
-            if dst_elem_typ._is_prim_word:
-                self.ctx.ptr_store(target_ptr, val)
+            if src_elem_typ._is_prim_word:
+                elem_vv = VyperValue.from_stack_op(val, src_elem_typ)
             else:
                 # Complex element type: val is a memory pointer in source layout.
-                self._store_complex_type(target_ptr, val, dst_elem_typ, src_elem_typ)
+                assert isinstance(val, IRVariable)
+                elem_vv = self.ctx.dynamic_memory_value(val, src_elem_typ)
+            self.ctx.make_setter(target_ptr, dst_elem_typ, elem_vv)
 
     def _lower_dynamic_tuple_frame_unpack(
         self,
@@ -402,8 +347,6 @@ class Stmt:
         dst_member_types = dst_tuple_typ.member_types
 
         for src_vv, dst_elem_typ, target_node in zip(src_values, dst_member_types, targets):
-            src_elem_typ = src_vv.typ
-
             if isinstance(target_node, vy_ast.Name) and target_node.id in self.ctx.variables:
                 var = self.ctx.lookup(target_node.id)
                 if var.is_pointer_cell:
@@ -420,12 +363,7 @@ class Stmt:
                 continue
 
             target_ptr = self._get_target_ptr(target_node)
-            if dst_elem_typ._is_prim_word:
-                self.ctx.ptr_store(target_ptr, self.ctx.unwrap(src_vv))
-            else:
-                self._store_complex_type(
-                    target_ptr, self.ctx.unwrap(src_vv), dst_elem_typ, src_elem_typ
-                )
+            self.ctx.make_setter(target_ptr, dst_elem_typ, src_vv)
 
     def lower_AugAssign(self) -> None:
         """Lower augmented assignment.
@@ -485,92 +423,6 @@ class Stmt:
         self.ctx.ptr_store(dst_ptr, result)
 
     # === Helper Methods ===
-
-    def _copy_dynarray_to_storage(
-        self, src: IROperand, dst_slot: IROperand, typ: DArrayT, transient: bool
-    ) -> None:
-        """Copy DynArray from memory to storage, writing only length + actual elements.
-
-        This matches legacy codegen behavior (core.py:_dynarray_make_setter) which
-        only copies the actual elements, not the full capacity. This is important
-        for hevm symbolic equivalence - slots beyond length should not be modified.
-
-        Args:
-            src: Memory pointer to source DynArray
-            dst_slot: Storage slot for destination
-            typ: DynArray type
-            transient: If True, use tstore instead of sstore
-        """
-        b = self.builder
-
-        # Load length from source (at offset 0)
-        assert isinstance(src, IRVariable)
-        length = b.mload(src)
-
-        elem_typ = typ.value_type
-        elem_words = elem_typ.storage_size_in_words
-
-        # Create loop blocks
-        cond_block = b.create_block("dyn_cond")
-        body_block = b.create_block("dyn_body")
-        exit_block = b.create_block("dyn_exit")
-
-        # Entry: counter = 0, jump to cond
-        counter = b.assign(IRLiteral(0))
-        b.jmp(cond_block.label)
-
-        # Condition: if counter >= length, goto exit, else body
-        b.append_block(cond_block)
-        b.set_block(cond_block)
-        # done = counter >= length = iszero(lt(counter, length))
-        done = b.iszero(b.lt(counter, length))
-        cond_finish = b.current_block
-
-        # Body: copy one element
-        b.append_block(body_block)
-        b.set_block(body_block)
-
-        if elem_words == 1:
-            # Simple case: each element is one storage word
-            # src_offset = 32 + counter * 32
-            src_offset = b.add(IRLiteral(32), b.mul(counter, IRLiteral(32)))
-            src_ptr = b.add(src, src_offset)
-            val = b.mload(src_ptr)
-
-            # dst_slot_i = dst_slot + counter + 1 (skip length word)
-            dst_slot_i = b.add(dst_slot, b.add(counter, IRLiteral(1)))
-            if transient:
-                b.tstore(dst_slot_i, val)
-            else:
-                b.sstore(dst_slot_i, val)
-        else:
-            # Complex case: element spans multiple words
-            elem_mem_size = elem_typ.memory_bytes_required
-            src_offset = b.add(IRLiteral(32), b.mul(counter, IRLiteral(elem_mem_size)))
-            src_ptr = b.add(src, src_offset)
-
-            # dst_slot_i = dst_slot + 1 + counter * elem_words
-            dst_slot_i = b.add(dst_slot, b.add(IRLiteral(1), b.mul(counter, IRLiteral(elem_words))))
-            if transient:
-                self.ctx.store_transient(src_ptr, dst_slot_i, elem_typ)
-            else:
-                self.ctx.store_storage(src_ptr, dst_slot_i, elem_typ)
-
-        # Increment counter and loop
-        new_counter = b.add(counter, IRLiteral(1))
-        b.assign_to(new_counter, counter)
-        b.jmp(cond_block.label)
-
-        # Wire up conditional jump (done after body to have block refs)
-        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
-
-        # Exit block: write length last (matches legacy behavior)
-        b.append_block(exit_block)
-        b.set_block(exit_block)
-        if transient:
-            b.tstore(dst_slot, length)
-        else:
-            b.sstore(dst_slot, length)
 
     def _is_empty_value(self, node: vy_ast.VyperNode) -> bool:
         """Check if AST node represents an empty DynArray/Bytestring value.
@@ -910,6 +762,18 @@ class Stmt:
         assert isinstance(item_value.operand, IRVariable)
         self.ctx.forvars[varname] = True
 
+        # Non-memory sources are copied with the element type's strides, so the
+        # loop variable only reads back correctly if the data present has the
+        # element's layout. The type checker allows a widened loop variable
+        # (e.g. iterating DynArray[Bytes[10], 2] as DynArray[Bytes[512], 2]),
+        # so stage the element in its own layout and re-lay it out below.
+        # `punnable`, not `same_memory_layout`: the loop variable is the wider
+        # buffer, so equal sizes are not required, only an equal layout.
+        elem_typ = array_typ.value_type
+        staged_elem = None
+        if location is not DataLocation.MEMORY and not punnable(elem_typ, target_type):
+            staged_elem = self.ctx.new_temporary_value(elem_typ, annotation=f"{varname} element")
+
         # Create blocks
         entry_block = self.builder.create_block("iter_entry")
         cond_block = self.builder.create_block("iter_cond")
@@ -958,21 +822,18 @@ class Stmt:
                 total_offset = index_offset
             elem_addr = self.builder.add(array, total_offset)
 
-            # Copy element to loop variable (always in memory).
-            # Note: type mismatches (target_type != value_type) are possible
-            # for any source location (the type checker allows e.g.
-            # Bytes[704] target with Bytes[540] elements). For non-memory
-            # sources, the linear copy is safe for flat types since the
-            # source is smaller than the destination buffer. Only the
-            # memory path uses type-aware copying (store_memory).
+            # Copy element to loop variable (always in memory). A non-memory
+            # source copies `elem_size` of the element type, so it lands in
+            # `staged_elem` when the layouts differ and is re-laid out below.
             dst = item_value.operand
+            copy_dst = staged_elem.operand if staged_elem is not None else dst
             if is_slot_addressed:
                 # Word-addressed (STORAGE, TRANSIENT)
-                self.ctx.slot_to_memory(elem_addr, dst, elem_size, location)
+                self.ctx.slot_to_memory(elem_addr, copy_dst, elem_size, location)
             elif location is not DataLocation.MEMORY:
                 # Byte-addressed non-memory (IMMUTABLES, CODE, CALLDATA):
                 # location-aware copy via load_word dispatch
-                self.ctx.copy_to_memory(dst, elem_addr, elem_size, location)
+                self.ctx.copy_to_memory(copy_dst, elem_addr, elem_size, location)
             elif target_type._is_prim_word:
                 # Memory, single word
                 val = self.builder.mload(elem_addr)
@@ -980,7 +841,10 @@ class Stmt:
             else:
                 # Memory, complex type: type-aware copy handles
                 # layout mismatches (e.g. DynArray[Bytes[540]] -> Bytes[704])
-                self.ctx.store_memory(elem_addr, dst, target_type, src_typ=array_typ.value_type)
+                self.ctx.store_memory(elem_addr, dst, target_type, src_typ=elem_typ)
+
+            if staged_elem is not None:
+                self.ctx.store_memory(copy_dst, dst, target_type, src_typ=elem_typ)
 
             self._lower_body(node.body)
             body_finish = self.builder.current_block
