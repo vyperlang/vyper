@@ -260,6 +260,144 @@ def f(a: address) -> DynArray[Bytes[INF], INF]:
     assert c.f(returner.address) == VALUES
 
 
+# --- mutation: elements are replaced, never written in place -----------------
+
+VALUES_SHORT = [b"ab", b"", b"c" * 70]
+
+
+def test_element_store_and_copy_independence(get_contract):
+    code = """
+@external
+def replace(xs: DynArray[Bytes[INF], INF], i: uint256, v: Bytes[INF]) -> DynArray[Bytes[INF], INF]:
+    ys: DynArray[Bytes[INF], INF] = xs
+    ys[i] = v
+    return ys
+
+@external
+def copy_then_store(xs: DynArray[Bytes[INF], INF]) -> (Bytes[INF], Bytes[INF]):
+    ys: DynArray[Bytes[INF], INF] = xs
+    ys[0] = b"zz"
+    # the copy and the original hold separate cells; the original is untouched
+    return xs[0], ys[0]
+
+@external
+def store_from_call(xs: DynArray[Bytes[INF], INF], a: Bytes[INF], b: Bytes[INF]) -> Bytes[INF]:
+    ys: DynArray[Bytes[INF], INF] = xs
+    ys[1] = concat(a, b)
+    return ys[1]
+
+@external
+def store_self(xs: DynArray[Bytes[INF], INF]) -> DynArray[Bytes[INF], INF]:
+    ys: DynArray[Bytes[INF], INF] = xs
+    ys[0] = ys[2]
+    ys[2] = b""
+    return ys
+    """
+    c = get_contract(code)
+    assert c.replace(VALUES_SHORT, 1, b"new" * 30) == [b"ab", b"new" * 30, b"c" * 70]
+    assert c.replace(VALUES_SHORT, 0, b"") == [b"", b"", b"c" * 70]
+    assert c.copy_then_store(VALUES_SHORT) == (b"ab", b"zz")
+    assert c.store_from_call(VALUES_SHORT, b"x" * 40, b"y" * 40) == b"x" * 40 + b"y" * 40
+    assert c.store_self(VALUES_SHORT) == [b"c" * 70, b"", b""]
+
+
+def test_append_pop(get_contract, env):
+    code = """
+@external
+def build(n: uint256) -> DynArray[Bytes[INF], INF]:
+    xs: DynArray[Bytes[INF], INF] = []
+    for i: uint256 in range(n, bound=max_value(uint256)):
+        xs.append(slice(b"0123456789abcdefghijklmnopqrstuvwxyz", 0, i % 36 + 1))
+    return xs
+
+@external
+def push_pop(xs: DynArray[Bytes[INF], INF]) -> DynArray[Bytes[INF], INF]:
+    ys: DynArray[Bytes[INF], INF] = xs
+    ys.append(b"tail")
+    ys.append(ys[0])
+    ys.pop()
+    return ys
+
+@external
+def popped(xs: DynArray[Bytes[INF], INF]) -> Bytes[INF]:
+    ys: DynArray[Bytes[INF], INF] = xs
+    ys.append(b"tail")
+    ys.append(ys[0])
+    return ys.pop()
+
+@external
+def bounded(xs: DynArray[Bytes[INF], 3]) -> DynArray[Bytes[INF], 3]:
+    ys: DynArray[Bytes[INF], 3] = xs
+    ys.append(b"q")
+    ys.pop()
+    ys.append(b"rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr")
+    return ys
+
+@external
+def bounded_pop(xs: DynArray[Bytes[INF], 3]) -> Bytes[INF]:
+    ys: DynArray[Bytes[INF], 3] = xs
+    ys.append(b"q")
+    return ys.pop()
+
+@external
+def from_calls(t: address) -> DynArray[Bytes[INF], INF]:
+    xs: DynArray[Bytes[INF], INF] = []
+    for i: uint256 in range(3):
+        xs.append(raw_call(t, b"", max_outsize=INF, is_static_call=True))
+    return xs
+    """
+    c = get_contract(code)
+    for n in (0, 1, 2, 5, 40):
+        expected = [b"0123456789abcdefghijklmnopqrstuvwxyz"[: i % 36 + 1] for i in range(n)]
+        assert c.build(n) == expected
+    assert c.push_pop(VALUES_SHORT) == VALUES_SHORT + [b"tail"]
+    assert c.popped(VALUES_SHORT) == b"ab"
+    assert c.bounded([b"a", b"b"]) == [b"a", b"b", b"r" * 40]
+    assert c.bounded_pop([b"a", b"b"]) == b"q"
+    ret = deploy_raw_returner(env, b"\x11" * 40)
+    assert c.from_calls(ret.address) == [b"\x11" * 40] * 3
+
+
+def test_iteration_and_literals(get_contract):
+    code = """
+@external
+def total(xs: DynArray[Bytes[INF], INF]) -> uint256:
+    n: uint256 = 0
+    for x: Bytes[INF] in xs:
+        n += len(x)
+    return n
+
+@external
+def nested_total(xs: DynArray[DynArray[Bytes[INF], INF], INF]) -> uint256:
+    n: uint256 = 0
+    for row: DynArray[Bytes[INF], INF] in xs:
+        for x: Bytes[INF] in row:
+            n += len(x)
+    return n
+
+@external
+def literal() -> DynArray[Bytes[INF], INF]:
+    return [b"a", b"", b"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]
+
+@external
+def literal5() -> DynArray[Bytes[INF], 5]:
+    return [b"x", b"yy"]
+
+@external
+def write_other_while_iterating(xs: DynArray[Bytes[INF], INF]) -> DynArray[Bytes[INF], INF]:
+    ys: DynArray[Bytes[INF], INF] = xs
+    for x: Bytes[INF] in xs:
+        ys[0] = x
+    return ys
+    """
+    c = get_contract(code)
+    assert c.total(VALUES_SHORT) == 72
+    assert c.nested_total([VALUES_SHORT, [], [b"zz"]]) == 74
+    assert c.literal() == [b"a", b"", b"bb" * 20]
+    assert c.literal5() == [b"x", b"yy"]
+    assert c.write_other_while_iterating(VALUES_SHORT) == [b"c" * 70, b"", b"c" * 70]
+
+
 # --- malformed and adversarial input ----------------------------------------
 
 ADV_CODE = """
@@ -329,58 +467,29 @@ REJECTED = [
     (
         """
 @external
-def f(xs: DynArray[Bytes[INF], INF]):
-    ys: DynArray[Bytes[INF], INF] = xs
-    ys[0] = b"a"
+def f(xs: DynArray[DynArray[uint256, INF], INF]):
+    ys: DynArray[DynArray[uint256, INF], INF] = xs
+    ys[0][0] = 1
         """,
-        "Cannot modify an element of a DynArray with unbounded element types",
+        "Cannot modify an unbounded element in place",
     ),
     (
         """
 @external
 def f(xs: DynArray[DynArray[uint256, INF], INF]):
     ys: DynArray[DynArray[uint256, INF], INF] = xs
-    ys[0][0] = 1
+    ys[0].append(1)
         """,
-        "Cannot modify an element of a DynArray with unbounded element types",
+        "Cannot modify an unbounded element in place",
     ),
     (
         """
 @external
-def f(xs: DynArray[Bytes[INF], INF]):
-    ys: DynArray[Bytes[INF], INF] = xs
-    ys.append(b"a")
+def f(xs: DynArray[DynArray[Bytes[INF], INF], INF]):
+    ys: DynArray[DynArray[Bytes[INF], INF], INF] = xs
+    ys[0][1] = b"a"
         """,
-        "append() is not supported on a DynArray with unbounded element types",
-    ),
-    (
-        """
-@external
-def f(xs: DynArray[Bytes[INF], INF]) -> Bytes[INF]:
-    ys: DynArray[Bytes[INF], INF] = xs
-    return ys.pop()
-        """,
-        "pop() is not supported on a DynArray with unbounded element types",
-    ),
-    (
-        """
-@external
-def f(xs: DynArray[Bytes[INF], INF]) -> uint256:
-    n: uint256 = 0
-    for x: Bytes[INF] in xs:
-        n += len(x)
-    return n
-        """,
-        "Cannot iterate over a DynArray with unbounded element types",
-    ),
-    (
-        """
-@external
-def f() -> uint256:
-    ys: DynArray[Bytes[INF], INF] = [b"a"]
-    return len(ys)
-        """,
-        "List literals cannot have unbounded element types",
+        "Cannot modify an unbounded element in place",
     ),
     (
         """
