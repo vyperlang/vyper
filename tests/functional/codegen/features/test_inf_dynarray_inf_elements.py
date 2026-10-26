@@ -403,6 +403,85 @@ def from_staticcalls(a: address) -> DynArray[Bytes[INF], INF]:
     assert c.from_staticcalls(ret.address) == [b"\x22" * 40] * 3
 
 
+def test_assigned_values_stay_independent(get_contract, env):
+    # a local, struct member or element assigned from a call or builtin
+    # result, or from another variable, is unaffected by later writes to
+    # where the value came from, and the other way around
+    code = """
+struct S:
+    data: Bytes[INF]
+
+@internal
+def _id(xs: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
+    return xs
+
+@external
+def from_raw_calls(a: address, b: address) -> (Bytes[INF], Bytes[INF]):
+    x: Bytes[INF] = raw_call(a, b"", max_outsize=INF, is_static_call=True)
+    y: Bytes[INF] = raw_call(b, b"", max_outsize=INF, is_static_call=True)
+    return x, y
+
+@external
+def from_slice(v: Bytes[INF]) -> (Bytes[INF], Bytes[INF]):
+    src: Bytes[INF] = v
+    x: Bytes[INF] = slice(src, 1, 3)
+    src = b"zzzzzz"
+    return x, src
+
+@external
+def member_from_concat(a: Bytes[INF], b: Bytes[INF]) -> (Bytes[INF], Bytes[INF]):
+    x: Bytes[INF] = a
+    y: Bytes[INF] = b
+    s: S = S(data=b"")
+    s.data = concat(x, y)
+    x = b"q"
+    y = b"r"
+    return s.data, concat(x, y)
+
+@external
+def element_from_local(v: Bytes[INF]) -> (Bytes[INF], Bytes[INF]):
+    local: Bytes[INF] = slice(v, 0, 2)
+    xs: DynArray[Bytes[INF], INF] = [b""]
+    xs[0] = local
+    local = b"other"
+    return xs[0], local
+
+@external
+def write_after_store(
+    v: DynArray[uint256, INF]
+) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+    local: DynArray[uint256, INF] = v
+    xss: DynArray[DynArray[uint256, INF], INF] = [[]]
+    xss[0] = local
+    local[0] = 99
+    return xss[0], local
+
+@external
+def write_returned(v: DynArray[uint256, INF]) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
+    src: DynArray[uint256, INF] = v
+    xs: DynArray[uint256, INF] = self._id(src)
+    xs[0] = 99
+    return xs, src
+
+@external
+def write_decoded(data: Bytes[INF]) -> (DynArray[uint256, INF], Bytes[INF]):
+    xs: DynArray[uint256, INF] = abi_decode(data, DynArray[uint256, INF])
+    xs[0] = 99
+    return xs, data
+    """
+    c = get_contract(code)
+    a = deploy_raw_returner(env, b"\x11" * 40)
+    b = deploy_raw_returner(env, b"\x22" * 7)
+    assert c.from_raw_calls(a.address, b.address) == (b"\x11" * 40, b"\x22" * 7)
+    assert c.from_slice(b"abcdef") == (b"bcd", b"zzzzzz")
+    assert c.member_from_concat(b"ab", b"c" * 40) == (b"ab" + b"c" * 40, b"qr")
+    assert c.element_from_local(b"xyz") == (b"xy", b"other")
+    assert c.write_after_store([1, 2, 3]) == ([1, 2, 3], [99, 2, 3])
+    assert c.write_returned([1, 2, 3]) == ([99, 2, 3], [1, 2, 3])
+    data = eth_abi_encode(["uint256[]"], [[1, 2, 3]])
+    assert c.write_decoded(data) == ([99, 2, 3], data)
+
+
 def test_tuple_unpack_into_elements(get_contract):
     code = """
 @internal
