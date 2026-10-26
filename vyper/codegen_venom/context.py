@@ -650,6 +650,16 @@ class VenomCodegenContext:
         """
         return member_slot_size(typ.value_type)
 
+    def array_elem_size_in(self, typ: SArrayT | DArrayT, location: DataLocation) -> int:
+        """Return the size one element occupies inline in an array in
+        `location`: slots in storage and transient storage, bytes elsewhere.
+        """
+        if is_unbounded_sequence_type(typ.value_type):
+            # only a DynArray in memory holds unbounded elements
+            assert isinstance(typ, DArrayT) and location == DataLocation.MEMORY
+            return self.dynarray_elem_stride(typ)
+        return typ.value_type.get_size_in(location)
+
     def dynarray_runtime_size_from_length(self, length: IROperand, typ: DArrayT) -> IROperand:
         """Return runtime memory size for a DynArray with `length` elements."""
         elem_size = self.dynarray_elem_stride(typ)

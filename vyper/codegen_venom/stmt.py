@@ -752,10 +752,7 @@ class Stmt:
             raise CompilerPanic(f"Cannot iterate over type: {array_typ}")
 
         # Element size (in slots for storage, bytes for memory)
-        if isinstance(array_typ, DArrayT) and location == DataLocation.MEMORY:
-            elem_size = self.ctx.dynarray_elem_stride(array_typ)
-        else:
-            elem_size = array_typ.value_type.get_size_in(location)
+        elem_size = self.ctx.array_elem_size_in(array_typ, location)
 
         # Allocate loop variable (copy of element, not reference). An
         # unbounded element has no inline value: the loop variable is a

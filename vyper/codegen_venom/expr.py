@@ -379,10 +379,7 @@ class Expr:
         typ = node._metadata["type"]
         elem_typ = typ.value_type
         elem_is_cell = isinstance(typ, DArrayT) and is_unbounded_sequence_type(elem_typ)
-        if elem_is_cell:
-            elem_size = self.ctx.dynarray_elem_stride(typ)
-        else:
-            elem_size = elem_typ.memory_bytes_required
+        elem_size = self.ctx.array_elem_size_in(typ, DataLocation.MEMORY)
         num_elements = len(node.elements)
 
         # Allocate memory for the array
@@ -1087,14 +1084,7 @@ class Expr:
         assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
-        # an unbounded element is a pointer cell in the array's memory, not
-        # the value (see `VenomCodegenContext.store_pointer_cell`)
-        elem_is_cell = is_unbounded_sequence_type(elem_typ)
-        if isinstance(base_typ, DArrayT) and data_loc == DataLocation.MEMORY:
-            elem_size = self.ctx.dynarray_elem_stride(base_typ)
-        else:
-            assert not elem_is_cell
-            elem_size = elem_typ.get_size_in(data_loc)
+        elem_size = self.ctx.array_elem_size_in(base_typ, data_loc)
 
         # Bounds checking
         length: IROperand
@@ -1933,11 +1923,7 @@ class Expr:
         assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
-        if elem_is_cell:
-            assert data_loc == DataLocation.MEMORY
-            elem_size = self.ctx.dynarray_elem_stride(darray_typ)
-        else:
-            elem_size = elem_typ.get_size_in(data_loc)
+        elem_size = self.ctx.array_elem_size_in(darray_typ, data_loc)
         capacity = darray_typ.count  # Maximum length
 
         # 1. Load current length
@@ -2138,12 +2124,7 @@ class Expr:
         assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
-        elem_is_cell = is_unbounded_sequence_type(elem_typ)
-        if elem_is_cell:
-            assert data_loc == DataLocation.MEMORY
-            elem_size = self.ctx.dynarray_elem_stride(darray_typ)
-        else:
-            elem_size = elem_typ.get_size_in(data_loc)
+        elem_size = self.ctx.array_elem_size_in(darray_typ, data_loc)
 
         # 1. Load current length
         length = self.builder.load(darray_ptr, data_loc)
@@ -2164,7 +2145,7 @@ class Expr:
         offset = self.builder.mul(new_length, IRLiteral(elem_size))
         elem_ptr = self.builder.add(data_ptr, offset)
 
-        if elem_is_cell:
+        if is_unbounded_sequence_type(elem_typ):
             # the popped element is the payload its cell points at; the cell
             # is past the new length and never read again
             assert isinstance(elem_ptr, IRVariable)
