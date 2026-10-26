@@ -650,8 +650,8 @@ argument needs no per-element cap:
 The element type may be ``Bytes[INF]``, ``String[INF]`` or ``DynArray[T, INF]``,
 nested to any depth, and the outer array may be bounded or unbounded:
 ``DynArray[DynArray[uint256, INF], INF]`` and ``DynArray[Bytes[INF], 5]`` are both
-accepted. Each element is held out of line, so the array itself keeps a fixed
-element stride in memory and its ABI encoding is the usual one.
+accepted. Each element is stored separately, and the array's ABI encoding is
+the same as for bounded elements.
 
 Such arrays are built from calldata, ``abi_decode``, external call return data,
 list literals or ``empty()``. They can be indexed, measured with ``len``,
