@@ -338,3 +338,41 @@ def foo(x: decimal):
         assert e.value._message == "decimals are not allowed unless `--enable-decimals` is set"
     finally:
         compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+
+
+def test_decimals_allowed_in_builtin():
+    # importing a builtin module that uses decimal (math.sqrt) should
+    # not raise FeatureException even without --enable-decimals
+    code = """
+import math
+
+@external
+def foo() -> uint256:
+    return math.isqrt(4)
+    """
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        compile_code(code)
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True
+
+
+def test_decimals_not_silenced_by_builtin():
+    # the builtin loophole should not swallow other uses of decimals
+    code = """
+import math
+
+@external
+def foo():
+
+    x: decimal = 1.0
+    """
+    try:
+        assert compiler_settings.DEFAULT_ENABLE_DECIMALS is True
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = False
+        with pytest.raises(FeatureException) as e:
+            compile_code(code)
+        assert e.value._message == "decimals are not allowed unless `--enable-decimals` is set"
+    finally:
+        compiler_settings.DEFAULT_ENABLE_DECIMALS = True

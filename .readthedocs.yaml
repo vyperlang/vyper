@@ -17,7 +17,7 @@ formats:
 
 python:
   install:
-    - method: pip
-      path: .
-      extra_requirements:
+    - method: uv
+      command: sync
+      groups:
         - docs

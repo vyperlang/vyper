@@ -111,9 +111,7 @@ def exc_handler_to_dict(file_path: Optional[str], exception: Exception, componen
         "message": str(exception).strip('"'),
     }
     if hasattr(exception, "message"):
-        err_dict.update(
-            {"message": exception.message, "formattedMessage": str(exception)}  # type: ignore
-        )
+        err_dict.update({"message": exception.message, "formattedMessage": str(exception)})
     if file_path is not None:
         err_dict["sourceLocation"] = {"file": file_path}
         if getattr(exception, "lineno", None) is not None:
@@ -158,7 +156,8 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
     seen = {}
 
     for path, value in input_dict["sources"].items():
-        path = PurePath(path)
+        path = PurePath(_normpath(path))
+
         if "urls" in value:
             raise JSONError(f"{path} - 'urls' is not a supported field, use 'content' instead")
         if "content" not in value:
@@ -169,17 +168,19 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
                 raise JSONError(
                     f"Calculated keccak of '{path}' does not match keccak given in input JSON"
                 )
-        if path.stem in seen:
+        # import resolution tries `.vy`, `.vyi`, `.json` for a given module
+        # path, so key collisions on the path without its suffix
+        if path.with_suffix("") in seen:
             raise JSONError(f"Contract namespace collision: {path}")
 
         # value looks like {"content": <source code>}
         # this will be interpreted by JSONInputBundle later
         ret[path] = value
-        seen[path.stem] = True
+        seen[path.with_suffix("")] = True
 
     for path, value in input_dict.get("interfaces", {}).items():
-        path = PurePath(path)
-        if path.stem in seen:
+        path = PurePath(_normpath(path))
+        if path.with_suffix("") in seen:
             raise JSONError(f"Interface namespace collision: {path}")
 
         if isinstance(value, list):
@@ -206,7 +207,7 @@ def get_inputs(input_dict: dict) -> dict[PurePath, Any]:
             )
 
         ret[path] = value
-        seen[path.stem] = True
+        seen[path.with_suffix("")] = True
 
     return ret
 
@@ -330,6 +331,7 @@ def get_settings(input_dict: dict) -> Settings:
 
     # TODO: maybe change these to camelCase for consistency
     enable_decimals = input_dict["settings"].get("enable_decimals", None)
+    disable_static_exceptions = input_dict["settings"].get("disableStaticExceptions", None)
 
     # Create Venom optimization flags with the optimization level
     venom_flags = VenomOptimizationFlags(level=optimize)
@@ -370,6 +372,7 @@ def get_settings(input_dict: dict) -> Settings:
         experimental_codegen=experimental_codegen,
         debug=debug,
         enable_decimals=enable_decimals,
+        disable_static_exceptions=disable_static_exceptions,
         venom_flags=venom_flags,
     )
 

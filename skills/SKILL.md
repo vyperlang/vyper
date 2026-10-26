@@ -10,17 +10,17 @@ Pythonic smart contract language targeting the EVM. v0.4.x, Python 3.11+.
 ## Quick Commands
 
 ```bash
-uv sync --extra dev              # install deps (per-worktree .venv, recommended)
+uv sync                                 # install deps (per-worktree .venv, recommended, includes dev group)
 uv run vyper contract.vy                # compile a contract
 uv run vyper -f ir_runtime contract.vy  # inspect Venom IR
 uv run vyper -f asm contract.vy         # inspect assembly
-uv run ./quicktest.sh -m "not fuzzing"  # run tests (-nauto by default via setup.cfg)
+uv run ./quicktest.sh                   # run tests (`-nauto -m "not fuzzing"` by default via setup.cfg)
 uv run make lint                        # enforces code style (same as CI)
 ```
 
 Prefix all commands with `uv run` — it activates the local `.venv` per invocation, which is necessary in non-interactive shells. Each worktree gets its own `.venv`, so no cross-contamination.
 
-Alternative: `pip install ".[dev]"` + `PYTHONPATH=.` prefix on every command. **Never `pip install -e .`** — it creates an egg-link in site-packages that permanently points the venv at one worktree, breaking all others.
+Alternative: `pip install . --group dev` + `PYTHONPATH=.` prefix on every command. **Never `pip install -e .`** — it creates an egg-link in site-packages that permanently points the venv at one worktree, breaking all others.
 
 ## Compilation Pipeline
 
@@ -73,7 +73,7 @@ Enforced by `make lint` (also what CI runs). Includes `black`, `flake8`, `isort`
 
 - Line length: 100
 - No inline imports; standard library → third-party → local
-- snake_case throughout; type classes end in `T` (e.g. `IntegerT`, `ModuleT`)
+- snake_case for variables (`tmp = ...`), DromedaryCase (aka upper camelCase) for classes (`ExprAnalyzer`), type classes end in `T` (e.g. `IntegerT`, `ModuleT`)
 
 ## Key Entry Points
 

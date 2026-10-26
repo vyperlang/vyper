@@ -8,6 +8,7 @@ from vyper.codegen.core import (
     append_dyn_array,
     check_assign,
     clamp,
+    create_memory_copy,
     data_location_to_address_space,
     dummy_node_for_type,
     ensure_in_memory,
@@ -21,6 +22,7 @@ from vyper.codegen.core import (
     make_setter,
     pop_dyn_array,
     potential_overlap,
+    punnable,
     read_write_overlap,
     sar,
     shl,
@@ -35,7 +37,6 @@ from vyper.exceptions import (
     CodegenPanic,
     CompilerPanic,
     EvmVersionException,
-    StructureException,
     TypeCheckFailure,
     TypeMismatch,
     UnimplementedException,
@@ -783,14 +784,28 @@ class Expr:
         test = Expr.parse_value_expr(self.expr.test, self.context)
         assert test.typ == BoolT()  # sanity check
 
-        body = Expr(self.expr.body, self.context).ir_node
-        orelse = Expr(self.expr.orelse, self.context).ir_node
+        typ = self.expr._metadata["type"]
+
+        def parse_arm(node):
+            arm = Expr(node, self.context).ir_node
+            # an arm can be narrower than the result type (e.g. DynArray[Bytes[10], 5]
+            # for a DynArray[Bytes[512], 5] result). the result is read with the
+            # result type's layout, so convert such arms element by element.
+            if punnable(arm.typ, typ):
+                return arm
+            return create_memory_copy(arm, self.context, typ=typ)
+
+        body = parse_arm(self.expr.body)
+        orelse = parse_arm(self.expr.orelse)
+
+        def _needs_memory(ir_node: IRnode) -> bool:
+            return ir_node.value == "multi" or ir_node.is_empty_intrinsic
 
         # if they are in the same location, we can skip copying
         # into memory. also for the case where either body or orelse are
-        # literal `multi` values (ex. for tuple or arrays), copy to
-        # memory (to avoid crashing in make_setter, XXX fixme).
-        if body.location != orelse.location or body.value == "multi":
+        # literal `multi`/`~empty` values (ex. for tuple or arrays), copy to
+        # memory (to avoid crashing in make_setter).
+        if body.location != orelse.location or _needs_memory(body) or _needs_memory(orelse):
             body = ensure_in_memory(body, self.context)
             orelse = ensure_in_memory(orelse, self.context)
 
@@ -798,7 +813,6 @@ class Expr:
         # check this once compare_type has no side effects:
         # assert body.typ.compare_type(orelse.typ)
 
-        typ = self.expr._metadata["type"]
         location = body.location
         return IRnode.from_list(["if", test, body, orelse], typ=typ, location=location)
 
@@ -825,6 +839,6 @@ class Expr:
     @classmethod
     def parse_pointer_expr(cls, expr, context):
         o = cls(expr, context).ir_node
-        if not o.location:
-            raise StructureException("Looking for a variable location, instead got a value", expr)
+        # Looking for a variable location, instead got a value
+        assert o.location
         return o

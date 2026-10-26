@@ -13,21 +13,37 @@ convert(value, type) handles all type conversions in Vyper:
 
 from __future__ import annotations
 
+import decimal
+import math
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
+from vyper.codegen_venom.buffer import Buffer
+from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic, InvalidLiteral, TypeMismatch
-from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
-from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.semantics.data_locations import DataLocation
+from vyper.semantics.types import (
+    AddressT,
+    BoolT,
+    BytesM_T,
+    BytesT,
+    DecimalT,
+    IntegerT,
+    StringT,
+    _BytestringT,
+    is_bounded_length,
+    is_unbounded_bytestring_type,
+)
 from vyper.semantics.types.shortcuts import UINT160_T, UINT256_T
 from vyper.semantics.types.user import FlagT
+from vyper.utils import DECIMAL_DIVISOR, evm_div, unsigned_to_signed
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
     from vyper.codegen_venom.context import VenomCodegenContext
 
 
-def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
+def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand | VyperValue:
     """
     convert(value, type) - type conversion.
 
@@ -35,16 +51,15 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     """
     from vyper.codegen_venom.expr import Expr
 
-    arg_node = node.args[0]
+    arg_node = node.args[0].reduced()
     in_t = arg_node._metadata["type"]
     out_t = node.args[1]._metadata["type"].typedef
 
-    # For bytestrings we need pointer, for primitives we need value
+    # Unwrap loads primitive words and copies storage/transient bytestrings.
+    arg_vv = Expr(arg_node, ctx).lower()
     if isinstance(in_t, _BytestringT):
-        arg_vv = Expr(arg_node, ctx).lower()
-        arg = ctx.unwrap(arg_vv)  # Copies storage/transient to memory
-    else:
-        arg = Expr(arg_node, ctx).lower_value()
+        in_t = arg_vv.typ
+    arg = ctx.unwrap(arg_vv)
 
     # Dispatch based on output type
     if out_t == BoolT():
@@ -58,49 +73,125 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
     elif isinstance(out_t, BytesM_T):
         return _to_bytes_m(arg, in_t, out_t, arg_node, ctx)
     elif isinstance(out_t, BytesT):
-        return _to_bytes(arg, in_t, out_t, arg_node, ctx)
+        ret = _to_bytes(arg, in_t, out_t, arg_node, ctx)
+        return _bytestring_convert_value(ret, out_t, ctx, arg_vv)
     elif isinstance(out_t, StringT):
-        return _to_string(arg, in_t, out_t, arg_node, ctx)
+        ret = _to_string(arg, in_t, out_t, arg_node, ctx)
+        return _bytestring_convert_value(ret, out_t, ctx, arg_vv)
     elif isinstance(out_t, FlagT):
         return _to_flag(arg, in_t, out_t, ctx)
     else:  # pragma: nocover
         raise CompilerPanic(f"Unsupported conversion target: {out_t}")
 
 
+def _bytestring_convert_value(
+    ptr: IROperand, out_t: _BytestringT, ctx: VenomCodegenContext, source: VyperValue
+) -> VyperValue:
+    assert isinstance(ptr, IRVariable)
+    # A bytestring pointer cast preserves its source reference; unwrap has
+    # already copied sources from other locations into independent memory.
+    reference = source.reference if source.location == DataLocation.MEMORY else None
+    if is_unbounded_bytestring_type(out_t):
+        return ctx.dynamic_memory_value(ptr, out_t, annotation="convert").with_reference(reference)
+    buf = Buffer(_ptr=ptr, size=out_t.memory_bytes_required, annotation="convert")
+    return VyperValue.from_ptr(buf.base_ptr(), out_t, reference)
+
+
 def _get_folded_value(node: vy_ast.VyperNode):
     """
-    Get the compile-time constant value for a node if available.
+    Get the compile-time constant node for a node if available.
 
-    Returns the Python value (int, bool, etc.) if the node is a constant or
-    has a folded value, otherwise returns None.
+    Returns the constant node itself, or a folded constant node for constant
+    expressions / constant variables. This is intentionally node-based instead
+    of value-based so literal kind information (hex vs decimal vs bytes) is
+    available for legacy-compatible conversion checks.
     """
-    # Check if it's a literal or has a folded constant value
     if isinstance(node, vy_ast.Constant):
-        return node.value
+        return node
     if node.has_folded_value:
         folded = node.get_folded_value()
         if isinstance(folded, vy_ast.Constant):
-            return folded.value
+            return folded
     return None
 
 
-def _check_literal_int_bounds(arg_node: vy_ast.VyperNode, out_t: IntegerT) -> None:
+def _signextend_literal(expr: vy_ast.Constant, val: int, arg_t) -> int:
+    # apply sign extension, if expected. note that the sign bit is always
+    # taken to be the first bit of the bytestring.
+    # (e.g. convert(0xff <bytes1>, int16) == -1)
+    if isinstance(expr, vy_ast.Hex):
+        assert len(expr.value[2:]) // 2 == arg_t.m
+        n_bits = arg_t.m_bits
+    else:
+        assert isinstance(expr.value, bytes)
+        assert len(expr.value) == arg_t.maxlen
+        n_bits = arg_t.maxlen * 8
+
+    return unsigned_to_signed(val, n_bits)
+
+
+def _check_literal_int_bounds(arg_node: vy_ast.VyperNode, in_t, out_t: IntegerT) -> None:
     """
-    Check if a compile-time constant integer fits in the output type bounds.
+    Check if a compile-time constant fits in the output integer bounds.
 
     Raises InvalidLiteral if the value is out of range.
     """
-    val = _get_folded_value(arg_node)
-    if val is None:
+
+    literal = _get_folded_value(arg_node)
+    if literal is None:
         return
 
-    # Only check numeric values
-    if not isinstance(val, (int, bool)):
-        return
+    if isinstance(literal, vy_ast.Hex):
+        val = int(literal.value, 16)
+    elif isinstance(literal, (vy_ast.Bytes, vy_ast.HexBytes)):
+        val = int.from_bytes(literal.value, "big")
+    elif isinstance(literal, (vy_ast.Int, vy_ast.Decimal, vy_ast.NameConstant)):
+        val = literal.value
+    else:  # pragma: no cover
+        raise CompilerPanic("unreachable")
+
+    if isinstance(literal, (vy_ast.Hex, vy_ast.Bytes, vy_ast.HexBytes)) and out_t.is_signed:
+        val = _signextend_literal(literal, val, in_t)
 
     lo, hi = out_t.int_bounds
     if not (lo <= val <= hi):
-        raise InvalidLiteral("Number out of range", arg_node)
+        raise InvalidLiteral("Number out of range", literal)
+
+
+def _check_literal_decimal_bounds(arg_node: vy_ast.VyperNode, in_t, out_t: DecimalT) -> None:
+    """
+    Check if a compile-time constant fits in the output decimal bounds.
+
+    Raises InvalidLiteral if the value is out of range.
+    """
+    literal = _get_folded_value(arg_node)
+    if literal is None:
+        return
+
+    val: decimal.Decimal
+    if isinstance(literal, vy_ast.Hex):
+        val = decimal.Decimal(int(literal.value, 16))
+    elif isinstance(literal, (vy_ast.Int, vy_ast.Decimal)):
+        val = decimal.Decimal(literal.value)
+        assert isinstance(literal.value, int)
+        val *= DECIMAL_DIVISOR
+    else:
+        # Legacy only handles constants accepted by to_decimal's input types.
+        # Other constants should not reach here after type checking.
+        return
+
+    # sanity check type checker did its job
+    assert math.ceil(val) == math.floor(val)
+
+    int_val = int(val)
+
+    # apply sign extension, if expected
+    if isinstance(literal, vy_ast.Hex) and out_t.is_signed:
+        int_val = _signextend_literal(literal, int_val, in_t)
+
+    lo, hi = out_t.int_bounds
+    if not lo <= int_val <= hi:
+        raise InvalidLiteral("Number out of range", literal)
 
 
 def _to_bool(
@@ -120,6 +211,7 @@ def _to_bool(
         # Load the actual data, not just length
         assert isinstance(val, IRVariable)
         length = b.mload(val)
+        _runtime_check_bytes_len(in_t, length, 32, ctx)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
 
@@ -147,6 +239,9 @@ def _to_address(
     From signed integers: disallowed (type checker handles this)
     From bytes: right-shift if needed, clamp to 160 bits
     """
+    if isinstance(in_t, IntegerT) and in_t.is_signed:
+        raise TypeMismatch(f"Can't convert {in_t} to address", arg_node)
+
     # Use _to_int to get uint160, which handles clamping
     result = _to_int(val, in_t, UINT160_T, arg_node, ctx)
     return result
@@ -168,7 +263,7 @@ def _to_int(
     """
     _check_bytes(in_t, out_t, 32, arg_node)
     # Check literal bounds at compile time
-    _check_literal_int_bounds(arg_node, out_t)
+    _check_literal_int_bounds(arg_node, in_t, out_t)
 
     b = ctx.builder
 
@@ -177,8 +272,14 @@ def _to_int(
         # Length at val, data at val+32
         assert isinstance(val, IRVariable)
         length = b.mload(val)
+        _runtime_check_bytes_len(in_t, length, 32, ctx)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
+        if not is_bounded_length(in_t.maxlen):
+            # empty INF bytestrings allocate only the length word, so the
+            # data word may hold garbage; mask it so sar of an empty value
+            # yields 0 (sar with shift >= 256 propagates the sign bit)
+            data = b.mul(data, b.iszero(b.iszero(length)))
         # Right-shift to convert left-aligned bytes to right-aligned int
         # num_zero_bits = (32 - len) * 8
         num_zero_bits = b.mul(b.sub(IRLiteral(32), length), IRLiteral(8))
@@ -187,7 +288,9 @@ def _to_int(
         else:
             val = b.shr(num_zero_bits, data)
         # Clamp if bytes could exceed output range
-        if in_t.maxlen * 8 > out_t.bits:
+        if out_t.bits < 256 and (
+            not is_bounded_length(in_t.maxlen) or in_t.maxlen * 8 > out_t.bits
+        ):
             val = _int_clamp(val, out_t, ctx)
         return val
 
@@ -226,6 +329,8 @@ def _to_int(
 
     # From address: treat as uint160
     if in_t == AddressT():
+        if out_t.is_signed:
+            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
         # Can only go to unsigned types >= 160 bits
         if out_t.bits < 160:
             val = _int_clamp(val, out_t, ctx)
@@ -249,6 +354,7 @@ def _to_decimal(
     From bytes: shift and interpret as decimal.
     """
     _check_bytes(in_t, out_t, 32, arg_node)
+    _check_literal_decimal_bounds(arg_node, in_t, out_t)
 
     b = ctx.builder
     divisor = out_t.divisor
@@ -257,12 +363,18 @@ def _to_decimal(
     if isinstance(in_t, _BytestringT):
         assert isinstance(val, IRVariable)
         length = b.mload(val)
+        _runtime_check_bytes_len(in_t, length, 32, ctx)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
+        if not is_bounded_length(in_t.maxlen):
+            # empty INF bytestrings allocate only the length word, so the
+            # data word may hold garbage; mask it so sar of an empty value
+            # yields 0 (sar with shift >= 256 propagates the sign bit)
+            data = b.mul(data, b.iszero(b.iszero(length)))
         num_zero_bits = b.mul(b.sub(IRLiteral(32), length), IRLiteral(8))
         val = b.sar(num_zero_bits, data)
         # Clamp to decimal bounds if needed
-        if in_t.maxlen * 8 > 168:  # decimal is 168 bits
+        if not is_bounded_length(in_t.maxlen) or in_t.maxlen * 8 > 168:  # decimal is 168 bits
             val = _clamp_basetype(val, out_t, ctx)
         return val
 
@@ -279,8 +391,8 @@ def _to_decimal(
         # Clamp input to valid range before scaling
         out_lo, out_hi = out_t.int_bounds
         # Scale bounds for pre-multiplication check
-        pre_lo = out_lo // divisor
-        pre_hi = out_hi // divisor
+        pre_lo = evm_div(out_lo, divisor)
+        pre_hi = evm_div(out_hi, divisor)
         in_lo, in_hi = in_t.int_bounds
         val = _clamp_numeric_convert(val, (in_lo, in_hi), (pre_lo, pre_hi), in_t.is_signed, ctx)
         # Multiply by divisor
@@ -310,6 +422,7 @@ def _to_bytes_m(
     if isinstance(in_t, _BytestringT):
         assert isinstance(val, IRVariable)
         length = b.mload(val)
+        _runtime_check_bytes_len(in_t, length, out_t.m, ctx)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
         # Zero out any dirty high bits based on actual length
@@ -330,6 +443,16 @@ def _to_bytes_m(
         # Widening is no-op (already left-aligned)
         return val
 
+    if isinstance(in_t, IntegerT):
+        if out_t.m_bits < in_t.bits:
+            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
+    elif in_t == AddressT():
+        if out_t.m_bits < 160:
+            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
+    elif isinstance(in_t, DecimalT):
+        if out_t.m_bits < in_t.bits:
+            raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
+
     # From integer/address/decimal: left-shift to align
     shift_bits = (32 - out_t.m) * 8
     return b.shl(IRLiteral(shift_bits), val)
@@ -348,20 +471,32 @@ def _to_bytes(
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # Ban converting same type (e.g. Bytes[20] to Bytes[21] upcast is not a real conversion)
-    if isinstance(in_t, BytesT) and in_t.maxlen <= out_t.maxlen:  # pragma: nocover
+    if (
+        isinstance(in_t, BytesT)
+        and is_bounded_length(in_t.maxlen)
+        and is_bounded_length(out_t.maxlen)
+        and in_t.maxlen <= out_t.maxlen
+    ):  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # Can't downcast literals with known length (e.g. b"abc" to Bytes[2])
     # Use reduced() to handle constant variables like `BAR: constant(Bytes[5])`
     reduced = arg_node.reduced() if arg_node.has_folded_value else arg_node
-    if isinstance(reduced, vy_ast.Constant) and in_t.maxlen > out_t.maxlen:  # pragma: nocover
+    if (
+        isinstance(reduced, vy_ast.Constant)
+        and is_bounded_length(in_t.maxlen)
+        and is_bounded_length(out_t.maxlen)
+        and in_t.maxlen > out_t.maxlen
+    ):  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     b = ctx.builder
 
     # Both string->bytes and bytes->bytes are pointer casts
     # Just check length bounds
-    if out_t.maxlen < in_t.maxlen:
+    if is_bounded_length(out_t.maxlen) and (
+        not is_bounded_length(in_t.maxlen) or out_t.maxlen < in_t.maxlen
+    ):
         # Downcast: check actual length <= max
         assert isinstance(val, IRVariable)
         length = b.mload(val)
@@ -385,19 +520,31 @@ def _to_string(
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # Ban converting same type (e.g. String[20] to String[21] upcast is not a real conversion)
-    if isinstance(in_t, StringT) and in_t.maxlen <= out_t.maxlen:  # pragma: nocover
+    if (
+        isinstance(in_t, StringT)
+        and is_bounded_length(in_t.maxlen)
+        and is_bounded_length(out_t.maxlen)
+        and in_t.maxlen <= out_t.maxlen
+    ):  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     # Can't downcast literals with known length (e.g. "abc" to String[2])
     # Use reduced() to handle constant variables like `BAR: constant(String[5])`
     reduced = arg_node.reduced() if arg_node.has_folded_value else arg_node
-    if isinstance(reduced, vy_ast.Constant) and in_t.maxlen > out_t.maxlen:  # pragma: nocover
+    if (
+        isinstance(reduced, vy_ast.Constant)
+        and is_bounded_length(in_t.maxlen)
+        and is_bounded_length(out_t.maxlen)
+        and in_t.maxlen > out_t.maxlen
+    ):  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", arg_node)
 
     b = ctx.builder
 
     # bytes->string and string->string are pointer casts
-    if out_t.maxlen < in_t.maxlen:
+    if is_bounded_length(out_t.maxlen) and (
+        not is_bounded_length(in_t.maxlen) or out_t.maxlen < in_t.maxlen
+    ):
         # Downcast: check actual length <= max
         assert isinstance(val, IRVariable)
         length = b.mload(val)
@@ -434,8 +581,21 @@ def _check_bytes(in_t, out_t, max_bytes_allowed: int, source_expr: vy_ast.VyperN
 
     Raises TypeMismatch if in_t is a bytestring with maxlen > max_bytes_allowed.
     """
-    if isinstance(in_t, _BytestringT) and in_t.maxlen > max_bytes_allowed:  # pragma: nocover
+    if (
+        isinstance(in_t, _BytestringT)
+        and is_bounded_length(in_t.maxlen)
+        and in_t.maxlen > max_bytes_allowed
+    ):  # pragma: nocover
         raise TypeMismatch(f"Can't convert {in_t} to {out_t}", source_expr)
+
+
+def _runtime_check_bytes_len(
+    in_t: _BytestringT, length: IROperand, max_bytes_allowed: int, ctx: VenomCodegenContext
+) -> None:
+    if is_bounded_length(in_t.maxlen):
+        return
+    b = ctx.builder
+    b.assert_(b.iszero(b.gt(length, IRLiteral(max_bytes_allowed))))
 
 
 def _int_clamp(val: IROperand, out_t: IntegerT, ctx: VenomCodegenContext) -> IROperand:

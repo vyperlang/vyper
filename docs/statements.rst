@@ -98,8 +98,21 @@ The ``raise`` statement triggers an exception and reverts the current call.
 
 The error string is not required. If it is provided, it is limited to 1024 bytes.
 
+Custom errors can also be raised. They are declared at module scope and are encoded with a 4-byte selector followed by ABI-encoded arguments:
+
+.. code-block:: vyper
+
+    error Unauthorized:
+        caller: address
+        expected: address
+
+    raise Unauthorized(caller=msg.sender, expected=owner)
+
+Custom errors are included in the generated ABI with ``type: "error"``.
+
 assert
 ------
+
 
 The ``assert`` statement makes an assertion about a given condition. If the condition evaluates falsely, the transaction is reverted.
 

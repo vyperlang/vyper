@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from vyper.venom.basicblock import IRInstruction, IRVariable
+from vyper.venom.memory_location import Allocation
 from vyper.venom.passes.invoke_copy_forwarding_common import InvokeCopyForwardingBase
 
 
@@ -41,11 +42,16 @@ class ReadonlyInvokeArgCopyForwardingPass(InvokeCopyForwardingBase):
             return False
 
         root = self._assign_root_var(dst)
+        if root is None:
+            return False
         root_inst = self.dfg.get_producing_instruction(root)
         if root_inst is None or root_inst.opcode != "alloca":
             return False
+        dst_alloca = Allocation(root_inst)
 
         aliases = self._collect_assign_aliases(root)
+        if aliases is None:
+            return False
         rewrite_sites: set[tuple[IRInstruction, int]] = set()
 
         for _, use, pos in self._iter_alias_use_positions(aliases):
@@ -63,6 +69,9 @@ class ReadonlyInvokeArgCopyForwardingPass(InvokeCopyForwardingBase):
         if len(rewrite_sites) == 0:
             return False
 
+        if self.copy_forwarding.should_block_forwarding(copy_inst, rewrite_sites, dst_alloca):
+            return False
+
         # Keep this local and conservative: only forward when all uses are
         # in the same block and dominated by the source copy.
         bb_insts = copy_inst.parent.instructions
@@ -77,6 +86,8 @@ class ReadonlyInvokeArgCopyForwardingPass(InvokeCopyForwardingBase):
             return False
 
         src = self._assign_root(copy_inst.operands[1])
+        if src is None:
+            return False
         if isinstance(src, IRVariable) and src in aliases:
             return False
         if isinstance(src, IRVariable) and self._has_mutable_same_source_sibling_arg(
@@ -110,6 +121,6 @@ class ReadonlyInvokeArgCopyForwardingPass(InvokeCopyForwardingBase):
                 if self._is_readonly_invoke_operand(invoke_inst, pos):
                     continue
                 root = self._assign_root(op)
-                if root == src_root:
+                if root is None or root == src_root:
                     return True
         return False

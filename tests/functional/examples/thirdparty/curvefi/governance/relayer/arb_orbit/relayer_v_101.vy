@@ -47,16 +47,16 @@ agent: HashMap[Agent, address]
 
 @deploy
 def __init__(broadcaster: address, _agent_blueprint: address, _arbsys: address):
-    BROADCASTER = broadcaster
-    ARBSYS = _arbsys
+    self.BROADCASTER = broadcaster
+    self.ARBSYS = _arbsys
 
-    OWNERSHIP_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
-    PARAMETER_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
-    EMERGENCY_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
+    self.OWNERSHIP_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
+    self.PARAMETER_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
+    self.EMERGENCY_AGENT = create_from_blueprint(_agent_blueprint, code_offset=CODE_OFFSET)
 
-    self.agent[Agent.OWNERSHIP] = OWNERSHIP_AGENT
-    self.agent[Agent.PARAMETER] = PARAMETER_AGENT
-    self.agent[Agent.EMERGENCY] = EMERGENCY_AGENT
+    self.agent[Agent.OWNERSHIP] = self.OWNERSHIP_AGENT
+    self.agent[Agent.PARAMETER] = self.PARAMETER_AGENT
+    self.agent[Agent.EMERGENCY] = self.EMERGENCY_AGENT
 
 
 @external
@@ -66,7 +66,7 @@ def relay(_agent: Agent, _messages: DynArray[Message, MAX_MESSAGES]):
     @param _agent The agent to relay messages to.
     @param _messages The sequence of messages to relay.
     """
-    assert staticcall IArbSys(ARBSYS).wasMyCallersAddressAliased()
-    assert staticcall IArbSys(ARBSYS).myCallersAddressWithoutAliasing() == BROADCASTER
+    assert staticcall IArbSys(self.ARBSYS).wasMyCallersAddressAliased()
+    assert staticcall IArbSys(self.ARBSYS).myCallersAddressWithoutAliasing() == self.BROADCASTER
 
     extcall IAgent(self.agent[_agent]).execute(_messages)

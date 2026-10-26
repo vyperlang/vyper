@@ -181,7 +181,7 @@ Vyper has four built-ins for contract creation; the first three contract creatio
 
     * ``to``: Destination address to call to
     * ``data``: Data to send to the destination address
-    * ``max_outsize``: Maximum length of the bytes array returned from the call. If the returned call data exceeds this length, only this number of bytes is returned. (Optional, default ``0``)
+    * ``max_outsize``: Maximum length of the bytes array returned from the call. If the returned call data exceeds this length, only this number of bytes is returned. ``INF`` returns the whole call data, see below. (Optional, default ``0``)
     * ``gas``: The amount of gas to attach to the call. (Optional, defaults to ``msg.gas``).
     * ``value``: The wei value to send to the address (Optional, default ``0``)
     * ``is_delegate_call``: If ``True``, the call will be sent as ``DELEGATECALL`` (Optional, default ``False``)
@@ -219,6 +219,19 @@ Vyper has four built-ins for contract creation; the first three contract creatio
                 )
             assert success
             return response
+
+    .. note::
+
+        With the experimental code generator, ``max_outsize=INF`` returns the whole returned call data as ``Bytes[INF]`` (or ``(bool, Bytes[INF])`` if ``revert_on_failure`` is ``False``), sized to the actual length and never truncated. See :ref:`unbounded_types`.
+
+    .. code-block:: vyper
+
+        #pragma experimental-codegen
+
+        @external
+        @payable
+        def forward(_target: address) -> Bytes[INF]:
+            return raw_call(_target, msg.data, max_outsize=INF, value=msg.value)
 
     .. note::
 
@@ -280,6 +293,12 @@ Vyper has four built-ins for contract creation; the first three contract creatio
     .. note::
 
         The amount to send is always specified in ``wei``.
+
+    .. warning::
+
+        The ``gas`` parameter defaults to ``0``. When transferring a **non-zero amount of ETH**, the EVM `automatically <https://github.com/ethereum/execution-specs/blob/6137bb32f9b8eda6194096992cb97b28be06957d/src/ethereum/forks/amsterdam/vm/gas.py#L371>`_ grants the callee a 2300-gas stipend (``GAS_STIPEND``). However, no stipend is added when ``value == 0``.
+
+        As a result, ``send(to, 0)`` forwards no gas and will only succeed if the recipient requires no execution gas (for example, an account with no code).
 
     .. code-block:: vyper
 

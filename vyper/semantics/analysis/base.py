@@ -8,7 +8,6 @@ from vyper.compiler.input_bundle import CompilerInput
 from vyper.exceptions import CompilerPanic, StructureException
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import VyperType
-from vyper.semantics.types.primitives import SelfT
 from vyper.utils import OrderedSet, StringEnum
 
 if TYPE_CHECKING:
@@ -34,7 +33,13 @@ class StateMutability(StringEnum):
         Extract stateMutability from an entry in a contract's ABI
         """
         if "stateMutability" in abi_dict:
-            return cls(abi_dict["stateMutability"])
+            state_mutability = abi_dict["stateMutability"]
+            expected = cls.values()
+            if state_mutability not in expected:
+                raise StructureException(
+                    f"Invalid stateMutability {state_mutability!r}: expected one of {expected}"
+                )
+            return cls(state_mutability)
         elif abi_dict.get("payable"):
             return StateMutability.PAYABLE
         elif "constant" in abi_dict and abi_dict["constant"]:
@@ -45,12 +50,14 @@ class StateMutability(StringEnum):
         #       specifying a state mutability modifier at all. Do the same here.
 
 
-# classify the constancy of an expression
+# classify the **constancy** of an expression
 # CMC 2023-12-31 note that we now have three ways of classifying mutability in
 # the codebase: StateMutability (for functions), Modifiability (for expressions
 # and variables) and Constancy (in codegen). context.Constancy can/should
 # probably be refactored away though as those kinds of checks should be done
 # during analysis.
+# Note: This is not used to check whether an expression is modifiable, location is used instead
+# TODO: Rename to something like Constancy, given the above
 class Modifiability(StringEnum):
     # compile-time / always constant
     CONSTANT = enum.auto()
@@ -64,16 +71,6 @@ class Modifiability(StringEnum):
 
     # is writeable/can result in arbitrary state or memory changes
     MODIFIABLE = enum.auto()
-
-    @classmethod
-    def from_state_mutability(cls, mutability: StateMutability):
-        if mutability == StateMutability.PURE:
-            return cls.CONSTANT
-        if mutability == StateMutability.VIEW:
-            return cls.RUNTIME_CONSTANT
-        # sanity check in case more StateMutability levels are added in the future
-        assert mutability in (StateMutability.PAYABLE, StateMutability.NONPAYABLE)
-        return cls.MODIFIABLE
 
 
 @dataclass
@@ -209,6 +206,9 @@ class VarInfo:
 
     # TODO: convert to property
     def is_state_variable(self):
+        # Import here to avoid circular import: primitives -> bytestrings -> utils -> base
+        from vyper.semantics.types.primitives import SelfT
+
         non_state_locations = (DataLocation.UNSET, DataLocation.MEMORY, DataLocation.CALLDATA)
         # `self` gets a VarInfo, but it is not considered a state
         # variable (it is magic), so we ignore it here.
@@ -232,6 +232,8 @@ class VarInfo:
     @property
     def is_constant(self):
         res = self.location == DataLocation.UNSET
+        # Note: This assert never raises, but is wrong in general:
+        # environment vars have an UNSET location but some are only RUNTIME_CONSTANT, e.g. block.
         assert res == (self.modifiability == Modifiability.CONSTANT)
         return res
 
@@ -295,10 +297,11 @@ class ExprInfo:
     """
 
     typ: VyperType
+    modifiability: Modifiability
+
     var_info: Optional[VarInfo] = None
     module_info: Optional[ModuleInfo] = None
     location: DataLocation = DataLocation.UNSET
-    modifiability: Modifiability = Modifiability.MODIFIABLE
     attr: Optional[str] = None
     _writes: OrderedSet[VarAccess] = field(default_factory=OrderedSet)
     _reads: OrderedSet[VarAccess] = field(default_factory=OrderedSet)
@@ -322,12 +325,11 @@ class ExprInfo:
 
     @classmethod
     def from_moduleinfo(cls, module_info: ModuleInfo, **kwargs) -> "ExprInfo":
-        modifiability = Modifiability.RUNTIME_CONSTANT
-        if module_info.ownership >= ModuleOwnership.USES:
-            modifiability = Modifiability.MODIFIABLE
-
         return cls(
-            module_info.module_t, module_info=module_info, modifiability=modifiability, **kwargs
+            module_info.module_t,
+            module_info=module_info,
+            modifiability=Modifiability.CONSTANT,
+            **kwargs,
         )
 
     def copy_with_type(self, typ: VyperType, **kwargs) -> "ExprInfo":

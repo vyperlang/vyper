@@ -1106,6 +1106,62 @@ def test_mstore_before_ret_is_not_dead():
     _check_no_change(pre, hevm=False)
 
 
+@pytest.mark.parametrize("location", [STORAGE, TRANSIENT])
+def test_store_before_ret_is_not_dead(location):
+    """Memory stores before ret (internal function return) are live because
+    the caller can observe memory after the function returns.
+    Regression test: DSE was eliminating the free memory pointer update
+    in alloc()-style functions, causing all allocations to alias."""
+
+    opcode = location.store_op
+
+    pre = f"""
+    _global:
+        %retpc = retpc_param
+        {opcode} 64, 1
+        ret %retpc, 1
+    """
+    _check_no_change_generic(pre, addr_space=location, hevm=False)
+
+
+@pytest.mark.parametrize("location", [MEMORY, STORAGE, TRANSIENT])
+def test_store_before_retfmp_is_not_dead(location):
+    """Memory stores before ret (internal function return) are live because
+    the caller can observe memory after the function returns.
+    Regression test: DSE was eliminating the free memory pointer update
+    in alloc()-style functions, causing all allocations to alias."""
+
+    opcode = location.store_op
+
+    pre = f"""
+    _global:
+        %retpc = retpc_param
+        %fmp = getfmp
+        {opcode} 64, 1
+        retfmp %fmp, 1, %retpc
+    """
+    _check_no_change_generic(pre, addr_space=location, hevm=False)
+
+
+@pytest.mark.parametrize("location", [MEMORY, STORAGE, TRANSIENT])
+def test_store_before_dret_is_not_dead(location):
+    """Memory stores before ret (internal function return) are live because
+    the caller can observe memory after the function returns.
+    Regression test: DSE was eliminating the free memory pointer update
+    in alloc()-style functions, causing all allocations to alias."""
+
+    opcode = location.store_op
+
+    pre = f"""
+    _global:
+        %retpc = retpc_param
+        %src = dalloca 32
+        {opcode} 64, 1
+        dret 1, %src, 32, %retpc
+    """
+    _check_no_change_generic(pre, addr_space=location, hevm=False)
+
+
 def test_mstore_before_ret_clobbered_is_dead():
     """A store before ret that is clobbered by a later store IS dead."""
     pre = """
@@ -1174,6 +1230,10 @@ def _check_pre_post_generic(pre, post, addr_space):
     VolatilePrePostChecker([DeadStoreElimination], addr_space=addr_space)(pre, post)
 
 
+def _check_no_change_generic(code, addr_space, hevm=False):
+    VolatilePrePostChecker([DeadStoreElimination], addr_space=addr_space)(code, code, hevm=hevm)
+
+
 @pytest.mark.parametrize("addr_space", _persistent_address_spaces)
 def test_storage_basic_dead_store(addr_space):
     pre = f"""
@@ -1187,6 +1247,20 @@ def test_storage_basic_dead_store(addr_space):
             stop
     """
     _check_pre_post_generic(pre, post, addr_space)
+
+
+def test_storage_store_before_selfdestruct():
+    pre = """
+        _global:
+            sstore 0, 1
+            selfdestruct 0
+    """
+    post = """
+        _global:
+            sstore 0, 1
+            selfdestruct 0
+    """
+    _check_pre_post_generic(pre, post, STORAGE)
 
 
 @pytest.mark.parametrize("addr_space", _persistent_address_spaces)
