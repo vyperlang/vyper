@@ -857,8 +857,8 @@ class Stmt:
                 payload = self.builder.mload(elem_addr)
                 item = self.ctx.dynamic_memory_value(payload, elem_typ, annotation=varname)
                 if target_type != elem_typ:
-                    # a wider loop variable (e.g. DynArray[Bytes[20], INF] for a
-                    # DynArray[Bytes[10], INF] element) has another stride
+                    # a wider loop variable (e.g. DynArray[Bytes[65], INF] for a
+                    # DynArray[Bytes[10], INF] element) may have another stride
                     item = self.ctx.copy_sequence_to_scratch(item, target_type, annotation=varname)
                 self.ctx.store_pointer_cell(dst, item.operand, IRLiteral(0))
             elif is_slot_addressed:

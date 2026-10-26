@@ -502,21 +502,21 @@ def write_other_while_iterating(xs: DynArray[Bytes[INF], INF]) -> DynArray[Bytes
 
 
 def test_iterate_as_wider_rows(get_contract):
-    # a row of Bytes[10] has another stride than a row of Bytes[20], so each
-    # row is copied into the loop variable's layout
+    # a Bytes[10] element takes 64 bytes and a Bytes[65] one 128, so each row
+    # is copied into the loop variable's layout
     code = """
 @external
 def total(xss: DynArray[DynArray[Bytes[10], INF], INF]) -> uint256:
     t: uint256 = 0
-    for row: DynArray[Bytes[20], INF] in xss:
-        for x: Bytes[20] in row:
+    for row: DynArray[Bytes[65], INF] in xss:
+        for x: Bytes[65] in row:
             t += len(x)
     return t
 
 @external
-def rows(xss: DynArray[DynArray[Bytes[10], INF], INF]) -> DynArray[DynArray[Bytes[20], INF], INF]:
-    ys: DynArray[DynArray[Bytes[20], INF], INF] = []
-    for row: DynArray[Bytes[20], INF] in xss:
+def rows(xss: DynArray[DynArray[Bytes[10], INF], INF]) -> DynArray[DynArray[Bytes[65], INF], INF]:
+    ys: DynArray[DynArray[Bytes[65], INF], INF] = []
+    for row: DynArray[Bytes[65], INF] in xss:
         ys.append(row)
     return ys
     """
