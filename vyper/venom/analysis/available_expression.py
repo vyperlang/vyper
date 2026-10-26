@@ -367,7 +367,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
     def self_conflict(self, inst: IRInstruction) -> bool:
         conflicting_eff = _get_overlap_effects(inst.opcode)
-        if (conflicting_eff  & (~mem_alias_eff)) != effects.EMPTY:
+        if (conflicting_eff & (~mem_alias_eff)) != effects.EMPTY:
             return True
 
         for eff in conflicting_eff & mem_alias_eff:
