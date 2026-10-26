@@ -9,6 +9,8 @@ from vyper.exceptions import (
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import PRIMITIVE_TYPES, HashMapT, SArrayT
 from vyper.semantics.types.utils import type_from_annotation
+from vyper.compiler import compile_code
+from vyper.exceptions import InstantiationException
 
 BASE_TYPES = ["int128", "uint256", "bool", "address", "bytes32"]
 BYTESTRING_TYPES = ["String", "Bytes"]
@@ -112,8 +114,6 @@ def test_internal_function_args_use_memory_location():
     #
     # HashMap is invalid in both locations, but the error message should
     # correctly report "memory" for internal and "calldata" for external
-    from vyper.compiler import compile_code
-    from vyper.exceptions import InstantiationException
 
     internal_code = """
 @internal
