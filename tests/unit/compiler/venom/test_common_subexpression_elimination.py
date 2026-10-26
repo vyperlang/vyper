@@ -522,8 +522,8 @@ def test_cse_self_conflicting_effects():
     """
     pre1 = """
     main:
-        mcopy 10, 100, 10
-        mcopy 10, 100, 10
+        mcopy 10, 20, 11
+        mcopy 10, 20, 11
         stop
     """
 

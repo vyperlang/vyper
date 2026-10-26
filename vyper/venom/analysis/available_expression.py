@@ -366,8 +366,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
         available_exprs.remove_effect(write_eff & (~mem_alias_eff))
 
     def self_conflict(self, inst: IRInstruction) -> bool:
-        conflicting_eff = _get_overlap_effects(inst.opcode) & (~mem_alias_eff)
-        if conflicting_eff != effects.EMPTY:
+        conflicting_eff = _get_overlap_effects(inst.opcode)
+        if (conflicting_eff  & (~mem_alias_eff)) != effects.EMPTY:
             return True
 
         for eff in conflicting_eff & mem_alias_eff:
@@ -375,7 +375,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
             assert addr_space is not None
             write_loc = self.base_ptr.get_write_location(inst, addr_space)
             read_loc = self.base_ptr.get_read_location(inst, addr_space)
-            if self.mem_alias[eff].may_alias(write_loc, read_loc, addr_space):
+            if self.mem_alias[eff].may_alias(write_loc, read_loc):
                 return True
 
         return False
