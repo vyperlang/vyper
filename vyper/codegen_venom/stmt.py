@@ -766,13 +766,14 @@ class Stmt:
 
         # Allocate loop variable (copy of element, not reference). An
         # unbounded element has no inline value: the loop variable is a
-        # pointer cell rebound to each element's payload, which is read-only.
+        # pointer cell rebound to each element's payload, which is read-only,
+        # or to a copy of it laid out as a wider loop variable.
         elem_is_cell = isinstance(array_typ, DArrayT) and is_unbounded_sequence_type(
             array_typ.value_type
         )
         if elem_is_cell:
             assert location == DataLocation.MEMORY
-            assert target_type == array_typ.value_type
+            assert is_unbounded_sequence_type(target_type)
             cell_buf = self.ctx.allocate_buffer(self.ctx.POINTER_CELL_SIZE, annotation=varname)
             item_value = VyperValue.from_ptr(cell_buf.base_ptr(), target_type)
         else:
@@ -854,7 +855,12 @@ class Stmt:
                 # rebind the loop variable's cell to the element's payload
                 assert isinstance(elem_addr, IRVariable)
                 payload = self.builder.mload(elem_addr)
-                self.ctx.store_pointer_cell(dst, payload, IRLiteral(0))
+                item = self.ctx.dynamic_memory_value(payload, elem_typ, annotation=varname)
+                if target_type != elem_typ:
+                    # a wider loop variable (e.g. DynArray[Bytes[20], INF] for a
+                    # DynArray[Bytes[10], INF] element) has another stride
+                    item = self.ctx.copy_sequence_to_scratch(item, target_type, annotation=varname)
+                self.ctx.store_pointer_cell(dst, item.operand, IRLiteral(0))
             elif is_slot_addressed:
                 # Word-addressed (STORAGE, TRANSIENT)
                 self.ctx.slot_to_memory(elem_addr, copy_dst, elem_size, location)

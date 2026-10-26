@@ -501,6 +501,32 @@ def write_other_while_iterating(xs: DynArray[Bytes[INF], INF]) -> DynArray[Bytes
     assert c.write_other_while_iterating(VALUES_SHORT) == [b"c" * 70, b"", b"c" * 70]
 
 
+def test_iterate_as_wider_rows(get_contract):
+    # a row of Bytes[10] has another stride than a row of Bytes[20], so each
+    # row is copied into the loop variable's layout
+    code = """
+@external
+def total(xss: DynArray[DynArray[Bytes[10], INF], INF]) -> uint256:
+    t: uint256 = 0
+    for row: DynArray[Bytes[20], INF] in xss:
+        for x: Bytes[20] in row:
+            t += len(x)
+    return t
+
+@external
+def rows(xss: DynArray[DynArray[Bytes[10], INF], INF]) -> DynArray[DynArray[Bytes[20], INF], INF]:
+    ys: DynArray[DynArray[Bytes[20], INF], INF] = []
+    for row: DynArray[Bytes[20], INF] in xss:
+        ys.append(row)
+    return ys
+    """
+    c = get_contract(code)
+    xss = [[b"ab", b"c"], [], [b"defg", b"0123456789", b""]]
+    assert c.total(xss) == 17
+    assert c.rows(xss) == xss
+    assert c.rows([]) == []
+
+
 # --- malformed and adversarial input ----------------------------------------
 
 ADV_CODE = """
