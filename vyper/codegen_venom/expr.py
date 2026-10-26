@@ -170,6 +170,17 @@ def _subscript_read_write_overlap(
     return _contains_risky_call(index_node)
 
 
+def is_unbounded_array_element(node: vy_ast.VyperNode) -> bool:
+    """Return True if `node` is `xs[i]` where `xs` is a DynArray of unbounded
+    sequences, i.e. the element is a pointer cell (see
+    `VenomCodegenContext.store_pointer_cell`).
+    """
+    if not isinstance(node, vy_ast.Subscript):
+        return False
+    base_t = node.value._metadata.get("type")
+    return isinstance(base_t, DArrayT) and is_unbounded_sequence_type(base_t.value_type)
+
+
 def is_unbounded_struct_member(node: vy_ast.VyperNode) -> bool:
     """Return True if `node` is an unbounded member of a struct value, which
     a pointer cell represents (see `VenomCodegenContext.store_pointer_cell`).
@@ -367,7 +378,11 @@ class Expr:
         assert isinstance(node, vy_ast.List)
         typ = node._metadata["type"]
         elem_typ = typ.value_type
-        elem_size = elem_typ.memory_bytes_required
+        elem_is_cell = isinstance(typ, DArrayT) and is_unbounded_sequence_type(elem_typ)
+        if elem_is_cell:
+            elem_size = self.ctx.dynarray_elem_stride(typ)
+        else:
+            elem_size = elem_typ.memory_bytes_required
         num_elements = len(node.elements)
 
         # Allocate memory for the array
@@ -393,7 +408,13 @@ class Expr:
 
             dst = self.builder.add(val.operand, IRLiteral(data_offset))
 
-            self.ctx.store_vyper_value(elem_vv, dst, elem_typ)
+            if elem_is_cell:
+                # the element is a pointer cell; it gets its own payload
+                assert isinstance(dst, IRVariable)
+                payload = self.ctx.element_payload(elem_vv, elem_typ, elem_node, annotation="list")
+                self.ctx.store_pointer_cell(dst, payload, IRLiteral(0))
+            else:
+                self.ctx.store_vyper_value(elem_vv, dst, elem_typ)
             data_offset += elem_size
 
         return val
@@ -1091,12 +1112,15 @@ class Expr:
         elem_ptr = self.builder.add(data_ptr, offset)
 
         if elem_is_cell:
-            # reading the cell as the value would hand back the payload
-            # address. The element is read-only, so no ownership is acquired,
-            # and the payload is never mutated in place, so it stays valid
-            # independently of the element's frame: no reference is kept.
-            assert not self.as_ptr, "semantic analysis rejects writes to unbounded elements"
             assert isinstance(elem_ptr, IRVariable)
+            if self.as_ptr:
+                # an assignment target is the cell itself, typed by its
+                # element for `array_element_cell_ptr`, which rebinds it to a
+                # fresh payload; payloads are never written in place
+                return self._make_ptr_value(elem_ptr, data_loc, elem_typ)
+            # reading the cell as the value would hand back the payload
+            # address. The payload is never mutated in place, so it stays
+            # valid independently of the element's frame: no reference is kept.
             payload = self.builder.mload(elem_ptr)
             assert isinstance(payload, IRVariable)
             return self.ctx.dynamic_memory_value(payload, elem_typ, annotation="element")
@@ -1276,6 +1300,16 @@ class Expr:
 
         field_ptr = self.builder.add(base, IRLiteral(offset))
         return field_ptr, data_loc, field_typ, base_vv.reference
+
+    def array_element_cell_ptr(self) -> IRVariable:
+        """Return the pointer cell of an unbounded array element (see
+        `VenomCodegenContext.store_pointer_cell`).
+        """
+        assert is_unbounded_array_element(self.node)
+        assert self.as_ptr, "construct the Expr as a target: Expr(node, ctx, as_ptr=True)"
+        cell = self._lower_array_subscript().operand
+        assert isinstance(cell, IRVariable)
+        return cell
 
     def struct_member_cell_ptr(self) -> IRVariable:
         """Return the pointer cell of an unbounded struct member (see
@@ -1870,14 +1904,20 @@ class Expr:
         darray_vv = self._resolve_after(darray_vv, arg_node, darray_node)
         darray_ptr = darray_vv.operand
 
-        if not elem_typ._is_prim_word:
+        elem_is_cell = is_unbounded_sequence_type(elem_typ)
+        if elem_is_cell:
+            # the element is a pointer cell; it gets its own payload
+            elem_val: IROperand = self.ctx.element_payload(
+                arg_vv, elem_typ, arg_node, annotation="append"
+            )
+        elif not elem_typ._is_prim_word:
             # Always stage complex elements through a temp buffer to guard
             # against aliasing (e.g. arr.append(arr[0])).
             # MemoryCopyElisionPass eliminates the copy when safe.
             temp_buf = self.ctx.new_temporary_value(elem_typ)
             assert isinstance(temp_buf.operand, IRVariable)
             self.ctx.store_vyper_value(arg_vv, temp_buf.operand, elem_typ)
-            elem_val: IROperand = temp_buf.operand
+            elem_val = temp_buf.operand
             elem_src_typ = elem_typ
         else:
             elem_val = arg_val
@@ -1887,7 +1927,11 @@ class Expr:
         assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
-        elem_size = elem_typ.get_size_in(data_loc)
+        if elem_is_cell:
+            assert data_loc == DataLocation.MEMORY
+            elem_size = self.ctx.dynarray_elem_stride(darray_typ)
+        else:
+            elem_size = elem_typ.get_size_in(data_loc)
         capacity = darray_typ.count  # Maximum length
 
         # 1. Load current length
@@ -1907,7 +1951,10 @@ class Expr:
         # 4. Store element - handle complex types properly
         # For primitive types, use single-word store
         # For complex types, elem_val is a memory pointer - need to copy data
-        if elem_typ._is_prim_word:
+        if elem_is_cell:
+            assert isinstance(elem_ptr, IRVariable)
+            self.ctx.store_pointer_cell(elem_ptr, elem_val, IRLiteral(0))
+        elif elem_typ._is_prim_word:
             self.builder.store(elem_ptr, elem_val, data_loc)
         elif data_loc == DataLocation.MEMORY:
             self.ctx.store_memory(elem_val, elem_ptr, elem_typ, src_typ=elem_src_typ)
@@ -1951,14 +1998,21 @@ class Expr:
 
         # the element is read before the receiver's cell so that
         # `xs.append(xs[0])` reads the payload the append then replaces
-        arg_vv = Expr(node.args[0], self.ctx).lower()
+        arg_node = node.args[0]
+        arg_vv = Expr(arg_node, self.ctx).lower()
         arg_val = self.ctx.unwrap(arg_vv)
 
-        if not elem_typ._is_prim_word:
+        elem_is_cell = is_unbounded_sequence_type(elem_typ)
+        if elem_is_cell:
+            # the element is a pointer cell; it gets its own payload
+            elem_val: IROperand = self.ctx.element_payload(
+                arg_vv, elem_typ, arg_node, annotation="append"
+            )
+        elif not elem_typ._is_prim_word:
             temp_buf = self.ctx.new_temporary_value(elem_typ)
             assert isinstance(temp_buf.operand, IRVariable)
             self.ctx.store_vyper_value(arg_vv, temp_buf.operand, elem_typ)
-            elem_val: IROperand = temp_buf.operand
+            elem_val = temp_buf.operand
         else:
             elem_val = arg_val
 
@@ -1980,7 +2034,7 @@ class Expr:
         assert isinstance(cell, IRVariable)
         old_ptr, capacity = self.ctx.load_pointer_cell(cell)
         length = b.mload(old_ptr)
-        elem_size = elem_typ.memory_bytes_required
+        elem_size = self.ctx.dynarray_elem_stride(darray_typ)
 
         # every payload a pointer cell can reference was allocated with a
         # checked `32 + length * elem_size`, so recomputing it cannot overflow
@@ -2040,7 +2094,10 @@ class Expr:
         target_ptr = b.mload(target_cell._ptr)
         assert isinstance(target_ptr, IRVariable)
         elem_ptr = b.add(b.add(target_ptr, IRLiteral(32)), data_size)
-        if elem_typ._is_prim_word:
+        if elem_is_cell:
+            assert isinstance(elem_ptr, IRVariable)
+            self.ctx.store_pointer_cell(elem_ptr, elem_val, IRLiteral(0))
+        elif elem_typ._is_prim_word:
             b.mstore(elem_ptr, elem_val)
         else:
             self.ctx.store_memory(elem_val, elem_ptr, elem_typ, src_typ=elem_typ)
@@ -2077,7 +2134,12 @@ class Expr:
         assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
-        elem_size = elem_typ.get_size_in(data_loc)
+        elem_is_cell = is_unbounded_sequence_type(elem_typ)
+        if elem_is_cell:
+            assert data_loc == DataLocation.MEMORY
+            elem_size = self.ctx.dynarray_elem_stride(darray_typ)
+        else:
+            elem_size = elem_typ.get_size_in(data_loc)
 
         # 1. Load current length
         length = self.builder.load(darray_ptr, data_loc)
@@ -2097,6 +2159,14 @@ class Expr:
         data_ptr = self.builder.add(darray_ptr, IRLiteral(overhead))
         offset = self.builder.mul(new_length, IRLiteral(elem_size))
         elem_ptr = self.builder.add(data_ptr, offset)
+
+        if elem_is_cell:
+            # the popped element is the payload its cell points at; the cell
+            # is past the new length and never read again
+            assert isinstance(elem_ptr, IRVariable)
+            payload = self.builder.mload(elem_ptr)
+            assert isinstance(payload, IRVariable)
+            return self.ctx.dynamic_memory_value(payload, elem_typ, annotation="pop")
 
         # Return as location - unwrap() will load for primitives
         return self._make_ptr_value(elem_ptr, data_loc, elem_typ)

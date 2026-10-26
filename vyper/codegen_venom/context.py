@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Callable, ClassVar, Optional, Sequence
 
+from vyper import ast as vy_ast
 from vyper.codegen.core import punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.bytestring_literal import LiteralPool, chain_instructions
@@ -749,6 +750,26 @@ class VenomCodegenContext:
         data_ptr = self.builder.add(ptr, IRLiteral(32))
         self.builder.copy_to_memory(data_ptr, offset, length, location)
         return self.dynamic_memory_value(ptr, typ, annotation=annotation)
+
+    def element_payload(
+        self, vv: VyperValue, typ: VyperType, src_node: vy_ast.VyperNode, annotation: str
+    ) -> IRVariable:
+        """Return a payload for `vv` that a pointer cell may own.
+
+        A call result is a fresh scratch allocation nobody else references
+        (external and internal returns, `abi_decode`, `raw_call`, `slice`,
+        `concat`), so it is adopted as is when it already has the cell's
+        type. Anything else -- a variable, an element, a literal, a value of
+        another layout -- is copied, so that the cell never shares a payload
+        it may be read through later.
+        """
+        fresh = isinstance(src_node, (vy_ast.Call, vy_ast.ExtCall, vy_ast.StaticCall))
+        if fresh and vv.typ == typ and vv.location == DataLocation.MEMORY:
+            assert isinstance(vv.operand, IRVariable)
+            return vv.operand
+        payload = self.copy_sequence_to_scratch(vv, typ, annotation=annotation)
+        assert isinstance(payload.operand, IRVariable)
+        return payload.operand
 
     def copy_sequence_to_scratch(
         self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
