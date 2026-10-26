@@ -328,8 +328,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
             if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
                 continue
 
-            expr_effects = _get_overlap_effects(expr.opcode)
-            if expr_effects == effects.EMPTY:
+            conflict = self.self_conflict(inst)
+            if not conflict:
                 available_exprs.add(expr, inst)
 
         if bb not in self.bb_outs or available_exprs != self.bb_outs[bb]:
@@ -364,6 +364,21 @@ class AvailableExpressionAnalysis(IRAnalysis):
         available_exprs.remove(to_remove)
 
         available_exprs.remove_effect(write_eff & (~mem_alias_eff))
+
+    def self_conflict(self, inst: IRInstruction) -> bool:
+        conflicting_eff = _get_overlap_effects(inst.opcode) & (~mem_alias_eff)
+        if conflicting_eff != effects.EMPTY:
+            return True
+
+        for eff in conflicting_eff & mem_alias_eff:
+            addr_space = effects.to_addr_space(eff)
+            assert addr_space is not None
+            write_loc = self.base_ptr.get_write_location(inst, addr_space)
+            read_loc = self.base_ptr.get_write_location(inst, addr_space)
+            if self.mem_alias[eff].may_alias(write_loc, read_loc, addr_space):
+                return True
+
+        return False
 
     def _get_operand(
         self, op: IROperand, available_exprs: _AvailableExpressions
