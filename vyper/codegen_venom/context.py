@@ -530,7 +530,10 @@ class VenomCodegenContext:
         return self.load_word(vv.operand, vv.location)
 
     def store_vyper_value(self, vv: VyperValue, ptr: IRVariable, typ: VyperType) -> None:
-        """Store a VyperValue into memory, preserving its source layout."""
+        """Store a VyperValue into memory, preserving its source layout.
+
+        This is `make_setter` for a destination given as a bare memory pointer.
+        """
         self.store_memory(self.unwrap(vv), ptr, typ, src_typ=vv.typ)
 
     def ceil32(self, size: IROperand) -> IROperand:
@@ -1668,3 +1671,146 @@ class VenomCodegenContext:
             raise CompilerPanic("cannot store to CODE")
         else:  # pragma: nocover
             raise CompilerPanic(f"cannot store to: {location}")
+
+    def make_setter(self, dst_ptr: Ptr, typ: VyperType, src_vv: VyperValue) -> None:
+        """Store `src_vv` into `dst_ptr` as `typ`.
+
+        Like legacy make_setter, this does not stage the source: callers
+        copy it to a temporary when it may alias `dst_ptr` (see
+        `Stmt._assign_value`). `src_vv` is a stack value or located in
+        memory, storage, transient storage or immutables.
+        """
+        if typ._is_prim_word:
+            self.ptr_store(dst_ptr, self.unwrap(src_vv))
+            return
+
+        src_typ = src_vv.typ
+        src = self.unwrap(src_vv)  # always a memory ptr for complex types
+
+        if (
+            not same_memory_layout(src_typ, typ)
+            and dst_ptr.location is not DataLocation.MEMORY
+            and not (isinstance(src_typ, _BytestringT) and isinstance(typ, _BytestringT))
+        ):
+            # Normalize source into destination layout before writing to
+            # storage/transient/code locations that don't carry src_typ.
+            normalized = self.new_temporary_value(typ)
+            assert isinstance(normalized.operand, IRVariable)
+            self.store_memory(src, normalized.operand, typ, src_typ=src_typ)
+            src = normalized.operand
+            src_typ = typ
+
+        loc = dst_ptr.location
+        is_slot_addressed = loc in (DataLocation.STORAGE, DataLocation.TRANSIENT)
+
+        if is_slot_addressed:
+            # DynArray special case: only copy length + actual elements, not full capacity.
+            # This matches legacy codegen behavior (core.py:_dynarray_make_setter).
+            if isinstance(typ, DArrayT):
+                transient = loc is DataLocation.TRANSIENT
+                self._copy_dynarray_to_storage(src, dst_ptr.operand, typ, transient=transient)
+            else:
+                # store_storage / store_transient handle single-word mload internally.
+                store_fn = (
+                    self.store_transient if loc is DataLocation.TRANSIENT else self.store_storage
+                )
+                store_fn(src, dst_ptr.operand, typ)
+        elif loc == DataLocation.IMMUTABLES:
+            # Immutables in constructor
+            if typ.memory_bytes_required <= 32:
+                assert isinstance(src, IRVariable)
+                val = self.builder.mload(src)
+                self.ptr_store(dst_ptr, val)
+            else:
+                self.store_immutable(src, dst_ptr.operand, typ)
+        else:
+            assert loc is DataLocation.MEMORY
+            assert isinstance(dst_ptr.operand, IRVariable)
+            # Memory destination: use layout-aware copy when types differ.
+            self.store_memory(src, dst_ptr.operand, typ, src_typ=src_typ)
+
+    def _copy_dynarray_to_storage(
+        self, src: IROperand, dst_slot: IROperand, typ: DArrayT, transient: bool
+    ) -> None:
+        """Copy DynArray from memory to storage, writing only length + actual elements.
+
+        This matches legacy codegen behavior (core.py:_dynarray_make_setter) which
+        only copies the actual elements, not the full capacity. This is important
+        for hevm symbolic equivalence - slots beyond length should not be modified.
+
+        Args:
+            src: Memory pointer to source DynArray
+            dst_slot: Storage slot for destination
+            typ: DynArray type
+            transient: If True, use tstore instead of sstore
+        """
+        b = self.builder
+
+        # Load length from source (at offset 0)
+        assert isinstance(src, IRVariable)
+        length = b.mload(src)
+
+        elem_typ = typ.value_type
+        elem_words = elem_typ.storage_size_in_words
+
+        # Create loop blocks
+        cond_block = b.create_block("dyn_cond")
+        body_block = b.create_block("dyn_body")
+        exit_block = b.create_block("dyn_exit")
+
+        # Entry: counter = 0, jump to cond
+        counter = b.assign(IRLiteral(0))
+        b.jmp(cond_block.label)
+
+        # Condition: if counter >= length, goto exit, else body
+        b.append_block(cond_block)
+        b.set_block(cond_block)
+        # done = counter >= length = iszero(lt(counter, length))
+        done = b.iszero(b.lt(counter, length))
+        cond_finish = b.current_block
+
+        # Body: copy one element
+        b.append_block(body_block)
+        b.set_block(body_block)
+
+        if elem_words == 1:
+            # Simple case: each element is one storage word
+            # src_offset = 32 + counter * 32
+            src_offset = b.add(IRLiteral(32), b.mul(counter, IRLiteral(32)))
+            src_ptr = b.add(src, src_offset)
+            val = b.mload(src_ptr)
+
+            # dst_slot_i = dst_slot + counter + 1 (skip length word)
+            dst_slot_i = b.add(dst_slot, b.add(counter, IRLiteral(1)))
+            if transient:
+                b.tstore(dst_slot_i, val)
+            else:
+                b.sstore(dst_slot_i, val)
+        else:
+            # Complex case: element spans multiple words
+            elem_mem_size = elem_typ.memory_bytes_required
+            src_offset = b.add(IRLiteral(32), b.mul(counter, IRLiteral(elem_mem_size)))
+            src_ptr = b.add(src, src_offset)
+
+            # dst_slot_i = dst_slot + 1 + counter * elem_words
+            dst_slot_i = b.add(dst_slot, b.add(IRLiteral(1), b.mul(counter, IRLiteral(elem_words))))
+            if transient:
+                self.store_transient(src_ptr, dst_slot_i, elem_typ)
+            else:
+                self.store_storage(src_ptr, dst_slot_i, elem_typ)
+
+        # Increment counter and loop
+        new_counter = b.add(counter, IRLiteral(1))
+        b.assign_to(new_counter, counter)
+        b.jmp(cond_block.label)
+
+        # Wire up conditional jump (done after body to have block refs)
+        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
+
+        # Exit block: write length last (matches legacy behavior)
+        b.append_block(exit_block)
+        b.set_block(exit_block)
+        if transient:
+            b.tstore(dst_slot, length)
+        else:
+            b.sstore(dst_slot, length)
