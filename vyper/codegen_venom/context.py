@@ -11,12 +11,10 @@ VenomCodegenContext tracks:
 from __future__ import annotations
 
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Callable, ClassVar, Optional, Sequence
 
-from vyper import ast as vy_ast
-from vyper.builtins._signatures import BuiltinFunctionT
 from vyper.codegen.core import punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.bytestring_literal import LiteralPool, chain_instructions
@@ -68,26 +66,6 @@ def same_memory_layout(src_typ: VyperType, dst_typ: VyperType) -> bool:
     if not punnable(src_typ, dst_typ):
         return False
     return src_typ.memory_bytes_required == dst_typ.memory_bytes_required
-
-
-# builtins whose result is always a buffer they allocate, never one of their
-# arguments (unlike e.g. `convert`, which reinterprets its argument in place)
-_FRESH_RESULT_BUILTINS = frozenset(("abi_decode", "abi_encode", "concat", "raw_call", "slice"))
-
-
-def _is_fresh_allocation(node: vy_ast.VyperNode) -> bool:
-    """Return True if the result of `node` is memory it allocates itself, which
-    no variable writes in place: an external or internal call result, or the
-    result of one of `_FRESH_RESULT_BUILTINS`.
-    """
-    if isinstance(node, (vy_ast.ExtCall, vy_ast.StaticCall)):
-        return True
-    if not isinstance(node, vy_ast.Call):
-        return False
-    func_t = node.func._metadata.get("type")
-    if isinstance(func_t, ContractFunctionT):
-        return func_t.is_internal
-    return isinstance(func_t, BuiltinFunctionT) and func_t._id in _FRESH_RESULT_BUILTINS
 
 
 @dataclass
@@ -371,6 +349,14 @@ class VenomCodegenContext:
         """Wrap a runtime-sized memory pointer as a located Vyper value."""
         buf = Buffer(_ptr=ptr, size=None, annotation=annotation)
         return VyperValue.from_ptr(buf.base_ptr(), typ)
+
+    def fresh_memory_value(
+        self, ptr: IRVariable, typ: VyperType, annotation: Optional[str] = None
+    ) -> VyperValue:
+        """Like `dynamic_memory_value`, for a scratch buffer the caller allocated
+        and fills itself, which nothing else references (`VyperValue.owned`).
+        """
+        return replace(self.dynamic_memory_value(ptr, typ, annotation=annotation), owned=True)
 
     def dynamic_tuple_frame_value(
         self, ptr: IRVariable, typ: TupleT, annotation: Optional[str] = None
@@ -742,7 +728,7 @@ class VenomCodegenContext:
             self.builder.codecopy(data_ptr, offset, length)
         else:
             self.builder.extcodecopy(address, data_ptr, offset, length)
-        return self.dynamic_memory_value(ptr, typ, annotation=annotation)
+        return self.fresh_memory_value(ptr, typ, annotation=annotation)
 
     def materialize_returndata_bytes(self, typ: VyperType) -> VyperValue:
         """Copy the whole returndata into a runtime-sized bytestring memory value."""
@@ -753,7 +739,7 @@ class VenomCodegenContext:
         self.zero_bytestring_padding(ptr, length)
         data_ptr = self.builder.add(ptr, IRLiteral(32))
         self.builder.returndatacopy(data_ptr, IRLiteral(0), length)
-        return self.dynamic_memory_value(ptr, typ)
+        return self.fresh_memory_value(ptr, typ)
 
     def materialize_bytes_from_location(
         self,
@@ -770,22 +756,22 @@ class VenomCodegenContext:
         self.zero_bytestring_padding(ptr, length)
         data_ptr = self.builder.add(ptr, IRLiteral(32))
         self.builder.copy_to_memory(data_ptr, offset, length, location)
-        return self.dynamic_memory_value(ptr, typ, annotation=annotation)
+        return self.fresh_memory_value(ptr, typ, annotation=annotation)
 
-    def element_payload(
-        self, vv: VyperValue, typ: VyperType, src_node: Optional[vy_ast.VyperNode], annotation: str
+    def payload_for_cell(
+        self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
     ) -> IRVariable:
         """Return a payload for `vv` that a pointer cell may own.
 
-        `src_node` is the expression `vv` was lowered from, or None if `vv` is
-        part of a value. A fresh allocation (see `_is_fresh_allocation`) is
-        adopted as is when it already has the cell's type. Anything else -- a
-        variable, an element, a literal, a value of another layout, a call
-        result which may be its argument (`convert`) -- is copied, so that the
-        cell never shares memory which may be written in place later.
+        An owned value (`VyperValue.owned`) of the cell's type is taken as is.
+        Anything else -- a variable, an element, a literal, a value of another
+        layout, a result which may be its argument (`convert`) -- is copied,
+        so that the cell never shares memory which may be written in place
+        later. Taking is sound because an owned value reaches at most one
+        such consumer: each expression is lowered once, and the assignment
+        consuming it does so once.
         """
-        fresh = src_node is not None and _is_fresh_allocation(src_node)
-        if fresh and vv.typ == typ and vv.location == DataLocation.MEMORY:
+        if vv.owned and vv.typ == typ:
             assert isinstance(vv.operand, IRVariable)
             return vv.operand
         payload = self.copy_sequence_to_scratch(vv, typ, annotation=annotation)

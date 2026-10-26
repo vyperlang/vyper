@@ -411,7 +411,7 @@ class Expr:
             if elem_is_cell:
                 # the element is a pointer cell; it gets its own payload
                 assert isinstance(dst, IRVariable)
-                payload = self.ctx.element_payload(elem_vv, elem_typ, elem_node, annotation="list")
+                payload = self.ctx.payload_for_cell(elem_vv, elem_typ, annotation="list")
                 self.ctx.store_pointer_cell(dst, payload, IRLiteral(0))
             else:
                 self.ctx.store_vyper_value(elem_vv, dst, elem_typ)
@@ -1748,14 +1748,14 @@ class Expr:
                     assert len(outs) == 1
                     rebase_packed_value(self.ctx, outs[0], func_t.return_type)
                     if is_unbounded_sequence_type(func_t.return_type):
-                        return self.ctx.dynamic_memory_value(
+                        return self.ctx.fresh_memory_value(
                             outs[0], func_t.return_type, annotation=func_name
                         )
                     return self._make_ptr_value(outs[0], DataLocation.MEMORY, func_t.return_type)
 
                 assert len(outs) == 1
                 # Dynamic internal returns publish a runtime memory pointer directly.
-                return self.ctx.dynamic_memory_value(
+                return self.ctx.fresh_memory_value(
                     outs[0], func_t.return_type, annotation=func_name
                 )
 
@@ -1907,9 +1907,7 @@ class Expr:
         elem_is_cell = is_unbounded_sequence_type(elem_typ)
         if elem_is_cell:
             # the element is a pointer cell; it gets its own payload
-            elem_val: IROperand = self.ctx.element_payload(
-                arg_vv, elem_typ, arg_node, annotation="append"
-            )
+            elem_val: IROperand = self.ctx.payload_for_cell(arg_vv, elem_typ, annotation="append")
         elif not elem_typ._is_prim_word:
             # Always stage complex elements through a temp buffer to guard
             # against aliasing (e.g. arr.append(arr[0])).
@@ -2005,9 +2003,7 @@ class Expr:
         elem_is_cell = is_unbounded_sequence_type(elem_typ)
         if elem_is_cell:
             # the element is a pointer cell; it gets its own payload
-            elem_val: IROperand = self.ctx.element_payload(
-                arg_vv, elem_typ, arg_node, annotation="append"
-            )
+            elem_val: IROperand = self.ctx.payload_for_cell(arg_vv, elem_typ, annotation="append")
         elif not elem_typ._is_prim_word:
             temp_buf = self.ctx.new_temporary_value(elem_typ)
             assert isinstance(temp_buf.operand, IRVariable)
@@ -2669,7 +2665,7 @@ class Expr:
 
         ret_ptr = b.mload(ret_cell._ptr)
         assert isinstance(ret_ptr, IRVariable)
-        return self.ctx.dynamic_memory_value(ret_ptr, return_t, annotation="external call return")
+        return self.ctx.fresh_memory_value(ret_ptr, return_t, annotation="external call return")
 
     def _unpack_dynamic_tuple_external_call_return(
         self, call_kwargs: _CallKwargs, contract_address: IROperand, return_t: TupleT

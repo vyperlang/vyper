@@ -194,7 +194,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             ctx, buf_ptr, method_id, encode_unbounded, ctx.checked_add, zero_tail_padding=True
         )
 
-        return ctx.dynamic_memory_value(buf_ptr, node._metadata["type"], annotation="abi_encode")
+        return ctx.fresh_memory_value(buf_ptr, node._metadata["type"], annotation="abi_encode")
 
     # Calculate buffer size
     bufsz = encode_type.abi_type.size_bound()

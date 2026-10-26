@@ -173,7 +173,7 @@ class Stmt:
             # the cell is rebound to a fresh payload; the empty fast path
             # below would instead write into the current payload
             src = Expr(node.value, self.ctx).lower()
-            self._assign_pointer_cell(target, src, target_typ, src_node=node.value)
+            self._assign_pointer_cell(target, src, target_typ)
             return
 
         # Special case: empty Bytestring/DynArray assignment — just zero the
@@ -209,19 +209,12 @@ class Stmt:
         return is_unbounded_struct_member(target) or is_unbounded_array_element(target)
 
     def _assign_pointer_cell(
-        self,
-        target: vy_ast.VyperNode,
-        src: VyperValue,
-        typ: VyperType,
-        src_node: Optional[vy_ast.VyperNode],
+        self, target: vy_ast.VyperNode, src: VyperValue, typ: VyperType
     ) -> None:
         """Rebind the pointer cell `target` (see `_is_pointer_cell_target`) to
-        a fresh payload holding `src`, leaving the old payload alone: copies
-        of a struct or an array may share it.
-
-        `src_node` is the expression `src` was lowered from, or None if `src`
-        is part of a value, e.g. a tuple member (see
-        `VenomCodegenContext.element_payload`).
+        a payload holding `src` (see `VenomCodegenContext.payload_for_cell`),
+        leaving the old payload alone: copies of a struct or an array may
+        share it.
         """
         if isinstance(target, vy_ast.Name):
             self._assign_unbounded_sequence_local(self.ctx.lookup(target.id), src, typ)
@@ -232,7 +225,7 @@ class Stmt:
         else:
             assert is_unbounded_array_element(target)
             # the payload is taken before the target: the index may read the array
-            payload = self.ctx.element_payload(src, typ, src_node, annotation="element")
+            payload = self.ctx.payload_for_cell(src, typ, annotation="element")
             cell = Expr(target, self.ctx, as_ptr=True).array_element_cell_ptr()
             self.ctx.store_pointer_cell(cell, payload, IRLiteral(0))
 
@@ -244,11 +237,11 @@ class Stmt:
     def _assign_unbounded_sequence_cell(
         self, cell: IROperand, src: VyperValue, typ: VyperType, annotation: str
     ) -> None:
-        """Rebind a pointer cell to an exact-sized copy of `src`."""
+        """Rebind a pointer cell to a payload holding `src`."""
         if not is_unbounded_sequence_type(typ):  # pragma: nocover
             raise CompilerPanic(f"expected unbounded sequence type, got {typ}")
-        value = self.ctx.copy_sequence_to_scratch(src, typ, annotation=annotation)
-        self.ctx.store_pointer_cell(cell, value.operand, IRLiteral(0))
+        payload = self.ctx.payload_for_cell(src, typ, annotation=annotation)
+        self.ctx.store_pointer_cell(cell, payload, IRLiteral(0))
 
     def _assign_value(
         self, dst_ptr: Ptr, src: VyperValue, typ: VyperType, *, src_node: vy_ast.VyperNode
@@ -338,7 +331,7 @@ class Stmt:
             if self._is_pointer_cell_target(target_node):
                 assert isinstance(val, IRVariable)
                 member_vv = self.ctx.dynamic_memory_value(val, src_elem_typ, annotation="unpack")
-                self._assign_pointer_cell(target_node, member_vv, dst_elem_typ, src_node=None)
+                self._assign_pointer_cell(target_node, member_vv, dst_elem_typ)
                 continue
 
             target_ptr = self._get_target_ptr(target_node)
@@ -363,7 +356,7 @@ class Stmt:
 
         for src_vv, dst_elem_typ, target_node in zip(src_values, dst_member_types, targets):
             if self._is_pointer_cell_target(target_node):
-                self._assign_pointer_cell(target_node, src_vv, dst_elem_typ, src_node=None)
+                self._assign_pointer_cell(target_node, src_vv, dst_elem_typ)
                 continue
 
             target_ptr = self._get_target_ptr(target_node)

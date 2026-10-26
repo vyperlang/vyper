@@ -399,7 +399,7 @@ def decode_unbounded_sequence_to_scratch(
 
     dst = ctx.allocate_scratch(ctx.dynarray_runtime_size_from_length(length, typ))
     abi_decode_to_buf(ctx, dst, src, hi=hi)
-    return ctx.dynamic_memory_value(dst, typ, annotation=annotation)
+    return ctx.fresh_memory_value(dst, typ, annotation=annotation)
 
 
 def _decode_dyn_array(
