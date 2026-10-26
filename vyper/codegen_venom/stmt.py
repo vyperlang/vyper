@@ -755,15 +755,18 @@ class Stmt:
         elem_size = self.ctx.array_elem_size_in(array_typ, location)
 
         # Allocate loop variable (copy of element, not reference). An
-        # unbounded element has no inline value: the loop variable is a
-        # pointer cell rebound to each element's payload, which is read-only,
-        # or to a copy of it laid out as a wider loop variable.
+        # unbounded loop variable has no inline value: it is a pointer cell
+        # rebound to each element's payload, which is read-only, or to a copy
+        # of the element laid out as the loop variable.
         elem_is_cell = isinstance(array_typ, DArrayT) and is_unbounded_sequence_type(
             array_typ.value_type
         )
+        target_is_cell = is_unbounded_sequence_type(target_type)
         if elem_is_cell:
             assert location == DataLocation.MEMORY
-            assert is_unbounded_sequence_type(target_type)
+            # the type checker rejects a bounded loop variable here
+            assert target_is_cell
+        if target_is_cell:
             cell_buf = self.ctx.allocate_buffer(self.ctx.POINTER_CELL_SIZE, annotation=varname)
             item_value = VyperValue.from_ptr(cell_buf.base_ptr(), target_type)
         else:
@@ -777,10 +780,13 @@ class Stmt:
         # (e.g. iterating DynArray[Bytes[10], 2] as DynArray[Bytes[512], 2]),
         # so stage the element in its own layout and re-lay it out below.
         # `punnable`, not `same_memory_layout`: the loop variable is the wider
-        # buffer, so equal sizes are not required, only an equal layout.
+        # buffer, so equal sizes are not required, only an equal layout. A
+        # pointer cell loop variable has no room for the element at all.
         elem_typ = array_typ.value_type
         staged_elem = None
-        if location is not DataLocation.MEMORY and not punnable(elem_typ, target_type):
+        if location is not DataLocation.MEMORY and (
+            target_is_cell or not punnable(elem_typ, target_type)
+        ):
             staged_elem = self.ctx.new_temporary_value(elem_typ, annotation=f"{varname} element")
 
         # Create blocks
@@ -814,7 +820,7 @@ class Stmt:
 
         # Set up loop targets
         with self.ctx.loop_scope(exit_block.label, incr_block.label):
-            if elem_is_cell:
+            if target_is_cell:
                 self.ctx.register_pointer_cell_variable(
                     varname, target_type, item_value.operand, mutable=False
                 )
@@ -841,16 +847,12 @@ class Stmt:
             # `staged_elem` when the layouts differ and is re-laid out below.
             dst = item_value.operand
             copy_dst = staged_elem.operand if staged_elem is not None else dst
+            # a pointer cell loop variable is rebound to this element, or to a copy
+            cell_src: Optional[VyperValue] = None
             if elem_is_cell:
-                # rebind the loop variable's cell to the element's payload
                 assert isinstance(elem_addr, IRVariable)
                 payload = self.builder.mload(elem_addr)
-                item = self.ctx.dynamic_memory_value(payload, elem_typ, annotation=varname)
-                if target_type != elem_typ:
-                    # a wider loop variable (e.g. DynArray[Bytes[65], INF] for a
-                    # DynArray[Bytes[10], INF] element) may have another stride
-                    item = self.ctx.copy_sequence_to_scratch(item, target_type, annotation=varname)
-                self.ctx.store_pointer_cell(dst, item.operand, IRLiteral(0))
+                cell_src = self.ctx.dynamic_memory_value(payload, elem_typ, annotation=varname)
             elif is_slot_addressed:
                 # Word-addressed (STORAGE, TRANSIENT)
                 self.ctx.slot_to_memory(elem_addr, copy_dst, elem_size, location)
@@ -858,6 +860,9 @@ class Stmt:
                 # Byte-addressed non-memory (IMMUTABLES, CODE, CALLDATA):
                 # location-aware copy via load_word dispatch
                 self.ctx.copy_to_memory(copy_dst, elem_addr, elem_size, location)
+            elif target_is_cell:
+                assert isinstance(elem_addr, IRVariable)
+                cell_src = self.ctx.dynamic_memory_value(elem_addr, elem_typ, annotation=varname)
             elif target_type._is_prim_word:
                 # Memory, single word
                 val = self.builder.mload(elem_addr)
@@ -868,7 +873,22 @@ class Stmt:
                 self.ctx.store_memory(elem_addr, dst, target_type, src_typ=elem_typ)
 
             if staged_elem is not None:
-                self.ctx.store_memory(copy_dst, dst, target_type, src_typ=elem_typ)
+                if target_is_cell:
+                    cell_src = staged_elem
+                else:
+                    self.ctx.store_memory(copy_dst, dst, target_type, src_typ=elem_typ)
+
+            if target_is_cell:
+                assert cell_src is not None
+                if target_type != elem_typ:
+                    # an inline element (e.g. Bytes[10] for a Bytes[INF] loop
+                    # variable) or a narrower one (DynArray[Bytes[10], INF] for
+                    # DynArray[Bytes[65], INF]) is copied into a payload laid
+                    # out as the loop variable
+                    cell_src = self.ctx.copy_sequence_to_scratch(
+                        cell_src, target_type, annotation=varname
+                    )
+                self.ctx.store_pointer_cell(dst, cell_src.operand, IRLiteral(0))
 
             self._lower_body(node.body)
             body_finish = self.builder.current_block
