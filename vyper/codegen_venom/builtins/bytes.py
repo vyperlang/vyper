@@ -45,7 +45,7 @@ def _new_slice_output(ctx: VenomCodegenContext, out_t, length: IROperand) -> Vyp
         size = ctx.bytestring_runtime_size_from_length(length)
         ptr = ctx.allocate_scratch(size)
         ctx.zero_bytestring_padding(ptr, length)
-        return ctx.fresh_memory_value(ptr, out_t, annotation="slice")
+        return ctx.owned_memory_value(ptr, out_t, annotation="slice")
 
     return ctx.new_temporary_value(out_t)
 
@@ -170,7 +170,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         scratch_size = ctx.checked_add(scratch_size, IRLiteral(32))
     scratch_ptr = ctx.allocate_scratch(scratch_size)
     ctx.zero_bytestring_padding(scratch_ptr, total_len)
-    out_val = ctx.fresh_memory_value(scratch_ptr, out_typ, annotation="concat")
+    out_val = ctx.owned_memory_value(scratch_ptr, out_typ, annotation="concat")
     out_ptr = scratch_ptr
 
     data_ptr = b.add(out_ptr, IRLiteral(32))

@@ -350,7 +350,7 @@ class VenomCodegenContext:
         buf = Buffer(_ptr=ptr, size=None, annotation=annotation)
         return VyperValue.from_ptr(buf.base_ptr(), typ)
 
-    def fresh_memory_value(
+    def owned_memory_value(
         self, ptr: IRVariable, typ: VyperType, annotation: Optional[str] = None
     ) -> VyperValue:
         """Like `dynamic_memory_value`, for a scratch buffer the caller allocated
@@ -728,7 +728,7 @@ class VenomCodegenContext:
             self.builder.codecopy(data_ptr, offset, length)
         else:
             self.builder.extcodecopy(address, data_ptr, offset, length)
-        return self.fresh_memory_value(ptr, typ, annotation=annotation)
+        return self.owned_memory_value(ptr, typ, annotation=annotation)
 
     def materialize_returndata_bytes(self, typ: VyperType) -> VyperValue:
         """Copy the whole returndata into a runtime-sized bytestring memory value."""
@@ -739,7 +739,7 @@ class VenomCodegenContext:
         self.zero_bytestring_padding(ptr, length)
         data_ptr = self.builder.add(ptr, IRLiteral(32))
         self.builder.returndatacopy(data_ptr, IRLiteral(0), length)
-        return self.fresh_memory_value(ptr, typ)
+        return self.owned_memory_value(ptr, typ)
 
     def materialize_bytes_from_location(
         self,
@@ -756,7 +756,7 @@ class VenomCodegenContext:
         self.zero_bytestring_padding(ptr, length)
         data_ptr = self.builder.add(ptr, IRLiteral(32))
         self.builder.copy_to_memory(data_ptr, offset, length, location)
-        return self.fresh_memory_value(ptr, typ, annotation=annotation)
+        return self.owned_memory_value(ptr, typ, annotation=annotation)
 
     def payload_for_cell(
         self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None

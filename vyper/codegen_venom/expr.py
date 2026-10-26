@@ -1748,14 +1748,14 @@ class Expr:
                     assert len(outs) == 1
                     rebase_packed_value(self.ctx, outs[0], func_t.return_type)
                     if is_unbounded_sequence_type(func_t.return_type):
-                        return self.ctx.fresh_memory_value(
+                        return self.ctx.owned_memory_value(
                             outs[0], func_t.return_type, annotation=func_name
                         )
                     return self._make_ptr_value(outs[0], DataLocation.MEMORY, func_t.return_type)
 
                 assert len(outs) == 1
                 # Dynamic internal returns publish a runtime memory pointer directly.
-                return self.ctx.fresh_memory_value(
+                return self.ctx.owned_memory_value(
                     outs[0], func_t.return_type, annotation=func_name
                 )
 
@@ -2665,7 +2665,7 @@ class Expr:
 
         ret_ptr = b.mload(ret_cell._ptr)
         assert isinstance(ret_ptr, IRVariable)
-        return self.ctx.fresh_memory_value(ret_ptr, return_t, annotation="external call return")
+        return self.ctx.owned_memory_value(ret_ptr, return_t, annotation="external call return")
 
     def _unpack_dynamic_tuple_external_call_return(
         self, call_kwargs: _CallKwargs, contract_address: IROperand, return_t: TupleT

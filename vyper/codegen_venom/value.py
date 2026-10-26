@@ -35,7 +35,7 @@ class VyperValue:
 
     `owned` marks a runtime scratch buffer in memory that no other value
     references; a pointer cell may take it without copying (see
-    `VenomCodegenContext.fresh_memory_value`).
+    `VenomCodegenContext.owned_memory_value`).
 
     Use factory methods to construct.
     """
@@ -51,12 +51,10 @@ class VyperValue:
             raise CompilerPanic("VyperValue: exactly one of _operand or _ptr must be set")
         if self._ptr is None and self.reference is not None:  # pragma: nocover
             raise CompilerPanic("stack values cannot carry a reference")
-        if self.owned and (
-            self._ptr is None
-            or self._ptr.location != DataLocation.MEMORY
-            or self.reference is not None
-        ):  # pragma: nocover
-            raise CompilerPanic("only an unreferenced memory value can be owned")
+        if self.owned and self.location != DataLocation.MEMORY:  # pragma: nocover
+            raise CompilerPanic("only a memory value can be owned")
+        if self.owned and self.reference is not None:  # pragma: nocover
+            raise CompilerPanic("an owned value cannot carry a reference")
 
     @property
     def is_stack_value(self) -> bool:
