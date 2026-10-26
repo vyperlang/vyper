@@ -5,7 +5,7 @@ from eth_abi import encode as eth_abi_encode
 from tests.utils import deploy_raw_returner
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings
-from vyper.exceptions import StructureException
+from vyper.exceptions import StructureException, TypeMismatch
 from vyper.utils import method_id
 
 
@@ -598,6 +598,147 @@ def rows(xss: DynArray[DynArray[Bytes[10], INF], INF]) -> DynArray[DynArray[Byte
     assert c.rows([]) == []
 
 
+def test_iterate_rows_as_unbounded_rows(get_contract):
+    # the loop variable is unbounded while the iterated rows have at most
+    # three elements; each iteration sees its own row, and a copy of the loop
+    # variable can grow without changing the iterated array
+    code = """
+@external
+def total(xss: DynArray[DynArray[Bytes[INF], 3], INF]) -> (uint256, uint256):
+    n: uint256 = 0
+    t: uint256 = 0
+    for row: DynArray[Bytes[INF], INF] in xss:
+        n += len(row)
+        for x: Bytes[INF] in row:
+            t += len(x)
+    return n, t
+
+@internal
+def _grow(xss: DynArray[DynArray[Bytes[INF], 3], INF]) -> DynArray[DynArray[Bytes[INF], INF], INF]:
+    ys: DynArray[DynArray[Bytes[INF], INF], INF] = []
+    for row: DynArray[Bytes[INF], INF] in xss:
+        r: DynArray[Bytes[INF], INF] = row
+        r.append(b"x")
+        ys.append(r)
+    return ys
+
+@external
+def grown(xss: DynArray[DynArray[Bytes[INF], 3], INF]) -> DynArray[DynArray[Bytes[INF], INF], INF]:
+    return self._grow(xss)
+
+@external
+def after_growing(
+    xss: DynArray[DynArray[Bytes[INF], 3], INF]
+) -> DynArray[DynArray[Bytes[INF], 3], INF]:
+    ys: DynArray[DynArray[Bytes[INF], INF], INF] = self._grow(xss)
+    assert len(ys) == len(xss)
+    return xss
+    """
+    c = get_contract(code)
+    xss = [[b"ab", b"c" * 70], [], [b"", b"d", b"e" * 33]]
+    assert c.total(xss) == (5, 106)
+    assert c.total([]) == (0, 0)
+    assert c.grown(xss) == [row + [b"x"] for row in xss]
+    assert c.after_growing(xss) == xss
+
+
+def test_iterate_bounded_bytes_as_unbounded(get_contract):
+    code = """
+@external
+def lengths(xs: DynArray[Bytes[10], 4]) -> DynArray[uint256, 4]:
+    ns: DynArray[uint256, 4] = []
+    for x: Bytes[INF] in xs:
+        ns.append(len(x))
+    return ns
+
+@external
+def collect(xs: DynArray[Bytes[10], 4]) -> DynArray[Bytes[INF], INF]:
+    ys: DynArray[Bytes[INF], INF] = []
+    for x: Bytes[INF] in xs:
+        ys.append(x)
+    return ys
+
+@external
+def collect_local() -> DynArray[Bytes[INF], INF]:
+    xs: DynArray[Bytes[10], 4] = [b"a", b"", b"0123456789"]
+    ys: DynArray[Bytes[INF], INF] = []
+    for x: Bytes[INF] in xs:
+        ys.append(concat(x, b"!"))
+    return ys
+
+@external
+def collect_strings(xs: DynArray[String[10], 4]) -> DynArray[String[INF], INF]:
+    ys: DynArray[String[INF], INF] = []
+    for x: String[INF] in xs:
+        ys.append(x)
+    return ys
+    """
+    c = get_contract(code)
+    xs = [b"ab", b"", b"0123456789", b"z"]
+    assert c.lengths(xs) == [2, 0, 10, 1]
+    assert c.collect(xs) == xs
+    assert c.collect([]) == []
+    assert c.collect_local() == [b"a!", b"!", b"0123456789!"]
+    assert c.collect_strings(["ab", "", "0123456789"]) == ["ab", "", "0123456789"]
+
+
+def test_iterate_bounded_immutable_as_unbounded(get_contract):
+    code = """
+XS: immutable(DynArray[Bytes[10], 4])
+
+@deploy
+def __init__(xs: DynArray[Bytes[10], 4]):
+    self.XS = xs
+
+@external
+def collect() -> DynArray[Bytes[INF], INF]:
+    ys: DynArray[Bytes[INF], INF] = []
+    for x: Bytes[INF] in self.XS:
+        ys.append(x)
+    return ys
+    """
+    xs = [b"ab", b"", b"0123456789"]
+    c = get_contract(code, xs)
+    assert c.collect() == xs
+
+
+def test_iterate_storage_rows_as_unbounded(get_contract):
+    # rows shrunk by a later store keep their old words in storage; the loop
+    # variable sees only the current elements
+    code = """
+rows: DynArray[DynArray[uint256, 3], 4]
+
+@external
+def set_rows(xs: DynArray[DynArray[uint256, 3], 4]):
+    self.rows = xs
+
+@external
+def sums() -> DynArray[uint256, 4]:
+    out: DynArray[uint256, 4] = []
+    for row: DynArray[uint256, INF] in self.rows:
+        s: uint256 = 0
+        for v: uint256 in row:
+            s += v
+        out.append(s)
+    return out
+
+@external
+def grown() -> DynArray[DynArray[uint256, INF], INF]:
+    ys: DynArray[DynArray[uint256, INF], INF] = []
+    for row: DynArray[uint256, INF] in self.rows:
+        r: DynArray[uint256, INF] = row
+        r.append(len(row))
+        ys.append(r)
+    return ys
+    """
+    c = get_contract(code)
+    c.set_rows([[1, 2, 3], [4, 5, 6], [7]])
+    assert c.sums() == [6, 15, 7]
+    c.set_rows([[8], []])
+    assert c.sums() == [8, 0]
+    assert c.grown() == [[8, 1], [0]]
+
+
 def test_string_elements(get_contract):
     code = """
 @external
@@ -764,3 +905,14 @@ def test_rejected(code, message):
     with pytest.raises(StructureException) as e:
         compile_code(code, settings=Settings(experimental_codegen=True))
     assert e.value.message == message
+
+
+def test_bounded_loop_variable_rejected():
+    code = """
+@external
+def f(xs: DynArray[Bytes[INF], INF]):
+    for x: Bytes[10] in xs:
+        pass
+    """
+    with pytest.raises(TypeMismatch):
+        compile_code(code, settings=Settings(experimental_codegen=True))
