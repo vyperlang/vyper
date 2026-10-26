@@ -107,11 +107,11 @@ class Namespace(dict):
         (Even outside Namespace, we try to never copy nodes, so metadata is never stale)
         """
 
-        _ns = Namespace()
-        _ns.update(self)
-        _ns._scopes = [s.copy() for s in self._scopes]  # 2-deep copy, to keep elements shared
-        _ns._import_decls = self._import_decls.copy()
-        return _ns
+        ret = Namespace()
+        ret.update(self)
+        ret._scopes = [s.copy() for s in self._scopes]  # 2-deep copy, to keep elements shared
+        ret._import_decls = self._import_decls.copy()
+        return ret
 
     __copy__ = copy
 
