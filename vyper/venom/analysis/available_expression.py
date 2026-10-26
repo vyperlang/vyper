@@ -300,7 +300,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
                 # multi-output instructions cannot be mapped to an
                 # expression, but their write effects must still
                 # invalidate available expressions
-                available_exprs.remove_effect(_get_write_effects(inst.opcode))
+                self.remove_conflicts(inst, available_exprs)
                 continue
 
             if (
@@ -317,8 +317,6 @@ class AvailableExpressionAnalysis(IRAnalysis):
             self._update_expr(inst, expr)
 
             self.remove_conflicts(inst, available_exprs)
-            # write_effects = _get_write_effects(expr.opcode)
-            # available_exprs.remove_effect(write_effects)
 
             # nonidempotent instructions affect other instructions,
             # but since it cannot be substituted it should not be
