@@ -539,6 +539,7 @@ def test_cse_self_conflicting_effects():
     _check_no_change(pre1)
     _check_no_change(pre2)
 
+
 def test_cse_effect_conflict_does_not_alias():
     pre = """
     main:

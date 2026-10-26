@@ -8,13 +8,9 @@ import immutables
 
 import vyper.venom.effects as effects
 from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
+from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
-from vyper.venom.analysis import (
-    CFGAnalysis,
-    DFGAnalysis,
-    BasePtrAnalysis,
-)
-from vyper.venom.analysis.mem_alias import mem_alias_type_factory, MemoryAliasAnalysisAbstract
+from vyper.venom.analysis.mem_alias import MemoryAliasAnalysisAbstract, mem_alias_type_factory
 from vyper.venom.basicblock import (
     COMMUTATIVE_INSTRUCTIONS,
     IRBasicBlock,
@@ -240,7 +236,9 @@ class _AvailableExpressions:
             res.exprs = mt.finish()
         return res
 
+
 mem_alias_eff = effects.MEMORY | effects.STORAGE | effects.TRANSIENT
+
 
 class AvailableExpressionAnalysis(IRAnalysis):
     """
@@ -264,9 +262,15 @@ class AvailableExpressionAnalysis(IRAnalysis):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.mem_alias = dict()
-        self.mem_alias[effects.MEMORY] = self.analyses_cache.request_analysis(mem_alias_type_factory(addr_space=MEMORY))
-        self.mem_alias[effects.STORAGE] = self.analyses_cache.request_analysis(mem_alias_type_factory(addr_space=STORAGE))
-        self.mem_alias[effects.TRANSIENT] = self.analyses_cache.request_analysis(mem_alias_type_factory(addr_space=TRANSIENT))
+        self.mem_alias[effects.MEMORY] = self.analyses_cache.request_analysis(
+            mem_alias_type_factory(addr_space=MEMORY)
+        )
+        self.mem_alias[effects.STORAGE] = self.analyses_cache.request_analysis(
+            mem_alias_type_factory(addr_space=STORAGE)
+        )
+        self.mem_alias[effects.TRANSIENT] = self.analyses_cache.request_analysis(
+            mem_alias_type_factory(addr_space=TRANSIENT)
+        )
 
         self.inst_to_expr = dict()
         self.inst_to_available = dict()
@@ -360,7 +364,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
         available_exprs.remove(to_remove)
 
         available_exprs.remove_effect(write_eff & (~mem_alias_eff))
-        
+
     def _get_operand(
         self, op: IROperand, available_exprs: _AvailableExpressions
     ) -> IROperand | _Expression:
