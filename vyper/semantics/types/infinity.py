@@ -108,14 +108,14 @@ def is_runtime_sizable_type(typ: VyperType) -> bool:
     place in memory for every INF sequence and a way to size an encoding
     buffer from the value at hand. Both exist when every INF sequence sits
     at a compile-time offset from its container and holds elements of a
-    compile-time stride, so that its size follows from its length word: a bounded type
-    (trivially), a direct `Bytes[INF]`, `String[INF]` or `DynArray[T, INF]`,
-    a struct whose INF members are such types, and a DynArray, bounded or
-    INF, whose elements are any of these, also nested. An INF struct member
-    or array element occupies a `POINTER_CELL_SIZE` cell (see
-    `VenomCodegenContext.store_pointer_cell`), which keeps the container at
-    a compile-time size or stride and makes its encoded size the static head
-    plus the runtime sizes of what the cells point at.
+    compile-time stride, so that its size follows from its length word: a
+    bounded type (trivially), a direct `Bytes[INF]`, `String[INF]` or
+    `DynArray[T, INF]`, a struct whose INF members are such types, and a
+    DynArray, bounded or INF, whose elements are any of these, also nested.
+    An INF struct member or array element occupies a `POINTER_CELL_SIZE`
+    cell (see `VenomCodegenContext.store_pointer_cell`), which keeps the
+    container at a compile-time size or stride and makes its encoded size
+    the static head plus the runtime sizes of what the cells point at.
 
     Rejected: a tuple with an INF member (its frame exists only as a return
     value, see `is_runtime_sizable_return_type`), and a static array or

@@ -1280,7 +1280,7 @@ class VenomCodegenContext:
                     src_vv = self.dynamic_memory_value(src_elem_ptr, src_elem_t)
                 else:
                     src_vv = VyperValue.from_ptr(
-                        Buffer(src_elem_ptr, src_elem_t.memory_bytes_required).base_ptr(),
+                        Buffer(_ptr=src_elem_ptr, size=src_elem_t.memory_bytes_required).base_ptr(),
                         src_elem_t,
                     )
                 payload = self.copy_sequence_to_scratch(src_vv, dst_elem_t, annotation="element")
