@@ -16,6 +16,7 @@ from enum import Enum
 from typing import Callable, ClassVar, Optional, Sequence
 
 from vyper import ast as vy_ast
+from vyper.builtins._signatures import BuiltinFunctionT
 from vyper.codegen.core import punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.bytestring_literal import LiteralPool, chain_instructions
@@ -67,6 +68,26 @@ def same_memory_layout(src_typ: VyperType, dst_typ: VyperType) -> bool:
     if not punnable(src_typ, dst_typ):
         return False
     return src_typ.memory_bytes_required == dst_typ.memory_bytes_required
+
+
+# builtins whose result is always a buffer they allocate, never one of their
+# arguments (unlike e.g. `convert`, which reinterprets its argument in place)
+_FRESH_RESULT_BUILTINS = frozenset(("abi_decode", "abi_encode", "concat", "raw_call", "slice"))
+
+
+def _is_fresh_allocation(node: vy_ast.VyperNode) -> bool:
+    """Return True if the result of `node` is memory it allocates itself, which
+    no variable writes in place: an external or internal call result, or the
+    result of one of `_FRESH_RESULT_BUILTINS`.
+    """
+    if isinstance(node, (vy_ast.ExtCall, vy_ast.StaticCall)):
+        return True
+    if not isinstance(node, vy_ast.Call):
+        return False
+    func_t = node.func._metadata.get("type")
+    if isinstance(func_t, ContractFunctionT):
+        return func_t.is_internal
+    return isinstance(func_t, BuiltinFunctionT) and func_t._id in _FRESH_RESULT_BUILTINS
 
 
 @dataclass
@@ -756,14 +777,13 @@ class VenomCodegenContext:
     ) -> IRVariable:
         """Return a payload for `vv` that a pointer cell may own.
 
-        A call result is a fresh scratch allocation nobody else references
-        (external and internal returns, `abi_decode`, `raw_call`, `slice`,
-        `concat`), so it is adopted as is when it already has the cell's
-        type. Anything else -- a variable, an element, a literal, a value of
-        another layout -- is copied, so that the cell never shares a payload
-        it may be read through later.
+        A fresh allocation (see `_is_fresh_allocation`) is adopted as is when
+        it already has the cell's type. Anything else -- a variable, an
+        element, a literal, a value of another layout, a call result which
+        may be its argument (`convert`) -- is copied, so that the cell never
+        shares memory which may be written in place later.
         """
-        fresh = isinstance(src_node, (vy_ast.Call, vy_ast.ExtCall, vy_ast.StaticCall))
+        fresh = _is_fresh_allocation(src_node)
         if fresh and vv.typ == typ and vv.location == DataLocation.MEMORY:
             assert isinstance(vv.operand, IRVariable)
             return vv.operand

@@ -358,6 +358,51 @@ def from_calls(t: address) -> DynArray[Bytes[INF], INF]:
     assert c.from_calls(ret.address) == [b"\x11" * 40] * 3
 
 
+def test_store_converted_value(get_contract, env):
+    # unlike an external call result, `convert(s, Bytes[INF])` is `s`'s own
+    # buffer, so the element must get a copy which survives writes to `s`
+    code = """
+interface I:
+    def g() -> Bytes[INF]: view
+
+@external
+def append_converted() -> DynArray[Bytes[INF], INF]:
+    s: String[10] = "one"
+    xs: DynArray[Bytes[INF], INF] = []
+    xs.append(convert(s, Bytes[INF]))
+    s = "two"
+    return xs
+
+@external
+def store_converted() -> DynArray[Bytes[INF], INF]:
+    s: String[10] = "one"
+    xs: DynArray[Bytes[INF], INF] = [b"z"]
+    xs[0] = convert(s, Bytes[INF])
+    s = "two"
+    return xs
+
+@external
+def literal_converted() -> DynArray[Bytes[INF], INF]:
+    s: String[10] = "one"
+    xs: DynArray[Bytes[INF], INF] = [convert(s, Bytes[INF])]
+    s = "two"
+    return xs
+
+@external
+def from_staticcalls(a: address) -> DynArray[Bytes[INF], INF]:
+    xs: DynArray[Bytes[INF], INF] = [b"z", staticcall I(a).g()]
+    xs.append(staticcall I(a).g())
+    xs[0] = staticcall I(a).g()
+    return xs
+    """
+    c = get_contract(code)
+    assert c.append_converted() == [b"one"]
+    assert c.store_converted() == [b"one"]
+    assert c.literal_converted() == [b"one"]
+    ret = deploy_raw_returner(env, eth_abi_encode(["bytes"], [b"\x22" * 40]))
+    assert c.from_staticcalls(ret.address) == [b"\x22" * 40] * 3
+
+
 def test_iteration_and_literals(get_contract):
     code = """
 @external
