@@ -164,13 +164,9 @@ def _modifies_unbounded_element_in_place(target: vy_ast.ExprNode) -> bool:
     unbounded elements can be copied flat and share them; a write inside an
     element would be visible through every such copy.
     """
-    node: vy_ast.VyperNode = target
-    while isinstance(node, (vy_ast.Attribute, vy_ast.Subscript)):
-        if node is not target and _is_unbounded_element_subscript(node):
-            return True
-        node = node.value
-
-    return False
+    if not isinstance(target, (vy_ast.Attribute, vy_ast.Subscript)):
+        return False
+    return _reaches_unbounded_element(target.value)
 
 
 def _reaches_unbounded_element(node: vy_ast.VyperNode) -> bool:
@@ -698,7 +694,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
             raise StructureException(
                 "Cannot modify an unbounded element in place",
                 target,
-                hint="assign a new value to the element instead",
+                hint="copy the element to a local, modify the local and assign it back",
             )
 
         var_access = _get_variable_access(target)
@@ -1292,7 +1288,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                     raise StructureException(
                         "Cannot modify an unbounded element in place",
                         node,
-                        hint="copy the element to a local, modify it, then assign it back",
+                        hint="copy the element to a local, modify the local and assign it back",
                     )
                 self.function_analyzer._handle_modification(node.func.value)
             assert len(node.args) == len(func_type.arg_types)
