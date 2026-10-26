@@ -96,7 +96,8 @@ def _expr_has_unsupported_unbounded_arg(
         )
     if isinstance(node, vy_ast.List) and isinstance(typ, (SArrayT, DArrayT)):
         # a wildcard element type is not inferred to be unbounded (see
-        # `DArrayT._validate_wildcard_element`)
+        # `DArrayT._validate_wildcard_element`); `_interpolate` repeats that
+        # check for DynArrays only, so static array literals rely on this one
         elem_wild = typ.value_type.has_wildcard
         return any(
             _expr_has_unsupported_unbounded_arg(
