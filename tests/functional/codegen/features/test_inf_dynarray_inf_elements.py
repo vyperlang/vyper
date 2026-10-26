@@ -403,6 +403,64 @@ def from_staticcalls(a: address) -> DynArray[Bytes[INF], INF]:
     assert c.from_staticcalls(ret.address) == [b"\x22" * 40] * 3
 
 
+def test_tuple_unpack_into_elements(get_contract):
+    code = """
+@internal
+def pair() -> (Bytes[INF], Bytes[INF]):
+    return b"a", b"bb"
+
+@internal
+def pair5() -> (Bytes[5], Bytes[5]):
+    return b"a", b"bb"
+
+@internal
+def with_word() -> (Bytes[INF], uint256):
+    return b"ccc", 7
+
+@internal
+def swapped(a: Bytes[INF], b: Bytes[INF]) -> (Bytes[INF], Bytes[INF]):
+    return b, a
+
+@external
+def unbounded_pair() -> DynArray[Bytes[INF], INF]:
+    xs: DynArray[Bytes[INF], INF] = [b"", b""]
+    xs[0], xs[1] = self.pair()
+    return xs
+
+@external
+def bounded_pair() -> DynArray[Bytes[INF], INF]:
+    xs: DynArray[Bytes[INF], INF] = [b"", b""]
+    xs[0], xs[1] = self.pair5()
+    return xs
+
+@external
+def element_and_word() -> (Bytes[INF], uint256):
+    xs: DynArray[Bytes[INF], INF] = [b""]
+    n: uint256 = 0
+    xs[0], n = self.with_word()
+    return xs[0], n
+
+@external
+def local_and_element() -> (Bytes[INF], Bytes[INF], Bytes[INF]):
+    a: Bytes[INF] = b"z"
+    xs: DynArray[Bytes[INF], INF] = [b"x", b"y"]
+    a, xs[1] = self.pair()
+    return a, xs[0], xs[1]
+
+@external
+def swap(xs: DynArray[Bytes[INF], INF]) -> DynArray[Bytes[INF], INF]:
+    ys: DynArray[Bytes[INF], INF] = xs
+    ys[0], ys[1] = self.swapped(ys[0], ys[1])
+    return ys
+    """
+    c = get_contract(code)
+    assert c.unbounded_pair() == [b"a", b"bb"]
+    assert c.bounded_pair() == [b"a", b"bb"]
+    assert c.element_and_word() == (b"ccc", 7)
+    assert c.local_and_element() == (b"a", b"x", b"bb")
+    assert c.swap(VALUES_SHORT) == [b"", b"ab", b"c" * 70]
+
+
 def test_iteration_and_literals(get_contract):
     code = """
 @external

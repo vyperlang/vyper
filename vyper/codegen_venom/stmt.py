@@ -169,32 +169,11 @@ class Stmt:
         if isinstance(target, vy_ast.Tuple):
             return self._lower_tuple_unpack()
 
-        if isinstance(target, vy_ast.Name) and target.id in self.ctx.variables:
-            var = self.ctx.lookup(target.id)
-            if var.is_pointer_cell:
-                src = Expr(node.value, self.ctx).lower()
-                self._assign_unbounded_sequence_local(var, src, target_typ)
-                return
-
-        if is_unbounded_struct_member(target):
-            # the member's cell is rebound to a fresh payload; the empty
-            # fast path below would instead write into the current payload,
-            # which the struct may share with its copies
-            assert isinstance(target, vy_ast.Attribute)
+        if self._is_pointer_cell_target(target):
+            # the cell is rebound to a fresh payload; the empty fast path
+            # below would instead write into the current payload
             src = Expr(node.value, self.ctx).lower()
-            cell = Expr(target, self.ctx).struct_member_cell_ptr()
-            self._assign_unbounded_sequence_cell(cell, src, target_typ, annotation=target.attr)
-            return
-
-        if is_unbounded_array_element(target):
-            # likewise for an element: the array may share payloads with its
-            # copies, so the cell is rebound and the old payload left alone.
-            # RHS first, then the target: the index may read the array.
-            assert isinstance(target, vy_ast.Subscript)
-            src = Expr(node.value, self.ctx).lower()
-            payload = self.ctx.element_payload(src, target_typ, node.value, annotation="element")
-            cell = Expr(target, self.ctx, as_ptr=True).array_element_cell_ptr()
-            self.ctx.store_pointer_cell(cell, payload, IRLiteral(0))
+            self._assign_pointer_cell(target, src, target_typ, src_node=node.value)
             return
 
         # Special case: empty Bytestring/DynArray assignment — just zero the
@@ -219,6 +198,43 @@ class Stmt:
             src = self.ctx.snapshot_value_for_delayed_use(src, copy_composites=True)
         dst_ptr = self._get_target_ptr(target)
         self._assign_value(dst_ptr, src, target_typ, src_node=node.value)
+
+    def _is_pointer_cell_target(self, target: vy_ast.VyperNode) -> bool:
+        """Return True if the assignment target `target` is a pointer cell: a
+        pointer-cell local, an unbounded struct member or an unbounded array
+        element (see `VenomCodegenContext.store_pointer_cell`).
+        """
+        if isinstance(target, vy_ast.Name) and target.id in self.ctx.variables:
+            return self.ctx.lookup(target.id).is_pointer_cell
+        return is_unbounded_struct_member(target) or is_unbounded_array_element(target)
+
+    def _assign_pointer_cell(
+        self,
+        target: vy_ast.VyperNode,
+        src: VyperValue,
+        typ: VyperType,
+        src_node: Optional[vy_ast.VyperNode],
+    ) -> None:
+        """Rebind the pointer cell `target` (see `_is_pointer_cell_target`) to
+        a fresh payload holding `src`, leaving the old payload alone: copies
+        of a struct or an array may share it.
+
+        `src_node` is the expression `src` was lowered from, or None if `src`
+        is part of a value, e.g. a tuple member (see
+        `VenomCodegenContext.element_payload`).
+        """
+        if isinstance(target, vy_ast.Name):
+            self._assign_unbounded_sequence_local(self.ctx.lookup(target.id), src, typ)
+        elif is_unbounded_struct_member(target):
+            assert isinstance(target, vy_ast.Attribute)
+            cell = Expr(target, self.ctx).struct_member_cell_ptr()
+            self._assign_unbounded_sequence_cell(cell, src, typ, annotation=target.attr)
+        else:
+            assert is_unbounded_array_element(target)
+            # the payload is taken before the target: the index may read the array
+            payload = self.ctx.element_payload(src, typ, src_node, annotation="element")
+            cell = Expr(target, self.ctx, as_ptr=True).array_element_cell_ptr()
+            self.ctx.store_pointer_cell(cell, payload, IRLiteral(0))
 
     def _assign_unbounded_sequence_local(self, var: LocalVariable, src: VyperValue, typ: VyperType):
         if not var.is_pointer_cell:  # pragma: nocover
@@ -319,27 +335,10 @@ class Stmt:
 
         # Second pass: assign each loaded value to its target
         for (val, src_elem_typ, dst_elem_typ), target_node in zip(temp_vals, targets):
-            if isinstance(target_node, vy_ast.Name) and target_node.id in self.ctx.variables:
-                var = self.ctx.lookup(target_node.id)
-                if var.is_pointer_cell:
-                    assert is_unbounded_sequence_type(dst_elem_typ)
-                    assert isinstance(val, IRVariable)
-                    src_vv = self.ctx.dynamic_memory_value(
-                        val, src_elem_typ, annotation=target_node.id
-                    )
-                    self._assign_unbounded_sequence_local(var, src_vv, dst_elem_typ)
-                    continue
-
-            if is_unbounded_struct_member(target_node):
-                assert isinstance(target_node, vy_ast.Attribute)
+            if self._is_pointer_cell_target(target_node):
                 assert isinstance(val, IRVariable)
-                src_vv = self.ctx.dynamic_memory_value(
-                    val, src_elem_typ, annotation=target_node.attr
-                )
-                cell = Expr(target_node, self.ctx).struct_member_cell_ptr()
-                self._assign_unbounded_sequence_cell(
-                    cell, src_vv, dst_elem_typ, annotation=target_node.attr
-                )
+                member_vv = self.ctx.dynamic_memory_value(val, src_elem_typ, annotation="unpack")
+                self._assign_pointer_cell(target_node, member_vv, dst_elem_typ, src_node=None)
                 continue
 
             target_ptr = self._get_target_ptr(target_node)
@@ -363,19 +362,8 @@ class Stmt:
         dst_member_types = dst_tuple_typ.member_types
 
         for src_vv, dst_elem_typ, target_node in zip(src_values, dst_member_types, targets):
-            if isinstance(target_node, vy_ast.Name) and target_node.id in self.ctx.variables:
-                var = self.ctx.lookup(target_node.id)
-                if var.is_pointer_cell:
-                    assert is_unbounded_sequence_type(dst_elem_typ)
-                    self._assign_unbounded_sequence_local(var, src_vv, dst_elem_typ)
-                    continue
-
-            if is_unbounded_struct_member(target_node):
-                assert isinstance(target_node, vy_ast.Attribute)
-                cell = Expr(target_node, self.ctx).struct_member_cell_ptr()
-                self._assign_unbounded_sequence_cell(
-                    cell, src_vv, dst_elem_typ, annotation=target_node.attr
-                )
+            if self._is_pointer_cell_target(target_node):
+                self._assign_pointer_cell(target_node, src_vv, dst_elem_typ, src_node=None)
                 continue
 
             target_ptr = self._get_target_ptr(target_node)

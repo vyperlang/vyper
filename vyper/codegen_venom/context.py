@@ -773,17 +773,18 @@ class VenomCodegenContext:
         return self.dynamic_memory_value(ptr, typ, annotation=annotation)
 
     def element_payload(
-        self, vv: VyperValue, typ: VyperType, src_node: vy_ast.VyperNode, annotation: str
+        self, vv: VyperValue, typ: VyperType, src_node: Optional[vy_ast.VyperNode], annotation: str
     ) -> IRVariable:
         """Return a payload for `vv` that a pointer cell may own.
 
-        A fresh allocation (see `_is_fresh_allocation`) is adopted as is when
-        it already has the cell's type. Anything else -- a variable, an
-        element, a literal, a value of another layout, a call result which
-        may be its argument (`convert`) -- is copied, so that the cell never
-        shares memory which may be written in place later.
+        `src_node` is the expression `vv` was lowered from, or None if `vv` is
+        part of a value. A fresh allocation (see `_is_fresh_allocation`) is
+        adopted as is when it already has the cell's type. Anything else -- a
+        variable, an element, a literal, a value of another layout, a call
+        result which may be its argument (`convert`) -- is copied, so that the
+        cell never shares memory which may be written in place later.
         """
-        fresh = _is_fresh_allocation(src_node)
+        fresh = src_node is not None and _is_fresh_allocation(src_node)
         if fresh and vv.typ == typ and vv.location == DataLocation.MEMORY:
             assert isinstance(vv.operand, IRVariable)
             return vv.operand
