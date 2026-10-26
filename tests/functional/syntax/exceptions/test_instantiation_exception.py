@@ -108,3 +108,27 @@ def bar()->uint256:
     input_bundle = make_input_bundle({"lib.vy": lib})
     with pytest.raises(InstantiationException):
         compile_code(main, input_bundle=input_bundle)
+
+
+def test_function_arg_location_in_message():
+    # internal function args are validated against MEMORY, external args
+    # against CALLDATA; the error message should name the right location
+    # (GH issue #4754)
+    internal_code = """
+@internal
+def _foo(x: HashMap[uint256, uint256]) -> uint256:
+    return 0
+    """
+    external_code = """
+@external
+def foo(x: HashMap[uint256, uint256]) -> uint256:
+    return 0
+    """
+
+    with pytest.raises(InstantiationException) as e:
+        compile_code(internal_code)
+    assert e.value.message == "HashMap[uint256, uint256] is not instantiable in memory"
+
+    with pytest.raises(InstantiationException) as e:
+        compile_code(external_code)
+    assert e.value.message == "HashMap[uint256, uint256] is not instantiable in calldata"
