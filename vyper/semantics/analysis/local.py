@@ -146,19 +146,39 @@ def _modifies_unbounded_member_through_subscript(target: vy_ast.ExprNode) -> boo
     return False
 
 
-def _modifies_unbounded_element_through_subscript(target: vy_ast.ExprNode) -> bool:
-    """Return True if the lvalue `target` writes an element of a DynArray whose
-    elements are unbounded sequences, or anything inside such an element.
+def _is_unbounded_element_subscript(node: vy_ast.VyperNode) -> bool:
+    """Return True if `node` is `xs[i]` where `xs` is a DynArray of unbounded sequences."""
+    if not isinstance(node, vy_ast.Subscript):
+        return False
+    base_t = get_expr_info(node.value).typ
+    return isinstance(base_t, DArrayT) and is_unbounded_sequence_type(base_t.value_type)
 
-    The element is a pointer cell; its payload is only ever read, so arrays
-    of unbounded elements can be copied flat and share payloads.
+
+def _modifies_unbounded_element_in_place(target: vy_ast.ExprNode) -> bool:
+    """Return True if the lvalue `target` writes inside an element of a DynArray
+    whose elements are unbounded sequences (`xs[i][j] = v`), as opposed to
+    replacing the element (`xs[i] = v`).
+
+    The element is a pointer cell. Replacing it rebinds the cell to a fresh
+    payload, so the payloads themselves are never written and arrays of
+    unbounded elements can be copied flat and share them; a write inside an
+    element would be visible through every such copy.
     """
     node: vy_ast.VyperNode = target
     while isinstance(node, (vy_ast.Attribute, vy_ast.Subscript)):
-        if isinstance(node, vy_ast.Subscript):
-            base_t = get_expr_info(node.value).typ
-            if isinstance(base_t, DArrayT) and is_unbounded_sequence_type(base_t.value_type):
-                return True
+        if node is not target and _is_unbounded_element_subscript(node):
+            return True
+        node = node.value
+
+    return False
+
+
+def _reaches_unbounded_element(node: vy_ast.VyperNode) -> bool:
+    """Return True if `node` is an element of a DynArray of unbounded sequences,
+    or anything inside one."""
+    while isinstance(node, (vy_ast.Attribute, vy_ast.Subscript)):
+        if _is_unbounded_element_subscript(node):
+            return True
         node = node.value
 
     return False
@@ -674,11 +694,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
                 hint="copy the element to a local, modify it, then store it back",
             )
 
-        if _modifies_unbounded_element_through_subscript(target):
+        if _modifies_unbounded_element_in_place(target):
             raise StructureException(
-                "Cannot modify an element of a DynArray with unbounded element types",
+                "Cannot modify an unbounded element in place",
                 target,
-                hint="such arrays are read-only once built; copy the element to a local",
+                hint="assign a new value to the element instead",
             )
 
         var_access = _get_variable_access(target)
@@ -795,13 +815,6 @@ class FunctionAnalyzer(VyperNodeVisitorBase):
         # with generic length.
         if not isinstance(iter_type, (DArrayT, SArrayT)):
             raise InvalidType("Not an iterable type", iter_node)
-
-        if isinstance(iter_type, DArrayT) and is_unbounded_sequence_type(iter_type.value_type):
-            raise StructureException(
-                "Cannot iterate over a DynArray with unbounded element types",
-                iter_node,
-                hint="index the elements instead",
-            )
 
         # lint as error: the loop will never run
         if iter_type.count == 0:
@@ -1275,14 +1288,11 @@ class ExprVisitor(VyperNodeVisitorBase):
             if func_type.is_modifying and self.function_analyzer is not None:
                 # TODO refactor this
                 assert isinstance(node.func, vy_ast.Attribute)  # help mypy
-                receiver_t = get_expr_info(node.func.value).typ
-                if isinstance(receiver_t, DArrayT) and is_unbounded_sequence_type(
-                    receiver_t.value_type
-                ):
+                if _reaches_unbounded_element(node.func.value):
                     raise StructureException(
-                        f"{func_type.name}() is not supported on a DynArray with "
-                        "unbounded element types",
+                        "Cannot modify an unbounded element in place",
                         node,
+                        hint="copy the element to a local, modify it, then assign it back",
                     )
                 self.function_analyzer._handle_modification(node.func.value)
             assert len(node.args) == len(func_type.arg_types)
@@ -1350,12 +1360,6 @@ class ExprVisitor(VyperNodeVisitorBase):
 
     def visit_List(self, node: vy_ast.List, typ: VyperType) -> None:
         assert isinstance(typ, (SArrayT, DArrayT))
-        if isinstance(typ, DArrayT) and is_unbounded_sequence_type(typ.value_type):
-            raise StructureException(
-                "List literals cannot have unbounded element types",
-                node,
-                hint="such arrays are built from calldata, abi_decode() or empty()",
-            )
         for element in node.elements:
             self.visit(element, typ.value_type)
 
