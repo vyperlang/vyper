@@ -1027,11 +1027,32 @@ class Expr:
     def _lower_array_subscript(self) -> VyperValue:
         """Lower array[index] access.
 
-        Computes element pointer with bounds checking:
+        Returns VyperValue.from_ptr() with element pointer and inherited location.
+        """
+        elem_ptr, data_loc, elem_typ, reference = self._array_element_ptr()
+
+        if is_unbounded_sequence_type(elem_typ):
+            # an assignment target rebinds the cell (`array_element_cell_ptr`)
+            assert not self.as_ptr
+            assert isinstance(elem_ptr, IRVariable)
+            # reading the cell as the value would hand back the payload
+            # address. The payload is never mutated in place, so it stays
+            # valid independently of the element's frame: no reference is kept.
+            payload = self.builder.mload(elem_ptr)
+            assert isinstance(payload, IRVariable)
+            return self.ctx.dynamic_memory_value(payload, elem_typ, annotation="element")
+
+        return self._make_ptr_value(elem_ptr, data_loc, elem_typ, reference)
+
+    def _array_element_ptr(
+        self,
+    ) -> tuple[IROperand, DataLocation, VyperType, Optional[ValueReference]]:
+        """Compute an array element's pointer with bounds checking:
         - Static arrays: bounds check against compile-time count
         - Dynamic arrays: load length from first word, skip 32/1 for data
 
-        Returns VyperValue.from_ptr() with element pointer and inherited location.
+        Returns the element's address, location, type and reference obligations.
+        An unbounded element's address points to its cell, not its payload.
         """
         node = self.node
         assert isinstance(node, vy_ast.Subscript)
@@ -1111,27 +1132,13 @@ class Expr:
         offset = self.builder.mul(index, IRLiteral(elem_size))
         elem_ptr = self.builder.add(data_ptr, offset)
 
-        if elem_is_cell:
-            assert isinstance(elem_ptr, IRVariable)
-            if self.as_ptr:
-                # an assignment target is the cell itself, typed by its
-                # element for `array_element_cell_ptr`, which rebinds it to a
-                # fresh payload; payloads are never written in place
-                return self._make_ptr_value(elem_ptr, data_loc, elem_typ)
-            # reading the cell as the value would hand back the payload
-            # address. The payload is never mutated in place, so it stays
-            # valid independently of the element's frame: no reference is kept.
-            payload = self.builder.mload(elem_ptr)
-            assert isinstance(payload, IRVariable)
-            return self.ctx.dynamic_memory_value(payload, elem_typ, annotation="element")
-
         reference = base_vv.reference
         if isinstance(base_typ, DArrayT):
             if reference is None:
                 reference = ValueReference()
             reference = reference.project(base, index, data_loc)
 
-        return self._make_ptr_value(elem_ptr, data_loc, elem_typ, reference)
+        return elem_ptr, data_loc, elem_typ, reference
 
     def _lower_mapping_subscript(self) -> VyperValue:
         """Lower mapping[key] access.
@@ -1307,9 +1314,10 @@ class Expr:
         """
         assert is_unbounded_array_element(self.node)
         assert self.as_ptr, "construct the Expr as a target: Expr(node, ctx, as_ptr=True)"
-        cell = self._lower_array_subscript().operand
-        assert isinstance(cell, IRVariable)
-        return cell
+        elem_ptr, data_loc, _, _ = self._array_element_ptr()
+        assert data_loc == DataLocation.MEMORY
+        assert isinstance(elem_ptr, IRVariable)
+        return elem_ptr
 
     def struct_member_cell_ptr(self) -> IRVariable:
         """Return the pointer cell of an unbounded struct member (see
