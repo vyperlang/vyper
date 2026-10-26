@@ -154,8 +154,8 @@ def test_cse_logs_no_indepontent():
     pre = """
     main:
         %1 = 10
-        log %1
-        log %1
+        log %1, 0
+        log %1, 0
         stop
     """
 
@@ -529,6 +529,19 @@ def test_cse_self_conflicting_effects():
 
     pre2 = """
     main:
+        %load1 = mload 990
+        mstore 1000, %load1
+        %load2 = mload 990
+        mstore 1000, %load2
+        stop
+    """
+
+    _check_no_change(pre1)
+    _check_no_change(pre2)
+
+def test_cse_effect_conflict_does_not_alias():
+    pre = """
+    main:
         %load1 = mload 0
         mstore 1000, %load1
         %load2 = mload 0
@@ -536,8 +549,16 @@ def test_cse_self_conflicting_effects():
         stop
     """
 
-    _check_no_change(pre1)
-    _check_no_change(pre2)
+    post = """
+    main:
+        %load1 = mload 0
+        mstore 1000, %load1
+        %load2 = %load1
+        nop
+        stop
+    """
+
+    _check_pre_post(pre, post)
 
 
 def test_cse_allowed_deep_self_conflict():

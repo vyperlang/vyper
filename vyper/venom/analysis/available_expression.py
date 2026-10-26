@@ -7,9 +7,14 @@ from functools import cached_property, lru_cache
 import immutables
 
 import vyper.venom.effects as effects
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
-from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.analysis.dfg import DFGAnalysis
+from vyper.venom.analysis import (
+    CFGAnalysis,
+    DFGAnalysis,
+    BasePtrAnalysis,
+)
+from vyper.venom.analysis.mem_alias import mem_alias_type_factory, MemoryAliasAnalysisAbstract
 from vyper.venom.basicblock import (
     COMMUTATIVE_INSTRUCTIONS,
     IRBasicBlock,
@@ -124,8 +129,7 @@ class _Expression:
         for op in self.operands:
             if isinstance(op, _Expression):
                 d = op.depth
-                if d > max_depth:
-                    max_depth = d
+                max_depth = max(max_depth, d)
         return max_depth + 1
 
     @property
@@ -192,6 +196,12 @@ class _AvailableExpressions:
                 del mt[expr]
             self.exprs = mt.finish()
 
+    def remove(self, to_remove: list[_Expression]):
+        with self.exprs.mutate() as mt:
+            for expr in to_remove:
+                del mt[expr]
+            self.exprs = mt.finish()
+
     def get_source_instruction(self, expr: _Expression) -> IRInstruction | None:
         """
         Get source instruction of expression if currently available
@@ -230,6 +240,7 @@ class _AvailableExpressions:
             res.exprs = mt.finish()
         return res
 
+mem_alias_eff = effects.MEMORY | effects.STORAGE | effects.TRANSIENT
 
 class AvailableExpressionAnalysis(IRAnalysis):
     """
@@ -241,6 +252,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
     inst_to_expr: dict[IRInstruction, _Expression]
     dfg: DFGAnalysis
     cfg: CFGAnalysis
+    base_ptr: BasePtrAnalysis
+    mem_alias: dict[Effects, MemoryAliasAnalysisAbstract]
     inst_to_available: dict[IRInstruction, _AvailableExpressions]
     bb_ins: dict[IRBasicBlock, _AvailableExpressions]
     bb_outs: dict[IRBasicBlock, _AvailableExpressions]
@@ -249,6 +262,11 @@ class AvailableExpressionAnalysis(IRAnalysis):
         super().__init__(analyses_cache, function)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
+        self.mem_alias = dict()
+        self.mem_alias[effects.MEMORY] = self.analyses_cache.request_analysis(mem_alias_type_factory(addr_space=MEMORY))
+        self.mem_alias[effects.STORAGE] = self.analyses_cache.request_analysis(mem_alias_type_factory(addr_space=STORAGE))
+        self.mem_alias[effects.TRANSIENT] = self.analyses_cache.request_analysis(mem_alias_type_factory(addr_space=TRANSIENT))
 
         self.inst_to_expr = dict()
         self.inst_to_available = dict()
@@ -298,8 +316,9 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
             self._update_expr(inst, expr)
 
-            write_effects = _get_write_effects(expr.opcode)
-            available_exprs.remove_effect(write_effects)
+            self.remove_conflicts(inst, available_exprs)
+            # write_effects = _get_write_effects(expr.opcode)
+            # available_exprs.remove_effect(write_effects)
 
             # nonidempotent instructions affect other instructions,
             # but since it cannot be substituted it should not be
@@ -319,6 +338,31 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
         return change
 
+    def remove_conflicts(self, inst: IRInstruction, available_exprs: _AvailableExpressions):
+        write_eff = inst.get_write_effects()
+        if write_eff is effects.EMPTY:
+            return
+
+        to_remove = []
+        for eff in write_eff & mem_alias_eff:
+            addr_space = effects.to_addr_space(eff)
+            assert addr_space is not None
+            inst_loc = self.base_ptr.get_write_location(inst, addr_space)
+            for expr in available_exprs.exprs:
+                expr_inst = available_exprs.exprs[expr][0]
+                expr_loc = self.base_ptr.get_read_location(expr_inst, addr_space)
+                if self.mem_alias[eff].may_alias(inst_loc, expr_loc):
+                    to_remove.append(expr)
+                    continue
+                expr_loc = self.base_ptr.get_write_location(expr_inst, addr_space)
+                if self.mem_alias[eff].may_alias(inst_loc, expr_loc):
+                    to_remove.append(expr)
+                    continue
+
+        available_exprs.remove(to_remove)
+
+        available_exprs.remove_effect(write_eff & (~mem_alias_eff))
+        
     def _get_operand(
         self, op: IROperand, available_exprs: _AvailableExpressions
     ) -> IROperand | _Expression:
