@@ -653,18 +653,16 @@ nested to any depth, and the outer array may be bounded or unbounded:
 accepted. Each element is held out of line, so the array itself keeps a fixed
 element stride in memory and its ABI encoding is the usual one.
 
-Such arrays are built from calldata, ``abi_decode``, external call return data
-or ``empty()``; a list literal cannot have an unbounded element type. They can
-be indexed, measured with ``len``, copied, passed to and returned from internal
-and external functions, logged, and encoded. They are read-only once built:
-assigning to an element or to anything inside one, ``append`` and ``pop``, and
-``for`` iteration over the elements are rejected (index the elements instead).
-Returning such an array inside a tuple is not supported. A wildcard element
-type is not inferred to be unbounded: an interface declaring
-``DynArray[Bytes[...], 5]`` cannot be called with a value whose elements are
-unbounded; write the element type out instead.
-
-.. TODO: Support mutation of unbounded elements.
+Such arrays are built from calldata, ``abi_decode``, external call return data,
+list literals or ``empty()``. They can be indexed, measured with ``len``,
+copied, passed to and returned from internal and external functions, logged and
+encoded. Their elements can be assigned (``xs[i] = v``), appended, popped and
+iterated with ``for``. What is rejected is writing inside an element, such as
+``xs[i][j] = v`` or ``xs[i].append(v)``: copy the element to a local, modify the
+local and assign it back. Returning such an array inside a tuple is not
+supported. A wildcard element type is not inferred to be unbounded: an
+interface declaring ``DynArray[Bytes[...], 5]`` cannot be called with a value
+whose elements are unbounded; write the element type out instead.
 
 Because every element is decoded into its own memory, decoding is sensitive to
 malformed input in a way the bounded case is not. The ABI lets every element
