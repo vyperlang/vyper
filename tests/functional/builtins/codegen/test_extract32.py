@@ -237,7 +237,7 @@ def foo(inp: Bytes[32]) -> bytes{m}:
         # Invalid case: m bytes of data + (32-m) bytes with at least one non-zero
         tail = data_bytes[m:]
         if tail == b"\x00" * tail_len:
-            # Randomizng the position of the invalid byte isn't necessary
+            # Randomizing the position of the invalid byte isn't necessary
             # the tail is already fully random, and this is just a fixup of a special case
             tail = b"\x01" + tail[1:]
         bytesdata = head + tail
