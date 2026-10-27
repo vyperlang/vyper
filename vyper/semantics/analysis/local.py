@@ -62,7 +62,6 @@ from vyper.semantics.types import (
     StructT,
     TupleT,
     VyperType,
-    is_bounded_length,
     is_type_t,
     map_void,
 )
@@ -1252,7 +1251,7 @@ class ExprVisitor(VyperNodeVisitorBase):
                     # contract, so an over-capacity source reverts at
                     # runtime instead of failing type checking.
                     assert isinstance(arg_type, DArrayT)  # sanity check
-                    assert not is_bounded_length(arg_type.length)
+                    assert arg_type.length is INF
                     dst_typ = func_type.underlying_type
                     assert isinstance(dst_typ, DArrayT)  # mypy hint
                     possible_types: list[VyperType] = []
