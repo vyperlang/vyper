@@ -50,7 +50,6 @@ def test_abi_decode_success(good_code):
     assert compiler.compile_code(good_code) is not None
 
 
-# UnfoldableNode on legacy, CompilerPanic in venom
 @pytest.mark.xfail(raises=UnfoldableNode)
 def test_abi_decode_unwrap_tuple_foldable_expr():
     code = """
