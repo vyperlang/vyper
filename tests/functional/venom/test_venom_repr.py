@@ -36,7 +36,7 @@ def get_example_paths() -> list[Path]:
 
 
 @pytest.mark.parametrize("path", get_example_paths())
-def test_round_trip_examples(path: Path, debug, optimize, compiler_settings, request):
+def test_round_trip_examples(path: Path, debug, optimize, compiler_settings):
     """
     Check all examples round trip
     """
