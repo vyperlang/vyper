@@ -503,10 +503,8 @@ def _decode_dyn_array(
         # allocation and write the element's pointer cell, as for a struct
         # member. Elements may alias each other in the input; each one is
         # decoded on its own (see the note in `decode_unbounded_sequence_to_scratch`).
-        assert isinstance(elem_dst, IRVariable)
         element = decode_unbounded_sequence_to_scratch(ctx, elem_src, elem_typ, hi, "element")
-        # capacity 0: the decoded payload is exact-sized and read-only
-        ctx.store_pointer_cell(elem_dst, element.operand, IRLiteral(0))
+        ctx.bind_cell(elem_dst, element, elem_typ)
     else:
         # Recursively decode element
         _abi_decode_to_buf(ctx, elem_dst, elem_src, hi)

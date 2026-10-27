@@ -243,8 +243,7 @@ class Stmt:
         """Rebind a pointer cell to a payload holding `src`."""
         if not is_unbounded_sequence_type(typ):  # pragma: nocover
             raise CompilerPanic(f"expected unbounded sequence type, got {typ}")
-        payload = self.ctx.payload_for_cell(src, typ, annotation=annotation)
-        self.ctx.store_pointer_cell(cell, payload, IRLiteral(0))
+        self.ctx.bind_cell(cell, src, typ, annotation=annotation)
 
     def _assign_value(
         self, dst_ptr: Ptr, src: VyperValue, typ: VyperType, *, src_node: vy_ast.VyperNode

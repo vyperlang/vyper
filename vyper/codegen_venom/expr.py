@@ -410,9 +410,7 @@ class Expr:
 
             if elem_is_cell:
                 # the element is a pointer cell; it gets its own payload
-                assert isinstance(dst, IRVariable)
-                payload = self.ctx.payload_for_cell(elem_vv, elem_typ, annotation="list")
-                self.ctx.store_pointer_cell(dst, payload, IRLiteral(0))
+                self.ctx.bind_cell(dst, elem_vv, elem_typ, annotation="list")
             else:
                 self.ctx.store_vyper_value(elem_vv, dst, elem_typ)
             data_offset += elem_size

@@ -788,6 +788,20 @@ class VenomCodegenContext:
         assert isinstance(payload.operand, IRVariable)
         return payload.operand
 
+    def bind_cell(
+        self, cell: IROperand, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
+    ) -> None:
+        """Point the pointer cell `cell` at a payload holding `vv` (see
+        `payload_for_cell`).
+
+        The capacity is 0 because the payload is sized for its current
+        length, with no spare room: the next append through the cell
+        reallocates, and a write through a struct member cell copies the
+        payload first (see `store_pointer_cell`).
+        """
+        payload = self.payload_for_cell(vv, typ, annotation=annotation)
+        self.store_pointer_cell(cell, payload, IRLiteral(0))
+
     def copy_sequence_to_scratch(
         self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
     ) -> VyperValue:
@@ -1283,9 +1297,7 @@ class VenomCodegenContext:
                         Buffer(_ptr=src_elem_ptr, size=src_elem_t.memory_bytes_required).base_ptr(),
                         src_elem_t,
                     )
-                payload = self.copy_sequence_to_scratch(src_vv, dst_elem_t, annotation="element")
-                assert isinstance(dst_elem_ptr, IRVariable)
-                self.store_pointer_cell(dst_elem_ptr, payload.operand, IRLiteral(0))
+                self.bind_cell(dst_elem_ptr, src_vv, dst_elem_t, annotation="element")
                 return
             self._store_memory_typed(dst_elem_ptr, dst_elem_t, src_elem_ptr, src_elem_t)
 
