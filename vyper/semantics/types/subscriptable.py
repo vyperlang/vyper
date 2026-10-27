@@ -319,8 +319,8 @@ class DArrayT(_SequenceT):
     def size_in_bytes(self):
         if self.length is INF:
             raise CodegenPanic("DynArray[..., INF] don't have a size!")
-        # one length word + size of the array items; an INF-bearing element
-        # is a pointer cell (`member_slot_size`), not the value
+        # one length word + size of the array items; an unbounded element
+        # has a fixed inline size, see `member_slot_size`
         return 32 + member_slot_size(self.value_type) * self.length
 
     @property
@@ -330,9 +330,9 @@ class DArrayT(_SequenceT):
     @staticmethod
     def _validate_unbounded_shape(value_type, length, node=None):
         if type_contains_unbounded_sequence(value_type) and not is_runtime_sizable_type(value_type):
-            # an INF-bearing element is held in a pointer cell, so the array
-            # keeps a compile-time stride; what cannot be an element is a shape
-            # with no memory layout at all (a tuple or static array holding INF)
+            # an unbounded element has a fixed inline size (see
+            # `member_slot_size`); what cannot be an element is a shape with
+            # no memory layout at all (a tuple or static array holding INF)
             raise StructureException(
                 "DynArray element types cannot contain unbounded sequence types", node
             )

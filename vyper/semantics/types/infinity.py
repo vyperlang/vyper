@@ -108,14 +108,14 @@ def is_runtime_sizable_type(typ: VyperType) -> bool:
     place in memory for every INF sequence and a way to size an encoding
     buffer from the value at hand. Both exist when every INF sequence sits
     at a compile-time offset from its container and holds elements of a
-    compile-time stride, so that its size follows from its length word: a
+    fixed inline size, so that its size follows from its length word: a
     bounded type (trivially), a direct `Bytes[INF]`, `String[INF]` or
     `DynArray[T, INF]`, a struct whose INF members are such types, and a
     DynArray, bounded or INF, whose elements are any of these, also nested.
-    An INF struct member or array element occupies a `POINTER_CELL_SIZE`
-    cell (see `VenomCodegenContext.store_pointer_cell`), which keeps the
-    container at a compile-time size or stride and makes its encoded size
-    the static head plus the runtime sizes of what the cells point at.
+    An INF struct member or array element has a fixed inline size (see
+    `member_slot_size`), which keeps its container at a compile-time size
+    and makes its encoded size the static head plus the runtime sizes of
+    the unbounded values it holds.
 
     Rejected: a tuple with an INF member (its frame exists only as a return
     value, see `is_runtime_sizable_return_type`), and a static array or
@@ -137,9 +137,8 @@ def is_runtime_sizable_type(typ: VyperType) -> bool:
         return True
 
     if isinstance(typ, DArrayT):
-        # every INF-bearing element has a compile-time stride: a struct with
-        # INF members stays inline (its members are the pointer cells), and
-        # a direct INF sequence element is itself a pointer cell, so nesting
+        # an unbounded element has a fixed inline size (see
+        # `member_slot_size`), as does a struct with INF members, so nesting
         # to any depth keeps the array addressable
         return is_runtime_sizable_type(typ.value_type)
 
