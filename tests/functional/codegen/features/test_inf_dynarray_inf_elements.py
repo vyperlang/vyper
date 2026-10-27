@@ -16,10 +16,19 @@ def _venom_only(experimental_codegen):
 
 
 VALUES = [b"ab", b"", b"c" * 70, b"d" * 33]
+VALUES_SHORT = VALUES[:3]
 NESTED = [VALUES, [], [b"zz"]]
 
+# element bounds for tests that hold for a bounded element as for an
+# unbounded one
+_BYTES_BOUNDS = ("70", "INF")
+_ARRAY_BOUNDS = ("5", "INF")
 
-def test_echo_len_index(get_contract):
+
+# --- reading and passing: every element arrives unchanged --------------------
+
+
+def test_array_round_trips_and_indexes_elements(get_contract):
     code = """
 @external
 def echo(xs: DynArray[Bytes[INF], INF]) -> DynArray[Bytes[INF], INF]:
@@ -60,7 +69,7 @@ def elem(xs: DynArray[Bytes[INF], INF], i: uint256) -> Bytes[INF]:
         c.elem([], 0)
 
 
-def test_nested_and_bounded_outer(get_contract):
+def test_nested_and_bounded_outer_arrays_round_trip(get_contract):
     code = """
 @external
 def echo2(xs: DynArray[DynArray[Bytes[INF], INF], INF]) -> DynArray[DynArray[Bytes[INF], INF], INF]:
@@ -94,7 +103,7 @@ def deep(
     assert c.echo2(NESTED) == NESTED
     assert c.inner(NESTED, 0, 2) == b"c" * 70
     assert c.inner(NESTED, 2, 0) == b"zz"
-    assert c.echo5(VALUES[:3]) == VALUES[:3]
+    assert c.echo5(VALUES_SHORT) == VALUES_SHORT
     assert c.ints([[1, 2], [], [3]], 2, 0) == 3
     deep = [[[1, 2], []], [], [[3], [4, 5, 6]]]
     assert c.echo3(deep) == deep
@@ -112,7 +121,7 @@ def echo5(xs: DynArray[Bytes[INF], 5]) -> DynArray[Bytes[INF], 5]:
         c.echo5([b"a"] * 6)
 
 
-def test_internal_calls_abi_widening_empty_event(get_contract, get_logs):
+def test_elements_kept_through_calls_encoding_and_logs(get_contract, get_logs):
     code = """
 event E:
     xs: DynArray[Bytes[INF], INF]
@@ -139,8 +148,8 @@ def roundtrip(data: Bytes[INF]) -> Bytes[INF]:
     return abi_encode(xs)
 
 @external
-def widen(xs: DynArray[Bytes[10], 3]) -> DynArray[Bytes[INF], INF]:
-    # bounded elements widen to unbounded ones
+def from_bounded(xs: DynArray[Bytes[10], 3]) -> DynArray[Bytes[INF], INF]:
+    # an array of bounded elements assigned to one of unbounded elements
     ys: DynArray[Bytes[INF], INF] = xs
     return ys
 
@@ -157,7 +166,7 @@ def emit(xs: DynArray[Bytes[INF], INF]):
     assert c.first_via_internal(VALUES) == b"ab"
     encoded = eth_abi_encode(["bytes[]"], [VALUES])
     assert c.roundtrip(encoded) == encoded
-    assert c.widen([b"a", b"0123456789", b""]) == [b"a", b"0123456789", b""]
+    assert c.from_bounded([b"a", b"0123456789", b""]) == [b"a", b"0123456789", b""]
     assert c.empties() == []
     c.emit(VALUES)
     (log,) = get_logs(c, "E")
@@ -202,7 +211,7 @@ def echo_inf(xs: DynArray[DynArray[Batch, INF], INF]) -> DynArray[DynArray[Batch
     assert c.echo_inf(xs) == xs
 
 
-def test_widened_internal_return(get_contract):
+def test_internal_return_of_bounded_elements_as_unbounded(get_contract):
     # an internal function may return bounded elements as unbounded ones
     code = """
 @internal
@@ -274,46 +283,51 @@ def f(a: address) -> DynArray[Bytes[INF], INF]:
 
 # --- mutation: elements are replaced, never written in place -----------------
 
-VALUES_SHORT = [b"ab", b"", b"c" * 70]
 
-
-def test_element_store_and_copy_independence(get_contract):
-    code = """
+@pytest.mark.parametrize("bound", _BYTES_BOUNDS)
+def test_element_store_and_copy_independence(get_contract, bound):
+    code = f"""
 @external
-def replace(xs: DynArray[Bytes[INF], INF], i: uint256, v: Bytes[INF]) -> DynArray[Bytes[INF], INF]:
-    ys: DynArray[Bytes[INF], INF] = xs
+def replace(
+    xs: DynArray[Bytes[{bound}], INF], i: uint256, v: Bytes[{bound}]
+) -> DynArray[Bytes[{bound}], INF]:
+    ys: DynArray[Bytes[{bound}], INF] = xs
     ys[i] = v
     return ys
 
 @external
-def copy_then_store(xs: DynArray[Bytes[INF], INF]) -> (Bytes[INF], Bytes[INF]):
-    ys: DynArray[Bytes[INF], INF] = xs
+def copy_then_store(xs: DynArray[Bytes[{bound}], INF]) -> (Bytes[{bound}], Bytes[{bound}]):
+    ys: DynArray[Bytes[{bound}], INF] = xs
     ys[0] = b"zz"
     # writing the copy leaves the original untouched
     return xs[0], ys[0]
 
 @external
-def store_from_call(xs: DynArray[Bytes[INF], INF], a: Bytes[INF], b: Bytes[INF]) -> Bytes[INF]:
-    ys: DynArray[Bytes[INF], INF] = xs
+def store_from_call(
+    xs: DynArray[Bytes[{bound}], INF], a: Bytes[35], b: Bytes[35]
+) -> Bytes[{bound}]:
+    ys: DynArray[Bytes[{bound}], INF] = xs
     ys[1] = concat(a, b)
     return ys[1]
 
 @external
-def store_self(xs: DynArray[Bytes[INF], INF]) -> DynArray[Bytes[INF], INF]:
-    ys: DynArray[Bytes[INF], INF] = xs
+def store_self(xs: DynArray[Bytes[{bound}], INF]) -> DynArray[Bytes[{bound}], INF]:
+    ys: DynArray[Bytes[{bound}], INF] = xs
     ys[0] = ys[2]
     ys[2] = b""
     return ys
     """
     c = get_contract(code)
-    assert c.replace(VALUES_SHORT, 1, b"new" * 30) == [b"ab", b"new" * 30, b"c" * 70]
+    assert c.replace(VALUES_SHORT, 1, b"new" * 20) == [b"ab", b"new" * 20, b"c" * 70]
     assert c.replace(VALUES_SHORT, 0, b"") == [b"", b"", b"c" * 70]
     assert c.copy_then_store(VALUES_SHORT) == (b"ab", b"zz")
-    assert c.store_from_call(VALUES_SHORT, b"x" * 40, b"y" * 40) == b"x" * 40 + b"y" * 40
-    assert c.store_self(VALUES_SHORT) == [b"c" * 70, b"", b""]
+    stored = c.store_from_call(VALUES_SHORT, b"x" * 35, b"y" * 35)
+    assert stored == b"x" * 35 + b"y" * 35
+    moved = c.store_self(VALUES_SHORT)
+    assert moved == [b"c" * 70, b"", b""]
 
 
-def test_append_pop(get_contract, env):
+def test_append_and_pop_grow_and_shrink_the_array(get_contract, env):
     code = """
 @external
 def build(n: uint256) -> DynArray[Bytes[INF], INF]:
@@ -362,38 +376,43 @@ def from_calls(t: address) -> DynArray[Bytes[INF], INF]:
     for n in (0, 1, 2, 5, 40):
         expected = [b"0123456789abcdefghijklmnopqrstuvwxyz"[: i % 36 + 1] for i in range(n)]
         assert c.build(n) == expected
-    assert c.push_pop(VALUES_SHORT) == VALUES_SHORT + [b"tail"]
-    assert c.popped(VALUES_SHORT) == b"ab"
-    assert c.bounded([b"a", b"b"]) == [b"a", b"b", b"r" * 40]
-    assert c.bounded_pop([b"a", b"b"]) == b"q"
+    pushed = c.push_pop(VALUES_SHORT)
+    assert pushed == VALUES_SHORT + [b"tail"]
+    popped = c.popped(VALUES_SHORT)
+    assert popped == b"ab"
+    bounded = c.bounded([b"a", b"b"])
+    assert bounded == [b"a", b"b", b"r" * 40]
+    bounded_popped = c.bounded_pop([b"a", b"b"])
+    assert bounded_popped == b"q"
     ret = deploy_raw_returner(env, b"\x11" * 40)
     assert c.from_calls(ret.address) == [b"\x11" * 40] * 3
 
 
-def test_store_converted_value(get_contract):
-    # an element built from `convert(s, Bytes[INF])` keeps its value when `s`
+@pytest.mark.parametrize("bound", _BYTES_BOUNDS)
+def test_store_converted_value(get_contract, bound):
+    # an element built from `convert(s, ...)` keeps its value when `s`
     # is written afterwards
-    code = """
+    code = f"""
 @external
-def append_converted() -> DynArray[Bytes[INF], INF]:
+def append_converted() -> DynArray[Bytes[{bound}], INF]:
     s: String[10] = "one"
-    xs: DynArray[Bytes[INF], INF] = []
-    xs.append(convert(s, Bytes[INF]))
+    xs: DynArray[Bytes[{bound}], INF] = []
+    xs.append(convert(s, Bytes[{bound}]))
     s = "two"
     return xs
 
 @external
-def store_converted() -> DynArray[Bytes[INF], INF]:
+def store_converted() -> DynArray[Bytes[{bound}], INF]:
     s: String[10] = "one"
-    xs: DynArray[Bytes[INF], INF] = [b"z"]
-    xs[0] = convert(s, Bytes[INF])
+    xs: DynArray[Bytes[{bound}], INF] = [b"z"]
+    xs[0] = convert(s, Bytes[{bound}])
     s = "two"
     return xs
 
 @external
-def literal_converted() -> DynArray[Bytes[INF], INF]:
+def literal_converted() -> DynArray[Bytes[{bound}], INF]:
     s: String[10] = "one"
-    xs: DynArray[Bytes[INF], INF] = [convert(s, Bytes[INF])]
+    xs: DynArray[Bytes[{bound}], INF] = [convert(s, Bytes[{bound}])]
     s = "two"
     return xs
     """
@@ -403,31 +422,32 @@ def literal_converted() -> DynArray[Bytes[INF], INF]:
     assert c.literal_converted() == [b"one"]
 
 
-def test_assigned_values_stay_independent(get_contract):
+@pytest.mark.parametrize("bound", _ARRAY_BOUNDS)
+def test_assigned_values_stay_independent(get_contract, bound):
     # an element assigned from a local, or a local assigned from an element,
     # is unaffected by later writes to the other
-    code = """
+    code = f"""
 @internal
-def _id(xs: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
+def _id(xs: DynArray[uint256, {bound}]) -> DynArray[uint256, {bound}]:
     return xs
 
 @external
 def write_after_store(
-    v: DynArray[uint256, INF]
-) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
-    local: DynArray[uint256, INF] = v
-    xss: DynArray[DynArray[uint256, INF], INF] = [[]]
+    v: DynArray[uint256, {bound}]
+) -> (DynArray[uint256, {bound}], DynArray[uint256, {bound}]):
+    local: DynArray[uint256, {bound}] = v
+    xss: DynArray[DynArray[uint256, {bound}], INF] = [[]]
     xss[0] = local
     local[0] = 99
     return xss[0], local
 
 @external
 def write_element_copy(
-    v: DynArray[uint256, INF]
-) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
-    xss: DynArray[DynArray[uint256, INF], INF] = [[]]
+    v: DynArray[uint256, {bound}]
+) -> (DynArray[uint256, {bound}], DynArray[uint256, {bound}]):
+    xss: DynArray[DynArray[uint256, {bound}], INF] = [[]]
     xss[0] = self._id(v)
-    ys: DynArray[uint256, INF] = xss[0]
+    ys: DynArray[uint256, {bound}] = xss[0]
     ys[0] = 5
     return xss[0], ys
     """
@@ -469,15 +489,17 @@ def from_staticcalls(a: address) -> DynArray[Bytes[INF], INF]:
     a = deploy_raw_returner(env, b"\x11" * 40)
     b = deploy_raw_returner(env, b"\x22" * 7)
     expected = (b"\x11" * 40, b"\x11" * 40 + b"abcdef", b"\x22" * 7, b"bcd")
-    assert c.assign(a.address, b.address, b"abcdef") == expected
+    assigned = c.assign(a.address, b.address, b"abcdef")
+    assert assigned == expected
     ret = deploy_raw_returner(env, eth_abi_encode(["bytes"], [b"\x22" * 40]))
     assert c.from_staticcalls(ret.address) == [b"\x22" * 40] * 3
 
 
-def test_tuple_unpack_into_elements(get_contract):
-    code = """
+@pytest.mark.parametrize("bound", _BYTES_BOUNDS)
+def test_tuple_unpack_into_elements(get_contract, bound):
+    code = f"""
 @internal
-def pair() -> (Bytes[INF], Bytes[INF]):
+def pair() -> (Bytes[{bound}], Bytes[{bound}]):
     return b"a", b"bb"
 
 @internal
@@ -485,82 +507,84 @@ def pair5() -> (Bytes[5], Bytes[5]):
     return b"a", b"bb"
 
 @internal
-def with_word() -> (Bytes[INF], uint256):
+def with_word() -> (Bytes[{bound}], uint256):
     return b"ccc", 7
 
 @internal
-def swapped(a: Bytes[INF], b: Bytes[INF]) -> (Bytes[INF], Bytes[INF]):
+def swapped(a: Bytes[{bound}], b: Bytes[{bound}]) -> (Bytes[{bound}], Bytes[{bound}]):
     return b, a
 
 @external
-def unbounded_pair() -> DynArray[Bytes[INF], INF]:
-    xs: DynArray[Bytes[INF], INF] = [b"", b""]
+def from_pair() -> DynArray[Bytes[{bound}], INF]:
+    xs: DynArray[Bytes[{bound}], INF] = [b"", b""]
     xs[0], xs[1] = self.pair()
     return xs
 
 @external
-def bounded_pair() -> DynArray[Bytes[INF], INF]:
-    xs: DynArray[Bytes[INF], INF] = [b"", b""]
+def from_narrower_pair() -> DynArray[Bytes[{bound}], INF]:
+    xs: DynArray[Bytes[{bound}], INF] = [b"", b""]
     xs[0], xs[1] = self.pair5()
     return xs
 
 @external
-def element_and_word() -> (Bytes[INF], uint256):
-    xs: DynArray[Bytes[INF], INF] = [b""]
+def element_and_word() -> (Bytes[{bound}], uint256):
+    xs: DynArray[Bytes[{bound}], INF] = [b""]
     n: uint256 = 0
     xs[0], n = self.with_word()
     return xs[0], n
 
 @external
-def local_and_element() -> (Bytes[INF], Bytes[INF], Bytes[INF]):
-    a: Bytes[INF] = b"z"
-    xs: DynArray[Bytes[INF], INF] = [b"x", b"y"]
+def local_and_element() -> (Bytes[{bound}], Bytes[{bound}], Bytes[{bound}]):
+    a: Bytes[{bound}] = b"z"
+    xs: DynArray[Bytes[{bound}], INF] = [b"x", b"y"]
     a, xs[1] = self.pair()
     return a, xs[0], xs[1]
 
 @external
-def swap(xs: DynArray[Bytes[INF], INF]) -> DynArray[Bytes[INF], INF]:
-    ys: DynArray[Bytes[INF], INF] = xs
+def swap(xs: DynArray[Bytes[{bound}], INF]) -> DynArray[Bytes[{bound}], INF]:
+    ys: DynArray[Bytes[{bound}], INF] = xs
     ys[0], ys[1] = self.swapped(ys[0], ys[1])
     return ys
     """
     c = get_contract(code)
-    assert c.unbounded_pair() == [b"a", b"bb"]
-    assert c.bounded_pair() == [b"a", b"bb"]
+    assert c.from_pair() == [b"a", b"bb"]
+    assert c.from_narrower_pair() == [b"a", b"bb"]
     assert c.element_and_word() == (b"ccc", 7)
     assert c.local_and_element() == (b"a", b"x", b"bb")
-    assert c.swap(VALUES_SHORT) == [b"", b"ab", b"c" * 70]
+    swapped = c.swap(VALUES_SHORT)
+    assert swapped == [b"", b"ab", b"c" * 70]
 
 
-def test_iteration_and_literals(get_contract):
-    code = """
+@pytest.mark.parametrize("bound", _BYTES_BOUNDS)
+def test_iteration_and_literals(get_contract, bound):
+    code = f"""
 @external
-def total(xs: DynArray[Bytes[INF], INF]) -> uint256:
+def total(xs: DynArray[Bytes[{bound}], INF]) -> uint256:
     n: uint256 = 0
-    for x: Bytes[INF] in xs:
+    for x: Bytes[{bound}] in xs:
         n += len(x)
     return n
 
 @external
-def nested_total(xs: DynArray[DynArray[Bytes[INF], INF], INF]) -> uint256:
+def nested_total(xs: DynArray[DynArray[Bytes[{bound}], INF], INF]) -> uint256:
     n: uint256 = 0
-    for row: DynArray[Bytes[INF], INF] in xs:
-        for x: Bytes[INF] in row:
+    for row: DynArray[Bytes[{bound}], INF] in xs:
+        for x: Bytes[{bound}] in row:
             n += len(x)
     return n
 
 @external
-def literal() -> DynArray[Bytes[INF], INF]:
+def literal() -> DynArray[Bytes[{bound}], INF]:
     return [b"a", b"", b"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]
 
 @external
-def literal5() -> DynArray[Bytes[INF], 5]:
+def literal5() -> DynArray[Bytes[{bound}], 5]:
     return [b"x", b"yy"]
 
 @external
-def write_other_while_iterating(xs: DynArray[Bytes[INF], INF]) -> DynArray[Bytes[INF], INF]:
-    ys: DynArray[Bytes[INF], INF] = xs
-    for x: Bytes[INF] in xs:
+def write_other_while_iterating(xs: DynArray[Bytes[{bound}], INF]) -> DynArray[Bytes[{bound}], INF]:
+    ys: DynArray[Bytes[{bound}], INF] = xs
+    for x: Bytes[{bound}] in xs:
         ys[0] = x
     return ys
     """
@@ -739,7 +763,7 @@ def grown() -> DynArray[DynArray[uint256, INF], INF]:
     assert c.grown() == [[8, 1], [0]]
 
 
-def test_string_elements(get_contract):
+def test_string_elements_behave_like_bytes(get_contract):
     code = """
 @external
 def echo(xs: DynArray[String[INF], INF]) -> DynArray[String[INF], INF]:
@@ -830,8 +854,8 @@ def test_wrapped_offset_reverts(get_contract, env, tx_failed):
 
 # --- what stays rejected ------------------------------------------------------
 
-REJECTED = [
-    (
+REJECTED = {
+    "store_into_element": (
         """
 @external
 def f(xs: DynArray[DynArray[uint256, INF], INF]):
@@ -840,7 +864,7 @@ def f(xs: DynArray[DynArray[uint256, INF], INF]):
         """,
         "Cannot modify an unbounded element in place",
     ),
-    (
+    "append_to_element": (
         """
 @external
 def f(xs: DynArray[DynArray[uint256, INF], INF]):
@@ -849,7 +873,7 @@ def f(xs: DynArray[DynArray[uint256, INF], INF]):
         """,
         "Cannot modify an unbounded element in place",
     ),
-    (
+    "pop_from_element": (
         """
 @external
 def f(xs: DynArray[DynArray[uint256, INF], INF]) -> uint256:
@@ -858,7 +882,7 @@ def f(xs: DynArray[DynArray[uint256, INF], INF]) -> uint256:
         """,
         "Cannot modify an unbounded element in place",
     ),
-    (
+    "store_into_nested_element": (
         """
 @external
 def f(xs: DynArray[DynArray[Bytes[INF], INF], INF]):
@@ -867,7 +891,7 @@ def f(xs: DynArray[DynArray[Bytes[INF], INF], INF]):
         """,
         "Cannot modify an unbounded element in place",
     ),
-    (
+    "returned_in_tuple": (
         """
 @external
 def f(xs: DynArray[Bytes[INF], INF]) -> (uint256, DynArray[Bytes[INF], INF]):
@@ -875,7 +899,7 @@ def f(xs: DynArray[Bytes[INF], INF]) -> (uint256, DynArray[Bytes[INF], INF]):
         """,
         "Function returns cannot contain unbounded sequence types inside aggregate types",
     ),
-    (
+    "wildcard_element": (
         """
 interface I:
     def foo(xs: DynArray[Bytes[...], 5]): nonpayable
@@ -886,7 +910,7 @@ def f(a: address):
         """,
         "Unbounded element types cannot be inferred from a wildcard",
     ),
-    (
+    "wildcard_static_array_argument": (
         """
 interface I:
     def foo(xs: DynArray[uint256, ...][2]): nonpayable
@@ -897,11 +921,12 @@ def f(a: address, x: DynArray[uint256, INF]):
         """,
         "Function arguments cannot contain unbounded sequence types inside aggregate types",
     ),
-]
+}
 
 
-@pytest.mark.parametrize("code,message", REJECTED)
-def test_rejected(code, message):
+@pytest.mark.parametrize("case", list(REJECTED))
+def test_unsupported_uses_rejected(case):
+    code, message = REJECTED[case]
     with pytest.raises(StructureException) as e:
         compile_code(code, settings=Settings(experimental_codegen=True))
     assert e.value.message == message
