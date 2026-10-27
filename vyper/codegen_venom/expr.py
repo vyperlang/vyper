@@ -20,9 +20,11 @@ from vyper.codegen.core import (
 )
 from vyper.codegen_venom.arithmetic import apply_binop
 from vyper.codegen_venom.layout import struct_member_offsets
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import (
     CodegenPanic,
     CompilerPanic,
+    EvmVersionException,
     StateAccessViolation,
     TypeMismatch,
     UnimplementedException,
@@ -888,7 +890,8 @@ class Expr:
         if key == "block.basefee":
             return self.builder.basefee()
         if key == "block.blobbasefee":
-            # Note: EVM version check should be done at a higher level
+            if not version_check(begin="cancun"):
+                raise EvmVersionException("`block.blobbasefee` is not available pre-cancun", node)
             return self.builder.blobbasefee()
         if key == "block.prevrandao":
             return self.builder.prevrandao()
