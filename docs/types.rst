@@ -650,21 +650,9 @@ argument needs no per-element cap:
 The element type may be ``Bytes[INF]``, ``String[INF]`` or ``DynArray[T, INF]``,
 nested to any depth, and the outer array may be bounded or unbounded:
 ``DynArray[DynArray[uint256, INF], INF]`` and ``DynArray[Bytes[INF], 5]`` are both
-accepted. Each element is stored separately, and the array's ABI encoding is
-the same as for bounded elements.
+accepted.
 
-Such arrays are built from calldata, ``abi_decode``, external call return data,
-list literals or ``empty()``. They can be indexed, measured with ``len``,
-copied, passed to and returned from internal and external functions, logged and
-encoded. Their elements can be assigned (``xs[i] = v``), appended, popped and
-iterated with ``for``. What is rejected is writing inside an element, such as
-``xs[i][j] = v`` or ``xs[i].append(v)``: copy the element to a local, modify the
-local and assign it back. Returning such an array inside a tuple is not
-supported. A wildcard element type is not inferred to be unbounded: an
-interface declaring ``DynArray[Bytes[...], 5]`` cannot be called with a value
-whose elements are unbounded; write the element type out instead.
-
-Because every element is decoded into its own memory, decoding is sensitive to
+Decoding gives every element its own copy of its data, so it is sensitive to
 malformed input in a way the bounded case is not. The ABI lets every element
 offset point at the same data, so ``n`` elements that share one ``m``-word tail
 decode into ``n`` separate copies: memory proportional to ``n * m`` from input
@@ -674,6 +662,29 @@ made, or ``abi_decode`` of bytes it did not produce, pays for that itself, and
 return data is decoded after the call, outside any gas limit placed on it. A
 contract that decodes such arrays from untrusted sources should bound its own
 exposure.
+
+Arrays of unbounded elements behave like other dynamic arrays, subject to the
+following restrictions.
+
+.. TODO: Support mutation of unbounded elements in place.
+
+An element cannot be modified in place, such as with ``xs[i][j] = v`` or
+``xs[i].append(v)``. Copy the element to a local variable, modify it, then
+store it back:
+
+.. code-block:: vyper
+
+    xs[i].append(v)  # rejected
+
+    e: DynArray[uint256, INF] = xs[i]
+    e.append(v)
+    xs[i] = e  # allowed
+
+Arrays of unbounded elements cannot be returned inside tuples.
+
+A wildcard element type is not inferred to be unbounded: an interface declaring
+``DynArray[Bytes[...], 5]`` cannot be called with a value whose elements are
+unbounded. Write the element type out instead.
 
 .. _unbounded_struct_members:
 
