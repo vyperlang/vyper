@@ -989,7 +989,7 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
 
             new_l = interpolate_length(min_t.length, max_t.length)
             DArrayT._validate_wildcard_element(max_t.value_type, new_vt, node=pos)
-            DArrayT._validate_unbounded_shape(new_vt, new_l, node=pos)
+            DArrayT._assert_element_has_inline_size(new_vt)
             return DArrayT(new_vt, new_l)
 
         if isinstance(min_t, SArrayT):

@@ -328,7 +328,7 @@ class DArrayT(_SequenceT):
         return self.length is WILDCARD or self.value_type.has_wildcard
 
     @staticmethod
-    def _validate_unbounded_shape(value_type, length, node=None):
+    def _assert_element_has_inline_size(value_type):
         # an unbounded element has a fixed inline size (see `member_slot_size`); a tuple or
         # static array holding INF has none and is rejected earlier (`_as_darray`,
         # `SArrayT.from_annotation`, `_validate_wildcard_element`)
@@ -351,7 +351,7 @@ class DArrayT(_SequenceT):
         resolved_value = self.value_type.resolve_wildcard()
         resolved_length = INF if self.length is WILDCARD else self.length
         self._validate_wildcard_element(self.value_type, resolved_value)
-        self._validate_unbounded_shape(resolved_value, resolved_length)
+        self._assert_element_has_inline_size(resolved_value)
         if resolved_value is not self.value_type or resolved_length is not self.length:
             return DArrayT(resolved_value, resolved_length)
         return self
@@ -401,7 +401,7 @@ class DArrayT(_SequenceT):
         if not value_type._as_darray:
             raise StructureException(f"Arrays of {value_type} are not allowed", value_node)
 
-        cls._validate_unbounded_shape(value_type, length, value_node)
+        cls._assert_element_has_inline_size(value_type)
 
         return cls(value_type, length)
 
