@@ -317,7 +317,7 @@ class Stmt:
             src_vv = self.ctx.snapshot_value_for_delayed_use(src_vv, copy_composites=True)
         src = self.ctx.unwrap(src_vv)
 
-        for src_elem_typ, dst_elem_typ in zip(src_member_types, dst_member_types):
+        for src_elem_typ, dst_elem_typ in zip(src_member_types, dst_member_types, strict=True):
             elem_ptr = self.builder.add(src, IRLiteral(src_offset))
 
             # Load the value
@@ -327,7 +327,7 @@ class Stmt:
             src_offset += src_elem_typ.memory_bytes_required
 
         # Second pass: assign each loaded value to its target
-        for (val, src_elem_typ, dst_elem_typ), target_node in zip(temp_vals, targets):
+        for (val, src_elem_typ, dst_elem_typ), target_node in zip(temp_vals, targets, strict=True):
             if self._is_pointer_cell_target(target_node):
                 assert isinstance(val, IRVariable)
                 member_vv = self.ctx.dynamic_memory_value(val, src_elem_typ, annotation="unpack")
@@ -354,7 +354,9 @@ class Stmt:
         src_values = self.ctx.dynamic_tuple_frame_values(src, src_tuple_typ, annotation="unpack")
         dst_member_types = dst_tuple_typ.member_types
 
-        for src_vv, dst_elem_typ, target_node in zip(src_values, dst_member_types, targets):
+        for src_vv, dst_elem_typ, target_node in zip(
+            src_values, dst_member_types, targets, strict=True
+        ):
             if self._is_pointer_cell_target(target_node):
                 self._assign_pointer_cell(target_node, src_vv, dst_elem_typ)
                 continue

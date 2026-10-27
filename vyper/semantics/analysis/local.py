@@ -90,9 +90,11 @@ def _expr_has_unsupported_unbounded_arg(
     # walk literals alongside the expected type. a literal whose shape does
     # not match `typ` is rejected later, when it is visited
     if isinstance(node, vy_ast.Tuple) and isinstance(typ, TupleT):
+        if len(node.elements) != len(typ.member_types):
+            return False
         return any(
             _expr_has_unsupported_unbounded_arg(item, item_typ, inside_tuple=True)
-            for item, item_typ in zip(node.elements, typ.member_types)
+            for item, item_typ in zip(node.elements, typ.member_types, strict=True)
         )
     if isinstance(node, vy_ast.List) and isinstance(typ, (SArrayT, DArrayT)):
         # a wildcard element type is not inferred to be unbounded (see
@@ -1288,12 +1290,11 @@ class ExprVisitor(VyperNodeVisitorBase):
                 if _reaches_unbounded_element(node.func.value):
                     raise StructureException(
                         "Cannot modify an unbounded element in place",
-                        node,
+                        node.func.value,
                         hint="copy the element to a local, modify the local and assign it back",
                     )
                 self.function_analyzer._handle_modification(node.func.value)
-            assert len(node.args) == len(func_type.arg_types)
-            for arg, arg_type in zip(node.args, func_type.arg_types):
+            for arg, arg_type in zip(node.args, func_type.arg_types, strict=True):
                 self.visit(arg, arg_type)
         else:
             # builtin functions and interfaces

@@ -329,13 +329,12 @@ class DArrayT(_SequenceT):
 
     @staticmethod
     def _validate_unbounded_shape(value_type, length, node=None):
-        if type_contains_unbounded_sequence(value_type) and not is_runtime_sizable_type(value_type):
-            # an unbounded element has a fixed inline size (see
-            # `member_slot_size`); what cannot be an element is a shape with
-            # no memory layout at all (a tuple or static array holding INF)
-            raise StructureException(
-                "DynArray element types cannot contain unbounded sequence types", node
-            )
+        # an unbounded element has a fixed inline size (see `member_slot_size`); a tuple or
+        # static array holding INF has none and is rejected earlier (`_as_darray`,
+        # `SArrayT.from_annotation`, `_validate_wildcard_element`)
+        assert not type_contains_unbounded_sequence(value_type) or is_runtime_sizable_type(
+            value_type
+        )
 
     @staticmethod
     def _validate_wildcard_element(wild_value_type, resolved_value_type, node=None):
@@ -343,7 +342,7 @@ class DArrayT(_SequenceT):
         # be written out, it is not inferred
         if wild_value_type.has_wildcard and type_contains_unbounded_sequence(resolved_value_type):
             raise StructureException(
-                "DynArray element types cannot contain unbounded sequence types",
+                "Unbounded element types cannot be inferred from a wildcard",
                 node,
                 hint="write the unbounded element type out instead of a wildcard",
             )

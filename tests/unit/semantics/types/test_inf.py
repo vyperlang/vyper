@@ -1151,7 +1151,7 @@ def f(a: address):
     """
     with pytest.raises(StructureException) as e:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
-    assert e.value.message == "DynArray element types cannot contain unbounded sequence types"
+    assert e.value.message == "Unbounded element types cannot be inferred from a wildcard"
 
 
 @pytest.mark.parametrize("arg_source", ["xs", "[]", "[1, 2]"])

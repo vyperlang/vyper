@@ -884,7 +884,7 @@ interface I:
 def f(a: address):
     extcall I(a).foo([])
         """,
-        "DynArray element types cannot contain unbounded sequence types",
+        "Unbounded element types cannot be inferred from a wildcard",
     ),
     (
         """
