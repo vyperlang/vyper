@@ -327,6 +327,53 @@ def store_self(xs: DynArray[Bytes[{bound}], INF]) -> DynArray[Bytes[{bound}], IN
     assert moved == [b"c" * 70, b"", b""]
 
 
+@pytest.mark.parametrize("bound", _BYTES_BOUNDS)
+def test_struct_member_element_store_leaves_struct_copies_unchanged(get_contract, bound):
+    # writing an element of a struct's array member changes that struct only:
+    # the struct it was copied from, and structs copied from it, keep theirs
+    code = f"""
+struct S:
+    n: uint256
+    xs: DynArray[Bytes[{bound}], INF]
+
+@external
+def store_into_copy(
+    xs: DynArray[Bytes[{bound}], INF]
+) -> (Bytes[{bound}], Bytes[{bound}], Bytes[{bound}]):
+    s: S = S(n=1, xs=xs)
+    a: S = s
+    t: S = a
+    a.xs[0] = b"new"
+    return s.xs[0], a.xs[0], t.xs[0]
+
+@external
+def store_into_original(
+    xs: DynArray[Bytes[{bound}], INF]
+) -> (Bytes[{bound}], Bytes[{bound}], Bytes[{bound}]):
+    s: S = S(n=1, xs=xs)
+    a: S = s
+    t: S = a
+    s.xs[0] = b"new"
+    return s.xs[0], a.xs[0], t.xs[0]
+
+@external
+def store_into_copy_of_element(
+    xs: DynArray[Bytes[{bound}], INF]
+) -> (Bytes[{bound}], Bytes[{bound}]):
+    out: DynArray[S, INF] = [S(n=1, xs=xs)]
+    t: S = out[0]
+    t.xs[1] = b"new"
+    return out[0].xs[1], t.xs[1]
+    """
+    c = get_contract(code)
+    into_copy = c.store_into_copy(VALUES_SHORT)
+    assert into_copy == (b"ab", b"new", b"ab")
+    into_original = c.store_into_original(VALUES_SHORT)
+    assert into_original == (b"new", b"ab", b"ab")
+    into_element_copy = c.store_into_copy_of_element(VALUES_SHORT)
+    assert into_element_copy == (b"", b"new")
+
+
 def test_append_and_pop_grow_and_shrink_the_array(get_contract, env):
     code = """
 @external
