@@ -1,10 +1,12 @@
 from vyper.venom.analysis.available_expression import (
     NONIDEMPOTENT_INSTRUCTIONS,
     AvailableExpressionAnalysis,
+    _Expression,
 )
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.basicblock import PARAM_INSTRUCTIONS, IRInstruction
+from vyper.venom.analysis import BasePtrAnalysis
+from vyper.venom.basicblock import PARAM_INSTRUCTIONS, IRInstruction,IRVariable
 from vyper.venom.passes.base_pass import IRPass
 
 # instruction that dont need to be stored in available expression
@@ -32,7 +34,7 @@ UNINTERESTING_OPCODES = PARAM_INSTRUCTIONS | frozenset(
     ]
 )
 # instruction that are not useful to be # substituted
-NO_SUBSTITUTE_OPCODES = UNINTERESTING_OPCODES | frozenset(["offset"])
+NO_SUBSTITUTE_OPCODES = UNINTERESTING_OPCODES | frozenset(["offset", "alloca", "dalloca"])
 
 
 SMALL_EXPRESSION = 1
@@ -51,8 +53,7 @@ class CSE(IRPass):
     expression_analysis: AvailableExpressionAnalysis
 
     def run_pass(self):
-        self.expression_analysis = self.analyses_cache.request_analysis(AvailableExpressionAnalysis)
-
+        self.expression_analysis = self.analyses_cache.force_analysis(AvailableExpressionAnalysis)
         while True:
             replace_dict = self._find_replaceble()
             if len(replace_dict) == 0:
@@ -61,9 +62,11 @@ class CSE(IRPass):
             self._replace(replace_dict)
             self.analyses_cache.invalidate_analysis(DFGAnalysis)
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+            self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
             self.expression_analysis = self.analyses_cache.force_analysis(
                 AvailableExpressionAnalysis
             )
+
 
     # return instruction and to which instruction it could
     # replaced by
@@ -88,7 +91,8 @@ class CSE(IRPass):
 
                 # heuristic to not replace small expressions across
                 # basic block bounderies (it can create better codesize)
-                if expr.depth > SMALL_EXPRESSION:
+                gas = expr.get_gas
+                if gas > 5:
                     res[inst] = replace_inst
                 else:
                     from_same_bb = self.expression_analysis.get_from_same_bb(inst, expr)

@@ -82,6 +82,9 @@ PASSES_O3: List[PassConfig] = [
     (DeadStoreElimination, {"addr_space": TRANSIENT}),
     AssignElimination,
     RemoveUnusedVariablesPass,
+    CSE,
+    AssignElimination,
+    RemoveUnusedVariablesPass,
     ConcretizeMemLocPass,
     FmpLoweringPass,
     # repairs the multiply-assigned FMP runner emitted by the lowering;

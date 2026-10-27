@@ -41,6 +41,8 @@ _nonidempotent_insts.append("staticcall")
 # gas returns the remaining gas, which decreases as execution proceeds,
 # so two reads in the same call are not equivalent
 _nonidempotent_insts.append("gas")
+_nonidempotent_insts.append("alloca")
+_nonidempotent_insts.append("dalloca")
 
 NONIDEMPOTENT_INSTRUCTIONS = frozenset(_nonidempotent_insts)
 
@@ -72,7 +74,7 @@ def _get_effects(opcode):
 
 @dataclass
 class _Expression:
-    opcode: str
+    inst: IRInstruction
     # the child is either expression of operand since
     # there are possibilities for cycles
     operands: list[IROperand | _Expression]
@@ -110,6 +112,10 @@ class _Expression:
 
         return same_ops(self.operands, other.operands)
 
+    @property
+    def opcode(self):
+        return self.inst.opcode
+
     def __repr__(self) -> str:
         if self.opcode == "assign":
             assert len(self.operands) == 1, "wrong store"
@@ -127,6 +133,15 @@ class _Expression:
                 d = op.depth
                 max_depth = max(max_depth, d)
         return max_depth + 1
+
+    @cached_property
+    def get_gas(self) -> int:
+        op_gas = 0
+        for op in self.operands:
+            if isinstance(op, _Expression):
+                op_gas += op.get_gas
+
+        return op_gas + self.inst.gas_cost
 
     @property
     def is_commutative(self) -> bool:
@@ -276,6 +291,13 @@ class AvailableExpressionAnalysis(IRAnalysis):
         self.inst_to_available = dict()
         self.bb_ins = dict()
         self.bb_outs = dict()
+
+    def invalidate(self):
+        self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
+
+        for addr in [MEMORY, STORAGE, TRANSIENT]:
+            self.analyses_cache.invalidate_analysis(mem_alias_type_factory(addr))
 
     def analyze(self):
         worklist = deque()
@@ -428,7 +450,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
         operands: list[IROperand | _Expression] = [
             self._get_operand(op, available_exprs) for op in inst.operands
         ]
-        expr = _Expression(inst.opcode, operands)
+        expr = _Expression(inst, operands)
 
         return expr
 
