@@ -378,7 +378,10 @@ class Expr:
         assert isinstance(node, vy_ast.List)
         typ = node._metadata["type"]
         elem_typ = typ.value_type
-        elem_is_cell = isinstance(typ, DArrayT) and is_unbounded_sequence_type(elem_typ)
+        # a static array holds no unbounded sequence (`SArrayT.from_annotation`)
+        # TODO: `_analyse_list_iter` still types a for-loop list literal as one
+        assert not (isinstance(typ, SArrayT) and is_unbounded_sequence_type(elem_typ))
+        elem_is_cell = is_unbounded_sequence_type(elem_typ)
         elem_size = self.ctx.array_elem_size_in(typ, DataLocation.MEMORY)
         num_elements = len(node.elements)
 

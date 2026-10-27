@@ -226,6 +226,9 @@ class Stmt:
             assert is_unbounded_array_element(target)
             # the payload is taken before the target: the index may read the array
             payload = self.ctx.payload_for_cell(src, typ, annotation="element")
+            # lowered as a target: an array reached through a struct member
+            # (`s.xs[i] = v`) may share its payload with copies of the struct,
+            # so it is made the struct's own before the cell is written
             cell = Expr(target, self.ctx, as_ptr=True).array_element_cell_ptr()
             self.ctx.store_pointer_cell(cell, payload, IRLiteral(0))
 
