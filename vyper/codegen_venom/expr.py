@@ -1795,10 +1795,11 @@ class Expr:
         return VyperValue.from_stack_op(Expr(node.args[0], self.ctx).lower_value(), result_typ)
 
     def _lower_member_function_call(self, func_t: MemberFunctionT) -> VyperValue:
-        """Lower DynArray member function calls: .append(), .pop().
+        """Lower DynArray member function calls: .append(), .pop(), .extend().
 
         - append(val): increment length, store value at end
         - pop(): decrement length, return popped value
+        - extend(src): append all elements of src, checked against capacity
         """
         node = self.node
         assert isinstance(node, vy_ast.Call)
@@ -2172,7 +2173,7 @@ class Expr:
             self.ctx.copy_dynarray_elements_to_storage(
                 src_data, dst_elem_base, elem_typ, src_len, data_loc == DataLocation.TRANSIENT
             )
-        else:
+        else:  # pragma: nocover
             raise CompilerPanic(f"Unsupported location for extend: {data_loc}")
 
         # 4. Store new length
