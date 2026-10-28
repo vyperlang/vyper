@@ -398,6 +398,9 @@ class Stmt:
             if var in rhs_writes or (
                 var.is_state_variable() and _contains_writeable_call(right_node)
             ):
+                # NOTE: should this be unreachable maybe it should be concrete error
+                # since it is exercised in
+                # tests/functional/codegen/features/testassignment.py:test_augassign_oob
                 raise CodegenPanic("unreachable")
 
         # Get target pointer (with location info)

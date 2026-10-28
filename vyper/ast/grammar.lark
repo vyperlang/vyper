@@ -269,9 +269,9 @@ _IN: "in"
         | product "//" unary -> floordiv
         | product "%"  unary -> mod
 ?unary: power
-       | "+"  power -> uadd
-       | "-"  power -> usub
-       | "~"  power -> invert
+       | "+"  unary -> uadd
+       | "-"  unary -> usub
+       | "~"  unary -> invert
 
 // TODO: add factor rule
 ?power: external_call
