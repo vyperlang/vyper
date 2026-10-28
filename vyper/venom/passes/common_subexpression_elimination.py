@@ -92,7 +92,7 @@ class CSE(IRPass):
                 # heuristic to not replace small expressions across
                 # basic block bounderies (it can create better codesize)
                 gas = expr.get_gas
-                if gas > 5:
+                if gas > 6:
                     res[inst] = replace_inst
                 else:
                     from_same_bb = self.expression_analysis.get_from_same_bb(inst, expr)
