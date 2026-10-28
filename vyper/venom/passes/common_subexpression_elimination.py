@@ -1,12 +1,11 @@
+from vyper.venom.analysis import BasePtrAnalysis
 from vyper.venom.analysis.available_expression import (
     NONIDEMPOTENT_INSTRUCTIONS,
     AvailableExpressionAnalysis,
-    _Expression,
 )
 from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
-from vyper.venom.analysis import BasePtrAnalysis
-from vyper.venom.basicblock import PARAM_INSTRUCTIONS, IRInstruction,IRVariable
+from vyper.venom.basicblock import PARAM_INSTRUCTIONS, IRInstruction
 from vyper.venom.passes.base_pass import IRPass
 
 # instruction that dont need to be stored in available expression
@@ -65,7 +64,6 @@ class CSE(IRPass):
             self.expression_analysis = self.analyses_cache.force_analysis(
                 AvailableExpressionAnalysis
             )
-
 
     # return instruction and to which instruction it could
     # replaced by
