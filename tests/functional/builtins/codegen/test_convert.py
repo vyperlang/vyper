@@ -757,7 +757,13 @@ def foo() -> {o_typ}:
     return convert({_vyper_literal(val, i_typ)}, {o_typ})
     """
 
-    c1_exception = InvalidLiteral
+    # Either the constant folder or Venom's SCCP can establish that the
+    # literal conversion is invalid. Both must reject it before execution.
+    c1_exception = (
+        (InvalidLiteral, StaticAssertionException)
+        if compiler_settings.experimental_codegen
+        else InvalidLiteral
+    )
 
     if isinstance(i_typ, IntegerT) and isinstance(o_typ, BytesM_T):
         # integer literals get upcasted to uint256 / int256 types, so the convert
