@@ -526,6 +526,33 @@ def foo() -> DynArray[uint256, 5]:
     assert compiler.compile_code(code, input_bundle=input_bundle) is not None
 
 
+def test_wildcard_darray_return_appended(make_input_bundle):
+    # append args pass through the same MemberFunctionT arg loop in
+    # visit_Call as extend's, but must keep their declared element type:
+    # a wildcard return appended as an element resolves against it.
+    ifoo_code = """
+@view
+def bar() -> DynArray[uint256, ...]:
+    ...
+"""
+
+    input_bundle = make_input_bundle({"foo.vyi": ifoo_code})
+
+    code = """
+import foo as Foo
+
+my_array: DynArray[DynArray[uint256, 3], 5]
+
+@external
+def foo() -> DynArray[DynArray[uint256, 3], 5]:
+    x: Foo = Foo(0x1234567890123456789012345678901234567890)
+    self.my_array.append(staticcall x.bar())
+    return self.my_array
+    """
+
+    assert compiler.compile_code(code, input_bundle=input_bundle) is not None
+
+
 def test_wildcard_darray_param_and_return_extended(make_input_bundle):
     # both wildcard producers at once: the unbounded return is passed to
     # DynArray.extend (dst-capacity fallback in visit_Call), while the
