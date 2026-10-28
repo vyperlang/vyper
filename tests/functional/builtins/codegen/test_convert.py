@@ -930,3 +930,37 @@ def foo(x: int256) -> decimal:
         c.foo(min_int - 1)
     with tx_failed():
         c.foo(max_int + 1)
+
+
+@pytest.mark.parametrize("payload", [b"\x80", b"\xff", b"\xff" * 32])
+@pytest.mark.parametrize("out_typ", ["int8", "int256", "decimal", "uint8", "uint256", "bool"])
+def test_convert_emptied_storage_bytes(get_contract, payload, out_typ):
+    # GH 4961: emptying a storage bytestring only resets its length, so the
+    # data slot still holds the old payload. the conversion must not read it.
+    code = f"""
+b: Bytes[32]
+
+@external
+def foo(x: Bytes[32]) -> {out_typ}:
+    self.b = x
+    self.b = b""
+    return convert(self.b, {out_typ})
+    """
+    c = get_contract(code)
+    assert c.foo(payload) == 0
+
+
+@pytest.mark.parametrize("payload", ["\xff", "a" * 32])
+def test_convert_emptied_storage_string(get_contract, payload):
+    # String can only be converted to bool among the numeric types
+    code = """
+s: String[32]
+
+@external
+def foo(x: String[32]) -> bool:
+    self.s = x
+    self.s = ""
+    return convert(self.s, bool)
+    """
+    c = get_contract(code)
+    assert c.foo(payload) is False
