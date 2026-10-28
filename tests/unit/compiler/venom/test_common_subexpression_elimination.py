@@ -9,11 +9,11 @@ from vyper.venom.passes.common_subexpression_elimination import CSE
 pytestmark = pytest.mark.hevm
 
 
-def _check_pre_post(pre: str, post: str, hevm: bool = True):
+def _check_pre_post(pre: str, post: str, hevm: bool = True, gas_heuristic: int = 6):
     ctx = parse_from_basic_block(pre)
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
-        CSE(ac, fn).run_pass()
+        CSE(ac, fn).run_pass(gas_heuristic=gas_heuristic)
     assert_ctx_eq(ctx, parse_from_basic_block(post))
 
     if not hevm:
@@ -262,7 +262,7 @@ def test_cse_different_branches_can_optimize():
 
     def same_opt(i):
         return f"""
-        %d{i} = mload 0
+        %d{i} = %d0
         %a{i} = %a0
         %m{i} = mul {i}, %a{i}
         """
@@ -303,7 +303,7 @@ def test_cse_different_branches_can_optimize():
         sink %m0, %m3, %m
     """
 
-    _check_pre_post(pre, post)
+    _check_pre_post(pre, post, gas_heuristic=1)
 
 
 def test_cse_invoke_idempotent():

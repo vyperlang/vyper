@@ -76,7 +76,7 @@ PASSES_O2: List[PassConfig] = [
     (DeadStoreElimination, {"addr_space": TRANSIENT}),
     AssignElimination,
     RemoveUnusedVariablesPass,
-    CSE,
+    (CSE, {"gas_heuristic": 6}),
     AssignElimination,
     RemoveUnusedVariablesPass,
     ConcretizeMemLocPass,
@@ -99,7 +99,7 @@ PASSES_O2: List[PassConfig] = [
     RemoveUnusedVariablesPass,
     PhiEliminationPass,
     AssignElimination,
-    CSE,
+    (CSE, {"gas_heuristic": 20}),
     AssignElimination,
     RemoveUnusedVariablesPass,
     # deletion-only (removes a dead fmp_param plus its self-contained

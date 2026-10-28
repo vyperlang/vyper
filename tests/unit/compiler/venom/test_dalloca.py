@@ -1188,7 +1188,7 @@ def test_getfmp_cse_merges_only_without_intervening_fmp_write():
             sink %a, %b, %c, %p
         """)
     fn = next(iter(ctx.functions.values()))
-    CSE(IRAnalysesCache(fn), fn).run_pass()
+    CSE(IRAnalysesCache(fn), fn).run_pass(gas_heuristic=6)
 
     insts = {inst.output: inst for inst in fn.entry.instructions if inst.num_outputs == 1}
     # %b merged into %a
@@ -1207,7 +1207,7 @@ def test_getfmp_cse_blocked_across_setfmp():
             sink %a, %b
         """)
     fn = next(iter(ctx.functions.values()))
-    CSE(IRAnalysesCache(fn), fn).run_pass()
+    CSE(IRAnalysesCache(fn), fn).run_pass(gas_heuristic=6)
 
     insts = {inst.output: inst for inst in fn.entry.instructions if inst.num_outputs == 1}
     assert insts[IRVariable("%b")].opcode == "getfmp"

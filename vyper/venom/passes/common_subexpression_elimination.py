@@ -37,9 +37,6 @@ UNINTERESTING_OPCODES = PARAM_INSTRUCTIONS | frozenset(
 NO_SUBSTITUTE_OPCODES = UNINTERESTING_OPCODES | frozenset(["offset", "alloca", "dalloca"])
 
 
-SMALL_EXPRESSION = 1
-
-
 class CSE(IRPass):
     """
     Common Subexpression Elimination pass.
@@ -51,9 +48,11 @@ class CSE(IRPass):
     """
 
     expression_analysis: AvailableExpressionAnalysis
+    gas_heuristic: int
 
-    def run_pass(self):
+    def run_pass(self, gas_heuristic: int = 6):
         self.expression_analysis = self.analyses_cache.force_analysis(AvailableExpressionAnalysis)
+        self.gas_heuristic = gas_heuristic
         while True:
             replace_dict = self._find_replaceble()
             if len(replace_dict) == 0:
@@ -92,7 +91,7 @@ class CSE(IRPass):
                 # heuristic to not replace small expressions across
                 # basic block bounderies (it can create better codesize)
                 gas = expr.get_gas
-                if gas > 6:
+                if gas > self.gas_heuristic:
                     res[inst] = replace_inst
                 else:
                     from_same_bb = self.expression_analysis.get_from_same_bb(inst, expr)
