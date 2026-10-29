@@ -20,6 +20,7 @@ from vyper.exceptions import (
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
+    UnimplementedException,
     VariableDeclarationException,
     VyperException,
 )
@@ -857,6 +858,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
             raise StructureException(
                 f"Cannot emit logs from {self.func.mutability} functions", node
             )
+        if f.typedef.is_anonymous:
+            raise UnimplementedException("Anonymous events are not currently supported", node)
         t = map_void(f.fetch_call_return(node.value))
         # CMC 2024-02-05 annotate the event type for codegen usage
         # TODO: refactor this
