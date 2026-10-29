@@ -371,6 +371,33 @@ def foo({args}):
     assert e.value.message == msg
 
 
+tuple_loop_variables_with_unbounded_members = [
+    ("Bytes[INF]", "(Bytes[INF], uint256)", "[(a, i), (b, j)]"),
+    ("String[INF]", "(String[INF], uint256)", "[(a, i), (b, j)]"),
+    ("DynArray[uint256, INF]", "(DynArray[uint256, INF], uint256)", "[(a, i), (b, j)]"),
+    ("Bytes[INF]", "((Bytes[INF], uint256), uint256)", "[((a, i), j), ((b, j), i)]"),
+    # same rule as for locals: a tuple cannot hold a struct with unbounded members
+    ("Batch", "(Batch, uint256)", "[(a, i), (b, j)]"),
+]
+
+
+@pytest.mark.parametrize("item_typ,loop_typ,items", tuple_loop_variables_with_unbounded_members)
+def test_tuple_loop_variable_with_unbounded_members_rejected(item_typ, loop_typ, items):
+    code = f"""
+struct Batch:
+    xs: DynArray[uint256, INF]
+
+@external
+def foo(a: {item_typ}, b: {item_typ}, i: uint256, j: uint256):
+    for x: {loop_typ} in {items}:
+        pass
+    """
+    with pytest.raises(StructureException) as e:
+        compile_code(code)
+    msg = "Loop variables cannot contain unbounded sequence types inside aggregate types"
+    assert e.value.message == msg
+
+
 def test_list_literal_of_structs_with_unbounded_members_can_be_iterated(compile_inf_code):
     # a struct with unbounded members has a fixed size, so a list of them has a layout
     code = """

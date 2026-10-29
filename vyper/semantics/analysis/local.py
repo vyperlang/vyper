@@ -816,6 +816,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
             raise StructureException("Invalid syntax for loop iterator", node.target.target)
 
         target_type = type_from_annotation(node.target.annotation, DataLocation.MEMORY)
+        if not is_runtime_sizable_type(target_type):
+            raise StructureException(
+                "Loop variables cannot contain unbounded sequence types inside aggregate types",
+                node.target.annotation,
+            )
 
         iter_var = None
         if isinstance(node.iter, vy_ast.Call):
