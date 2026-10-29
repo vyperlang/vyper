@@ -445,6 +445,12 @@ class AddressT(_PrimT):
     def raise_bad_checksum(cls, node: vy_ast.Hex) -> NoReturn:
         raise BadChecksumAddress(cls._checksum_error_msg(node), node)
 
+    def compare_type(self, other):
+        from vyper.semantics.types.module import InterfaceT
+
+        # interfaces can be widened to addresses
+        return isinstance(other, InterfaceT) or super().compare_type(other)
+
 
 # type for "self"
 # refactoring note: it might be best for this to be a ModuleT actually
