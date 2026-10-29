@@ -394,7 +394,7 @@ def test_memmerging_bypass_fence():
     currently do not
     """
     if not version_check(begin="cancun"):
-        raise AssertionError()  # xfail
+        pytest.xfail()
 
     pre = """
     function _global {
@@ -414,7 +414,7 @@ def test_memmerging_bypass_fence():
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
         SCCP(ac, fn).run_pass()
-        MemMergePass(ac, fn).run_pass()
+        MemMergePass(ac, fn).run_pass(memory_abstract=False)
 
     fn = next(iter(ctx.functions.values()))
     bb = fn.entry
