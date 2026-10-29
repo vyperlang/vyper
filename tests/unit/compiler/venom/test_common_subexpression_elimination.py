@@ -685,3 +685,27 @@ def test_cse_bump_not_merged():
     """
 
     _check_no_change(pre, hevm=False)
+
+
+def test_cse_abstract_memory():
+    pre = """
+    main:
+        %ptr_a = alloca 32
+        %ptr_b = alloca 32
+        %1 = mload %ptr_a
+        mstore %ptr_b, 0
+        %2 = mload %ptr_a
+        sink %1, %2
+    """
+
+    post = """
+    main:
+        %ptr_a = alloca 32
+        %ptr_b = alloca 32
+        %1 = mload %ptr_a
+        mstore %ptr_b, 0
+        %2 = %1
+        sink %1, %2
+    """
+
+    _check_pre_post(pre, post)
