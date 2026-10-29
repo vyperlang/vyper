@@ -377,7 +377,11 @@ def foo():
                             "ast_type": "Name",
                             "id": "s",
                             "node_id": 24,
-                            "type": {"name": "Foo", "typeclass": "struct"},
+                            "type": {
+                                "name": "Foo",
+                                "type_decl_node": {"node_id": 1, "source_id": 0},
+                                "typeclass": "struct",
+                            },
                         },
                         "value": {
                             "args": [
@@ -385,7 +389,13 @@ def foo():
                                     "ast_type": "Attribute",
                                     "attr": "Foo",
                                     "node_id": 33,
-                                    "type": {"type_t": {"name": "Foo", "typeclass": "struct"}},
+                                    "type": {
+                                        "type_t": {
+                                            "name": "Foo",
+                                            "type_decl_node": {"node_id": 1, "source_id": 0},
+                                            "typeclass": "struct",
+                                        }
+                                    },
                                     "value": {
                                         "ast_type": "Name",
                                         "id": "lib1",
@@ -407,7 +417,11 @@ def foo():
                             },
                             "keywords": [],
                             "node_id": 30,
-                            "type": {"name": "Foo", "typeclass": "struct"},
+                            "type": {
+                                "name": "Foo",
+                                "type_decl_node": {"node_id": 1, "source_id": 0},
+                                "typeclass": "struct",
+                            },
                         },
                     },
                 ],
@@ -633,10 +647,18 @@ def foo():
                     "ast_type": "Name",
                     "id": "foo_var",
                     "node_id": 57,
-                    "type": {"name": "Foo", "typeclass": "struct"},
+                    "type": {
+                        "name": "Foo",
+                        "type_decl_node": {"node_id": 1, "source_id": 0},
+                        "typeclass": "struct",
+                    },
                 },
                 "value": None,
-                "type": {"name": "Foo", "typeclass": "struct"},
+                "type": {
+                    "name": "Foo",
+                    "type_decl_node": {"node_id": 1, "source_id": 0},
+                    "typeclass": "struct",
+                },
             },
             {
                 "annotation": {
@@ -663,7 +685,11 @@ def foo():
                     "node_id": 62,
                     "type": {
                         "length": 1,
-                        "value_type": {"name": "Foo", "typeclass": "struct"},
+                        "value_type": {
+                            "name": "Foo",
+                            "type_decl_node": {"node_id": 1, "source_id": 0},
+                            "typeclass": "struct",
+                        },
                         "name": "$SArray",
                         "typeclass": "static_array",
                     },
@@ -671,7 +697,11 @@ def foo():
                 "value": None,
                 "type": {
                     "length": 1,
-                    "value_type": {"name": "Foo", "typeclass": "struct"},
+                    "value_type": {
+                        "name": "Foo",
+                        "type_decl_node": {"node_id": 1, "source_id": 0},
+                        "typeclass": "struct",
+                    },
                     "name": "$SArray",
                     "typeclass": "static_array",
                 },
@@ -708,7 +738,11 @@ def foo():
                     "node_id": 70,
                     "type": {
                         "length": 5,
-                        "value_type": {"name": "Foo", "typeclass": "struct"},
+                        "value_type": {
+                            "name": "Foo",
+                            "type_decl_node": {"node_id": 1, "source_id": 0},
+                            "typeclass": "struct",
+                        },
                         "name": "DynArray",
                         "typeclass": "dynamic_array",
                     },
@@ -716,7 +750,11 @@ def foo():
                 "value": None,
                 "type": {
                     "length": 5,
-                    "value_type": {"name": "Foo", "typeclass": "struct"},
+                    "value_type": {
+                        "name": "Foo",
+                        "type_decl_node": {"node_id": 1, "source_id": 0},
+                        "typeclass": "struct",
+                    },
                     "name": "DynArray",
                     "typeclass": "dynamic_array",
                 },
@@ -774,7 +812,11 @@ def foo():
                     "node_id": 87,
                     "type": {
                         "key_type": {"name": "address"},
-                        "value_type": {"name": "Foo", "typeclass": "struct"},
+                        "value_type": {
+                            "name": "Foo",
+                            "type_decl_node": {"node_id": 1, "source_id": 0},
+                            "typeclass": "struct",
+                        },
                         "name": "HashMap",
                         "typeclass": "hashmap",
                     },
@@ -782,7 +824,11 @@ def foo():
                 "value": None,
                 "type": {
                     "key_type": {"name": "address"},
-                    "value_type": {"name": "Foo", "typeclass": "struct"},
+                    "value_type": {
+                        "name": "Foo",
+                        "type_decl_node": {"node_id": 1, "source_id": 0},
+                        "typeclass": "struct",
+                    },
                     "name": "HashMap",
                     "typeclass": "hashmap",
                 },
@@ -1020,7 +1066,11 @@ def foo():
                                 "node_id": 143,
                                 "type": {"name": "self"},
                             },
-                            "type": {"name": "Foo", "typeclass": "struct"},
+                            "type": {
+                                "name": "Foo",
+                                "type_decl_node": {"node_id": 1, "source_id": 0},
+                                "typeclass": "struct",
+                            },
                         },
                         "value": {
                             "args": [
@@ -1028,7 +1078,13 @@ def foo():
                                     "ast_type": "Name",
                                     "id": "Foo",
                                     "node_id": 149,
-                                    "type": {"type_t": {"name": "Foo", "typeclass": "struct"}},
+                                    "type": {
+                                        "type_t": {
+                                            "name": "Foo",
+                                            "type_decl_node": {"node_id": 1, "source_id": 0},
+                                            "typeclass": "struct",
+                                        }
+                                    },
                                 }
                             ],
                             "ast_type": "Call",
@@ -1040,7 +1096,11 @@ def foo():
                             },
                             "keywords": [],
                             "node_id": 146,
-                            "type": {"name": "Foo", "typeclass": "struct"},
+                            "type": {
+                                "name": "Foo",
+                                "type_decl_node": {"node_id": 1, "source_id": 0},
+                                "typeclass": "struct",
+                            },
                         },
                     },
                     {
@@ -1083,12 +1143,20 @@ def foo():
                                 },
                                 "type": {
                                     "length": 1,
-                                    "value_type": {"name": "Foo", "typeclass": "struct"},
+                                    "value_type": {
+                                        "name": "Foo",
+                                        "type_decl_node": {"node_id": 1, "source_id": 0},
+                                        "typeclass": "struct",
+                                    },
                                     "name": "$SArray",
                                     "typeclass": "static_array",
                                 },
                             },
-                            "type": {"name": "Foo", "typeclass": "struct"},
+                            "type": {
+                                "name": "Foo",
+                                "type_decl_node": {"node_id": 1, "source_id": 0},
+                                "typeclass": "struct",
+                            },
                         },
                         "value": {
                             "args": [
@@ -1096,7 +1164,13 @@ def foo():
                                     "ast_type": "Name",
                                     "id": "Foo",
                                     "node_id": 162,
-                                    "type": {"type_t": {"name": "Foo", "typeclass": "struct"}},
+                                    "type": {
+                                        "type_t": {
+                                            "name": "Foo",
+                                            "type_decl_node": {"node_id": 1, "source_id": 0},
+                                            "typeclass": "struct",
+                                        }
+                                    },
                                 }
                             ],
                             "ast_type": "Call",
@@ -1108,7 +1182,11 @@ def foo():
                             },
                             "keywords": [],
                             "node_id": 159,
-                            "type": {"name": "Foo", "typeclass": "struct"},
+                            "type": {
+                                "name": "Foo",
+                                "type_decl_node": {"node_id": 1, "source_id": 0},
+                                "typeclass": "struct",
+                            },
                         },
                     },
                     {
@@ -1151,12 +1229,20 @@ def foo():
                                 },
                                 "type": {
                                     "length": 5,
-                                    "value_type": {"name": "Foo", "typeclass": "struct"},
+                                    "value_type": {
+                                        "name": "Foo",
+                                        "type_decl_node": {"node_id": 1, "source_id": 0},
+                                        "typeclass": "struct",
+                                    },
                                     "name": "DynArray",
                                     "typeclass": "dynamic_array",
                                 },
                             },
-                            "type": {"name": "Foo", "typeclass": "struct"},
+                            "type": {
+                                "name": "Foo",
+                                "type_decl_node": {"node_id": 1, "source_id": 0},
+                                "typeclass": "struct",
+                            },
                         },
                         "value": {
                             "args": [
@@ -1164,7 +1250,13 @@ def foo():
                                     "ast_type": "Name",
                                     "id": "Foo",
                                     "node_id": 175,
-                                    "type": {"type_t": {"name": "Foo", "typeclass": "struct"}},
+                                    "type": {
+                                        "type_t": {
+                                            "name": "Foo",
+                                            "type_decl_node": {"node_id": 1, "source_id": 0},
+                                            "typeclass": "struct",
+                                        }
+                                    },
                                 }
                             ],
                             "ast_type": "Call",
@@ -1176,7 +1268,11 @@ def foo():
                             },
                             "keywords": [],
                             "node_id": 172,
-                            "type": {"name": "Foo", "typeclass": "struct"},
+                            "type": {
+                                "name": "Foo",
+                                "type_decl_node": {"node_id": 1, "source_id": 0},
+                                "typeclass": "struct",
+                            },
                         },
                     },
                     {
@@ -1197,7 +1293,11 @@ def foo():
                                     },
                                     "type": {
                                         "length": 1,
-                                        "value_type": {"name": "Foo", "typeclass": "struct"},
+                                        "value_type": {
+                                            "name": "Foo",
+                                            "type_decl_node": {"node_id": 1, "source_id": 0},
+                                            "typeclass": "struct",
+                                        },
                                         "name": "$SArray",
                                         "typeclass": "static_array",
                                     },
@@ -1221,7 +1321,11 @@ def foo():
                                         "length": 1,
                                         "name": "$SArray",
                                         "typeclass": "static_array",
-                                        "value_type": {"name": "Foo", "typeclass": "struct"},
+                                        "value_type": {
+                                            "name": "Foo",
+                                            "type_decl_node": {"node_id": 1, "source_id": 0},
+                                            "typeclass": "struct",
+                                        },
                                     },
                                     {
                                         "bits": 256,
@@ -1243,7 +1347,11 @@ def foo():
                                         "length": 1,
                                         "name": "$SArray",
                                         "typeclass": "static_array",
-                                        "value_type": {"name": "Foo", "typeclass": "struct"},
+                                        "value_type": {
+                                            "name": "Foo",
+                                            "type_decl_node": {"node_id": 1, "source_id": 0},
+                                            "typeclass": "struct",
+                                        },
                                     },
                                     {
                                         "bits": 256,
@@ -1273,6 +1381,10 @@ def foo():
                                                     "typeclass": "static_array",
                                                     "value_type": {
                                                         "name": "Foo",
+                                                        "type_decl_node": {
+                                                            "node_id": 1,
+                                                            "source_id": 0,
+                                                        },
                                                         "typeclass": "struct",
                                                     },
                                                 },
@@ -1314,7 +1426,11 @@ def foo():
                                             "length": 1,
                                             "name": "$SArray",
                                             "typeclass": "static_array",
-                                            "value_type": {"name": "Foo", "typeclass": "struct"},
+                                            "value_type": {
+                                                "name": "Foo",
+                                                "type_decl_node": {"node_id": 1, "source_id": 0},
+                                                "typeclass": "struct",
+                                            },
                                         },
                                         {
                                             "bits": 256,
