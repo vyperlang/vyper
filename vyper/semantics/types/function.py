@@ -672,13 +672,18 @@ class ContractFunctionT(VyperType):
             if not btyp.is_subtype_of(atyp):
                 return False
 
+            # Note: We could use weak subtyping here as well, but it offers little benefit:
+            # It would allow `foo(x: address)` to implement `foo(x: <some interface>)`,
+            # But instead the user could just use `x.address`
+
         if (return_t is None) != (other_return_t is None):
             return False
 
         # return type checking is covariant
         if return_t is not None:
             assert other_return_t is not None  # help mypy
-            if not return_t.is_subtype_of(other_return_t):
+
+            if not return_t.is_subtype_of(other_return_t, weak=True):
                 return False
 
         return self.mutability == other.mutability

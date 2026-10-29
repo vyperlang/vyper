@@ -67,11 +67,11 @@ class HashMapT(_SubscriptableT):
         return f"HashMap[{self.key_type}, {self.value_type}]"
 
     # TODO not sure this is used?
-    def compare_type(self, other):
+    def compare_type(self, other, weak: bool = False):
         if isinstance(other, BottomT):
             return True
         return (
-            super().compare_type(other)
+            super().compare_type(other, weak=weak)
             and self.key_type == other.key_type
             and self.value_type == other.value_type
         )
@@ -223,7 +223,7 @@ class SArrayT(_SequenceT):
             return SArrayT(resolved_value, self.length)
         return self
 
-    def compare_type(self, other):
+    def compare_type(self, other, weak: bool = False):
         if isinstance(other, BottomT):
             return True
 
@@ -231,7 +231,7 @@ class SArrayT(_SequenceT):
             return False
         if self.length != other.length:
             return False
-        return self.value_type.compare_type(other.value_type)
+        return self.value_type.compare_type(other.value_type, weak=weak)
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Subscript) -> "SArrayT":
@@ -362,7 +362,7 @@ class DArrayT(_SequenceT):
 
         return self.length >= other.length
 
-    def compare_type(self, other):
+    def compare_type(self, other, weak: bool = False):
         if isinstance(other, BottomT):
             return True
         # TODO allow static array to be assigned to dyn array?
@@ -370,7 +370,9 @@ class DArrayT(_SequenceT):
         if not isinstance(self, type(other)):
             return False
 
-        return self._compare_length(other) and self.value_type.compare_type(other.value_type)
+        return self._compare_length(other) and self.value_type.compare_type(
+            other.value_type, weak=weak
+        )
 
     @classmethod
     def from_annotation(cls, node: vy_ast.Subscript) -> "DArrayT":
@@ -490,11 +492,14 @@ class TupleT(VyperType):
         node = node.reduced()
         return self.member_types[node.value]
 
-    def compare_type(self, other):
+    def compare_type(self, other, weak: bool = False):
         if isinstance(other, BottomT):
             return True
         if not isinstance(self, type(other)):
             return False
         if self.length != other.length:
             return False
-        return all(a.compare_type(b) for (a, b) in zip(self.member_types, other.member_types))
+        return all(
+            a.compare_type(b, weak=weak)
+            for (a, b) in zip(self.member_types, other.member_types, strict=True)
+        )
