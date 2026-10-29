@@ -1035,7 +1035,7 @@ def foo(x: uint256 = len(empty(Bytes[INF]))) -> uint256:
     """
     with pytest.raises(StateAccessViolation) as e:
         compiler.compile_code(code)
-    assert e.value.message == "Value must be a literal or environment variable"
+    assert e.value.message == "Value must be immutable or constant"
 
 
 def test_legacy_codegen_allows_bounded_local_user_type():
