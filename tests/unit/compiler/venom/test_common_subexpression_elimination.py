@@ -709,3 +709,35 @@ def test_cse_abstract_memory():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_cse_abstract_memory_undefined():
+    pre = """
+    main:
+        %ptr_a = alloca 32
+        %ptr_b = alloca 32
+        %offset = source
+        %1 = add %ptr_a, %offset
+        %2 = mload %1
+        %3 = add %ptr_b, %offset
+        mstore %3, 0
+        %4 = add %ptr_a, %offset
+        %5 = mload %4
+        sink %2, %5
+    """
+
+    post = """
+    main:
+        %ptr_a = alloca 32
+        %ptr_b = alloca 32
+        %offset = source
+        %1 = add %ptr_a, %offset
+        %2 = mload %1
+        %3 = add %ptr_b, %offset
+        mstore %3, 0
+        %4 = %1
+        %5 = %2
+        sink %2, %5
+    """
+
+    _check_pre_post(pre, post)
