@@ -220,7 +220,7 @@ class Stmt:
             self._assign_unbounded_sequence_local(self.ctx.lookup(target.id), src, typ)
         elif is_unbounded_struct_member(target):
             assert isinstance(target, vy_ast.Attribute)
-            cell = Expr(target, self.ctx).struct_member_cell_ptr()
+            cell = Expr(target, self.ctx, as_ptr=True).struct_member_cell_ptr()
             self._assign_unbounded_sequence_cell(cell, src, typ, annotation=target.attr)
         else:
             assert is_unbounded_array_element(target)

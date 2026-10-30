@@ -1034,7 +1034,7 @@ class Expr:
 
         if is_unbounded_sequence_type(elem_typ):
             # an assignment target rebinds the cell (`array_element_cell_ptr`)
-            assert not self.as_ptr
+            assert not self.as_ptr, "semantic analysis rejects writes inside an unbounded element"
             assert isinstance(elem_ptr, IRVariable)
             # reading the cell as the value would hand back the payload
             # address. The payload is never mutated in place, so it stays
@@ -1317,6 +1317,7 @@ class Expr:
         """Return the pointer cell of an unbounded struct member (see
         `VenomCodegenContext.store_pointer_cell`).
         """
+        assert self.as_ptr, "construct the Expr as a target: Expr(node, ctx, as_ptr=True)"
         field_ptr, data_loc, field_typ, _ = self._struct_member_ptr()
         assert is_unbounded_sequence_type(field_typ)
         assert data_loc == DataLocation.MEMORY
@@ -2019,7 +2020,7 @@ class Expr:
                 )  # pragma: nocover
             cell = var.value.operand
         elif is_unbounded_struct_member(darray_node):
-            cell = Expr(darray_node, self.ctx).struct_member_cell_ptr()
+            cell = Expr(darray_node, self.ctx, as_ptr=True).struct_member_cell_ptr()
         else:
             raise CompilerPanic(
                 "semantic analysis should reject append() on this DynArray[..., INF]"
