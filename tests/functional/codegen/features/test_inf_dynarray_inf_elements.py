@@ -898,7 +898,8 @@ def _call(env, c, name, payload):
 
 
 def _bytes_array_calldata(count, offsets, tail):
-    # [offset to array][count][element offsets...][tail]
+    # [offset to array][count][element offsets...][tail]; element offsets
+    # count from the first element offset word
     head = (32).to_bytes(32, "big") + count.to_bytes(32, "big")
     head += b"".join(o.to_bytes(32, "big") for o in offsets)
     return head + tail
@@ -908,6 +909,11 @@ def test_aliased_heads_decode_each_element(get_contract, env):
     # the ABI allows every element offset to point at the same tail; each
     # element is decoded into its own memory, so n elements sharing one
     # m-word tail cost O(n*m) memory
+    #   word 0        0x20     offset to the array
+    #   word 1        16       element count
+    #   words 2..17   0x200    every element offset points at word 18
+    #   word 18       40       the one tail: byte length
+    #   words 19..20  "x" * 40, zero-padded
     c = get_contract(ADV_CODE)
     n = 16
     tail = (40).to_bytes(32, "big") + b"x" * 40 + b"\x00" * 24
@@ -918,6 +924,11 @@ def test_aliased_heads_decode_each_element(get_contract, env):
 
 
 def test_count_beyond_head_area_reverts(get_contract, env, tx_failed):
+    #   word 0       0x20    offset to the array
+    #   word 1       1000    element count: heads would run past the input
+    #   words 2..4   0x60    the three element offsets present, all at word 5
+    #   word 5       1       tail: byte length
+    #   word 6       "y", zero-padded
     c = get_contract(ADV_CODE)
     tail = (1).to_bytes(32, "big") + b"y" + b"\x00" * 31
     data = _bytes_array_calldata(3, [32 * 3] * 3, tail)
@@ -927,6 +938,11 @@ def test_count_beyond_head_area_reverts(get_contract, env, tx_failed):
 
 
 def test_truncated_tail_reverts(get_contract, env, tx_failed):
+    #   word 0       0x20    offset to the array
+    #   word 1       1       element count
+    #   word 2       0x20    element offset, points at word 3
+    #   word 3       100     tail: byte length
+    #   then         "z" * 10, the input ends 90 bytes short
     c = get_contract(ADV_CODE)
     tail = (100).to_bytes(32, "big") + b"z" * 10
     with tx_failed():
@@ -934,6 +950,11 @@ def test_truncated_tail_reverts(get_contract, env, tx_failed):
 
 
 def test_wrapped_offset_reverts(get_contract, env, tx_failed):
+    #   word 0       0x20         offset to the array
+    #   word 1       1            element count
+    #   word 2       2**256 - 32  element offset: wraps around to word 1
+    #   word 3       1            tail: byte length
+    #   word 4       "q", zero-padded
     c = get_contract(ADV_CODE)
     tail = (1).to_bytes(32, "big") + b"q" + b"\x00" * 31
     with tx_failed():
