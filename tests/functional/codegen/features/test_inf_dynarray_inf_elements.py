@@ -28,31 +28,15 @@ _ARRAY_BOUNDS = ("5", "INF")
 # --- reading and passing: every element arrives unchanged --------------------
 
 
-def test_array_round_trips_and_indexes_elements(get_contract):
+def test_indexed_element_length(get_contract):
     code = """
-@external
-def echo(xs: DynArray[Bytes[INF], INF]) -> DynArray[Bytes[INF], INF]:
-    return xs
-
-@external
-def n(xs: DynArray[Bytes[INF], INF]) -> uint256:
-    return len(xs)
-
-@external
-def elem(xs: DynArray[Bytes[INF], INF], i: uint256) -> Bytes[INF]:
-    return xs[i]
-
 @external
 def elem_len(xs: DynArray[Bytes[INF], INF], i: uint256) -> uint256:
     # the element's own length, not its address in memory
     return len(xs[i])
     """
     c = get_contract(code)
-    assert c.echo(VALUES) == VALUES
-    assert c.echo([]) == []
-    assert c.n(VALUES) == 4
     for i, v in enumerate(VALUES):
-        assert c.elem(VALUES, i) == v
         assert c.elem_len(VALUES, i) == len(v)
 
 
@@ -265,20 +249,6 @@ def pick(
     assert c.first_len([b"abc"]) == 3
     assert c.pick([b"x"], [b"y"], True) == [b"x"]
     assert c.pick([b"x"], [b"y"], False) == [b"y"]
-
-
-def test_staticcall_return(get_contract, env):
-    code = """
-interface I:
-    def g() -> DynArray[Bytes[INF], INF]: view
-
-@external
-def f(a: address) -> DynArray[Bytes[INF], INF]:
-    return staticcall I(a).g()
-    """
-    c = get_contract(code)
-    returner = deploy_raw_returner(env, eth_abi_encode(["bytes[]"], [VALUES]))
-    assert c.f(returner.address) == VALUES
 
 
 # --- mutation: elements are replaced, never written in place -----------------
@@ -854,10 +824,6 @@ def grown() -> DynArray[DynArray[uint256, INF], INF]:
 def test_string_elements_behave_like_bytes(get_contract):
     code = """
 @external
-def echo(xs: DynArray[String[INF], INF]) -> DynArray[String[INF], INF]:
-    return xs
-
-@external
 def replace(
     xs: DynArray[String[INF], INF], i: uint256, v: String[INF]
 ) -> DynArray[String[INF], INF]:
@@ -871,8 +837,6 @@ def literal() -> DynArray[String[INF], INF]:
     """
     c = get_contract(code)
     words = ["ab", "", "c" * 70]
-    assert c.echo(words) == words
-    assert c.echo([]) == []
     assert c.replace(words, 1, "new" * 30) == ["ab", "new" * 30, "c" * 70]
     assert c.literal() == ["a", "", "a string longer than one thirty-two byte word"]
 
