@@ -1287,6 +1287,17 @@ class Expr:
         field_index = attrs.index(attr)
         field_typ = base_typ.member_types[attr]
 
+        if self.as_ptr and is_unbounded_sequence_type(field_typ):
+            # a struct reached through a subscript is in an array element,
+            # which is written only whole (see
+            # `VenomCodegenContext.zero_pointer_cell_capacities`)
+            root = node.value
+            while isinstance(root, vy_ast.Attribute):
+                root = root.value
+            assert not isinstance(
+                root, vy_ast.Subscript
+            ), "semantic analysis rejects writes to an unbounded member through an array element"
+
         if data_loc == DataLocation.MEMORY:
             offset = struct_member_offsets(base_typ)[field_index][1]
         else:
