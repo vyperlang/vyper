@@ -372,6 +372,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
             addr_space = effects.to_addr_space(eff)
             assert addr_space is not None
             inst_loc = self.base_ptr.get_write_location(inst, addr_space)
+            if inst_loc.is_empty():
+                continue
             for expr in available_exprs.exprs:
                 if _get_effects(expr.opcode) == effects.EMPTY:
                     continue
