@@ -342,9 +342,9 @@ class DArrayT(_SequenceT):
         # be written out, it is not inferred
         if wild_value_type.has_wildcard and type_contains_unbounded_sequence(resolved_value_type):
             raise StructureException(
-                "Unbounded element types cannot be inferred from a wildcard",
+                "A wildcard element type does not accept unbounded elements",
                 node,
-                hint="write the unbounded element type out instead of a wildcard",
+                hint="declare the unbounded element type in the interface instead of a wildcard",
             )
 
     def resolve_wildcard(self):

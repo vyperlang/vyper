@@ -955,7 +955,7 @@ interface I:
 def f(a: address):
     extcall I(a).foo([])
         """,
-        "Unbounded element types cannot be inferred from a wildcard",
+        "A wildcard element type does not accept unbounded elements",
     ),
     "wildcard_static_array_argument": (
         """

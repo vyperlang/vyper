@@ -1151,7 +1151,7 @@ def f(a: address):
     """
     with pytest.raises(StructureException) as e:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
-    assert e.value.message == "Unbounded element types cannot be inferred from a wildcard"
+    assert e.value.message == "A wildcard element type does not accept unbounded elements"
 
 
 @pytest.mark.parametrize("arg_source", ["xs", "[]", "[1, 2]"])
