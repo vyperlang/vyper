@@ -346,7 +346,12 @@ class VenomCodegenContext:
     def dynamic_memory_value(
         self, ptr: IRVariable, typ: VyperType, annotation: Optional[str] = None
     ) -> VyperValue:
-        """Wrap a runtime-sized memory pointer as a located Vyper value."""
+        """Wrap a runtime-sized memory pointer as a located Vyper value.
+
+        The value is not owned (`VyperValue.owned`): other values may reference
+        the same memory, so a pointer cell copies it before taking it (see
+        `payload_for_cell`).
+        """
         buf = Buffer(_ptr=ptr, size=None, annotation=annotation)
         return VyperValue.from_ptr(buf.base_ptr(), typ)
 
