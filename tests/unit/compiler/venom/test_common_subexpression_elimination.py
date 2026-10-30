@@ -9,11 +9,11 @@ from vyper.venom.passes.common_subexpression_elimination import CSE
 pytestmark = pytest.mark.hevm
 
 
-def _check_pre_post(pre: str, post: str, hevm: bool = True):
+def _check_pre_post(pre: str, post: str, hevm: bool = True, gas_heuristic: int = 6):
     ctx = parse_from_basic_block(pre)
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
-        CSE(ac, fn).run_pass()
+        CSE(ac, fn).run_pass(gas_heuristic=gas_heuristic)
     assert_ctx_eq(ctx, parse_from_basic_block(post))
 
     if not hevm:
@@ -154,8 +154,8 @@ def test_cse_logs_no_indepontent():
     pre = """
     main:
         %1 = 10
-        log %1
-        log %1
+        log %1, 0
+        log %1, 0
         stop
     """
 
@@ -262,7 +262,7 @@ def test_cse_different_branches_can_optimize():
 
     def same_opt(i):
         return f"""
-        %d{i} = mload 0
+        %d{i} = %d0
         %a{i} = %a0
         %m{i} = mul {i}, %a{i}
         """
@@ -303,7 +303,7 @@ def test_cse_different_branches_can_optimize():
         sink %m0, %m3, %m
     """
 
-    _check_pre_post(pre, post)
+    _check_pre_post(pre, post, gas_heuristic=1)
 
 
 def test_cse_invoke_idempotent():
@@ -522,12 +522,26 @@ def test_cse_self_conflicting_effects():
     """
     pre1 = """
     main:
-        mcopy 10, 100, 10
-        mcopy 10, 100, 10
+        mcopy 10, 20, 11
+        mcopy 10, 20, 11
         stop
     """
 
     pre2 = """
+    main:
+        %load1 = mload 990
+        mstore 1000, %load1
+        %load2 = mload 990
+        mstore 1000, %load2
+        stop
+    """
+
+    _check_no_change(pre1)
+    _check_no_change(pre2)
+
+
+def test_cse_effect_conflict_does_not_alias():
+    pre = """
     main:
         %load1 = mload 0
         mstore 1000, %load1
@@ -536,8 +550,16 @@ def test_cse_self_conflicting_effects():
         stop
     """
 
-    _check_no_change(pre1)
-    _check_no_change(pre2)
+    post = """
+    main:
+        %load1 = mload 0
+        mstore 1000, %load1
+        %load2 = %load1
+        nop
+        stop
+    """
+
+    _check_pre_post(pre, post)
 
 
 def test_cse_allowed_deep_self_conflict():
@@ -663,3 +685,59 @@ def test_cse_bump_not_merged():
     """
 
     _check_no_change(pre, hevm=False)
+
+
+def test_cse_abstract_memory():
+    pre = """
+    main:
+        %ptr_a = alloca 32
+        %ptr_b = alloca 32
+        %1 = mload %ptr_a
+        mstore %ptr_b, 0
+        %2 = mload %ptr_a
+        sink %1, %2
+    """
+
+    post = """
+    main:
+        %ptr_a = alloca 32
+        %ptr_b = alloca 32
+        %1 = mload %ptr_a
+        mstore %ptr_b, 0
+        %2 = %1
+        sink %1, %2
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_cse_abstract_memory_undefined():
+    pre = """
+    main:
+        %ptr_a = alloca 32
+        %ptr_b = alloca 32
+        %offset = source
+        %1 = add %ptr_a, %offset
+        %2 = mload %1
+        %3 = add %ptr_b, %offset
+        mstore %3, 0
+        %4 = add %ptr_a, %offset
+        %5 = mload %4
+        sink %2, %5
+    """
+
+    post = """
+    main:
+        %ptr_a = alloca 32
+        %ptr_b = alloca 32
+        %offset = source
+        %1 = add %ptr_a, %offset
+        %2 = mload %1
+        %3 = add %ptr_b, %offset
+        mstore %3, 0
+        %4 = %1
+        %5 = %2
+        sink %2, %5
+    """
+
+    _check_pre_post(pre, post)

@@ -97,7 +97,7 @@ PASSES_Os: List[PassConfig] = [
     RemoveUnusedVariablesPass,
     PhiEliminationPass,
     AssignElimination,
-    CSE,
+    (CSE, {"gas_heuristic": 20}),
     AssignElimination,
     RemoveUnusedVariablesPass,
     # deletion-only (removes a dead fmp_param plus its self-contained

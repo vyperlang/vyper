@@ -7,9 +7,10 @@ from functools import cached_property, lru_cache
 import immutables
 
 import vyper.venom.effects as effects
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
+from vyper.venom.analysis import BasePtrAnalysis, CFGAnalysis, DFGAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
-from vyper.venom.analysis.cfg import CFGAnalysis
-from vyper.venom.analysis.dfg import DFGAnalysis
+from vyper.venom.analysis.mem_alias import MemoryAliasAnalysisAbstract, mem_alias_type_factory
 from vyper.venom.basicblock import (
     COMMUTATIVE_INSTRUCTIONS,
     IRBasicBlock,
@@ -40,6 +41,8 @@ _nonidempotent_insts.append("staticcall")
 # gas returns the remaining gas, which decreases as execution proceeds,
 # so two reads in the same call are not equivalent
 _nonidempotent_insts.append("gas")
+_nonidempotent_insts.append("alloca")
+_nonidempotent_insts.append("dalloca")
 
 NONIDEMPOTENT_INSTRUCTIONS = frozenset(_nonidempotent_insts)
 
@@ -71,7 +74,7 @@ def _get_effects(opcode):
 
 @dataclass
 class _Expression:
-    opcode: str
+    inst: IRInstruction
     # the child is either expression of operand since
     # there are possibilities for cycles
     operands: list[IROperand | _Expression]
@@ -109,6 +112,10 @@ class _Expression:
 
         return same_ops(self.operands, other.operands)
 
+    @property
+    def opcode(self):
+        return self.inst.opcode
+
     def __repr__(self) -> str:
         if self.opcode == "assign":
             assert len(self.operands) == 1, "wrong store"
@@ -124,9 +131,17 @@ class _Expression:
         for op in self.operands:
             if isinstance(op, _Expression):
                 d = op.depth
-                if d > max_depth:
-                    max_depth = d
+                max_depth = max(max_depth, d)
         return max_depth + 1
+
+    @cached_property
+    def get_gas(self) -> int:
+        op_gas = 0
+        for op in self.operands:
+            if isinstance(op, _Expression):
+                op_gas += op.get_gas
+
+        return op_gas + self.inst.gas_cost
 
     @property
     def is_commutative(self) -> bool:
@@ -192,6 +207,12 @@ class _AvailableExpressions:
                 del mt[expr]
             self.exprs = mt.finish()
 
+    def remove(self, to_remove: list[_Expression]):
+        with self.exprs.mutate() as mt:
+            for expr in to_remove:
+                del mt[expr]
+            self.exprs = mt.finish()
+
     def get_source_instruction(self, expr: _Expression) -> IRInstruction | None:
         """
         Get source instruction of expression if currently available
@@ -231,6 +252,9 @@ class _AvailableExpressions:
         return res
 
 
+mem_alias_eff = effects.MEMORY | effects.STORAGE | effects.TRANSIENT
+
+
 class AvailableExpressionAnalysis(IRAnalysis):
     """
     This analysis implements the standard available expression analysis,
@@ -241,6 +265,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
     inst_to_expr: dict[IRInstruction, _Expression]
     dfg: DFGAnalysis
     cfg: CFGAnalysis
+    base_ptr: BasePtrAnalysis
+    mem_alias: dict[Effects, MemoryAliasAnalysisAbstract]
     inst_to_available: dict[IRInstruction, _AvailableExpressions]
     bb_ins: dict[IRBasicBlock, _AvailableExpressions]
     bb_outs: dict[IRBasicBlock, _AvailableExpressions]
@@ -249,11 +275,29 @@ class AvailableExpressionAnalysis(IRAnalysis):
         super().__init__(analyses_cache, function)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
+        self.mem_alias = dict()
+        self.mem_alias[effects.MEMORY] = self.analyses_cache.request_analysis(
+            mem_alias_type_factory(addr_space=MEMORY)
+        )
+        self.mem_alias[effects.STORAGE] = self.analyses_cache.request_analysis(
+            mem_alias_type_factory(addr_space=STORAGE)
+        )
+        self.mem_alias[effects.TRANSIENT] = self.analyses_cache.request_analysis(
+            mem_alias_type_factory(addr_space=TRANSIENT)
+        )
 
         self.inst_to_expr = dict()
         self.inst_to_available = dict()
         self.bb_ins = dict()
         self.bb_outs = dict()
+
+    def invalidate(self):
+        self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
+        self.analyses_cache.invalidate_analysis(DFGAnalysis)
+
+        for addr in [MEMORY, STORAGE, TRANSIENT]:
+            self.analyses_cache.invalidate_analysis(mem_alias_type_factory(addr))
 
     def analyze(self):
         worklist = deque()
@@ -282,7 +326,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
                 # multi-output instructions cannot be mapped to an
                 # expression, but their write effects must still
                 # invalidate available expressions
-                available_exprs.remove_effect(_get_write_effects(inst.opcode))
+                self.remove_conflicts(inst, available_exprs)
                 continue
 
             if (
@@ -298,8 +342,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
             self._update_expr(inst, expr)
 
-            write_effects = _get_write_effects(expr.opcode)
-            available_exprs.remove_effect(write_effects)
+            self.remove_conflicts(inst, available_exprs)
 
             # nonidempotent instructions affect other instructions,
             # but since it cannot be substituted it should not be
@@ -307,8 +350,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
             if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
                 continue
 
-            expr_effects = _get_overlap_effects(expr.opcode)
-            if expr_effects == effects.EMPTY:
+            conflict = self.self_conflict(inst)
+            if not conflict:
                 available_exprs.add(expr, inst)
 
         if bb not in self.bb_outs or available_exprs != self.bb_outs[bb]:
@@ -318,6 +361,50 @@ class AvailableExpressionAnalysis(IRAnalysis):
             change |= True
 
         return change
+
+    def remove_conflicts(self, inst: IRInstruction, available_exprs: _AvailableExpressions):
+        write_eff = inst.get_write_effects()
+        if write_eff is effects.EMPTY:
+            return
+
+        to_remove = []
+        for eff in write_eff & mem_alias_eff:
+            addr_space = effects.to_addr_space(eff)
+            assert addr_space is not None
+            inst_loc = self.base_ptr.get_write_location(inst, addr_space)
+            if inst_loc.is_empty():
+                continue
+            for expr in available_exprs.exprs:
+                if _get_effects(expr.opcode) == effects.EMPTY:
+                    continue
+                expr_inst = available_exprs.exprs[expr][0]
+                expr_loc = self.base_ptr.get_read_location(expr_inst, addr_space)
+                if self.mem_alias[eff].may_alias(inst_loc, expr_loc):
+                    to_remove.append(expr)
+                    continue
+                expr_loc = self.base_ptr.get_write_location(expr_inst, addr_space)
+                if self.mem_alias[eff].may_alias(inst_loc, expr_loc):
+                    to_remove.append(expr)
+                    continue
+
+        available_exprs.remove(to_remove)
+
+        available_exprs.remove_effect(write_eff & (~mem_alias_eff))
+
+    def self_conflict(self, inst: IRInstruction) -> bool:
+        conflicting_eff = _get_overlap_effects(inst.opcode)
+        if (conflicting_eff & (~mem_alias_eff)) != effects.EMPTY:
+            return True
+
+        for eff in conflicting_eff & mem_alias_eff:
+            addr_space = effects.to_addr_space(eff)
+            assert addr_space is not None
+            write_loc = self.base_ptr.get_write_location(inst, addr_space)
+            read_loc = self.base_ptr.get_read_location(inst, addr_space)
+            if self.mem_alias[eff].may_alias(write_loc, read_loc):
+                return True
+
+        return False
 
     def _get_operand(
         self, op: IROperand, available_exprs: _AvailableExpressions
@@ -367,7 +454,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
         operands: list[IROperand | _Expression] = [
             self._get_operand(op, available_exprs) for op in inst.operands
         ]
-        expr = _Expression(inst.opcode, operands)
+        expr = _Expression(inst, operands)
 
         return expr
 
