@@ -593,10 +593,10 @@ including separately allocated member data. A struct with unbounded members
 can still have a fixed-size inline layout.
 
 ``Bytes[INF]`` and ``String[INF]`` can hold any runtime length. ``DynArray[T, INF]``
-can hold any runtime item count. ``T`` may be a bounded type, which may be
-ABI-dynamic, such as ``Bytes[512]``, ``DynArray[uint256, 3]`` or a struct with
-bytestring members; a struct with unbounded members (see below); or an unbounded
-sequence itself (see :ref:`unbounded_elements`):
+can hold any runtime item count. ``T`` can be any valid ``DynArray`` element
+type, including ABI-dynamic types such as ``Bytes[512]``, structs with unbounded
+members (see :ref:`unbounded_struct_members`) and unbounded sequences (see
+:ref:`unbounded_elements`):
 
 .. code-block:: vyper
 
@@ -633,8 +633,12 @@ variables containing unbounded types are also rejected.
 Unbounded Elements
 ******************
 
-A ``DynArray`` element may itself be an unbounded sequence, so a ``bytes[]``
-argument needs no per-element cap:
+The element type of a ``DynArray`` may itself be an unbounded sequence, nested to
+any depth, and the outer array may be bounded or unbounded. For example:
+
+* ``DynArray[Bytes[INF], INF]``, the ABI type ``bytes[]``
+* ``DynArray[String[INF], 5]``
+* ``DynArray[DynArray[uint256, INF], INF]``, the ABI type ``uint256[][]``
 
 .. code-block:: vyper
 
@@ -646,22 +650,6 @@ argument needs no per-element cap:
         for i: uint256 in range(len(calls), bound=max_value(uint256)):
             best = max(best, len(calls[i]))
         return best
-
-The element type may be ``Bytes[INF]``, ``String[INF]`` or ``DynArray[T, INF]``,
-nested to any depth, and the outer array may be bounded or unbounded:
-``DynArray[DynArray[uint256, INF], INF]`` and ``DynArray[Bytes[INF], 5]`` are both
-accepted.
-
-Decoding gives every element its own copy of its data, so it is sensitive to
-malformed input in a way the bounded case is not. The ABI lets every element
-offset point at the same data, so ``n`` elements that share one ``m``-word tail
-decode into ``n`` separate copies: memory proportional to ``n * m`` from input
-proportional to ``n + m``, with no compile-time ceiling on either factor. The
-sender pays for calldata, but a contract decoding the return data of a call it
-made, or ``abi_decode`` of bytes it did not produce, pays for that itself, and
-return data is decoded after the call, outside any gas limit placed on it. A
-contract that decodes such arrays from untrusted sources should bound its own
-exposure.
 
 Arrays of unbounded elements behave like other dynamic arrays, subject to the
 following restrictions.
@@ -682,9 +670,22 @@ store it back:
 
 Arrays of unbounded elements cannot be returned inside tuples.
 
-A wildcard element type is not inferred to be unbounded: an interface declaring
-``DynArray[Bytes[...], 5]`` cannot be called with a value whose elements are
-unbounded. Write the element type out instead.
+In an interface declaration, a wildcard element type accepts only bounded
+elements: a function declared with ``DynArray[Bytes[...], 5]`` cannot be called
+with a ``DynArray[Bytes[INF], 5]``, although a ``Bytes[...]`` parameter accepts
+``Bytes[INF]``. To pass unbounded elements, declare the parameter as
+``DynArray[Bytes[INF], 5]`` in the interface.
+
+Decoding gives every element its own copy of its data, so it is sensitive to
+malformed input in a way the bounded case is not. The ABI lets every element
+offset point at the same data, so ``n`` elements that share one ``m``-word tail
+decode into ``n`` separate copies: memory proportional to ``n * m`` from input
+proportional to ``n + m``, with no compile-time ceiling on either factor. The
+sender pays for calldata, but a contract decoding the return data of a call it
+made, or ``abi_decode`` of bytes it did not produce, pays for that itself, and
+return data is decoded after the call, outside any gas limit placed on it. A
+contract that decodes such arrays from untrusted sources should bound its own
+exposure.
 
 .. _unbounded_struct_members:
 
@@ -712,8 +713,7 @@ field cap:
         return acc
 
 In addition to bounded types, struct members may use ``Bytes[INF]``,
-``String[INF]``, or ``DynArray[T, INF]``, subject to the element-type restrictions
-above. Members may also be structs with unbounded members, or ``DynArray`` types
+``String[INF]``, or ``DynArray[T, INF]``. Members may also be structs with unbounded members, or ``DynArray`` types
 whose elements are such structs. Tuples containing unbounded sequences, such as
 ``(Bytes[INF], uint256)``, are not supported as struct members.
 
@@ -736,10 +736,6 @@ it back:
 
 Structs with unbounded members, and types containing such structs, are supported
 only in memory and cannot be returned inside tuples.
-
-A ``DynArray`` of such structs may itself be a ``DynArray`` element, bounded
-or unbounded, on the same terms as other unbounded elements (see
-:ref:`unbounded_elements`).
 
 .. note::
     ``INF`` sequence types require ``#pragma experimental-codegen`` or compiling

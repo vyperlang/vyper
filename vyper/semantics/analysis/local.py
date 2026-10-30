@@ -91,8 +91,6 @@ def _expr_has_unsupported_unbounded_arg(
     # walk literals alongside the expected type. a literal whose shape does
     # not match `typ` is rejected later, when it is visited
     if isinstance(node, vy_ast.Tuple) and isinstance(typ, TupleT):
-        if len(node.elements) != len(typ.member_types):
-            return False
         return any(
             _expr_has_unsupported_unbounded_arg(item, item_typ, inside_tuple=True)
             for item, item_typ in zip(node.elements, typ.member_types, strict=True)
