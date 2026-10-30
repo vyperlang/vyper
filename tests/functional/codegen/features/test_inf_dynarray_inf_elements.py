@@ -19,8 +19,8 @@ VALUES = [b"ab", b"", b"c" * 70, b"d" * 33]
 VALUES_SHORT = VALUES[:3]
 NESTED = [VALUES, [], [b"zz"]]
 
-# element bounds for tests that hold for a bounded element as for an
-# unbounded one
+# bounds for tests that hold for a bounded element or loop variable as for
+# an unbounded one
 _BYTES_BOUNDS = ("70", "INF")
 _ARRAY_BOUNDS = ("5", "INF")
 
@@ -28,32 +28,27 @@ _ARRAY_BOUNDS = ("5", "INF")
 # --- reading and passing: every element arrives unchanged --------------------
 
 
-def test_indexed_element_length(get_contract):
+def test_indexed_element_length_and_out_of_bounds_index(get_contract, tx_failed):
     code = """
 @external
 def elem_len(xs: DynArray[Bytes[INF], INF], i: uint256) -> uint256:
     # the element's own length, not its address in memory
     return len(xs[i])
-    """
-    c = get_contract(code)
-    for i, v in enumerate(VALUES):
-        assert c.elem_len(VALUES, i) == len(v)
 
-
-def test_index_out_of_bounds_reverts(get_contract, tx_failed):
-    code = """
 @external
 def elem(xs: DynArray[Bytes[INF], INF], i: uint256) -> Bytes[INF]:
     return xs[i]
     """
     c = get_contract(code)
+    for i, v in enumerate(VALUES):
+        assert c.elem_len(VALUES, i) == len(v)
     with tx_failed():
         c.elem(VALUES, 4)
     with tx_failed():
         c.elem([], 0)
 
 
-def test_nested_and_bounded_outer_arrays_round_trip(get_contract):
+def test_nested_and_bounded_outer_arrays_round_trip(get_contract, tx_failed):
     code = """
 @external
 def echo2(xs: DynArray[DynArray[Bytes[INF], INF], INF]) -> DynArray[DynArray[Bytes[INF], INF], INF]:
@@ -88,21 +83,12 @@ def deep(
     assert c.inner(NESTED, 0, 2) == b"c" * 70
     assert c.inner(NESTED, 2, 0) == b"zz"
     assert c.echo5(VALUES_SHORT) == VALUES_SHORT
+    with tx_failed():
+        c.echo5([b"a"] * 6)
     assert c.ints([[1, 2], [], [3]], 2, 0) == 3
     deep = [[[1, 2], []], [], [[3], [4, 5, 6]]]
     assert c.echo3(deep) == deep
     assert c.deep(deep, 2, 1, 2) == 6
-
-
-def test_bounded_outer_count_cap(get_contract, tx_failed):
-    code = """
-@external
-def echo5(xs: DynArray[Bytes[INF], 5]) -> DynArray[Bytes[INF], 5]:
-    return xs
-    """
-    c = get_contract(code)
-    with tx_failed():
-        c.echo5([b"a"] * 6)
 
 
 def test_elements_kept_through_calls_encoding_and_logs(get_contract, get_logs):
@@ -724,19 +710,20 @@ def after_growing(
     assert c.after_growing(xss) == xss
 
 
-def test_iterate_bounded_bytes_as_unbounded(get_contract):
-    code = """
+@pytest.mark.parametrize("bound", _BYTES_BOUNDS)
+def test_iterate_bounded_bytes_as_wider(get_contract, bound):
+    code = f"""
 @external
 def lengths(xs: DynArray[Bytes[10], 4]) -> DynArray[uint256, 4]:
     ns: DynArray[uint256, 4] = []
-    for x: Bytes[INF] in xs:
+    for x: Bytes[{bound}] in xs:
         ns.append(len(x))
     return ns
 
 @external
 def collect(xs: DynArray[Bytes[10], 4]) -> DynArray[Bytes[INF], INF]:
     ys: DynArray[Bytes[INF], INF] = []
-    for x: Bytes[INF] in xs:
+    for x: Bytes[{bound}] in xs:
         ys.append(x)
     return ys
 
@@ -744,14 +731,14 @@ def collect(xs: DynArray[Bytes[10], 4]) -> DynArray[Bytes[INF], INF]:
 def collect_local() -> DynArray[Bytes[INF], INF]:
     xs: DynArray[Bytes[10], 4] = [b"a", b"", b"0123456789"]
     ys: DynArray[Bytes[INF], INF] = []
-    for x: Bytes[INF] in xs:
+    for x: Bytes[{bound}] in xs:
         ys.append(concat(x, b"!"))
     return ys
 
 @external
 def collect_strings(xs: DynArray[String[10], 4]) -> DynArray[String[INF], INF]:
     ys: DynArray[String[INF], INF] = []
-    for x: String[INF] in xs:
+    for x: String[{bound}] in xs:
         ys.append(x)
     return ys
     """
@@ -764,8 +751,9 @@ def collect_strings(xs: DynArray[String[10], 4]) -> DynArray[String[INF], INF]:
     assert c.collect_strings(["ab", "", "0123456789"]) == ["ab", "", "0123456789"]
 
 
-def test_iterate_bounded_immutable_as_unbounded(get_contract):
-    code = """
+@pytest.mark.parametrize("bound", _BYTES_BOUNDS)
+def test_iterate_bounded_immutable_as_wider(get_contract, bound):
+    code = f"""
 XS: immutable(DynArray[Bytes[10], 4])
 
 @deploy
@@ -775,7 +763,7 @@ def __init__(xs: DynArray[Bytes[10], 4]):
 @external
 def collect() -> DynArray[Bytes[INF], INF]:
     ys: DynArray[Bytes[INF], INF] = []
-    for x: Bytes[INF] in self.XS:
+    for x: Bytes[{bound}] in self.XS:
         ys.append(x)
     return ys
     """
@@ -784,10 +772,11 @@ def collect() -> DynArray[Bytes[INF], INF]:
     assert c.collect() == xs
 
 
-def test_iterate_storage_rows_as_unbounded(get_contract):
+@pytest.mark.parametrize("bound", _ARRAY_BOUNDS)
+def test_iterate_storage_rows_as_wider(get_contract, bound):
     # rows shrunk by a later store keep their old words in storage; the loop
     # variable sees only the current elements
-    code = """
+    code = f"""
 rows: DynArray[DynArray[uint256, 3], 4]
 
 @external
@@ -797,7 +786,7 @@ def set_rows(xs: DynArray[DynArray[uint256, 3], 4]):
 @external
 def sums() -> DynArray[uint256, 4]:
     out: DynArray[uint256, 4] = []
-    for row: DynArray[uint256, INF] in self.rows:
+    for row: DynArray[uint256, {bound}] in self.rows:
         s: uint256 = 0
         for v: uint256 in row:
             s += v
@@ -805,10 +794,10 @@ def sums() -> DynArray[uint256, 4]:
     return out
 
 @external
-def grown() -> DynArray[DynArray[uint256, INF], INF]:
-    ys: DynArray[DynArray[uint256, INF], INF] = []
-    for row: DynArray[uint256, INF] in self.rows:
-        r: DynArray[uint256, INF] = row
+def grown() -> DynArray[DynArray[uint256, {bound}], INF]:
+    ys: DynArray[DynArray[uint256, {bound}], INF] = []
+    for row: DynArray[uint256, {bound}] in self.rows:
+        r: DynArray[uint256, {bound}] = row
         r.append(len(row))
         ys.append(r)
     return ys
@@ -994,10 +983,11 @@ def test_unsupported_uses_rejected(case):
     assert e.value.message == message
 
 
-def test_bounded_loop_variable_rejected():
-    code = """
+@pytest.mark.parametrize("bound", _BYTES_BOUNDS)
+def test_narrower_loop_variable_rejected(bound):
+    code = f"""
 @external
-def f(xs: DynArray[Bytes[INF], INF]):
+def f(xs: DynArray[Bytes[{bound}], INF]):
     for x: Bytes[10] in xs:
         pass
     """
