@@ -217,8 +217,8 @@ class SArrayT(_SequenceT):
     def has_wildcard(self):
         return self.value_type.has_wildcard
 
-    def resolve_wildcard(self):
-        resolved_value = self.value_type.resolve_wildcard()
+    def resolve_wildcard(self, length=INF):
+        resolved_value = self.value_type.resolve_wildcard(length)
         if resolved_value is not self.value_type:
             return SArrayT(resolved_value, self.length)
         return self
@@ -347,9 +347,9 @@ class DArrayT(_SequenceT):
                 hint="declare the unbounded element type in the interface instead of a wildcard",
             )
 
-    def resolve_wildcard(self):
-        resolved_value = self.value_type.resolve_wildcard()
-        resolved_length = INF if self.length is WILDCARD else self.length
+    def resolve_wildcard(self, length=INF):
+        resolved_value = self.value_type.resolve_wildcard(length)
+        resolved_length = length if self.length is WILDCARD else self.length
         self._validate_wildcard_element(self.value_type, resolved_value)
         self._assert_element_has_inline_size(resolved_value)
         if resolved_value is not self.value_type or resolved_length is not self.length:
@@ -477,8 +477,8 @@ class TupleT(VyperType):
     def has_wildcard(self):
         return any(m.has_wildcard for m in self.member_types)
 
-    def resolve_wildcard(self):
-        resolved = tuple(m.resolve_wildcard() for m in self.member_types)
+    def resolve_wildcard(self, length=INF):
+        resolved = tuple(m.resolve_wildcard(length) for m in self.member_types)
         if resolved != self.member_types:
             return TupleT(resolved)
         return self

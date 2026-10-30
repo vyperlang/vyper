@@ -717,6 +717,41 @@ def test_succeed() -> Bytes[3]:
     assert c.test_succeed() == b"123"
 
 
+@pytest.mark.parametrize(
+    ("wildcard_type", "typ", "arg", "expected"),
+    [
+        ("DynArray[Bytes[...], 5]", "DynArray[Bytes[10], 5]", "[]", []),
+        ("DynArray[String[...], ...]", "DynArray[String[10], 5]", "[]", []),
+        ("DynArray[DynArray[uint256, ...], 5]", "DynArray[DynArray[uint256, 3], 5]", "[]", []),
+        (
+            "DynArray[DynArray[Bytes[...], 5], 5]",
+            "DynArray[DynArray[Bytes[10], 5], 5]",
+            "[[]]",
+            [[]],
+        ),
+    ],
+)
+def test_wildcard_element_empty_list(get_contract, wildcard_type, typ, arg, expected):
+    target_code = f"""
+@external
+def echo(xs: {typ}) -> {typ}:
+    return xs
+    """
+
+    code = f"""
+interface Target:
+    def echo(xs: {wildcard_type}) -> {typ}: nonpayable
+
+@external
+def foo(target: Target) -> {typ}:
+    return extcall target.echo({arg})
+    """
+
+    target = get_contract(target_code)
+    c = get_contract(code)
+    assert c.foo(target.address) == expected
+
+
 def test_units_interface(env, get_contract, make_input_bundle):
     code = """
 import balanceof as BalanceOf

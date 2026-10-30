@@ -979,7 +979,9 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
         assert min_t.is_subtype_of(max_t)
 
         if isinstance(min_t, BottomT):
-            return max_t.resolve_wildcard()
+            # `Never` is the element type of `[]`, which has no elements, so
+            # the wildcards resolve to 0, the length `[]` itself resolves to
+            return max_t.resolve_wildcard(0)
 
         if isinstance(min_t, DArrayT):
             assert isinstance(max_t, DArrayT)
