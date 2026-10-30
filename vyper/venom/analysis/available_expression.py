@@ -373,6 +373,8 @@ class AvailableExpressionAnalysis(IRAnalysis):
             assert addr_space is not None
             inst_loc = self.base_ptr.get_write_location(inst, addr_space)
             for expr in available_exprs.exprs:
+                if _get_effects(expr.opcode) == effects.EMPTY:
+                    continue
                 expr_inst = available_exprs.exprs[expr][0]
                 expr_loc = self.base_ptr.get_read_location(expr_inst, addr_space)
                 if self.mem_alias[eff].may_alias(inst_loc, expr_loc):
