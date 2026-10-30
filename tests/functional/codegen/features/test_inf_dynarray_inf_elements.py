@@ -316,6 +316,18 @@ def store_self(xs: DynArray[Bytes[{bound}], INF]) -> DynArray[Bytes[{bound}], IN
     ys[0] = ys[2]
     ys[2] = b""
     return ys
+
+@external
+def store_same_index(
+    xs: DynArray[Bytes[{bound}], INF], i: uint256, j: uint256, return_copy: bool
+) -> DynArray[Bytes[{bound}], INF]:
+    ys: DynArray[Bytes[{bound}], INF] = xs
+    zs: DynArray[Bytes[{bound}], INF] = ys
+    ys[i] = ys[j]
+    ys[1] = b"new"
+    if return_copy:
+        return zs
+    return ys
     """
     c = get_contract(code)
     assert c.replace(VALUES_SHORT, 1, b"new" * 20) == [b"ab", b"new" * 20, b"c" * 70]
@@ -325,6 +337,9 @@ def store_self(xs: DynArray[Bytes[{bound}], INF]) -> DynArray[Bytes[{bound}], IN
     assert stored == b"x" * 35 + b"y" * 35
     moved = c.store_self(VALUES_SHORT)
     assert moved == [b"c" * 70, b"", b""]
+    # the indices are only known to be equal at runtime
+    assert c.store_same_index(VALUES_SHORT, 2, 2, False) == [b"ab", b"new", b"c" * 70]
+    assert c.store_same_index(VALUES_SHORT, 2, 2, True) == VALUES_SHORT
 
 
 @pytest.mark.parametrize("bound", _BYTES_BOUNDS)
@@ -364,6 +379,16 @@ def store_into_copy_of_element(
     t: S = out[0]
     t.xs[1] = b"new"
     return out[0].xs[1], t.xs[1]
+
+@external
+def store_member_element_into_itself(
+    xs: DynArray[Bytes[{bound}], INF], i: uint256
+) -> (Bytes[{bound}], Bytes[{bound}], Bytes[{bound}]):
+    s: S = S(n=1, xs=xs)
+    t: S = s
+    s.xs[i] = s.xs[i]
+    s.xs[0] = b"new"
+    return s.xs[i], s.xs[0], t.xs[0]
     """
     c = get_contract(code)
     into_copy = c.store_into_copy(VALUES_SHORT)
@@ -372,6 +397,8 @@ def store_into_copy_of_element(
     assert into_original == (b"new", b"ab", b"ab")
     into_element_copy = c.store_into_copy_of_element(VALUES_SHORT)
     assert into_element_copy == (b"", b"new")
+    into_itself = c.store_member_element_into_itself(VALUES_SHORT, 2)
+    assert into_itself == (b"c" * 70, b"new", b"ab")
 
 
 def test_append_and_pop_grow_and_shrink_the_array(get_contract, env):
@@ -497,10 +524,24 @@ def write_element_copy(
     ys: DynArray[uint256, {bound}] = xss[0]
     ys[0] = 5
     return xss[0], ys
+
+@external
+def store_element_into_itself(
+    v: DynArray[uint256, {bound}], return_copy: bool
+) -> DynArray[DynArray[uint256, {bound}], INF]:
+    xss: DynArray[DynArray[uint256, {bound}], INF] = [v, [4]]
+    zss: DynArray[DynArray[uint256, {bound}], INF] = xss
+    xss[0] = xss[0]
+    xss[1] = [5]
+    if return_copy:
+        return zss
+    return xss
     """
     c = get_contract(code)
     assert c.write_after_store([1, 2, 3]) == ([1, 2, 3], [99, 2, 3])
     assert c.write_element_copy([1, 2, 3]) == ([1, 2, 3], [5, 2, 3])
+    assert c.store_element_into_itself([1, 2, 3], False) == [[1, 2, 3], [5]]
+    assert c.store_element_into_itself([1, 2, 3], True) == [[1, 2, 3], [4]]
 
 
 def test_assign_call_and_builtin_results(get_contract, env):
