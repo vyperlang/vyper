@@ -126,15 +126,6 @@ class _Expression:
         return res
 
     @cached_property
-    def depth(self) -> int:
-        max_depth = 0
-        for op in self.operands:
-            if isinstance(op, _Expression):
-                d = op.depth
-                max_depth = max(max_depth, d)
-        return max_depth + 1
-
-    @cached_property
     def get_gas(self) -> int:
         op_gas = 0
         for op in self.operands:
