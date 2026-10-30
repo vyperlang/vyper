@@ -1994,8 +1994,7 @@ class Expr:
 
         # the element is read before the receiver's cell so that
         # `xs.append(xs[0])` reads the payload the append then replaces
-        arg_node = node.args[0]
-        arg_vv = Expr(arg_node, self.ctx).lower()
+        arg_vv = Expr(node.args[0], self.ctx).lower()
         arg_val = self.ctx.unwrap(arg_vv)
 
         elem_is_cell = is_unbounded_sequence_type(elem_typ)
