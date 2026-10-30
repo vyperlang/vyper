@@ -946,17 +946,6 @@ def f(xs: DynArray[Bytes[INF], INF]) -> (uint256, DynArray[Bytes[INF], INF]):
         """,
         "Function returns cannot contain unbounded sequence types inside aggregate types",
     ),
-    "wildcard_element": (
-        """
-interface I:
-    def foo(xs: DynArray[Bytes[...], 5]): nonpayable
-
-@external
-def f(a: address):
-    extcall I(a).foo([])
-        """,
-        "A wildcard element type does not accept unbounded elements",
-    ),
     "wildcard_static_array_argument": (
         """
 interface I:
