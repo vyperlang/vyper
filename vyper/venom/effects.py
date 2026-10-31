@@ -18,6 +18,10 @@ class Effects(Flag):
     # FMP reads from being merged/moved across FMP writes by effect-aware
     # passes (available-expression/CSE, DFT ordering).
     FMP = auto()
+    # remaining gas. `gas` reads and writes it, and calls, creates and
+    # invokes write it, so effect-aware passes (DFT ordering) keep `gas`
+    # reads in order with each other and with those instructions.
+    GAS = auto()
 
 
 def to_addr_space(eff: Effects) -> Optional[space.AddrSpace]:
@@ -41,6 +45,7 @@ LOG = Effects.LOG
 BALANCE = Effects.BALANCE
 EXTCODE = Effects.EXTCODE
 FMP = Effects.FMP
+GAS = Effects.GAS
 NON_MEMORY_EFFECTS = ~Effects.MEMORY
 NON_STORAGE_EFFECTS = ~Effects.STORAGE
 NON_TRANSIENT_EFFECTS = ~Effects.TRANSIENT
@@ -52,7 +57,7 @@ _writes = {
     "istore": IMMUTABLES | MEMORY,
     "call": ALL ^ IMMUTABLES,
     "delegatecall": ALL ^ IMMUTABLES,
-    "staticcall": MEMORY | RETURNDATA,
+    "staticcall": MEMORY | RETURNDATA | GAS,
     "create": ALL ^ (MEMORY | IMMUTABLES),
     "create2": ALL ^ (MEMORY | IMMUTABLES),
     "invoke": ALL,  # could be smarter, look up the effects of the invoked function
@@ -67,6 +72,7 @@ _writes = {
     "setfmp": FMP,
     "dalloca": FMP,
     "bump": FMP,
+    "gas": GAS,
 }
 
 _reads = {
@@ -96,6 +102,7 @@ _reads = {
     "getfmp": FMP,
     "dalloca": FMP,
     "bump": FMP,
+    "gas": GAS,
 }
 
 reads = _reads.copy()
