@@ -11,7 +11,7 @@ VenomCodegenContext tracks:
 from __future__ import annotations
 
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Callable, ClassVar, Optional, Sequence
 
@@ -41,6 +41,7 @@ from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT
 from vyper.semantics.types.user import StructT
+from vyper.semantics.types.utils import member_slot_size
 from vyper.utils import IDENTITY_PRECOMPILE, POINTER_CELL_SIZE
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
@@ -345,9 +346,22 @@ class VenomCodegenContext:
     def dynamic_memory_value(
         self, ptr: IRVariable, typ: VyperType, annotation: Optional[str] = None
     ) -> VyperValue:
-        """Wrap a runtime-sized memory pointer as a located Vyper value."""
+        """Wrap a runtime-sized memory pointer as a located Vyper value.
+
+        The value is not owned (`VyperValue.owned`): other values may reference
+        the same memory, so a pointer cell copies it before taking it (see
+        `payload_for_cell`).
+        """
         buf = Buffer(_ptr=ptr, size=None, annotation=annotation)
         return VyperValue.from_ptr(buf.base_ptr(), typ)
+
+    def owned_memory_value(
+        self, ptr: IRVariable, typ: VyperType, annotation: Optional[str] = None
+    ) -> VyperValue:
+        """Like `dynamic_memory_value`, for a scratch buffer the caller allocated
+        and fills itself, which nothing else references (`VyperValue.owned`).
+        """
+        return replace(self.dynamic_memory_value(ptr, typ, annotation=annotation), owned=True)
 
     def dynamic_tuple_frame_value(
         self, ptr: IRVariable, typ: TupleT, annotation: Optional[str] = None
@@ -632,9 +646,28 @@ class VenomCodegenContext:
         length = self.builder.mload(ptr)
         return self.unchecked_bytestring_runtime_size_from_length(length)
 
+    @staticmethod
+    def dynarray_elem_stride(typ: DArrayT) -> int:
+        """Return the bytes one element occupies inline in a DynArray's memory.
+
+        An unbounded element is a pointer cell (`member_slot_size`), so the
+        stride is a compile-time constant for every element type.
+        """
+        return member_slot_size(typ.value_type)
+
+    def array_elem_size_in(self, typ: SArrayT | DArrayT, location: DataLocation) -> int:
+        """Return the size one element occupies inline in an array in
+        `location`: slots in storage and transient storage, bytes elsewhere.
+        """
+        if is_unbounded_sequence_type(typ.value_type):
+            # only a DynArray in memory holds unbounded elements
+            assert isinstance(typ, DArrayT) and location == DataLocation.MEMORY
+            return self.dynarray_elem_stride(typ)
+        return typ.value_type.get_size_in(location)
+
     def dynarray_runtime_size_from_length(self, length: IROperand, typ: DArrayT) -> IROperand:
         """Return runtime memory size for a DynArray with `length` elements."""
-        elem_size = typ.value_type.memory_bytes_required
+        elem_size = self.dynarray_elem_stride(typ)
         data_size = self.checked_mul(length, IRLiteral(elem_size))
         return self.checked_add(IRLiteral(32), data_size)
 
@@ -642,7 +675,7 @@ class VenomCodegenContext:
         self, length: IROperand, typ: DArrayT
     ) -> IROperand:
         """Return 32 + len * elem_size when type caps already prove no overflow."""
-        elem_size = typ.value_type.memory_bytes_required
+        elem_size = self.dynarray_elem_stride(typ)
         data_size = self.builder.mul(length, IRLiteral(elem_size))
         return self.builder.add(IRLiteral(32), data_size)
 
@@ -710,7 +743,7 @@ class VenomCodegenContext:
             self.builder.codecopy(data_ptr, offset, length)
         else:
             self.builder.extcodecopy(address, data_ptr, offset, length)
-        return self.dynamic_memory_value(ptr, typ, annotation=annotation)
+        return self.owned_memory_value(ptr, typ, annotation=annotation)
 
     def materialize_returndata_bytes(self, typ: VyperType) -> VyperValue:
         """Copy the whole returndata into a runtime-sized bytestring memory value."""
@@ -721,7 +754,7 @@ class VenomCodegenContext:
         self.zero_bytestring_padding(ptr, length)
         data_ptr = self.builder.add(ptr, IRLiteral(32))
         self.builder.returndatacopy(data_ptr, IRLiteral(0), length)
-        return self.dynamic_memory_value(ptr, typ)
+        return self.owned_memory_value(ptr, typ)
 
     def materialize_bytes_from_location(
         self,
@@ -738,7 +771,41 @@ class VenomCodegenContext:
         self.zero_bytestring_padding(ptr, length)
         data_ptr = self.builder.add(ptr, IRLiteral(32))
         self.builder.copy_to_memory(data_ptr, offset, length, location)
-        return self.dynamic_memory_value(ptr, typ, annotation=annotation)
+        return self.owned_memory_value(ptr, typ, annotation=annotation)
+
+    def payload_for_cell(
+        self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
+    ) -> IRVariable:
+        """Return a payload for `vv` that a pointer cell may own.
+
+        An owned value (`VyperValue.owned`) of the cell's type is taken as is.
+        Anything else -- a variable, an element, a literal, a value of another
+        layout, a result which may be its argument (`convert`) -- is copied,
+        so that the cell never shares memory which may be written in place
+        later. Taking is sound because an owned value reaches at most one
+        such consumer: each expression is lowered once, and the assignment
+        consuming it does so once.
+        """
+        if vv.owned and vv.typ == typ:
+            assert isinstance(vv.operand, IRVariable)
+            return vv.operand
+        payload = self.copy_sequence_to_scratch(vv, typ, annotation=annotation)
+        assert isinstance(payload.operand, IRVariable)
+        return payload.operand
+
+    def bind_cell(
+        self, cell: IROperand, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
+    ) -> None:
+        """Point the pointer cell `cell` at a payload holding `vv` (see
+        `payload_for_cell`).
+
+        The capacity is 0 because the payload is sized for its current
+        length, with no spare room: the next append through the cell
+        reallocates, and a write through a struct member cell copies the
+        payload first (see `store_pointer_cell`).
+        """
+        payload = self.payload_for_cell(vv, typ, annotation=annotation)
+        self.store_pointer_cell(cell, payload, IRLiteral(0))
 
     def copy_sequence_to_scratch(
         self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
@@ -1189,7 +1256,7 @@ class VenomCodegenContext:
 
         dst_elem_t = dst_typ.value_type
         src_elem_t = src_typ.value_type
-        dst_elem_size = dst_elem_t.memory_bytes_required
+        dst_elem_size = self.dynarray_elem_stride(dst_typ)
         src_data = self._with_byte_offset(src, 32)
         dst_data = self._with_byte_offset(dst, 32)
 
@@ -1212,14 +1279,31 @@ class VenomCodegenContext:
     ) -> None:
         """Copy `length` array elements one at a time, converting layouts."""
         b = self.builder
-        dst_elem_size = dst_elem_t.memory_bytes_required
-        src_elem_size = src_elem_t.memory_bytes_required
+        dst_elem_size = member_slot_size(dst_elem_t)
+        src_elem_size = member_slot_size(src_elem_t)
 
         def copy_element(counter: IRVariable) -> None:
             src_ofst = b.mul(counter, IRLiteral(src_elem_size))
             dst_ofst = b.mul(counter, IRLiteral(dst_elem_size))
             src_elem_ptr = b.add(src_data, src_ofst)
             dst_elem_ptr = b.add(dst_data, dst_ofst)
+            if is_unbounded_sequence_type(dst_elem_t):
+                # the destination element is a pointer cell: copy the source
+                # element into an exact-sized payload of its own, whether it
+                # is a widened inline element or the payload behind a cell of
+                # a different element type
+                assert isinstance(src_elem_ptr, IRVariable)
+                if is_unbounded_sequence_type(src_elem_t):
+                    src_elem_ptr = b.mload(src_elem_ptr)
+                    assert isinstance(src_elem_ptr, IRVariable)
+                    src_vv = self.dynamic_memory_value(src_elem_ptr, src_elem_t)
+                else:
+                    src_vv = VyperValue.from_ptr(
+                        Buffer(_ptr=src_elem_ptr, size=src_elem_t.memory_bytes_required).base_ptr(),
+                        src_elem_t,
+                    )
+                self.bind_cell(dst_elem_ptr, src_vv, dst_elem_t, annotation="element")
+                return
             self._store_memory_typed(dst_elem_ptr, dst_elem_t, src_elem_ptr, src_elem_t)
 
         self.emit_counted_loop(length, copy_element, "typed_elem_copy")

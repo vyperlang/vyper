@@ -19,7 +19,12 @@ def _string_payload(n):
     return ["".join(chr(97 + (i + j) % 26) for j in range(i % 64)) for i in range(n)]
 
 
-_ELEMENT_CASES = [("Bytes[512]", _bytes_payload), ("String[64]", _string_payload)]
+_ELEMENT_CASES = [
+    ("Bytes[512]", _bytes_payload),
+    ("String[64]", _string_payload),
+    ("Bytes[INF]", _bytes_payload),
+    ("String[INF]", _string_payload),
+]
 
 
 @pytest.mark.parametrize("n", [0, 1, 3, 300])
@@ -96,25 +101,26 @@ def build(xs: DynArray[String[64], INF], extra: String[64]) -> DynArray[String[6
     assert c.build([], "x" * 64) == ["x" * 64, "", "x" * 64]
 
 
-def test_inf_bytes_array_extcall_return(get_contract):
-    target_code = """
+@pytest.mark.parametrize("elem_t", ["Bytes[512]", "Bytes[INF]"])
+def test_inf_bytes_array_extcall_return(get_contract, elem_t):
+    target_code = f"""
 @external
 @view
-def data() -> DynArray[Bytes[512], INF]:
+def data() -> DynArray[{elem_t}, INF]:
     return [b"a", b"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", b""]
     """
 
-    caller_code = """
+    caller_code = f"""
 interface Source:
-    def data() -> DynArray[Bytes[512], INF]: view
+    def data() -> DynArray[{elem_t}, INF]: view
 
 @external
-def get(addr: address) -> DynArray[Bytes[512], INF]:
+def get(addr: address) -> DynArray[{elem_t}, INF]:
     return staticcall Source(addr).data()
 
 @external
-def second(addr: address) -> Bytes[512]:
-    xs: DynArray[Bytes[512], INF] = staticcall Source(addr).data()
+def second(addr: address) -> {elem_t}:
+    xs: DynArray[{elem_t}, INF] = staticcall Source(addr).data()
     return xs[1]
     """
 

@@ -111,7 +111,10 @@ def test_runtime_sizable_predicates():
     assert is_runtime_sizable_type(DArrayT(batch, INF))
     assert is_runtime_sizable_type(holder)
     assert is_runtime_sizable_type(DArrayT(holder, 2))
-    assert not is_runtime_sizable_type(DArrayT(BytesT(INF), 3))
+    # unbounded elements, under a bounded or unbounded array, and nested
+    assert is_runtime_sizable_type(DArrayT(BytesT(INF), 3))
+    assert is_runtime_sizable_type(DArrayT(BytesT(INF), INF))
+    assert is_runtime_sizable_type(DArrayT(DArrayT(BytesT(INF), INF), INF))
     # a tuple frame exists only as a return value
     assert not is_runtime_sizable_type(TupleT((BytesT(INF), UINT256_T)))
     assert is_runtime_sizable_return_type(TupleT((BytesT(INF), UINT256_T)))
@@ -618,30 +621,6 @@ def test_inf_module_variable_locations_rejected(code):
     with pytest.raises(StructureException) as e:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
     assert e.value.message == "Module variables cannot use unbounded sequence types"
-
-
-@pytest.mark.parametrize(
-    ("typ", "message"),
-    [
-        (
-            "DynArray[Bytes[INF], INF]",
-            "DynArray element types cannot contain unbounded sequence types",
-        ),
-        (
-            "DynArray[DynArray[uint256, INF], INF]",
-            "DynArray element types cannot contain unbounded sequence types",
-        ),
-    ],
-)
-def test_inf_deferred_dynarray_shapes_rejected(typ, message):
-    code = f"""
-@external
-def foo(x: {typ}):
-    pass
-    """
-    with pytest.raises(StructureException) as e:
-        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
-    assert e.value.message == message
 
 
 @pytest.mark.parametrize(
@@ -1162,17 +1141,18 @@ def f(a: address) -> DynArray[Bytes[10], 5]:
 
 @pytest.mark.parametrize("element_type", ["Bytes[...]", "DynArray[uint256, ...]"])
 def test_wildcard_arg_rejects_resolved_unbounded_element(element_type):
+    unbounded_type = element_type.replace("...", "INF")
     code = f"""
 interface I:
     def foo(xs: DynArray[{element_type}, 5]): nonpayable
 
 @external
-def f(a: address):
-    extcall I(a).foo([])
+def f(a: address, xs: DynArray[{unbounded_type}, 5]):
+    extcall I(a).foo(xs)
     """
     with pytest.raises(StructureException) as e:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
-    assert e.value.message == "DynArray element types cannot contain unbounded sequence types"
+    assert e.value.message == "A wildcard element type does not accept unbounded elements"
 
 
 @pytest.mark.parametrize("arg_source", ["xs", "[]", "[1, 2]"])
@@ -1188,6 +1168,38 @@ def f(a: address):
     extcall I(a).foo({arg_source})
     """
     compiler.compile_code(code)
+
+
+@pytest.mark.parametrize(
+    ("param_type", "arg", "expected"),
+    [
+        ("DynArray[uint256, ...]", "[]", DArrayT(UINT256_T, 0)),
+        ("DynArray[Bytes[...], 5]", "[]", DArrayT(BytesT(0), 0)),
+        ("DynArray[String[...], ...]", "[]", DArrayT(StringT(0), 0)),
+        ("DynArray[DynArray[uint256, ...], ...]", "[]", DArrayT(DArrayT(UINT256_T, 0), 0)),
+        ("DynArray[DynArray[Bytes[...], 5], 5]", "[[]]", DArrayT(DArrayT(BytesT(0), 0), 1)),
+        ("DynArray[Bytes[...], 5][1]", "[[]]", SArrayT(DArrayT(BytesT(0), 0), 1)),
+        (
+            "(DynArray[Bytes[...], 5], uint256)",
+            "([], 1)",
+            TupleT((DArrayT(BytesT(0), 0), UINT256_T)),
+        ),
+    ],
+)
+def test_wildcard_arg_empty_list(param_type, arg, expected):
+    # an empty list has no elements, so a wildcard resolves to 0 inside it
+    # as well as for its length
+    code = f"""
+interface I:
+    def foo(xs: {param_type}): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).foo({arg})
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.get("func.attr") == "foo"]
+    assert call.args[0]._metadata["type"] == expected
 
 
 def test_wildcard_arg_subscripted_list_literal():

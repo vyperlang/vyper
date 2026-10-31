@@ -77,7 +77,6 @@ from vyper.semantics.types.infinity import (
     WILDCARD,
     Inf,
     LengthUpperBound,
-    is_pointer_cell_struct_type,
     is_runtime_sizable_return_type,
     is_runtime_sizable_type,
     is_unbounded_sequence_type,
@@ -86,17 +85,29 @@ from vyper.semantics.types.infinity import (
 from vyper.semantics.types.utils import type_from_annotation
 
 
-def _expr_has_unsupported_unbounded_arg(node: vy_ast.VyperNode, typ: VyperType) -> bool:
+def _expr_has_unsupported_unbounded_arg(
+    node: vy_ast.VyperNode, typ: VyperType, inside_tuple: bool = False, wildcard_elem: bool = False
+) -> bool:
     # walk literals alongside the expected type. a literal whose shape does
     # not match `typ` is rejected later, when it is visited
     if isinstance(node, vy_ast.Tuple) and isinstance(typ, TupleT):
+        # a nested tuple literal's arity has not been checked yet
+        if len(node.elements) != len(typ.member_types):
+            return False
         return any(
-            _expr_has_unsupported_unbounded_arg(item, item_typ)
-            for item, item_typ in zip(node.elements, typ.member_types)
+            _expr_has_unsupported_unbounded_arg(item, item_typ, inside_tuple=True)
+            for item, item_typ in zip(node.elements, typ.member_types, strict=True)
         )
     if isinstance(node, vy_ast.List) and isinstance(typ, (SArrayT, DArrayT)):
+        # a wildcard element type is not inferred to be unbounded (see
+        # `DArrayT._validate_wildcard_element`); `_interpolate` repeats that
+        # check for DynArrays only, so static array literals rely on this one
+        elem_wild = typ.value_type.has_wildcard
         return any(
-            _expr_has_unsupported_unbounded_arg(item, typ.value_type) for item in node.elements
+            _expr_has_unsupported_unbounded_arg(
+                item, typ.value_type, inside_tuple=inside_tuple, wildcard_elem=elem_wild
+            )
+            for item in node.elements
         )
 
     try:
@@ -109,12 +120,12 @@ def _expr_has_unsupported_unbounded_arg(node: vy_ast.VyperNode, typ: VyperType) 
         # type, the same way `ExprVisitor.visit_Call` does for arguments
         actual_typ = actual_typ.resolve_wildcard()
 
-    # the only INF-bearing element type a DynArray can declare is a
-    # pointer-cell struct (see `DArrayT._validate_unbounded_shape`)
     if not type_contains_unbounded_sequence(actual_typ):
         return False
 
-    return not is_pointer_cell_struct_type(actual_typ)
+    # a tuple argument has no memory layout for an INF member, whatever the
+    # member; elsewhere the value just has to be representable
+    return inside_tuple or wildcard_elem or not is_runtime_sizable_type(actual_typ)
 
 
 def _modifies_unbounded_member_through_subscript(target: vy_ast.ExprNode) -> bool:
@@ -135,6 +146,40 @@ def _modifies_unbounded_member_through_subscript(target: vy_ast.ExprNode) -> boo
                 get_expr_info(node).typ
             ):
                 return _reaches_through_subscript(node.value)
+        node = node.value
+
+    return False
+
+
+def _is_unbounded_element_subscript(node: vy_ast.VyperNode) -> bool:
+    """Return True if `node` is `xs[i]` where `xs` is a DynArray of unbounded sequences."""
+    if not isinstance(node, vy_ast.Subscript):
+        return False
+    base_t = get_expr_info(node.value).typ
+    return isinstance(base_t, DArrayT) and is_unbounded_sequence_type(base_t.value_type)
+
+
+def _modifies_unbounded_element_in_place(target: vy_ast.ExprNode) -> bool:
+    """Return True if the lvalue `target` writes inside an element of a DynArray
+    whose elements are unbounded sequences (`xs[i][j] = v`), as opposed to
+    replacing the element (`xs[i] = v`).
+
+    The element is a pointer cell. Replacing it rebinds the cell to a fresh
+    payload, so the payloads themselves are never written and arrays of
+    unbounded elements can be copied flat and share them; a write inside an
+    element would be visible through every such copy.
+    """
+    if not isinstance(target, (vy_ast.Attribute, vy_ast.Subscript)):
+        return False
+    return _reaches_unbounded_element(target.value)
+
+
+def _reaches_unbounded_element(node: vy_ast.VyperNode) -> bool:
+    """Return True if `node` is an element of a DynArray of unbounded sequences,
+    or anything inside one."""
+    while isinstance(node, (vy_ast.Attribute, vy_ast.Subscript)):
+        if _is_unbounded_element_subscript(node):
+            return True
         node = node.value
 
     return False
@@ -649,6 +694,13 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
                 hint="copy the element to a local, modify it, then store it back",
             )
 
+        if _modifies_unbounded_element_in_place(target):
+            raise StructureException(
+                "Cannot modify an unbounded element in place",
+                target,
+                hint="copy the element to a local, modify the local and assign it back",
+            )
+
         var_access = _get_variable_access(target)
         assert var_access is not None
 
@@ -930,14 +982,17 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
         assert min_t.is_subtype_of(max_t)
 
         if isinstance(min_t, BottomT):
-            return max_t.resolve_wildcard()
+            # `Never` is the element type of `[]`, which has no elements, so
+            # the wildcards resolve to 0, the length `[]` itself resolves to
+            return max_t.resolve_wildcard(0)
 
         if isinstance(min_t, DArrayT):
             assert isinstance(max_t, DArrayT)
             new_vt = self._interpolate(min_t.value_type, max_t.value_type, pos=pos)
 
             new_l = interpolate_length(min_t.length, max_t.length)
-            DArrayT._validate_unbounded_shape(new_vt, new_l, node=pos)
+            DArrayT._validate_wildcard_element(max_t.value_type, new_vt, node=pos)
+            DArrayT._assert_element_has_inline_size(new_vt)
             return DArrayT(new_vt, new_l)
 
         if isinstance(min_t, SArrayT):
@@ -1238,9 +1293,14 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
             if func_type.is_modifying and self.function_analyzer is not None:
                 # TODO refactor this
                 assert isinstance(node.func, vy_ast.Attribute)  # help mypy
+                if _reaches_unbounded_element(node.func.value):
+                    raise StructureException(
+                        "Cannot modify an unbounded element in place",
+                        node.func.value,
+                        hint="copy the element to a local, modify the local and assign it back",
+                    )
                 self.function_analyzer._handle_modification(node.func.value)
-            assert len(node.args) == len(func_type.arg_types)
-            for arg, arg_type in zip(node.args, func_type.arg_types):
+            for arg, arg_type in zip(node.args, func_type.arg_types, strict=True):
                 self.visit(arg, arg_type)
         else:
             # builtin functions and interfaces

@@ -79,9 +79,9 @@ class _BytestringT(VyperType):
     def has_wildcard(self):
         return self.length is WILDCARD
 
-    def resolve_wildcard(self):
+    def resolve_wildcard(self, length=INF):
         if self.length is WILDCARD:
-            return type(self)(INF)
+            return type(self)(length)
         return self
 
     def compare_type(self, other):

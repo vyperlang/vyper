@@ -246,22 +246,22 @@ def foo():
 
 
 @pytest.mark.parametrize(
-    "code,msg",
+    "typ",
     [
-        (
-            "a: DynArray[DynArray[uint256, INF], 5]",
-            "DynArray element types cannot contain unbounded sequence types",
-        ),
-        (
-            "a: DynArray[Bytes[INF], 5]",
-            "DynArray element types cannot contain unbounded sequence types",
-        ),
+        "DynArray[DynArray[uint256, INF], 5]",
+        "DynArray[Bytes[INF], 5]",
+        "DynArray[Bytes[INF], INF]",
+        "DynArray[DynArray[uint256, INF], INF]",
+        "DynArray[DynArray[Bytes[INF], INF], INF]",
     ],
 )
-def test_dynarray_inf_nested(code, msg):
-    with pytest.raises(StructureException) as e:
-        compile_code(code)
-    assert e.value.message == msg
+def test_dynarray_inf_elements(compile_inf_code, typ):
+    code = f"""
+@external
+def foo(a: {typ}):
+    pass
+    """
+    compile_inf_code(code)
 
 
 def test_dynarray_inf_append(compile_inf_code):

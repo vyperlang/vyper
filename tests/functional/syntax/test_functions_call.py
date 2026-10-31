@@ -1,7 +1,12 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import StructureException, UndeclaredDefinition, UnknownAttribute
+from vyper.exceptions import (
+    StructureException,
+    TypeMismatch,
+    UndeclaredDefinition,
+    UnknownAttribute,
+)
 
 fail_list = [
     (
@@ -35,6 +40,18 @@ def burn(_value: uint256):
     self.test(msg.sender._value)
     """,
         UnknownAttribute,
+    ),
+    (
+        """
+@internal
+def g(x: (bool, (bool, bool))) -> bool:
+    return x[0]
+
+@external
+def f() -> bool:
+    return self.g((True, (True, False, True)))
+    """,
+        TypeMismatch,
     ),
 ]
 
