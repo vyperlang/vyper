@@ -7,6 +7,18 @@ from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
+# how an instruction can abort execution: with empty revert data, with an
+# exceptional halt, or (`invoke`) in any way its callee can. when two
+# instructions can abort differently, their order decides the outcome, so
+# DFT keeps them in program order. instructions that abort the same way may
+# still be reordered.
+_ABORT_KIND = {
+    "assert": "revert",
+    "assert_unreachable": "halt",
+    "returndatacopy": "halt",
+    "invoke": "any",
+}
+
 
 class DFTPass(IRPass):
     function: IRFunction
@@ -146,8 +158,19 @@ class DFTPass(IRPass):
         #
         last_write_effects: dict[effects.Effects, IRInstruction] = {}
         all_read_effects: dict[effects.Effects, list[IRInstruction]] = defaultdict(list)
+        # consecutive aborting instructions of the same kind form a run; each
+        # one is ordered after the whole previous run.
+        prev_run: list[IRInstruction] = []
+        run: list[IRInstruction] = []
 
         for inst in non_phis:
+            kind = _ABORT_KIND.get(inst.opcode)
+            if kind is not None:
+                if len(run) == 0 or kind == "any" or kind != _ABORT_KIND[run[0].opcode]:
+                    prev_run, run = run, []
+                self.eda[inst].addmany(prev_run)
+                run.append(inst)
+
             if inst.is_bb_terminator:
                 for var in self.order:
                     dep = self.dfg.get_producing_instruction(var)

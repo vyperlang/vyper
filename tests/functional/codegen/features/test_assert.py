@@ -269,3 +269,31 @@ def foo(a: uint256) -> uint256:
     assert c.foo(11) == 11
     with tx_failed(exc_text=reason):
         c.foo(10)
+
+
+def test_assert_reason_from_internal_call_wins(get_contract, tx_failed):
+    # the callee's assert fails first, so its reason must be the revert data,
+    # even though the caller's overflow check on `x + 1` would also fail.
+    code = """
+counter: uint256
+
+@internal
+def bar(y: uint256):
+    self.counter += y
+    assert y > 7, "bar failed"
+    self.counter += y * 3
+
+@external
+def foo(x: uint256, y: uint256) -> uint256:
+    self.bar(y)
+    return x + 1
+
+@external
+def baz(y: uint256):
+    # a second call site keeps `bar` from being inlined
+    self.bar(y)
+    self.bar(y)
+    """
+    c = get_contract(code)
+    with tx_failed(exc_text="bar failed"):
+        c.foo(2**256 - 1, 0)

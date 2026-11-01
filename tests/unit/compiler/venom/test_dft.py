@@ -40,3 +40,22 @@ def test_dft_does_not_reorder_fmp_register_ops():
         sink %a, %b
     """
     _check_no_change(pre)
+
+
+def test_dft_does_not_hoist_assert_above_invoke():
+    """
+    An `assert` must not move above an earlier `invoke`: if both fail,
+    the callee's revert (with its revert data) must win.
+    """
+    pre = """
+    main:
+        %x = calldataload 0
+        %y = add %x, 1
+        %c = gt %x, %y
+        %ok = iszero %c
+        invoke @f
+        assert %ok
+        mstore 0, %y
+        return 0, 32
+    """
+    _check_no_change(pre)
