@@ -6,6 +6,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import IDENTITY_PRECOMPILE
 from vyper.venom.analysis import (
     BasePtrAnalysis,
+    CFGAnalysis,
     DFGAnalysis,
     DominatorTreeAnalysis,
     DynamicMemoryAnalysis,
@@ -16,6 +17,7 @@ from vyper.venom.analysis import (
     MemLivenessAnalysis,
     MemoryAliasAnalysis,
     MemSSA,
+    ReachableAnalysis,
     ReadonlyMemoryArgsGlobalAnalysis,
     VarDefinition,
     VariableRangeAnalysis,
@@ -174,6 +176,9 @@ class FmpLoweringPass(IRPass):
 
     required_predecessors: ClassVar[tuple[PassRef, ...]] = ("MakeSSA",)
     required_successors: ClassVar[tuple[PassRef, ...]] = ("MakeSSA",)
+    # the entry function's FMP roots read the per-block static memory ends
+    # that ConcretizeMemLocPass records for the blocks it saw
+    required_immediate_predecessors: ClassVar[tuple[PassRef, ...]] = ("ConcretizeMemLocPass",)
 
     # per-run reclaim engine context, (re)computed in run_pass
     fmp_var: IRVariable
@@ -218,6 +223,7 @@ class FmpLoweringPass(IRPass):
         # `retfmp` (the desugared publishing terminator) is the publish fact
         publishes = info.publishes
 
+        self._invoke_callee_infos = {}
         # the FMP root output is used directly as the runner; the rewrite
         # multiply-assigns it (restores, setfmp, adopted-FMP invoke outputs,
         # bump outputs), which the required MakeSSA successor repairs
@@ -226,7 +232,6 @@ class FmpLoweringPass(IRPass):
         self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
         self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
-        self._invoke_callee_infos = {}
         self._pinned_allocations = self._compute_escaping_allocations(self.base_ptrs)
         capture_facts = self._compute_capture_facts(fn)
         self._capture_derived, self._pinned_captures, self._var_roots = capture_facts
@@ -263,8 +268,8 @@ class FmpLoweringPass(IRPass):
     def _materialize_fmp_root(self, fn: IRFunction) -> tuple[IRVariable, bool]:
         """
         Materialize the function's FMP root and return `(root_var,
-        has_fmp_param)`. The entry function's root is an explicit
-        `initial_fmp` instruction (lowered to the deferred assembler CONST);
+        has_fmp_param)`. The entry function's roots are explicit
+        `initial_fmp` instructions (see `_insert_initial_fmp_roots`);
         every other FMP-needing function receives a hidden `fmp_param`,
         physically placed after the user params and before the return-PC
         param. The return-PC param, when discoverable, is normalized to its
@@ -274,8 +279,7 @@ class FmpLoweringPass(IRPass):
         fmp_var = fn.get_next_variable()
 
         if fn is fn.ctx.entry_function:
-            inst = IRInstruction("initial_fmp", [], [fmp_var])
-            fn.entry.insert_instruction(inst, index=_after_params_index(fn))
+            self._insert_initial_fmp_roots(fn, fmp_var)
             return fmp_var, False
 
         layout = FunctionCallLayout(fn)
@@ -298,6 +302,65 @@ class FmpLoweringPass(IRPass):
         param_inst = IRInstruction("fmp_param", [], [fmp_var])
         fn.entry.insert_instruction(param_inst, index=layout.hidden_fmp_param_insert_index)
         return fmp_var, True
+
+    def _insert_initial_fmp_roots(self, fn: IRFunction, fmp_var: IRVariable) -> None:
+        """
+        Seed the entry function's FMP with `initial_fmp <bound>` roots, each
+        placed where the FMP is first needed and bounded only by the static
+        memory that can be accessed after it. In the runtime entry this
+        gives each external function its own initial FMP, so calling a small
+        one does not pay memory expansion for an unrelated large frame.
+
+        No FMP instruction has run on entry to a block that no FMP
+        instruction reaches, so the FMP may start fresh there. Roots go in
+        such blocks that use the FMP or branch to a block an FMP instruction
+        reaches; MakeSSA joins them. A root's bound is the largest static
+        memory end (`MemoryAllocator.bb_eom`) of the blocks reachable from
+        its block, which covers every static allocation accessed while its
+        dynamic allocations can be live.
+        """
+        cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        reachable = self.analyses_cache.request_analysis(ReachableAnalysis).reachable
+        bb_eom = fn.ctx.mem_allocator.bb_eom
+
+        fmp_bbs = {
+            bb
+            for bb in cfg.dfs_pre_walk
+            if any(self._touches_fmp(inst) for inst in bb.instructions)
+        }
+        after_fmp: set[IRBasicBlock] = set()
+        for bb in fmp_bbs:
+            after_fmp.update(reachable[bb])
+
+        root_bbs = []
+        for bb in cfg.dfs_pre_walk:
+            if bb in after_fmp:
+                continue
+            enters_fmp_region = any(succ in after_fmp for succ in cfg.cfg_out(bb))
+            if bb in fmp_bbs or enters_fmp_region:
+                root_bbs.append(bb)
+
+        if len(root_bbs) == 0:
+            # the entry block is itself on a cycle through an FMP
+            # instruction, or only unreachable code touches the FMP
+            root_bbs = [fn.entry]
+
+        for bb in root_bbs:
+            bound = max(bb_eom.get(other, 0) for other in (bb, *reachable[bb]))
+            inst = IRInstruction("initial_fmp", [IRLiteral(bound)], [fmp_var])
+            if bb is fn.entry:
+                index = _after_params_index(fn)
+            else:
+                index = len(list(bb.phi_instructions))
+            bb.insert_instruction(inst, index=index)
+
+    def _touches_fmp(self, inst: IRInstruction) -> bool:
+        if inst.opcode in ("dalloca", "getfmp", "setfmp"):
+            return True
+        if inst.opcode == "invoke":
+            callee_info = self._invoke_callee_info(inst)
+            return callee_info is not None and callee_info.needs_fmp
+        return False
 
     def _compute_entry_states(self, fn: IRFunction) -> dict[IRBasicBlock, _ReclaimState]:
         """

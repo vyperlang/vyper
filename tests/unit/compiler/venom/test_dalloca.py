@@ -1314,7 +1314,7 @@ def test_fmp_param_retpc_param_round_trip():
 
 def test_entry_function_seeds_initial_fmp_no_prelude(env):
     # the entry function's FMP root is an explicit `initial_fmp` instruction
-    # (lowered to the deferred __initial_fmp__ CONST); the assembler entry
+    # (lowered to a deferred initial-FMP CONST); the assembler entry
     # prelude special case is gone, so the assembly starts with the CONST
     # declaration followed directly by the entry label.
     src = """
@@ -1340,7 +1340,7 @@ def test_entry_function_seeds_initial_fmp_no_prelude(env):
 
     asm = VenomCompiler(ctx).generate_evm_assembly(no_optimize=True)
     assert isinstance(asm[0], CONST)
-    assert asm[0].name == "__initial_fmp__"
+    assert asm[0].name == "__initial_fmp_0__"
     # no prelude PUSH between the CONST declaration and the entry label
     assert isinstance(asm[1], Label)
 

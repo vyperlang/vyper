@@ -187,7 +187,7 @@ class SetfmpArityError(OpcodeArityError):
 
 
 class InitialFmpArityError(OpcodeArityError):
-    message: str = "initial_fmp must have exactly 0 operands and 1 output"
+    message: str = "initial_fmp must have exactly 1 literal operand and 1 output"
 
 
 # fixed-arity opcodes: opcode -> (expected operand count, expected output
@@ -197,7 +197,7 @@ _FIXED_ARITY: dict[str, tuple[int, int, type[OpcodeArityError]]] = {
     "dalloca": (1, 1, DallocaArityError),
     "getfmp": (0, 1, GetfmpArityError),
     "setfmp": (1, 0, SetfmpArityError),
-    "initial_fmp": (0, 1, InitialFmpArityError),
+    "initial_fmp": (1, 1, InitialFmpArityError),
 }
 
 
@@ -686,7 +686,11 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
                     # checked before the generic multi-output rule so a
                     # malformed initial_fmp reports its arity error rather
                     # than MultiOutputNotAllowed
-                    _check_fixed_arity(caller, inst, errors)
+                    if all(isinstance(op, IRLiteral) for op in inst.operands):
+                        _check_fixed_arity(caller, inst, errors)
+                    else:
+                        # the static memory bound is an assembler immediate
+                        errors.append(InitialFmpArityError(caller, inst))
                     continue
 
                 # Disallow multi-output except on invoke and bump. dalloca
