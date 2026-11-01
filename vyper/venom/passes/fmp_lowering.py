@@ -23,6 +23,7 @@ from vyper.venom.analysis import (
     VariableRangeAnalysis,
 )
 from vyper.venom.analysis.base_ptr_analysis import escaping_operands
+from vyper.venom.analysis.dynamic_memory import RAW_FMP_TOUCH_OPS
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.call_layout import FunctionCallLayout, InvokeLayout, has_dret, parse_dret_shape
 from vyper.venom.function import FmpSignature, IRFunction
@@ -148,7 +149,7 @@ class FmpLoweringPass(IRPass):
     Lower `dalloca` and the FMP virtual-register opcodes into explicit
     FMP-threaded IR. This pass is the *single owner* of the hidden-FMP
     calling convention: it alone materializes the hidden FMP param
-    (`fmp_param`), seeds the entry function's FMP root (`initial_fmp`),
+    (`fmp_param`), seeds the entry function's FMP roots (`initial_fmp`),
     and writes the hidden invoke operand (assert-and-set, never ensure).
 
     Producer-facing dynamic allocation has one output:
@@ -331,6 +332,12 @@ class FmpLoweringPass(IRPass):
         after_fmp: set[IRBasicBlock] = set()
         for bb in fmp_bbs:
             after_fmp.update(reachable[bb])
+        if fn.entry in after_fmp:
+            # a root on the entry block would rerun on every iteration and
+            # reset the FMP below the previous iterations' allocations
+            raise CompilerPanic(
+                f"entry block of {fn.name} is on a cycle through an FMP instruction"
+            )
 
         root_bbs = []
         for bb in cfg.dfs_pre_walk:
@@ -341,12 +348,11 @@ class FmpLoweringPass(IRPass):
                 root_bbs.append(bb)
 
         if len(root_bbs) == 0:
-            # the entry block is itself on a cycle through an FMP
-            # instruction, or only unreachable code touches the FMP
+            # only unreachable code touches the FMP
             root_bbs = [fn.entry]
 
         for bb in root_bbs:
-            bound = max(bb_eom.get(other, 0) for other in (bb, *reachable[bb]))
+            bound = max(bb_eom[other] for other in (bb, *reachable[bb]))
             inst = IRInstruction("initial_fmp", [IRLiteral(bound)], [fmp_var])
             if bb is fn.entry:
                 index = _after_params_index(fn)
@@ -355,7 +361,7 @@ class FmpLoweringPass(IRPass):
             bb.insert_instruction(inst, index=index)
 
     def _touches_fmp(self, inst: IRInstruction) -> bool:
-        if inst.opcode in ("dalloca", "getfmp", "setfmp"):
+        if inst.opcode in RAW_FMP_TOUCH_OPS:
             return True
         if inst.opcode == "invoke":
             callee_info = self._invoke_callee_info(inst)

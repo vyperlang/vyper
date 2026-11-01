@@ -1358,7 +1358,7 @@ def _initial_fmp_bounds(fn) -> dict[str, list[int]]:
     }
 
 
-def test_entry_fmp_root_per_region(env):
+def test_entry_fmp_root_per_branch(env):
     # each branch gets its own FMP root, bounded by the static memory that
     # branch can access rather than by the whole function's static frame
     src = """
@@ -1427,7 +1427,7 @@ function main {
 """
 
 
-def test_entry_fmp_roots_join_where_regions_meet(env):
+def test_entry_fmp_roots_meet_in_phi(env):
     # `a` does not use the FMP but branches to `join`, which also follows
     # `b`'s allocation: `a` and `b` each seed a root and the two meet in a
     # phi at `join`
@@ -1450,11 +1450,10 @@ def test_entry_fmp_roots_join_where_regions_meet(env):
         assert _word(out) == 11
 
 
-@pytest.mark.parametrize(
-    "src",
-    [
-        # only unreachable code allocates
-        """
+def test_entry_fmp_root_when_only_unreachable_code_allocates():
+    # no reachable block needs the FMP; the entry block still gets the root
+    # so the unreachable allocation lowers against a defined FMP
+    ctx = parse_venom("""
         function main {
             main:
                 stop
@@ -1464,9 +1463,19 @@ def test_entry_fmp_roots_join_where_regions_meet(env):
                 mstore %d, 1
                 stop
         }
-        """,
-        # the entry block is on a cycle through the allocation
-        """
+        """)
+    fn = ctx.entry_function
+    _apply_dalloca_lowering(fn)
+    assert _initial_fmp_bounds(fn) == {"main": [0], "dead": []}
+    dead_bump = find_inst(fn, "bump")
+    root = find_inst(fn, "initial_fmp")
+    assert root.output in dead_bump.operands
+
+
+def test_entry_block_on_fmp_cycle_rejected():
+    # every block follows the allocation, so no root placement keeps the
+    # previous iteration's allocation live: fail loudly
+    ctx = parse_venom("""
         function main {
             main:
                 %p = dalloca 32
@@ -1476,18 +1485,12 @@ def test_entry_fmp_roots_join_where_regions_meet(env):
             exit:
                 stop
         }
-        """,
-    ],
-)
-def test_entry_fmp_root_falls_back_to_entry_block(src):
-    # no reachable block is free of earlier FMP instructions while needing
-    # the FMP, so the whole function is seeded from the entry block
-    ctx = parse_venom(src)
+        """)
     fn = ctx.entry_function
-    _apply_dalloca_lowering(fn)
-    bounds = _initial_fmp_bounds(fn)
-    assert bounds.pop("main") == [0]
-    assert all(len(block_bounds) == 0 for block_bounds in bounds.values())
+    ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+    run_ssa(fn)
+    with pytest.raises(CompilerPanic, match="on a cycle through an FMP instruction"):
+        FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
 
 def test_fmp_prune_seals_signature_and_callers_see_final_shape(env):

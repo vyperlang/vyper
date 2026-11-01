@@ -357,11 +357,12 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
   - Pushes an initial free-memory-pointer value: the literal `bound` (the end of the static
     memory accessed after this point) rounded up to a word, or, once anything spills, the
     first address above every static frame and stack-spill slot. These are the FMP roots
-    of the entry function; `FmpLoweringPass` places one where each region first needs the
-    FMP. Internal functions receive their FMP root via `fmp_param` instead. The concrete
-    value is only known once spill analysis completes, so it assembles to a `PUSH` of an
-    assembler-level `CONST` resolved at assembly time. Pure: repeated `initial_fmp`
-    instructions with the same bound may CSE together.
+    of the entry function; `FmpLoweringPass` places them where the FMP is first needed (in
+    the runtime, one per external function that uses it). Internal functions receive their
+    FMP root via `fmp_param` instead. The concrete value is only known once spill analysis
+    completes, so it assembles to a `PUSH` of an assembler-level `CONST` resolved at
+    assembly time. Pure: repeated `initial_fmp` instructions with the same bound may CSE
+    together.
 - `store`
   - ```
     %out = op
