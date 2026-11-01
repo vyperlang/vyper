@@ -874,11 +874,10 @@ def _check_assign_list(left, right):
         if left.typ.count < right.typ.count:  # pragma: nocover
             FAIL()
 
-        # stricter check for zeroing
-        if right.is_empty_intrinsic and right.typ.count != left.typ.count:  # pragma: nocover
-            raise TypeCheckFailure(
-                f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}"
-            )
+        # an empty source only writes a zero length word, so its capacity
+        # and element type do not have to match the destination
+        if right.is_empty_intrinsic:
+            return
 
         # TODO recurse into left, right if literals?
         check_assign(

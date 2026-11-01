@@ -405,6 +405,81 @@ def do_it(addr: address, b: bool) -> uint256:
     assert caller.do_it(target.address, False) == 1
 
 
+# a literal passed to a wildcard parameter is typed from its own elements,
+# so an empty list inside it can have a smaller capacity or a different
+# element type than the slot it is copied into
+wildcard_list_arg_cases = [
+    (
+        "DynArray[DynArray[uint256, 3], 3]",
+        "DynArray[DynArray[uint256, ...], 3]",
+        "[[]] if t else [[1]]",
+        [[]],
+        [[1]],
+    ),
+    (
+        "DynArray[DynArray[uint256, 3], 3]",
+        "DynArray[DynArray[uint256, ...], 3]",
+        "[[], [1]] if t else [[2, 3], [4]]",
+        [[], [1]],
+        [[2, 3], [4]],
+    ),
+    (
+        "DynArray[DynArray[uint256, 3], 3]",
+        "DynArray[DynArray[uint256, ...], 3]",
+        "[empty(DynArray[uint256, 2])] if t else [[1, 2, 3]]",
+        [[]],
+        [[1, 2, 3]],
+    ),
+    (
+        "DynArray[DynArray[DynArray[uint256, 2], 2], 2]",
+        "DynArray[DynArray[DynArray[uint256, ...], ...], ...]",
+        "[[[]]] if t else [[[1], [2, 3]]]",
+        [[[]]],
+        [[[1], [2, 3]]],
+    ),
+    (
+        "DynArray[uint256, 2][2]",
+        "DynArray[uint256, ...][2]",
+        "[[], [1]] if t else [[1, 2], [3]]",
+        [[], [1]],
+        [[1, 2], [3]],
+    ),
+    ("DynArray[Bytes[100], 3]", "DynArray[Bytes[100], ...]", '[b"x"] if t else []', [b"x"], []),
+    (
+        "(DynArray[DynArray[uint256, 3], 3], uint256)",
+        "(DynArray[DynArray[uint256, ...], 3], uint256)",
+        "([[]] if t else [[1]], 7)",
+        ([[]], 7),
+        ([[1]], 7),
+    ),
+]
+
+
+@pytest.mark.parametrize("typ,wildcard_typ,arg,body_value,orelse_value", wildcard_list_arg_cases)
+@pytest.mark.parametrize("test", [True, False])
+def test_ternary_wildcard_list_arg(
+    get_contract, typ, wildcard_typ, arg, body_value, orelse_value, test
+):
+    target_code = f"""
+@external
+def echo(xs: {typ}) -> {typ}:
+    return xs
+    """
+
+    caller_code = f"""
+interface Target:
+    def echo(xs: {wildcard_typ}) -> {typ}: nonpayable
+
+@external
+def foo(target: address, t: bool) -> {typ}:
+    return extcall Target(target).echo({arg})
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.foo(target.address, test) == (body_value if test else orelse_value)
+
+
 @pytest.mark.parametrize("test", [True, False])
 def test_ternary_as_event_argument(get_contract, get_logs, test):
     code = """
