@@ -1349,6 +1349,147 @@ def test_entry_function_seeds_initial_fmp_no_prelude(env):
     assert _word(out) == 7
 
 
+def _initial_fmp_bounds(fn) -> dict[str, list[int]]:
+    return {
+        bb.label.value: [
+            inst.operands[0].value for inst in bb.instructions if inst.opcode == "initial_fmp"
+        ]
+        for bb in fn.get_basic_blocks()
+    }
+
+
+def test_entry_fmp_root_per_region(env):
+    # each branch gets its own FMP root, bounded by the static memory that
+    # branch can access rather than by the whole function's static frame
+    src = """
+    function main {
+        main:
+            %c = calldataload 0
+            jnz %c, @big, @small
+
+        small:
+            %s = alloca 64
+            mstore %s, 5
+            %p = dalloca 32
+            %v = mload %s
+            mstore %p, %v
+            %w = mload %p
+            mstore %s, %w
+            return %s, 32
+
+        big:
+            %b = alloca 4096
+            calldatacopy %b, 0, 4096
+            %q = dalloca 32
+            %x = mload %b
+            mstore %q, %x
+            %y = mload %q
+            mstore %b, %y
+            return %b, 32
+    }
+    """
+    ctx = parse_venom(src)
+    _apply_lowering(ctx.entry_function)
+    assert _initial_fmp_bounds(ctx.entry_function) == {"main": [], "small": [64], "big": [4096]}
+
+    asm = VenomCompiler(ctx).generate_evm_assembly()
+    consts = {item.name: item.value for item in asm if isinstance(item, CONST)}
+    assert consts == {"__initial_fmp_64__": 64, "__initial_fmp_4096__": 4096}
+
+    bytecode, _ = assembly_to_evm(asm)
+    assert _word(_execute(env, bytecode, (0).to_bytes(32, "big"))) == 5
+    assert _word(_execute(env, bytecode, (1).to_bytes(32, "big"))) == 1
+
+
+_JOINED_REGIONS_SRC = """
+function main {
+    main:
+        %c = calldataload 0
+        jnz %c, @a, @b
+
+    a:
+        %s = alloca 256
+        calldatacopy %s, 0, 256
+        %h = mload %s
+        mstore %s, %h
+        jmp @join
+
+    b:
+        %p = dalloca 64
+        mstore %p, 9
+        jmp @join
+
+    join:
+        %q = dalloca 32
+        mstore %q, 11
+        return %q, 32
+}
+"""
+
+
+def test_entry_fmp_roots_join_where_regions_meet(env):
+    # `a` does not use the FMP but branches to `join`, which also follows
+    # `b`'s allocation: `a` and `b` each seed a root and the two meet in a
+    # phi at `join`
+    ctx = parse_venom(_JOINED_REGIONS_SRC)
+    fn = ctx.entry_function
+    _apply_dalloca_lowering(fn)
+    assert _initial_fmp_bounds(fn) == {"main": [], "a": [256], "b": [0], "join": []}
+
+    a_root = find_inst(fn, "initial_fmp")
+    assert a_root.parent.label == IRLabel("a")
+    join = fn.get_basic_block("join")
+    phi = join.instructions[0]
+    assert phi.opcode == "phi"
+    assert dict(phi.phi_operands)[IRLabel("a")] == a_root.output
+    join_bump = next(inst for inst in join.instructions if inst.opcode == "bump")
+    assert phi.output in join_bump.operands
+
+    for selector in (0, 1):
+        out = _run_program(env, _JOINED_REGIONS_SRC, selector.to_bytes(32, "big"))
+        assert _word(out) == 11
+
+
+@pytest.mark.parametrize(
+    "src",
+    [
+        # only unreachable code allocates
+        """
+        function main {
+            main:
+                stop
+
+            dead:
+                %d = dalloca 32
+                mstore %d, 1
+                stop
+        }
+        """,
+        # the entry block is on a cycle through the allocation
+        """
+        function main {
+            main:
+                %p = dalloca 32
+                %c = mload %p
+                jnz %c, @main, @exit
+
+            exit:
+                stop
+        }
+        """,
+    ],
+)
+def test_entry_fmp_root_falls_back_to_entry_block(src):
+    # no reachable block is free of earlier FMP instructions while needing
+    # the FMP, so the whole function is seeded from the entry block
+    ctx = parse_venom(src)
+    fn = ctx.entry_function
+    _apply_dalloca_lowering(fn)
+    bounds = _initial_fmp_bounds(fn)
+    assert bounds.pop("main") == [0]
+    assert all(len(block_bounds) == 0 for block_bounds in bounds.values())
+
+
 def test_fmp_prune_seals_signature_and_callers_see_final_shape(env):
     # callee's dalloca dies in the optimization tail; FmpPrunePass deletes
     # the fmp_param chain and seals the signature BEFORE main is lowered, so
