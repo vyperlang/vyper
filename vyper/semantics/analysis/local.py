@@ -914,7 +914,10 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
         self, min_t: VyperType, max_t: VyperType, *, pos: Optional[vy_ast.VyperNode] = None
     ) -> VyperType:
         """
-        Find the smallest type between `min_t` and `max_t` such that it contains no wildcards
+        Find the smallest type between `min_t` and `max_t` such that it contains no wildcards,
+        keeping the parts of `max_t` which contain none. Like an expected type without
+        wildcards (see `_annotation_type`), these are used as is, e.g. the elements of a list
+        literal are typed with them.
 
         `pos` is only used for location information in error messages (if present)
         """
@@ -928,6 +931,9 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
                 return INF
 
         assert min_t.is_subtype_of(max_t)
+
+        if not max_t.has_wildcard:
+            return max_t
 
         if isinstance(min_t, BottomT):
             return max_t.resolve_wildcard()

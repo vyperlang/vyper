@@ -1202,6 +1202,41 @@ def f(a: address, xs: DynArray[uint256, 5]):
     compiler.compile_code(code)
 
 
+@pytest.mark.parametrize(
+    "param_type,literal,list_type,element_types",
+    [
+        # the element type fixed by the parameter is kept
+        (
+            "DynArray[DynArray[uint256, 9], ...]",
+            "[[1], [2, 3]]",
+            DArrayT(DArrayT(UINT256_T, 9), 2),
+            [DArrayT(UINT256_T, 9), DArrayT(UINT256_T, 9)],
+        ),
+        # the `...` lengths are the literal's, the innermost type is kept
+        (
+            "DynArray[DynArray[DynArray[uint256, 3], ...], ...]",
+            "[[[1]], [[2], [3, 4]]]",
+            DArrayT(DArrayT(DArrayT(UINT256_T, 3), 2), 2),
+            [DArrayT(DArrayT(UINT256_T, 3), 1), DArrayT(DArrayT(UINT256_T, 3), 2)],
+        ),
+    ],
+)
+def test_wildcard_arg_nested_list_literal_types(param_type, literal, list_type, element_types):
+    code = f"""
+interface I:
+    def foo(xs: {param_type}): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).foo({literal})
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.func.get("attr") == "foo"]
+    (list_node,) = call.args
+    assert list_node._metadata["type"] == list_type
+    assert [e._metadata["type"] for e in list_node.elements] == element_types
+
+
 def test_wildcard_arg_ternary_sarray_element():
     # Note: this should pass once we use expected type typing
     code = """
