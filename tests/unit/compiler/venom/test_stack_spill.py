@@ -3,6 +3,7 @@ import pytest
 from vyper.compiler import compile_code
 from vyper.compiler.phases import generate_bytecode
 from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
+from vyper.evm.assembler.instructions import CONST
 from vyper.ir.compile_ir import Label
 from vyper.utils import method_id
 from vyper.venom import generate_assembly_experimental, run_passes_on
@@ -152,6 +153,43 @@ def foo({params}) -> uint256:
     calldata = method_id(signature) + b"".join(value.to_bytes(32, "big") for value in values)
     result = env.message_call(contract.address, data=calldata)
     assert int.from_bytes(result, "big") == sum(values)
+
+
+def test_initial_fmp_above_spill_region() -> None:
+    # once anything spills, dynamic memory must start above every spill slot,
+    # even when the static memory bound of its FMP root is lower
+    params = ", ".join(f"a{i}: uint256" for i in range(16))
+    args = ", ".join(f"a{i}" for i in range(16))
+    total = " + ".join(f"a{i}" for i in range(16))
+    source = f"""
+@internal
+def sum_words({params}) -> uint256:
+    return {total}
+
+@external
+def foo(data: Bytes[INF], {params}) -> (uint256, Bytes[INF]):
+    s: uint256 = self.sum_words({args})
+    return s, data
+    """
+    settings = Settings(experimental_codegen=True, optimize=OptimizationLevel.O1)
+    lowered = compile_code(source, output_formats=["ir_runtime"], settings=settings)["ir_runtime"]
+    ctx = parse_venom(str(lowered))
+    (root,) = [
+        inst
+        for bb in ctx.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "initial_fmp"
+    ]
+    bound = root.operands[0].value
+
+    compiler = VenomCompiler(ctx)
+    asm = compiler.generate_evm_assembly()
+    peak_spill_end = compiler.spiller.peak_spill_end
+    assert peak_spill_end > bound
+
+    (const,) = [item for item in asm if isinstance(item, CONST)]
+    assert const.name == f"__initial_fmp_{bound}__"
+    assert const.value >= peak_spill_end
 
 
 def test_swap_spills_deep_stack() -> None:

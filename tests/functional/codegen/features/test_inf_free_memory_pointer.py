@@ -117,10 +117,14 @@ def tagged(
     payload = b"\xaa" * 70
 
     def call(c):
-        assert c.tagged(payload, b"??") == (payload + b"??", 7)
-        assert c.tagged(payload, b"", 3) == (payload, 3)
+        gas = []
         assert c.tagged(payload) == (payload + b"!", 7)
-        return env.last_result.gas_used
+        gas.append(env.last_result.gas_used)
+        assert c.tagged(payload, b"??") == (payload + b"??", 7)
+        gas.append(env.last_result.gas_used)
+        assert c.tagged(payload, b"", 3) == (payload, 3)
+        gas.append(env.last_result.gas_used)
+        return gas
 
     _assert_gas_independent_of_big_frame(get_contract, code, call)
 
