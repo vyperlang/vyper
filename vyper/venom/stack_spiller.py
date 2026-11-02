@@ -61,6 +61,16 @@ class StackSpiller:
     def reset_spill_slots(self) -> None:
         self._spill_free_slots = []
 
+    def free_slots(self) -> list[int]:
+        """Copy of the free spill slots, to restore on a sibling path."""
+        return self._spill_free_slots.copy()
+
+    def set_free_slots(self, slots: list[int]) -> None:
+        """Reset the free spill slots. `_next_spill_offset` is untouched:
+        it only grows, so a slot allocated fresh on one path is never
+        handed out on a sibling path."""
+        self._spill_free_slots = slots.copy()
+
     def snapshot(self):
         """Snapshot mutable state for dry-run isolation."""
         return (self._spill_free_slots.copy(), self._next_spill_offset)

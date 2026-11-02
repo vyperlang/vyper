@@ -620,10 +620,9 @@ class VenomCompiler:
         # each successor starts from this block's free spill slots, like
         # `stack` and `spilled`: a slot freed while generating one successor
         # may still hold a live spill on entry to the next one.
-        # `_next_spill_offset` stays shared, so a fresh slot is never reused.
-        free_slots = self.spiller._spill_free_slots
+        free_slots = self.spiller.free_slots()
         for bb in self.cfg.cfg_out(basicblock):
-            self.spiller._spill_free_slots = free_slots.copy()
+            self.spiller.set_free_slots(free_slots)
             self._generate_evm_for_basicblock_r(
                 ref, bb, stack.copy(), spilled.copy(), stack_height_bound
             )
