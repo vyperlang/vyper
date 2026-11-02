@@ -67,6 +67,19 @@ def same_memory_layout(src_typ: VyperType, dst_typ: VyperType) -> bool:
     return src_typ.memory_bytes_required == dst_typ.memory_bytes_required
 
 
+def reuses_memory_layout(src_typ: VyperType, dst_typ: VyperType) -> bool:
+    """Return True if a `src_typ` value in memory can be used as `dst_typ`
+    without a copy.
+
+    A bounded `dst_typ` value can be copied flat with its size, so it needs
+    the same layout and size (`same_memory_layout`). An unbounded value is
+    only read up to its runtime length, so `punnable` suffices.
+    """
+    if is_unbounded_sequence_type(dst_typ):
+        return punnable(src_typ, dst_typ)
+    return same_memory_layout(src_typ, dst_typ)
+
+
 @dataclass
 class LocalVariable:
     """Tracks a variable during Venom codegen."""
@@ -417,7 +430,7 @@ class VenomCodegenContext:
 
         if self.is_dynamic_tuple_frame_type(vv.typ):
             assert isinstance(vv.typ, TupleT)
-            if self._frame_members_punnable(vv.typ, typ):
+            if self._frame_members_reusable(vv.typ, typ):
                 return vv
             return self._dynamic_tuple_frame_from_frame(vv, typ, annotation=annotation)
 
@@ -455,12 +468,14 @@ class VenomCodegenContext:
         return self.dynamic_tuple_frame_value(frame, typ, annotation=annotation)
 
     @staticmethod
-    def _frame_members_punnable(src_typ: TupleT, dst_typ: TupleT) -> bool:
+    def _frame_members_reusable(src_typ: TupleT, dst_typ: TupleT) -> bool:
         # frame cells hold a word or a pointer, so member sizes do not matter
-        # for the frame itself, only each member's own layout
+        # for the frame itself, only each member's own buffer
         n = len(dst_typ.member_types)
         assert len(src_typ.member_types) == n
-        return all(punnable(src_typ.member_types[i], dst_typ.member_types[i]) for i in range(n))
+        return all(
+            reuses_memory_layout(src_typ.member_types[i], dst_typ.member_types[i]) for i in range(n)
+        )
 
     def _dynamic_tuple_frame_from_frame(
         self, vv: VyperValue, typ: TupleT, annotation: Optional[str] = None
@@ -804,19 +819,13 @@ class VenomCodegenContext:
         self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
     ) -> VyperValue:
         """Return `vv` laid out as `typ`, copying only when the layouts differ."""
+        if reuses_memory_layout(vv.typ, typ):
+            return vv
+
         if is_unbounded_sequence_type(typ):
-            # an unbounded value is only read up to its runtime length, so a
-            # narrower bound needs no copy
-            if punnable(vv.typ, typ):
-                return vv
             # an unbounded type has no bounded temporary; the scratch copy
             # already converts the element layout
             return self.copy_sequence_to_scratch(vv, typ, annotation=annotation)
-
-        # a bounded value can be copied flat with `typ`'s size, so a narrower
-        # bytestring bound or dynarray capacity needs a `typ`-sized buffer
-        if same_memory_layout(vv.typ, typ):
-            return vv
 
         return self.materialize_value(vv, typ, annotation=annotation)
 

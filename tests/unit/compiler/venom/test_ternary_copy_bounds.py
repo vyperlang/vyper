@@ -9,8 +9,11 @@ from vyper.venom.basicblock import IRLiteral, IRVariable
 
 
 def _runtime_venom(code: str):
-    # the IR straight out of codegen, before any pass
-    settings = Settings(experimental_codegen=True, optimize=OptimizationLevel.NONE)
+    # the IR straight out of codegen, before any pass. cancun, so memory
+    # copies are `mcopy` whatever evm version the test run targets
+    settings = Settings(
+        experimental_codegen=True, optimize=OptimizationLevel.NONE, evm_version="cancun"
+    )
     compiler_data = CompilerData(code, settings=settings)
     with anchor_settings(compiler_data.settings):
         return generate_venom_runtime(compiler_data.global_ctx, compiler_data.settings)
