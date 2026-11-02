@@ -804,13 +804,19 @@ class VenomCodegenContext:
         self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
     ) -> VyperValue:
         """Return `vv` laid out as `typ`, copying only when the layouts differ."""
-        if punnable(vv.typ, typ):
-            return vv
-
         if is_unbounded_sequence_type(typ):
+            # an unbounded value is only read up to its runtime length, so a
+            # narrower bound needs no copy
+            if punnable(vv.typ, typ):
+                return vv
             # an unbounded type has no bounded temporary; the scratch copy
             # already converts the element layout
             return self.copy_sequence_to_scratch(vv, typ, annotation=annotation)
+
+        # a bounded value can be copied flat with `typ`'s size, so a narrower
+        # bytestring bound or dynarray capacity needs a `typ`-sized buffer
+        if same_memory_layout(vv.typ, typ):
+            return vv
 
         return self.materialize_value(vv, typ, annotation=annotation)
 
