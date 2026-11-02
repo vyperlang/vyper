@@ -329,10 +329,12 @@ def _decode_bytestring(
     clamp_bytestring(ctx, src, typ, hi)
 
     assert src.location is not None, "src must have a location for bytestring decoding"
-    if is_unbounded_bytestring_type(typ):
-        # INF destinations are exact-sized, so copy only the present ABI
-        # payload. When `hi` is provided, it proves the runtime payload is
-        # readable.
+    if is_unbounded_bytestring_type(typ) or src.location == DataLocation.MEMORY:
+        # Copy only the present ABI payload. INF destinations are
+        # exact-sized, and a memory source buffer can end right after the
+        # payload (e.g. a bytestring at a non-canonical offset near the end
+        # of its encoding), so a maxbound copy would read past it. When `hi`
+        # is provided, it proves the runtime payload is readable.
         assert isinstance(dst, IRVariable)
         length = ctx.builder.load(src.operand, src.location)
         ctx.zero_bytestring_padding(dst, length)
@@ -340,10 +342,10 @@ def _decode_bytestring(
         ctx.builder.copy_to_memory(dst, src.operand, copy_size, src.location)
         return
 
-    # Match the legacy bounded path: copy the destination maxbound after
-    # length<=maxlen and optional `hi` bounds checks. If the source is an
-    # exact-sized INF buffer, this can copy bytes past the runtime payload,
-    # but those bytes are padding, not value; consumers use the length word.
+    # Non-memory sources (e.g. calldata): copy the destination maxbound
+    # after the length<=maxlen and optional `hi` checks, which saves the
+    # length arithmetic. Reading past the payload there reads no other
+    # buffer, and the extra bytes are padding; consumers use the length word.
     size = typ.memory_bytes_required
     ctx.builder.copy_to_memory(dst, src.operand, IRLiteral(size), src.location)
 

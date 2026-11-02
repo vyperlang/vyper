@@ -588,6 +588,20 @@ def f(xs: {typ}) -> (uint256, uint256):
     _test_ctor_decode(env, typ, payload, [(123, [0x20])], preamble=preamble)
 
 
+def test_abi_decode_bytestring_at_end_of_buffer(get_contract):
+    # a non-canonical offset puts the payload in the last two words of `x`,
+    # with less than the maximum size of `Bytes[200]` left after it
+    code = """
+@external
+def f(x: Bytes[288]) -> Bytes[200]:
+    return abi_decode(x, Bytes[200])
+    """
+    c = get_contract(code)
+    payload = _abi_payload_from_tuple((0xE0,) + (0,) * 6 + (1, b"\x42".ljust(32, b"\0")), 288)
+    assert len(payload) == 288
+    assert c.f(payload) == b"\x42"
+
+
 def test_abi_decode_arithmetic_overflow(env, tx_failed, get_contract):
     # test based on GHSA-9p8r-4xp4-gw5w:
     # https://github.com/vyperlang/vyper/security/advisories/GHSA-9p8r-4xp4-gw5w#advisory-comment-91841
