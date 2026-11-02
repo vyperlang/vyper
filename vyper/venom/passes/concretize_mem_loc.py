@@ -40,7 +40,7 @@ class ConcretizeMemLocPass(IRPass):
         # always-live alloca must not sit above a large, rarely-touched
         # buffer.
         escaped = self.mem_liveness.escaped
-        to_allocate.sort(key=lambda x: (x[0] not in escaped, len(x[1])))
+        to_allocate.sort(key=lambda x: (x[0] not in escaped, len(x[1]), str(x[0].inst.output)))
 
         self.allocator.add_allocated([mem for mem, _ in already_allocated])
 
