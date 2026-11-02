@@ -179,7 +179,9 @@ def _memory_copy_sizes(insts, definitions):
     return sizes
 
 
-def test_bounded_bytes_abi_decode_uses_static_maxbound_copy():
+def test_bounded_bytes_abi_decode_copies_payload_not_maxbound():
+    # `x` is an exact-sized buffer, so a copy of Bytes[100]'s 160-byte
+    # maxbound would read past it whenever the payload is shorter
     code = """
 @external
 def dec(x: Bytes[INF]) -> Bytes[100]:
@@ -198,7 +200,7 @@ def dec(x: Bytes[INF]) -> Bytes[100]:
     definitions = {inst._outputs[0]: inst for inst in insts if len(inst._outputs) == 1}
     copy_lengths = _memory_copy_sizes(insts, definitions)
 
-    assert 160 in copy_lengths
+    assert 160 not in copy_lengths
 
 
 def test_inf_abi_decode_checks_length_word_before_mload():
