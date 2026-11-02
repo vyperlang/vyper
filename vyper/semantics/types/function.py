@@ -46,8 +46,8 @@ from vyper.utils import OrderedSet, keccak256
 from vyper.warnings import Deprecation, vyper_warn
 
 # TODO: Forbid `self`/`Self`/... everywhere, would be a breaking change
-RESERVED_PARAM_NAMES = ["self"]
-KWARG_PARAM_NAMES = ["gas", "value", "skip_contract_check", "default_return_value"]
+RESERVED_PARAM_NAMES = ("self",)
+KWARG_PARAM_NAMES = ("gas", "value", "skip_contract_check", "default_return_value")
 
 
 @dataclass
