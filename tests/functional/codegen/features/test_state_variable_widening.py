@@ -441,3 +441,23 @@ def get() -> Bytes[100]:
     assert env.get_storage(c.address, 1) == int.from_bytes(b"ab".ljust(32, b"\0"))
     for slot in range(2, 5):
         assert env.get_storage(c.address, slot) == stale[slot]
+
+
+def test_immutable_bytes_widening(get_contract):
+    # immutables are written with the source's words: one word for an
+    # empty literal, two for a `Bytes[10]`
+    code = """
+A: immutable(Bytes[100])
+B: immutable(String[100])
+
+@deploy
+def __init__(x: Bytes[10]):
+    self.A = x
+    self.B = ""
+
+@external
+def get() -> (Bytes[100], String[100]):
+    return self.A, self.B
+    """
+    c = get_contract(code, b"ab")
+    assert c.get() == (b"ab", "")
