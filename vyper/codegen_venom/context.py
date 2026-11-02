@@ -1674,6 +1674,11 @@ class VenomCodegenContext:
         loc = dst_ptr.location
         is_slot_addressed = loc in (DataLocation.STORAGE, DataLocation.TRANSIENT)
 
+        # a bytestring source keeps its own (possibly narrower) buffer, so
+        # write only the words it holds: the destination's word count would
+        # read past the source buffer and write those bytes into unused slots
+        copy_typ = src_typ if isinstance(typ, _BytestringT) else typ
+
         if is_slot_addressed:
             # DynArray special case: only copy length + actual elements, not full capacity.
             # This matches legacy codegen behavior (core.py:_dynarray_make_setter).
@@ -1685,15 +1690,15 @@ class VenomCodegenContext:
                 store_fn = (
                     self.store_transient if loc is DataLocation.TRANSIENT else self.store_storage
                 )
-                store_fn(src, dst_ptr.operand, typ)
+                store_fn(src, dst_ptr.operand, copy_typ)
         elif loc == DataLocation.IMMUTABLES:
             # Immutables in constructor
-            if typ.memory_bytes_required <= 32:
+            if copy_typ.memory_bytes_required <= 32:
                 assert isinstance(src, IRVariable)
                 val = self.builder.mload(src)
                 self.ptr_store(dst_ptr, val)
             else:
-                self.store_immutable(src, dst_ptr.operand, typ)
+                self.store_immutable(src, dst_ptr.operand, copy_typ)
         else:
             assert loc is DataLocation.MEMORY
             assert isinstance(dst_ptr.operand, IRVariable)

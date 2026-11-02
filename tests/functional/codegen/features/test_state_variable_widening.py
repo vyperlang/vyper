@@ -406,3 +406,38 @@ def first_row() -> (uint256, Bytes[512], Bytes[512]):
     """
     c = get_contract(code, NESTED_BYTES)
     assert c.first_row() == (2, b"a", b"0123456789")
+
+
+def test_storage_bytes_widening_writes_only_source_words(env, get_contract):
+    """
+    A `Bytes[10]` value stored into a `Bytes[100]` variable used to be
+    written with the destination's 5 words, reading past the 64-byte source
+    buffer and writing those bytes into the variable's unused slots.
+    """
+    code = """
+s: Bytes[100]
+
+@external
+def set_long(x: Bytes[100]):
+    self.s = x
+
+@external
+def set_short(x: Bytes[10]):
+    self.s = x
+
+@external
+def get() -> Bytes[100]:
+    return self.s
+    """
+    c = get_contract(code)
+    c.set_long(b"x" * 100)
+    stale = [env.get_storage(c.address, slot) for slot in range(5)]
+
+    c.set_short(b"ab")
+    assert c.get() == b"ab"
+    # the length word and the one data word of the source are written;
+    # the slots past them keep the earlier value, as with any shorter write
+    assert env.get_storage(c.address, 0) == 2
+    assert env.get_storage(c.address, 1) == int.from_bytes(b"ab".ljust(32, b"\0"))
+    for slot in range(2, 5):
+        assert env.get_storage(c.address, slot) == stale[slot]
