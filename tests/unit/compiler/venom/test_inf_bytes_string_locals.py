@@ -133,6 +133,28 @@ def pair(x: Bytes[INF]) -> (Bytes[4], Bytes[INF]):
     assert 2 in dret_counts
 
 
+def test_internal_dynamic_tuple_return_packs_bounded_bytestring_whole():
+    # the caller reads a bounded member with its type's full size (96 bytes
+    # for Bytes[40]), so the callee must pack all of it, not just the
+    # runtime length, or the caller reads past the packed copy
+    code = """
+@internal
+def _long(b: Bytes[40]) -> (DynArray[uint256, INF], Bytes[40]):
+    return [3], b
+
+@external
+def f(b: Bytes[40]) -> Bytes[40]:
+    z: Bytes[40] = self._long(b)[1]
+    return z
+    """
+
+    drets = [inst for inst in _instructions(_compile_frontend_ir(code)) if inst.opcode == "dret"]
+    assert len(drets) == 1
+    # count, then a (pointer, size) pair per dynamic member, then the return pc
+    _, _, _, _, bytes_size, _ = drets[0].operands
+    assert isinstance(bytes_size, IRLiteral) and bytes_size.value == 96
+
+
 def test_msg_data_rvalue_emits_dalloca_and_calldatacopy():
     code = """
 @external
