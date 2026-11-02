@@ -59,3 +59,21 @@ def test_dft_does_not_hoist_assert_above_invoke():
         return 0, 32
     """
     _check_no_change(pre)
+
+
+def test_dft_does_not_hoist_assert_above_returndatacopy():
+    """
+    `returndatacopy` aborts with an exceptional halt and `assert` with a
+    revert, so an `assert` must not move above an earlier `returndatacopy`.
+    """
+    pre = """
+    main:
+        %x = calldataload 0
+        %ok = iszero %x
+        returndatacopy 64, 0, 32
+        assert %ok
+        %y = mload 64
+        mstore 32, %y
+        return 32, 32
+    """
+    _check_no_change(pre)

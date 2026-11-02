@@ -7,11 +7,14 @@ from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
 
-# how an instruction can abort execution: with empty revert data, with an
-# exceptional halt, or (`invoke`) in any way its callee can. when two
-# instructions can abort differently, their order decides the outcome, so
-# DFT keeps them in program order. instructions that abort the same way may
-# still be reordered.
+# instructions whose purpose includes aborting, and how: with empty revert
+# data (`assert`), with an exceptional halt (`assert_unreachable`, or
+# `returndatacopy` past the end of the return data), or (`invoke`) in any
+# way its callee can. when two of them abort differently, their order
+# decides the outcome, so DFT keeps them in program order; ones that abort
+# the same way may still be reordered. state writes that halt under a
+# static call are not ordered against `assert`: that only changes how much
+# gas a failing call consumes.
 _ABORT_KIND = {
     "assert": "revert",
     "assert_unreachable": "halt",
