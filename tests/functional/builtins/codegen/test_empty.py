@@ -474,8 +474,6 @@ def foo():
     c.foo()
 
 
-# param empty not working yet
-@pytest.mark.xfail
 def test_param_empty(get_contract):
     code = """
 interface Mirror:
@@ -486,7 +484,7 @@ interface Mirror:
 @internal
 def write_junk_to_memory():
     xs: int128[1024] = empty(int128[1024])
-    for i: uint256 in range(1024):
+    for i: int128 in range(1024):
         xs[i] = -(i + 1)
 @internal
 def priv(xs: int128[111], ys: Bytes[1024], zs: Bytes[31]) -> bool:
@@ -518,8 +516,6 @@ def pub3(x: address) -> bool:
     assert c.pub3(mirror.address)
 
 
-# return empty not working yet
-@pytest.mark.xfail
 def test_return_empty(get_contract):
     code = """
 struct X:
@@ -532,7 +528,7 @@ struct X:
 @internal
 def write_junk_to_memory():
     xs: int128[1024] = empty(int128[1024])
-    for i: uint256 in range(1024):
+    for i: int128 in range(1024):
         xs[i] = -(i + 1)
 
 @external
@@ -563,8 +559,8 @@ def e() -> X:
     c = get_contract(code)
 
     assert c.a() == 0
-    assert c.b() == (0) * 5
-    assert c.c() == ([0] * 5) * 5
+    assert c.b() == [0] * 5
+    assert c.c() == [[0] * 5] * 5
     assert c.d() == b""
     assert c.e() == (0, "0x" + "0" * 40, 0x0, [0])
 
