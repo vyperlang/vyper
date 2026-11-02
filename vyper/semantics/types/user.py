@@ -257,6 +257,7 @@ class EventT(_UserType):
         self.name = name
         self.indexed = indexed
         self.is_anonymous = is_anonymous
+        assert len(self.arguments) == len(self.indexed)
 
         indexed_count = self.indexed.count(True)
 
