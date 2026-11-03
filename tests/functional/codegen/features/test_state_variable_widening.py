@@ -466,9 +466,15 @@ def f(a: Bytes[256], b: Bytes[256]):
     assert [env.get_storage(c.address, slot) for slot in range(2, 9)] == [0] * 7
 
 
-def test_immutable_bytes_widening(get_contract):
+def _immutable_words(env, c, size):
+    # the immutables are the last bytes of the deployed code
+    section = env.get_code(c.address)[-size:]
+    return [int.from_bytes(section[i : i + 32], "big") for i in range(0, size, 32)]
+
+
+def test_immutable_bytes_widening(env, get_contract):
     # immutables are written with the source's words: one word for an
-    # empty literal, two for a `Bytes[10]`
+    # empty literal, two for a `Bytes[10]`; the rest stay zero
     code = """
 A: immutable(Bytes[100])
 B: immutable(String[100])
@@ -484,3 +490,75 @@ def get() -> (Bytes[100], String[100]):
     """
     c = get_contract(code, b"ab")
     assert c.get() == (b"ab", "")
+    ab = int.from_bytes(b"ab".ljust(32, b"\0"), "big")
+    assert _immutable_words(env, c, 320) == [2, ab] + [0] * 8
+
+
+@pytest.mark.parametrize("value", ["x if c else y", "convert(s, Bytes[100])"])
+def test_immutable_bytes_from_narrower_buffer(env, get_contract, value):
+    # the value is typed `Bytes[100]` but its buffer is narrower; nothing
+    # past the buffer is written to the immutable
+    code = f"""
+A: immutable(Bytes[100])
+t: Bytes[100]
+
+@deploy
+def __init__(c: bool, x: Bytes[10], y: Bytes[100], s: String[10]):
+    self.A = {value}
+    self.t = y
+
+@external
+def get() -> Bytes[100]:
+    return self.A
+    """
+    c = get_contract(code, True, b"ab", b"\xff" * 100, "ab")
+    assert c.get() == b"ab"
+    ab = int.from_bytes(b"ab".ljust(32, b"\0"), "big")
+    assert _immutable_words(env, c, 160) == [2, ab, 0, 0, 0]
+
+
+def test_immutable_bytes_from_tuple_member(env, get_contract, experimental_codegen):
+    # a bounded member of a tuple with an unbounded member is packed by its
+    # length, so the next member follows its value directly
+    if not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
+    code = """
+A: immutable(Bytes[100])
+
+@internal
+def _pair() -> (Bytes[100], Bytes[INF]):
+    return b"ab", b"hello"
+
+@deploy
+def __init__():
+    self.A = self._pair()[0]
+
+@external
+def get() -> Bytes[100]:
+    return self.A
+    """
+    c = get_contract(code)
+    assert c.get() == b"ab"
+    ab = int.from_bytes(b"ab".ljust(32, b"\0"), "big")
+    assert _immutable_words(env, c, 160) == [2, ab, 0, 0, 0]
+
+
+def test_immutable_bytes_writes_only_value_words(env, get_contract):
+    # the buffer of `x` still holds `a` past the end of the shorter value;
+    # none of it is written to the immutable
+    code = """
+A: immutable(Bytes[256])
+
+@deploy
+def __init__(a: Bytes[256], b: Bytes[256]):
+    x: Bytes[256] = a
+    x = b
+    self.A = x
+
+@external
+def get() -> Bytes[256]:
+    return self.A
+    """
+    c = get_contract(code, b"\xff" * 256, b"")
+    assert c.get() == b""
+    assert _immutable_words(env, c, 288) == [0] * 9
