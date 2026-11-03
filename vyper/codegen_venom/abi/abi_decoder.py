@@ -337,8 +337,11 @@ def _decode_bytestring(
         # is provided, it proves the runtime payload is readable.
         assert isinstance(dst, IRVariable)
         length = ctx.builder.load(src.operand, src.location)
-        ctx.zero_bytestring_padding(dst, length)
         copy_size = ctx.builder.add(IRLiteral(32), length)
+        # zero the padding right before the copy: `dst` is live from its
+        # first write, and a longer live range can make the memory
+        # allocator stop overlapping it with other buffers
+        ctx.zero_bytestring_padding(dst, length)
         ctx.builder.copy_to_memory(dst, src.operand, copy_size, src.location)
         return
 
