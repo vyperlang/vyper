@@ -477,9 +477,16 @@ def f(a: Bytes[256], b: Bytes[256]):
     assert [env.get_storage(c.address, base + slot) for slot in range(2, 9)] == [0] * 7
 
 
-def _immutable_words(env, c, size):
-    # the immutables are the last bytes of the deployed code
-    section = env.get_code(c.address)[-size:]
+def _immutable_words(env, get_contract, c, size):
+    # the immutables are the last bytes of the deployed code. some backends
+    # strip trailing zero bytes from the code, so restore them from its size
+    probe = get_contract("""
+@external
+def size(a: address) -> uint256:
+    return a.codesize
+    """)
+    code = env.get_code(c.address).ljust(probe.size(c.address), b"\0")
+    section = code[-size:]
     return [int.from_bytes(section[i : i + 32], "big") for i in range(0, size, 32)]
 
 
@@ -502,7 +509,7 @@ def get() -> (Bytes[100], String[100]):
     c = get_contract(code, b"ab")
     assert c.get() == (b"ab", "")
     ab = int.from_bytes(b"ab".ljust(32, b"\0"), "big")
-    assert _immutable_words(env, c, 320) == [2, ab] + [0] * 8
+    assert _immutable_words(env, get_contract, c, 320) == [2, ab] + [0] * 8
 
 
 @pytest.mark.parametrize("value", ["x if c else y", "convert(s, Bytes[100])"])
@@ -525,7 +532,7 @@ def get() -> Bytes[100]:
     c = get_contract(code, True, b"ab", b"\xff" * 100, "ab")
     assert c.get() == b"ab"
     ab = int.from_bytes(b"ab".ljust(32, b"\0"), "big")
-    assert _immutable_words(env, c, 160) == [2, ab, 0, 0, 0]
+    assert _immutable_words(env, get_contract, c, 160) == [2, ab, 0, 0, 0]
 
 
 def test_immutable_bytes_from_tuple_member(env, get_contract, experimental_codegen):
@@ -551,7 +558,7 @@ def get() -> Bytes[100]:
     c = get_contract(code)
     assert c.get() == b"ab"
     ab = int.from_bytes(b"ab".ljust(32, b"\0"), "big")
-    assert _immutable_words(env, c, 160) == [2, ab, 0, 0, 0]
+    assert _immutable_words(env, get_contract, c, 160) == [2, ab, 0, 0, 0]
 
 
 def test_immutable_bytes_writes_only_value_words(env, get_contract):
@@ -572,4 +579,4 @@ def get() -> Bytes[256]:
     """
     c = get_contract(code, b"\xff" * 256, b"")
     assert c.get() == b""
-    assert _immutable_words(env, c, 288) == [0] * 9
+    assert _immutable_words(env, get_contract, c, 288) == [0] * 9
