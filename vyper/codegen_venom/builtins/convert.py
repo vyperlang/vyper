@@ -61,6 +61,16 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand | Vy
         in_t = arg_vv.typ
     arg = ctx.unwrap(arg_vv)
 
+    # a zero-capacity bytestring's buffer is its length word alone, so
+    # loading its data word would read past the buffer. its value is
+    # empty, which converts to 0 for every word type.
+    if (
+        isinstance(in_t, _BytestringT)
+        and in_t.maxlen == 0
+        and not isinstance(out_t, (BytesT, StringT))
+    ):
+        return IRLiteral(0)
+
     # Dispatch based on output type
     if out_t == BoolT():
         return _to_bool(arg, in_t, out_t, arg_node, ctx)
