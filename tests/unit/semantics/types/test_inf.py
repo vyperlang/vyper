@@ -1139,8 +1139,40 @@ def f(a: address) -> DynArray[Bytes[10], 5]:
     compiler.compile_code(accepted)
 
 
-@pytest.mark.parametrize("element_type", ["Bytes[...]", "DynArray[uint256, ...]"])
-def test_wildcard_arg_rejects_resolved_unbounded_element(element_type):
+def test_wildcard_return_unbounded_element_resolves_to_inf():
+    # no expected element bound: the wildcard resolves to DynArray[Bytes[INF], 5]
+    code = """
+interface I:
+    def foo() -> DynArray[Bytes[...], 5]: view
+
+@external
+def f(a: address) -> uint256:
+    return len(staticcall I(a).foo())
+    """
+    module = compiler.CompilerData(
+        code, settings=Settings(experimental_codegen=True)
+    ).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if "call_return_type" in n._metadata]
+    assert call._metadata["call_return_type"] == DArrayT(BytesT(INF), 5)
+
+    bounded = """
+interface I:
+    def foo() -> DynArray[Bytes[...], 5]: view
+
+@external
+def f(a: address) -> DynArray[Bytes[10], 5]:
+    return staticcall I(a).foo()
+    """
+    module = compiler.CompilerData(bounded).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if "call_return_type" in n._metadata]
+    assert call._metadata["call_return_type"] == DArrayT(BytesT(10), 5)
+
+
+@pytest.mark.parametrize(
+    ("element_type", "expected"),
+    [("Bytes[...]", BytesT(INF)), ("DynArray[uint256, ...]", DArrayT(UINT256_T, INF))],
+)
+def test_wildcard_arg_accepts_unbounded_element(element_type, expected):
     unbounded_type = element_type.replace("...", "INF")
     code = f"""
 interface I:
@@ -1150,9 +1182,11 @@ interface I:
 def f(a: address, xs: DynArray[{unbounded_type}, 5]):
     extcall I(a).foo(xs)
     """
-    with pytest.raises(StructureException) as e:
-        compiler.compile_code(code, settings=Settings(experimental_codegen=True))
-    assert e.value.message == "A wildcard element type does not accept unbounded elements"
+    module = compiler.CompilerData(
+        code, settings=Settings(experimental_codegen=True)
+    ).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.get("func.attr") == "foo"]
+    assert call.args[0]._metadata["type"] == DArrayT(expected, 5)
 
 
 @pytest.mark.parametrize("arg_source", ["xs", "[]", "[1, 2]"])
@@ -1174,21 +1208,21 @@ def f(a: address):
     ("param_type", "arg", "expected"),
     [
         ("DynArray[uint256, ...]", "[]", DArrayT(UINT256_T, 0)),
-        ("DynArray[Bytes[...], 5]", "[]", DArrayT(BytesT(0), 0)),
-        ("DynArray[String[...], ...]", "[]", DArrayT(StringT(0), 0)),
-        ("DynArray[DynArray[uint256, ...], ...]", "[]", DArrayT(DArrayT(UINT256_T, 0), 0)),
-        ("DynArray[DynArray[Bytes[...], 5], 5]", "[[]]", DArrayT(DArrayT(BytesT(0), 0), 1)),
-        ("DynArray[Bytes[...], 5][1]", "[[]]", SArrayT(DArrayT(BytesT(0), 0), 1)),
+        ("DynArray[Bytes[...], 5]", "[]", DArrayT(BytesT(INF), 0)),
+        ("DynArray[String[...], ...]", "[]", DArrayT(StringT(INF), 0)),
+        ("DynArray[DynArray[uint256, ...], ...]", "[]", DArrayT(DArrayT(UINT256_T, INF), 0)),
+        ("DynArray[DynArray[Bytes[...], 5], 5]", "[[]]", DArrayT(DArrayT(BytesT(INF), 0), 1)),
+        ("DynArray[Bytes[...], 5][1]", "[[]]", SArrayT(DArrayT(BytesT(INF), 0), 1)),
         (
             "(DynArray[Bytes[...], 5], uint256)",
             "([], 1)",
-            TupleT((DArrayT(BytesT(0), 0), UINT256_T)),
+            TupleT((DArrayT(BytesT(INF), 0), UINT256_T)),
         ),
     ],
 )
 def test_wildcard_arg_empty_list(param_type, arg, expected):
-    # an empty list has no elements, so a wildcard resolves to 0 inside it
-    # as well as for its length
+    # an empty list has no elements to infer from, so a wildcard element
+    # type resolves to INF; the length is the literal's own
     code = f"""
 interface I:
     def foo(xs: {param_type}): nonpayable
@@ -1299,19 +1333,6 @@ def f(a: address):
     """,
             "Function arguments cannot contain unbounded sequence types inside aggregate types",
         ),
-        # the wildcard call is an element of a list literal
-        (
-            """
-interface I:
-    def source() -> Bytes[...]: view
-    def sink(xs: DynArray[Bytes[...], ...]): nonpayable
-
-@external
-def f(a: address):
-    extcall I(a).sink([staticcall I(a).source()])
-    """,
-            "Function arguments cannot contain unbounded sequence types inside aggregate types",
-        ),
         (
             """
 interface I:
@@ -1353,10 +1374,28 @@ def f(a: address, target: address) -> address:
 def test_wildcard_tuple_return_rejected_as_argument(code, message):
     # without a bounded expected type a wildcard call return resolves to INF,
     # which is not a valid argument type inside an aggregate. this holds for
-    # the call passed directly and for a call nested in a tuple or list literal
+    # the call passed directly and for a call nested in a tuple literal
     with pytest.raises(StructureException) as e:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
     assert e.value.message == message
+
+
+def test_wildcard_call_return_in_list_literal_argument():
+    # the wildcard call resolves to Bytes[INF], which a list literal can hold
+    code = """
+interface I:
+    def source() -> Bytes[...]: view
+    def sink(xs: DynArray[Bytes[...], ...]): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).sink([staticcall I(a).source()])
+    """
+    module = compiler.CompilerData(
+        code, settings=Settings(experimental_codegen=True)
+    ).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.get("func.attr") == "sink"]
+    assert call.args[0]._metadata["type"] == DArrayT(BytesT(INF), 1)
 
 
 def test_wildcard_tuple_return_member_access_compile():

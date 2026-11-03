@@ -16,7 +16,6 @@ from vyper.exceptions import (
 )
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.data_locations import DataLocation
-from vyper.semantics.types.infinity import INF
 
 
 # Some fake type with an overridden `compare_type` which accepts any RHS
@@ -183,7 +182,7 @@ class VyperType:
     def has_wildcard(self):
         return False
 
-    def resolve_wildcard(self, length=INF):
+    def resolve_wildcard(self):
         return self
 
     @property

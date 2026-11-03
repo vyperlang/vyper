@@ -86,7 +86,7 @@ from vyper.semantics.types.utils import type_from_annotation
 
 
 def _expr_has_unsupported_unbounded_arg(
-    node: vy_ast.VyperNode, typ: VyperType, inside_tuple: bool = False, wildcard_elem: bool = False
+    node: vy_ast.VyperNode, typ: VyperType, in_fixed_aggregate: bool = False
 ) -> bool:
     # walk literals alongside the expected type. a literal whose shape does
     # not match `typ` is rejected later, when it is visited
@@ -95,17 +95,14 @@ def _expr_has_unsupported_unbounded_arg(
         if len(node.elements) != len(typ.member_types):
             return False
         return any(
-            _expr_has_unsupported_unbounded_arg(item, item_typ, inside_tuple=True)
+            _expr_has_unsupported_unbounded_arg(item, item_typ, in_fixed_aggregate=True)
             for item, item_typ in zip(node.elements, typ.member_types, strict=True)
         )
     if isinstance(node, vy_ast.List) and isinstance(typ, (SArrayT, DArrayT)):
-        # a wildcard element type is not inferred to be unbounded (see
-        # `DArrayT._validate_wildcard_element`); `_interpolate` repeats that
-        # check for DynArrays only, so static array literals rely on this one
-        elem_wild = typ.value_type.has_wildcard
+        in_fixed_aggregate = in_fixed_aggregate or isinstance(typ, SArrayT)
         return any(
             _expr_has_unsupported_unbounded_arg(
-                item, typ.value_type, inside_tuple=inside_tuple, wildcard_elem=elem_wild
+                item, typ.value_type, in_fixed_aggregate=in_fixed_aggregate
             )
             for item in node.elements
         )
@@ -123,9 +120,10 @@ def _expr_has_unsupported_unbounded_arg(
     if not type_contains_unbounded_sequence(actual_typ):
         return False
 
-    # a tuple argument has no memory layout for an INF member, whatever the
-    # member; elsewhere the value just has to be representable
-    return inside_tuple or wildcard_elem or not is_runtime_sizable_type(actual_typ)
+    # a tuple or static array argument has no memory layout for an INF
+    # member, whatever the member; elsewhere the value just has to be
+    # representable
+    return in_fixed_aggregate or not is_runtime_sizable_type(actual_typ)
 
 
 def _modifies_unbounded_member_through_subscript(target: vy_ast.ExprNode) -> bool:
@@ -982,16 +980,13 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
         assert min_t.is_subtype_of(max_t)
 
         if isinstance(min_t, BottomT):
-            # `Never` is the element type of `[]`, which has no elements, so
-            # the wildcards resolve to 0, the length `[]` itself resolves to
-            return max_t.resolve_wildcard(0)
+            return max_t.resolve_wildcard()
 
         if isinstance(min_t, DArrayT):
             assert isinstance(max_t, DArrayT)
             new_vt = self._interpolate(min_t.value_type, max_t.value_type, pos=pos)
 
             new_l = interpolate_length(min_t.length, max_t.length)
-            DArrayT._validate_wildcard_element(max_t.value_type, new_vt, node=pos)
             DArrayT._assert_element_has_inline_size(new_vt)
             return DArrayT(new_vt, new_l)
 

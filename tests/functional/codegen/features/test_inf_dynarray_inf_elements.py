@@ -237,6 +237,43 @@ def pick(
     assert c.pick([b"x"], [b"y"], False) == [b"y"]
 
 
+@pytest.mark.parametrize(
+    ("wildcard_type", "typ", "arg", "expected"),
+    [
+        ("DynArray[Bytes[...], 5]", "DynArray[Bytes[10], 5]", "[]", []),
+        ("DynArray[String[...], ...]", "DynArray[String[10], 5]", "[]", []),
+        ("DynArray[DynArray[uint256, ...], 5]", "DynArray[DynArray[uint256, 3], 5]", "[]", []),
+        (
+            "DynArray[DynArray[Bytes[...], 5], 5]",
+            "DynArray[DynArray[Bytes[10], 5], 5]",
+            "[[]]",
+            [[]],
+        ),
+    ],
+)
+def test_wildcard_element_empty_list(get_contract, wildcard_type, typ, arg, expected):
+    # an empty list resolves the wildcard element type to INF; the call still
+    # encodes it as a bounded empty array
+    target_code = f"""
+@external
+def echo(xs: {typ}) -> {typ}:
+    return xs
+    """
+
+    code = f"""
+interface Target:
+    def echo(xs: {wildcard_type}) -> {typ}: nonpayable
+
+@external
+def foo(target: Target) -> {typ}:
+    return extcall target.echo({arg})
+    """
+
+    target = get_contract(target_code)
+    c = get_contract(code)
+    assert c.foo(target.address) == expected
+
+
 # --- mutation: elements are replaced, never written in place -----------------
 
 
