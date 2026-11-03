@@ -112,6 +112,11 @@ def _bytestring_convert_value(
         # the source's buffer here: copy the value into a buffer of `out_t`
         ret = ctx.new_temporary_value(out_t, annotation="convert")
         assert isinstance(ret.operand, IRVariable)
+        if out_t.memory_bytes_required > 32:
+            # an empty source copies no data word, and the reused buffer's
+            # stale one would be read as the value's sign by a signed convert
+            b = ctx.builder
+            b.mstore(b.add(ret.operand, IRLiteral(32)), IRLiteral(0))
         if is_unbounded_bytestring_type(src_t):
             size = ctx.bytestring_runtime_size(ptr)
             ctx.copy_memory_dynamic(ret.operand, ptr, size, out_t.memory_bytes_required)
