@@ -1237,6 +1237,46 @@ def f(a: address):
     assert [e._metadata["type"] for e in list_node.elements] == element_types
 
 
+@pytest.mark.parametrize(
+    "param_type,arg,arg_type",
+    [
+        # the arg's own bounds are kept, however large the parameter's fixed bounds are
+        ("DynArray[DynArray[uint256, 2**58], ...]", "xs", DArrayT(DArrayT(UINT256_T, 2), 2)),
+        (
+            "DynArray[DynArray[uint256, 2**58], ...]",
+            "xs if c else ys",
+            DArrayT(DArrayT(UINT256_T, 2), 2),
+        ),
+        (
+            "(DynArray[DynArray[uint256, 2**58], ...], uint256)",
+            "(xs if c else ys, 5)",
+            TupleT((DArrayT(DArrayT(UINT256_T, 2), 2), UINT256_T)),
+        ),
+    ],
+)
+def test_wildcard_arg_variable_keeps_own_bounds(param_type, arg, arg_type):
+    code = f"""
+interface I:
+    def foo(xs: {param_type}): nonpayable
+
+@external
+def f(a: address, c: bool):
+    xs: DynArray[DynArray[uint256, 2], 2] = []
+    ys: DynArray[DynArray[uint256, 2], 2] = []
+    extcall I(a).foo({arg})
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.func.get("attr") == "foo"]
+    (arg_node,) = call.args
+    assert arg_node._metadata["type"] == arg_type
+    for name in arg_node.get_descendants(vy_ast.Name):
+        if name.id in ("xs", "ys"):
+            assert name._metadata["type"] == DArrayT(DArrayT(UINT256_T, 2), 2)
+
+    for experimental_codegen in (False, True):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=experimental_codegen))
+
+
 def test_wildcard_arg_ternary_sarray_element():
     # Note: this should pass once we use expected type typing
     code = """

@@ -514,6 +514,34 @@ def do_it(addr: address, b: bool) -> {bounded_typ}:
 
 
 @pytest.mark.parametrize("test", [True, False])
+def test_ternary_wildcard_arg_variables(get_contract, test):
+    # the parameter's fixed inner bound is much larger than the variables', the
+    # ternary is still typed (and allocated) with the variables' bounds
+    target_code = """
+@external
+def echo(xs: DynArray[DynArray[uint256, 2], 2]) -> DynArray[DynArray[uint256, 2], 2]:
+    return xs
+    """
+
+    caller_code = """
+interface Echo:
+    def echo(
+        xs: DynArray[DynArray[uint256, 2**58], ...]
+    ) -> DynArray[DynArray[uint256, 2], 2]: nonpayable
+
+@external
+def do_it(addr: address, b: bool) -> DynArray[DynArray[uint256, 2], 2]:
+    xs: DynArray[DynArray[uint256, 2], 2] = [[1], [2, 3]]
+    ys: DynArray[DynArray[uint256, 2], 2] = [[4, 5]]
+    return extcall Echo(addr).echo(xs if b else ys)
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.do_it(target.address, test) == ([[1], [2, 3]] if test else [[4, 5]])
+
+
+@pytest.mark.parametrize("test", [True, False])
 def test_ternary_as_for_loop_iterable(get_contract, test):
     # the loop allocates new buffers while it is still reading the selected
     # arm, so the buffer an arm was copied into must stay live for the
