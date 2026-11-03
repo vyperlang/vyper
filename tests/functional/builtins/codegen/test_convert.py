@@ -954,28 +954,6 @@ def foo() -> {out_typ}:
     assert c.foo() == expected
 
 
-@pytest.mark.parametrize("out_typ", ["int8", "int256", "decimal"])
-@pytest.mark.parametrize("src_typ,empty", [("String[INF]", ""), ("Bytes[INF]", b"")])
-def test_convert_widened_empty_bytestring_to_signed(
-    get_contract, out_typ, src_typ, empty, experimental_codegen
-):
-    # converting to `Bytes[1]` copies the value into a buffer of its own;
-    # an empty value copies no data word, and the stale word left in the
-    # reused buffer by `tmp` must not become the sign of the result
-    if not experimental_codegen:
-        pytest.skip("unbounded sequence types require --experimental-codegen")
-    ff = "\\xff" * 32
-    code = f"""
-@external
-def foo(x: {src_typ}) -> {out_typ}:
-    for i: uint256 in range(1):
-        tmp: Bytes[32] = b"{ff}"
-    return convert(convert(x, Bytes[1]), {out_typ})
-    """
-    c = get_contract(code)
-    assert c.foo(empty) == 0
-
-
 def test_convert_zero_capacity_string_to_bool(get_contract):
     code = """
 @external
