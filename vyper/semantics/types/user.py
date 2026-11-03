@@ -381,7 +381,8 @@ class EventT(_UserType):
                     node,
                 )
 
-            return validate_kwargs(node, self.arguments, self.typeclass)
+            validate_kwargs(node, self.arguments, self.typeclass)
+            return
 
         # warn about positional argument deprecation
         if len(node.args) != 0:
