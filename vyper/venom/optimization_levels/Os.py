@@ -77,7 +77,7 @@ PASSES_Os: List[PassConfig] = [
     (DeadStoreElimination, {"addr_space": TRANSIENT}),
     AssignElimination,
     RemoveUnusedVariablesPass,
-    (CSE, {"gas_heuristic": 20}),
+    (CSE, {"gas_heuristic": 6}),
     AssignElimination,
     RemoveUnusedVariablesPass,
     ConcretizeMemLocPass,
