@@ -402,6 +402,20 @@ class VenomCodegenContext:
             if not member_t._is_prim_word:
                 value = outputs[ordinary_count + dynamic_i]
                 dynamic_i += 1
+                if isinstance(member_t, _BytestringT) and not is_unbounded_bytestring_type(
+                    member_t
+                ):
+                    # `dret` packs a bounded bytestring at its runtime size,
+                    # but it is read at its type's size: copy it into a
+                    # buffer of that size
+                    assert isinstance(value, IRVariable)
+                    buf = self.new_temporary_value(member_t, annotation=annotation)
+                    assert isinstance(buf.operand, IRVariable)
+                    size = self.unchecked_bytestring_runtime_size(value)
+                    self.copy_memory_dynamic(
+                        buf.operand, value, size, member_t.memory_bytes_required
+                    )
+                    value = buf.operand
             else:
                 value = outputs[ordinary_i]
                 ordinary_i += 1

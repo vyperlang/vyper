@@ -133,10 +133,10 @@ def pair(x: Bytes[INF]) -> (Bytes[4], Bytes[INF]):
     assert 2 in dret_counts
 
 
-def test_internal_dynamic_tuple_return_packs_bounded_bytestring_whole():
-    # the caller reads a bounded member with its type's full size (96 bytes
-    # for Bytes[40]), so the callee must pack all of it, not just the
-    # runtime length, or the caller reads past the packed copy
+def test_internal_dynamic_tuple_return_copies_bounded_bytestring_member():
+    # `dret` packs the Bytes[40] member at its runtime size, and the caller
+    # reads it with its type's full size (96 bytes), so the caller must copy
+    # the packed member into a full-size buffer by its runtime size first
     code = """
 @internal
 def _long(b: Bytes[40]) -> (DynArray[uint256, INF], Bytes[40]):
@@ -148,11 +148,21 @@ def f(b: Bytes[40]) -> Bytes[40]:
     return z
     """
 
-    drets = [inst for inst in _instructions(_compile_frontend_ir(code)) if inst.opcode == "dret"]
+    insts = _instructions(_compile_frontend_ir(code))
+    drets = [inst for inst in insts if inst.opcode == "dret"]
     assert len(drets) == 1
     # count, then a (pointer, size) pair per dynamic member, then the return pc
     _, _, _, _, bytes_size, _ = drets[0].operands
-    assert isinstance(bytes_size, IRLiteral) and bytes_size.value == 96
+    assert not isinstance(bytes_size, IRLiteral)
+
+    (invoke,) = [inst for inst in insts if inst.opcode == "invoke"]
+    member = invoke.get_outputs()[-1]
+    allocas = {inst.output: inst.operands[0].value for inst in insts if inst.opcode == "alloca"}
+    reads = [inst for inst in insts if inst.opcode == "mcopy" and inst.operands[1] == member]
+    assert len(reads) == 1
+    size, _, dst = reads[0].operands  # reversed: dst, src, size
+    assert not isinstance(size, IRLiteral)
+    assert allocas[dst] == 96
 
 
 def test_msg_data_rvalue_emits_dalloca_and_calldatacopy():

@@ -1117,11 +1117,7 @@ class Stmt:
         self, member_ptr: IRVariable, dst_typ: VyperType, src_typ: VyperType
     ) -> IROperand:
         if isinstance(dst_typ, _BytestringT) and isinstance(src_typ, _BytestringT):
-            if is_unbounded_bytestring_type(dst_typ) or is_unbounded_bytestring_type(src_typ):
-                return self.ctx.bytestring_runtime_size(member_ptr)
-            # the caller reads a bounded member with its full size, so pack all
-            # of it, like a bounded DynArray below
-            return IRLiteral(src_typ.memory_bytes_required)
+            return self.ctx.bytestring_runtime_size(member_ptr)
 
         if isinstance(dst_typ, DArrayT) and isinstance(src_typ, DArrayT):
             if is_unbounded_dynarray_type(dst_typ) or is_unbounded_dynarray_type(src_typ):
