@@ -6,6 +6,8 @@ from vyper.compiler.phases import CompilerData
 
 def test_pickle_ast():
     code = """
+import math
+
 @external
 def foo():
     self.bar()
