@@ -594,9 +594,7 @@ can still have a fixed-size inline layout.
 
 ``Bytes[INF]`` and ``String[INF]`` can hold any runtime length. ``DynArray[T, INF]``
 can hold any runtime item count. ``T`` can be any valid ``DynArray`` element
-type, including ABI-dynamic types such as ``Bytes[512]``, structs with unbounded
-members (see :ref:`unbounded_struct_members`) and unbounded sequences (see
-:ref:`unbounded_elements`):
+type.
 
 .. code-block:: vyper
 
@@ -636,9 +634,9 @@ Unbounded Elements
 The element type of a ``DynArray`` may itself be an unbounded sequence, nested to
 any depth, and the outer array may be bounded or unbounded. For example:
 
-* ``DynArray[Bytes[INF], INF]``, the ABI type ``bytes[]``
+* ``DynArray[Bytes[INF], INF]``
 * ``DynArray[String[INF], 5]``
-* ``DynArray[DynArray[uint256, INF], INF]``, the ABI type ``uint256[][]``
+* ``DynArray[DynArray[uint256, INF], INF]``
 
 .. code-block:: vyper
 
@@ -656,7 +654,7 @@ following restrictions.
 
 .. TODO: Support mutation of unbounded elements in place.
 
-An element cannot be modified in place, such as with ``xs[i][j] = v`` or
+Currently, an element cannot be modified in place, such as with ``xs[i][j] = v`` or
 ``xs[i].append(v)``. Copy the element to a local variable, modify it, then
 store it back:
 
@@ -670,21 +668,20 @@ store it back:
 
 Arrays of unbounded elements cannot be returned inside tuples.
 
-In an interface declaration, a wildcard element type accepts only bounded
-elements: a function declared with ``DynArray[Bytes[...], 5]`` cannot be called
-with a ``DynArray[Bytes[INF], 5]``, although a ``Bytes[...]`` parameter accepts
-``Bytes[INF]``. To pass unbounded elements, declare the parameter as
-``DynArray[Bytes[INF], 5]`` in the interface.
+Decoding an array of unbounded elements has no compile-time cost ceiling:
 
-Decoding gives every element its own copy of its data, so it is sensitive to
-malformed input in a way the bounded case is not. The ABI lets every element
-offset point at the same data, so ``n`` elements that share one ``m``-word tail
-decode into ``n`` separate copies: memory proportional to ``n * m`` from input
-proportional to ``n + m``, with no compile-time ceiling on either factor. The
-sender pays for calldata, but a contract decoding the return data of a call it
-made, or ``abi_decode`` of bytes it did not produce, pays for that itself, and
-return data is decoded after the call, outside any gas limit placed on it. A
-contract that decodes such arrays from untrusted sources should bound its own
+* ``INF`` places no limit on the element count or on the size of any element,
+  so decoding can take arbitrary memory and gas. Bounded types cap both by
+  the product of their bounds.
+* The ABI does not require element offsets to be distinct, so ``n`` elements
+  may all point at one ``m``-word tail. Decoding gives every element its own
+  copy: memory proportional to ``n * m`` from input proportional to ``n + m``.
+* The sender pays for calldata, but a contract decoding the return data of a
+  call it made, or ``abi_decode`` of bytes it did not produce, pays for that
+  itself. Return data is decoded in the caller after the call returns, so a
+  ``gas=`` limit on the call does not cap it.
+
+A contract that decodes such arrays from untrusted sources should bound its own
 exposure.
 
 .. _unbounded_struct_members:
@@ -712,18 +709,16 @@ field cap:
             acc += v
         return acc
 
-In addition to bounded types, struct members may use ``Bytes[INF]``,
-``String[INF]``, or ``DynArray[T, INF]``. Members may also be structs with unbounded members, or ``DynArray`` types
-whose elements are such structs. Tuples containing unbounded sequences, such as
-``(Bytes[INF], uint256)``, are not supported as struct members.
+A struct member may be any type except a tuple containing an unbounded
+sequence, such as ``(Bytes[INF], uint256)``.
 
 Structs with unbounded members behave like other structs, subject to the
 following restrictions.
 
 .. TODO: Support mutation of unbounded members through array elements.
 
-Writing to an unbounded member of an array element, or to anything inside it, is
-rejected. Copy the element to a local variable, modify it, then store
+Currently, writing to an unbounded member of an array element, or to anything
+inside it, is rejected. Copy the element to a local variable, modify it, then store
 it back:
 
 .. code-block:: vyper
