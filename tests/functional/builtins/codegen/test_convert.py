@@ -937,8 +937,10 @@ def foo(x: int256) -> decimal:
 )
 def test_convert_zero_capacity_bytes(get_contract, out_typ, experimental_codegen, request):
     if not experimental_codegen and out_typ.startswith("int"):
-        reason = "legacy signed convert of an empty bytestring, GH 4961"
-        request.applymarker(pytest.mark.xfail(strict=False, reason=reason))
+        # the legacy pipeline folds the literal, and `_signextend` with
+        # zero bits gives -1
+        reason = "legacy signed convert of an empty bytestring literal"
+        request.applymarker(pytest.mark.xfail(reason=reason))
     code = f"""
 @external
 def foo() -> {out_typ}:
