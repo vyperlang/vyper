@@ -907,17 +907,6 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
         pass
 
 
-def _typed_from_expected(node: vy_ast.VyperNode) -> bool:
-    # whether the children of `node` are typed from the expected type rather
-    # than from their own type: list literal elements are (cf. `visit_List`),
-    # while e.g. a variable keeps its declared type.
-    if isinstance(node, vy_ast.List):
-        return True
-    if isinstance(node, vy_ast.IfExp):
-        return _typed_from_expected(node.body) or _typed_from_expected(node.orelse)
-    return False
-
-
 class ExprVisitor(VyperNodeVisitorBase[None]):
     def __init__(self, function_analyzer: Optional[FunctionAnalyzer] = None):
         self.function_analyzer = function_analyzer
@@ -935,19 +924,10 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
         return "module"
 
     def _interpolate(
-        self,
-        min_t: VyperType,
-        max_t: VyperType,
-        *,
-        keep_fixed: bool,
-        pos: Optional[vy_ast.VyperNode] = None,
+        self, min_t: VyperType, max_t: VyperType, *, pos: Optional[vy_ast.VyperNode] = None
     ) -> VyperType:
         """
         Find the smallest type between `min_t` and `max_t` such that it contains no wildcards
-
-        If `keep_fixed` is set, the parts of `max_t` which contain no wildcards are kept as
-        is. This is for nodes whose children are typed from the expected type (like a list
-        literal, cf. `visit_List`), so that the result agrees with their annotations.
 
         `pos` is only used for location information in error messages (if present)
         """
@@ -962,17 +942,12 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
 
         assert min_t.is_subtype_of(max_t)
 
-        if keep_fixed and not max_t.has_wildcard:
-            return max_t
-
         if isinstance(min_t, BottomT):
             return max_t.resolve_wildcard()
 
         if isinstance(min_t, DArrayT):
             assert isinstance(max_t, DArrayT)
-            new_vt = self._interpolate(
-                min_t.value_type, max_t.value_type, keep_fixed=keep_fixed, pos=pos
-            )
+            new_vt = self._interpolate(min_t.value_type, max_t.value_type, pos=pos)
 
             new_l = interpolate_length(min_t.length, max_t.length)
             DArrayT._validate_unbounded_shape(new_vt, new_l, node=pos)
@@ -980,9 +955,7 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
 
         if isinstance(min_t, SArrayT):
             assert isinstance(max_t, SArrayT)
-            new_vt = self._interpolate(
-                min_t.value_type, max_t.value_type, keep_fixed=keep_fixed, pos=pos
-            )
+            new_vt = self._interpolate(min_t.value_type, max_t.value_type, pos=pos)
 
             return SArrayT(new_vt, min_t.length)
 
@@ -1000,7 +973,7 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
             assert isinstance(max_t, TupleT)
             return TupleT(
                 tuple(
-                    self._interpolate(min_mt, max_mt, keep_fixed=keep_fixed, pos=pos)
+                    self._interpolate(min_mt, max_mt, pos=pos)
                     for min_mt, max_mt in zip(min_t.member_types, max_t.member_types, strict=True)
                 )
             )
@@ -1016,7 +989,7 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
         candidates = [t for t in possible_types if t.is_subtype_of(typ)]
         assert len(candidates) == 1
 
-        ret = self._interpolate(candidates[0], typ, keep_fixed=_typed_from_expected(node), pos=node)
+        ret = self._interpolate(candidates[0], typ, pos=node)
 
         # postconditions:
 
@@ -1350,6 +1323,9 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
         self.visit(node.orelse, typ)
 
     def visit_List(self, node: vy_ast.List, typ: VyperType) -> None:
+        if typ.has_wildcard:
+            # type the elements with the resolved element type (cf. `_annotation_type`)
+            typ = self._annotation_type(node, typ)
         assert isinstance(typ, (SArrayT, DArrayT))
         for element in node.elements:
             self.visit(element, typ.value_type)

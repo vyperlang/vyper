@@ -491,7 +491,7 @@ def do_it(addr: address, other: address, b: bool) -> DynArray[address, 3]:
     ],
 )
 def test_ternary_wildcard_arg_nested_list(get_contract, typ, arg, if_true, if_false, test):
-    # the parameter fixes the inner bounds, only its `...` lengths come from the literal
+    # the literal fixes both the `...` lengths and the element type of the resolved type
     bounded_typ = typ.replace("...", "3")
     target_code = f"""
 @external

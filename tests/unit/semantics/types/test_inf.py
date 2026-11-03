@@ -1203,38 +1203,74 @@ def f(a: address, xs: DynArray[uint256, 5]):
 
 
 @pytest.mark.parametrize(
-    "param_type,literal,list_type,element_types",
+    "param_type,arg,arg_type,child_types",
     [
-        # the element type fixed by the parameter is kept
+        # the elements are typed with the list's own element type, not with the
+        # (larger) element type of the parameter
         (
             "DynArray[DynArray[uint256, 9], ...]",
             "[[1], [2, 3]]",
-            DArrayT(DArrayT(UINT256_T, 9), 2),
-            [DArrayT(UINT256_T, 9), DArrayT(UINT256_T, 9)],
+            DArrayT(DArrayT(UINT256_T, 2), 2),
+            [DArrayT(UINT256_T, 2), DArrayT(UINT256_T, 2)],
         ),
-        # the `...` lengths are the literal's, the innermost type is kept
+        # inner wildcard
+        (
+            "DynArray[DynArray[uint256, ...], 3]",
+            "[[1], [2, 3]]",
+            DArrayT(DArrayT(UINT256_T, 2), 2),
+            [DArrayT(UINT256_T, 2), DArrayT(UINT256_T, 2)],
+        ),
+        (
+            "DynArray[DynArray[uint256, ...], ...]",
+            "[[1], [2, 3]]",
+            DArrayT(DArrayT(UINT256_T, 2), 2),
+            [DArrayT(UINT256_T, 2), DArrayT(UINT256_T, 2)],
+        ),
         (
             "DynArray[DynArray[DynArray[uint256, 3], ...], ...]",
             "[[[1]], [[2], [3, 4]]]",
-            DArrayT(DArrayT(DArrayT(UINT256_T, 3), 2), 2),
-            [DArrayT(DArrayT(UINT256_T, 3), 1), DArrayT(DArrayT(UINT256_T, 3), 2)],
+            DArrayT(DArrayT(DArrayT(UINT256_T, 2), 2), 2),
+            [DArrayT(DArrayT(UINT256_T, 2), 2), DArrayT(DArrayT(UINT256_T, 2), 2)],
+        ),
+        # the ternary arms keep their own types, the literal arm's elements are
+        # typed from the literal
+        (
+            "DynArray[DynArray[uint256, 9], ...]",
+            "[[1]] if c else xs",
+            DArrayT(DArrayT(UINT256_T, 2), 2),
+            [DArrayT(DArrayT(UINT256_T, 1), 1), DArrayT(DArrayT(UINT256_T, 2), 2)],
         ),
     ],
 )
-def test_wildcard_arg_nested_list_literal_types(param_type, literal, list_type, element_types):
+def test_wildcard_arg_nested_list_literal_types(param_type, arg, arg_type, child_types):
     code = f"""
 interface I:
     def foo(xs: {param_type}): nonpayable
 
 @external
-def f(a: address):
-    extcall I(a).foo({literal})
+def f(a: address, c: bool):
+    xs: DynArray[DynArray[uint256, 2], 2] = []
+    extcall I(a).foo({arg})
     """
     module = compiler.CompilerData(code).annotated_vyper_module
     (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.func.get("attr") == "foo"]
-    (list_node,) = call.args
-    assert list_node._metadata["type"] == list_type
-    assert [e._metadata["type"] for e in list_node.elements] == element_types
+    (arg_node,) = call.args
+    assert arg_node._metadata["type"] == arg_type
+
+    if isinstance(arg_node, vy_ast.IfExp):
+        children = [arg_node.body, arg_node.orelse]
+    else:
+        children = arg_node.elements
+    assert [child._metadata["type"] for child in children] == child_types
+
+    # every list literal agrees with its elements
+    for list_node in arg_node.get_descendants(vy_ast.List, include_self=True):
+        list_type = list_node._metadata["type"]
+        for element in list_node.elements:
+            assert element._metadata["type"] == list_type.value_type
+
+    for experimental_codegen in (False, True):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=experimental_codegen))
 
 
 @pytest.mark.parametrize(
