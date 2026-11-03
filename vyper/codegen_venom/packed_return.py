@@ -1,10 +1,11 @@
 """
-Compact transport for internal returns containing pointer-cell structs.
+Compact transport for internal returns containing pointer cells.
 
-A struct or array of such structs uses one position-independent buffer. The
-callee copies its inline frame and reachable payloads, replacing pointers with
-buffer-relative offsets. After `dret` moves the buffer into the caller's frame,
-the caller converts those offsets to ordinary absolute memory pointers.
+Structs with unbounded members and arrays containing such structs or unbounded
+sequences use one position-independent buffer. The callee copies the inline
+frame and reachable payloads, replacing pointers with buffer-relative offsets.
+After `dret` moves the buffer into the caller's frame, the caller converts those
+offsets to ordinary absolute memory pointers.
 
 Every relocated cell has capacity 0 and its payload holds exactly its length:
 the packed buffer has no spare room.

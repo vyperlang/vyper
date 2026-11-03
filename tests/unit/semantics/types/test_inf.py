@@ -1212,11 +1212,12 @@ def f(a: address):
         ("DynArray[String[...], ...]", "[]", DArrayT(StringT(INF), 0)),
         ("DynArray[DynArray[uint256, ...], ...]", "[]", DArrayT(DArrayT(UINT256_T, INF), 0)),
         ("DynArray[DynArray[Bytes[...], 5], 5]", "[[]]", DArrayT(DArrayT(BytesT(INF), 0), 1)),
-        ("DynArray[Bytes[...], 5][1]", "[[]]", SArrayT(DArrayT(BytesT(INF), 0), 1)),
+        ("DynArray[uint256, ...][1]", "[[]]", SArrayT(DArrayT(UINT256_T, 0), 1)),
+        ("DynArray[Bytes[10], ...][1]", "[[]]", SArrayT(DArrayT(BytesT(10), 0), 1)),
         (
-            "(DynArray[Bytes[...], 5], uint256)",
+            "(DynArray[uint256, ...], uint256)",
             "([], 1)",
-            TupleT((DArrayT(BytesT(INF), 0), UINT256_T)),
+            TupleT((DArrayT(UINT256_T, 0), UINT256_T)),
         ),
     ],
 )
@@ -1231,9 +1232,39 @@ interface I:
 def f(a: address):
     extcall I(a).foo({arg})
     """
-    module = compiler.CompilerData(code).annotated_vyper_module
+    data = compiler.CompilerData(code, settings=Settings(experimental_codegen=True))
+    module = data.annotated_vyper_module
     (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.get("func.attr") == "foo"]
     assert call.args[0]._metadata["type"] == expected
+    assert data.bytecode
+
+
+@pytest.mark.parametrize("venom", [False, True])
+@pytest.mark.parametrize(
+    ("param_type", "arg"),
+    [
+        ("DynArray[Bytes[...], 5][1]", "[[]]"),
+        ("(DynArray[Bytes[...], 5], uint256)", "([], 1)"),
+        ("DynArray[String[...], ...][1]", "[[]]"),
+        ("(DynArray[DynArray[uint256, ...], 5], uint256)", "([], 1)"),
+        ("DynArray[DynArray[Bytes[...], 5], 5][1]", "[[[]]]"),
+        ("DynArray[Bytes[...], 5][1]", "[[]] if b else [[]]"),
+        ("(DynArray[Bytes[...], 5], uint256)", "([] if b else [], 1)"),
+    ],
+)
+def test_wildcard_empty_list_in_fixed_aggregate_rejected(param_type, arg, venom):
+    code = f"""
+interface I:
+    def foo(xs: {param_type}): nonpayable
+
+@external
+def f(a: address, b: bool):
+    extcall I(a).foo({arg})
+    """
+    with pytest.raises(StructureException) as e:
+        compiler.compile_code(code, settings=Settings(experimental_codegen=venom))
+    message = "Function arguments cannot contain unbounded sequence types inside aggregate types"
+    assert e.value.message == message
 
 
 def test_wildcard_arg_subscripted_list_literal():

@@ -1229,13 +1229,19 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
                             actual_arg_typ = actual_arg_typ.resolve_wildcard()
                         has_unsupported_unbounded = not is_runtime_sizable_type(actual_arg_typ)
 
+                if not has_unsupported_unbounded:
+                    self.visit(arg, arg_typ)
+                    # Empty literals can resolve wildcard elements to INF
+                    # without visiting any element, including in a tuple or
+                    # static array. Validate the inferred argument type too.
+                    has_unsupported_unbounded = not is_runtime_sizable_type(arg._metadata["type"])
+
                 if has_unsupported_unbounded:
                     raise StructureException(
                         "Function arguments cannot contain unbounded sequence types "
                         "inside aggregate types",
                         arg,
                     )
-                self.visit(arg, arg_typ)
             for kwarg in node.keywords:
                 # We should only see special kwargs
                 kwarg_typ = func_type.call_site_kwargs[kwarg.arg].typ
