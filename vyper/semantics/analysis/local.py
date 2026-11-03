@@ -80,50 +80,8 @@ from vyper.semantics.types.infinity import (
     is_runtime_sizable_return_type,
     is_runtime_sizable_type,
     is_unbounded_sequence_type,
-    type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.utils import type_from_annotation
-
-
-def _expr_has_unsupported_unbounded_arg(
-    node: vy_ast.VyperNode, typ: VyperType, in_fixed_aggregate: bool = False
-) -> bool:
-    # walk literals alongside the expected type. a literal whose shape does
-    # not match `typ` is rejected later, when it is visited
-    if isinstance(node, vy_ast.Tuple) and isinstance(typ, TupleT):
-        # a nested tuple literal's arity has not been checked yet
-        if len(node.elements) != len(typ.member_types):
-            return False
-        return any(
-            _expr_has_unsupported_unbounded_arg(item, item_typ, in_fixed_aggregate=True)
-            for item, item_typ in zip(node.elements, typ.member_types, strict=True)
-        )
-    if isinstance(node, vy_ast.List) and isinstance(typ, (SArrayT, DArrayT)):
-        in_fixed_aggregate = in_fixed_aggregate or isinstance(typ, SArrayT)
-        return any(
-            _expr_has_unsupported_unbounded_arg(
-                item, typ.value_type, in_fixed_aggregate=in_fixed_aggregate
-            )
-            for item in node.elements
-        )
-
-    try:
-        actual_typ = get_exact_type_from_node(node)
-    except VyperException:
-        return False
-
-    if typ.has_wildcard:
-        # resolve a wildcard call return against the element's expected
-        # type, the same way `ExprVisitor.visit_Call` does for arguments
-        actual_typ = actual_typ.resolve_wildcard()
-
-    if not type_contains_unbounded_sequence(actual_typ):
-        return False
-
-    # a tuple or static array argument has no memory layout for an INF
-    # member, whatever the member; elsewhere the value just has to be
-    # representable
-    return in_fixed_aggregate or not is_runtime_sizable_type(actual_typ)
 
 
 def _modifies_unbounded_member_through_subscript(target: vy_ast.ExprNode) -> bool:
@@ -1213,30 +1171,12 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
                     )
 
             for arg, arg_typ in zip(node.args, func_type.argument_types):
-                if isinstance(arg, (vy_ast.Tuple, vy_ast.List)):
-                    has_unsupported_unbounded = _expr_has_unsupported_unbounded_arg(arg, arg_typ)
-                else:
-                    try:
-                        actual_arg_typ = get_exact_type_from_node(arg)
-                    except VyperException:
-                        has_unsupported_unbounded = False
-                    else:
-                        if arg_typ.has_wildcard:
-                            # a wildcard call return resolves to the parameter
-                            # type, unless the parameter is itself a wildcard,
-                            # in which case it resolves to INF (see the
-                            # external call handling below)
-                            actual_arg_typ = actual_arg_typ.resolve_wildcard()
-                        has_unsupported_unbounded = not is_runtime_sizable_type(actual_arg_typ)
-
-                if not has_unsupported_unbounded:
-                    self.visit(arg, arg_typ)
-                    # Empty literals can resolve wildcard elements to INF
-                    # without visiting any element, including in a tuple or
-                    # static array. Validate the inferred argument type too.
-                    has_unsupported_unbounded = not is_runtime_sizable_type(arg._metadata["type"])
-
-                if has_unsupported_unbounded:
+                self.visit(arg, arg_typ)
+                # a wildcard parameter resolves against the argument, so only
+                # the inferred type shows whether INF landed inside a tuple or
+                # static array; an empty literal gets there without any
+                # element being visited
+                if not is_runtime_sizable_type(arg._metadata["type"]):
                     raise StructureException(
                         "Function arguments cannot contain unbounded sequence types "
                         "inside aggregate types",
