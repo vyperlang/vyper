@@ -462,7 +462,9 @@ def f(a: Bytes[256], b: Bytes[256]):
 
     c.f(b"\xff" * 256, b"ab")
     assert env.get_storage(c.address, 0) == 2
-    assert env.get_storage(c.address, 1) == int.from_bytes(b"ab".ljust(32, b"\0"))
+    # the rest of the data word may keep `a`'s bytes (the legacy pipeline
+    # copies `b` by its length); it is not part of the value
+    assert env.get_storage(c.address, 1) >> 240 == int.from_bytes(b"ab", "big")
     assert [env.get_storage(c.address, slot) for slot in range(2, 9)] == [0] * 7
 
 
@@ -562,3 +564,39 @@ def get() -> Bytes[256]:
     c = get_contract(code, b"\xff" * 256, b"")
     assert c.get() == b""
     assert _immutable_words(env, c, 288) == [0] * 9
+
+
+@pytest.mark.parametrize("location", ["", "transient"])
+def test_short_bytes_store_overwrites_data_word(get_contract, location):
+    # a bytestring of at most 32 bytes is written with both its words, as
+    # in the legacy pipeline, so emptying it leaves no stale data word for
+    # a signed convert to read as the sign
+    typ = f"{location}(Bytes[32])" if location else "Bytes[32]"
+    code = f"""
+s: {typ}
+
+@external
+def f(y: Bytes[32]) -> (int256, int8):
+    self.s = b"\\x80"
+    self.s = y
+    return convert(self.s, int256), convert(self.s, int8)
+    """
+    c = get_contract(code)
+    assert c.f(b"") == (0, 0)
+
+
+def test_short_bytes_immutable_overwrites_data_word(get_contract):
+    code = """
+B: immutable(Bytes[32])
+
+@deploy
+def __init__(z: Bytes[32]):
+    for i: uint256 in range(2):
+        self.B = b"\\x80" if i == 0 else z
+
+@external
+def get() -> int256:
+    return convert(self.B, int256)
+    """
+    c = get_contract(code, b"")
+    assert c.get() == 0

@@ -1506,9 +1506,15 @@ class VenomCodegenContext:
         b.append_block(exit_block)
         b.set_block(exit_block)
 
-    def _bytestring_word_count(self, src: IROperand) -> IROperand:
-        """The words a bytestring at memory `src` occupies: its length word
-        and the words holding its bytes, 1 + ceil(length / 32)."""
+    def _bytestring_word_count(self, src: IROperand, src_typ: _BytestringT) -> IROperand:
+        """The words to write for a bytestring at memory `src`: its length
+        word and the words holding its bytes, 1 + ceil(length / 32).
+
+        Like legacy codegen, a bytestring of at most 32 bytes writes its
+        whole buffer, so an empty value also overwrites a stale data word.
+        """
+        if src_typ.maxlen <= 32:
+            return IRLiteral(src_typ.memory_bytes_required // 32)
         assert isinstance(src, IRVariable)
         b = self.builder
         return b.shr(IRLiteral(5), b.add(b.mload(src), IRLiteral(63)))
@@ -1692,6 +1698,7 @@ class VenomCodegenContext:
             elif isinstance(typ, _BytestringT):
                 # likewise, write only the length word and the words holding
                 # the value: the rest of the buffer is not part of the value
+                assert isinstance(src_typ, _BytestringT)
                 b = self.builder
                 if loc is DataLocation.TRANSIENT:
                     store_word, prefix = b.tstore, "m2t"
@@ -1700,7 +1707,7 @@ class VenomCodegenContext:
                 self._word_copy_loop(
                     src,
                     dst_ptr.operand,
-                    self._bytestring_word_count(src),
+                    self._bytestring_word_count(src, src_typ),
                     b.mload,
                     store_word,
                     32,
@@ -1718,13 +1725,15 @@ class VenomCodegenContext:
             if isinstance(typ, _BytestringT):
                 # as for storage, write only the length word and the words
                 # holding the value
+                assert isinstance(src_typ, _BytestringT)
+
                 def store_immutable_word(offset, val):
                     self.store_word(offset, val, DataLocation.IMMUTABLES)
 
                 self._word_copy_loop(
                     src,
                     dst_ptr.operand,
-                    self._bytestring_word_count(src),
+                    self._bytestring_word_count(src, src_typ),
                     self.builder.mload,
                     store_immutable_word,
                     32,
