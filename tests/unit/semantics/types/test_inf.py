@@ -1267,6 +1267,34 @@ def f(a: address, b: bool):
     assert e.value.message == message
 
 
+@pytest.mark.parametrize("venom", [False, True])
+@pytest.mark.parametrize(
+    "body",
+    [
+        "extcall I(a).foo([])",
+        "return len(staticcall I(a).src())",
+        "extcall I(a).foo(staticcall I(a).src())",
+    ],
+)
+def test_wildcard_static_array_element_resolving_to_inf_rejected(body, venom):
+    # `DynArray[uint256, ...][2]` is a valid wildcard element, but a static
+    # array holding INF has no layout, so resolving it to INF is rejected
+    code = f"""
+interface I:
+    def src() -> DynArray[DynArray[uint256, ...][2], 5]: view
+    def foo(xs: DynArray[DynArray[uint256, ...][2], 5]): nonpayable
+
+@external
+def f(a: address) -> uint256:
+    {body}
+    return 0
+    """
+    with pytest.raises(StructureException) as e:
+        compiler.compile_code(code, settings=Settings(experimental_codegen=venom))
+    message = "DynArray elements cannot contain unbounded sequence types inside aggregate types"
+    assert e.value.message == message
+
+
 def test_wildcard_arg_subscripted_list_literal():
     code = """
 interface I:

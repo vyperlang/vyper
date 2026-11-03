@@ -328,18 +328,22 @@ class DArrayT(_SequenceT):
         return self.length is WILDCARD or self.value_type.has_wildcard
 
     @staticmethod
-    def _assert_element_has_inline_size(value_type):
-        # an unbounded element has a fixed inline size (see `member_slot_size`); a tuple or
-        # static array holding INF has none and is rejected earlier (`_as_darray`,
-        # `SArrayT.from_annotation`)
-        assert not type_contains_unbounded_sequence(value_type) or is_runtime_sizable_type(
-            value_type
-        )
+    def _validate_element_has_inline_size(value_type, node=None):
+        # an unbounded element has a fixed inline size (see `member_slot_size`); a
+        # tuple or static array holding INF has none. `_as_darray` and
+        # `SArrayT.from_annotation` reject such annotations, but a wildcard
+        # static array element (`DynArray[uint256, ...][2]`) only becomes one
+        # when the wildcard resolves to INF
+        if type_contains_unbounded_sequence(value_type) and not is_runtime_sizable_type(value_type):
+            raise StructureException(
+                "DynArray elements cannot contain unbounded sequence types inside aggregate types",
+                node,
+            )
 
     def resolve_wildcard(self):
         resolved_value = self.value_type.resolve_wildcard()
         resolved_length = INF if self.length is WILDCARD else self.length
-        self._assert_element_has_inline_size(resolved_value)
+        self._validate_element_has_inline_size(resolved_value)
         if resolved_value is not self.value_type or resolved_length is not self.length:
             return DArrayT(resolved_value, resolved_length)
         return self
@@ -389,7 +393,10 @@ class DArrayT(_SequenceT):
         if not value_type._as_darray:
             raise StructureException(f"Arrays of {value_type} are not allowed", value_node)
 
-        cls._assert_element_has_inline_size(value_type)
+        # a tuple or static array holding INF is rejected by its own annotation
+        assert not type_contains_unbounded_sequence(value_type) or is_runtime_sizable_type(
+            value_type
+        )
 
         return cls(value_type, length)
 

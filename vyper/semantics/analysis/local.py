@@ -987,7 +987,7 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
             new_vt = self._interpolate(min_t.value_type, max_t.value_type, pos=pos)
 
             new_l = interpolate_length(min_t.length, max_t.length)
-            DArrayT._assert_element_has_inline_size(new_vt)
+            DArrayT._validate_element_has_inline_size(new_vt, node=pos)
             return DArrayT(new_vt, new_l)
 
         if isinstance(min_t, SArrayT):
