@@ -935,9 +935,10 @@ def foo(x: int256) -> decimal:
 @pytest.mark.parametrize(
     "out_typ", ["bool", "uint8", "uint256", "int8", "int256", "bytes1", "bytes32"]
 )
-def test_convert_zero_capacity_bytes(get_contract, out_typ, experimental_codegen):
+def test_convert_zero_capacity_bytes(get_contract, out_typ, experimental_codegen, request):
     if not experimental_codegen and out_typ.startswith("int"):
-        pytest.xfail("legacy signed convert of an empty bytestring, GH 4961")
+        reason = "legacy signed convert of an empty bytestring, GH 4961"
+        request.applymarker(pytest.mark.xfail(strict=True, reason=reason))
     code = f"""
 @external
 def foo() -> {out_typ}:

@@ -15,9 +15,7 @@ def _runtime_venom(code: str):
 
 
 def _check_loads_in_bounds(ctx):
-    """Check each `mload` at a literal offset from an alloca reads inside it,
-    and return how many such loads there are."""
-    count = 0
+    """Check each `mload` at a literal offset from an alloca reads inside it."""
     for fn in ctx.functions.values():
         insts = [inst for bb in fn.get_basic_blocks() for inst in bb.instructions]
         alloca_size = {}
@@ -41,8 +39,6 @@ def _check_loads_in_bounds(ctx):
             if isinstance(addr, IRVariable) and addr in ptr:
                 size, offset = ptr[addr]
                 assert offset + 32 <= size, inst
-                count += 1
-    return count
 
 
 @pytest.mark.parametrize(
