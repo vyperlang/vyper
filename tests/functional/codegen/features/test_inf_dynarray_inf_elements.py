@@ -274,6 +274,39 @@ def foo(target: Target) -> {typ}:
     assert c.foo(target.address) == expected
 
 
+@pytest.mark.parametrize(
+    ("wildcard_type", "typ", "arg"),
+    [
+        ("DynArray[Bytes[...], 5]", "DynArray[Bytes[INF], 5]", [b"a" * 40, b"", b"xy"]),
+        (
+            "DynArray[DynArray[uint256, ...], ...]",
+            "DynArray[DynArray[uint256, INF], INF]",
+            [[1, 2, 3], [], [4]],
+        ),
+    ],
+)
+def test_wildcard_element_unbounded_arg(get_contract, wildcard_type, typ, arg):
+    # a wildcard element type resolves to the caller's unbounded element type
+    target_code = f"""
+@external
+def echo(xs: {typ}) -> {typ}:
+    return xs
+    """
+
+    code = f"""
+interface Target:
+    def echo(xs: {wildcard_type}) -> {typ}: nonpayable
+
+@external
+def foo(target: Target, xs: {typ}) -> {typ}:
+    return extcall target.echo(xs)
+    """
+
+    target = get_contract(target_code)
+    c = get_contract(code)
+    assert c.foo(target.address, arg) == arg
+
+
 # --- mutation: elements are replaced, never written in place -----------------
 
 
