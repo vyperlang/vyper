@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.compiler.phases import generate_bytecode
+from vyper.compiler.phases import CompilerData, generate_bytecode
 from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 from vyper.ir.compile_ir import Label
 from vyper.utils import method_id
@@ -619,3 +619,34 @@ def setcd(c: uint256, d: uint256):
     expected |= {7000 + j: val(200 + j) for j in range(m)}
     expected |= {9000 + i: val(i) for i in range(6, n)}
     assert {k: c.s(k) for k in expected} == expected
+
+
+def test_sibling_branches_share_fresh_spill_slots():
+    # the external functions are sibling branches of the selector dispatch:
+    # none of the slots one of them spills to is live in another, so a
+    # second spilling function needs no more spill memory than the first
+    def spilling_fn(name):
+        n = 20
+        loads = "\n".join(f"    x{i}: uint256 = self.s[{i}]" for i in range(n))
+        stores = "\n".join(f"    self.s[{100 + i}] = x{i}" for i in range(n))
+        total = " + ".join(f"x{i}" for i in range(n))
+        return f"""
+@external
+def {name}() -> uint256:
+{loads}
+{stores}
+    return {total}
+"""
+
+    def peak_spill_end(code):
+        settings = Settings(experimental_codegen=True, optimize=OptimizationLevel.GAS)
+        data = CompilerData(code, settings=settings)
+        compiler = VenomCompiler(data.venom_runtime)
+        compiler.generate_evm_assembly()
+        return compiler.spiller.peak_spill_end
+
+    state = "s: HashMap[uint256, uint256]\n"
+    one = peak_spill_end(state + spilling_fn("f"))
+    two = peak_spill_end(state + spilling_fn("f") + spilling_fn("g"))
+    assert one > 0
+    assert two == one

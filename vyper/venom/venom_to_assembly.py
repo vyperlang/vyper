@@ -617,12 +617,15 @@ class VenomCompiler:
 
         ref.extend(asm)
 
-        # each successor starts from this block's free spill slots, like
-        # `stack` and `spilled`: a slot freed while generating one successor
-        # may still hold a live spill on entry to the next one.
-        free_slots = self.spiller.free_slots()
+        # each successor starts from this block's spill slots, like `stack`
+        # and `spilled`: a slot freed while generating one successor may
+        # still hold a live spill on entry to the next one. a slot allocated
+        # fresh on one successor's path is free again on the next: none is
+        # live on entry to it, and a join point is entered with every live
+        # value on the stack.
+        spill_state = self.spiller.snapshot()
         for bb in self.cfg.cfg_out(basicblock):
-            self.spiller.set_free_slots(free_slots)
+            self.spiller.restore(spill_state)
             self._generate_evm_for_basicblock_r(
                 ref, bb, stack.copy(), spilled.copy(), stack_height_bound
             )
