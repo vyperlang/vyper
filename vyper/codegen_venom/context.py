@@ -1451,7 +1451,7 @@ class VenomCodegenContext:
         self,
         src_addr: IROperand,
         dst_addr: IROperand,
-        word_count: int,
+        word_count: int | IROperand,
         load_fn,
         store_fn,
         src_scale: int,
@@ -1477,7 +1477,9 @@ class VenomCodegenContext:
 
         b.append_block(cond_block)
         b.set_block(cond_block)
-        done = b.eq(counter, IRLiteral(word_count))
+        if isinstance(word_count, int):
+            word_count = IRLiteral(word_count)
+        done = b.eq(counter, word_count)
         cond_finish = b.current_block
 
         b.append_block(body_block)
@@ -1674,25 +1676,37 @@ class VenomCodegenContext:
         loc = dst_ptr.location
         is_slot_addressed = loc in (DataLocation.STORAGE, DataLocation.TRANSIENT)
 
-        # a bytestring source keeps its own (possibly narrower) buffer, so
-        # write only the words it holds: the destination's word count would
-        # read past the source buffer and write those bytes into unused slots
-        copy_typ = src_typ if isinstance(typ, _BytestringT) else typ
-
         if is_slot_addressed:
             # DynArray special case: only copy length + actual elements, not full capacity.
             # This matches legacy codegen behavior (core.py:_dynarray_make_setter).
             if isinstance(typ, DArrayT):
                 transient = loc is DataLocation.TRANSIENT
                 self._copy_dynarray_to_storage(src, dst_ptr.operand, typ, transient=transient)
+            elif isinstance(typ, _BytestringT):
+                # likewise, write only the length word and the words holding
+                # the value: the rest of the buffer is not part of the value
+                assert isinstance(src, IRVariable)
+                b = self.builder
+                # 1 + ceil(length / 32)
+                word_count = b.shr(IRLiteral(5), b.add(b.mload(src), IRLiteral(63)))
+                if loc is DataLocation.TRANSIENT:
+                    store_word, prefix = b.tstore, "m2t"
+                else:
+                    store_word, prefix = b.sstore, "m2s"
+                self._word_copy_loop(
+                    src, dst_ptr.operand, word_count, b.mload, store_word, 32, 1, prefix
+                )
             else:
                 # store_storage / store_transient handle single-word mload internally.
                 store_fn = (
                     self.store_transient if loc is DataLocation.TRANSIENT else self.store_storage
                 )
-                store_fn(src, dst_ptr.operand, copy_typ)
+                store_fn(src, dst_ptr.operand, typ)
         elif loc == DataLocation.IMMUTABLES:
-            # Immutables in constructor
+            # Immutables in constructor. a bytestring source keeps its own
+            # (possibly narrower) buffer, so write only the words it holds:
+            # the destination's word count would read past it
+            copy_typ = src_typ if isinstance(typ, _BytestringT) else typ
             if copy_typ.memory_bytes_required <= 32:
                 assert isinstance(src, IRVariable)
                 val = self.builder.mload(src)

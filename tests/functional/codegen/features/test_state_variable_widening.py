@@ -412,7 +412,8 @@ def test_storage_bytes_widening_writes_only_source_words(env, get_contract):
     """
     A `Bytes[10]` value stored into a `Bytes[100]` variable used to be
     written with the destination's 5 words, reading past the 64-byte source
-    buffer and writing those bytes into the variable's unused slots.
+    buffer and writing those bytes into the variable's unused slots. Only
+    the words holding the value are written.
     """
     code = """
 s: Bytes[100]
@@ -435,12 +436,34 @@ def get() -> Bytes[100]:
 
     c.set_short(b"ab")
     assert c.get() == b"ab"
-    # the length word and the one data word of the source are written;
-    # the slots past them keep the earlier value, as with any shorter write
+    # the length word and the one data word of the value are written; the
+    # slots past them keep the earlier value, as with any shorter write
     assert env.get_storage(c.address, 0) == 2
     assert env.get_storage(c.address, 1) == int.from_bytes(b"ab".ljust(32, b"\0"))
     for slot in range(2, 5):
         assert env.get_storage(c.address, slot) == stale[slot]
+
+
+def test_storage_bytes_writes_only_value_words(env, get_contract):
+    # the buffer of `x` still holds `a` past the end of the shorter value;
+    # none of it is written to storage
+    code = """
+s: Bytes[256]
+
+@external
+def f(a: Bytes[256], b: Bytes[256]):
+    x: Bytes[256] = a
+    x = b
+    self.s = x
+    """
+    c = get_contract(code)
+    c.f(b"\xff" * 256, b"")
+    assert [env.get_storage(c.address, slot) for slot in range(9)] == [0] * 9
+
+    c.f(b"\xff" * 256, b"ab")
+    assert env.get_storage(c.address, 0) == 2
+    assert env.get_storage(c.address, 1) == int.from_bytes(b"ab".ljust(32, b"\0"))
+    assert [env.get_storage(c.address, slot) for slot in range(2, 9)] == [0] * 7
 
 
 def test_immutable_bytes_widening(get_contract):
