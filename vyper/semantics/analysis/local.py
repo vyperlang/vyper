@@ -751,6 +751,14 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
             len_ = len(iter_val.elements)
             if len_ == 0:
                 raise StructureException("For loop must have at least 1 iteration", iter_node)
+            # the literal is typed as a static array, which has no layout for
+            # unbounded items (see `SArrayT.from_annotation`). a struct with
+            # unbounded members has a fixed size and is fine
+            if is_unbounded_sequence_type(target_type):
+                raise StructureException(
+                    "Iterating over a list literal of unbounded sequence types is not supported",
+                    iter_node,
+                )
             iter_type = SArrayT(target_type, len_)
         else:
             try:
@@ -808,6 +816,11 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
             raise StructureException("Invalid syntax for loop iterator", node.target.target)
 
         target_type = type_from_annotation(node.target.annotation, DataLocation.MEMORY)
+        if not is_runtime_sizable_type(target_type):
+            raise StructureException(
+                "Loop variables cannot contain unbounded sequence types inside aggregate types",
+                node.target.annotation,
+            )
 
         iter_var = None
         if isinstance(node.iter, vy_ast.Call):
