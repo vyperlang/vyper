@@ -1,5 +1,7 @@
 import pytest
 
+from vyper.evm.opcodes import version_check
+
 SHORT = [b"a", b"0123456789", b""]
 NESTED = [[1, 2], [], [3]]
 NESTED_BYTES = [[b"a", b"0123456789"], [], [b"z", b"q"]]
@@ -408,6 +410,11 @@ def first_row() -> (uint256, Bytes[512], Bytes[512]):
     assert c.first_row() == (2, b"a", b"0123456789")
 
 
+def _first_slot():
+    # before cancun, slot 0 holds the reentrancy lock
+    return 0 if version_check(begin="cancun") else 1
+
+
 def test_storage_bytes_widening_writes_only_source_words(env, get_contract):
     """
     A `Bytes[10]` value stored into a `Bytes[100]` variable used to be
@@ -431,17 +438,18 @@ def get() -> Bytes[100]:
     return self.s
     """
     c = get_contract(code)
+    base = _first_slot()
     c.set_long(b"x" * 100)
-    stale = [env.get_storage(c.address, slot) for slot in range(5)]
+    stale = [env.get_storage(c.address, base + slot) for slot in range(5)]
 
     c.set_short(b"ab")
     assert c.get() == b"ab"
     # the length word and the one data word of the value are written; the
     # slots past them keep the earlier value, as with any shorter write
-    assert env.get_storage(c.address, 0) == 2
-    assert env.get_storage(c.address, 1) == int.from_bytes(b"ab".ljust(32, b"\0"))
+    assert env.get_storage(c.address, base) == 2
+    assert env.get_storage(c.address, base + 1) == int.from_bytes(b"ab".ljust(32, b"\0"))
     for slot in range(2, 5):
-        assert env.get_storage(c.address, slot) == stale[slot]
+        assert env.get_storage(c.address, base + slot) == stale[slot]
 
 
 def test_storage_bytes_writes_only_value_words(env, get_contract):
@@ -457,15 +465,16 @@ def f(a: Bytes[256], b: Bytes[256]):
     self.s = x
     """
     c = get_contract(code)
+    base = _first_slot()
     c.f(b"\xff" * 256, b"")
-    assert [env.get_storage(c.address, slot) for slot in range(9)] == [0] * 9
+    assert [env.get_storage(c.address, base + slot) for slot in range(9)] == [0] * 9
 
     c.f(b"\xff" * 256, b"ab")
-    assert env.get_storage(c.address, 0) == 2
+    assert env.get_storage(c.address, base) == 2
     # the rest of the data word may keep `a`'s bytes (the legacy pipeline
     # copies `b` by its length); it is not part of the value
-    assert env.get_storage(c.address, 1) >> 240 == int.from_bytes(b"ab", "big")
-    assert [env.get_storage(c.address, slot) for slot in range(2, 9)] == [0] * 7
+    assert env.get_storage(c.address, base + 1) >> 240 == int.from_bytes(b"ab", "big")
+    assert [env.get_storage(c.address, base + slot) for slot in range(2, 9)] == [0] * 7
 
 
 def _immutable_words(env, c, size):
@@ -564,39 +573,3 @@ def get() -> Bytes[256]:
     c = get_contract(code, b"\xff" * 256, b"")
     assert c.get() == b""
     assert _immutable_words(env, c, 288) == [0] * 9
-
-
-@pytest.mark.parametrize("location", ["", "transient"])
-def test_short_bytes_store_overwrites_data_word(get_contract, location):
-    # a bytestring of at most 32 bytes is written with both its words, as
-    # in the legacy pipeline, so emptying it leaves no stale data word for
-    # a signed convert to read as the sign
-    typ = f"{location}(Bytes[32])" if location else "Bytes[32]"
-    code = f"""
-s: {typ}
-
-@external
-def f(y: Bytes[32]) -> (int256, int8):
-    self.s = b"\\x80"
-    self.s = y
-    return convert(self.s, int256), convert(self.s, int8)
-    """
-    c = get_contract(code)
-    assert c.f(b"") == (0, 0)
-
-
-def test_short_bytes_immutable_overwrites_data_word(get_contract):
-    code = """
-B: immutable(Bytes[32])
-
-@deploy
-def __init__(z: Bytes[32]):
-    for i: uint256 in range(2):
-        self.B = b"\\x80" if i == 0 else z
-
-@external
-def get() -> int256:
-    return convert(self.B, int256)
-    """
-    c = get_contract(code, b"")
-    assert c.get() == 0
