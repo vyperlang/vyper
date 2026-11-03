@@ -1,4 +1,5 @@
 from collections import defaultdict, deque
+from typing import Iterator, Optional
 
 import vyper.venom.effects as effects
 from vyper.utils import OrderedSet
@@ -31,6 +32,8 @@ class DFTPass(IRPass):
     dda: dict[IRInstruction, OrderedSet[IRInstruction]]
     # "effect dependency analysis"
     eda: dict[IRInstruction, OrderedSet[IRInstruction]]
+    # the aborting instructions each one is ordered after (also in `eda`)
+    abort_deps: dict[IRInstruction, OrderedSet[IRInstruction]]
 
     stack_order: StackOrderAnalysis
     cfg: CFGAnalysis
@@ -89,13 +92,29 @@ class DFTPass(IRPass):
         assert bb.is_terminated, f"Basic block should be terminated {bb}"
 
     def _process_instruction_r(self, instructions: list[IRInstruction], inst: IRInstruction):
-        if inst in self.visited_instructions:
-            return
-        self.visited_instructions.add(inst)
+        # depth-first, appending each instruction after its dependencies. an
+        # explicit stack, since a chain of dependencies (effects, aborts) can
+        # be longer than python's recursion limit
+        stack: list[tuple[IRInstruction, Optional[Iterator[IRInstruction]]]] = [(inst, None)]
+        while len(stack) > 0:
+            cur, children = stack.pop()
+            if children is None:
+                if cur in self.visited_instructions:
+                    continue
+                self.visited_instructions.add(cur)
+                if cur.is_pseudo:
+                    continue
+                children = iter(self._sorted_children(cur))
 
-        if inst.is_pseudo:
-            return
+            for dep_inst in children:
+                if dep_inst not in self.visited_instructions:
+                    stack.append((cur, children))
+                    stack.append((dep_inst, None))
+                    break
+            else:
+                instructions.append(cur)
 
+    def _sorted_children(self, inst: IRInstruction) -> list[IRInstruction]:
         children = list(self.dda[inst] | self.eda[inst])
 
         def cost(x: IRInstruction) -> int | float:
@@ -106,6 +125,11 @@ class DFTPass(IRPass):
             #   direct data dependencies (order of operands)
 
             is_effect_only = x not in self.dda[inst] and x in self.eda[inst]
+            if is_effect_only and x in self.abort_deps[inst]:
+                # schedule the previous abort before this one's operands, so
+                # each abort's condition is computed next to it instead of
+                # all of them being computed up front
+                return -2
             if is_effect_only or inst.flippable:
                 has_data_offspring = len(self.data_offspring[x]) > 0
                 return -1 if has_data_offspring else 0
@@ -144,15 +168,13 @@ class DFTPass(IRPass):
         if inst.flippable and (orig_children != children):
             inst.flip()
 
-        for dep_inst in children:
-            self._process_instruction_r(instructions, dep_inst)
-
-        instructions.append(inst)
+        return children
 
     def _calculate_dependency_graphs(self, bb: IRBasicBlock) -> None:
         # ida: instruction dependency analysis
         self.dda = defaultdict(OrderedSet)
         self.eda = defaultdict(OrderedSet)
+        self.abort_deps = defaultdict(OrderedSet)
 
         non_phis = list(bb.non_phi_instructions)
 
@@ -172,6 +194,7 @@ class DFTPass(IRPass):
                 if len(run) == 0 or kind == "any" or kind != _ABORT_KIND[run[0].opcode]:
                     prev_run, run = run, []
                 self.eda[inst].addmany(prev_run)
+                self.abort_deps[inst].addmany(prev_run)
                 run.append(inst)
 
             if inst.is_bb_terminator:

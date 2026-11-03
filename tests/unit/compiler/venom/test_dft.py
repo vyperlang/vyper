@@ -49,11 +49,11 @@ def test_dft_does_not_hoist_assert_above_invoke():
     """
     pre = """
     main:
+        invoke @f
         %x = calldataload 0
         %y = add %x, 1
         %c = gt %x, %y
         %ok = iszero %c
-        invoke @f
         assert %ok
         mstore 0, %y
         return 0, 32
@@ -68,12 +68,49 @@ def test_dft_does_not_hoist_assert_above_returndatacopy():
     """
     pre = """
     main:
+        returndatacopy 64, 0, 32
         %x = calldataload 0
         %ok = iszero %x
-        returndatacopy 64, 0, 32
         assert %ok
         %y = mload 64
         mstore 32, %y
         return 32, 32
+    """
+    _check_no_change(pre)
+
+
+def test_dft_computes_assert_condition_after_earlier_invoke():
+    """
+    Each `assert` stays after the `invoke` before it, and its condition is
+    computed next to it rather than up front, where it would stay on the
+    stack across every call.
+    """
+    pre = """
+    main:
+        invoke @f
+        %x = calldataload 0
+        %c1 = iszero %x
+        assert %c1
+        invoke @f
+        %c2 = iszero %x
+        assert %c2
+        mstore 0, %x
+        return 0, 32
+    """
+    _check_no_change(pre)
+
+
+def test_dft_long_chain_of_aborts():
+    # each `assert` is ordered after the `invoke` before it, so the chain of
+    # dependencies is as long as the block
+    n = 2000
+    body = "".join(
+        f"%c{i} = iszero %x\n        assert %c{i}\n        invoke @f\n        " for i in range(n)
+    )
+    pre = f"""
+    main:
+        invoke @f
+        %x = calldataload 0
+        {body}return 0, 32
     """
     _check_no_change(pre)
