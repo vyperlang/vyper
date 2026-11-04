@@ -20,6 +20,17 @@ class Label:
         return hash(self.label)
 
 
+class SubroutineLabel(Label):
+    """
+    A label that is a subroutine entry (EIP-7979): assembled as CALLDEST
+    instead of JUMPDEST. It is the only valid CALLSUB destination, and also
+    a valid JUMP/JUMPI destination.
+    """
+
+    def __repr__(self):
+        return f"SUBROUTINE LABEL {self.label}"
+
+
 def is_label(i):
     return isinstance(i, Label)
 
@@ -170,6 +181,10 @@ class PUSH_OFST:
 
 def JUMP(label: Label):
     return [PUSHLABEL(label), "JUMP"]
+
+
+def CALLSUB(label: Label):
+    return [PUSHLABEL(label), "CALLSUB"]
 
 
 def JUMPI(label: Label):

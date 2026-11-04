@@ -11,6 +11,7 @@ from vyper.evm.assembler.instructions import (
     AssemblyInstruction,
     DataHeader,
     Label,
+    SubroutineLabel,
     is_label,
 )
 from vyper.evm.assembler.symbols import SYMBOL_SIZE, resolve_symbols
@@ -73,7 +74,8 @@ def _assembly_to_evm(
             ret.extend(bytecode)
 
         elif isinstance(item, Label):
-            jumpdest_opcode = get_opcodes()["JUMPDEST"][0]
+            label_kind = "CALLDEST" if isinstance(item, SubroutineLabel) else "JUMPDEST"
+            jumpdest_opcode = get_opcodes()[label_kind][0]
             assert jumpdest_opcode is not None  # help mypy
             ret.append(jumpdest_opcode)
 
