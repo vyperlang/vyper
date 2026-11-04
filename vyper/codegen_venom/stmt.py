@@ -50,7 +50,12 @@ from .eval_order import (
     expression_can_mutate_memory_or_storage,
     later_expressions_can_mutate_memory_or_storage,
 )
-from .expr import Expr, get_referenced_variables, is_unbounded_struct_member
+from .expr import (
+    Expr,
+    get_referenced_variables,
+    is_unbounded_array_element,
+    is_unbounded_struct_member,
+)
 from .packed_return import pack_value_with_payloads
 from .value import VyperValue
 
@@ -164,21 +169,11 @@ class Stmt:
         if isinstance(target, vy_ast.Tuple):
             return self._lower_tuple_unpack()
 
-        if isinstance(target, vy_ast.Name) and target.id in self.ctx.variables:
-            var = self.ctx.lookup(target.id)
-            if var.is_pointer_cell:
-                src = Expr(node.value, self.ctx).lower()
-                self._assign_unbounded_sequence_local(var, src, target_typ)
-                return
-
-        if is_unbounded_struct_member(target):
-            # the member's cell is rebound to a fresh payload; the empty
-            # fast path below would instead write into the current payload,
-            # which the struct may share with its copies
-            assert isinstance(target, vy_ast.Attribute)
+        if self._is_pointer_cell_target(target):
+            # the cell is rebound to a fresh payload; the empty fast path
+            # below would instead write into the current payload
             src = Expr(node.value, self.ctx).lower()
-            cell = Expr(target, self.ctx).struct_member_cell_ptr()
-            self._assign_unbounded_sequence_cell(cell, src, target_typ, annotation=target.attr)
+            self._assign_pointer_cell(target, src, target_typ)
             return
 
         # Special case: empty Bytestring/DynArray assignment — just zero the
@@ -204,6 +199,39 @@ class Stmt:
         dst_ptr = self._get_target_ptr(target)
         self._assign_value(dst_ptr, src, target_typ, src_node=node.value)
 
+    def _is_pointer_cell_target(self, target: vy_ast.VyperNode) -> bool:
+        """Return True if the assignment target `target` is a pointer cell: a
+        pointer-cell local, an unbounded struct member or an unbounded array
+        element (see `VenomCodegenContext.store_pointer_cell`).
+        """
+        if isinstance(target, vy_ast.Name) and target.id in self.ctx.variables:
+            return self.ctx.lookup(target.id).is_pointer_cell
+        return is_unbounded_struct_member(target) or is_unbounded_array_element(target)
+
+    def _assign_pointer_cell(
+        self, target: vy_ast.VyperNode, src: VyperValue, typ: VyperType
+    ) -> None:
+        """Rebind the pointer cell `target` (see `_is_pointer_cell_target`) to
+        a payload holding `src` (see `VenomCodegenContext.payload_for_cell`),
+        leaving the old payload alone: copies of a struct or an array may
+        share it.
+        """
+        if isinstance(target, vy_ast.Name):
+            self._assign_unbounded_sequence_local(self.ctx.lookup(target.id), src, typ)
+        elif is_unbounded_struct_member(target):
+            assert isinstance(target, vy_ast.Attribute)
+            cell = Expr(target, self.ctx, as_ptr=True).struct_member_cell_ptr()
+            self._assign_unbounded_sequence_cell(cell, src, typ, annotation=target.attr)
+        else:
+            assert is_unbounded_array_element(target)
+            # the payload is taken before the target: the index may read the array
+            payload = self.ctx.payload_for_cell(src, typ, annotation="element")
+            # lowered as a target: an array reached through a struct member
+            # (`s.xs[i] = v`) may share its payload with copies of the struct,
+            # so it is made the struct's own before the cell is written
+            cell = Expr(target, self.ctx, as_ptr=True).array_element_cell_ptr()
+            self.ctx.store_pointer_cell(cell, payload, IRLiteral(0))
+
     def _assign_unbounded_sequence_local(self, var: LocalVariable, src: VyperValue, typ: VyperType):
         if not var.is_pointer_cell:  # pragma: nocover
             raise CompilerPanic("unbounded sequence local requires pointer-cell storage")
@@ -212,11 +240,10 @@ class Stmt:
     def _assign_unbounded_sequence_cell(
         self, cell: IROperand, src: VyperValue, typ: VyperType, annotation: str
     ) -> None:
-        """Rebind a pointer cell to an exact-sized copy of `src`."""
+        """Rebind a pointer cell to a payload holding `src`."""
         if not is_unbounded_sequence_type(typ):  # pragma: nocover
             raise CompilerPanic(f"expected unbounded sequence type, got {typ}")
-        value = self.ctx.copy_sequence_to_scratch(src, typ, annotation=annotation)
-        self.ctx.store_pointer_cell(cell, value.operand, IRLiteral(0))
+        self.ctx.bind_cell(cell, src, typ, annotation=annotation)
 
     def _assign_value(
         self, dst_ptr: Ptr, src: VyperValue, typ: VyperType, *, src_node: vy_ast.VyperNode
@@ -292,7 +319,7 @@ class Stmt:
             src_vv = self.ctx.snapshot_value_for_delayed_use(src_vv, copy_composites=True)
         src = self.ctx.unwrap(src_vv)
 
-        for src_elem_typ, dst_elem_typ in zip(src_member_types, dst_member_types):
+        for src_elem_typ, dst_elem_typ in zip(src_member_types, dst_member_types, strict=True):
             elem_ptr = self.builder.add(src, IRLiteral(src_offset))
 
             # Load the value
@@ -302,28 +329,11 @@ class Stmt:
             src_offset += src_elem_typ.memory_bytes_required
 
         # Second pass: assign each loaded value to its target
-        for (val, src_elem_typ, dst_elem_typ), target_node in zip(temp_vals, targets):
-            if isinstance(target_node, vy_ast.Name) and target_node.id in self.ctx.variables:
-                var = self.ctx.lookup(target_node.id)
-                if var.is_pointer_cell:
-                    assert is_unbounded_sequence_type(dst_elem_typ)
-                    assert isinstance(val, IRVariable)
-                    src_vv = self.ctx.dynamic_memory_value(
-                        val, src_elem_typ, annotation=target_node.id
-                    )
-                    self._assign_unbounded_sequence_local(var, src_vv, dst_elem_typ)
-                    continue
-
-            if is_unbounded_struct_member(target_node):
-                assert isinstance(target_node, vy_ast.Attribute)
+        for (val, src_elem_typ, dst_elem_typ), target_node in zip(temp_vals, targets, strict=True):
+            if self._is_pointer_cell_target(target_node):
                 assert isinstance(val, IRVariable)
-                src_vv = self.ctx.dynamic_memory_value(
-                    val, src_elem_typ, annotation=target_node.attr
-                )
-                cell = Expr(target_node, self.ctx).struct_member_cell_ptr()
-                self._assign_unbounded_sequence_cell(
-                    cell, src_vv, dst_elem_typ, annotation=target_node.attr
-                )
+                member_vv = self.ctx.dynamic_memory_value(val, src_elem_typ, annotation="unpack")
+                self._assign_pointer_cell(target_node, member_vv, dst_elem_typ)
                 continue
 
             target_ptr = self._get_target_ptr(target_node)
@@ -346,20 +356,11 @@ class Stmt:
         src_values = self.ctx.dynamic_tuple_frame_values(src, src_tuple_typ, annotation="unpack")
         dst_member_types = dst_tuple_typ.member_types
 
-        for src_vv, dst_elem_typ, target_node in zip(src_values, dst_member_types, targets):
-            if isinstance(target_node, vy_ast.Name) and target_node.id in self.ctx.variables:
-                var = self.ctx.lookup(target_node.id)
-                if var.is_pointer_cell:
-                    assert is_unbounded_sequence_type(dst_elem_typ)
-                    self._assign_unbounded_sequence_local(var, src_vv, dst_elem_typ)
-                    continue
-
-            if is_unbounded_struct_member(target_node):
-                assert isinstance(target_node, vy_ast.Attribute)
-                cell = Expr(target_node, self.ctx).struct_member_cell_ptr()
-                self._assign_unbounded_sequence_cell(
-                    cell, src_vv, dst_elem_typ, annotation=target_node.attr
-                )
+        for src_vv, dst_elem_typ, target_node in zip(
+            src_values, dst_member_types, targets, strict=True
+        ):
+            if self._is_pointer_cell_target(target_node):
+                self._assign_pointer_cell(target_node, src_vv, dst_elem_typ)
                 continue
 
             target_ptr = self._get_target_ptr(target_node)
@@ -758,10 +759,25 @@ class Stmt:
             raise CompilerPanic(f"Cannot iterate over type: {array_typ}")
 
         # Element size (in slots for storage, bytes for memory)
-        elem_size = array_typ.value_type.get_size_in(location)
+        elem_size = self.ctx.array_elem_size_in(array_typ, location)
 
-        # Allocate loop variable (copy of element, not reference)
-        item_value = self.ctx.new_temporary_value(target_type, annotation=varname)
+        # Allocate loop variable (copy of element, not reference). An
+        # unbounded loop variable has no inline value: it is a pointer cell
+        # rebound to each element's payload, which is read-only, or to a copy
+        # of the element laid out as the loop variable.
+        elem_is_cell = isinstance(array_typ, DArrayT) and is_unbounded_sequence_type(
+            array_typ.value_type
+        )
+        target_is_cell = is_unbounded_sequence_type(target_type)
+        if elem_is_cell:
+            assert location == DataLocation.MEMORY
+            # the type checker rejects a bounded loop variable here
+            assert target_is_cell
+        if target_is_cell:
+            cell_buf = self.ctx.allocate_buffer(self.ctx.POINTER_CELL_SIZE, annotation=varname)
+            item_value = VyperValue.from_ptr(cell_buf.base_ptr(), target_type)
+        else:
+            item_value = self.ctx.new_temporary_value(target_type, annotation=varname)
         assert isinstance(item_value.operand, IRVariable)
         self.ctx.forvars[varname] = True
 
@@ -771,10 +787,13 @@ class Stmt:
         # (e.g. iterating DynArray[Bytes[10], 2] as DynArray[Bytes[512], 2]),
         # so stage the element in its own layout and re-lay it out below.
         # `punnable`, not `same_memory_layout`: the loop variable is the wider
-        # buffer, so equal sizes are not required, only an equal layout.
+        # buffer, so equal sizes are not required, only an equal layout. A
+        # pointer cell loop variable has no room for the element at all.
         elem_typ = array_typ.value_type
         staged_elem = None
-        if location is not DataLocation.MEMORY and not punnable(elem_typ, target_type):
+        if location is not DataLocation.MEMORY and (
+            target_is_cell or not punnable(elem_typ, target_type)
+        ):
             staged_elem = self.ctx.new_temporary_value(elem_typ, annotation=f"{varname} element")
 
         # Create blocks
@@ -808,7 +827,12 @@ class Stmt:
 
         # Set up loop targets
         with self.ctx.loop_scope(exit_block.label, incr_block.label):
-            self.ctx.register_variable(varname, target_type, item_value.operand, mutable=False)
+            if target_is_cell:
+                self.ctx.register_pointer_cell_variable(
+                    varname, target_type, item_value.operand, mutable=False
+                )
+            else:
+                self.ctx.register_variable(varname, target_type, item_value.operand, mutable=False)
             # Body block: compute element address, copy to loop var
             self.builder.append_block(body_block)
             self.builder.set_block(body_block)
@@ -830,13 +854,22 @@ class Stmt:
             # `staged_elem` when the layouts differ and is re-laid out below.
             dst = item_value.operand
             copy_dst = staged_elem.operand if staged_elem is not None else dst
-            if is_slot_addressed:
+            # a pointer cell loop variable is rebound to this element, or to a copy
+            cell_src: Optional[VyperValue] = None
+            if elem_is_cell:
+                assert isinstance(elem_addr, IRVariable)
+                payload = self.builder.mload(elem_addr)
+                cell_src = self.ctx.dynamic_memory_value(payload, elem_typ, annotation=varname)
+            elif is_slot_addressed:
                 # Word-addressed (STORAGE, TRANSIENT)
                 self.ctx.slot_to_memory(elem_addr, copy_dst, elem_size, location)
             elif location is not DataLocation.MEMORY:
                 # Byte-addressed non-memory (IMMUTABLES, CODE, CALLDATA):
                 # location-aware copy via load_word dispatch
                 self.ctx.copy_to_memory(copy_dst, elem_addr, elem_size, location)
+            elif target_is_cell:
+                assert isinstance(elem_addr, IRVariable)
+                cell_src = self.ctx.dynamic_memory_value(elem_addr, elem_typ, annotation=varname)
             elif target_type._is_prim_word:
                 # Memory, single word
                 val = self.builder.mload(elem_addr)
@@ -847,7 +880,22 @@ class Stmt:
                 self.ctx.store_memory(elem_addr, dst, target_type, src_typ=elem_typ)
 
             if staged_elem is not None:
-                self.ctx.store_memory(copy_dst, dst, target_type, src_typ=elem_typ)
+                if target_is_cell:
+                    cell_src = staged_elem
+                else:
+                    self.ctx.store_memory(copy_dst, dst, target_type, src_typ=elem_typ)
+
+            if target_is_cell:
+                assert cell_src is not None
+                if target_type != elem_typ:
+                    # an inline element (e.g. Bytes[10] for a Bytes[INF] loop
+                    # variable) or a narrower one (DynArray[Bytes[10], INF] for
+                    # DynArray[Bytes[65], INF]) is copied into a payload laid
+                    # out as the loop variable
+                    cell_src = self.ctx.copy_sequence_to_scratch(
+                        cell_src, target_type, annotation=varname
+                    )
+                self.ctx.store_pointer_cell(dst, cell_src.operand, IRLiteral(0))
 
             self._lower_body(node.body)
             body_finish = self.builder.current_block
@@ -1070,8 +1118,15 @@ class Stmt:
             assert returns_count == 0
             assert ret_src_typ is not None
             if uses_packed_return(ret_typ):
-                assert not self.ctx.unbounded_dynarray_element_layout_differs(ret_typ, ret_src_typ)
-                buf, size = pack_value_with_payloads(self.ctx, ret_val, ret_typ)
+                # the packer walks the declared layout, in which an unbounded
+                # element is a pointer cell; a source with inline elements
+                # (e.g. DynArray[Bytes[10], 3] returned as DynArray[Bytes[INF], 3])
+                # is laid out as ret_typ first. A wider outer bound alone is
+                # punnable and copies nothing.
+                ret_vv = self.ctx.dynamic_memory_value(ret_val, ret_src_typ)
+                ret_vv = self.ctx.ensure_memory_layout(ret_vv, ret_typ, annotation="return")
+                assert isinstance(ret_vv.operand, IRVariable)
+                buf, size = pack_value_with_payloads(self.ctx, ret_vv.operand, ret_typ)
                 self.builder.dret(IRLiteral(1), buf, size, return_pc)
                 return
 

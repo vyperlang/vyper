@@ -172,6 +172,17 @@ def _subscript_read_write_overlap(
     return _contains_risky_call(index_node)
 
 
+def is_unbounded_array_element(node: vy_ast.VyperNode) -> bool:
+    """Return True if `node` is `xs[i]` where `xs` is a DynArray of unbounded
+    sequences, i.e. the element is a pointer cell (see
+    `VenomCodegenContext.store_pointer_cell`).
+    """
+    if not isinstance(node, vy_ast.Subscript):
+        return False
+    base_t = node.value._metadata.get("type")
+    return isinstance(base_t, DArrayT) and is_unbounded_sequence_type(base_t.value_type)
+
+
 def is_unbounded_struct_member(node: vy_ast.VyperNode) -> bool:
     """Return True if `node` is an unbounded member of a struct value, which
     a pointer cell represents (see `VenomCodegenContext.store_pointer_cell`).
@@ -369,7 +380,11 @@ class Expr:
         assert isinstance(node, vy_ast.List)
         typ = node._metadata["type"]
         elem_typ = typ.value_type
-        elem_size = elem_typ.memory_bytes_required
+        # a static array holds no unbounded sequence (`SArrayT.from_annotation`)
+        # TODO: `_analyse_list_iter` still types a for-loop list literal as one
+        assert not (isinstance(typ, SArrayT) and is_unbounded_sequence_type(elem_typ))
+        elem_is_cell = is_unbounded_sequence_type(elem_typ)
+        elem_size = self.ctx.array_elem_size_in(typ, DataLocation.MEMORY)
         num_elements = len(node.elements)
 
         # Allocate memory for the array
@@ -395,7 +410,11 @@ class Expr:
 
             dst = self.builder.add(val.operand, IRLiteral(data_offset))
 
-            self.ctx.store_vyper_value(elem_vv, dst, elem_typ)
+            if elem_is_cell:
+                # the element is a pointer cell; it gets its own payload
+                self.ctx.bind_cell(dst, elem_vv, elem_typ, annotation="list")
+            else:
+                self.ctx.store_vyper_value(elem_vv, dst, elem_typ)
             data_offset += elem_size
 
         return val
@@ -1009,11 +1028,32 @@ class Expr:
     def _lower_array_subscript(self) -> VyperValue:
         """Lower array[index] access.
 
-        Computes element pointer with bounds checking:
+        Returns VyperValue.from_ptr() with element pointer and inherited location.
+        """
+        elem_ptr, data_loc, elem_typ, reference = self._array_element_ptr()
+
+        if is_unbounded_sequence_type(elem_typ):
+            # an assignment target rebinds the cell (`array_element_cell_ptr`)
+            assert not self.as_ptr, "semantic analysis rejects writes inside an unbounded element"
+            assert isinstance(elem_ptr, IRVariable)
+            # reading the cell as the value would hand back the payload
+            # address. The payload is never mutated in place, so it stays
+            # valid independently of the element's frame: no reference is kept.
+            payload = self.builder.mload(elem_ptr)
+            assert isinstance(payload, IRVariable)
+            return self.ctx.dynamic_memory_value(payload, elem_typ, annotation="element")
+
+        return self._make_ptr_value(elem_ptr, data_loc, elem_typ, reference)
+
+    def _array_element_ptr(
+        self,
+    ) -> tuple[IROperand, DataLocation, VyperType, Optional[ValueReference]]:
+        """Compute an array element's pointer with bounds checking:
         - Static arrays: bounds check against compile-time count
         - Dynamic arrays: load length from first word, skip 32/1 for data
 
-        Returns VyperValue.from_ptr() with element pointer and inherited location.
+        Returns the element's address, location, type and reference obligations.
+        An unbounded element's address points to its cell, not its payload.
         """
         node = self.node
         assert isinstance(node, vy_ast.Subscript)
@@ -1048,7 +1088,7 @@ class Expr:
         assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
-        elem_size = elem_typ.get_size_in(data_loc)
+        elem_size = self.ctx.array_elem_size_in(base_typ, data_loc)
 
         # Bounds checking
         length: IROperand
@@ -1092,7 +1132,7 @@ class Expr:
                 reference = ValueReference()
             reference = reference.project(base, index, data_loc)
 
-        return self._make_ptr_value(elem_ptr, data_loc, elem_typ, reference)
+        return elem_ptr, data_loc, elem_typ, reference
 
     def _lower_mapping_subscript(self) -> VyperValue:
         """Lower mapping[key] access.
@@ -1247,6 +1287,17 @@ class Expr:
         field_index = attrs.index(attr)
         field_typ = base_typ.member_types[attr]
 
+        if self.as_ptr and is_unbounded_sequence_type(field_typ):
+            # a struct reached through a subscript is in an array element,
+            # which is written only whole (see
+            # `VenomCodegenContext.zero_pointer_cell_capacities`)
+            root = node.value
+            while isinstance(root, vy_ast.Attribute):
+                root = root.value
+            assert not isinstance(
+                root, vy_ast.Subscript
+            ), "semantic analysis rejects writes to an unbounded member through an array element"
+
         if data_loc == DataLocation.MEMORY:
             offset = struct_member_offsets(base_typ)[field_index][1]
         else:
@@ -1262,10 +1313,22 @@ class Expr:
         field_ptr = self.builder.add(base, IRLiteral(offset))
         return field_ptr, data_loc, field_typ, base_vv.reference
 
+    def array_element_cell_ptr(self) -> IRVariable:
+        """Return the pointer cell of an unbounded array element (see
+        `VenomCodegenContext.store_pointer_cell`).
+        """
+        assert is_unbounded_array_element(self.node)
+        assert self.as_ptr, "construct the Expr as a target: Expr(node, ctx, as_ptr=True)"
+        elem_ptr, data_loc, _, _ = self._array_element_ptr()
+        assert data_loc == DataLocation.MEMORY
+        assert isinstance(elem_ptr, IRVariable)
+        return elem_ptr
+
     def struct_member_cell_ptr(self) -> IRVariable:
         """Return the pointer cell of an unbounded struct member (see
         `VenomCodegenContext.store_pointer_cell`).
         """
+        assert self.as_ptr, "construct the Expr as a target: Expr(node, ctx, as_ptr=True)"
         field_ptr, data_loc, field_typ, _ = self._struct_member_ptr()
         assert is_unbounded_sequence_type(field_typ)
         assert data_loc == DataLocation.MEMORY
@@ -1699,14 +1762,14 @@ class Expr:
                     assert len(outs) == 1
                     rebase_packed_value(self.ctx, outs[0], func_t.return_type)
                     if is_unbounded_sequence_type(func_t.return_type):
-                        return self.ctx.dynamic_memory_value(
+                        return self.ctx.owned_memory_value(
                             outs[0], func_t.return_type, annotation=func_name
                         )
                     return self._make_ptr_value(outs[0], DataLocation.MEMORY, func_t.return_type)
 
                 assert len(outs) == 1
                 # Dynamic internal returns publish a runtime memory pointer directly.
-                return self.ctx.dynamic_memory_value(
+                return self.ctx.owned_memory_value(
                     outs[0], func_t.return_type, annotation=func_name
                 )
 
@@ -1855,14 +1918,18 @@ class Expr:
         darray_vv = self._resolve_after(darray_vv, arg_node, darray_node)
         darray_ptr = darray_vv.operand
 
-        if not elem_typ._is_prim_word:
+        elem_is_cell = is_unbounded_sequence_type(elem_typ)
+        if elem_is_cell:
+            # the element is a pointer cell; it gets its own payload
+            elem_val: IROperand = self.ctx.payload_for_cell(arg_vv, elem_typ, annotation="append")
+        elif not elem_typ._is_prim_word:
             # Always stage complex elements through a temp buffer to guard
             # against aliasing (e.g. arr.append(arr[0])).
             # MemoryCopyElisionPass eliminates the copy when safe.
             temp_buf = self.ctx.new_temporary_value(elem_typ)
             assert isinstance(temp_buf.operand, IRVariable)
             self.ctx.store_vyper_value(arg_vv, temp_buf.operand, elem_typ)
-            elem_val: IROperand = temp_buf.operand
+            elem_val = temp_buf.operand
             elem_src_typ = elem_typ
         else:
             elem_val = arg_val
@@ -1872,7 +1939,7 @@ class Expr:
         assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
-        elem_size = elem_typ.get_size_in(data_loc)
+        elem_size = self.ctx.array_elem_size_in(darray_typ, data_loc)
         capacity = darray_typ.count  # Maximum length
 
         # 1. Load current length
@@ -1892,7 +1959,10 @@ class Expr:
         # 4. Store element - handle complex types properly
         # For primitive types, use single-word store
         # For complex types, elem_val is a memory pointer - need to copy data
-        if elem_typ._is_prim_word:
+        if elem_is_cell:
+            assert isinstance(elem_ptr, IRVariable)
+            self.ctx.store_pointer_cell(elem_ptr, elem_val, IRLiteral(0))
+        elif elem_typ._is_prim_word:
             self.builder.store(elem_ptr, elem_val, data_loc)
         elif data_loc == DataLocation.MEMORY:
             self.ctx.store_memory(elem_val, elem_ptr, elem_typ, src_typ=elem_src_typ)
@@ -1939,11 +2009,15 @@ class Expr:
         arg_vv = Expr(node.args[0], self.ctx).lower()
         arg_val = self.ctx.unwrap(arg_vv)
 
-        if not elem_typ._is_prim_word:
+        elem_is_cell = is_unbounded_sequence_type(elem_typ)
+        if elem_is_cell:
+            # the element is a pointer cell; it gets its own payload
+            elem_val: IROperand = self.ctx.payload_for_cell(arg_vv, elem_typ, annotation="append")
+        elif not elem_typ._is_prim_word:
             temp_buf = self.ctx.new_temporary_value(elem_typ)
             assert isinstance(temp_buf.operand, IRVariable)
             self.ctx.store_vyper_value(arg_vv, temp_buf.operand, elem_typ)
-            elem_val: IROperand = temp_buf.operand
+            elem_val = temp_buf.operand
         else:
             elem_val = arg_val
 
@@ -1957,7 +2031,7 @@ class Expr:
                 )  # pragma: nocover
             cell = var.value.operand
         elif is_unbounded_struct_member(darray_node):
-            cell = Expr(darray_node, self.ctx).struct_member_cell_ptr()
+            cell = Expr(darray_node, self.ctx, as_ptr=True).struct_member_cell_ptr()
         else:
             raise CompilerPanic(
                 "semantic analysis should reject append() on this DynArray[..., INF]"
@@ -1965,7 +2039,7 @@ class Expr:
         assert isinstance(cell, IRVariable)
         old_ptr, capacity = self.ctx.load_pointer_cell(cell)
         length = b.mload(old_ptr)
-        elem_size = elem_typ.memory_bytes_required
+        elem_size = self.ctx.dynarray_elem_stride(darray_typ)
 
         # every payload a pointer cell can reference was allocated with a
         # checked `32 + length * elem_size`, so recomputing it cannot overflow
@@ -2025,7 +2099,10 @@ class Expr:
         target_ptr = b.mload(target_cell._ptr)
         assert isinstance(target_ptr, IRVariable)
         elem_ptr = b.add(b.add(target_ptr, IRLiteral(32)), data_size)
-        if elem_typ._is_prim_word:
+        if elem_is_cell:
+            assert isinstance(elem_ptr, IRVariable)
+            self.ctx.store_pointer_cell(elem_ptr, elem_val, IRLiteral(0))
+        elif elem_typ._is_prim_word:
             b.mstore(elem_ptr, elem_val)
         else:
             self.ctx.store_memory(elem_val, elem_ptr, elem_typ, src_typ=elem_typ)
@@ -2062,7 +2139,7 @@ class Expr:
         assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
-        elem_size = elem_typ.get_size_in(data_loc)
+        elem_size = self.ctx.array_elem_size_in(darray_typ, data_loc)
 
         # 1. Load current length
         length = self.builder.load(darray_ptr, data_loc)
@@ -2082,6 +2159,14 @@ class Expr:
         data_ptr = self.builder.add(darray_ptr, IRLiteral(overhead))
         offset = self.builder.mul(new_length, IRLiteral(elem_size))
         elem_ptr = self.builder.add(data_ptr, offset)
+
+        if is_unbounded_sequence_type(elem_typ):
+            # the popped element is the payload its cell points at; the cell
+            # is past the new length and never read again
+            assert isinstance(elem_ptr, IRVariable)
+            payload = self.builder.mload(elem_ptr)
+            assert isinstance(payload, IRVariable)
+            return self.ctx.dynamic_memory_value(payload, elem_typ, annotation="pop")
 
         # Return as location - unwrap() will load for primitives
         return self._make_ptr_value(elem_ptr, data_loc, elem_typ)
@@ -2584,7 +2669,7 @@ class Expr:
 
         ret_ptr = b.mload(ret_cell._ptr)
         assert isinstance(ret_ptr, IRVariable)
-        return self.ctx.dynamic_memory_value(ret_ptr, return_t, annotation="external call return")
+        return self.ctx.owned_memory_value(ret_ptr, return_t, annotation="external call return")
 
     def _unpack_dynamic_tuple_external_call_return(
         self, call_kwargs: _CallKwargs, contract_address: IROperand, return_t: TupleT
