@@ -5,8 +5,8 @@ from vyper.compiler.settings import Settings, anchor_settings
 from vyper.venom.basicblock import IRLiteral, IRVariable
 
 
-def _compile_frontend_ir(source):
-    settings = Settings(experimental_codegen=True)
+def _compile_frontend_ir(source, evm_version=None):
+    settings = Settings(experimental_codegen=True, evm_version=evm_version)
     with anchor_settings(settings):
         compiler_data = CompilerData(source, settings=settings)
         return generate_venom_runtime(compiler_data.global_ctx, settings)
@@ -148,7 +148,8 @@ def f(b: Bytes[40]) -> Bytes[40]:
     return z
     """
 
-    insts = _instructions(_compile_frontend_ir(code))
+    # before cancun, memory copies are identity-precompile calls, not mcopy
+    insts = _instructions(_compile_frontend_ir(code, evm_version="cancun"))
     drets = [inst for inst in insts if inst.opcode == "dret"]
     assert len(drets) == 1
     # count, then a (pointer, size) pair per dynamic member, then the return pc
