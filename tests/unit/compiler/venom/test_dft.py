@@ -171,6 +171,29 @@ def test_dft_alias_analysis_unknown_offset_is_conservative():
     assert mload_inst in dft.eda[mstore_inst]
 
 
+def test_dft_unknown_offset_write_keeps_other_allocation_reads():
+    """A write at an unknown offset into one allocation does not alias reads
+    of another allocation, so it must not hide them from a later write to
+    that allocation."""
+    pre = """
+    main:
+        %dyn = param
+        %a = alloca 64
+        %b = alloca 32
+        %p = add %a, %dyn
+        %x = mload %b
+        mstore %p, 1
+        mstore %b, 2
+        sink %x
+    """
+    dft, insts = _run_dft_and_get_eda(pre)
+    load_b = insts["mload"][0]
+    store_p, store_b = insts["mstore"]
+
+    assert load_b not in dft.eda[store_p]
+    assert load_b in dft.eda[store_b]
+
+
 def test_dft_alias_analysis_skips_non_aliasing_earlier_write():
     """Three writes: W1 at 0, W2 at 32, W3 at 0. W3 must fence against W1
     (aliasing) but not against W2 (non-aliasing): a non-aliasing write in

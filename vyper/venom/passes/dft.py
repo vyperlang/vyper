@@ -313,8 +313,11 @@ class DFTPass(IRPass):
     def _covers(loc: MemoryLocation, other: MemoryLocation) -> bool:
         # every access aliasing `other` also aliases `loc` (under _may_alias)
         if loc.offset is None and not loc.is_empty():
-            # an unknown offset may alias anything
-            return True
+            # an unknown offset may alias anything in its own allocation, but
+            # not accesses of a different (static) allocation
+            if loc.alloca is None or loc.alloca == other.alloca:
+                return True
+            return loc.alloca.is_dynamic and other.alloca is not None and other.alloca.is_dynamic
         return loc.completely_contains(other)
 
     def _calculate_data_offspring(self, inst: IRInstruction):
