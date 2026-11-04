@@ -21,9 +21,9 @@ from vyper.venom.analysis import (
     LivenessAnalysis,
 )
 from vyper.venom.basicblock import (
+    ONE_TO_ONE_INSTRUCTIONS,
     PSEUDO_INSTRUCTION,
     TEST_INSTRUCTIONS,
-    ONE_TO_ONE_INSTRUCTIONS,
     IRBasicBlock,
     IRInstruction,
     IRLabel,
