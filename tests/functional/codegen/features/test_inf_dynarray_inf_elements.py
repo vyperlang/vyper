@@ -880,6 +880,78 @@ def grown() -> DynArray[DynArray[uint256, {bound}], INF]:
     assert c.grown() == [[8, 1], [0]]
 
 
+@pytest.mark.parametrize("bound", _BYTES_BOUNDS)
+def test_iterate_list_literal_as_unbounded(get_contract, bound):
+    # each iteration sees its own item, and the items are taken before the
+    # loop runs, so reassigning a variable they came from changes none of them
+    code = f"""
+@external
+def lengths(a: Bytes[{bound}], b: Bytes[{bound}]) -> DynArray[uint256, 4]:
+    ns: DynArray[uint256, 4] = []
+    for x: Bytes[INF] in [a, b, a]:
+        ns.append(len(x))
+    return ns
+
+@external
+def collect(a: Bytes[{bound}], b: Bytes[{bound}]) -> DynArray[Bytes[INF], INF]:
+    ys: DynArray[Bytes[INF], INF] = []
+    for x: Bytes[INF] in [a, b, b"lit"]:
+        ys.append(concat(x, b"!"))
+    return ys
+
+@external
+def reassign_while_iterating(b: Bytes[{bound}]) -> DynArray[Bytes[INF], INF]:
+    a: Bytes[INF] = b
+    ys: DynArray[Bytes[INF], INF] = []
+    for x: Bytes[INF] in [a, a]:
+        a = concat(a, b"!")
+        ys.append(x)
+    ys.append(a)
+    return ys
+    """
+    c = get_contract(code)
+    a, b = b"c" * 70, b""
+    assert c.lengths(a, b) == [70, 0, 70]
+    assert c.collect(a, b) == [a + b"!", b"!", b"lit!"]
+    assert c.reassign_while_iterating(b"ab") == [b"ab", b"ab", b"ab!!"]
+
+
+def test_iterate_list_literal_of_unbounded_strings_and_arrays(get_contract):
+    code = """
+@external
+def strings(a: String[INF], b: String[INF]) -> DynArray[String[INF], INF]:
+    ys: DynArray[String[INF], INF] = []
+    for x: String[INF] in [b, a]:
+        ys.append(x)
+    return ys
+
+@external
+def sums(a: DynArray[uint256, INF], b: DynArray[uint256, 3]) -> DynArray[uint256, 4]:
+    ns: DynArray[uint256, 4] = []
+    for xs: DynArray[uint256, INF] in [a, b, a]:
+        t: uint256 = 0
+        for x: uint256 in xs:
+            t += x
+        ns.append(t)
+    return ns
+
+@external
+def rows(
+    a: DynArray[Bytes[INF], INF], b: DynArray[Bytes[INF], 3]
+) -> DynArray[DynArray[Bytes[INF], INF], INF]:
+    ys: DynArray[DynArray[Bytes[INF], INF], INF] = []
+    for row: DynArray[Bytes[INF], INF] in [a, b, a]:
+        ys.append(row)
+    return ys
+    """
+    c = get_contract(code)
+    assert c.strings("ab", "c" * 70) == ["c" * 70, "ab"]
+    assert c.sums(list(range(40)), [1, 2]) == [780, 3, 780]
+    assert c.sums([], []) == [0, 0, 0]
+    assert c.rows(VALUES, VALUES_SHORT) == [VALUES, VALUES_SHORT, VALUES]
+    assert c.rows([], []) == [[], [], []]
+
+
 def test_string_elements_behave_like_bytes(get_contract):
     code = """
 @external
