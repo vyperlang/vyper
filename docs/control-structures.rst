@@ -62,7 +62,6 @@ External functions can use the ``@raw_return`` decorator to return raw bytes wit
             msg.data,
             is_delegate_call=True,
             max_outsize=128,
-            value=msg.value
         )
 
 .. note::
@@ -327,7 +326,7 @@ The ``@raw_return`` decorator allows a function to return raw bytes without ABI-
     @raw_return
     def forward_call(target: address) -> Bytes[1024]:
         # Returns the raw bytes from the external call without ABI-encoding
-        return raw_call(target, msg.data, max_outsize=1024, value=msg.value, is_delegate_call=True)
+        return raw_call(target, msg.data, max_outsize=1024, is_delegate_call=True)
 
 The ``@raw_return`` decorator has the following restrictions:
 

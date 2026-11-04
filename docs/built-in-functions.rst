@@ -303,8 +303,8 @@ Vyper has four built-ins for contract creation; the first three contract creatio
     .. code-block:: vyper
 
         @external
-        def foo(_receiver: address, _amount: uint256, gas: uint256):
-            send(_receiver, _amount, gas=gas)
+        def foo(_receiver: address, _amount: uint256, _gas: uint256):
+            send(_receiver, _amount, gas=_gas)
 
 Cryptography
 ============
