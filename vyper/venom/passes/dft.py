@@ -32,8 +32,6 @@ class DFTPass(IRPass):
     dda: dict[IRInstruction, OrderedSet[IRInstruction]]
     # "effect dependency analysis"
     eda: dict[IRInstruction, OrderedSet[IRInstruction]]
-    # the aborting instructions each one is ordered after (also in `eda`)
-    abort_deps: dict[IRInstruction, OrderedSet[IRInstruction]]
 
     stack_order: StackOrderAnalysis
     cfg: CFGAnalysis
@@ -125,10 +123,11 @@ class DFTPass(IRPass):
             #   direct data dependencies (order of operands)
 
             is_effect_only = x not in self.dda[inst] and x in self.eda[inst]
-            if is_effect_only and x in self.abort_deps[inst]:
-                # schedule the previous abort before this one's operands, so
-                # each abort's condition is computed next to it instead of
-                # all of them being computed up front
+            if is_effect_only and x.opcode in _ABORT_KIND:
+                # for any aborting instruction, schedule the previous abort
+                # run before its operands: an assert's condition is computed
+                # next to it instead of up front, and the mstores staging an
+                # invoke's arguments are not hoisted above an earlier assert
                 return -2
             if is_effect_only or inst.flippable:
                 has_data_offspring = len(self.data_offspring[x]) > 0
@@ -174,7 +173,6 @@ class DFTPass(IRPass):
         # ida: instruction dependency analysis
         self.dda = defaultdict(OrderedSet)
         self.eda = defaultdict(OrderedSet)
-        self.abort_deps = defaultdict(OrderedSet)
 
         non_phis = list(bb.non_phi_instructions)
 
@@ -194,7 +192,6 @@ class DFTPass(IRPass):
                 if len(run) == 0 or kind == "any" or kind != _ABORT_KIND[run[0].opcode]:
                     prev_run, run = run, []
                 self.eda[inst].addmany(prev_run)
-                self.abort_deps[inst].addmany(prev_run)
                 run.append(inst)
 
             if inst.is_bb_terminator:
