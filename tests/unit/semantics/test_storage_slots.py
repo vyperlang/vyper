@@ -1,5 +1,6 @@
 import pytest
 
+from vyper.compiler import compile_code
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import StorageLayoutException
 
@@ -97,7 +98,7 @@ def test_reentrancy_lock(get_contract):
     assert c.h(0) == 123456789
 
 
-def test_allocator_overflow(get_contract):
+def test_allocator_exact_fit():
     # cancun allocates reeentrancy slot in transient storage,
     # so allocate an actual storage variable
     if version_check(begin="cancun"):
@@ -109,8 +110,50 @@ def test_allocator_overflow(get_contract):
 y: uint256[max_value(uint256)]
     """
 
+    # y exactly fills the remaining slots (1 through 2**256 - 1)
+    assert compile_code(code) is not None
+
+
+def test_allocator_overflow():
+    # like test_allocator_exact_fit, but y overflows storage by one slot
+    if version_check(begin="cancun"):
+        slots = "x: uint256\nz: uint256"
+    else:
+        slots = "z: uint256  # nonreentrancy slot at 0, z at 1"
+    code = f"""
+{slots}
+y: uint256[max_value(uint256)]
+    """
+
     with pytest.raises(
         StorageLayoutException,
-        match=f"Invalid storage slot, tried to allocate slots 1 through {2**256}",
+        match=f"Invalid storage slot, tried to allocate slots 2 through {2**256}",
     ):
-        get_contract(code)
+        compile_code(code)
+
+
+def test_immutables_exact_fit():
+    # immutables exactly fill the 0x6000 byte allocation limit (768 words)
+    code = """
+X: immutable(uint256[768])
+
+@deploy
+def __init__():
+    X = empty(uint256[768])
+    """
+    assert compile_code(code) is not None
+
+
+def test_immutables_overflow():
+    code = """
+X: immutable(uint256[769])
+
+@deploy
+def __init__():
+    X = empty(uint256[769])
+    """
+    with pytest.raises(
+        StorageLayoutException,
+        match=f"Invalid storage slot, tried to allocate slots 0 through {769 * 32 - 1}",
+    ):
+        compile_code(code)
