@@ -17,6 +17,7 @@ from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.basicblock import RET_INSTRUCTIONS, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.memory_location import (
     Allocation,
@@ -247,8 +248,26 @@ class BasePtrAnalysis(IRAnalysis):
             return next(iter(ptrs))
         return None
 
+    def _resolve_literal(self, op: Optional[IROperand]) -> Optional[IROperand]:
+        # see through `%x = <literal>`, which SingleUseExpansion introduces
+        # for every literal operand, so locations stay fixed after that pass
+        if not isinstance(op, IRVariable):
+            return op
+        # requested lazily, see _untracked_root_from_def
+        dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        inst = dfg.get_producing_instruction(op)
+        if inst is None or inst.opcode != "assign":
+            return op
+        if not isinstance(inst.operands[0], IRLiteral):
+            return op
+        return inst.operands[0]
+
     def segment_from_ops(self, ops: InstAccessOps) -> MemoryLocation:
         size: Optional[int]
+
+        ops = dc.replace(
+            ops, ofst=self._resolve_literal(ops.ofst), size=self._resolve_literal(ops.size)
+        )
 
         if isinstance(ops.size, IRLiteral):
             size = ops.size.value
@@ -474,10 +493,6 @@ class BasePtrAnalysis(IRAnalysis):
         return ret
 
     def _untracked_root_from_def(self, var: IRVariable) -> bool:
-        # Keep this dependency lazy: importing DFGAnalysis at module scope
-        # creates a cycle through vyper.venom.analysis.__init__.
-        from vyper.venom.analysis.dfg import DFGAnalysis
-
         # requested lazily (not in analyze()): this query runs after other
         # passes may have invalidated DFGAnalysis without touching this
         # analysis, so a reference held from analyze() could be stale.
