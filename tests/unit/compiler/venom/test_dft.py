@@ -1,3 +1,5 @@
+import pytest
+
 from tests.venom_utils import PrePostChecker
 from vyper.venom.passes import DFTPass
 
@@ -37,6 +39,37 @@ def test_dft_does_not_reorder_fmp_register_ops():
         %a = getfmp
         setfmp 128
         %b = getfmp
+        sink %a, %b
+    """
+    _check_no_change(pre)
+
+
+@pytest.mark.parametrize("call_op", ["call", "staticcall", "delegatecall"])
+def test_dft_does_not_reorder_gas_across_calls(call_op):
+    """
+    `gas` must stay on the same side of a call: the call consumes gas,
+    so moving a `gas` read across it changes the value read.
+    """
+    value = "5, " if call_op == "call" else ""
+    pre = f"""
+    main:
+        %a = gas
+        %ok = {call_op} 100000, 0x12, {value}1, 2, 3, 4
+        %b = gas
+        %d = sub %a, %b
+        sink %d, %ok
+    """
+    _check_no_change(pre)
+
+
+def test_dft_does_not_reorder_gas_reads():
+    """
+    two `gas` reads must keep their order: the later read sees less gas.
+    """
+    pre = """
+    main:
+        %a = gas
+        %b = gas
         sink %a, %b
     """
     _check_no_change(pre)
