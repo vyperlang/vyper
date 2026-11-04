@@ -185,7 +185,7 @@ class DFTPass(IRPass):
         # consecutive aborting instructions of the same kind form a run; each
         # one is ordered after the whole previous run. that is an edge from
         # every member of a run to every member of the previous one
-        # (|prev| x |run| edges), bounded by the size of the block.
+        # (|prev| x |run| edges, so quadratic in the worst case).
         prev_run: list[IRInstruction] = []
         run: list[IRInstruction] = []
 
