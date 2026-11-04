@@ -23,6 +23,7 @@ from vyper.venom.analysis import (
 from vyper.venom.basicblock import (
     PSEUDO_INSTRUCTION,
     TEST_INSTRUCTIONS,
+    ONE_TO_ONE_INSTRUCTIONS,
     IRBasicBlock,
     IRInstruction,
     IRLabel,
@@ -38,82 +39,6 @@ from vyper.venom.stack_spiller import StackSpiller
 DEBUG_SHOW_COST = False
 if DEBUG_SHOW_COST:
     import sys
-
-# instructions which map one-to-one from venom to EVM
-_ONE_TO_ONE_INSTRUCTIONS = frozenset(
-    [
-        "revert",
-        "coinbase",
-        "calldatasize",
-        "calldatacopy",
-        "mcopy",
-        "calldataload",
-        "gas",
-        "gasprice",
-        "gaslimit",
-        "chainid",
-        "address",
-        "origin",
-        "number",
-        "extcodesize",
-        "extcodehash",
-        "codecopy",
-        "extcodecopy",
-        "returndatasize",
-        "returndatacopy",
-        "callvalue",
-        "selfbalance",
-        "sload",
-        "sstore",
-        "mload",
-        "mstore",
-        "tload",
-        "tstore",
-        "timestamp",
-        "caller",
-        "blockhash",
-        "selfdestruct",
-        "signextend",
-        "stop",
-        "shr",
-        "shl",
-        "sar",
-        "and",
-        "xor",
-        "or",
-        "add",
-        "sub",
-        "mul",
-        "div",
-        "smul",
-        "sdiv",
-        "mod",
-        "smod",
-        "exp",
-        "addmod",
-        "mulmod",
-        "eq",
-        "iszero",
-        "not",
-        "lt",
-        "gt",
-        "slt",
-        "sgt",
-        "create",
-        "create2",
-        "balance",
-        "call",
-        "staticcall",
-        "delegatecall",
-        "codesize",
-        "basefee",
-        "blobhash",
-        "blobbasefee",
-        "prevrandao",
-        "difficulty",
-        "invalid",
-    ]
-)
 
 
 def _revert_postamble() -> list[AssemblyInstruction]:
@@ -810,7 +735,7 @@ class VenomCompiler:
             stack.push(out)
 
         # Step 5: Emit the EVM instruction(s)
-        if opcode in _ONE_TO_ONE_INSTRUCTIONS:
+        if opcode in ONE_TO_ONE_INSTRUCTIONS:
             assembly.append(opcode.upper())
         elif opcode == "alloca":
             pass
