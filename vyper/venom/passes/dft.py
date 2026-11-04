@@ -1,11 +1,24 @@
 from collections import defaultdict, deque
+from typing import Optional
 
 import vyper.venom.effects as effects
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis, StackOrderAnalysis
+from vyper.venom.analysis.mem_ssa import MemSSAAbstract, mem_ssa_type_factory
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
+from vyper.venom.memory_location import MemoryLocation
 from vyper.venom.passes.base_pass import IRPass
+
+# effects whose dependency edges DFT filters via memory-SSA may-alias info
+_FILTERED_EFFECTS = (effects.MEMORY, effects.STORAGE, effects.TRANSIENT)
+_NON_FILTERED_EFFECTS = ~(effects.MEMORY | effects.STORAGE | effects.TRANSIENT)
+_EFFECT_TO_ADDR_SPACE = {
+    effects.MEMORY: MEMORY,
+    effects.STORAGE: STORAGE,
+    effects.TRANSIENT: TRANSIENT,
+}
 
 
 class DFTPass(IRPass):
@@ -19,6 +32,7 @@ class DFTPass(IRPass):
 
     stack_order: StackOrderAnalysis
     cfg: CFGAnalysis
+    mem_ssa: dict[effects.Effects, MemSSAAbstract]
     # DFT expects single-use-expanded operands and should run just before CFG normalization.
     required_predecessors = ("SingleUseExpansion",)
     required_immediate_successors = ("CFGNormalization",)
@@ -30,6 +44,12 @@ class DFTPass(IRPass):
         self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.stack_order = self.analyses_cache.force_analysis(StackOrderAnalysis)
+        self.mem_ssa = {
+            eff: self.analyses_cache.request_analysis(
+                mem_ssa_type_factory(_EFFECT_TO_ADDR_SPACE[eff])
+            )
+            for eff in _FILTERED_EFFECTS
+        }
 
         worklist = deque(self.cfg.dfs_post_walk)
 
@@ -144,8 +164,22 @@ class DFTPass(IRPass):
         #
         # Compute dependency graph
         #
+        # Non-filtered effects: a single "last write" slot suffices because
+        # every later write of the same effect type unconditionally fences
+        # against every earlier one — so reads are subsumed transitively
+        # and can be cleared after a write.
         last_write_effects: dict[effects.Effects, IRInstruction] = {}
         all_read_effects: dict[effects.Effects, list[IRInstruction]] = defaultdict(list)
+
+        # Alias-filtered effects (MEMORY/STORAGE/TRANSIENT): keep ALL prior
+        # reads/writes per effect in this BB. With may-alias filtering,
+        # write-after-write becomes conditional on aliasing, so a non-aliasing
+        # later write must not "shadow" an earlier aliasing write — the
+        # single-slot trick breaks down.
+        prior_writes: dict[effects.Effects, list[IRInstruction]] = {
+            e: [] for e in _FILTERED_EFFECTS
+        }
+        prior_reads: dict[effects.Effects, list[IRInstruction]] = {e: [] for e in _FILTERED_EFFECTS}
 
         for inst in non_phis:
             if inst.is_bb_terminator:
@@ -161,7 +195,10 @@ class DFTPass(IRPass):
             write_effects = inst.get_write_effects()
             read_effects = inst.get_read_effects()
 
-            for write_effect in write_effects:
+            other_writes = write_effects & _NON_FILTERED_EFFECTS
+            other_reads = read_effects & _NON_FILTERED_EFFECTS
+
+            for write_effect in other_writes:
                 # ALL reads must happen before this write
                 if write_effect in all_read_effects:
                     for read_inst in all_read_effects[write_effect]:
@@ -174,10 +211,51 @@ class DFTPass(IRPass):
                 if write_effect in all_read_effects:
                     all_read_effects[write_effect] = []
 
-            for read_effect in read_effects:
+            for read_effect in other_reads:
                 if read_effect in last_write_effects and last_write_effects[read_effect] != inst:
                     self.eda[inst].add(last_write_effects[read_effect])
                 all_read_effects[read_effect].append(inst)
+
+            for eff in _FILTERED_EFFECTS:
+                if eff in write_effects:
+                    for r in prior_reads[eff]:
+                        if self._eff_may_alias(eff, inst, "write", r, "read"):
+                            self.eda[inst].add(r)
+                    for w in prior_writes[eff]:
+                        if self._eff_may_alias(eff, inst, "write", w, "write"):
+                            self.eda[inst].add(w)
+                    prior_writes[eff].append(inst)
+                if eff in read_effects:
+                    for w in prior_writes[eff]:
+                        if w is inst:
+                            continue
+                        if self._eff_may_alias(eff, inst, "read", w, "write"):
+                            self.eda[inst].add(w)
+                    prior_reads[eff].append(inst)
+
+    def _eff_loc(
+        self, eff: effects.Effects, inst: IRInstruction, kind: str
+    ) -> Optional[MemoryLocation]:
+        ssa = self.mem_ssa[eff]
+        if kind == "write":
+            d = ssa.get_memory_def(inst)
+            return d.loc if d is not None else None
+        u = ssa.get_memory_use(inst)
+        return u.loc if u is not None else None
+
+    def _eff_may_alias(
+        self,
+        eff: effects.Effects,
+        inst_a: IRInstruction,
+        kind_a: str,
+        inst_b: IRInstruction,
+        kind_b: str,
+    ) -> bool:
+        loc_a = self._eff_loc(eff, inst_a, kind_a)
+        loc_b = self._eff_loc(eff, inst_b, kind_b)
+        if loc_a is None or loc_b is None:
+            return True
+        return self.mem_ssa[eff].memalias.may_alias(loc_a, loc_b)
 
     def _calculate_data_offspring(self, inst: IRInstruction):
         if inst in self.data_offspring:
