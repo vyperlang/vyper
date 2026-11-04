@@ -255,12 +255,10 @@ class BasePtrAnalysis(IRAnalysis):
             return op
         # requested lazily, see _untracked_root_from_def
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        inst = dfg.get_producing_instruction(op)
-        if inst is None or inst.opcode != "assign":
+        root = dfg._traverse_assign_chain(op)
+        if not isinstance(root, IRLiteral):
             return op
-        if not isinstance(inst.operands[0], IRLiteral):
-            return op
-        return inst.operands[0]
+        return root
 
     def segment_from_ops(self, ops: InstAccessOps) -> MemoryLocation:
         size: Optional[int]
