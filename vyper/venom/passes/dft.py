@@ -13,9 +13,10 @@ from vyper.venom.passes.base_pass import IRPass
 # `returndatacopy` past the end of the return data), or (`invoke`) in any
 # way its callee can. when two of them abort differently, their order
 # decides the outcome, so DFT keeps them in program order; ones that abort
-# the same way may still be reordered. state writes that halt under a
-# static call are not ordered against `assert`: that only changes how much
-# gas a failing call consumes.
+# the same way may still be reordered, so e.g. two `assert`s with different
+# `# dev:` reasons may swap, and which one reports is not guaranteed. state
+# writes that halt under a static call are not listed: halting is incidental
+# to them, not their purpose.
 _ABORT_KIND = {
     "assert": "revert",
     "assert_unreachable": "halt",
