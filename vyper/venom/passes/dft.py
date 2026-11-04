@@ -124,7 +124,7 @@ class DFTPass(IRPass):
             #   direct data dependencies (order of operands)
 
             is_effect_only = x not in self.dda[inst] and x in self.eda[inst]
-            if is_effect_only and x.opcode in _ABORT_KIND:
+            if is_effect_only and inst.opcode in _ABORT_KIND and x.opcode in _ABORT_KIND:
                 # for any aborting instruction, schedule the previous abort
                 # run before its operands: an assert's condition is computed
                 # next to it instead of up front, and the mstores staging an
