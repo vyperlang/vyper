@@ -94,7 +94,7 @@ def _run_dft_and_get_eda(pre: str):
     return dft, insts_by_opcode
 
 
-def test_dft_mem_ssa_disjoint_locs_drops_fence():
+def test_dft_alias_analysis_disjoint_locs_drops_fence():
     """mload at offset 0 and mstore at offset 32 do not alias — DFT should
     not place either in the other's effect-dep set."""
     pre = """
@@ -111,7 +111,7 @@ def test_dft_mem_ssa_disjoint_locs_drops_fence():
     assert mstore_inst not in dft.eda[mload_inst]
 
 
-def test_dft_mem_ssa_same_loc_keeps_fence():
+def test_dft_alias_analysis_same_loc_keeps_fence():
     """mload and mstore at the same offset must keep the effect-dep edge."""
     pre = """
     main:
@@ -126,7 +126,7 @@ def test_dft_mem_ssa_same_loc_keeps_fence():
     assert mload_inst in dft.eda[mstore_inst]
 
 
-def test_dft_mem_ssa_disjoint_stores_drop_fence():
+def test_dft_alias_analysis_disjoint_stores_drop_fence():
     """Two mstores at disjoint offsets do not need a write-after-write fence."""
     pre = """
     main:
@@ -140,7 +140,7 @@ def test_dft_mem_ssa_disjoint_stores_drop_fence():
     assert first not in dft.eda[second]
 
 
-def test_dft_mem_ssa_overlapping_stores_keep_fence():
+def test_dft_alias_analysis_overlapping_stores_keep_fence():
     """Two mstores at the same offset require a write-after-write fence."""
     pre = """
     main:
@@ -154,8 +154,8 @@ def test_dft_mem_ssa_overlapping_stores_keep_fence():
     assert first in dft.eda[second]
 
 
-def test_dft_mem_ssa_unknown_offset_is_conservative():
-    """An mstore through a dynamic pointer that mem_ssa cannot pin to a
+def test_dft_alias_analysis_unknown_offset_is_conservative():
+    """An mstore through a dynamic pointer that alias analysis cannot pin to a
     fixed location must keep the fence against a prior mload."""
     pre = """
     main:
@@ -171,7 +171,7 @@ def test_dft_mem_ssa_unknown_offset_is_conservative():
     assert mload_inst in dft.eda[mstore_inst]
 
 
-def test_dft_mem_ssa_skips_non_aliasing_earlier_write():
+def test_dft_alias_analysis_skips_non_aliasing_earlier_write():
     """Three writes: W1 at 0, W2 at 32, W3 at 0. W3 must fence against W1
     (aliasing) but not against W2 (non-aliasing): a non-aliasing write in
     between must not hide the earlier aliasing one."""

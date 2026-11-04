@@ -102,12 +102,25 @@ class BasePtrAnalysis(IRAnalysis):
     vars_in_allocations: dict[Allocation, set[IRVariable]]
     _untracked_root_memo: dict[IRVariable, bool]
     _untracked_root_active: set[IRVariable]
+    _multi_defined_vars: set[IRVariable]
 
     def analyze(self):
         self.var_to_mem = dict()
         self._untracked_root_memo = dict()
         self._untracked_root_active = set()
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+
+        # Pre-SSA clients can have several definitions of a variable. DFG
+        # records only the last one, which cannot prove a literal value at
+        # every use. Include unreachable blocks too, as DFG does.
+        defined: set[IRVariable] = set()
+        self._multi_defined_vars = set()
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                for var in inst.get_outputs():
+                    if var in defined:
+                        self._multi_defined_vars.add(var)
+                    defined.add(var)
 
         # facts are per variable, not per program point: a use can sit any
         # number of blocks below the definition (e.g. a phi operand from a
@@ -255,7 +268,16 @@ class BasePtrAnalysis(IRAnalysis):
             return op
         # requested lazily, see _untracked_root_from_def
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        root = dfg._traverse_assign_chain(op)
+        root: IROperand = op
+        seen: set[IRVariable] = set()
+        while isinstance(root, IRVariable):
+            if root in self._multi_defined_vars or root in seen:
+                return op
+            seen.add(root)
+            inst = dfg.get_producing_instruction(root)
+            if inst is None or inst.opcode != "assign":
+                return op
+            root = inst.operands[0]
         if not isinstance(root, IRLiteral):
             return op
         return root
