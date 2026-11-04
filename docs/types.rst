@@ -593,10 +593,8 @@ including separately allocated member data. A struct with unbounded members
 can still have a fixed-size inline layout.
 
 ``Bytes[INF]`` and ``String[INF]`` can hold any runtime length. ``DynArray[T, INF]``
-can hold any runtime item count. ``T`` must have a fixed-size layout: a bounded
-type, which may be ABI-dynamic, such as ``Bytes[512]``, ``DynArray[uint256, 3]``
-or a struct with bytestring members, or a struct with unbounded members (see
-below), but not an unbounded sequence itself:
+can hold any runtime item count. ``T`` can be any valid ``DynArray`` element
+type.
 
 .. code-block:: vyper
 
@@ -625,11 +623,66 @@ bytes-oriented builtins such as ``concat``, ``slice``, ``convert``, ``empty`` an
 for example ``(uint256, Bytes[INF])``.
 
 Unbounded types are not supported in storage, transient storage, immutable
-module variables, static arrays, or mappings. An unbounded sequence type cannot
-be the element type of another ``DynArray``, bounded or unbounded. For example,
-``DynArray[Bytes[INF], INF]`` and ``DynArray[DynArray[uint256, INF], 3]`` are
-rejected. Tuple arguments and local tuple variables containing unbounded types
-are also rejected.
+module variables, static arrays, or mappings. Tuple arguments and local tuple
+variables containing unbounded types are also rejected.
+
+.. _unbounded_elements:
+
+Unbounded Elements
+******************
+
+The element type of a ``DynArray`` may itself be an unbounded sequence, nested to
+any depth, and the outer array may be bounded or unbounded. For example:
+
+* ``DynArray[Bytes[INF], INF]``
+* ``DynArray[String[INF], 5]``
+* ``DynArray[DynArray[uint256, INF], INF]``
+
+.. code-block:: vyper
+
+    #pragma experimental-codegen
+
+    @external
+    def longest(calls: DynArray[Bytes[INF], INF]) -> uint256:
+        best: uint256 = 0
+        for i: uint256 in range(len(calls), bound=max_value(uint256)):
+            best = max(best, len(calls[i]))
+        return best
+
+Arrays of unbounded elements behave like other dynamic arrays, subject to the
+following restrictions.
+
+.. TODO: Support mutation of unbounded elements in place.
+
+Currently, an element cannot be modified in place, such as with ``xs[i][j] = v`` or
+``xs[i].append(v)``. Copy the element to a local variable, modify it, then
+store it back:
+
+.. code-block:: vyper
+
+    xs[i].append(v)  # rejected
+
+    e: DynArray[uint256, INF] = xs[i]
+    e.append(v)
+    xs[i] = e  # allowed
+
+Arrays of unbounded elements cannot be returned inside tuples.
+
+Decoding an array of unbounded elements has no compile-time cost ceiling:
+
+* ``INF`` places no limit on the element count or on the size of any element,
+  so decoding can take arbitrary memory and gas. Bounded types cap both by
+  the product of their bounds.
+* The ABI does not require element offsets to be distinct, so ``n`` elements
+  may all point at one ``m``-word tail. Decoding gives every element its own
+  copy: memory proportional to ``n * m`` from input proportional to ``n + m``.
+* The sender pays for calldata, but a contract decoding the return data of a
+  call it made, or ``abi_decode`` of bytes it did not produce, pays for that
+  itself. Return data is decoded in the caller after the call returns, so a
+  ``gas=`` limit on the call does not cap it.
+
+A contract that decodes such arrays from untrusted sources should bound its own
+exposure.
 
 .. _unbounded_struct_members:
 
@@ -656,19 +709,16 @@ field cap:
             acc += v
         return acc
 
-In addition to bounded types, struct members may use ``Bytes[INF]``,
-``String[INF]``, or ``DynArray[T, INF]``, subject to the element-type restrictions
-above. Members may also be structs with unbounded members, or ``DynArray`` types
-whose elements are such structs. Tuples containing unbounded sequences, such as
-``(Bytes[INF], uint256)``, are not supported as struct members.
+A struct member may be any type except a tuple containing an unbounded
+sequence, such as ``(Bytes[INF], uint256)``.
 
 Structs with unbounded members behave like other structs, subject to the
 following restrictions.
 
 .. TODO: Support mutation of unbounded members through array elements.
 
-Writing to an unbounded member of an array element, or to anything inside it, is
-rejected. Copy the element to a local variable, modify it, then store
+Currently, writing to an unbounded member of an array element, or to anything
+inside it, is rejected. Copy the element to a local variable, modify it, then store
 it back:
 
 .. code-block:: vyper
@@ -681,13 +731,6 @@ it back:
 
 Structs with unbounded members, and types containing such structs, are supported
 only in memory and cannot be returned inside tuples.
-
-A ``DynArray`` of such structs cannot itself be a ``DynArray`` element:
-``DynArray[Batch, 3]`` is supported, but ``DynArray[DynArray[Batch, 3], 2]`` is
-rejected.
-
-.. TODO: Support nested DynArray types whose innermost elements are structs
-   with unbounded members.
 
 .. note::
     ``INF`` sequence types require ``#pragma experimental-codegen`` or compiling
