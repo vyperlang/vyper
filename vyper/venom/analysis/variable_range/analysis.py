@@ -114,7 +114,6 @@ class VariableRangeAnalysis(IRAnalysis):
                 break
             phi_range = self._phi_range(inst)
             self._write_range(state, inst.output, phi_range)
-
         return state
 
     def _run_block(self, bb: IRBasicBlock, entry_state: RangeState) -> RangeState:
