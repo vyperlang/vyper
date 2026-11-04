@@ -290,7 +290,8 @@ def foo(x: uint256, y: uint256) -> uint256:
 
 @external
 def baz(y: uint256):
-    # a second call site keeps `bar` from being inlined
+    # `bar` stays a call: the inliner always inlines a single call site,
+    # and a multi-site function only when it is under the inline threshold
     self.bar(y)
     self.bar(y)
     """
