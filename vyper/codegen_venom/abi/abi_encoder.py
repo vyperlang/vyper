@@ -99,8 +99,8 @@ def _runtime_abi_size_for_dynarray(
 ) -> IROperand:
     """Return a runtime bound on the ABI-encoded size of a DynArray whose elements hold INF.
 
-    The elements keep a compile-time stride (their INF members are pointer
-    cells) but no compile-time encoded size, so each one is sized in turn.
+    The elements keep a compile-time stride (an INF member or element is a
+    pointer cell) but no compile-time encoded size, so each one is sized in turn.
     """
     b = ctx.builder
     elem_t = typ.value_type
@@ -112,9 +112,14 @@ def _runtime_abi_size_for_dynarray(
     head = ctx.checked_mul(length, IRLiteral(elem_abi_t.embedded_static_size()))
     size = b.assign(ctx.checked_add(IRLiteral(32), head))
     data = b.add(ptr, IRLiteral(32))
+    stride = ctx.dynarray_elem_stride(typ)
 
     def add_element_size(counter: IRVariable) -> None:
-        elem_ptr = b.add(data, b.mul(counter, IRLiteral(elem_t.memory_bytes_required)))
+        elem_ptr = b.add(data, b.mul(counter, IRLiteral(stride)))
+        if is_unbounded_sequence_type(elem_t):
+            # the element is a pointer cell; size the payload it points at
+            elem_ptr = b.mload(elem_ptr)
+        assert isinstance(elem_ptr, IRVariable)
         elem_vv = ctx.dynamic_memory_value(elem_ptr, elem_t)
         b.assign_to(ctx.checked_add(size, runtime_abi_size_for_arg(ctx, elem_vv)), size)
 
@@ -421,10 +426,14 @@ def _encode_dyn_array(
 
     # Get source element pointer
     # Source elements start at src_ptr + 32 (skip length word)
-    elem_size = subtyp.memory_bytes_required
+    elem_size = ctx.dynarray_elem_stride(src_typ)
     src_data = b.add(src_ptr, IRLiteral(32))
     src_offset = b.mul(i, IRLiteral(elem_size))
-    child_src = b.add(src_data, src_offset)
+    child_src: IROperand = b.add(src_data, src_offset)
+    if is_unbounded_sequence_type(subtyp):
+        # what gets encoded is the payload the element's cell points at
+        assert isinstance(child_src, IRVariable)
+        child_src = b.mload(child_src)
 
     # Get destination element position
     # dst + 32 (skip length word) + i * static_elem_size
