@@ -43,6 +43,42 @@ def test_dft_does_not_reorder_fmp_register_ops():
     _check_no_change(pre)
 
 
+def test_dft_reorders_across_disjoint_store():
+    """
+    the load from [0, 32) does not alias the store to [32, 64), so the
+    store is free to move across the load.
+    """
+    pre = """
+    main:
+        %x = mload 0
+        mstore 32, 1
+        %y = add %x, 1
+        mstore 0, %y
+        stop
+    """
+    post = """
+    main:
+        mstore 32, 1
+        %x = mload 0
+        %y = add %x, 1
+        mstore 0, %y
+        stop
+    """
+    _check_pre_post(pre, post)
+
+
+def test_dft_keeps_order_across_aliasing_store():
+    pre = """
+    main:
+        %x = mload 0
+        mstore 0, 1
+        %y = add %x, 1
+        mstore 32, %y
+        stop
+    """
+    _check_no_change(pre)
+
+
 def _run_dft_and_get_eda(pre: str):
     """Parse `pre`, run DFT, return (dft_pass, original instructions of the
     entry block grouped by opcode, in BB order before DFT mutated them)."""
@@ -71,8 +107,8 @@ def test_dft_mem_ssa_disjoint_locs_drops_fence():
     mload_inst = insts["mload"][0]
     mstore_inst = insts["mstore"][0]
 
-    assert mload_inst not in dft.eda.get(mstore_inst, set())
-    assert mstore_inst not in dft.eda.get(mload_inst, set())
+    assert mload_inst not in dft.eda[mstore_inst]
+    assert mstore_inst not in dft.eda[mload_inst]
 
 
 def test_dft_mem_ssa_same_loc_keeps_fence():
@@ -101,7 +137,7 @@ def test_dft_mem_ssa_disjoint_stores_drop_fence():
     dft, insts = _run_dft_and_get_eda(pre)
     first, second = insts["mstore"]
 
-    assert first not in dft.eda.get(second, set())
+    assert first not in dft.eda[second]
 
 
 def test_dft_mem_ssa_overlapping_stores_keep_fence():
@@ -136,10 +172,9 @@ def test_dft_mem_ssa_unknown_offset_is_conservative():
 
 
 def test_dft_mem_ssa_skips_non_aliasing_earlier_write():
-    """Three writes: W1 at 0, W2 at 32, W3 at 0. W3 should fence against W1
-    (aliasing) but not against W2 (non-aliasing). This case exercises why
-    the single-slot last_write_effects shape is unsafe with alias filtering
-    — naively keeping only the most-recent write would lose W1."""
+    """Three writes: W1 at 0, W2 at 32, W3 at 0. W3 must fence against W1
+    (aliasing) but not against W2 (non-aliasing): a non-aliasing write in
+    between must not hide the earlier aliasing one."""
     pre = """
     main:
         mstore 0, 1
@@ -151,12 +186,12 @@ def test_dft_mem_ssa_skips_non_aliasing_earlier_write():
     w1, w2, w3 = insts["mstore"]
 
     assert w1 in dft.eda[w3]
-    assert w2 not in dft.eda.get(w3, set())
+    assert w2 not in dft.eda[w3]
 
 
 def test_dft_storage_disjoint_slots_drop_fence():
     """Two sstores at distinct fixed slots do not need a write-after-write
-    fence — STORAGE locations are tracked per-slot via mem_ssa."""
+    fence; STORAGE locations are tracked per slot."""
     pre = """
     main:
         sstore 0, 1
@@ -166,7 +201,7 @@ def test_dft_storage_disjoint_slots_drop_fence():
     dft, insts = _run_dft_and_get_eda(pre)
     first, second = insts["sstore"]
 
-    assert first not in dft.eda.get(second, set())
+    assert first not in dft.eda[second]
 
 
 def test_dft_storage_same_slot_keeps_fence():
@@ -193,7 +228,7 @@ def test_dft_storage_disjoint_sload_sstore_no_fence():
     sload_inst = insts["sload"][0]
     sstore_inst = insts["sstore"][0]
 
-    assert sload_inst not in dft.eda.get(sstore_inst, set())
+    assert sload_inst not in dft.eda[sstore_inst]
 
 
 def test_dft_transient_disjoint_slots_drop_fence():
@@ -206,13 +241,12 @@ def test_dft_transient_disjoint_slots_drop_fence():
     dft, insts = _run_dft_and_get_eda(pre)
     first, second = insts["tstore"]
 
-    assert first not in dft.eda.get(second, set())
+    assert first not in dft.eda[second]
 
 
 def test_dft_storage_independent_of_memory():
-    """mstore and sstore touch different effect classes — there has never
-    been a fence between them. Sanity-check that the new path doesn't
-    accidentally cross-couple them."""
+    """mstore and sstore touch different effect classes; there is no
+    fence between them."""
     pre = """
     main:
         mstore 0, 1
@@ -223,8 +257,8 @@ def test_dft_storage_independent_of_memory():
     mstore_inst = insts["mstore"][0]
     sstore_inst = insts["sstore"][0]
 
-    assert mstore_inst not in dft.eda.get(sstore_inst, set())
-    assert sstore_inst not in dft.eda.get(mstore_inst, set())
+    assert mstore_inst not in dft.eda[sstore_inst]
+    assert sstore_inst not in dft.eda[mstore_inst]
 
 
 def test_dft_bump_reclaim_reuse_keeps_fence():

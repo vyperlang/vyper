@@ -383,6 +383,25 @@ def test_mcopy_chain_with_variable_size():
     _check_pre_post(pre, post)
 
 
+def test_mcopy_chain_with_unknown_size():
+    """
+    Test mcopy chains with an unknown size: the memory location can't be
+    tracked precisely, so no chain optimization happens.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %sz = param
+        mcopy 200, 100, %sz
+        mcopy 300, 200, %sz
+        %1 = mload 300
+        sink %1
+    """
+    _check_no_change(pre)
+
+
 def test_overlapping_memory_regions():
     """
     Test that overlapping memory regions prevent optimization.
