@@ -1274,6 +1274,35 @@ def f(a: address, c: bool):
 
 
 @pytest.mark.parametrize(
+    "arg", ['[b"x", staticcall I(a).source()]', '[staticcall I(a).source(), b"x"]']
+)
+def test_wildcard_arg_list_literal_wildcard_call_element_types(arg):
+    # a wildcard call return in the list takes the parameter's element bound,
+    # whichever element comes first
+    code = f"""
+interface I:
+    def source() -> Bytes[...]: view
+    def sink(xs: DynArray[Bytes[10], ...]): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).sink({arg})
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.func.get("attr") == "sink"]
+    (arg_node,) = call.args
+    assert arg_node._metadata["type"] == DArrayT(BytesT(10), 2)
+    assert [element._metadata["type"] for element in arg_node.elements] == [BytesT(10)] * 2
+    (source_call,) = [
+        n for n in arg_node.get_descendants(vy_ast.Call) if n.func.get("attr") == "source"
+    ]
+    assert source_call._metadata["call_return_type"] == BytesT(10)
+
+    for experimental_codegen in (False, True):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=experimental_codegen))
+
+
+@pytest.mark.parametrize(
     "param_type,arg,arg_type",
     [
         # the arg's own bounds are kept, however large the parameter's fixed bounds are

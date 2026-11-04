@@ -573,7 +573,14 @@ def type_supremum(*multitypes: List[VyperType]) -> List[VyperType]:
                 # The supremum is the type such that both are subtypes
 
                 if t.is_subtype_of(c):
-                    tmp.append(c)
+                    if t.has_wildcard and c.is_subtype_of(t):
+                        # a wildcard length is comparable with every length;
+                        # keep it so the expected type fixes the length
+                        # (cf. `ExprVisitor._interpolate`), not the first
+                        # operand
+                        tmp.append(t)
+                    else:
+                        tmp.append(c)
 
                 elif c.is_subtype_of(t):
                     tmp.append(t)
