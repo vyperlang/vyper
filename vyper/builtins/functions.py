@@ -207,7 +207,8 @@ class Convert(BuiltinFunctionT):
     def fetch_call_return(self, node):
         _, target_typedef = self.infer_arg_types(node)
 
-        # note: more type conversion validation happens in convert.py
+        # Type-pair legality is checked by infer_arg_types; value-dependent
+        # checks (such as literal ranges) remain in codegen.
         return target_typedef.typedef
 
     # TODO: push this down into convert.py for more consistency

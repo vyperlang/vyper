@@ -9,9 +9,16 @@ import eth.codecs.abi.exceptions
 import pytest
 
 from tests.utils import decimal_to_int
+from vyper.builtins._convert_rules import validate_convertibility
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings
-from vyper.exceptions import InvalidLiteral, InvalidType, StaticAssertionException, TypeMismatch
+from vyper.exceptions import (
+    InvalidLiteral,
+    InvalidType,
+    StaticAssertionException,
+    StructureException,
+    TypeMismatch,
+)
 from vyper.semantics.types import AddressT, BoolT, BytesM_T, BytesT, DecimalT, IntegerT, StringT
 from vyper.semantics.types.shortcuts import BYTES20_T, BYTES32_T, UINT, UINT160_T, UINT256_T
 from vyper.utils import (
@@ -364,6 +371,42 @@ def convertible_pairs():
 # pairs which shouldn't even compile
 def non_convertible_pairs():
     return [(i, o) for (i, o) in all_pairs() if not can_convert(i, o) and i != o]
+
+
+def _validate_type_pair_allows(i_typ, o_typ):
+    if i_typ.is_subtype_of(o_typ):
+        return False
+
+    try:
+        validate_convertibility(i_typ, o_typ, None)
+    except (StructureException, TypeMismatch):
+        return False
+
+    return True
+
+
+@pytest.mark.parametrize("i_typ,o_typ", all_pairs())
+def test_validate_type_pair_matches_can_convert(i_typ, o_typ):
+    assert _validate_type_pair_allows(i_typ, o_typ) is can_convert(i_typ, o_typ)
+
+
+@pytest.mark.parametrize("i_typ", [BytesT(1), BytesT(20), BytesT(32)])
+@pytest.mark.parametrize("o_typ", [AddressT(), UINT256_T, DecimalT(), BoolT()])
+def test_bounded_dynamic_bytes_sources_allowed_for_scalar_targets(i_typ, o_typ):
+    validate_convertibility(i_typ, o_typ, None)
+
+
+@pytest.mark.parametrize("i_typ", [BytesT(33), BytesT(64)])
+@pytest.mark.parametrize("o_typ", [AddressT(), UINT256_T, DecimalT(), BoolT()])
+def test_oversized_dynamic_bytes_sources_rejected_for_scalar_targets(i_typ, o_typ):
+    with pytest.raises(TypeMismatch):
+        validate_convertibility(i_typ, o_typ, None)
+
+
+@pytest.mark.parametrize("o_typ", BytesM_T.all())
+def test_oversized_dynamic_bytes_sources_rejected_for_bytes_m_targets(o_typ):
+    with pytest.raises(TypeMismatch):
+        validate_convertibility(BytesT(33), o_typ, None)
 
 
 # _CASES_CACHE = {}
@@ -905,6 +948,45 @@ def test_convert() -> uint256:
     """  # noqa: E501
     c = get_contract(code)
     assert c.test_convert() == 42
+
+
+FLAG_PREAMBLE = """
+flag Roles:
+    ADMIN
+    USER
+"""
+
+# conversions which the venom pipeline accepted due to missing input
+# validation (GH 5111, GH 5019). the conversion matrix is shared between
+# pipelines, so both must reject these at compile time.
+ILLEGAL_CONVERSIONS = [
+    ("String[20]", "uint256"),
+    ("String[20]", "address"),
+    ("Roles", "uint8"),
+    ("Roles", "bool"),
+    ("Roles", "decimal"),
+    ("uint8", "Roles"),
+    ("bytes32", "Roles"),
+    ("bool", "Roles"),
+    ("bool", "address"),
+    ("address", "decimal"),
+    ("address", "int256"),
+    ("decimal", "address"),
+    ("decimal", "Roles"),
+]
+
+
+@pytest.mark.parametrize("i_typ,o_typ", ILLEGAL_CONVERSIONS)
+def test_illegal_conversions_blocked(i_typ, o_typ):
+    preamble = FLAG_PREAMBLE if "Roles" in (i_typ, o_typ) else ""
+    code = f"""{preamble}
+@external
+def foo(x: {i_typ}) -> {o_typ}:
+    return convert(x, {o_typ})
+    """
+    with pytest.raises(TypeMismatch) as exc_info:
+        compile_code(code, output_formats=("bytecode",))
+    assert exc_info.value.message == f"Can't convert {i_typ} to {o_typ}"
 
 
 def test_convert_int256_to_decimal_bounds(get_contract, tx_failed):
