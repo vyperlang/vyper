@@ -44,8 +44,8 @@ def test_dft_does_not_reorder_fmp_register_ops():
 
 
 def _run_dft_and_get_eda(pre: str):
-    """Parse `pre`, run DFT, return (dft_pass, list of original instructions in
-    BB order before DFT mutated them)."""
+    """Parse `pre`, run DFT, return (dft_pass, original instructions of the
+    entry block grouped by opcode, in BB order before DFT mutated them)."""
     ctx = parse_from_basic_block(pre)
     fn = next(iter(ctx.functions.values()))
     bb = fn.entry
@@ -225,3 +225,137 @@ def test_dft_storage_independent_of_memory():
 
     assert mstore_inst not in dft.eda.get(sstore_inst, set())
     assert sstore_inst not in dft.eda.get(mstore_inst, set())
+
+
+def test_dft_bump_reclaim_reuse_keeps_fence():
+    # after FmpLoweringPass a reclaimed dynamic allocation is reused: the
+    # second bump is based at the first allocation's mark, so %b == %a at
+    # runtime. the store through %b must stay after the loads through %a.
+    pre = """
+    main:
+        %fmp0 = initial_fmp
+        %a, %fmp1 = bump 64, %fmp0
+        mstore %a, 1
+        %u = mload %a
+        sstore 0, %u
+        %v = mload %a
+        %b, %fmp2 = bump 64, %a
+        mstore %b, 2
+        sink %v
+    """
+    dft, insts = _run_dft_and_get_eda(pre)
+    store_b = insts["mstore"][1]
+    load_u, load_v = insts["mload"]
+    assert load_u in dft.eda[store_b]
+    assert load_v in dft.eda[store_b]
+
+
+def test_dft_call_buffers():
+    pre = """
+    main:
+        %g = param
+        %addr = param
+        mstore 64, 5
+        %x = mload 0
+        %ok = call %g, %addr, 0, 64, 36, 96, 40
+        %y = mload 96
+        mstore 64, 7
+        sink %x, %y, %ok
+    """
+    dft, insts = _run_dft_and_get_eda(pre)
+    call = insts["call"][0]
+    store_args, store_after = insts["mstore"]
+    load_0, load_ret = insts["mload"]
+    assert store_args in dft.eda[call]  # args buffer written before the call
+    assert load_0 not in dft.eda[call]  # [0, 32) is neither read nor written
+    assert call in dft.eda[load_ret]  # return buffer read after the call
+    assert call in dft.eda[store_after]  # args buffer not overwritten before the call
+
+
+def test_dft_mcopy_variable_size():
+    pre = """
+    main:
+        %n = param
+        mstore 32, 1
+        mcopy 64, 0, %n
+        mstore 0, 9
+        sink %n
+    """
+    dft, insts = _run_dft_and_get_eda(pre)
+    mcopy = insts["mcopy"][0]
+    store_32, store_0 = insts["mstore"]
+    assert store_32 in dft.eda[mcopy]  # unknown-size source may read [32, 64)
+    assert mcopy in dft.eda[store_0]  # source read before overwrite
+
+
+def test_dft_overlapping_stores_keep_fence():
+    pre = """
+    main:
+        mstore 0, 1
+        mstore 16, 2
+        stop
+    """
+    dft, insts = _run_dft_and_get_eda(pre)
+    first, second = insts["mstore"]
+    assert first in dft.eda[second]
+
+
+def test_dft_invoke_fences_everything():
+    pre = """
+    main:
+        mstore 0, 1
+        sstore 0, 1
+        invoke @f
+        %q = mload 32
+        %s = sload 5
+        sink %q, %s
+    """
+    dft, insts = _run_dft_and_get_eda(pre)
+    invoke = insts["invoke"][0]
+    assert insts["mstore"][0] in dft.eda[invoke]
+    assert insts["sstore"][0] in dft.eda[invoke]
+    assert invoke in dft.eda[insts["mload"][0]]
+    assert invoke in dft.eda[insts["sload"][0]]
+
+
+def test_dft_terminator_and_log_reads():
+    pre = """
+    main:
+        mstore 0, 1
+        mstore 64, 2
+        %h = sha3 0, 32
+        log 64, 32, %h
+        return 64, 32
+    """
+    dft, insts = _run_dft_and_get_eda(pre)
+    store_0, store_64 = insts["mstore"]
+    assert list(dft.eda[insts["sha3"][0]]) == [store_0]
+    assert list(dft.eda[insts["log"][0]]) == [store_64]
+    assert list(dft.eda[insts["return"][0]]) == [store_64]
+
+
+def test_dft_iload_is_conservative():
+    pre = """
+    main:
+        mstore 64, 3
+        %v = iload 0
+        sink %v
+    """
+    dft, insts = _run_dft_and_get_eda(pre)
+    assert insts["mstore"][0] in dft.eda[insts["iload"][0]]
+
+
+def test_dft_call_clobbers_storage():
+    pre = """
+    main:
+        %g = param
+        %addr = param
+        %x = sload 0
+        %ok = call %g, %addr, 0, 64, 36, 96, 40
+        sstore 1, %x
+        sink %ok
+    """
+    dft, insts = _run_dft_and_get_eda(pre)
+    call = insts["call"][0]
+    assert insts["sload"][0] in dft.eda[call]
+    assert call in dft.eda[insts["sstore"][0]]

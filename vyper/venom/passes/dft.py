@@ -69,6 +69,9 @@ class DFTPass(IRPass):
                 worklist.append(pred)
 
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+        # memory SSA reaching-def chains follow instruction order
+        for mem_ssa in self.mem_ssa.values():
+            self.analyses_cache.invalidate_analysis(type(mem_ssa))
 
     def _process_basic_block(self, bb: IRBasicBlock) -> None:
         self._calculate_dependency_graphs(bb)
@@ -254,6 +257,13 @@ class DFTPass(IRPass):
         loc_a = self._eff_loc(eff, inst_a, kind_a)
         loc_b = self._eff_loc(eff, inst_b, kind_b)
         if loc_a is None or loc_b is None:
+            return True
+        # the alias analysis treats distinct allocations as disjoint. that
+        # holds in program order, but FmpLoweringPass reclaims a dead dynamic
+        # allocation by restoring the FMP to its mark, so a later `bump` can
+        # hand out the same memory. reordering across such a reuse is exactly
+        # what this pass does, so keep the fence between different allocations.
+        if loc_a.alloca is not None and loc_b.alloca is not None and loc_a.alloca != loc_b.alloca:
             return True
         return self.mem_ssa[eff].memalias.may_alias(loc_a, loc_b)
 
