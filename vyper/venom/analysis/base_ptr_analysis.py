@@ -113,6 +113,9 @@ class BasePtrAnalysis(IRAnalysis):
         # Pre-SSA clients can have several definitions of a variable. DFG
         # records only the last one, which cannot prove a literal value at
         # every use. Include unreachable blocks too, as DFG does.
+        # Same scan as InvokeCopyForwardingBase._collect_multi_defined_vars;
+        # both go away once DFG owns definitions or the global stage runs
+        # in SSA form.
         defined: set[IRVariable] = set()
         self._multi_defined_vars = set()
         for bb in self.function.get_basic_blocks():
