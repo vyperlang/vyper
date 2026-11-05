@@ -2227,7 +2227,7 @@ class Expr:
         assert data_loc is not None
         word_scale = 1 if data_loc in (DataLocation.STORAGE, DataLocation.TRANSIENT) else 32
 
-        elem_size = elem_typ.get_size_in(data_loc)
+        elem_size = self.ctx.array_elem_size_in(dst_darray_typ, data_loc)
         capacity = dst_darray_typ.count  # Maximum length
 
         # 1. Load current lengths

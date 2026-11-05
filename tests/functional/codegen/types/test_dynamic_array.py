@@ -2206,6 +2206,56 @@ def foo() -> DynArray[uint256, 3]:
     assert c.foo() == [1, 2]
 
 
+def test_extend_unbounded_elements(experimental_codegen, get_contract, tx_failed):
+    # elements that are unbounded sequences are pointer cells, so the dst
+    # stride is the cell size, not the element's size. a bounded-element
+    # source is converted to cells when staged; a cell source is copied flat
+    # and shares its payloads, which is sound because element payloads are
+    # never written in place (replacing an element rebinds its cell).
+    if not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
+
+    code = """
+@external
+def from_literal() -> DynArray[DynArray[uint256, INF], 3]:
+    x: DynArray[DynArray[uint256, INF], 3] = [[1]]
+    x.extend([[2, 3], []])
+    return x
+
+@external
+def from_cells() -> DynArray[DynArray[uint256, INF], 3]:
+    x: DynArray[DynArray[uint256, INF], 3] = [[1]]
+    y: DynArray[DynArray[uint256, INF], 2] = [[4], [5, 6]]
+    x.extend(y)
+    y[0] = [9]  # rebinds y's cell; x keeps the payload it shares
+    return x
+
+@external
+def from_self() -> DynArray[DynArray[uint256, INF], 4]:
+    x: DynArray[DynArray[uint256, INF], 4] = [[1], [2, 3]]
+    x.extend(x)
+    return x
+
+@external
+def bytestrings() -> DynArray[Bytes[INF], 3]:
+    x: DynArray[Bytes[INF], 3] = [b"a"]
+    x.extend([b"bc", b""])
+    return x
+
+@external
+def over_capacity():
+    x: DynArray[DynArray[uint256, INF], 2] = [[1]]
+    x.extend([[2], [3]])  # 1 + 2 > 2
+    """
+    c = get_contract(code)
+    assert c.from_literal() == [[1], [2, 3], []]
+    assert c.from_cells() == [[1], [4], [5, 6]]
+    assert c.from_self() == [[1], [2, 3], [1], [2, 3]]
+    assert c.bytestrings() == [b"a", b"bc", b""]
+    with tx_failed():
+        c.over_capacity()
+
+
 extend_complex_tests = [
     (
         """
