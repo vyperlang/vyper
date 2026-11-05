@@ -87,17 +87,17 @@ def _bytes_to_num(arg, out_typ, signed):
             raise CodegenPanic("convert: unbounded bytestring type")
         _len = get_bytearray_length(arg)
         data = LOAD(bytes_data_ptr(arg))
-        with _len.cache_when_complex("len") as (b1, _len):
-            num_zero_bits = ["mul", 8, ["sub", 32, _len]]
-            if signed:
+        if signed:
+            with _len.cache_when_complex("len") as (b1, _len):
+                num_zero_bits = ["mul", 8, ["sub", 32, _len]]
                 # when len is 0, the data word may hold stale bytes (e.g.
                 # a storage bytestring which was emptied), and sar by 256
                 # propagates its sign bit. mask it so the result is 0.
                 data = ["mul", data, ["iszero", ["iszero", _len]]]
-                ret = sar(num_zero_bits, data)
-            else:
-                ret = shr(num_zero_bits, data)
-            ret = b1.resolve(ret)
+                ret = b1.resolve(sar(num_zero_bits, data))
+        else:
+            num_zero_bits = ["mul", 8, ["sub", 32, _len]]
+            ret = shr(num_zero_bits, data)
     elif is_bytes_m_type(arg.typ):
         num_zero_bits = 8 * (32 - arg.typ.m)
         if signed:
