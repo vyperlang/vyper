@@ -1,5 +1,7 @@
 import pytest
 
+from vyper.evm.opcodes import version_check
+
 SHORT = [b"a", b"0123456789", b""]
 NESTED = [[1, 2], [], [3]]
 NESTED_BYTES = [[b"a", b"0123456789"], [], [b"z", b"q"]]
@@ -406,3 +408,175 @@ def first_row() -> (uint256, Bytes[512], Bytes[512]):
     """
     c = get_contract(code, NESTED_BYTES)
     assert c.first_row() == (2, b"a", b"0123456789")
+
+
+def _first_slot():
+    # before cancun, slot 0 holds the reentrancy lock
+    return 0 if version_check(begin="cancun") else 1
+
+
+def test_storage_bytes_widening_writes_only_source_words(env, get_contract):
+    """
+    A `Bytes[10]` value stored into a `Bytes[100]` variable used to be
+    written with the destination's 5 words, reading past the 64-byte source
+    buffer and writing those bytes into the variable's unused slots. Only
+    the words holding the value are written.
+    """
+    code = """
+s: Bytes[100]
+
+@external
+def set_long(x: Bytes[100]):
+    self.s = x
+
+@external
+def set_short(x: Bytes[10]):
+    self.s = x
+
+@external
+def get() -> Bytes[100]:
+    return self.s
+    """
+    c = get_contract(code)
+    base = _first_slot()
+    c.set_long(b"x" * 100)
+    stale = [env.get_storage(c.address, base + slot) for slot in range(5)]
+
+    c.set_short(b"ab")
+    assert c.get() == b"ab"
+    # the length word and the one data word of the value are written; the
+    # slots past them keep the earlier value, as with any shorter write
+    assert env.get_storage(c.address, base) == 2
+    assert env.get_storage(c.address, base + 1) == int.from_bytes(b"ab".ljust(32, b"\0"))
+    for slot in range(2, 5):
+        assert env.get_storage(c.address, base + slot) == stale[slot]
+
+
+def test_storage_bytes_writes_only_value_words(env, get_contract):
+    # the buffer of `x` still holds `a` past the end of the shorter value;
+    # none of it is written to storage
+    code = """
+s: Bytes[256]
+
+@external
+def f(a: Bytes[256], b: Bytes[256]):
+    x: Bytes[256] = a
+    x = b
+    self.s = x
+    """
+    c = get_contract(code)
+    base = _first_slot()
+    c.f(b"\xff" * 256, b"")
+    assert [env.get_storage(c.address, base + slot) for slot in range(9)] == [0] * 9
+
+    c.f(b"\xff" * 256, b"ab")
+    assert env.get_storage(c.address, base) == 2
+    # the rest of the data word may keep `a`'s bytes (the legacy pipeline
+    # copies `b` by its length); it is not part of the value
+    assert env.get_storage(c.address, base + 1) >> 240 == int.from_bytes(b"ab", "big")
+    assert [env.get_storage(c.address, base + slot) for slot in range(2, 9)] == [0] * 7
+
+
+def _immutable_words(env, get_contract, c, size):
+    # the immutables are the last bytes of the deployed code. some backends
+    # strip trailing zero bytes from the code, so restore them from its size
+    probe = get_contract("""
+@external
+def size(a: address) -> uint256:
+    return a.codesize
+    """)
+    code = env.get_code(c.address).ljust(probe.size(c.address), b"\0")
+    section = code[-size:]
+    return [int.from_bytes(section[i : i + 32], "big") for i in range(0, size, 32)]
+
+
+def test_immutable_bytes_widening(env, get_contract):
+    # immutables are written with the source's words: one word for an
+    # empty literal, two for a `Bytes[10]`; the rest stay zero
+    code = """
+A: immutable(Bytes[100])
+B: immutable(String[100])
+
+@deploy
+def __init__(x: Bytes[10]):
+    self.A = x
+    self.B = ""
+
+@external
+def get() -> (Bytes[100], String[100]):
+    return self.A, self.B
+    """
+    c = get_contract(code, b"ab")
+    assert c.get() == (b"ab", "")
+    ab = int.from_bytes(b"ab".ljust(32, b"\0"), "big")
+    assert _immutable_words(env, get_contract, c, 320) == [2, ab] + [0] * 8
+
+
+@pytest.mark.parametrize("value", ["x if c else y", "convert(s, Bytes[100])"])
+def test_immutable_bytes_from_narrower_buffer(env, get_contract, value):
+    # the value is typed `Bytes[100]` but its buffer is narrower; nothing
+    # past the buffer is written to the immutable
+    code = f"""
+A: immutable(Bytes[100])
+t: Bytes[100]
+
+@deploy
+def __init__(c: bool, x: Bytes[10], y: Bytes[100], s: String[10]):
+    self.A = {value}
+    self.t = y
+
+@external
+def get() -> Bytes[100]:
+    return self.A
+    """
+    c = get_contract(code, True, b"ab", b"\xff" * 100, "ab")
+    assert c.get() == b"ab"
+    ab = int.from_bytes(b"ab".ljust(32, b"\0"), "big")
+    assert _immutable_words(env, get_contract, c, 160) == [2, ab, 0, 0, 0]
+
+
+def test_immutable_bytes_from_tuple_member(env, get_contract, experimental_codegen):
+    # a bounded member of a tuple with an unbounded member is packed by its
+    # length, so the next member follows its value directly
+    if not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
+    code = """
+A: immutable(Bytes[100])
+
+@internal
+def _pair() -> (Bytes[100], Bytes[INF]):
+    return b"ab", b"hello"
+
+@deploy
+def __init__():
+    self.A = self._pair()[0]
+
+@external
+def get() -> Bytes[100]:
+    return self.A
+    """
+    c = get_contract(code)
+    assert c.get() == b"ab"
+    ab = int.from_bytes(b"ab".ljust(32, b"\0"), "big")
+    assert _immutable_words(env, get_contract, c, 160) == [2, ab, 0, 0, 0]
+
+
+def test_immutable_bytes_writes_only_value_words(env, get_contract):
+    # the buffer of `x` still holds `a` past the end of the shorter value;
+    # none of it is written to the immutable
+    code = """
+A: immutable(Bytes[256])
+
+@deploy
+def __init__(a: Bytes[256], b: Bytes[256]):
+    x: Bytes[256] = a
+    x = b
+    self.A = x
+
+@external
+def get() -> Bytes[256]:
+    return self.A
+    """
+    c = get_contract(code, b"\xff" * 256, b"")
+    assert c.get() == b""
+    assert _immutable_words(env, get_contract, c, 288) == [0] * 9

@@ -329,21 +329,26 @@ def _decode_bytestring(
     clamp_bytestring(ctx, src, typ, hi)
 
     assert src.location is not None, "src must have a location for bytestring decoding"
-    if is_unbounded_bytestring_type(typ):
-        # INF destinations are exact-sized, so copy only the present ABI
-        # payload. When `hi` is provided, it proves the runtime payload is
-        # readable.
+    if is_unbounded_bytestring_type(typ) or src.location == DataLocation.MEMORY:
+        # Copy only the present ABI payload. INF destinations are
+        # exact-sized, and a memory source buffer can end right after the
+        # payload (e.g. a bytestring at a non-canonical offset near the end
+        # of its encoding), so a maxbound copy would read past it. When `hi`
+        # is provided, it proves the runtime payload is readable.
         assert isinstance(dst, IRVariable)
         length = ctx.builder.load(src.operand, src.location)
-        ctx.zero_bytestring_padding(dst, length)
         copy_size = ctx.builder.add(IRLiteral(32), length)
+        # zero the padding right before the copy: `dst` is live from its
+        # first write, and a longer live range can make the memory
+        # allocator stop overlapping it with other buffers
+        ctx.zero_bytestring_padding(dst, length)
         ctx.builder.copy_to_memory(dst, src.operand, copy_size, src.location)
         return
 
-    # Match the legacy bounded path: copy the destination maxbound after
-    # length<=maxlen and optional `hi` bounds checks. If the source is an
-    # exact-sized INF buffer, this can copy bytes past the runtime payload,
-    # but those bytes are padding, not value; consumers use the length word.
+    # Non-memory sources (e.g. calldata): copy the destination maxbound
+    # after the length<=maxlen and optional `hi` checks, which saves the
+    # length arithmetic. Reading past the payload there reads no other
+    # buffer, and the extra bytes are padding; consumers use the length word.
     size = typ.memory_bytes_required
     ctx.builder.copy_to_memory(dst, src.operand, IRLiteral(size), src.location)
 
@@ -384,9 +389,11 @@ def decode_unbounded_sequence_to_scratch(
         # For dynamic elements the bound is loose because head offsets may
         # alias: a payload of P bytes can validly claim P/32 elements, each
         # reserving the element's inline memory size (`memsize(T) / 32` times
-        # P, e.g. 17x for Bytes[512]). For structs with INF members this bounds
-        # only the frames: aliased tails are decoded separately, so n elements
-        # sharing an m-word tail can allocate O(n*m) bytes from O(n+m) input.
+        # P, e.g. 17x for Bytes[512]). For INF-bearing elements (structs with
+        # INF members, or unbounded elements, which are pointer cells) this
+        # bounds only the cells: aliased tails are decoded separately, so n
+        # elements sharing an m-word tail can allocate O(n*m) bytes from
+        # O(n+m) input, with no compile-time ceiling on m.
         # Calldata charges decoding to the sender; returndata and abi_decode
         # of foreign bytes charge the decoding contract. Returndata decoding
         # happens after the call and is not limited by the callee's gas cap.
@@ -397,7 +404,7 @@ def decode_unbounded_sequence_to_scratch(
 
     dst = ctx.allocate_scratch(ctx.dynarray_runtime_size_from_length(length, typ))
     abi_decode_to_buf(ctx, dst, src, hi=hi)
-    return ctx.dynamic_memory_value(dst, typ, annotation=annotation)
+    return ctx.owned_memory_value(dst, typ, annotation=annotation)
 
 
 def _decode_dyn_array(
@@ -439,7 +446,7 @@ def _decode_dyn_array(
 
     # Need element-by-element decode
     elem_static_size = elem_abi_t.embedded_static_size()
-    elem_mem_size = elem_typ.memory_bytes_required
+    elem_mem_size = ctx.dynarray_elem_stride(typ)
 
     # Create loop blocks
     loop_header = b.create_block("darr_dec_hdr")
@@ -496,8 +503,16 @@ def _decode_dyn_array(
     dst_data = b.add(dst, IRLiteral(32))
     elem_dst = b.add(dst_data, b.mul(i, IRLiteral(elem_mem_size)))
 
-    # Recursively decode element
-    _abi_decode_to_buf(ctx, elem_dst, elem_src, hi)
+    if is_unbounded_sequence_type(elem_typ):
+        # An unbounded element has no inline payload: decode it into its own
+        # allocation and write the element's pointer cell, as for a struct
+        # member. Elements may alias each other in the input; each one is
+        # decoded on its own (see the note in `decode_unbounded_sequence_to_scratch`).
+        element = decode_unbounded_sequence_to_scratch(ctx, elem_src, elem_typ, hi, "element")
+        ctx.bind_cell(elem_dst, element, elem_typ)
+    else:
+        # Recursively decode element
+        _abi_decode_to_buf(ctx, elem_dst, elem_src, hi)
 
     # Increment counter
     new_i = b.add(i, IRLiteral(1))
