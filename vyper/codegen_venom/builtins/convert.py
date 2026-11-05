@@ -300,12 +300,11 @@ def _to_int(
         _runtime_check_bytes_len(in_t, length, 32, ctx)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
-        if out_t.is_signed or not is_bounded_length(in_t.maxlen):
-            # the data word of an empty bytestring may hold garbage (empty
-            # INF bytestrings allocate only the length word; an emptied
-            # storage bytestring keeps its old data); mask it so sar of an
-            # empty value yields 0 (sar with shift >= 256 propagates the
-            # sign bit)
+        if out_t.is_signed:
+            # the data word of an empty bytestring may hold garbage (e.g. an
+            # emptied storage bytestring keeps its old data); mask it so sar
+            # of an empty value yields 0 (sar with shift >= 256 propagates
+            # the sign bit)
             data = b.mul(data, b.iszero(b.iszero(length)))
         # Right-shift to convert left-aligned bytes to right-aligned int
         # num_zero_bits = (32 - len) * 8
