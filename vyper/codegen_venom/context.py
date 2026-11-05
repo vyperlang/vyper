@@ -425,6 +425,10 @@ class VenomCodegenContext:
                     assert isinstance(value, IRVariable)
                     buf = self.new_temporary_value(member_t, annotation=annotation)
                     assert isinstance(buf.operand, IRVariable)
+                    # Empty members copy only the length word. Clear reused
+                    # data so signed conversions of an empty value yield zero.
+                    data_ptr = self.builder.add(buf.operand, IRLiteral(32))
+                    self.builder.mstore(data_ptr, IRLiteral(0))
                     self.store_memory(value, buf.operand, member_t)
                     value = buf.operand
             else:
