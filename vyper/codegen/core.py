@@ -874,11 +874,6 @@ def _check_assign_list(left, right):
         if left.typ.count < right.typ.count:  # pragma: nocover
             FAIL()
 
-        # an empty source only writes a zero length word, so its capacity
-        # and element type do not have to match the destination
-        if right.is_empty_intrinsic:
-            return
-
         # TODO recurse into left, right if literals?
         check_assign(
             dummy_node_for_type(left.typ.value_type), dummy_node_for_type(right.typ.value_type)
