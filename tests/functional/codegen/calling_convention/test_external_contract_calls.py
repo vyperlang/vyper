@@ -2705,3 +2705,48 @@ def boo() -> uint256:
 
     assert c.foo() == [1, 2, 3, 4]
     assert c.bar() == [1, 2, 3, 4]
+
+
+@pytest.mark.parametrize(
+    "arg,expected",
+    [
+        ('[b"x", staticcall Target(addr).source()]', [b"x", b"hello"]),
+        ('[staticcall Target(addr).source(), b"x"]', [b"hello", b"x"]),
+        ('[b"x", staticcall Target(addr).source(), b"y"]', [b"x", b"hello", b"y"]),
+    ],
+)
+def test_wildcard_arg_list_literal_wildcard_call_element(get_contract, arg, expected):
+    # the call return takes the parameter's element bound, whichever element
+    # comes first, so a return longer than the literal elements is accepted
+    target_code = """
+xs: DynArray[Bytes[10], 3]
+
+@external
+@view
+def source() -> Bytes[10]:
+    return b"hello"
+
+@external
+def sink(xs: DynArray[Bytes[10], 3]):
+    self.xs = xs
+
+@external
+@view
+def stored() -> DynArray[Bytes[10], 3]:
+    return self.xs
+    """
+
+    caller_code = f"""
+interface Target:
+    def source() -> Bytes[...]: view
+    def sink(xs: DynArray[Bytes[10], ...]): nonpayable
+
+@external
+def forward(addr: address):
+    extcall Target(addr).sink({arg})
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    caller.forward(target.address)
+    assert target.stored() == expected

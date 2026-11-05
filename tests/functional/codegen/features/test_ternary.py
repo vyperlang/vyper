@@ -448,6 +448,158 @@ def do_it(addr: address, other: address, b: bool) -> DynArray[address, 3]:
 
 
 @pytest.mark.parametrize("test", [True, False])
+@pytest.mark.parametrize(
+    "typ,arg,if_true,if_false",
+    [
+        (
+            "DynArray[DynArray[uint256, 9], ...]",
+            "[[1]] if b else [[2, 3], [4]]",
+            [[1]],
+            [[2, 3], [4]],
+        ),
+        (
+            "DynArray[DynArray[uint256, 9], ...]",
+            "[[2, 3], [4]] if b else [[1]]",
+            [[2, 3], [4]],
+            [[1]],
+        ),
+        ("DynArray[DynArray[uint256, 9], ...]", "[[1] if b else [2, 3]]", [[1]], [[2, 3]]),
+        (
+            "DynArray[DynArray[DynArray[uint256, 3], ...], ...]",
+            "[[[1]]] if b else [[[2], [3, 4]]]",
+            [[[1]]],
+            [[[2], [3, 4]]],
+        ),
+        (
+            "DynArray[DynArray[Bytes[9], 4], ...]",
+            '[[b"ab"]] if b else [[b"cd", b"ef"]]',
+            [[b"ab"]],
+            [[b"cd", b"ef"]],
+        ),
+        (
+            "DynArray[DynArray[uint256, 9][2], ...]",
+            "[[[1], [2, 3]]] if b else [[[4], [5]], [[6], [7, 8]]]",
+            [[[1], [2, 3]]],
+            [[[4], [5]], [[6], [7, 8]]],
+        ),
+        (
+            "(DynArray[DynArray[uint256, 9], ...], uint256)",
+            "([[1]] if b else [[2, 3], [4]], 5)",
+            ([[1]], 5),
+            ([[2, 3], [4]], 5),
+        ),
+    ],
+)
+def test_ternary_wildcard_arg_nested_list(get_contract, typ, arg, if_true, if_false, test):
+    # the literal fixes both the `...` lengths and the element type of the resolved type
+    bounded_typ = typ.replace("...", "3")
+    target_code = f"""
+@external
+def echo(xs: {bounded_typ}) -> {bounded_typ}:
+    return xs
+    """
+
+    caller_code = f"""
+interface Echo:
+    def echo(xs: {typ}) -> {bounded_typ}: nonpayable
+
+@external
+def do_it(addr: address, b: bool) -> {bounded_typ}:
+    return extcall Echo(addr).echo({arg})
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.do_it(target.address, test) == (if_true if test else if_false)
+
+
+@pytest.mark.parametrize("test", [True, False])
+@pytest.mark.parametrize(
+    "typ,arg,if_true,if_false",
+    [
+        ("DynArray[DynArray[uint256, ...], 3]", "[[]] if b else [[1]]", [[]], [[1]]),
+        (
+            "DynArray[DynArray[uint256, ...], 3]",
+            "[[], [1]] if b else [[2, 3], [4]]",
+            [[], [1]],
+            [[2, 3], [4]],
+        ),
+        (
+            "DynArray[DynArray[DynArray[uint256, ...], ...], ...]",
+            "[[[]]] if b else [[[1], [2, 3]]]",
+            [[[]]],
+            [[[1], [2, 3]]],
+        ),
+        (
+            "DynArray[uint256, ...][2]",
+            "[[], [1]] if b else [[1, 2], [3]]",
+            [[], [1]],
+            [[1, 2], [3]],
+        ),
+        ("DynArray[Bytes[100], ...]", '[b"x"] if b else []', [b"x"], []),
+        ("DynArray[Bytes[100], ...]", '[] if b else [b"x"]', [], [b"x"]),
+        ("DynArray[String[100], ...]", '["x"] if b else []', ["x"], []),
+        (
+            "(DynArray[DynArray[uint256, ...], 3], uint256)",
+            "([[]] if b else [[1]], 7)",
+            ([[]], 7),
+            ([[1]], 7),
+        ),
+    ],
+)
+def test_ternary_wildcard_arg_empty_list(get_contract, typ, arg, if_true, if_false, test):
+    # an empty list has no elements to take its type from, it is typed like
+    # the ternary it is part of
+    bounded_typ = typ.replace("...", "3")
+    target_code = f"""
+@external
+def echo(xs: {bounded_typ}) -> {bounded_typ}:
+    return xs
+    """
+
+    caller_code = f"""
+interface Echo:
+    def echo(xs: {typ}) -> {bounded_typ}: nonpayable
+
+@external
+def do_it(addr: address, b: bool) -> {bounded_typ}:
+    return extcall Echo(addr).echo({arg})
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.do_it(target.address, test) == (if_true if test else if_false)
+
+
+@pytest.mark.parametrize("test", [True, False])
+def test_ternary_wildcard_arg_variables(get_contract, test):
+    # the parameter's fixed inner bound is much larger than the variables', the
+    # ternary is still typed (and allocated) with the variables' bounds
+    target_code = """
+@external
+def echo(xs: DynArray[DynArray[uint256, 2], 2]) -> DynArray[DynArray[uint256, 2], 2]:
+    return xs
+    """
+
+    caller_code = """
+interface Echo:
+    def echo(
+        xs: DynArray[DynArray[uint256, 2**58], ...]
+    ) -> DynArray[DynArray[uint256, 2], 2]: nonpayable
+
+@external
+def do_it(addr: address, b: bool) -> DynArray[DynArray[uint256, 2], 2]:
+    xs: DynArray[DynArray[uint256, 2], 2] = [[1], [2, 3]]
+    ys: DynArray[DynArray[uint256, 2], 2] = [[4, 5]]
+    return extcall Echo(addr).echo(xs if b else ys)
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.do_it(target.address, test) == ([[1], [2, 3]] if test else [[4, 5]])
+
+
+@pytest.mark.parametrize("test", [True, False])
 def test_ternary_as_for_loop_iterable(get_contract, test):
     # the loop allocates new buffers while it is still reading the selected
     # arm, so the buffer an arm was copied into must stay live for the
