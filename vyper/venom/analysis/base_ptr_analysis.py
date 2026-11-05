@@ -14,7 +14,7 @@ from vyper.evm.address_space import (
     AddrSpace,
 )
 from vyper.exceptions import CompilerPanic
-from vyper.utils import OrderedSet
+from vyper.utils import OrderedSet, wrap256
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.dfg import DFGAnalysis
@@ -362,14 +362,21 @@ class BasePtrAnalysis(IRAnalysis):
 
         return self.segment_from_ops(memory_read_ops(inst))
 
-    # REVIEW: this should be refactored too, like get_storage_read_location
-    # and get_storage_write_location
+    def _get_storage_transient_location(
+        self, ofst: IROperand, addr_space: AddrSpace
+    ) -> MemoryLocation:
+        access_ops = InstAccessOps(ofst=ofst, size=IRLiteral(addr_space.word_scale))
+        loc = self.segment_from_ops(access_ops)
+        if loc.is_concrete and loc.offset is not None:
+            # Storage keys are unsigned EVM words: -1 and 2**256 - 1
+            # identify the same slot. Allocation-relative offsets stay signed.
+            return dc.replace(loc, offset=wrap256(loc.offset))
+        return loc
+
     def _get_storage_transient_write_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
         opcode = inst.opcode
         if opcode == addr_space.store_op:
-            dst = inst.operands[1]
-            access_ops = InstAccessOps(ofst=dst, size=IRLiteral(addr_space.word_scale))
-            return self.segment_from_ops(access_ops)
+            return self._get_storage_transient_location(inst.operands[1], addr_space)
         elif opcode in ("call", "delegatecall", "staticcall"):
             return MemoryLocation.UNDEFINED
         elif opcode == "invoke":
@@ -381,13 +388,10 @@ class BasePtrAnalysis(IRAnalysis):
         assert eff[addr_space] not in inst.get_write_effects()
         return MemoryLocation.EMPTY
 
-    # REVIEW: should be in MemoryLocation -- does not use base ptr analysis
     def _get_storage_transient_read_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
         opcode = inst.opcode
         if opcode == addr_space.load_op:
-            ofst = inst.operands[0]
-            access_ops = InstAccessOps(ofst=ofst, size=IRLiteral(addr_space.word_scale))
-            return self.segment_from_ops(access_ops)
+            return self._get_storage_transient_location(inst.operands[0], addr_space)
         elif opcode in ("call", "delegatecall", "staticcall"):
             return MemoryLocation.UNDEFINED
         elif opcode == "invoke":

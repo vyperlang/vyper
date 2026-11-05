@@ -1,6 +1,13 @@
+import pytest
+
 from tests.venom_utils import PrePostChecker, parse_from_basic_block
+from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
+from vyper.evm.assembler.core import assembly_to_evm
+from vyper.evm.opcodes import version_check
+from vyper.venom import run_passes_on
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.passes import DFTPass
+from vyper.venom.venom_to_assembly import VenomCompiler
 
 _check_pre_post = PrePostChecker([DFTPass])
 
@@ -238,6 +245,33 @@ def test_dft_storage_same_slot_keeps_fence():
     first, second = insts["sstore"]
 
     assert first in dft.eda[second]
+
+
+@pytest.mark.parametrize("level", [OptimizationLevel.O1, OptimizationLevel.O2])
+@pytest.mark.parametrize("prefix", ["s", "t"])
+@pytest.mark.parametrize("signed_slot", [-1, -(2**255)])
+def test_dft_equivalent_storage_slots_execute_in_order(env, level, prefix, signed_slot):
+    if prefix == "t" and not version_check(begin="cancun"):
+        pytest.skip("Transient storage requires Cancun")
+
+    # Run the full pipeline, including SingleUseExpansion before DFT. Both
+    # representations address the same EVM slot, so the load must see zero.
+    ctx = parse_from_basic_block(f"""
+    main:
+        %slot = {signed_slot}
+        %alias = %slot
+        %value = {prefix}load %alias
+        {prefix}store {signed_slot + 2**256}, 9
+        %output = alloca 32
+        mstore %output, %value
+        return %output, 32
+    """)
+    run_passes_on(ctx, VenomOptimizationFlags(level=level))
+    bytecode, _ = assembly_to_evm(VenomCompiler(ctx).generate_evm_assembly())
+    initcode = bytes.fromhex(f"61{len(bytecode):04x}3d81600a3d39f3") + bytecode
+    contract = env.deploy([], initcode)
+
+    assert env.message_call(contract.address) == bytes(32)
 
 
 def test_dft_storage_disjoint_sload_sstore_no_fence():
