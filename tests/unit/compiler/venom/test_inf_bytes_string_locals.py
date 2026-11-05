@@ -1,3 +1,5 @@
+import pytest
+
 from vyper.codegen_venom.module import generate_venom_runtime
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
@@ -227,13 +229,44 @@ def _memory_copy_sizes(insts, definitions):
     return sizes
 
 
-def test_bounded_bytes_abi_decode_uses_static_maxbound_copy():
-    code = """
+# the payload can start anywhere the bounds checks allow, e.g. near the end of
+# its buffer (`x` below is even exact-sized), so copying the type's maxbound
+# from it can read past the buffer
+BOUNDED_DECODE_FROM_MEMORY = [
+    (
+        """
 @external
 def dec(x: Bytes[INF]) -> Bytes[100]:
     return abi_decode(x, Bytes[100], unwrap_tuple=False)
-    """
+        """,
+        160,
+    ),
+    (
+        """
+@external
+def dec(x: Bytes[288]) -> Bytes[200]:
+    return abi_decode(x, Bytes[200])
+        """,
+        256,
+    ),
+    (
+        """
+interface I:
+    def g() -> Bytes[100]: view
 
+@external
+def dec(a: address) -> Bytes[100]:
+    return staticcall I(a).g()
+        """,
+        160,
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "code,maxbound", BOUNDED_DECODE_FROM_MEMORY, ids=["inf_arg", "bounded_arg", "returndata"]
+)
+def test_bounded_bytes_abi_decode_copies_payload_not_maxbound(code, maxbound):
     ctx = compile_code(
         code, output_formats=["ir_runtime"], settings=Settings(experimental_codegen=True)
     )["ir_runtime"]
@@ -246,7 +279,9 @@ def dec(x: Bytes[INF]) -> Bytes[100]:
     definitions = {inst._outputs[0]: inst for inst in insts if len(inst._outputs) == 1}
     copy_lengths = _memory_copy_sizes(insts, definitions)
 
-    assert 160 in copy_lengths
+    # the decode copy is sized at runtime
+    assert None in copy_lengths
+    assert maxbound not in copy_lengths
 
 
 def test_inf_abi_decode_checks_length_word_before_mload():

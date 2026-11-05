@@ -68,6 +68,19 @@ def same_memory_layout(src_typ: VyperType, dst_typ: VyperType) -> bool:
     return src_typ.memory_bytes_required == dst_typ.memory_bytes_required
 
 
+def reuses_memory_layout(src_typ: VyperType, dst_typ: VyperType) -> bool:
+    """Return True if a `src_typ` value in memory can be used as `dst_typ`
+    without a copy.
+
+    A bounded `dst_typ` value can be copied flat with its size, so it needs
+    the same layout and size (`same_memory_layout`). An unbounded value is
+    only read up to its runtime length, so `punnable` suffices.
+    """
+    if is_unbounded_sequence_type(dst_typ):
+        return punnable(src_typ, dst_typ)
+    return same_memory_layout(src_typ, dst_typ)
+
+
 @dataclass
 class LocalVariable:
     """Tracks a variable during Venom codegen."""
@@ -446,7 +459,7 @@ class VenomCodegenContext:
 
         if self.is_dynamic_tuple_frame_type(vv.typ):
             assert isinstance(vv.typ, TupleT)
-            if self._frame_members_punnable(vv.typ, typ):
+            if self._frame_members_reusable(vv.typ, typ):
                 return vv
             return self._dynamic_tuple_frame_from_frame(vv, typ, annotation=annotation)
 
@@ -484,12 +497,14 @@ class VenomCodegenContext:
         return self.dynamic_tuple_frame_value(frame, typ, annotation=annotation)
 
     @staticmethod
-    def _frame_members_punnable(src_typ: TupleT, dst_typ: TupleT) -> bool:
+    def _frame_members_reusable(src_typ: TupleT, dst_typ: TupleT) -> bool:
         # frame cells hold a word or a pointer, so member sizes do not matter
-        # for the frame itself, only each member's own layout
+        # for the frame itself, only each member's own buffer
         n = len(dst_typ.member_types)
         assert len(src_typ.member_types) == n
-        return all(punnable(src_typ.member_types[i], dst_typ.member_types[i]) for i in range(n))
+        return all(
+            reuses_memory_layout(src_typ.member_types[i], dst_typ.member_types[i]) for i in range(n)
+        )
 
     def _dynamic_tuple_frame_from_frame(
         self, vv: VyperValue, typ: TupleT, annotation: Optional[str] = None
@@ -886,7 +901,7 @@ class VenomCodegenContext:
         self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
     ) -> VyperValue:
         """Return `vv` laid out as `typ`, copying only when the layouts differ."""
-        if punnable(vv.typ, typ):
+        if reuses_memory_layout(vv.typ, typ):
             return vv
 
         if is_unbounded_sequence_type(typ):
@@ -1550,7 +1565,7 @@ class VenomCodegenContext:
         self,
         src_addr: IROperand,
         dst_addr: IROperand,
-        word_count: int,
+        word_count: int | IROperand,
         load_fn,
         store_fn,
         src_scale: int,
@@ -1576,7 +1591,9 @@ class VenomCodegenContext:
 
         b.append_block(cond_block)
         b.set_block(cond_block)
-        done = b.eq(counter, IRLiteral(word_count))
+        if isinstance(word_count, int):
+            word_count = IRLiteral(word_count)
+        done = b.eq(counter, word_count)
         cond_finish = b.current_block
 
         b.append_block(body_block)
@@ -1602,6 +1619,13 @@ class VenomCodegenContext:
 
         b.append_block(exit_block)
         b.set_block(exit_block)
+
+    def _bytestring_word_count(self, src: IROperand) -> IROperand:
+        """The words a bytestring at memory `src` occupies: its length word
+        and the words holding its bytes, 1 + ceil(length / 32)."""
+        assert isinstance(src, IRVariable)
+        b = self.builder
+        return b.shr(IRLiteral(5), b.add(b.mload(src), IRLiteral(63)))
 
     def _load_storage_to_memory(self, slot: IROperand, buf: IROperand, word_count: int) -> None:
         """Load multi-word storage value to memory buffer."""
@@ -1779,6 +1803,24 @@ class VenomCodegenContext:
             if isinstance(typ, DArrayT):
                 transient = loc is DataLocation.TRANSIENT
                 self._copy_dynarray_to_storage(src, dst_ptr.operand, typ, transient=transient)
+            elif isinstance(typ, _BytestringT):
+                # likewise, write only the length word and the words holding
+                # the value: the rest of the buffer is not part of the value
+                b = self.builder
+                if loc is DataLocation.TRANSIENT:
+                    store_word, prefix = b.tstore, "m2t"
+                else:
+                    store_word, prefix = b.sstore, "m2s"
+                self._word_copy_loop(
+                    src,
+                    dst_ptr.operand,
+                    self._bytestring_word_count(src),
+                    b.mload,
+                    store_word,
+                    32,
+                    1,
+                    prefix,
+                )
             else:
                 # store_storage / store_transient handle single-word mload internally.
                 store_fn = (
@@ -1786,8 +1828,24 @@ class VenomCodegenContext:
                 )
                 store_fn(src, dst_ptr.operand, typ)
         elif loc == DataLocation.IMMUTABLES:
-            # Immutables in constructor
-            if typ.memory_bytes_required <= 32:
+            # Immutables in constructor.
+            if isinstance(typ, _BytestringT):
+                # as for storage, write only the length word and the words
+                # holding the value
+                def store_immutable_word(offset, val):
+                    self.store_word(offset, val, DataLocation.IMMUTABLES)
+
+                self._word_copy_loop(
+                    src,
+                    dst_ptr.operand,
+                    self._bytestring_word_count(src),
+                    self.builder.mload,
+                    store_immutable_word,
+                    32,
+                    32,
+                    "m2i",
+                )
+            elif typ.memory_bytes_required <= 32:
                 assert isinstance(src, IRVariable)
                 val = self.builder.mload(src)
                 self.ptr_store(dst_ptr, val)
