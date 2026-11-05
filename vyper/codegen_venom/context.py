@@ -425,10 +425,7 @@ class VenomCodegenContext:
                     assert isinstance(value, IRVariable)
                     buf = self.new_temporary_value(member_t, annotation=annotation)
                     assert isinstance(buf.operand, IRVariable)
-                    size = self.unchecked_bytestring_runtime_size(value)
-                    self.copy_memory_dynamic(
-                        buf.operand, value, size, member_t.memory_bytes_required
-                    )
+                    self.store_memory(value, buf.operand, member_t)
                     value = buf.operand
             else:
                 value = outputs[ordinary_i]
