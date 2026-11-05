@@ -936,7 +936,7 @@ def foo(x: int256) -> decimal:
 @pytest.mark.parametrize("out_typ", ["int8", "int256", "decimal", "uint8", "uint256", "bool"])
 def test_convert_emptied_storage_bytes(get_contract, payload, out_typ):
     # GH 4961: emptying a storage bytestring only resets its length, so the
-    # data slot still holds the old payload. the conversion must not read it.
+    # data slot still holds the old payload. the conversion must ignore it.
     code = f"""
 b: Bytes[32]
 
