@@ -28,7 +28,10 @@ from vyper.utils import POINTER_CELL_SIZE
 
 
 def member_slot_size(typ: VyperType) -> int:
-    """Return the bytes a struct member occupies inline in the struct."""
+    """Return the bytes a struct member or array element occupies inline in
+    its container: a pointer cell for an unbounded sequence, otherwise the
+    value.
+    """
     if is_unbounded_sequence_type(typ):
         return POINTER_CELL_SIZE
     return typ.size_in_bytes
