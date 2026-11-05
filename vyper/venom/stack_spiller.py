@@ -38,9 +38,12 @@ class StackSpiller:
         # callees. In particular, memory-passed arguments are pointers into
         # the caller's frame. Give every function a disjoint spill region
         # above every static frame so callee spills cannot clobber either.
-        if self._current_function is not None and self._next_spill_offset is not None:
+        # `peak_spill_end` rather than `_next_spill_offset`: a branch's
+        # successors each start from the branch's offset, so the offset
+        # after the last one is not the highest slot the function used.
+        if self._current_function is not None:
             self._next_function_spill_offset = max(
-                self._next_function_spill_offset, self._next_spill_offset
+                self._next_function_spill_offset, self.peak_spill_end
             )
 
         self._current_function = fn
@@ -66,8 +69,9 @@ class StackSpiller:
         return (self._spill_free_slots.copy(), self._next_spill_offset)
 
     def restore(self, snap) -> None:
-        """Restore from snapshot."""
-        self._spill_free_slots, self._next_spill_offset = snap
+        """Restore from snapshot. The snapshot stays usable for another restore."""
+        free_slots, self._next_spill_offset = snap
+        self._spill_free_slots = free_slots.copy()
 
     def spill_operand(
         self,
