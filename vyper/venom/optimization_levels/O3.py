@@ -84,6 +84,9 @@ PASSES_O3: List[PassConfig] = [
     AssignElimination,
     RemoveUnusedVariablesPass,
     LoopInvariantHoisting,
+    (CSE, {"gas_heuristic": 6}),
+    AssignElimination,
+    RemoveUnusedVariablesPass,
     ConcretizeMemLocPass,
     FmpLoweringPass,
     # repairs the multiply-assigned FMP runner emitted by the lowering;
@@ -105,7 +108,7 @@ PASSES_O3: List[PassConfig] = [
     RemoveUnusedVariablesPass,
     PhiEliminationPass,
     AssignElimination,
-    CSE,
+    (CSE, {"gas_heuristic": 20}),
     AssignElimination,
     RemoveUnusedVariablesPass,
     # deletion-only (removes a dead fmp_param plus its self-contained
