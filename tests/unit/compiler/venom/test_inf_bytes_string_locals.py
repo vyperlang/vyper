@@ -5,8 +5,8 @@ from vyper.compiler.settings import Settings, anchor_settings
 from vyper.venom.basicblock import IRLiteral, IRVariable
 
 
-def _compile_frontend_ir(source):
-    settings = Settings(experimental_codegen=True)
+def _compile_frontend_ir(source, evm_version=None):
+    settings = Settings(experimental_codegen=True, evm_version=evm_version)
     with anchor_settings(settings):
         compiler_data = CompilerData(source, settings=settings)
         return generate_venom_runtime(compiler_data.global_ctx, settings)
@@ -131,6 +131,54 @@ def pair(x: Bytes[INF]) -> (Bytes[4], Bytes[INF]):
         if inst.opcode == "dret" and isinstance(inst.operands[0], IRLiteral)
     ]
     assert 2 in dret_counts
+
+
+def test_internal_dynamic_tuple_return_copies_bounded_bytestring_member():
+    # `dret` packs the Bytes[40] member at its runtime size, and the caller
+    # reads it with its type's full size (96 bytes), so the caller must copy
+    # the packed member into a full-size buffer by its runtime size first
+    code = """
+@internal
+def _long(b: Bytes[40]) -> (DynArray[uint256, INF], Bytes[40]):
+    return [3], b
+
+@external
+def f(b: Bytes[40]) -> Bytes[40]:
+    z: Bytes[40] = self._long(b)[1]
+    return z
+    """
+
+    # before cancun, memory copies are identity-precompile calls, not mcopy
+    insts = _instructions(_compile_frontend_ir(code, evm_version="cancun"))
+    drets = [inst for inst in insts if inst.opcode == "dret"]
+    assert len(drets) == 1
+    # count, then a (pointer, size) pair per dynamic member, then the return pc
+    _, _, _, _, bytes_size, _ = drets[0].operands
+    assert not isinstance(bytes_size, IRLiteral)
+
+    (invoke,) = [inst for inst in insts if inst.opcode == "invoke"]
+    insts = [inst for bb in invoke.parent.parent.get_basic_blocks() for inst in bb.instructions]
+    member = invoke.get_outputs()[-1]
+    allocas = {inst.output: inst.operands[0].value for inst in insts if inst.opcode == "alloca"}
+    reads = [inst for inst in insts if inst.opcode == "mcopy" and inst.operands[1] == member]
+    assert len(reads) == 1
+    size, _, dst = reads[0].operands  # reversed: dst, src, size
+    assert not isinstance(size, IRLiteral)
+    assert allocas[dst] == 96
+
+    # The frame must use the full-size buffer, not the original packed member.
+    (frame,) = [inst.output for inst in insts if inst.opcode == "dalloca"]
+    member_cells = {
+        inst.output
+        for inst in insts
+        if inst.opcode == "add" and inst.operands == [IRLiteral(32), frame]
+    }
+    stored_values = [
+        inst.operands[0]
+        for inst in insts
+        if inst.opcode == "mstore" and inst.operands[1] in member_cells
+    ]
+    assert stored_values == [dst]
 
 
 def test_msg_data_rvalue_emits_dalloca_and_calldatacopy():
