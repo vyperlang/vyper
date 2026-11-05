@@ -1319,6 +1319,9 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
 
     def visit_IfExp(self, node: vy_ast.IfExp, typ: VyperType) -> None:
         self.visit(node.test, BoolT())
+        if typ.has_wildcard:
+            # type both arms with the resolved type (cf. `_annotation_type`)
+            typ = self._annotation_type(node, typ)
         self.visit(node.body, typ)
         self.visit(node.orelse, typ)
 

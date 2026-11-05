@@ -1232,13 +1232,19 @@ def f(a: address, xs: DynArray[uint256, 5]):
             DArrayT(DArrayT(DArrayT(UINT256_T, 2), 2), 2),
             [DArrayT(DArrayT(UINT256_T, 2), 2), DArrayT(DArrayT(UINT256_T, 2), 2)],
         ),
-        # the ternary arms keep their own types, the literal arm's elements are
-        # typed from the literal
+        # both ternary arms are typed with the ternary's type
         (
             "DynArray[DynArray[uint256, 9], ...]",
             "[[1]] if c else xs",
             DArrayT(DArrayT(UINT256_T, 2), 2),
-            [DArrayT(DArrayT(UINT256_T, 1), 1), DArrayT(DArrayT(UINT256_T, 2), 2)],
+            [DArrayT(DArrayT(UINT256_T, 2), 2), DArrayT(DArrayT(UINT256_T, 2), 2)],
+        ),
+        # also an empty arm, which has no elements to take its type from
+        (
+            "DynArray[Bytes[100], ...]",
+            '[b"x"] if c else []',
+            DArrayT(BytesT(1), 1),
+            [DArrayT(BytesT(1), 1), DArrayT(BytesT(1), 1)],
         ),
     ],
 )
