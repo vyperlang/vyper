@@ -374,6 +374,9 @@ class BaseEnv:
     def get_code(self, address: str) -> bytes:
         raise NotImplementedError  # must be implemented by subclasses
 
+    def get_storage(self, address: str, slot: int) -> int:
+        raise NotImplementedError  # must be implemented by subclasses
+
     def get_excess_blob_gas(self) -> Optional[int]:
         raise NotImplementedError  # must be implemented by subclasses
 

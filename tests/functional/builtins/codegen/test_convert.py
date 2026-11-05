@@ -930,3 +930,37 @@ def foo(x: int256) -> decimal:
         c.foo(min_int - 1)
     with tx_failed():
         c.foo(max_int + 1)
+
+
+@pytest.mark.parametrize(
+    "out_typ", ["bool", "uint8", "uint256", "int8", "int256", "bytes1", "bytes32"]
+)
+def test_convert_zero_capacity_bytes(get_contract, out_typ, experimental_codegen, request):
+    if not experimental_codegen and out_typ.startswith("int"):
+        # the legacy pipeline folds the literal, and `_signextend` with
+        # zero bits gives -1
+        reason = "legacy signed convert of an empty bytestring literal"
+        request.applymarker(pytest.mark.xfail(reason=reason))
+    code = f"""
+@external
+def foo() -> {out_typ}:
+    return convert(b"", {out_typ})
+    """
+    c = get_contract(code)
+    if out_typ == "bool":
+        expected = False
+    elif out_typ.startswith("bytes"):
+        expected = b"\x00" * int(out_typ[5:])
+    else:
+        expected = 0
+    assert c.foo() == expected
+
+
+def test_convert_zero_capacity_string_to_bool(get_contract):
+    code = """
+@external
+def foo() -> bool:
+    return convert("", bool)
+    """
+    c = get_contract(code)
+    assert c.foo() is False
