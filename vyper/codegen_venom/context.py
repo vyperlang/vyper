@@ -416,6 +416,21 @@ class VenomCodegenContext:
             if not member_t._is_prim_word:
                 value = outputs[ordinary_count + dynamic_i]
                 dynamic_i += 1
+                if isinstance(member_t, _BytestringT) and not is_unbounded_bytestring_type(
+                    member_t
+                ):
+                    # `dret` packs a bounded bytestring at its runtime size,
+                    # but it is read at its type's size: copy it into a
+                    # buffer of that size
+                    assert isinstance(value, IRVariable)
+                    buf = self.new_temporary_value(member_t, annotation=annotation)
+                    assert isinstance(buf.operand, IRVariable)
+                    # Empty members copy only the length word. Clear reused
+                    # data so signed conversions of an empty value yield zero.
+                    data_ptr = self.builder.add(buf.operand, IRLiteral(32))
+                    self.builder.mstore(data_ptr, IRLiteral(0))
+                    self.store_memory(value, buf.operand, member_t)
+                    value = buf.operand
             else:
                 value = outputs[ordinary_i]
                 ordinary_i += 1
