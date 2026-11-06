@@ -1161,6 +1161,7 @@ def test():
         ("extcall A(self).f()", True),
         ("raw_call(self, b'', is_static_call=True)", False),
         ("raw_call(self, b'')", True),
+        ("raw_call(self, b'', is_static_call=False)", True),
     ],
 )
 def test_iterator_length_reload_only_with_call(body, reloads, compiler_settings):
