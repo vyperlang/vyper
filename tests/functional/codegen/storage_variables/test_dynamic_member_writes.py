@@ -15,6 +15,7 @@ from vyper.evm.opcodes import version_check
 
 AB = int.from_bytes(b"ab".ljust(32, b"\0"), "big")
 X = int.from_bytes(b"x" * 32, "big")
+X8 = int.from_bytes(b"x" * 8 + b"\0" * 24, "big")
 
 STRUCTS = """
 struct A:
@@ -28,6 +29,11 @@ struct B:
 struct C:
     inner: A
     c: DynArray[uint256, 2]
+
+struct D:
+    a: DynArray[uint256, 2]
+    s: uint256[3]
+    t: String[40]
 """
 
 # (type, old, junk, new, slots after storing new over old)
@@ -40,6 +46,13 @@ CASES = [
         (([7, 7, 7], 7), [7, 7]),
         (([8], 9), []),
         [1, 8, 2, 3, 9, 0, 5, 6],
+    ),
+    (
+        "D",
+        ([1, 2], [3, 4, 5], "x" * 40),
+        ([7, 7], [7, 7, 7], "y" * 40),
+        ([6], [8, 9, 10], "ab"),
+        [1, 6, 2, 8, 9, 10, 2, AB, X8],
     ),
     ("DynArray[uint256, 2][2]", [[1, 2], [3, 4]], [[7, 7], [7, 7]], [[5], []], [1, 5, 2, 0, 3, 4]),
     (
