@@ -11,7 +11,12 @@ from __future__ import annotations
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.codegen.core import calculate_type_for_external_return, has_length_word, punnable
+from vyper.codegen.core import (
+    calculate_type_for_external_return,
+    contains_writeable_call,
+    has_length_word,
+    punnable,
+)
 from vyper.codegen_venom.abi import (
     abi_encode_to_buf,
     abi_encode_values_to_buf,
@@ -36,7 +41,7 @@ from vyper.semantics.types import (
     is_unbounded_sequence_type,
     type_contains_unbounded_sequence,
 )
-from vyper.semantics.types.function import ContractFunctionT, StateMutability
+from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.subscriptable import DArrayT, SArrayT, TupleT
 from vyper.semantics.types.user import ErrorT, EventT, StructT
 from vyper.utils import method_id_int
@@ -58,44 +63,6 @@ from .expr import (
 )
 from .packed_return import pack_value_with_payloads
 from .value import VyperValue
-
-
-def _contains_writeable_call(node: vy_ast.VyperNode) -> bool:
-    if _emits_writeable_call(node):
-        return True
-
-    functions = set()
-    for func_t in _called_internal_functions(node):
-        functions.add(func_t)
-        functions.update(func_t.reachable_internal_functions)
-    return any(_emits_writeable_call(func_t.decl_node) for func_t in functions)
-
-
-def _called_internal_functions(node: vy_ast.VyperNode) -> set:
-    ret = set()
-    for call in node.get_descendants(vy_ast.Call, include_self=True):
-        func_t = call.func._metadata.get("type")
-        if isinstance(func_t, ContractFunctionT) and func_t.is_internal:
-            ret.add(func_t.get_concrete_override())
-    return ret
-
-
-def _emits_writeable_call(node: vy_ast.VyperNode) -> bool:
-    # Delayed import avoids a cycle through the builtin registry.
-    from vyper.builtins.functions import RawCall, Send, _CreateBase
-
-    if node.get_descendants(vy_ast.ExtCall, include_self=True):
-        return True
-
-    for call in node.get_descendants(vy_ast.Call, include_self=True):
-        func_t = call.func._metadata.get("type")
-        if isinstance(func_t, RawCall):
-            if func_t.get_mutability_at_call_site(call) > StateMutability.VIEW:
-                return True
-        elif isinstance(func_t, (Send, _CreateBase)):
-            return True
-
-    return False
 
 
 class Stmt:
@@ -396,7 +363,7 @@ class Stmt:
             if var.typ._is_prim_word:
                 continue
             if var in rhs_writes or (
-                var.is_state_variable() and _contains_writeable_call(right_node)
+                var.is_state_variable() and contains_writeable_call(right_node)
             ):
                 # NOTE: should this be unreachable maybe it should be concrete error
                 # since it is exercised in
@@ -823,6 +790,16 @@ class Stmt:
         self.builder.append_block(cond_block)
         self.builder.set_block(cond_block)
         done = self.builder.eq(index_var, length)
+        # A call in the body can re-enter and shrink a storage array, so
+        # also stop at its current length (GH 3185)
+        if (
+            isinstance(array_typ, DArrayT)
+            and is_slot_addressed
+            and any(contains_writeable_call(stmt) for stmt in node.body)
+        ):
+            cur_length = self.ctx.load_word(array, location)
+            in_bounds = self.builder.lt(index_var, cur_length)
+            done = self.builder.or_(done, self.builder.iszero(in_bounds))
         cond_finish = self.builder.current_block
 
         # Set up loop targets

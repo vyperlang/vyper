@@ -405,6 +405,7 @@ Some restrictions:
 
 * You cannot iterate over a multi-dimensional array.  ``i`` must always be a base type.
 * You cannot modify a value in an array while it is being iterated, or call to a function that might modify the array being iterated.
+* If an external call in the loop body re-enters the contract and modifies a storage or transient ``DynArray`` being iterated, the loop stops at the array's current length, and never iterates past the length it had when the loop started.
 
 Range Iteration
 ---------------
