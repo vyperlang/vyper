@@ -472,7 +472,10 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
         if should_check_symbols:
             _check_symbols(starting_symbols, ret)
 
-        _, ret = _optimize(ret, parent)
+        # Children were optimized in this node's context before applying
+        # local rewrites. Only a local rewrite can require another traversal.
+        if changed:
+            _, ret = _optimize(ret, parent)
         return True, ret
 
     if value == "seq":
