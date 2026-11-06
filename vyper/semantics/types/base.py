@@ -27,20 +27,20 @@ class _GenericTypeAcceptor:
     def __init__(self, type_):
         self.type_ = type_
 
-    def is_subtype_of(self, other):
-        return other.compare_type(self)
+    def is_subtype_of(self, other, weak: bool = False):
+        return other.compare_type(self, weak=weak)
 
-    def is_supertype_of(self, other):
-        return self.compare_type(other)
+    def is_supertype_of(self, other, weak: bool = False):
+        return self.compare_type(other, weak=weak)
 
-    def is_equivalent_to(self, other):
-        return self.compare_type(other) and other.compare_type(self)
+    def is_equivalent_to(self, other, weak: bool = False):
+        return self.compare_type(other, weak=weak) and other.compare_type(self, weak=weak)
 
     @property
     def has_wildcard(self):
         return False
 
-    def compare_type(self, other):
+    def compare_type(self, other, weak: bool = False):
         if isinstance(other, BottomT):
             return True
 
@@ -327,7 +327,7 @@ class VyperType:
     def validate_index_type(self, node: vy_ast.Subscript) -> None:
         raise StructureException(f"Not an indexable type: '{self}'", node)
 
-    def is_supertype_of(self, other: VyperType) -> bool:
+    def is_supertype_of(self, other: VyperType, weak: bool = False) -> bool:
         """
         Compare this type object against another type object.
 
@@ -343,15 +343,17 @@ class VyperType:
         ---------
         other: VyperType
             Another type object to be compared against this one.
+        weak: bool
+            If true, use weak subtyping instead (what the implements check uses)
 
         Returns
         -------
         bool
             Indicates if self is a supertype of other
         """
-        return self.compare_type(other)
+        return self.compare_type(other, weak=weak)
 
-    def is_subtype_of(self, other: VyperType) -> bool:
+    def is_subtype_of(self, other: VyperType, weak: bool = False) -> bool:
         """
         Compare this type object against another type object.
 
@@ -367,15 +369,17 @@ class VyperType:
         ---------
         other: VyperType
             Another type object to be compared against this one.
+        weak: bool
+            If true, use weak subtyping instead (what the implements check uses)
 
         Returns
         -------
         bool
             Indicates if self is a subtype of other.
         """
-        return other.is_supertype_of(self)
+        return other.is_supertype_of(self, weak=weak)
 
-    def is_equivalent_to(self, other: VyperType) -> bool:
+    def is_equivalent_to(self, other: VyperType, weak: bool = False) -> bool:
         """
         Compare this type object against another type object.
 
@@ -390,16 +394,18 @@ class VyperType:
         ---------
         other: VyperType
             Another type object to be compared against this one.
+        weak: bool
+            If true, use weak subtyping instead (what the implements check uses)
 
         Returns
         -------
         bool
             Indicates if self is a subtype of other.
         """
-        return self.is_subtype_of(other) and self.is_supertype_of(other)
+        return self.is_subtype_of(other, weak=weak) and self.is_supertype_of(other, weak=weak)
 
     # TODO: Deprecate in favor of one of the clearer above methods
-    def compare_type(self, other: "VyperType") -> bool:
+    def compare_type(self, other: "VyperType", weak: bool = False) -> bool:
         """
         Compare this type object against another type object.
 
@@ -413,6 +419,8 @@ class VyperType:
         ---------
         other: VyperType
             Another type object to be compared against this one.
+        weak: bool
+            If true, use weak subtyping instead (what the implements check uses)
 
         Returns
         -------

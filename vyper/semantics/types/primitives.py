@@ -126,11 +126,11 @@ class BytesM_T(_PrimT):
         if nibbles not in (nibbles.lower(), nibbles.upper()):
             raise InvalidLiteral(f"Cannot mix uppercase and lowercase for {self} literal", node)
 
-    def compare_type(self, other: VyperType) -> bool:
+    def compare_type(self, other: VyperType, weak: bool = False) -> bool:
         if isinstance(other, BottomT):
             return True
 
-        if not super().compare_type(other):
+        if not super().compare_type(other, weak=weak):
             return False
         assert isinstance(other, BytesM_T)
 
@@ -320,7 +320,7 @@ class IntegerT(NumericT):
     def abi_type(self) -> ABIType:
         return ABI_GIntM(self.bits, self.is_signed)
 
-    def compare_type(self, other: VyperType) -> bool:
+    def compare_type(self, other: VyperType, weak: bool = False) -> bool:
         if isinstance(other, BottomT):
             return True
 
@@ -445,13 +445,22 @@ class AddressT(_PrimT):
     def raise_bad_checksum(cls, node: vy_ast.Hex) -> NoReturn:
         raise BadChecksumAddress(cls._checksum_error_msg(node), node)
 
+    def compare_type(self, other, weak: bool = False):
+        from vyper.semantics.types.module import InterfaceT
+
+        # interfaces are weak subtypes of addresses
+        if weak and isinstance(other, InterfaceT):
+            return True
+
+        return super().compare_type(other, weak=weak)
+
 
 # type for "self"
 # refactoring note: it might be best for this to be a ModuleT actually
 class SelfT(AddressT):
     _id = "self"
 
-    def compare_type(self, other):
+    def compare_type(self, other, weak: bool = False):
         if isinstance(other, BottomT):
             return True
         # compares true to AddressT
