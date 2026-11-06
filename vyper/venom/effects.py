@@ -53,8 +53,10 @@ _writes = {
     "call": ALL ^ IMMUTABLES,
     "delegatecall": ALL ^ IMMUTABLES,
     "staticcall": MEMORY | RETURNDATA,
-    "create": ALL ^ (MEMORY | IMMUTABLES),
-    "create2": ALL ^ (MEMORY | IMMUTABLES),
+    # create writes no memory, but it forwards all but 1/64 of the remaining
+    # gas, so a memory read must not move above it and expand memory first
+    "create": ALL ^ IMMUTABLES,
+    "create2": ALL ^ IMMUTABLES,
     "invoke": ALL,  # could be smarter, look up the effects of the invoked function
     "log": LOG,
     "dloadbytes": MEMORY,

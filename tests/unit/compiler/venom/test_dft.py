@@ -1,3 +1,5 @@
+import pytest
+
 from tests.venom_utils import PrePostChecker
 from vyper.venom.passes import DFTPass
 
@@ -112,5 +114,24 @@ def test_dft_long_chain_of_aborts():
         invoke @f
         %x = calldataload 0
         {body}return 0, 32
+    """
+    _check_no_change(pre)
+
+
+@pytest.mark.parametrize("create", ["create %val, %off, %sz", "create2 %val, %off, %sz, 0"])
+def test_dft_does_not_hoist_mload_above_create(create):
+    """
+    An `mload` must not move above an earlier `create`/`create2`: a read
+    that expands memory would then be paid for before the create, which
+    forwards all but 1/64 of the remaining gas to the initcode.
+    """
+    pre = f"""
+    main:
+        %sz = calldataload 64
+        %off = calldataload 32
+        %val = calldataload 0
+        %v = {create}
+        %y = mload 100000
+        sink %v, %y
     """
     _check_no_change(pre)

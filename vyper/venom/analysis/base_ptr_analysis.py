@@ -298,6 +298,10 @@ class BasePtrAnalysis(IRAnalysis):
             return MemoryLocation(offset=0, size=32)
         if inst.opcode == "invoke":
             return MemoryLocation.UNDEFINED
+        if inst.opcode in ("create", "create2"):
+            # create writes no memory; its MEMORY write effect only keeps
+            # memory reads from moving above it (see effects.py)
+            return MemoryLocation.EMPTY
 
         if inst.get_write_effects() & effects.MEMORY == effects.EMPTY:
             return MemoryLocation.EMPTY
