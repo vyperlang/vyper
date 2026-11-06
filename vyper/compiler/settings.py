@@ -1,4 +1,5 @@
 import contextlib
+import contextvars
 import dataclasses
 import os
 from dataclasses import dataclass
@@ -275,19 +276,21 @@ def merge_settings(
     return Settings(**values)
 
 
-# CMC 2024-04-10 do we need it to be Optional?
-_settings = None
+# Compiler settings are ambient because they are consumed throughout the
+# pipeline. Keep them local to the current execution context so concurrent
+# compilations cannot observe one another's settings.
+_settings: contextvars.ContextVar[Optional[Settings]] = contextvars.ContextVar(
+    "compiler_settings", default=None
+)
 
 
 def get_global_settings() -> Optional[Settings]:
-    return _settings
+    return _settings.get()
 
 
 def set_global_settings(new_settings: Optional[Settings]) -> None:
     assert isinstance(new_settings, Settings) or new_settings is None
-
-    global _settings
-    _settings = new_settings
+    _settings.set(new_settings)
 
 
 # could maybe refactor this, but it is easier for now than threading settings
@@ -298,13 +301,11 @@ def anchor_settings(new_settings: Settings) -> Generator:
     Set the globally available settings for the duration of this context manager
     """
     assert new_settings is not None
-    global _settings
+    token = _settings.set(new_settings)
     try:
-        tmp = get_global_settings()
-        set_global_settings(new_settings)
         yield
     finally:
-        set_global_settings(tmp)
+        _settings.reset(token)
 
 
 # These three partition OptimizationLevel for frontend code-shape decisions.
@@ -322,15 +323,15 @@ assert set(_OPT_CODESIZE_LEVELS + _OPT_GAS_LEVELS + _OPT_LOWERING_ONLY_LEVELS) =
 
 
 def _opt_codesize():
-    return _settings.optimize in _OPT_CODESIZE_LEVELS
+    return get_global_settings().optimize in _OPT_CODESIZE_LEVELS
 
 
 def _opt_gas():
-    return _settings.optimize in _OPT_GAS_LEVELS
+    return get_global_settings().optimize in _OPT_GAS_LEVELS
 
 
 def _opt_lowering_only_ir():
-    return _settings.optimize in _OPT_LOWERING_ONLY_LEVELS
+    return get_global_settings().optimize in _OPT_LOWERING_ONLY_LEVELS
 
 
 def _is_debug_mode():

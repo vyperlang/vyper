@@ -25,6 +25,7 @@ from vyper.semantics import (
 )
 from vyper.semantics.analysis.data_positions import generate_layout_export
 from vyper.semantics.analysis.imports import resolve_imports
+from vyper.semantics.namespace import Namespace, override_global_namespace
 from vyper.semantics.types.function import ContractFunctionT
 from vyper.semantics.types.module import ModuleT
 from vyper.typing import StorageLayout
@@ -193,7 +194,10 @@ class CompilerData:
     @cached_property
     def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
         root_module, imports, _ = self._resolve_imports
-        analyze_modules(imports)
+        # Copied execution contexts can inherit a mutable namespace. Bind a
+        # fresh one for this compilation, including lazy CompilerData access.
+        with override_global_namespace(Namespace()):
+            analyze_modules(imports)
         nspec = natspec.parse_natspec(root_module)
         return nspec, root_module
 
