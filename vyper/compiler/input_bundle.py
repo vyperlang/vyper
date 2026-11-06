@@ -110,6 +110,9 @@ class InputBundle:
     def _load_from_path(self, resolved_path, path):
         raise NotImplementedError(f"not implemented! {self.__class__}._load_from_path()")
 
+    def _exists(self, resolved_path) -> bool:
+        raise NotImplementedError(f"not implemented! {self.__class__}._exists()")
+
     def _generate_source_id(self, resolved_path: PathLike) -> int:
         # Note: it is possible for a file to get in here more than once,
         # e.g. by symlink
@@ -145,6 +148,21 @@ class InputBundle:
             )
 
         return res
+
+    # like `load_file()`, but only returns the resolved path of the file it
+    # would load, or None. nothing is read and no source id is assigned, so
+    # looking for a file does not change the source ids of later inputs.
+    def find_file(self, path: PathLike | str) -> Optional[PathLike]:
+        if isinstance(path, str):
+            path = PurePath(path)
+        for sp in reversed(self.search_paths):
+            try:
+                to_try = self._normalize_path(sp / path)
+            except _NotFound:
+                continue
+            if self._exists(to_try):
+                return to_try
+        return None
 
     def load_json_file(self, path: PathLike | str) -> JSONInput:
         file_input = self.load_file(path)
@@ -188,6 +206,10 @@ class FilesystemInputBundle(InputBundle):
         except (FileNotFoundError, NotADirectoryError):
             raise _NotFound(path)
 
+    def _exists(self, resolved_path: Path) -> bool:
+        # only regular files: a directory or a fifo cannot be loaded
+        return resolved_path.is_file()
+
     def _load_from_path(self, resolved_path: Path, original_path: Path) -> CompilerInput:
         try:
             with resolved_path.open() as f:
@@ -229,6 +251,9 @@ class JSONInputBundle(InputBundle):
     def _normalize_path(self, path: PurePath) -> PurePath:
         return _normpath(path)
 
+    def _exists(self, resolved_path: PurePath) -> bool:
+        return resolved_path in self.input_json
+
     def _load_from_path(self, resolved_path: PurePath, original_path: PurePath) -> CompilerInput:
         try:
             value = self.input_json[resolved_path]
@@ -267,6 +292,13 @@ class ZipInputBundle(InputBundle):
 
     def _normalize_path(self, path: PurePath) -> PurePath:
         return _normpath(path)
+
+    def _exists(self, resolved_path: PurePath) -> bool:
+        try:
+            self.archive.getinfo(resolved_path.as_posix())
+        except KeyError:
+            return False
+        return True
 
     def _load_from_path(self, resolved_path: PurePath, original_path: PurePath) -> CompilerInput:
         # zipfile.BadZipFile: File is not a zip file
