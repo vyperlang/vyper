@@ -262,6 +262,10 @@ class LoadAnalysis(IRAnalysis):
                 lattice.remove_aliases(memloc, alias_set)
                 lattice[ptr] = OrderedSet([val])
             elif isinstance(eff, Effects) and eff in inst.get_write_effects():
+                if eff == Effects.MEMORY and inst.opcode in ("create", "create2"):
+                    # create writes no memory; its MEMORY write effect only
+                    # orders it (see effects.py)
+                    continue
                 # a memory copy is a store to its destination location:
                 # drop what it may alias, exactly like an mstore. anything
                 # else (calls, invokes) clobbers everything

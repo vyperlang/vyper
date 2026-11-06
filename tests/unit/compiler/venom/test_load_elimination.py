@@ -728,3 +728,31 @@ def test_store_through_phi_with_untracked_arm(store, untracked):
         sink %v1, %v2
     """
     _check_no_change(pre)
+
+
+@pytest.mark.parametrize("create", ["create %val, %off, %sz", "create2 %val, %off, %sz, 0"])
+def test_load_elimination_across_create(create):
+    """
+    A create writes no memory, so an mload after it can reuse an
+    mload of the same location before it.
+    """
+    pre = f"""
+    main:
+        %val = calldataload 0
+        %off = calldataload 32
+        %sz = calldataload 64
+        %a = mload 100
+        %v = {create}
+        %b = mload 100
+        sink %a, %b, %v
+    """
+    post = f"""
+    main:
+        %val = calldataload 0
+        %off = calldataload 32
+        %sz = calldataload 64
+        %a = mload 100
+        %v = {create}
+        sink %a, %a, %v
+    """
+    _check_pre_post(pre, post, hevm=False)
