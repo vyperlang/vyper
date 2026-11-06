@@ -1717,19 +1717,16 @@ class VenomCodegenContext:
     def store_immutable(self, val: IROperand, offset: IROperand, typ: VyperType) -> None:
         """Store immutable value (during constructor only).
 
-        For primitive types (<=32 bytes), store single word.
-        For multi-word types, val is memory ptr, copy word-by-word.
+        val is a memory ptr; copy word-by-word, also for one-word
+        non-primitive types (e.g. uint256[1]).
         """
-        if typ.memory_bytes_required <= 32:
-            self.store_word(offset, val, DataLocation.IMMUTABLES)
-        else:
-            size = typ.memory_bytes_required
-            for i in range(0, size, 32):
-                mem_ptr = self._with_byte_offset(val, i)
-                assert isinstance(mem_ptr, IRVariable)
-                word = self.builder.mload(mem_ptr)
-                imm_offset = self._with_byte_offset(offset, i)
-                self.store_word(imm_offset, word, DataLocation.IMMUTABLES)
+        size = typ.memory_bytes_required
+        for i in range(0, size, 32):
+            mem_ptr = self._with_byte_offset(val, i)
+            assert isinstance(mem_ptr, IRVariable)
+            word = self.builder.mload(mem_ptr)
+            imm_offset = self._with_byte_offset(offset, i)
+            self.store_word(imm_offset, word, DataLocation.IMMUTABLES)
 
     # === Ptr Operations ===
 
