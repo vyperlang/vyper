@@ -1,4 +1,5 @@
 import vyper.codegen.context as ctx
+from vyper import ast as vy_ast
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.compiler.settings import _opt_codesize, _opt_gas, _opt_lowering_only_ir
 from vyper.evm.address_space import (
@@ -31,6 +32,7 @@ from vyper.semantics.types import (
     is_bounded_length,
     is_unbounded_sequence_type,
 )
+from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.subscriptable import SArrayT
 from vyper.semantics.types.user import FlagT
@@ -1523,3 +1525,41 @@ def check_buffer_overflow_ir(start, length, src_len):
             buffer_oob = ["gt", end, src_len]
             ok = ["iszero", ["or", arithmetic_overflow, buffer_oob]]
             return b1.resolve(b2.resolve(["assert", ok]))
+
+
+def contains_writeable_call(node: vy_ast.VyperNode) -> bool:
+    if _emits_writeable_call(node):
+        return True
+
+    functions = set()
+    for func_t in _called_internal_functions(node):
+        functions.add(func_t)
+        functions.update(func_t.reachable_internal_functions)
+    return any(_emits_writeable_call(func_t.decl_node) for func_t in functions)
+
+
+def _called_internal_functions(node: vy_ast.VyperNode) -> set:
+    ret = set()
+    for call in node.get_descendants(vy_ast.Call, include_self=True):
+        func_t = call.func._metadata.get("type")
+        if isinstance(func_t, ContractFunctionT) and (func_t.is_internal or func_t.is_constructor):
+            ret.add(func_t.get_concrete_override())
+    return ret
+
+
+def _emits_writeable_call(node: vy_ast.VyperNode) -> bool:
+    # Delayed import avoids a cycle through the builtin registry.
+    from vyper.builtins.functions import RawCall, Send, _CreateBase
+
+    if node.get_descendants(vy_ast.ExtCall, include_self=True):
+        return True
+
+    for call in node.get_descendants(vy_ast.Call, include_self=True):
+        func_t = call.func._metadata.get("type")
+        if isinstance(func_t, RawCall):
+            if func_t.get_mutability_at_call_site(call) > StateMutability.VIEW:
+                return True
+        elif isinstance(func_t, (Send, _CreateBase)):
+            return True
+
+    return False
