@@ -1542,7 +1542,7 @@ def _called_internal_functions(node: vy_ast.VyperNode) -> set:
     ret = set()
     for call in node.get_descendants(vy_ast.Call, include_self=True):
         func_t = call.func._metadata.get("type")
-        if isinstance(func_t, ContractFunctionT) and func_t.is_internal:
+        if isinstance(func_t, ContractFunctionT) and (func_t.is_internal or func_t.is_constructor):
             ret.add(func_t.get_concrete_override())
     return ret
 

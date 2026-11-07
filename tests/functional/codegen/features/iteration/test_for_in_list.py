@@ -1109,6 +1109,46 @@ def test() -> DynArray[uint256, 8]:
     assert c.test() == [5, 6]
 
 
+def test_iterator_modified_via_module_init(get_contract, make_input_bundle):
+    # the call is reached through a module's `__init__`, which delegatecalls
+    # code that clears the array
+    clearer = """
+array: DynArray[uint256, 8]
+
+@external
+def __default__():
+    self.array = []
+    """
+    lib = """
+@deploy
+def __init__(target: address):
+    raw_call(target, b"", is_delegate_call=True)
+    """
+    main = """
+import lib
+
+initializes: lib
+
+array: DynArray[uint256, 8]
+seen: DynArray[uint256, 8]
+
+@deploy
+def __init__(target: address):
+    self.array = [1, 2, 3]
+    for i: uint256 in self.array:
+        self.seen.append(i)
+        lib.__init__(target)
+
+@external
+def get_seen() -> DynArray[uint256, 8]:
+    return self.seen
+    """
+    target = get_contract(clearer)
+    input_bundle = make_input_bundle({"lib.vy": lib})
+    c = get_contract(main, target.address, input_bundle=input_bundle)
+    assert c.get_seen() == [1]
+
+
 def test_iterator_reentrant_append(get_contract):
     # elements appended by a re-entrant call are not iterated: the loop
     # stops at the length the array had when it started
