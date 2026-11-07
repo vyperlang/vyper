@@ -335,6 +335,35 @@ def get_my_list() -> DynArray[DynArray[uint256[1], 2], 2]:
     assert c.get_my_list() == [[[3], [5]]]
 
 
+def test_nested_dynarray_immutable_extend(get_contract):
+    # extend on an array inside an immutable goes through the immutables
+    # buffer in the constructor, like append and pop
+    code = """
+my_list: immutable(DynArray[DynArray[uint256, 4], 3])
+rows: immutable(DynArray[DynArray[DynArray[uint256, 2], 3], 2])
+
+@deploy
+def __init__(a: uint256, b: uint256):
+    self.my_list = [[a], [b]]
+    self.my_list[1].extend([a, b])
+    self.rows = [[[a]]]
+    self.rows[0].extend([[a, b], [b]])
+
+@view
+@external
+def get_my_list() -> DynArray[DynArray[uint256, 4], 3]:
+    return self.my_list
+
+@view
+@external
+def get_rows() -> DynArray[DynArray[DynArray[uint256, 2], 3], 2]:
+    return self.rows
+    """
+    c = get_contract(code, 3, 5)
+    assert c.get_my_list() == [[3], [5, 3, 5]]
+    assert c.get_rows() == [[[3], [3, 5], [5]]]
+
+
 @pytest.mark.parametrize("n", range(5))
 def test_internal_function_with_immutables(get_contract, n):
     code = """

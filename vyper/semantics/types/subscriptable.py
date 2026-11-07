@@ -2,7 +2,14 @@ from typing import Any, Dict, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
-from vyper.exceptions import ArrayIndexException, CodegenPanic, InvalidType, StructureException
+from vyper.exceptions import (
+    ArrayIndexException,
+    CodegenPanic,
+    InvalidType,
+    StructureException,
+    UnknownAttribute,
+)
+from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import BottomT, VyperType
 from vyper.semantics.types.infinity import (
@@ -281,6 +288,37 @@ class DArrayT(_SequenceT):
 
         self.add_member("append", MemberFunctionT(self, "append", [self.value_type], None, True))
         self.add_member("pop", MemberFunctionT(self, "pop", [], self.value_type, True))
+        # `extend` requires a concrete destination length, so it is resolved
+        # lazily in `get_member()` below: bounded receivers get the member
+        # type, unbounded receivers a targeted error.
+
+    def get_member(self, key: str, node: vy_ast.VyperNode) -> VyperType:
+        if key == "extend":
+            if not is_bounded_length(self.length):
+                # `extend` needs a concrete destination capacity to check
+                # against; an unbounded receiver (e.g. a wildcard-length
+                # interface return) must be buffered to a concrete-length
+                # variable first.
+                assert isinstance(node, vy_ast.Attribute)  # mypy hint
+                raise UnknownAttribute(
+                    f"{self} has no member 'extend' because its length is unbounded; "
+                    f"assign '{node.value.node_source_code}' to a variable with a "
+                    "concrete length first",
+                    node,
+                )
+
+            from vyper.semantics.types.function import MemberFunctionT
+
+            # `extend` accepts a DynArray of any length for the same value type
+            any_length = DArrayT(self.value_type, INF)
+            return MemberFunctionT(self, "extend", [any_length], None, True)
+
+        if key not in self.members and is_bounded_length(self.length):
+            namespace = {**self.members, "extend": None}
+            hint = get_levenshtein_error_suggestions(key, namespace, 0.3)
+            raise UnknownAttribute(f"{repr(self)} has no member '{key}'.", node, hint=hint)
+
+        return super().get_member(key, node)
 
     def __repr__(self):
         return f"DynArray[{self.value_type}, {self.length}]"
