@@ -278,8 +278,10 @@ def foo() -> uint256:
     ],
 )
 def test_array_index_overlap_pop(get_contract, code):
-    # the index can overwrite the popped element, which is past the
-    # array's new length
+    # the index can write the popped array, so it could overwrite the popped
+    # element, which is past the array's new length. the check is
+    # conservative, like legacy codegen: a `pop()` in the index only shortens
+    # the array, but the program is rejected all the same
     with pytest.raises(CompilerPanic, match="risky overlap"):
         get_contract(code)
 
