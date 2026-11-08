@@ -2170,8 +2170,16 @@ class Expr:
             assert isinstance(payload, IRVariable)
             return self.ctx.dynamic_memory_value(payload, elem_typ, annotation="pop")
 
+        # The popped element is past the new length, so a later write to the
+        # array can overwrite it: record the projection, so that a subscript
+        # whose index writes the array copies its base first.
+        reference = darray_vv.reference
+        if reference is None:
+            reference = ValueReference()
+        reference = reference.project(darray_ptr, new_length, data_loc)
+
         # Return as location - unwrap() will load for primitives
-        return self._make_ptr_value(elem_ptr, data_loc, elem_typ)
+        return self._make_ptr_value(elem_ptr, data_loc, elem_typ, reference)
 
     # === External Calls ===
 

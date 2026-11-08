@@ -237,6 +237,55 @@ def bar() -> uint256:
     assert c.foo() == 1
 
 
+def test_array_index_overlap_pop(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen still rejects risky subscript overlap")
+
+    code = """
+a: DynArray[uint256[1], 1]
+
+@external
+def foo() -> uint256:
+    self.a = [[42]]
+    return self.a.pop()[self.bar()]
+
+@internal
+def bar() -> uint256:
+    self.a = [[99]]
+    return 0
+    """
+    c = get_contract(code)
+    assert c.foo() == 42
+
+
+def test_array_index_overlap_pop_struct_field(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen still rejects risky subscript overlap")
+
+    code = """
+struct S:
+    d: DynArray[uint256[1], 1]
+
+s: S
+
+@external
+def seed():
+    self.s = S(d=[[42]])
+
+@external
+def foo() -> uint256:
+    return self.s.d.pop()[self.bar()]
+
+@internal
+def bar() -> uint256:
+    self.s = S(d=[])
+    return 0
+    """
+    c = get_contract(code)
+    c.seed()
+    assert c.foo() == 42
+
+
 # to fix in future release
 @pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
 def test_array_index_overlap_store(get_contract):
