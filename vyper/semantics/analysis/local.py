@@ -1148,10 +1148,13 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
             # note that this logic will be insufficient if we add a way to
             # internally call external methods
             if func_type.is_internal:
-                for s in func_type.get_variable_writes():
+                # an abstract function's own body is `...`; the call runs
+                # the body of its concrete override.
+                callee_t = func_type.get_concrete_override()
+                for s in callee_t.get_variable_writes():
                     if s.variable.is_state_variable():
                         func_info._writes.add(s)
-                for s in func_type.get_variable_reads():
+                for s in callee_t.get_variable_reads():
                     if s.variable.is_state_variable():
                         func_info._reads.add(s)
 

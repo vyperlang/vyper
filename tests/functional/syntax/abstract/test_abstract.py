@@ -5,6 +5,7 @@ from vyper.exceptions import (
     ArgumentException,
     CallViolation,
     FunctionDeclarationException,
+    ImmutableViolation,
     VyperException,
 )
 
@@ -1246,3 +1247,37 @@ def bar(x: uint256 = self.FOO) -> uint256:
         compile_code(override_contract, input_bundle=input_bundle)
 
     assert "Override parameter mismatch" in e.value.message
+
+
+def test_override_cannot_modify_loop_variable(make_input_bundle):
+    # the loop body calls an abstract function whose override writes the
+    # iterated array
+    abstract_m = """
+a: DynArray[uint256, 3]
+
+@abstract
+def bar(): ...
+
+def foo():
+    for x: uint256 in self.a:
+        self.bar()
+    """
+    contract = """
+import abstract_m
+
+initializes: abstract_m
+
+@override(abstract_m)
+def bar():
+    abstract_m.a.pop()
+
+@external
+def baz():
+    abstract_m.foo()
+    """
+    input_bundle = make_input_bundle({"abstract_m.vy": abstract_m})
+
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(contract, input_bundle=input_bundle)
+
+    assert e.value._message == "Cannot modify loop variable `a`"

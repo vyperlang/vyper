@@ -100,6 +100,39 @@ def test_augassign_oob(get_contract, tx_failed, source):
         c.poc()
 
 
+@pytest.mark.xfail(strict=True, raises=CodegenPanic)
+def test_augassign_oob_abstract_override(get_contract, make_input_bundle, tx_failed):
+    # the RHS calls an abstract function whose override shrinks the target
+    m = """
+a: DynArray[uint256, 2]
+
+@abstract
+def side_effect() -> uint256: ...
+
+def poc():
+    self.a = [1, 2]
+    self.a[1] += self.side_effect()
+    """
+    code = """
+import m
+initializes: m
+
+@override(m)
+def side_effect() -> uint256:
+    return m.a.pop()
+
+@external
+def poc():
+    m.poc()
+    """
+    # xfail here (with panic):
+    c = get_contract(code, input_bundle=make_input_bundle({"m.vy": m}))
+
+    # not reached until the panic is fixed
+    with tx_failed(c):
+        c.poc()
+
+
 @pytest.mark.parametrize(
     "source",
     [
