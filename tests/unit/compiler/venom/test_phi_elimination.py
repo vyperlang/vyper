@@ -3,6 +3,7 @@ import pytest
 from tests.venom_utils import PrePostChecker
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel
+from vyper.venom.check_venom import find_semantic_errors
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes import PhiEliminationPass
 
@@ -400,3 +401,55 @@ def test_phi_elim_multi_output_invoke_same_output_eliminated():
     assert len(z_assigns) == 1
     assert z_assigns[0].opcode == "assign"
     assert z_assigns[0].operands[0].name == "%r2"
+
+
+@pytest.mark.parametrize("join_order", [("pjoin", "qjoin", "rjoin"), ("rjoin", "qjoin", "pjoin")])
+def test_phi_elim_preserves_shared_multi_origin_phi(join_order):
+    source = """
+    function main {
+    main:
+        %a = calldataload 0
+        %b = calldataload 32
+        %c = calldataload 64
+        %cond = calldataload 96
+        jnz %cond, @r1, @r2
+    r1:
+        jmp @rjoin
+    r2:
+        jmp @rjoin
+    rjoin:
+        %r = phi @r1, %b, @r2, %c
+        jnz %cond, @direct, @qstart
+    direct:
+        jmp @pjoin
+    qstart:
+        jnz %cond, @q1, @q2
+    q1:
+        jmp @qjoin
+    q2:
+        jmp @qjoin
+    qjoin:
+        %q = phi @q1, %a, @q2, %r
+        jmp @pjoin
+    pjoin:
+        %p = phi @qjoin, %q, @direct, %r
+        mstore 0, %p
+        return 0, 32
+    }
+    """
+    ctx = parse_venom(source)
+    fn = ctx.get_function(IRLabel("main"))
+    # Analyze outer PHIs both before and after their inner barriers are cached.
+    for label in join_order:
+        bb = fn.get_basic_block(label)
+        fn.remove_basic_block(bb)
+        fn.append_basic_block(bb)
+
+    assert find_semantic_errors(ctx) == []
+    PhiEliminationPass(IRAnalysesCache(fn), fn).run_pass()
+    assert find_semantic_errors(ctx) == []
+
+    # Visiting %r through %q must not discard the direct %r operand of %p.
+    p = fn.get_basic_block("pjoin").instructions[0]
+    assert p.opcode == "phi"
+    assert p.output.name == "%p"

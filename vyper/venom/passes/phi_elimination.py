@@ -74,6 +74,8 @@ class PhiEliminationPass(IRPass):
                 assert next_inst is not None, (inst, op_var)
                 res |= self._get_phi_origins_r(next_inst, op_var, visited)
 
+            visited.remove(inst)
+
             if len(res) > 1:
                 # multi-origin phi: treat the phi itself as a "barrier" origin.
                 # this is correct because the phi is a single SSA definition,
