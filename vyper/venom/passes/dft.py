@@ -1,4 +1,5 @@
 from collections import defaultdict, deque
+from typing import Iterator, Optional
 
 import vyper.venom.effects as effects
 from vyper.utils import OrderedSet
@@ -6,6 +7,31 @@ from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis, Sta
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import IRPass
+
+# instructions whose purpose includes aborting, and how: with empty revert
+# data (`assert`), with an exceptional halt (`assert_unreachable`, or
+# `returndatacopy` past the end of the return data), or (`invoke`) in any
+# way its callee can. when two of them abort differently, their order
+# decides the outcome, so DFT keeps them in program order; ones that abort
+# the same way may still be reordered, so e.g. two `assert`s with different
+# `# dev:` reasons may swap, and which one reports is not guaranteed. state
+# writes that halt under a static call are not listed: halting is incidental
+# to them, not their purpose.
+_ABORT_KIND = {
+    "assert": "revert",
+    "assert_unreachable": "halt",
+    "returndatacopy": "halt",
+    "invoke": "any",
+}
+
+
+def _is_root_only(inst: IRInstruction) -> bool:
+    # nothing can depend on it through data or effects
+    return (
+        len(inst.get_outputs()) == 0
+        and inst.get_read_effects() == effects.EMPTY
+        and inst.get_write_effects() == effects.EMPTY
+    )
 
 
 class DFTPass(IRPass):
@@ -59,11 +85,16 @@ class DFTPass(IRPass):
         for inst in bb.instructions:
             self._calculate_data_offspring(inst)
 
-        # Compute entry points in the graph of instruction dependencies
+        # Compute entry points in the graph of instruction dependencies.
+        # an instruction with no outputs and no effects (an `assert`) stays
+        # an entry even when a later abort is ordered after it. reached only
+        # through that abort, it would be scheduled after everything earlier
+        # entries pull in, which can include instructions that follow it,
+        # e.g. a calldata copy sized by an unchecked length.
         entry_instructions: OrderedSet[IRInstruction] = OrderedSet(non_phi_instructions)
         for inst in non_phi_instructions:
             to_remove = self.dda.get(inst, OrderedSet()) | self.eda.get(inst, OrderedSet())
-            entry_instructions.dropmany(to_remove)
+            entry_instructions.dropmany(x for x in to_remove if not _is_root_only(x))
 
         entry_instructions_list = list(entry_instructions)
 
@@ -74,13 +105,29 @@ class DFTPass(IRPass):
         assert bb.is_terminated, f"Basic block should be terminated {bb}"
 
     def _process_instruction_r(self, instructions: list[IRInstruction], inst: IRInstruction):
-        if inst in self.visited_instructions:
-            return
-        self.visited_instructions.add(inst)
+        # depth-first, appending each instruction after its dependencies. an
+        # explicit stack, since a chain of dependencies (effects, aborts) can
+        # be longer than python's recursion limit
+        stack: list[tuple[IRInstruction, Optional[Iterator[IRInstruction]]]] = [(inst, None)]
+        while len(stack) > 0:
+            cur, children = stack.pop()
+            if children is None:
+                if cur in self.visited_instructions:
+                    continue
+                self.visited_instructions.add(cur)
+                if cur.is_pseudo:
+                    continue
+                children = iter(self._sorted_children(cur))
 
-        if inst.is_pseudo:
-            return
+            for dep_inst in children:
+                if dep_inst not in self.visited_instructions:
+                    stack.append((cur, children))
+                    stack.append((dep_inst, None))
+                    break
+            else:
+                instructions.append(cur)
 
+    def _sorted_children(self, inst: IRInstruction) -> list[IRInstruction]:
         children = list(self.dda[inst] | self.eda[inst])
 
         def cost(x: IRInstruction) -> int | float:
@@ -91,6 +138,12 @@ class DFTPass(IRPass):
             #   direct data dependencies (order of operands)
 
             is_effect_only = x not in self.dda[inst] and x in self.eda[inst]
+            if is_effect_only and inst.opcode in _ABORT_KIND and x.opcode in _ABORT_KIND:
+                # for any aborting instruction, schedule the previous abort
+                # run before its operands: an assert's condition is computed
+                # next to it instead of up front, and the mstores staging an
+                # invoke's arguments are not hoisted above an earlier assert
+                return -2
             if is_effect_only or inst.flippable:
                 has_data_offspring = len(self.data_offspring[x]) > 0
                 return -1 if has_data_offspring else 0
@@ -129,10 +182,7 @@ class DFTPass(IRPass):
         if inst.flippable and (orig_children != children):
             inst.flip()
 
-        for dep_inst in children:
-            self._process_instruction_r(instructions, dep_inst)
-
-        instructions.append(inst)
+        return children
 
     def _calculate_dependency_graphs(self, bb: IRBasicBlock) -> None:
         # ida: instruction dependency analysis
@@ -146,8 +196,21 @@ class DFTPass(IRPass):
         #
         last_write_effects: dict[effects.Effects, IRInstruction] = {}
         all_read_effects: dict[effects.Effects, list[IRInstruction]] = defaultdict(list)
+        # consecutive aborting instructions of the same kind form a run; each
+        # one is ordered after the whole previous run. that is an edge from
+        # every member of a run to every member of the previous one
+        # (|prev| x |run| edges, so quadratic in the worst case).
+        prev_run: list[IRInstruction] = []
+        run: list[IRInstruction] = []
 
         for inst in non_phis:
+            kind = _ABORT_KIND.get(inst.opcode)
+            if kind is not None:
+                if len(run) == 0 or kind == "any" or kind != _ABORT_KIND[run[0].opcode]:
+                    prev_run, run = run, []
+                self.eda[inst].addmany(prev_run)
+                run.append(inst)
+
             if inst.is_bb_terminator:
                 for var in self.order:
                     dep = self.dfg.get_producing_instruction(var)

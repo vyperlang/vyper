@@ -420,7 +420,7 @@ def test_stack_order_two_trees():
         %2 = param
         %cond = iszero %2
         assert %cond
-        %3 = 3
+        %3 = source
         jmp @after
     after:
         sink %3, %2, %1

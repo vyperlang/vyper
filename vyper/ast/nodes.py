@@ -1547,6 +1547,13 @@ class alias(VyperNode):
 
     __slots__ = ("name", "asname")
 
+    @property
+    def local_name(self) -> str:
+        """
+        The name the imported item is bound to in the importing module.
+        """
+        return self.asname or self.name
+
 
 class ImplementsDecl(Stmt):
     """

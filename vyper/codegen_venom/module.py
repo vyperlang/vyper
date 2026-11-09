@@ -1195,12 +1195,7 @@ def _store_default_arg_to_existing_ptr(
         ctx.store_pointer_cell(dst, val.operand, IRLiteral(0))
         return
 
-    if arg.typ._is_prim_word:
-        default_val = Expr(default_node, ctx).lower_value()
-        ctx.builder.mstore(dst, default_val)
-    else:
-        default_vv = Expr(default_node, ctx).lower()
-        ctx.store_vyper_value(default_vv, dst, arg.typ)
+    ctx.store_vyper_value(Expr(default_node, ctx).lower(), dst, arg.typ)
 
 
 def _handle_kwargs(
