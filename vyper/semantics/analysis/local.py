@@ -759,10 +759,9 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
             len_ = len(iter_val.elements)
             if len_ == 0:
                 raise StructureException("For loop must have at least 1 iteration", iter_node)
-            # a static array has no layout for unbounded items (see
-            # `SArrayT.from_annotation`), a DynArray holds them at a fixed
-            # inline size. any other item, such as a struct with unbounded
-            # members, has a fixed size
+            # a static array cannot hold unbounded items (see
+            # `SArrayT.from_annotation`), a DynArray can. any other item,
+            # such as a struct with unbounded members, has a fixed size
             if is_unbounded_sequence_type(target_type):
                 iter_type = DArrayT(target_type, len_)
             else:
