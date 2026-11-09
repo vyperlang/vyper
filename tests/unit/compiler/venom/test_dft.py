@@ -524,3 +524,20 @@ def test_dft_long_chain_of_aborts():
         {body}return 0, 32
     """
     _check_no_change(pre)
+
+
+def test_dft_keeps_assert_as_entry():
+    """
+    The `returndatacopy` is ordered after the `assert`, but the `sstore`
+    between them is not ordered against either. The `assert` must still be
+    scheduled before the `sstore`, which follows it in the block.
+    """
+    pre = """
+    main:
+        %x = calldataload 0
+        assert %x
+        sstore 0, 1
+        returndatacopy 64, 0, 32
+        stop
+    """
+    _check_no_change(pre)

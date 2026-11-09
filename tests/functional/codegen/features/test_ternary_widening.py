@@ -402,3 +402,28 @@ def member_flipped(
     assert c.whole(False, a, b) == ([2], b)
     assert c.member_flipped(True, b, a) == b
     assert c.member_flipped(False, b, a) == a
+
+
+def test_tuple_frame_ternary_narrower_member(get_contract, experimental_codegen):
+    if not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
+
+    # the arms are dynamic tuple frames whose second member is narrower in
+    # the `_short` arm; that member must not be read with the wider size
+    code = """
+@internal
+def _short(a: DynArray[uint256, 2]) -> (DynArray[uint256, INF], DynArray[uint256, 2]):
+    return ([1], a)
+
+@internal
+def _long(b: DynArray[uint256, 5]) -> (DynArray[uint256, INF], DynArray[uint256, 5]):
+    return ([3], b)
+
+@external
+def member(c: bool, a: DynArray[uint256, 2], b: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    z: DynArray[uint256, 5] = (self._short(a) if c else self._long(b))[1]
+    return z
+    """
+    c = get_contract(code)
+    assert c.member(True, [1, 2], [3, 4, 5]) == [1, 2]
+    assert c.member(False, [1, 2], [3, 4, 5]) == [3, 4, 5]
