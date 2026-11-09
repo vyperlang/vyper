@@ -364,7 +364,17 @@ def foo({args}):
     for x: {typ} in [a, b]:
         pass
     """
-    compile_inf_code(code)
+    # the annotated ast alone skips the compilation target checks, which is
+    # where legacy codegen rejects the unbounded types
+    out = compile_inf_code(code, output_formats=["annotated_ast_dict", "bytecode"])
+    if out is None:
+        return
+    # the literal is typed as a DynArray of the loop variable's type
+    (loop,) = out["annotated_ast_dict"]["ast"]["body"][0]["body"]
+    iter_type = loop["iter"]["type"]
+    assert iter_type["name"] == "DynArray"
+    assert iter_type["length"] == 2
+    assert iter_type["value_type"] == loop["target"]["target"]["type"]
 
 
 tuple_loop_variables_with_unbounded_members = [

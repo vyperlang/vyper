@@ -943,26 +943,6 @@ def rows(
     for row: DynArray[Bytes[INF], INF] in [a, b, a]:
         ys.append(row)
     return ys
-
-@external
-def widen(
-    a: DynArray[Bytes[10], 3], b: DynArray[Bytes[INF], INF]
-) -> DynArray[DynArray[Bytes[INF], INF], INF]:
-    # the items of a are laid out for Bytes[10], the loop variable for Bytes[INF]
-    ys: DynArray[DynArray[Bytes[INF], INF], INF] = []
-    for row: DynArray[Bytes[INF], INF] in [a, b, a]:
-        ys.append(row)
-    return ys
-
-@external
-def append_while_iterating(b: DynArray[uint256, 3]) -> DynArray[DynArray[uint256, INF], INF]:
-    a: DynArray[uint256, INF] = b
-    ys: DynArray[DynArray[uint256, INF], INF] = []
-    for xs: DynArray[uint256, INF] in [a, a]:
-        a.append(9)
-        ys.append(xs)
-    ys.append(a)
-    return ys
     """
     c = get_contract(code)
     assert c.strings("ab", "c" * 70) == ["c" * 70, "ab"]
@@ -970,6 +950,32 @@ def append_while_iterating(b: DynArray[uint256, 3]) -> DynArray[DynArray[uint256
     assert c.sums([], []) == [0, 0, 0]
     assert c.rows(VALUES, VALUES_SHORT) == [VALUES, VALUES_SHORT, VALUES]
     assert c.rows([], []) == [[], [], []]
+
+
+@pytest.mark.parametrize("bound", _ARRAY_BOUNDS)
+def test_iterate_list_literal_of_arrays_as_wider(get_contract, bound):
+    code = f"""
+@external
+def widen(
+    a: DynArray[Bytes[10], 3], b: DynArray[Bytes[INF], {bound}]
+) -> DynArray[DynArray[Bytes[INF], INF], INF]:
+    # a holds Bytes[10] items, the loop variable Bytes[INF] ones
+    ys: DynArray[DynArray[Bytes[INF], INF], INF] = []
+    for row: DynArray[Bytes[INF], {bound}] in [a, b, a]:
+        ys.append(row)
+    return ys
+
+@external
+def append_while_iterating(b: DynArray[uint256, 3]) -> DynArray[DynArray[uint256, INF], INF]:
+    a: DynArray[uint256, {bound}] = b
+    ys: DynArray[DynArray[uint256, INF], INF] = []
+    for xs: DynArray[uint256, {bound}] in [a, a]:
+        a.append(9)
+        ys.append(xs)
+    ys.append(a)
+    return ys
+    """
+    c = get_contract(code)
     short = [b"x", b"", b"y" * 10]
     assert c.widen(short, VALUES) == [short, VALUES, short]
     assert c.widen([], []) == [[], [], []]
