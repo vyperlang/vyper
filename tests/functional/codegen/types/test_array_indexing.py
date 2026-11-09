@@ -231,6 +231,7 @@ def bar() -> uint256:
         ("d: DynArray[uint256, 1][1]", "self.d[0] = [5]", "self.d[0][self.hook()]"),
         ("d: HashMap[uint256, DynArray[uint256, 1]]", "self.d[0] = [5]", "self.d[0][self.hook()]"),
         ("d: uint256[1]", "self.d[0] = 5", "self.d[self.hook()]"),
+        ("d: DynArray[uint256[1], 1]", "self.d = [[5]]", "self.d.pop()[self.hook()]"),
     ],
 )
 def test_array_index_overlap_root(get_contract, decl, write, expr):

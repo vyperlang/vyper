@@ -1066,7 +1066,6 @@ class Expr:
             raise CompilerPanic("risky overlap")
 
         base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
-        reference = base_vv.reference
         index = Expr(node.slice, self.ctx).lower_value()
         base = base_vv.operand
 
