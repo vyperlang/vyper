@@ -25,6 +25,15 @@ _ABORT_KIND = {
 }
 
 
+def _is_root_only(inst: IRInstruction) -> bool:
+    # nothing can depend on it through data or effects
+    return (
+        len(inst.get_outputs()) == 0
+        and inst.get_read_effects() == effects.EMPTY
+        and inst.get_write_effects() == effects.EMPTY
+    )
+
+
 class DFTPass(IRPass):
     function: IRFunction
     data_offspring: dict[IRInstruction, OrderedSet[IRInstruction]]
@@ -76,11 +85,16 @@ class DFTPass(IRPass):
         for inst in bb.instructions:
             self._calculate_data_offspring(inst)
 
-        # Compute entry points in the graph of instruction dependencies
+        # Compute entry points in the graph of instruction dependencies.
+        # an instruction with no outputs and no effects (an `assert`) stays
+        # an entry even when a later abort is ordered after it. reached only
+        # through that abort, it would be scheduled after everything earlier
+        # entries pull in, which can include instructions that follow it,
+        # e.g. a calldata copy sized by an unchecked length.
         entry_instructions: OrderedSet[IRInstruction] = OrderedSet(non_phi_instructions)
         for inst in non_phi_instructions:
             to_remove = self.dda.get(inst, OrderedSet()) | self.eda.get(inst, OrderedSet())
-            entry_instructions.dropmany(to_remove)
+            entry_instructions.dropmany(x for x in to_remove if not _is_root_only(x))
 
         entry_instructions_list = list(entry_instructions)
 
