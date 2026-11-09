@@ -1421,6 +1421,90 @@ def _call_return_types(node):
     }
 
 
+@pytest.mark.parametrize(
+    "arg",
+    [
+        "[staticcall I(a).wide(), staticcall I(a).bounded()]",
+        "[staticcall I(a).bounded(), staticcall I(a).wide()]",
+    ],
+)
+def test_wildcard_arg_list_literal_wildcard_call_elements_types(arg):
+    # the element type has every wildcard of the call returns, whichever
+    # comes first, and each call keeps the fixed bounds of its return type
+    code = f"""
+interface I:
+    def wide() -> DynArray[Bytes[...], ...]: view
+    def bounded() -> DynArray[Bytes[10], ...]: view
+    def sink(xs: DynArray[DynArray[Bytes[...], ...], ...]): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).sink({arg})
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.func.get("attr") == "sink"]
+    (arg_node,) = call.args
+    assert arg_node._metadata["type"] == DArrayT(DArrayT(BytesT(INF), INF), 2)
+    assert _call_return_types(arg_node) == {
+        "wide": DArrayT(BytesT(INF), INF),
+        "bounded": DArrayT(BytesT(10), INF),
+    }
+
+    compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+
+
+@pytest.mark.parametrize(
+    "code,node_class,typ,call_return_type",
+    [
+        # the subscript does not pass its type on to the list
+        pytest.param(
+            """
+interface I:
+    def source() -> Bytes[...]: view
+    def sink(x: Bytes[10]): nonpayable
+
+@external
+def f(a: address, i: uint256):
+    extcall I(a).sink([b"x", staticcall I(a).source()][i])
+            """,
+            vy_ast.List,
+            SArrayT(BytesT(1), 2),
+            BytesT(1),
+            id="subscripted_list",
+        ),
+        # the loop variable does not pass its type on to the iterable
+        pytest.param(
+            """
+interface I:
+    def source() -> DynArray[Bytes[...], ...]: view
+    def bounded() -> DynArray[Bytes[10], 2]: view
+
+@external
+def f(a: address, c: bool) -> uint256:
+    n: uint256 = 0
+    for x: Bytes[10] in (staticcall I(a).bounded() if c else staticcall I(a).source()):
+        n += len(x)
+    return n
+            """,
+            vy_ast.IfExp,
+            DArrayT(BytesT(10), 2),
+            DArrayT(BytesT(10), 2),
+            id="for_loop_ternary",
+        ),
+    ],
+)
+def test_wildcard_call_operand_without_expected_type(code, node_class, typ, call_return_type):
+    # there is no expected type to fix the wildcards of the call return, the
+    # operand before it does
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (node,) = module.get_descendants(node_class)
+    assert node._metadata["type"] == typ
+    assert _call_return_types(node)["source"] == call_return_type
+
+    for experimental_codegen in (False, True):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=experimental_codegen))
+
+
 def test_wildcard_call_return_wider_expected_type():
     # the expected type only fixes the wildcards of the return type
     code = """

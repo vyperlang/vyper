@@ -674,6 +674,43 @@ def memory_or_storage(
 
 
 @pytest.mark.parametrize("test", [True, False])
+def test_ternary_wildcard_call_arm_as_for_loop_iterable(get_contract, test):
+    # the loop variable does not pass its type on to the iterable, so the
+    # first arm fixes the bounds of the call return in the other arm
+    target_code = """
+@external
+@view
+def bounded() -> DynArray[Bytes[10], 2]:
+    return [b"ab", b"c"]
+
+@external
+@view
+def wide() -> DynArray[Bytes[10], 2]:
+    return [b"hello", b"vyper"]
+    """
+
+    caller_code = """
+interface Target:
+    def bounded() -> DynArray[Bytes[10], 2]: view
+    def wide() -> DynArray[Bytes[...], ...]: view
+
+@external
+def do_it(addr: address, b: bool) -> DynArray[Bytes[10], 2]:
+    ys: DynArray[Bytes[10], 2] = []
+    for x: Bytes[10] in (
+        staticcall Target(addr).bounded() if b else staticcall Target(addr).wide()
+    ):
+        ys.append(x)
+    return ys
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    expected = [b"ab", b"c"] if test else [b"hello", b"vyper"]
+    assert caller.do_it(target.address, test) == expected
+
+
+@pytest.mark.parametrize("test", [True, False])
 def test_ternary_tuple_assigned_to_storage(get_contract, test):
     # the selected tuple is copied into storage word by word through the
     # merged pointer; every member of either arm must reach storage

@@ -27,6 +27,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, BottomT, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
+from vyper.semantics.types.infinity import WILDCARD
 
 if TYPE_CHECKING:
     from vyper.semantics.types.module import ModuleT
@@ -83,14 +84,18 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
 
     scope_name = "expression"
 
-    def __init__(self):
+    def __init__(self, keep_wildcards: bool = False):
         self.namespace = get_namespace()
+        # see `type_supremum`
+        self.keep_wildcards = keep_wildcards
 
     def visit(self, node, allow_type_exprs: bool = False) -> list[VyperType]:
 
         # this method is a perf hotspot, so we cache the result and
         # try to return it if found.
         k = "possible_types_from_node"
+        if self.keep_wildcards:
+            k = "possible_types_from_node_keep_wildcards"
         if k not in node._metadata:
             # we don't pass `allow_type_exprs` to the `visit_...` nodes, as they shouldn't handle it
             possible_types = super().visit(node)
@@ -272,7 +277,7 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
 
         then_t = self.visit(node.body)
         else_t = self.visit(node.orelse)
-        types_list = type_supremum(then_t, else_t)
+        types_list = type_supremum(then_t, else_t, keep_wildcards=self.keep_wildcards)
 
         if not types_list:
             raise TypeMismatch(f"Dislike types: {then_t[0]} and {else_t[0]}", node)
@@ -286,7 +291,8 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
             # can't have an empty SArrayT
             return [DArrayT(BottomT(), 0)]
 
-        types_list = get_common_types(*node.elements)
+        element_types = (self.visit(element) for element in node.elements)
+        types_list = type_supremum(*element_types, keep_wildcards=self.keep_wildcards)
 
         if len(types_list) > 0:
             count = len(node.elements)
@@ -339,7 +345,9 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
     def visit_Subscript(self, node):
         # index access, e.g. `foo[1]`
         if isinstance(node.value, (vy_ast.List, vy_ast.Subscript)):
-            types_list = self.visit(node.value)
+            # no expected type reaches the base (cf. `ExprVisitor.visit_Subscript`),
+            # so its wildcards are not kept
+            types_list = get_possible_types_from_node(node.value)
             ret = []
             for t in types_list:
                 t.validate_index_type(node.slice)
@@ -423,7 +431,9 @@ def get_modifiability(node: vy_ast.ExprNode) -> Modifiability:
     return get_expr_info(node).modifiability
 
 
-def get_possible_types_from_node(node, allow_type_exprs: bool = False) -> list[VyperType]:
+def get_possible_types_from_node(
+    node, allow_type_exprs: bool = False, keep_wildcards: bool = False
+) -> list[VyperType]:
     """
     Return a list of possible types for the given node.
 
@@ -433,6 +443,8 @@ def get_possible_types_from_node(node, allow_type_exprs: bool = False) -> list[V
     ---------
     node : VyperNode
         A vyper ast node.
+    keep_wildcards : bool
+        See `type_supremum`.
 
     Returns
     -------
@@ -440,7 +452,7 @@ def get_possible_types_from_node(node, allow_type_exprs: bool = False) -> list[V
         List of one or more VyperType objects.
     """
 
-    return _TypeSynthesizer().visit(node, allow_type_exprs=allow_type_exprs)
+    return _TypeSynthesizer(keep_wildcards).visit(node, allow_type_exprs=allow_type_exprs)
 
 
 def get_exact_type_from_node(node: vy_ast.VyperNode, allow_type_exprs: bool = False) -> VyperType:
@@ -562,7 +574,40 @@ def get_expr_info(node: vy_ast.ExprNode, allow_type_exprs: bool = False) -> Expr
     return node._expr_info
 
 
-def type_supremum(*multitypes: List[VyperType]) -> List[VyperType]:
+def _merge_wildcards(a: VyperType, b: VyperType) -> VyperType:
+    # `a` and `b` are subtypes of each other, so they only differ in lengths
+    # where one of them has a wildcard. returns `a` with the wildcards of both
+    if type(a) is not type(b):
+        return a
+
+    if isinstance(a, TupleT):
+        assert isinstance(b, TupleT)  # help mypy
+        member_types = zip(a.member_types, b.member_types, strict=True)
+        return TupleT(tuple(_merge_wildcards(x, y) for x, y in member_types))
+
+    if isinstance(a, SArrayT):
+        assert isinstance(b, SArrayT)  # help mypy
+        return SArrayT(_merge_wildcards(a.value_type, b.value_type), a.length)
+
+    if isinstance(a, DArrayT):
+        assert isinstance(b, DArrayT)  # help mypy
+        value_type = _merge_wildcards(a.value_type, b.value_type)
+        if b.length is WILDCARD:
+            return DArrayT(value_type, WILDCARD)
+        return DArrayT(value_type, a.length)
+
+    if b.has_wildcard:
+        return b
+    return a
+
+
+def type_supremum(*multitypes: List[VyperType], keep_wildcards: bool = False) -> List[VyperType]:
+    """
+    A wildcard length is comparable with every length. Where it meets another
+    length, the first operand fixes the result, unless `keep_wildcards` is
+    set: then the wildcard stays, for an expected type to fix it (cf.
+    `ExprVisitor._annotation_type`).
+    """
     assert len(multitypes) >= 1
 
     common_types = multitypes[0]
@@ -573,12 +618,8 @@ def type_supremum(*multitypes: List[VyperType]) -> List[VyperType]:
                 # The supremum is the type such that both are subtypes
 
                 if t.is_subtype_of(c):
-                    if t.has_wildcard and c.is_subtype_of(t):
-                        # a wildcard length is comparable with every length;
-                        # keep it so the expected type fixes the length
-                        # (cf. `ExprVisitor._interpolate`), not the first
-                        # operand
-                        tmp.append(t)
+                    if keep_wildcards and c.is_subtype_of(t):
+                        tmp.append(_merge_wildcards(c, t))
                     else:
                         tmp.append(c)
 

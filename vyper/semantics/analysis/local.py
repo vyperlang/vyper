@@ -992,7 +992,9 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
         if not typ.has_wildcard:
             return typ
 
-        possible_types = get_possible_types_from_node(node)
+        # keep the wildcards of list literal and ternary operands, so that
+        # `typ` fixes them instead of the first operand
+        possible_types = get_possible_types_from_node(node, keep_wildcards=True)
 
         candidates = [t for t in possible_types if t.is_subtype_of(typ)]
         assert len(candidates) == 1
