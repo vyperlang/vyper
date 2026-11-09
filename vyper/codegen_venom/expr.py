@@ -1059,25 +1059,15 @@ class Expr:
         assert isinstance(node, vy_ast.Subscript)
         base_typ = node.value._metadata["type"]
 
+        # Reject an index that can write what the base reads, as legacy
+        # codegen does: the element read would depend on whether the base or
+        # the index is evaluated first.
+        if _subscript_read_write_overlap(node.value, node.slice):
+            raise CompilerPanic("risky overlap")
+
         base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
         reference = base_vv.reference
-        overlap = (
-            reference is not None
-            and len(reference.indices) > 0
-            and _subscript_read_write_overlap(node.value, node.slice)
-        )
-        if overlap and self.as_ptr:
-            raise CompilerPanic("risky overlap")
-        if overlap:
-            # An unbounded member of an array element cannot be mutated in
-            # place, so its payload survives removal of the containing frame.
-            if not is_unbounded_sequence_type(base_typ):
-                base_vv = self.ctx.materialize_value(base_vv, base_typ)
-            else:
-                base_vv = base_vv.with_reference(None)
-
         index = Expr(node.slice, self.ctx).lower_value()
-        base_vv = self._resolve_after(base_vv, node.slice, node.value)
         base = base_vv.operand
 
         elem_typ = base_typ.value_type

@@ -137,10 +137,7 @@ def foo():
         assert c.arr(i) == i
 
 
-def test_array_index_overlap(get_contract, experimental_codegen):
-    if not experimental_codegen:
-        pytest.xfail("legacy codegen still rejects risky subscript overlap")
-
+def test_array_index_overlap(get_contract):
     code = """
 a: public(DynArray[DynArray[Bytes[96], 5], 5])
 
@@ -156,14 +153,11 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    c = get_contract(code)
-    assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    with pytest.raises(CompilerPanic, match="risky overlap"):
+        get_contract(code)
 
 
-def test_array_index_overlap_extcall(get_contract, experimental_codegen):
-    if not experimental_codegen:
-        pytest.xfail("legacy codegen still rejects risky subscript overlap")
-
+def test_array_index_overlap_extcall(get_contract):
     code = """
 
 interface Bar:
@@ -183,14 +177,11 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    c = get_contract(code)
-    assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    with pytest.raises(CompilerPanic, match="risky overlap"):
+        get_contract(code)
 
 
-def test_array_index_overlap_extcall2(get_contract, experimental_codegen):
-    if not experimental_codegen:
-        pytest.xfail("legacy codegen still rejects risky subscript overlap")
-
+def test_array_index_overlap_extcall2(get_contract):
     code = """
 interface B:
     def calculate_index() -> uint256: nonpayable
@@ -207,15 +198,11 @@ def calculate_index() -> uint256:
     self.a[0] = [1]
     return 0
     """
-    c = get_contract(code)
+    with pytest.raises(CompilerPanic, match="risky overlap"):
+        get_contract(code)
 
-    assert c.bar() == 1
 
-
-def test_array_index_overlap_attribute(get_contract, experimental_codegen):
-    if not experimental_codegen:
-        pytest.xfail("legacy codegen still rejects risky subscript overlap")
-
+def test_array_index_overlap_attribute(get_contract):
     code = """
 struct Foo:
     b: DynArray[uint256, 4]
@@ -233,8 +220,46 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    c = get_contract(code)
-    assert c.foo() == 1
+    with pytest.raises(CompilerPanic, match="risky overlap"):
+        get_contract(code)
+
+
+@pytest.mark.parametrize(
+    "decl,write,expr",
+    [
+        ("d: DynArray[uint256, 1]", "self.d = [5]", "self.d[self.hook()]"),
+        ("d: DynArray[uint256, 1][1]", "self.d[0] = [5]", "self.d[0][self.hook()]"),
+        ("d: HashMap[uint256, DynArray[uint256, 1]]", "self.d[0] = [5]", "self.d[0][self.hook()]"),
+        ("d: uint256[1]", "self.d[0] = 5", "self.d[self.hook()]"),
+    ],
+)
+def test_array_index_overlap_root(get_contract, decl, write, expr):
+    # the index writes the indexed variable, whatever the base's shape
+    code = f"""
+{decl}
+
+@internal
+def hook() -> uint256:
+    {write}
+    return 0
+
+@external
+def run() -> uint256:
+    return {expr}
+    """
+    with pytest.raises(CompilerPanic, match="risky overlap"):
+        get_contract(code)
+
+
+def test_array_index_overlap_local_pop(get_contract):
+    code = """
+@external
+def run() -> uint256:
+    x: DynArray[uint256, 3] = [10, 20, 30]
+    return x[x.pop() - 29]
+    """
+    with pytest.raises(CompilerPanic, match="risky overlap"):
+        get_contract(code)
 
 
 # to fix in future release
