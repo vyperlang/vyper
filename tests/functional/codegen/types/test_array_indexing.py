@@ -237,7 +237,7 @@ def bar() -> uint256:
     assert c.foo() == 1
 
 
-@pytest.mark.parametrize("hook_body", ["m.d[0] = [5, 6]", "m.d[0].pop()"])
+@pytest.mark.parametrize("hook_body", ["m.d[0] = [5, 6]", "m.d[0].pop()", "m.shrink()"])
 def test_array_index_overlap_abstract_override(
     get_contract, make_input_bundle, experimental_codegen, hook_body
 ):
@@ -250,6 +250,9 @@ d: DynArray[DynArray[uint256, 2], 2]
 
 @abstract
 def hook() -> uint256: ...
+
+def shrink():
+    self.d[0].pop()
 
 def get() -> uint256:
     return self.d[0][self.hook()]

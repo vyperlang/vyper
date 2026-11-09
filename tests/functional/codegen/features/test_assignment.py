@@ -129,7 +129,7 @@ def poc():
     c = get_contract(code, input_bundle=make_input_bundle({"m.vy": m}))
 
     # not reached until the panic is fixed
-    with tx_failed(c):
+    with tx_failed():
         c.poc()
 
 

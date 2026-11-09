@@ -25,7 +25,6 @@ from vyper.exceptions import (
     TypeMismatch,
     tag_exceptions,
 )
-from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     VyperType,
@@ -52,7 +51,9 @@ from .eval_order import (
 )
 from .expr import (
     Expr,
+    get_reachable_internal_functions,
     get_referenced_variables,
+    get_writes_with_overrides,
     is_unbounded_array_element,
     is_unbounded_struct_member,
 )
@@ -64,20 +65,8 @@ def _contains_writeable_call(node: vy_ast.VyperNode) -> bool:
     if _emits_writeable_call(node):
         return True
 
-    functions = set()
-    for func_t in _called_internal_functions(node):
-        functions.add(func_t)
-        functions.update(func_t.reachable_internal_functions)
+    functions = get_reachable_internal_functions(node)
     return any(_emits_writeable_call(func_t.decl_node) for func_t in functions)
-
-
-def _called_internal_functions(node: vy_ast.VyperNode) -> set:
-    ret = set()
-    for call in node.get_descendants(vy_ast.Call, include_self=True):
-        func_t = call.func._metadata.get("type")
-        if isinstance(func_t, ContractFunctionT) and func_t.is_internal:
-            ret.add(func_t.get_concrete_override())
-    return ret
 
 
 def _emits_writeable_call(node: vy_ast.VyperNode) -> bool:
@@ -391,7 +380,7 @@ class Stmt:
         # GHSA-4w26-8p97-f4jp: the target is computed and bounds-checked
         # before the RHS. Reject an RHS which could invalidate a complex
         # variable used to derive that target.
-        rhs_writes = {access.variable for access in get_expr_writes(right_node)}
+        rhs_writes = get_writes_with_overrides(right_node)
         for var in get_referenced_variables(target):
             if var.typ._is_prim_word:
                 continue
