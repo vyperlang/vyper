@@ -2750,3 +2750,38 @@ def forward(addr: address):
     caller = get_contract(caller_code)
     caller.forward(target.address)
     assert target.stored() == expected
+
+
+def test_wildcard_call_return_assigned_to_wider_bound(get_contract, tx_failed):
+    # the variable only fixes the wildcard of the return type
+    target_code = """
+n: uint256
+
+@external
+def set_length(n: uint256):
+    self.n = n
+
+@external
+@view
+def source() -> DynArray[Bytes[20], 5]:
+    return [slice(b"aaaaaaaaaaaaaaaaaaaa", 0, self.n), b"b"]
+    """
+
+    caller_code = """
+interface Target:
+    def source() -> DynArray[Bytes[10], ...]: view
+
+@external
+def fetch(addr: address) -> DynArray[Bytes[20], 5]:
+    xs: DynArray[Bytes[20], 5] = staticcall Target(addr).source()
+    return xs
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    target.set_length(10)
+    assert caller.fetch(target.address) == [b"a" * 10, b"b"]
+
+    target.set_length(11)
+    with tx_failed():
+        caller.fetch(target.address)

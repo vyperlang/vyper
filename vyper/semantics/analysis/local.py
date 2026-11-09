@@ -1210,8 +1210,9 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
                     )
                 if return_t is not None and return_t.has_wildcard:
                     if not typ.has_wildcard and typ is not VOID_TYPE:
-                        # Replace wildcard-containing type by the concrete expected type
-                        return_t = typ
+                        # Replace the wildcards by the lengths of the concrete expected
+                        # type, which can be wider than the fixed lengths of the return type
+                        return_t = self._interpolate(return_t, typ, pos=node)
                     else:
                         # Replace wildcards in the type by INF, since there is no expected type
                         return_t = return_t.resolve_wildcard()

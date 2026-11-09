@@ -1413,6 +1413,31 @@ def f(a: address):
         compiler.compile_code(code, settings=Settings(experimental_codegen=experimental_codegen))
 
 
+def _call_return_types(node):
+    return {
+        call.func.attr: call._metadata["call_return_type"]
+        for call in node.get_descendants(vy_ast.Call)
+        if "call_return_type" in call._metadata
+    }
+
+
+def test_wildcard_call_return_wider_expected_type():
+    # the expected type only fixes the wildcards of the return type
+    code = """
+interface I:
+    def source() -> DynArray[Bytes[10], ...]: view
+
+@external
+def f(a: address):
+    xs: DynArray[Bytes[20], 5] = staticcall I(a).source()
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    assert _call_return_types(module) == {"source": DArrayT(BytesT(10), 5)}
+
+    for experimental_codegen in (False, True):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=experimental_codegen))
+
+
 @pytest.mark.parametrize(
     "param_type,arg,arg_type",
     [
