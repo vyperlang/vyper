@@ -27,7 +27,6 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
 from vyper.semantics.types.base import TYPE_T, BottomT, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
-from vyper.semantics.types.infinity import WILDCARD
 
 if TYPE_CHECKING:
     from vyper.semantics.types.module import ModuleT
@@ -574,33 +573,6 @@ def get_expr_info(node: vy_ast.ExprNode, allow_type_exprs: bool = False) -> Expr
     return node._expr_info
 
 
-def _merge_wildcards(a: VyperType, b: VyperType) -> VyperType:
-    # `a` and `b` are subtypes of each other, so they only differ in lengths
-    # where one of them has a wildcard. returns `a` with the wildcards of both
-    if type(a) is not type(b):
-        return a
-
-    if isinstance(a, TupleT):
-        assert isinstance(b, TupleT)  # help mypy
-        member_types = zip(a.member_types, b.member_types, strict=True)
-        return TupleT(tuple(_merge_wildcards(x, y) for x, y in member_types))
-
-    if isinstance(a, SArrayT):
-        assert isinstance(b, SArrayT)  # help mypy
-        return SArrayT(_merge_wildcards(a.value_type, b.value_type), a.length)
-
-    if isinstance(a, DArrayT):
-        assert isinstance(b, DArrayT)  # help mypy
-        value_type = _merge_wildcards(a.value_type, b.value_type)
-        if b.length is WILDCARD:
-            return DArrayT(value_type, WILDCARD)
-        return DArrayT(value_type, a.length)
-
-    if b.has_wildcard:
-        return b
-    return a
-
-
 def type_supremum(*multitypes: List[VyperType], keep_wildcards: bool = False) -> List[VyperType]:
     """
     A wildcard length is comparable with every length. Where it meets another
@@ -619,7 +591,7 @@ def type_supremum(*multitypes: List[VyperType], keep_wildcards: bool = False) ->
 
                 if t.is_subtype_of(c):
                     if keep_wildcards and c.is_subtype_of(t):
-                        tmp.append(_merge_wildcards(c, t))
+                        tmp.append(c.merge_wildcards(t))
                     else:
                         tmp.append(c)
 

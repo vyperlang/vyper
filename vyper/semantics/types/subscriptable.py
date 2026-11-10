@@ -223,6 +223,11 @@ class SArrayT(_SequenceT):
             return SArrayT(resolved_value, self.length)
         return self
 
+    def merge_wildcards(self, other):
+        if type(self) is not type(other):
+            return self
+        return SArrayT(self.value_type.merge_wildcards(other.value_type), self.length)
+
     def compare_type(self, other):
         if isinstance(other, BottomT):
             return True
@@ -347,6 +352,14 @@ class DArrayT(_SequenceT):
         if resolved_value is not self.value_type or resolved_length is not self.length:
             return DArrayT(resolved_value, resolved_length)
         return self
+
+    def merge_wildcards(self, other):
+        if type(self) is not type(other):
+            return self
+        value_type = self.value_type.merge_wildcards(other.value_type)
+        if other.length is WILDCARD:
+            return DArrayT(value_type, WILDCARD)
+        return DArrayT(value_type, self.length)
 
     def _compare_length(self, other):
 
@@ -477,6 +490,12 @@ class TupleT(VyperType):
         if resolved != self.member_types:
             return TupleT(resolved)
         return self
+
+    def merge_wildcards(self, other):
+        if type(self) is not type(other):
+            return self
+        member_types = zip(self.member_types, other.member_types, strict=True)
+        return TupleT(tuple(x.merge_wildcards(y) for x, y in member_types))
 
     @property
     def size_in_bytes(self):
