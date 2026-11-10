@@ -1,3 +1,6 @@
+import pytest
+
+
 def test_module_event(get_contract, make_input_bundle, get_logs):
     # log from a module
     lib1 = """
@@ -65,3 +68,40 @@ def bar():
     (log,) = get_logs(c, "MyEvent")
     assert log.args.x == 5
     assert log.args.y == 6
+
+
+@pytest.mark.parametrize(
+    "member_type,value",
+    [
+        ("Bytes[...]", b"ab"),
+        ("String[...]", "ab"),
+        ("DynArray[uint256, ...]", []),
+        ("DynArray[uint256, ...]", [1, 2]),
+        ("DynArray[Bytes[...], 5]", []),
+        ("DynArray[Bytes[...], 5]", [b"ab"]),
+    ],
+)
+def test_interface_wildcard_event(
+    get_contract, make_input_bundle, get_logs, compile_inf_code, member_type, value
+):
+    interface = f"""
+event E:
+    xs: {member_type}
+    """
+    code = f"""
+import IW
+
+@external
+def emit():
+    log IW.E(xs={value!r})
+    """
+    input_bundle = make_input_bundle({"IW.vyi": interface})
+    if member_type == "DynArray[Bytes[...], 5]" and value == []:
+        # No element bound can be inferred from [], so Bytes[...] resolves to INF.
+        if compile_inf_code(code, input_bundle=input_bundle) is None:
+            return
+
+    c = get_contract(code, input_bundle=input_bundle)
+    c.emit()
+    (log,) = get_logs(c, "E")
+    assert log.args.xs == value
