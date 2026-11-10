@@ -1,9 +1,12 @@
-# TODO: rewrite the tests in type-centric way, parametrize array and indices types
+import hashlib
 
 import pytest
 
 from vyper import compile_code
+from vyper.compiler.settings import Settings
 from vyper.exceptions import CompilerPanic, InvalidOperation, TypeCheckFailure
+
+# TODO: rewrite the tests in type-centric way, parametrize array and indices types
 
 
 def test_negative_ix_access(get_contract, tx_failed):
@@ -137,7 +140,6 @@ def foo():
         assert c.arr(i) == i
 
 
-@pytest.mark.xfail(strict=True, raises=CompilerPanic, reason="risky storage overlap")
 def test_array_index_overlap(get_contract, experimental_codegen):
     if not experimental_codegen:
         pytest.xfail("legacy codegen still rejects risky subscript overlap")
@@ -161,7 +163,6 @@ def bar() -> uint256:
     assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
-@pytest.mark.xfail(strict=True, raises=CompilerPanic, reason="risky storage overlap")
 def test_array_index_overlap_extcall(get_contract, experimental_codegen):
     if not experimental_codegen:
         pytest.xfail("legacy codegen still rejects risky subscript overlap")
@@ -214,7 +215,6 @@ def calculate_index() -> uint256:
     assert c.bar() == 1
 
 
-@pytest.mark.xfail(strict=True, raises=CompilerPanic, reason="risky storage overlap")
 def test_array_index_overlap_attribute(get_contract, experimental_codegen):
     if not experimental_codegen:
         pytest.xfail("legacy codegen still rejects risky subscript overlap")
@@ -492,10 +492,44 @@ def foo(i: uint256) -> uint256:
     pytest.xfail("compilation succeeded with correct bytecode, but should have rejected `[][i]`")
 
 
-@pytest.mark.parametrize("location", ["storage", "transient"])
-@pytest.mark.parametrize("bound", [5, 100000, 2**64])
-def test_storage_overlap_rejected_without_capacity_copy(location, bound):
+LOCATIONS = ["storage", pytest.param("transient", marks=pytest.mark.requires_evm_version("cancun"))]
+
+
+# storage bounds need not fit in memory. the pre-index snapshot must only
+# copy the live elements, not the declared capacity.
+@pytest.mark.parametrize("location", LOCATIONS)
+@pytest.mark.parametrize("bound", [5, 100000])
+def test_storage_overlap_snapshots_live_elements(
+    get_contract, experimental_codegen, location, bound
+):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen still rejects risky subscript overlap")
+
     typ = f"DynArray[DynArray[uint256, {bound}], 1]"
+    if location == "transient":
+        typ = f"transient({typ})"
+    code = f"""
+a: {typ}
+
+@external
+def foo() -> uint256:
+    self.a = [[7, 8]]
+    return self.a[0][self.bump()]
+
+@internal
+def bump() -> uint256:
+    self.a[0] = [100, 100]
+    self.a.pop()
+    return 1
+    """
+    c = get_contract(code)
+    assert c.foo() == 8
+
+
+@pytest.mark.parametrize("location", LOCATIONS)
+def test_storage_overlap_snapshot_unallocatable_capacity(location):
+    # the declared capacity exceeds the memory allocation limit
+    typ = f"DynArray[DynArray[uint256, {2**64}], 1]"
     if location == "transient":
         typ = f"transient({typ})"
     code = f"""
@@ -510,8 +544,58 @@ def bump() -> uint256:
     self.a.pop()
     return 0
     """
-    with pytest.raises(CompilerPanic, match="risky overlap"):
-        compile_code(code, output_formats=["bytecode"])
+    settings = Settings(experimental_codegen=True)
+    assert compile_code(code, output_formats=["bytecode"], settings=settings)
+
+
+@pytest.mark.parametrize("location", LOCATIONS)
+def test_static_row_storage_overlap_snapshot(get_contract, experimental_codegen, location):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen still rejects risky subscript overlap")
+
+    typ = "DynArray[uint256[3], 2]"
+    if location == "transient":
+        typ = f"transient({typ})"
+    code = f"""
+a: {typ}
+
+@external
+def foo() -> uint256:
+    self.a = [[1, 2, 3], [4, 5, 6]]
+    return self.a[1][self.bump()]
+
+@internal
+def bump() -> uint256:
+    self.a[1] = [100, 100, 100]
+    self.a.pop()
+    return 2
+    """
+    c = get_contract(code)
+    assert c.foo() == 6
+
+
+# a precompile call cannot write storage, so indexing a storage array
+# with its result needs no snapshot
+@pytest.mark.parametrize("location", LOCATIONS)
+def test_storage_index_precompile_call(get_contract, experimental_codegen, location):
+    if not experimental_codegen:
+        pytest.xfail("legacy codegen still rejects risky subscript overlap")
+
+    typ = "uint256[2][1]"
+    if location == "transient":
+        typ = f"transient({typ})"
+    code = f"""
+a: {typ}
+
+@external
+def foo(seed: Bytes[32]) -> uint256:
+    self.a = [[10, 11]]
+    return self.a[0][convert(sha256(seed), uint256) % 2]
+    """
+    c = get_contract(code)
+    for seed in (b"", b"a", b"b", b"c"):
+        expected = 10 + int.from_bytes(hashlib.sha256(seed).digest(), "big") % 2
+        assert c.foo(seed) == expected
 
 
 def test_memory_overlap_keeps_snapshot(get_contract, experimental_codegen):
