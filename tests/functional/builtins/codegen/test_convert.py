@@ -950,6 +950,30 @@ def test_convert() -> uint256:
     assert c.test_convert() == 42
 
 
+def test_convert_self_to_uint(get_contract, tx_failed):
+    # `self` is typed as SelfT, a subclass of AddressT
+    code = """
+@external
+def to_uint256() -> uint256:
+    return convert(self, uint256)
+
+@external
+def to_uint160() -> uint160:
+    return convert(self, uint160)
+
+@external
+def to_uint8() -> uint8:
+    return convert(self, uint8)
+    """
+    c = get_contract(code)
+    expected = int(c.address, 16)
+    assert expected > 255
+    assert c.to_uint256() == expected
+    assert c.to_uint160() == expected
+    with tx_failed():
+        c.to_uint8()
+
+
 FLAG_PREAMBLE = """
 flag Roles:
     ADMIN

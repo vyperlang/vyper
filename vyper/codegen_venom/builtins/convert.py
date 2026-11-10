@@ -312,8 +312,8 @@ def _to_int(
         return val
 
     # From address: treat as uint160 (the conversion matrix guarantees
-    # out_t is unsigned)
-    if in_t == AddressT():
+    # out_t is unsigned). isinstance, since `self` is typed as SelfT
+    if isinstance(in_t, AddressT):
         if out_t.bits < 160:
             val = _int_clamp(val, out_t, ctx)
         return val
