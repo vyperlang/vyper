@@ -150,13 +150,26 @@ class CompilerData:
         return settings
 
     def _compute_integrity_sum(self, imports_integrity_sum: str) -> str:
-        if self.storage_layout_override is not None:
-            # use canonical_sha256sum so that the integrity sum does not
-            # depend on the formatting of the storage layout file, which
-            # is not preserved by the solc_json output format
-            layout_sum = self.storage_layout_override.canonical_sha256sum
-            return sha256sum(layout_sum + imports_integrity_sum)
-        return imports_integrity_sum
+        layout = self.storage_layout_override
+        if layout is None:
+            return imports_integrity_sum
+
+        # use canonical_sha256sum so that the integrity sum does not
+        # depend on the formatting of the storage layout file, which
+        # is not preserved by the solc_json output format
+        integrity_sum = sha256sum(layout.canonical_sha256sum + imports_integrity_sum)
+
+        expected = self.expected_integrity_sum
+        if expected is not None and expected != integrity_sum:
+            # bundles built before the layout digest was canonicalized
+            # recorded a digest of the raw layout file. keep reproducing
+            # those builds (the integrity sum is embedded in the initcode)
+            # as long as the original bytes still match the recorded sum.
+            raw_integrity_sum = sha256sum(layout.sha256sum + imports_integrity_sum)
+            if raw_integrity_sum == expected:
+                return raw_integrity_sum
+
+        return integrity_sum
 
     @cached_property
     def _resolve_imports(self):

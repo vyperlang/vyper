@@ -410,6 +410,52 @@ def test_archive_output(input_files):
     assert w[0].message.message.startswith(INTEGRITY_WARNING.format(integrity=integrity))
 
 
+# archives built before the layout digest was canonicalized record a
+# digest of the raw layout file. they must keep compiling to the same
+# initcode, without an integrity warning.
+def test_archive_raw_layout_integrity(input_files):
+    tmpdir, _, _, storage_layout_path, contract_file, integrity = input_files
+    search_paths = [".", tmpdir]
+
+    out = compile_files(
+        [contract_file], ["archive"], paths=search_paths, storage_layout_paths=[storage_layout_path]
+    )
+    archive_path = Path("new.vyz")
+    archive_path.write_bytes(out[contract_file]["archive"])
+
+    data = compiler_data_from_zip(archive_path, None, False)
+    raw_layout_sum = data.storage_layout_override.sha256sum
+    assert raw_layout_sum != data.storage_layout_override.canonical_sha256sum
+    raw_integrity = sha256sum(raw_layout_sum + data.resolved_imports._integrity_sum)
+    assert raw_integrity != integrity
+
+    old_archive_path = Path("old.vyz")
+    with zipfile.ZipFile(archive_path) as src, zipfile.ZipFile(old_archive_path, "w") as dst:
+        for name in src.namelist():
+            contents = src.read(name)
+            if name == "MANIFEST/integrity":
+                contents = raw_integrity.encode()
+            dst.writestr(name, contents)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        old = compile_files([old_archive_path], ["integrity", "bytecode"])[old_archive_path]
+        new = compile_files([archive_path], ["integrity", "bytecode"])[archive_path]
+
+    assert old["integrity"] == raw_integrity
+    assert new["integrity"] == integrity
+    # the integrity sum is embedded in the initcode
+    assert raw_integrity in old["bytecode"]
+    assert integrity in new["bytecode"]
+
+    # a layout file which no longer matches the recorded sum still warns
+    data = compiler_data_from_zip(old_archive_path, None, False)
+    data.expected_integrity_sum = TAMPERED_INTEGRITY_SUM
+    with warnings.catch_warnings(record=True) as w:
+        assert data.integrity_sum == integrity
+    assert len(w) == 1, [s.message for s in w]
+
+
 def test_archive_b64_output(input_files):
     tmpdir, _, _, _, contract_file, _ = input_files
     search_paths = [".", tmpdir]
