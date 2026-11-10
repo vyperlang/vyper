@@ -92,8 +92,9 @@ def _lower_concat_bounded(call: BuiltinCall) -> VyperValue:
 
         if isinstance(arg_t, _BytestringT):
             # Variable-length bytes/string: copy data, advance by actual length
-            # The prepared input is already stable in memory.
-            arg_ptr = call.operand(arg_node)
+            # Each argument is copied out before the next one is evaluated,
+            # so later arguments cannot disturb it.
+            arg_ptr = call.lower_streamed(arg_node)
             assert isinstance(arg_ptr, IRVariable)
             arg_len = b.mload(arg_ptr)
             arg_data = b.add(arg_ptr, IRLiteral(32))
@@ -105,7 +106,7 @@ def _lower_concat_bounded(call: BuiltinCall) -> VyperValue:
         else:
             # Fixed bytesM: the value is already left-aligned in 32 bytes
             # Store full 32 bytes and advance by M
-            arg_val = call.operand(arg_node)
+            arg_val = call.lower_streamed(arg_node)
             m = arg_t.m
             offset = ctx.ptr_load(offset_local.ptr())
             dst = b.add(data_ptr.operand, offset)

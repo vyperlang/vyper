@@ -301,3 +301,25 @@ def small_bytes4(a: bytes8, b: Bytes[32], c: bytes8) -> Bytes[48]:
 
     a, b, c = bytes_for_len(8), bytes_for_len(0), bytes_for_len(8)
     assert contract.small_bytes4(a, b, c) == a + b + c
+
+
+def test_concat_consumes_args_in_source_order(get_contract):
+    # each argument is copied into the output before the next is evaluated
+    code = """
+x: Bytes[32]
+y: bytes4
+
+@internal
+def mutate() -> Bytes[32]:
+    self.x = b"changed"
+    self.y = 0xdeadbeef
+    return b"suffix"
+
+@external
+def foo() -> Bytes[104]:
+    self.x = b"prefix"
+    self.y = 0x01020304
+    return concat(self.x, self.y, self.mutate(), self.x, self.y)
+    """
+    c = get_contract(code)
+    assert c.foo() == b"prefix\x01\x02\x03\x04suffixchanged\xde\xad\xbe\xef"

@@ -12,6 +12,7 @@ from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic, UnfoldableNode
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import INF_T, TYPE_T, AddressT, VyperType
+from vyper.semantics.types.infinity import is_unbounded_bytestring_type
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
@@ -48,6 +49,8 @@ class BuiltinCall:
     return prepared values without emitting loads or copies. Type expressions and
     literal-only inputs remain AST metadata; len, raw_log and raw slice sources
     have explicit preparation rules because they do not consume ordinary values.
+    Bounded concat consumes each argument into its output before evaluating
+    the next one, which preserves source order without snapshots.
     """
 
     def __init__(self, node: vy_ast.Call, ctx: VenomCodegenContext):
@@ -65,8 +68,13 @@ class BuiltinCall:
         self.slice_source_length: IROperand | None = None
         code_address = None
         nodes = []
+        self.streams_args = self.func_t._id == "concat" and not is_unbounded_bytestring_type(
+            node._metadata["type"]
+        )
 
         for i, arg in enumerate(node.args):
+            if self.streams_args:
+                continue  # lowered by the handler, one at a time
             if isinstance(arg._metadata["type"], TYPE_T):
                 continue
             if self.func_t._id == "as_wei_value" and i == 1:
@@ -162,6 +170,13 @@ class BuiltinCall:
 
     def value(self, node: vy_ast.VyperNode) -> VyperValue:
         return self._values[node]
+
+    def lower_streamed(self, node: vy_ast.VyperNode) -> IROperand:
+        """Lower an argument which the handler consumes before the next one."""
+        from vyper.codegen_venom.expr import Expr
+
+        assert self.streams_args
+        return Expr(node, self.ctx).lower_value()
 
     def operand(self, node: vy_ast.VyperNode) -> IROperand:
         return self.value(node).operand
