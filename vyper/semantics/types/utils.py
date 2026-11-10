@@ -226,6 +226,8 @@ def get_index_value(node: vy_ast.VyperNode) -> LengthUpperBound:
         in_interface = node.module_node.is_interface or node.get_ancestor(vy_ast.InterfaceDef)
         if not in_interface:
             raise InvalidType("Wildcard length is only allowed in interfaces", node)
+        if node.get_ancestor(vy_ast.StructDef) is not None:
+            raise InvalidType("Wildcard lengths are not allowed in struct members", node)
         return WILDCARD
 
     node = node.reduced()

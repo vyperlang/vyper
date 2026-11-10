@@ -178,6 +178,57 @@ def test_wildcard_rejected_outside_interface(build_node):
     assert e.value.message == "Wildcard length is only allowed in interfaces"
 
 
+@pytest.mark.parametrize(
+    "member_type",
+    [
+        "Bytes[...]",
+        "String[...]",
+        "DynArray[uint256, ...]",
+        "DynArray[Bytes[...], 5]",
+        "DynArray[Bytes[...], ...]",
+        "DynArray[DynArray[uint256, ...], 5]",
+        "Bytes[...][2]",
+        "(uint256, Bytes[...])",
+        "HashMap[uint256, Bytes[...]]",
+        "HashMap[String[...], uint256]",
+    ],
+)
+def test_interface_struct_rejects_wildcard_member(make_input_bundle, member_type):
+    interface = f"""
+struct S:
+    xs: {member_type}
+    """
+    input_bundle = make_input_bundle({"IW.vyi": interface})
+
+    # Reject the declaration even when the struct is never instantiated.
+    with pytest.raises(InvalidType) as e:
+        compiler.compile_code("import IW", input_bundle=input_bundle)
+    assert e.value.message == "Wildcard lengths are not allowed in struct members"
+    assert e.value.annotations[0].node_source_code == "..."
+
+
+@pytest.mark.parametrize("value", ["[]", '[b"ab"]'])
+def test_interface_struct_wildcard_constructor_rejected(make_input_bundle, value):
+    interface = """
+struct S:
+    xs: DynArray[Bytes[...], 5]
+
+@external
+def foo(s: S): ...
+    """
+    code = f"""
+import IW
+
+@external
+def f(a: address):
+    extcall IW(a).foo(IW.S(xs={value}))
+    """
+    input_bundle = make_input_bundle({"IW.vyi": interface})
+    with pytest.raises(InvalidType) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+    assert e.value.message == "Wildcard lengths are not allowed in struct members"
+
+
 def test_wildcard_subtyping():
     # Wildcard matches anything bidirectionally
     assert BytesT(WILDCARD).compare_type(BytesT(10))
