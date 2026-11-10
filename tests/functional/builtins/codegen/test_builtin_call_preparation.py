@@ -16,6 +16,8 @@ DATA_VIEW_USES = {
     "a, __VIEW__, raw_args=True, revert_on_failure=False)",
 }
 
+CANCUN = pytest.mark.requires_evm_version("cancun")
+
 
 @pytest.mark.parametrize("view", ["msg.data", "self.code", "a.code"])
 @pytest.mark.parametrize("use", DATA_VIEW_USES.values(), ids=DATA_VIEW_USES.keys())
@@ -35,10 +37,9 @@ def _runtime_opcodes(source):
     return output["opcodes_runtime"].split()
 
 
-def _runtime_ir_lines(source):
-    output = compile_code(
-        source, output_formats=["ir_runtime"], settings=Settings(experimental_codegen=True)
-    )
+def _runtime_ir_lines(source, evm_version=None):
+    settings = Settings(experimental_codegen=True, evm_version=evm_version)
+    output = compile_code(source, output_formats=["ir_runtime"], settings=settings)
     return str(output["ir_runtime"]).splitlines()
 
 
@@ -56,9 +57,14 @@ def _assert_ir_operation_before(lines, earlier, later):
 
 @pytest.mark.parametrize(
     "declaration, load_opcode",
-    [("amount: uint256", "SLOAD"), ("amount: transient(uint256)", "TLOAD")],
+    [
+        ("amount: uint256", "SLOAD"),
+        pytest.param("amount: transient(uint256)", "TLOAD", marks=CANCUN),
+    ],
 )
-def test_positional_primitive_is_loaded_before_explicit_gas_kwarg(declaration, load_opcode):
+def test_positional_primitive_is_loaded_before_explicit_gas_kwarg(
+    declaration, load_opcode, evm_version
+):
     source = f"""
 {declaration}
 
@@ -67,14 +73,17 @@ def foo(to: address):
     send(to, self.amount, gas=msg.gas)
 """
 
-    _assert_ir_operation_before(_runtime_ir_lines(source), load_opcode, "GAS")
+    _assert_ir_operation_before(_runtime_ir_lines(source, evm_version), load_opcode, "GAS")
 
 
 @pytest.mark.parametrize(
     "declaration, load_opcode",
-    [("payload: Bytes[32]", "SLOAD"), ("payload: transient(Bytes[32])", "TLOAD")],
+    [
+        ("payload: Bytes[32]", "SLOAD"),
+        pytest.param("payload: transient(Bytes[32])", "TLOAD", marks=CANCUN),
+    ],
 )
-def test_positional_bytes_are_loaded_before_default_gas(declaration, load_opcode):
+def test_positional_bytes_are_loaded_before_default_gas(declaration, load_opcode, evm_version):
     source = f"""
 {declaration}
 
@@ -83,14 +92,19 @@ def foo(to: address):
     raw_call(to, self.payload)
 """
 
-    _assert_ir_operation_before(_runtime_ir_lines(source), load_opcode, "GAS")
+    _assert_ir_operation_before(_runtime_ir_lines(source, evm_version), load_opcode, "GAS")
 
 
 @pytest.mark.parametrize(
     "declaration, load_opcode",
-    [("initcode: Bytes[32]", "SLOAD"), ("initcode: transient(Bytes[32])", "TLOAD")],
+    [
+        ("initcode: Bytes[32]", "SLOAD"),
+        pytest.param("initcode: transient(Bytes[32])", "TLOAD", marks=CANCUN),
+    ],
 )
-def test_positional_initcode_is_loaded_before_gas_sensitive_value(declaration, load_opcode):
+def test_positional_initcode_is_loaded_before_gas_sensitive_value(
+    declaration, load_opcode, evm_version
+):
     source = f"""
 {declaration}
 
@@ -99,7 +113,7 @@ def foo() -> address:
     return raw_create(self.initcode, value=msg.gas, revert_on_failure=False)
 """
 
-    _assert_ir_operation_before(_runtime_ir_lines(source), load_opcode, "GAS")
+    _assert_ir_operation_before(_runtime_ir_lines(source, evm_version), load_opcode, "GAS")
 
 
 @pytest.mark.parametrize(
