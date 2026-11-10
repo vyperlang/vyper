@@ -1334,3 +1334,33 @@ def test_storage_dead_store_branch_revert(jnz, addr_space):
             sink %1
     """
     _check_pre_post_generic(pre, post, addr_space)
+
+def test_dse_different_allocations_non_fixed_offset():
+    """
+    The mstore uses the location which is not fixed
+    but the cannot alias the mload so it can be
+    eliminated
+    """
+    pre = """
+    main:
+        %ptr_a = alloca 256
+        %ptr_b = alloca 256
+        %offset_a = source
+        %offset_b = source
+        %a = add %ptr_a, %offset_a
+        %b = add %ptr_b, %offset_b
+        mstore %a, 123
+        %res = mload %b
+        sink %res
+    """
+
+    post = """
+    main:
+        %ptr_b = alloca 256
+        %offset_b = source
+        %b = add %ptr_b, %offset_b
+        %res = mload %b
+        sink %res
+    """
+
+    _check_pre_post(pre, post)
