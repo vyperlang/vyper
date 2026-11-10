@@ -427,11 +427,14 @@ def test_archive_b64_output(input_files):
     assert out[contract_file] == out2[archive_path]
 
 
-def test_archive_compile_options(input_files):
+def test_archive_compile_options(input_files, experimental_codegen):
     tmpdir, _, _, _, contract_file, _ = input_files
     search_paths = [".", tmpdir]
 
-    options = ["abi_python", "json", "ast", "annotated_ast", "ir_json"]
+    options = ["abi_python", "json", "ast", "annotated_ast"]
+    if not experimental_codegen:
+        # ir_json describes legacy IR
+        options.append("ir_json")
 
     for option in options:
         out = compile_files([contract_file], ["archive_b64", option], paths=search_paths)
@@ -482,11 +485,15 @@ format_options = [
 ]
 
 
-def test_compile_vyz_with_options(input_files):
+def test_compile_vyz_with_options(input_files, experimental_codegen):
     tmpdir, _, _, _, contract_file, _ = input_files
     search_paths = [".", tmpdir]
 
     for option in format_options:
+        if experimental_codegen and option == "ir_json":
+            # ir_json describes legacy IR
+            continue
+
         out_archive = compile_files([contract_file], ["archive"], paths=search_paths)
 
         archive = out_archive[contract_file].pop("archive")

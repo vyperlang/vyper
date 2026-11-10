@@ -332,6 +332,43 @@ def test_venom_explicit_legacy_ir_output_error(use_pragma, output_format):
     assert "outputs are not supported" in result["errors"][0]["message"]
 
 
+@pytest.mark.parametrize("outputs", [["*", "ir"], ["ir_runtime", "*"]])
+def test_venom_wildcard_keeps_explicit_legacy_ir_output_error(outputs):
+    code = "#pragma experimental-codegen\n@external\ndef foo() -> uint256:\n    return 1\n"
+    input_json = {
+        "language": "Vyper",
+        "sources": {"foo.vy": {"content": code}},
+        "settings": {"outputSelection": {"*": outputs}},
+    }
+    with pytest.raises(JSONError, match="outputs are not supported"):
+        compile_json(input_json)
+
+
+def test_legacy_wildcard_keeps_explicit_venom_output_error():
+    code = "@external\ndef foo() -> uint256:\n    return 1\n"
+    input_json = {
+        "language": "Vyper",
+        "sources": {"foo.vy": {"content": code}},
+        "settings": {"outputSelection": {"*": ["*", "cfg"]}},
+    }
+    with pytest.raises(JSONError, match="experimentalCodegen not selected"):
+        compile_json(input_json)
+
+
+@pytest.mark.parametrize("use_venom,output", [(True, "ir"), (False, "cfg")])
+def test_backend_output_error_is_json_serializable(use_venom, output):
+    code = "@external\ndef foo() -> uint256:\n    return 1\n"
+    input_json = {
+        "language": "Vyper",
+        "sources": {"foo.vy": {"content": code}},
+        "settings": {"experimentalCodegen": use_venom, "outputSelection": {"*": [output]}},
+    }
+    result = compile_json(input_json, exc_handler_to_dict)
+    assert result["errors"][0]["type"] == "JSONError"
+    assert result["errors"][0]["component"] == "json"
+    json.dumps(result)
+
+
 @pytest.mark.parametrize("use_pragma", [False, True])
 def test_cfg_output_uses_effective_codegen_settings(use_pragma):
     code = "@external\ndef foo() -> uint256:\n    return 1\n"

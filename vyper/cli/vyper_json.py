@@ -259,14 +259,13 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
             outputs.remove(key)
             outputs.update([i for i in TRANSLATE_MAP if i.startswith(key)])
 
-        if "*" in outputs:
-            # Expand only after the target's source pragmas have been merged.
-            outputs = ["*"]
-        else:
-            try:
-                outputs = [TRANSLATE_MAP[i] for i in outputs]
-            except KeyError as e:
-                raise JSONError(f"Invalid outputSelection - {e}")
+        # "*" is expanded only after the target's source pragmas have been
+        # merged. explicit keys next to it are kept so they still get validated
+        # against the selected backend.
+        try:
+            outputs = [i if i == "*" else TRANSLATE_MAP[i] for i in outputs]
+        except KeyError as e:
+            raise JSONError(f"Invalid outputSelection - {e}")
 
         outputs = sorted(list(outputs))
 
@@ -284,18 +283,18 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
 
 
 def _select_backend_outputs(outputs: list[str], settings: Settings) -> list[str]:
-    if "*" in outputs:
-        excluded = LEGACY_IR_KEYS if settings.experimental_codegen else VENOM_KEYS
-        return sorted(k for k in TRANSLATE_MAP.values() if k not in excluded)
-
-    if settings.experimental_codegen and any(k in outputs for k in LEGACY_IR_KEYS):
+    excluded = LEGACY_IR_KEYS if settings.experimental_codegen else VENOM_KEYS
+    rejected = [k for k in outputs if k in excluded]
+    if rejected and settings.experimental_codegen:
         raise JSONError(
             "ir and ir_runtime outputs are not supported with experimentalCodegen; "
             "use cfg or cfg_runtime instead"
         )
-    if not settings.experimental_codegen and any(k in outputs for k in VENOM_KEYS):
-        selected = [k for k in outputs if k in VENOM_KEYS]
-        raise JSONError(f"requested {selected} but experimentalCodegen not selected!")
+    if rejected:
+        raise JSONError(f"requested {rejected} but experimentalCodegen not selected!")
+
+    if "*" in outputs:
+        return sorted(k for k in TRANSLATE_MAP.values() if k not in excluded)
     return outputs
 
 
@@ -427,6 +426,10 @@ def compile_from_input_dict(
                 data = outputs_from_compiler_data(compiler_data, selected)
                 assert isinstance(data, dict)
                 data["source_id"] = file.source_id
+            except JSONError:
+                # invalid output selection for the resolved backend; reported
+                # against the input json rather than the contract
+                raise
             except Exception as exc:
                 return exc_handler(contract_path, exc, "compiler"), {}
             res[contract_path] = data
