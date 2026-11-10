@@ -133,7 +133,10 @@ y: uint256[max_value(uint256)]
 
 
 def test_immutables_exact_fit():
-    # immutables exactly fill the 0x6000 byte allocation limit (768 words)
+    # immutables exactly fill the 0x6000 byte allocation limit (768 words).
+    # this only checks the allocator bound: the runtime code is appended to
+    # the immutables, so the contract itself exceeds EIP-170 and cannot
+    # be deployed.
     code = """
 X: immutable(uint256[768])
 
