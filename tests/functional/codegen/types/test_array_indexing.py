@@ -527,7 +527,7 @@ def bump() -> uint256:
 
 
 @pytest.mark.parametrize("location", LOCATIONS)
-def test_storage_overlap_snapshot_unallocatable_capacity(location):
+def test_storage_overlap_snapshot_unallocatable_capacity(location, evm_version):
     # the declared capacity exceeds the memory allocation limit
     typ = f"DynArray[DynArray[uint256, {2**64}], 1]"
     if location == "transient":
@@ -544,7 +544,7 @@ def bump() -> uint256:
     self.a.pop()
     return 0
     """
-    settings = Settings(experimental_codegen=True)
+    settings = Settings(experimental_codegen=True, evm_version=evm_version)
     assert compile_code(code, output_formats=["bytecode"], settings=settings)
 
 
