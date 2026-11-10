@@ -3,6 +3,7 @@ from typing import Iterator, Optional
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_GIntM, ABI_Tuple, ABIType
+from vyper.ast.identifiers import validate_identifier
 from vyper.ast.validation import validate_call_args
 from vyper.exceptions import (
     EventDeclarationException,
@@ -99,6 +100,11 @@ def _get_user_type_member_name(node: vy_ast.AnnAssign, seen: set[str], type_labe
 
 def _abi_input_name(item: dict, index: int, members: dict[str, VyperType]) -> str:
     name = item.get("name") or f"_arg{index}"
+    try:
+        validate_identifier(name)
+    except StructureException:
+        name = f"_arg{index}"
+
     if name not in members:
         return name
 
@@ -120,7 +126,9 @@ class FlagT(_UserType):
     _is_prim_word = True
     _as_hashmap_key = True
 
-    def __init__(self, name: str, members: dict) -> None:
+    def __init__(
+        self, name: str, members: dict, decl_node: Optional[vy_ast.VyperNode] = None
+    ) -> None:
         if len(members.keys()) > 256:
             raise FlagDeclarationException("Flags are limited to 256 members!")
 
@@ -136,6 +144,8 @@ class FlagT(_UserType):
 
         # set the name for exception handling in `get_member`
         self._helper._id = name
+
+        self.decl_node = decl_node
 
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
         self._helper.get_member(key, node)
@@ -205,7 +215,7 @@ class FlagT(_UserType):
 
             members[member_name] = i
 
-        return cls(base_node.name, members)
+        return cls(base_node.name, members, decl_node=base_node)
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         # TODO
@@ -292,9 +302,10 @@ class EventT(_UserType):
         """
         members: dict = {}
         inputs = abi.get("inputs", [])
-        indexed: list = [i["indexed"] for i in inputs]
-        for item in inputs:
-            members[item["name"]] = type_from_abi(item)
+        indexed: list = [i.get("indexed", False) for i in inputs]
+        for i, item in enumerate(inputs):
+            name = _abi_input_name(item, i, members)
+            members[name] = type_from_abi(item)
         return cls(abi["name"], members, indexed)
 
     @classmethod
@@ -486,12 +497,12 @@ class StructT(_UserType):
     typeclass = "struct"
     is_valid_element_type = True
 
-    def __init__(self, _id, members, ast_def=None):
+    def __init__(self, _id, members, decl_node=None):
         super().__init__(members)
 
         self._id = _id
 
-        self.ast_def = ast_def
+        self.decl_node = decl_node
 
     @cached_property
     def name(self) -> str:
@@ -560,7 +571,7 @@ class StructT(_UserType):
             members[member_name] = member_type
             node.target._metadata["type"] = member_type
 
-        return cls(struct_name, members, ast_def=base_node)
+        return cls(struct_name, members, decl_node=base_node)
 
     def __str__(self):
         return f"{self._id}"

@@ -171,6 +171,9 @@ class PyEvmEnv(BaseEnv):
     def get_code(self, address: str):
         return self._state.get_code(_addr(address))
 
+    def get_storage(self, address: str, slot: int) -> int:
+        return self._state.get_storage(_addr(address), slot)
+
     def get_excess_blob_gas(self) -> Optional[int]:
         return self._context.excess_blob_gas
 

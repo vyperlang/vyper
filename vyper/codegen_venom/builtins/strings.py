@@ -47,9 +47,9 @@ def lower_uint2str(call: BuiltinCall) -> VyperValue:
     else:
         n_digits = out_t.maxlen
 
-    # Allocate buffer
-    out_val = ctx.new_temporary_value(out_t)
-    buf = out_val.operand
+    # The result starts up to n_digits bytes into the buffer, so leave
+    # room for a full `out_t` after it: consumers may copy that much.
+    buf = ctx.allocate_buffer(out_t.memory_bytes_required + n_digits, "uint2str")._ptr
 
     # Mutable variables
     val = b.new_variable()

@@ -2,7 +2,7 @@ import pytest
 from eth.codecs import abi
 
 from tests.evm_backends.base_env import EvmError, ExecutionReverted
-from tests.utils import decimal_to_int
+from tests.utils import decimal_to_int, deploy_raw_returner
 from vyper.compiler import compile_code
 from vyper.exceptions import ArgumentException, StructureException
 from vyper.utils import method_id
@@ -586,6 +586,37 @@ def f(xs: {typ}) -> (uint256, uint256):
     assert ret == _abi_payload_from_tuple((123, 0x20), 2 * 32)
 
     _test_ctor_decode(env, typ, payload, [(123, [0x20])], preamble=preamble)
+
+
+def test_abi_decode_bytestring_at_end_of_buffer(get_contract):
+    # a non-canonical offset puts the payload in the last two words of `x`,
+    # with less than the maximum size of `Bytes[200]` left after it
+    code = """
+@external
+def f(x: Bytes[288]) -> Bytes[200]:
+    return abi_decode(x, Bytes[200])
+    """
+    c = get_contract(code)
+    payload = _abi_payload_from_tuple((0xE0,) + (0,) * 6 + (1, b"\x42".ljust(32, b"\0")), 288)
+    assert len(payload) == 288
+    assert c.f(payload) == b"\x42"
+
+
+def test_returndata_bytestring_at_end_of_buffer(env, get_contract):
+    # the callee returns its payload at a non-canonical offset, in the last
+    # two words of the returndata
+    code = """
+interface I:
+    def g() -> Bytes[100]: view
+
+@external
+def f(a: address) -> Bytes[100]:
+    return staticcall I(a).g()
+    """
+    c = get_contract(code)
+    returndata = _abi_payload_from_tuple((0x60, 0, 0, 1, b"\x42".ljust(32, b"\0")), 160)
+    callee = deploy_raw_returner(env, returndata)
+    assert c.f(callee.address) == b"\x42"
 
 
 def test_abi_decode_arithmetic_overflow(env, tx_failed, get_contract):

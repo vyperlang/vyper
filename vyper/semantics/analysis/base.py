@@ -33,7 +33,13 @@ class StateMutability(StringEnum):
         Extract stateMutability from an entry in a contract's ABI
         """
         if "stateMutability" in abi_dict:
-            return cls(abi_dict["stateMutability"])
+            state_mutability = abi_dict["stateMutability"]
+            expected = cls.values()
+            if state_mutability not in expected:
+                raise StructureException(
+                    f"Invalid stateMutability {state_mutability!r}: expected one of {expected}"
+                )
+            return cls(state_mutability)
         elif abi_dict.get("payable"):
             return StateMutability.PAYABLE
         elif "constant" in abi_dict and abi_dict["constant"]:
@@ -86,10 +92,14 @@ class AnalysisResult:
 @dataclass
 class ModuleInfo(AnalysisResult):
     module_t: "ModuleT"
-    alias: str
-    # import_node: vy_ast._ImportStmt # maybe could be useful
+    decl_node: vy_ast.alias
     ownership: ModuleOwnership = ModuleOwnership.NO_OWNERSHIP
     ownership_decl: Optional[vy_ast.VyperNode] = None
+
+    # TODO: Rename to local_name ?
+    @property
+    def alias(self) -> str:
+        return self.decl_node.local_name
 
     @property
     def module_node(self):
@@ -113,11 +123,16 @@ class ModuleInfo(AnalysisResult):
 
 @dataclass
 class ImportInfo(AnalysisResult):
-    alias: str  # the name in the namespace
+    decl_node: vy_ast.alias
     qualified_module_name: str  # for error messages
     compiler_input: CompilerInput  # to recover file info for ast export
     parsed: Any  # (json) abi | AST
     _typ: Any = None  # type to be filled in during analysis
+
+    @property
+    def alias(self) -> str:
+        # the name in the namespace
+        return self.decl_node.local_name
 
     @property
     def typ(self):

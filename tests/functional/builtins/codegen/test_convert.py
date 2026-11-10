@@ -404,7 +404,7 @@ def generate_passing_cases():
             # only add convertible cases
             if _py_convert(c, i_typ, o_typ) is not None:
                 ret.append((i_typ, o_typ, c))
-    return sorted(ret)
+    return sorted(ret, key=lambda x: (str(x[0]), str(x[1]), x[2]))
 
 
 def generate_reverting_cases():
@@ -414,7 +414,7 @@ def generate_reverting_cases():
         for c in cases:
             if _py_convert(c, i_typ, o_typ) is None:
                 ret.append((i_typ, o_typ, c))
-    return sorted(ret)
+    return sorted(ret, key=lambda x: (str(x[0]), str(x[1]), x[2]))
 
 
 def _vyper_literal(val, typ):
@@ -930,3 +930,71 @@ def foo(x: int256) -> decimal:
         c.foo(min_int - 1)
     with tx_failed():
         c.foo(max_int + 1)
+
+
+@pytest.mark.parametrize("payload", [b"\x80", b"\xff", b"\xff" * 32])
+@pytest.mark.parametrize("out_typ", ["int8", "int256", "decimal", "uint8", "uint256", "bool"])
+def test_convert_emptied_storage_bytes(get_contract, payload, out_typ):
+    # GH 4961: emptying a storage bytestring only resets its length, so the
+    # data slot still holds the old payload. the conversion must ignore it.
+    code = f"""
+b: Bytes[32]
+
+@external
+def foo(x: Bytes[32]) -> {out_typ}:
+    self.b = x
+    self.b = b""
+    return convert(self.b, {out_typ})
+    """
+    c = get_contract(code)
+    assert c.foo(payload) == 0
+
+
+@pytest.mark.parametrize("payload", ["\xff", "a" * 32])
+def test_convert_emptied_storage_string(get_contract, payload):
+    # String can only be converted to bool among the numeric types
+    code = """
+s: String[32]
+
+@external
+def foo(x: String[32]) -> bool:
+    self.s = x
+    self.s = ""
+    return convert(self.s, bool)
+    """
+    c = get_contract(code)
+    assert c.foo(payload) is False
+
+
+@pytest.mark.parametrize(
+    "out_typ", ["bool", "uint8", "uint256", "int8", "int256", "bytes1", "bytes32"]
+)
+def test_convert_zero_capacity_bytes(get_contract, out_typ, experimental_codegen, request):
+    if not experimental_codegen and out_typ.startswith("int"):
+        # the legacy pipeline folds the literal, and `_signextend` with
+        # zero bits gives -1
+        reason = "legacy signed convert of an empty bytestring literal"
+        request.applymarker(pytest.mark.xfail(reason=reason))
+    code = f"""
+@external
+def foo() -> {out_typ}:
+    return convert(b"", {out_typ})
+    """
+    c = get_contract(code)
+    if out_typ == "bool":
+        expected = False
+    elif out_typ.startswith("bytes"):
+        expected = b"\x00" * int(out_typ[5:])
+    else:
+        expected = 0
+    assert c.foo() == expected
+
+
+def test_convert_zero_capacity_string_to_bool(get_contract):
+    code = """
+@external
+def foo() -> bool:
+    return convert("", bool)
+    """
+    c = get_contract(code)
+    assert c.foo() is False

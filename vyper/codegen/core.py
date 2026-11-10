@@ -29,6 +29,7 @@ from vyper.semantics.types import (
     VyperType,
     _BytestringT,
     is_bounded_length,
+    is_unbounded_sequence_type,
 )
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.subscriptable import SArrayT
@@ -874,12 +875,6 @@ def _check_assign_list(left, right):
         if left.typ.count < right.typ.count:  # pragma: nocover
             FAIL()
 
-        # stricter check for zeroing
-        if right.is_empty_intrinsic and right.typ.count != left.typ.count:  # pragma: nocover
-            raise TypeCheckFailure(
-                f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}"
-            )
-
         # TODO recurse into left, right if literals?
         check_assign(
             dummy_node_for_type(left.typ.value_type), dummy_node_for_type(right.typ.value_type)
@@ -1250,8 +1245,20 @@ def punnable(src_typ, dst_typ):
         return True
 
     # nested values also need equal sizes: they determine strides and offsets
-    return all(
-        s.memory_bytes_required == d.memory_bytes_required and punnable(s, d) for s, d in pairs
+    return all(_punnable_nested(s, d) for s, d in pairs)
+
+
+def _punnable_nested(src_typ, dst_typ):
+    # an unbounded element or member is a pointer cell holding a payload
+    # pointer, not the value. A cell is never interchangeable with an inline
+    # value, even when the inline value's size happens to equal the cell's,
+    # and a cell is read as the payload type it was written for.
+    src_cell = is_unbounded_sequence_type(src_typ)
+    dst_cell = is_unbounded_sequence_type(dst_typ)
+    if src_cell or dst_cell:
+        return src_cell and dst_cell and src_typ == dst_typ
+    return src_typ.memory_bytes_required == dst_typ.memory_bytes_required and punnable(
+        src_typ, dst_typ
     )
 
 

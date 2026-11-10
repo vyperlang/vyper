@@ -409,7 +409,6 @@ def run3(xs: Bytes[{buffer_bound}], copier: Foo) -> {type_str}:
             hp.assume(False)
     # print(code)
     hp.note(code)
-    c = get_contract(code)
 
     @hp.given(data=payload_from(wrapped_type))
     @hp.settings(max_examples=100, **_settings)

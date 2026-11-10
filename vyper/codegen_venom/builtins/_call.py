@@ -9,7 +9,7 @@ from vyper.builtins._signatures import ContextDefault
 from vyper.codegen_venom.buffer import Buffer
 from vyper.codegen_venom.eval_order import expression_can_mutate_memory_or_storage
 from vyper.codegen_venom.value import VyperValue
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import CompilerPanic, UnfoldableNode
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import INF_T, TYPE_T, AddressT, VyperType
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
@@ -104,8 +104,8 @@ class BuiltinCall:
                 continue
             if settings.require_literal:
                 folded = kw.value.reduced()
-                if not isinstance(folded, vy_ast.Constant):  # pragma: nocover
-                    raise CompilerPanic(f"unfoldable kwarg: {kw.arg}", kw)
+                if not isinstance(folded, vy_ast.Constant):
+                    raise UnfoldableNode(f"unfoldable kwarg: {kw.arg}", kw.value)
                 self._literals[kw.arg] = folded.value
             else:
                 nodes.append(kw.value)
