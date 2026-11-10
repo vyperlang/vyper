@@ -695,6 +695,46 @@ y: constant(uint256) = escaped.x + helper.z
         compile_files([contract_file], ["archive"], paths=["..", "."])
 
 
+# a relative import that leaves the cwd and comes back into it (`from ..base
+# import helper`, compiled from inside `base/`) loads fine from the filesystem,
+# but in the bundle the importer sits at the root, so the import as spelled no
+# longer resolves. compiling from the parent directory bundles it correctly.
+@pytest.mark.parametrize("output_format", ["archive", "solc_json"])
+def test_output_bundle_relative_import_through_parent(
+    make_file, tmp_path, monkeypatch, output_format
+):
+    helper_source = """
+x: constant(uint256) = 1
+    """
+    contract_source = """
+from ..base import helper
+
+@external
+def foo() -> uint256:
+    return helper.x
+    """
+    make_file("base/helper.vy", helper_source)
+    contract_file = make_file("base/main.vy", contract_source)
+
+    monkeypatch.chdir(tmp_path / "base")
+
+    # sanity: compilation itself succeeds, only bundling fails
+    _ = compile_files([contract_file], ["bytecode"])
+
+    with pytest.raises(BundleError, match="helper.vy"):
+        compile_files([contract_file], [output_format])
+
+    # following the hint: from the parent directory, the archive recompiles
+    monkeypatch.chdir(tmp_path)
+    bytecode = compile_files([contract_file], ["bytecode"])[contract_file]
+    archive = compile_files([contract_file], ["archive"])[contract_file]
+    archive_path = tmp_path / "out.zip"
+    archive_path.write_bytes(archive["archive"])
+
+    out = compile_files([archive_path], ["bytecode"])
+    assert out[archive_path]["bytecode"] == bytecode["bytecode"]
+
+
 # relative imports between files at the same depth above the cwd still
 # round-trip through the bundle
 def test_output_bundle_relative_import_above_cwd(make_file, tmp_path, monkeypatch):
