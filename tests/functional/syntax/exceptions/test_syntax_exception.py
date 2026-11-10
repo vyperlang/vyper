@@ -162,3 +162,34 @@ def foo():
     """
     with pytest.raises(SyntaxException):
         compile_code(code)
+
+
+@pytest.mark.parametrize("bad_name", ["foo-test", "foo.bar", "foo$", "1foo"])
+def test_invalid_function_name(bad_name):
+    code = f"""
+@external
+@pure
+def {bad_name}() -> uint256:
+    return 1
+    """
+    with pytest.raises(SyntaxException) as e:
+        compile_code(code)
+
+    assert e.value.message == f"invalid function name `{bad_name}`"
+    assert e.value.hint == (
+        "function names can only contain letters, digits and underscores, "
+        "and cannot start with a digit"
+    )
+
+
+def test_missing_parentheses_is_not_an_invalid_function_name():
+    code = """
+@external
+def foo -> uint256:
+    return 1
+    """
+    with pytest.raises(SyntaxException) as e:
+        compile_code(code)
+
+    assert "invalid function name" not in e.value.message
+    assert e.value.hint is None
