@@ -32,6 +32,7 @@ from vyper.semantics.types import (
     IntegerT,
     InterfaceT,
     SArrayT,
+    StructT,
     VyperType,
     _BytestringT,
     is_unbounded_bytestring_type,
@@ -40,6 +41,7 @@ from vyper.semantics.types import (
     type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
+from vyper.semantics.types.utils import member_slot_size
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
@@ -148,7 +150,7 @@ def clamp_basetype(ctx: VenomCodegenContext, val: IROperand, typ: VyperType) -> 
 
 
 def clamp_bytestring(
-    ctx: VenomCodegenContext, src: VyperValue, typ: _BytestringT, hi: IROperand = None
+    ctx: VenomCodegenContext, src: VyperValue, typ: _BytestringT, hi: IROperand | None = None
 ) -> None:
     """
     Validate bytestring length and bounds.
@@ -191,7 +193,7 @@ def clamp_bytestring(
 
 
 def clamp_dyn_array(
-    ctx: VenomCodegenContext, src: VyperValue, typ: DArrayT, hi: IROperand = None
+    ctx: VenomCodegenContext, src: VyperValue, typ: DArrayT, hi: IROperand | None = None
 ) -> None:
     """
     Validate DynArray count and bounds.
@@ -243,7 +245,7 @@ def _getelemptr_abi(
     parent: VyperValue,
     member_typ: VyperType,
     static_offset: int,
-    hi: IROperand = None,
+    hi: IROperand | None = None,
 ) -> VyperValue:
     """
     Navigate to ABI-encoded element.
@@ -268,11 +270,10 @@ def _getelemptr_abi(
         offset_val = b.load(static_loc, loc)
         actual_ptr = b.add(parent.operand, offset_val)
         if hi is not None:
-            # Only hi-bounded (MEMORY) decodes need the no-wrap guard, mirroring
-            # legacy's _dirty_read_risk (MEMORY-only). In calldata/code, wrapping
-            # can alias an earlier byte in the same immutable region. Bounded type
-            # clamps still cap decoder work and destination writes; out-of-range
-            # portions of the resulting loads/copies are zero-filled.
+            # `hi` bounds memory inputs and INF-bearing calldata. Check the
+            # offset addition before comparing against that bound. Bounded
+            # calldata and constructor CODE keep legacy leniency when no bound
+            # is supplied; out-of-range loads/copies there are zero-filled.
             # assert actual_ptr >= parent
             b.assert_(b.iszero(b.lt(actual_ptr, parent.operand)))
             if type_contains_unbounded_sequence(member_typ):
@@ -316,7 +317,7 @@ def _decode_bytestring(
     dst: IROperand,
     src: VyperValue,
     typ: _BytestringT,
-    hi: IROperand = None,
+    hi: IROperand | None = None,
 ) -> None:
     """
     Decode a bytestring (Bytes/String) type.
@@ -328,21 +329,26 @@ def _decode_bytestring(
     clamp_bytestring(ctx, src, typ, hi)
 
     assert src.location is not None, "src must have a location for bytestring decoding"
-    if is_unbounded_bytestring_type(typ):
-        # INF destinations are exact-sized, so copy only the present ABI
-        # payload. When `hi` is provided, it proves the runtime payload is
-        # readable.
+    if is_unbounded_bytestring_type(typ) or src.location == DataLocation.MEMORY:
+        # Copy only the present ABI payload. INF destinations are
+        # exact-sized, and a memory source buffer can end right after the
+        # payload (e.g. a bytestring at a non-canonical offset near the end
+        # of its encoding), so a maxbound copy would read past it. When `hi`
+        # is provided, it proves the runtime payload is readable.
         assert isinstance(dst, IRVariable)
         length = ctx.builder.load(src.operand, src.location)
-        ctx.zero_bytestring_padding(dst, length)
         copy_size = ctx.builder.add(IRLiteral(32), length)
+        # zero the padding right before the copy: `dst` is live from its
+        # first write, and a longer live range can make the memory
+        # allocator stop overlapping it with other buffers
+        ctx.zero_bytestring_padding(dst, length)
         ctx.builder.copy_to_memory(dst, src.operand, copy_size, src.location)
         return
 
-    # Match the legacy bounded path: copy the destination maxbound after
-    # length<=maxlen and optional `hi` bounds checks. If the source is an
-    # exact-sized INF buffer, this can copy bytes past the runtime payload,
-    # but those bytes are padding, not value; consumers use the length word.
+    # Non-memory sources (e.g. calldata): copy the destination maxbound
+    # after the length<=maxlen and optional `hi` checks, which saves the
+    # length arithmetic. Reading past the payload there reads no other
+    # buffer, and the extra bytes are padding; consumers use the length word.
     size = typ.memory_bytes_required
     ctx.builder.copy_to_memory(dst, src.operand, IRLiteral(size), src.location)
 
@@ -382,11 +388,15 @@ def decode_unbounded_sequence_to_scratch(
         #
         # For dynamic elements the bound is loose because head offsets may
         # alias: a payload of P bytes can validly claim P/32 elements, each
-        # reserving the element's memory size, so decoding can expand memory
-        # to `memsize(T) / 32` times P (17x for Bytes[512]). Calldata charges
-        # that to the sender; returndata and abi_decode of foreign bytes
-        # charge the decoding contract. A bounded `DynArray[T, N]` with N
-        # equal to the claimed count costs the same, so no tail pre-scan.
+        # reserving the element's inline memory size (`memsize(T) / 32` times
+        # P, e.g. 17x for Bytes[512]). For INF-bearing elements (structs with
+        # INF members, or unbounded elements, which are pointer cells) this
+        # bounds only the cells: aliased tails are decoded separately, so n
+        # elements sharing an m-word tail can allocate O(n*m) bytes from
+        # O(n+m) input, with no compile-time ceiling on m.
+        # Calldata charges decoding to the sender; returndata and abi_decode
+        # of foreign bytes charge the decoding contract. Returndata decoding
+        # happens after the call and is not limited by the callee's gas cap.
         elem_static_size = typ.value_type.abi_type.embedded_static_size()
         ctx.assert_abi_dynarray_payload_in_bounds(
             src.operand, length, elem_static_size, hi, data_start=data_start
@@ -394,11 +404,15 @@ def decode_unbounded_sequence_to_scratch(
 
     dst = ctx.allocate_scratch(ctx.dynarray_runtime_size_from_length(length, typ))
     abi_decode_to_buf(ctx, dst, src, hi=hi)
-    return ctx.dynamic_memory_value(dst, typ, annotation=annotation)
+    return ctx.owned_memory_value(dst, typ, annotation=annotation)
 
 
 def _decode_dyn_array(
-    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, typ: DArrayT, hi: IROperand = None
+    ctx: VenomCodegenContext,
+    dst: IRVariable,
+    src: VyperValue,
+    typ: DArrayT,
+    hi: IROperand | None = None,
 ) -> None:
     """
     Decode a dynamic array.
@@ -432,7 +446,7 @@ def _decode_dyn_array(
 
     # Need element-by-element decode
     elem_static_size = elem_abi_t.embedded_static_size()
-    elem_mem_size = elem_typ.memory_bytes_required
+    elem_mem_size = ctx.dynarray_elem_stride(typ)
 
     # Create loop blocks
     loop_header = b.create_block("darr_dec_hdr")
@@ -489,8 +503,16 @@ def _decode_dyn_array(
     dst_data = b.add(dst, IRLiteral(32))
     elem_dst = b.add(dst_data, b.mul(i, IRLiteral(elem_mem_size)))
 
-    # Recursively decode element
-    _abi_decode_to_buf(ctx, elem_dst, elem_src, hi)
+    if is_unbounded_sequence_type(elem_typ):
+        # An unbounded element has no inline payload: decode it into its own
+        # allocation and write the element's pointer cell, as for a struct
+        # member. Elements may alias each other in the input; each one is
+        # decoded on its own (see the note in `decode_unbounded_sequence_to_scratch`).
+        element = decode_unbounded_sequence_to_scratch(ctx, elem_src, elem_typ, hi, "element")
+        ctx.bind_cell(elem_dst, element, elem_typ)
+    else:
+        # Recursively decode element
+        _abi_decode_to_buf(ctx, elem_dst, elem_src, hi)
 
     # Increment counter
     new_i = b.add(i, IRLiteral(1))
@@ -502,7 +524,11 @@ def _decode_dyn_array(
 
 
 def _decode_complex(
-    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, typ: VyperType, hi: IROperand = None
+    ctx: VenomCodegenContext,
+    dst: IRVariable,
+    src: VyperValue,
+    typ: VyperType,
+    hi: IROperand | None = None,
 ) -> None:
     """
     Decode a complex type (tuple/struct/static array).
@@ -535,23 +561,36 @@ def _decode_complex(
     abi_offset = 0
     vyper_offset = 0
 
-    for _key, elem_typ in items:
+    for key, elem_typ in items:
         # Get source pointer (ABI layout) - returns VyperValue
         elem_src = _getelemptr_abi(ctx, src, elem_typ, abi_offset, hi)
 
         # Get destination pointer (Vyper layout)
         elem_dst = b.add(dst, IRLiteral(vyper_offset))
 
-        # Recursively decode element
-        _abi_decode_to_buf(ctx, elem_dst, elem_src, hi)
+        if is_unbounded_sequence_type(elem_typ):
+            # An INF member has no inline payload; decode it into its own
+            # allocation and write the destination's pointer cell. Only a
+            # struct has such members (`is_pointer_cell_struct_type`).
+            assert isinstance(typ, StructT)
+            assert isinstance(elem_dst, IRVariable)
+            member = decode_unbounded_sequence_to_scratch(
+                ctx, elem_src, elem_typ, hi, f"{typ}.{key}"
+            )
+            # capacity 0: the decoded payload is exact-sized, so an append
+            # through this cell must reallocate (see `store_pointer_cell`)
+            ctx.store_pointer_cell(elem_dst, member.operand, IRLiteral(0))
+        else:
+            # Recursively decode element
+            _abi_decode_to_buf(ctx, elem_dst, elem_src, hi)
 
         # Advance offsets
         abi_offset += elem_typ.abi_type.embedded_static_size()
-        vyper_offset += elem_typ.memory_bytes_required
+        vyper_offset += member_slot_size(elem_typ)
 
 
 def _abi_decode_to_buf(
-    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, hi: IROperand = None
+    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, hi: IROperand | None = None
 ) -> None:
     """
     Internal decoder dispatcher.
@@ -575,7 +614,7 @@ def _abi_decode_to_buf(
 
 
 def abi_decode_to_buf(
-    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, hi: IROperand = None
+    ctx: VenomCodegenContext, dst: IRVariable, src: VyperValue, hi: IROperand | None = None
 ) -> None:
     """
     Decode ABI-encoded src to Vyper-encoded dst.

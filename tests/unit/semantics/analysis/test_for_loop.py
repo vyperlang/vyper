@@ -210,6 +210,44 @@ def foo():
     analyze_module_single(vyper_module)
 
 
+def test_modify_iterator_sibling_named_self():
+    # a struct field named `self` is a disjoint sibling of the loop iterator
+    code = """
+struct Foo:
+    self: uint256
+    arr: uint256[3]
+
+f: Foo
+
+@external
+def foo():
+    for i: uint256 in self.f.arr:
+        self.f.self = i
+    """
+    vyper_module = parse_to_ast(code)
+    analyze_module_single(vyper_module)
+
+
+def test_modify_iterator_self_field_self():
+    # writing the same field named `self` used as the iterator is a real conflict
+    code = """
+struct Foo:
+    self: uint256[3]
+
+f: Foo
+
+@external
+def foo():
+    for i: uint256 in self.f.self:
+        self.f.self[0] = i
+    """
+    vyper_module = parse_to_ast(code)
+    with pytest.raises(ImmutableViolation) as e:
+        analyze_module_single(vyper_module)
+
+    assert e.value._message == "Cannot modify loop variable `f`"
+
+
 def test_modify_subscript_barrier():
     # test that Subscript nodes are a barrier for analysis
     code = """

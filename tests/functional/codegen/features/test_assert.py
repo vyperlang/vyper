@@ -1,5 +1,6 @@
 import pytest
 
+from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import InvalidType
 
 
@@ -246,3 +247,54 @@ def test() -> int128:
     c = get_contract(code)
     with tx_failed(exc_text="oops"):
         c.test()
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "the argument must be larger than ten, but it was not",
+        "the argument must be larger than ten, but it was not; please retry with a larger value",
+    ],
+)
+@pytest.mark.parametrize("opt", [OptimizationLevel.GAS, OptimizationLevel.CODESIZE])
+def test_assert_reason_long_literal(get_contract, tx_failed, reason, opt):
+    assert len(reason) > 32
+    code = f"""
+@external
+def foo(a: uint256) -> uint256:
+    assert a > 10, "{reason}"
+    return a
+    """
+    c = get_contract(code, override_opt_level=opt)
+    assert c.foo(11) == 11
+    with tx_failed(exc_text=reason):
+        c.foo(10)
+
+
+def test_assert_reason_from_internal_call_wins(get_contract, tx_failed):
+    # the callee's assert fails first, so its reason must be the revert data,
+    # even though the caller's overflow check on `x + 1` would also fail.
+    code = """
+counter: uint256
+
+@internal
+def bar(y: uint256):
+    self.counter += y
+    assert y > 7, "bar failed"
+    self.counter += y * 3
+
+@external
+def foo(x: uint256, y: uint256) -> uint256:
+    self.bar(y)
+    return x + 1
+
+@external
+def baz(y: uint256):
+    # `bar` stays a call: the inliner always inlines a single call site,
+    # and a multi-site function only when it is under the inline threshold
+    self.bar(y)
+    self.bar(y)
+    """
+    c = get_contract(code)
+    with tx_failed(exc_text="bar failed"):
+        c.foo(2**256 - 1, 0)

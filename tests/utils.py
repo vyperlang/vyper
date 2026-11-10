@@ -41,6 +41,22 @@ def analyze_module_single(module_ast):
     return analyze_modules(imports)
 
 
+def word(value: int) -> bytes:
+    return value.to_bytes(32, "big")
+
+
+def deploy_raw_returner(env, payload: bytes):
+    # deploy a contract whose runtime code CODECOPYs the trailing payload to
+    # memory and RETURNs it, for tests which need exact returndata
+    assert len(payload) < 2**16
+    size = len(payload).to_bytes(2, "big")
+    runtime = b"\x61" + size + b"\x60\x0e\x60\x00\x39\x61" + size + b"\x60\x00\xf3"
+    assert len(runtime) == 14
+    runtime += payload
+    initcode = bytes.fromhex(f"61{len(runtime):04x}3d81600a3d39f3") + runtime
+    return env.deploy([], initcode)
+
+
 def decimal_to_int(*args):
     s = decimal.Decimal(*args)
     return round_towards_zero(s / DECIMAL_EPSILON)

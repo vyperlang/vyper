@@ -21,6 +21,7 @@ from vyper.venom.analysis import (
     LivenessAnalysis,
 )
 from vyper.venom.basicblock import (
+    ONE_TO_ONE_INSTRUCTIONS,
     PSEUDO_INSTRUCTION,
     TEST_INSTRUCTIONS,
     IRBasicBlock,
@@ -38,82 +39,6 @@ from vyper.venom.stack_spiller import StackSpiller
 DEBUG_SHOW_COST = False
 if DEBUG_SHOW_COST:
     import sys
-
-# instructions which map one-to-one from venom to EVM
-_ONE_TO_ONE_INSTRUCTIONS = frozenset(
-    [
-        "revert",
-        "coinbase",
-        "calldatasize",
-        "calldatacopy",
-        "mcopy",
-        "calldataload",
-        "gas",
-        "gasprice",
-        "gaslimit",
-        "chainid",
-        "address",
-        "origin",
-        "number",
-        "extcodesize",
-        "extcodehash",
-        "codecopy",
-        "extcodecopy",
-        "returndatasize",
-        "returndatacopy",
-        "callvalue",
-        "selfbalance",
-        "sload",
-        "sstore",
-        "mload",
-        "mstore",
-        "tload",
-        "tstore",
-        "timestamp",
-        "caller",
-        "blockhash",
-        "selfdestruct",
-        "signextend",
-        "stop",
-        "shr",
-        "shl",
-        "sar",
-        "and",
-        "xor",
-        "or",
-        "add",
-        "sub",
-        "mul",
-        "div",
-        "smul",
-        "sdiv",
-        "mod",
-        "smod",
-        "exp",
-        "addmod",
-        "mulmod",
-        "eq",
-        "iszero",
-        "not",
-        "lt",
-        "gt",
-        "slt",
-        "sgt",
-        "create",
-        "create2",
-        "balance",
-        "call",
-        "staticcall",
-        "delegatecall",
-        "codesize",
-        "basefee",
-        "blobhash",
-        "blobbasefee",
-        "prevrandao",
-        "difficulty",
-        "invalid",
-    ]
-)
 
 
 def _revert_postamble() -> list[AssemblyInstruction]:
@@ -617,7 +542,15 @@ class VenomCompiler:
 
         ref.extend(asm)
 
+        # each successor starts from this block's spill slots, like `stack`
+        # and `spilled`: a slot freed while generating one successor may
+        # still hold a live spill on entry to the next one. a slot allocated
+        # fresh on one successor's path is free again on the next: none is
+        # live on entry to it, and a join point is entered with every live
+        # value on the stack.
+        spill_state = self.spiller.snapshot()
         for bb in self.cfg.cfg_out(basicblock):
+            self.spiller.restore(spill_state)
             self._generate_evm_for_basicblock_r(
                 ref, bb, stack.copy(), spilled.copy(), stack_height_bound
             )
@@ -645,7 +578,13 @@ class VenomCompiler:
         # for making sure its output stack layout works no matter which
         # bb it jumps into).
         layout = self.liveness.out_vars(in_bb)
-        to_pop = list(layout.difference(inputs))
+        to_pop = []
+        for item in stack._stack:
+            if not isinstance(item, IRVariable):
+                continue
+            if item not in inputs and item not in layout:
+                to_pop.append(item)
+        to_pop.extend(list(layout.difference(inputs)))
         self._assert_dead_stack_prefix(stack)
         physical_to_pop = [
             var for var in to_pop if stack.get_depth(var) is not StackModel.NOT_IN_STACK
@@ -744,13 +683,9 @@ class VenomCompiler:
             # example, for `%56 = %label1 %13 %label2 %14`, we will
             # find an instance of %13 *or* %14 in the stack and replace it with %56.
             to_be_replaced = stack.peek(depth)
-            if to_be_replaced in next_liveness:
-                # this branch seems unreachable (maybe due to make_ssa)
-                # %13/%14 is still live(!), so we make a copy of it
-                self.spiller.dup(assembly, stack, depth)
-                stack.poke(0, ret)
-            else:
-                stack.poke(depth, ret)
+            # SingleUseExpansion copies phi operands that are live past the phi
+            assert to_be_replaced not in next_liveness
+            stack.poke(depth, ret)
             return apply_line_numbers(inst, assembly)
 
         if opcode == "offset":
@@ -808,7 +743,7 @@ class VenomCompiler:
             stack.push(out)
 
         # Step 5: Emit the EVM instruction(s)
-        if opcode in _ONE_TO_ONE_INSTRUCTIONS:
+        if opcode in ONE_TO_ONE_INSTRUCTIONS:
             assembly.append(opcode.upper())
         elif opcode == "alloca":
             pass

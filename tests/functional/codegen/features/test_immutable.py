@@ -150,6 +150,27 @@ def get_my_list() -> uint256[3]:
     assert c.get_my_list() == list(values)
 
 
+def test_list_immutable_subscript_assignment_in_loop(get_contract):
+    # the loop variable is read-only, but it is only an index: it does not
+    # make `my_list` any less writable inside the constructor
+    code = """
+my_list: immutable(uint256[3])
+
+@deploy
+def __init__():
+    my_list = [0, 0, 0]
+    for i: uint256 in range(3):
+        my_list[i] = i * 2
+
+@view
+@external
+def get_my_list() -> uint256[3]:
+    return my_list
+    """
+    c = get_contract(code)
+    assert c.get_my_list() == [0, 2, 4]
+
+
 def test_dynarray_immutable(get_contract):
     code = """
 my_list: immutable(DynArray[uint256, 3])
@@ -238,6 +259,80 @@ def get_idx_two() -> int128:
     c = get_contract(code, *values)
     assert c.get_my_list() == expected_values
     assert c.get_idx_two() == expected_values[2][2][2]
+
+
+def test_nested_dynarray_immutable_pop_append(get_contract):
+    # pop and append on an array inside an immutable go through the
+    # immutables buffer in the constructor
+    code = """
+my_list: immutable(DynArray[DynArray[uint256, 3], 3])
+popped: immutable(uint256)
+
+@deploy
+def __init__(a: uint256, b: uint256, c: uint256):
+    self.my_list = [[a, b], [c]]
+    self.popped = self.my_list[0].pop()
+    self.my_list[1].append(a + b)
+
+@view
+@external
+def get_my_list() -> DynArray[DynArray[uint256, 3], 3]:
+    return self.my_list
+
+@view
+@external
+def get_popped() -> uint256:
+    return self.popped
+    """
+    c = get_contract(code, 3, 5, 7)
+    assert c.get_my_list() == [[3], [7, 8]]
+    assert c.get_popped() == 5
+
+
+def test_nested_dynarray_immutable_pop_append_complex(get_contract):
+    code = """
+my_list: immutable(DynArray[DynArray[DynArray[uint256, 2], 3], 2])
+popped: immutable(DynArray[uint256, 2])
+
+@deploy
+def __init__(a: uint256, b: uint256):
+    self.my_list = [[[a]]]
+    self.my_list[0].append([a, b])
+    self.my_list[0].append([b, a])
+    self.popped = self.my_list[0].pop()
+
+@view
+@external
+def get_my_list() -> DynArray[DynArray[DynArray[uint256, 2], 3], 2]:
+    return self.my_list
+
+@view
+@external
+def get_popped() -> DynArray[uint256, 2]:
+    return self.popped
+    """
+    c = get_contract(code, 3, 5)
+    assert c.get_my_list() == [[[3], [3, 5]]]
+    assert c.get_popped() == [5, 3]
+
+
+def test_nested_dynarray_immutable_append_one_word_element(get_contract):
+    # a one-word element that is not a primitive word is staged in memory
+    code = """
+my_list: immutable(DynArray[DynArray[uint256[1], 2], 2])
+
+@deploy
+def __init__(a: uint256, b: uint256):
+    self.my_list = [[[a]]]
+    self.my_list[0].append([b])
+
+@view
+@external
+def get_my_list() -> DynArray[DynArray[uint256[1], 2], 2]:
+    return self.my_list
+    """
+    c = get_contract(code, 3, 5)
+    assert c.get_my_list() == [[[3], [5]]]
 
 
 @pytest.mark.parametrize("n", range(5))

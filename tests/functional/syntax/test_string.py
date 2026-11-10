@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InvalidLiteral, StructureException
+from vyper.exceptions import InvalidLiteral, InvalidType, StructureException
 
 valid_list = [
     """
@@ -67,3 +67,14 @@ def foo() -> bool:
 def test_string_fail(get_contract, bad_code, exc):
     with pytest.raises(exc):
         compiler.compile_code(bad_code)
+
+
+def test_string_length_zero():
+    code = """
+@external
+def foo():
+    x: String[0] = ""
+    """
+    with pytest.raises(InvalidType) as excinfo:
+        compiler.compile_code(code)
+    assert excinfo.value.message == "String cannot have length of 0"

@@ -1,7 +1,13 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import InvalidOperation, StructureException, SyntaxException, TypeMismatch
+from vyper.exceptions import (
+    InvalidOperation,
+    InvalidType,
+    StructureException,
+    SyntaxException,
+    TypeMismatch,
+)
 
 fail_list = [
     (
@@ -126,24 +132,6 @@ def test_bytes_fail(bad_code):
             compiler.compile_code(bad_code)
 
 
-@pytest.mark.xfail
-def test_hexbytes_offset():
-    good_code = """
-    event X:
-    a: Bytes[2]
-
-@deploy
-def __init__():
-    # GH issue 4405, example 1
-    #
-    # log changes offset of HexString, and the hex_string_locations tracked
-    # location is incorrect when visiting ast
-    log X(a = x"6161")
-    """
-    # move this to valid list once it passes.
-    assert compiler.compile_code(good_code) is not None
-
-
 valid_list = [
     """
 @external
@@ -160,9 +148,32 @@ def foo(x: Bytes[100]) -> Bytes[150]:
 def baa():
     x: Bytes[50] = b""
     """,
+    """
+event X:
+    a: Bytes[2]
+
+@deploy
+def __init__():
+    # GH issue 4405, example 1
+    #
+    # log changes offset of HexString, and the hex_string_locations tracked
+    # location is incorrect when visiting ast
+    log X(a = x"6161")
+    """,
 ]
 
 
 @pytest.mark.parametrize("good_code", valid_list)
 def test_bytes_success(good_code):
     assert compiler.compile_code(good_code) is not None
+
+
+def test_bytes_length_zero():
+    code = """
+@external
+def foo():
+    x: Bytes[0] = b""
+    """
+    with pytest.raises(InvalidType) as excinfo:
+        compiler.compile_code(code)
+    assert excinfo.value.message == "Bytes cannot have length of 0"

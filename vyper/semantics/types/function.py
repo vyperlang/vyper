@@ -28,18 +28,15 @@ from vyper.semantics.analysis.base import (
     VarOffset,
 )
 from vyper.semantics.analysis.utils import (
-    check_modifiability,
     get_exact_type_from_node,
+    get_modifiability,
     uses_state,
     validate_expected_type,
 )
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import KwargSettings, VyperType
 from vyper.semantics.types.bytestrings import BytesT
-from vyper.semantics.types.infinity import (
-    type_contains_nested_unbounded_sequence,
-    type_contains_unsupported_unbounded_sequence,
-)
+from vyper.semantics.types.infinity import is_runtime_sizable_return_type, is_runtime_sizable_type
 from vyper.semantics.types.primitives import BoolT
 from vyper.semantics.types.shortcuts import UINT256_T
 from vyper.semantics.types.subscriptable import TupleT
@@ -47,6 +44,10 @@ from vyper.semantics.types.user import ErrorT, EventT
 from vyper.semantics.types.utils import type_from_abi, type_from_annotation
 from vyper.utils import OrderedSet, keccak256
 from vyper.warnings import Deprecation, vyper_warn
+
+# TODO: Forbid `self`/`Self`/... everywhere, would be a breaking change
+RESERVED_PARAM_NAMES = ("self",)
+KWARG_PARAM_NAMES = ("gas", "value", "skip_contract_check", "default_return_value")
 
 
 @dataclass
@@ -98,6 +99,9 @@ class ContractFunctionT(VyperType):
     typeclass = "contract_function"
 
     _is_callable = True
+
+    # the return value is only known at runtime
+    _modifiability = Modifiability.MODIFIABLE
 
     def __init__(
         self,
@@ -360,7 +364,9 @@ class ContractFunctionT(VyperType):
                 "Default functions cannot appear in interfaces", funcdef
             )
 
-        positional_args, keyword_args = _parse_args(funcdef, is_interface=True)
+        positional_args, keyword_args = _parse_args(
+            funcdef, FunctionVisibility.EXTERNAL, is_interface=True
+        )
 
         return_type = _parse_return_type(funcdef)
 
@@ -435,7 +441,9 @@ class ContractFunctionT(VyperType):
                 "Default functions cannot appear in interfaces", funcdef
             )
 
-        positional_args, keyword_args = _parse_args(funcdef, is_interface=True)
+        positional_args, keyword_args = _parse_args(
+            funcdef, FunctionVisibility.EXTERNAL, is_interface=True
+        )
 
         return_type = _parse_return_type(funcdef)
 
@@ -493,7 +501,9 @@ class ContractFunctionT(VyperType):
                     *decorators.override_nodes,
                 )
 
-        positional_args, keyword_args = _parse_args(funcdef, is_abstract=is_abstract)
+        positional_args, keyword_args = _parse_args(
+            funcdef, function_visibility, is_abstract=is_abstract
+        )
 
         return_type = _parse_return_type(funcdef)
 
@@ -860,7 +870,7 @@ class ContractFunctionT(VyperType):
 
     # calculate the abi signature for a given set of kwargs
     def abi_signature_for_kwargs(self, kwargs: list[KeywordArg]) -> str:
-        args = self.positional_args + kwargs  # type: ignore
+        args = self.positional_args + kwargs
         return self.name + "(" + ",".join([arg.typ.abi_type.selector_name() for arg in args]) + ")"
 
 
@@ -880,7 +890,7 @@ def _parse_return_type(funcdef: vy_ast.FunctionDef) -> Optional[VyperType]:
         return None
     # note: consider, for cleanliness, adding DataLocation.RETURN_VALUE
     ret = type_from_annotation(funcdef.returns, DataLocation.MEMORY)
-    if type_contains_unsupported_unbounded_sequence(ret):
+    if not is_runtime_sizable_return_type(ret):
         raise StructureException(
             "Function returns cannot contain unbounded sequence types inside aggregate types",
             funcdef.returns,
@@ -1083,7 +1093,10 @@ def _parse_decorators(funcdef: vy_ast.FunctionDef) -> _ParsedDecorators:
 
 
 def _parse_args(
-    funcdef: vy_ast.FunctionDef, is_interface: bool = False, is_abstract: bool = False
+    funcdef: vy_ast.FunctionDef,
+    visibility: FunctionVisibility,
+    is_interface: bool = False,
+    is_abstract: bool = False,
 ) -> tuple[list[PositionalArg], list[KeywordArg]]:
     argnames = set()  # for checking uniqueness
     n_total_args = len(funcdef.args.args)
@@ -1092,9 +1105,15 @@ def _parse_args(
     positional_args = []
     keyword_args = []
 
+    # internal function args live in memory, everything else comes from calldata
+    if visibility == FunctionVisibility.INTERNAL:
+        location = DataLocation.MEMORY
+    else:
+        location = DataLocation.CALLDATA
+
     for i, arg in enumerate(funcdef.args.args):
         argname = arg.arg
-        if argname in ("gas", "value", "skip_contract_check", "default_return_value"):
+        if argname in RESERVED_PARAM_NAMES or argname in KWARG_PARAM_NAMES:
             raise ArgumentException(
                 f"Cannot use '{argname}' as a variable name in a function input", arg
             )
@@ -1104,8 +1123,8 @@ def _parse_args(
         if arg.annotation is None:
             raise ArgumentException(f"Function argument '{argname}' is missing a type", arg)
 
-        type_ = type_from_annotation(arg.annotation, DataLocation.CALLDATA)
-        if type_contains_nested_unbounded_sequence(type_):
+        type_ = type_from_annotation(arg.annotation, location)
+        if not is_runtime_sizable_type(type_):
             raise StructureException(
                 "Function arguments cannot contain unbounded sequence types inside aggregate types",
                 arg.annotation,
@@ -1132,8 +1151,8 @@ def _parse_args(
                     value,
                 )
 
-            if not check_modifiability(value, Modifiability.RUNTIME_CONSTANT):
-                raise StateAccessViolation("Value must be literal or environment variable", value)
+            if get_modifiability(value) > Modifiability.RUNTIME_CONSTANT:
+                raise StateAccessViolation("Value must be a literal or environment variable", value)
 
             if not isinstance(value, vy_ast.Ellipsis):
                 validate_expected_type(value, type_)
@@ -1161,6 +1180,9 @@ class MemberFunctionT(VyperType):
 
     typeclass = "member_function"
     _is_callable = True
+
+    # the return value is only known at runtime
+    _modifiability = Modifiability.MODIFIABLE
 
     # keep LGTM linter happy
     def __eq__(self, other):

@@ -184,7 +184,7 @@ class StringEnum(enum.Enum):
         if not isinstance(other, self.__class__):
             raise CompilerPanic(f"bad comparison: ({type(other)}, {type(self)})")
         options = self.__class__.options()
-        return options.index(self) < options.index(other)  # type: ignore
+        return options.index(self) < options.index(other)
 
     def __le__(self, other: object) -> bool:
         return self.__eq__(other) or self.__lt__(other)
@@ -432,6 +432,11 @@ class MemoryPositions:
     FREE_VAR_SPACE = 0
     FREE_VAR_SPACE2 = 32
     RESERVED_MEMORY = 64
+
+
+# An INF local or struct member holds a payload pointer and capacity.
+# Shared by type sizing and Venom codegen.
+POINTER_CELL_SIZE = 64
 
 
 # Sizes of different data types. Used to clamp types.

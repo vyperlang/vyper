@@ -10,12 +10,7 @@ from vyper.exceptions import (
     StructureException,
     UnfoldableNode,
 )
-from vyper.semantics.analysis.base import Modifiability
-from vyper.semantics.analysis.utils import (
-    check_modifiability,
-    validate_expected_type,
-    validate_unique_method_ids,
-)
+from vyper.semantics.analysis.utils import validate_expected_type, validate_unique_method_ids
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import TYPE_T, VyperType
 from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT
@@ -30,7 +25,8 @@ if TYPE_CHECKING:
 class InterfaceT(_UserType):
     typeclass = "interface"
 
-    _type_members = {"address": AddressT()}
+    _builtin_members = {"address": AddressT()}
+    _view_builtin_members = ("address",)
     _is_prim_word = True
     is_valid_element_type = True
     _as_hashmap_key = True
@@ -112,9 +108,6 @@ class InterfaceT(_UserType):
 
     def _ctor_kwarg_types(self, node):
         return {}
-
-    def _ctor_modifiability_for_call(self, node: vy_ast.Call, modifiability: Modifiability) -> bool:
-        return check_modifiability(node.args[0], modifiability)
 
     def validate_implements(
         self, node: vy_ast.ImplementsDecl, functions: dict[ContractFunctionT, vy_ast.VyperNode]
@@ -377,11 +370,11 @@ class ModuleT(VyperType):
 
         for e in self.event_defs:
             # add the type of the event so it can be used in call position
-            self.add_member(e.name, TYPE_T(e._metadata["event_type"]))  # type: ignore
+            self.add_member(e.name, TYPE_T(e._metadata["event_type"]))
 
         for e in self.error_defs:
             # add the type of the error so it can be used in call position
-            self.add_member(e.name, TYPE_T(e._metadata["error_type"]))  # type: ignore
+            self.add_member(e.name, TYPE_T(e._metadata["error_type"]))
 
         for f in self.flag_defs:
             self.add_member(f.name, TYPE_T(f._metadata["flag_type"]))
@@ -389,12 +382,12 @@ class ModuleT(VyperType):
 
         for s in self.struct_defs:
             # add the type of the struct so it can be used in call position
-            self.add_member(s.name, TYPE_T(s._metadata["struct_type"]))  # type: ignore
-            self._helper.add_member(s.name, TYPE_T(s._metadata["struct_type"]))  # type: ignore
+            self.add_member(s.name, TYPE_T(s._metadata["struct_type"]))
+            self._helper.add_member(s.name, TYPE_T(s._metadata["struct_type"]))
 
         for i in self.interface_defs:
             # add the type of the interface so it can be used in call position
-            self.add_member(i.name, TYPE_T(i._metadata["interface_type"]))  # type: ignore
+            self.add_member(i.name, TYPE_T(i._metadata["interface_type"]))
 
         for v in self.variable_decls:
             self.add_member(v.target.id, v.target._metadata["varinfo"])

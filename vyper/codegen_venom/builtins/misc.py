@@ -25,7 +25,7 @@ from vyper.codegen_venom.constants import BLOCKHASH_LOOKBACK_LIMIT, ECRECOVER_PR
 from vyper.codegen_venom.eval_order import later_expressions_can_mutate_memory_or_storage
 from vyper.codegen_venom.value import VyperValue
 from vyper.evm.opcodes import version_check
-from vyper.exceptions import CompilerPanic, EvmVersionException
+from vyper.exceptions import EvmVersionException, UnfoldableNode
 from vyper.semantics.types import (
     INF,
     BytesT,
@@ -410,7 +410,7 @@ def _get_bool_kwarg(node: vy_ast.Call, kwarg_name: str, default: bool) -> bool:
         return kw_node.value
     if isinstance(kw_node, vy_ast.Int):
         return bool(kw_node.value)
-    raise CompilerPanic(f"unfoldable boolean kwarg: {kwarg_name}", kw_node)
+    raise UnfoldableNode(f"unfoldable boolean kwarg: {kwarg_name}", kw_node)
 
 
 def _schema_string_value(ctx: "VenomCodegenContext", schema: bytes) -> tuple[VyperValue, StringT]:
