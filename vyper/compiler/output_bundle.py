@@ -102,7 +102,6 @@ class OutputBundle:
             importer_path = _posix_relpath(importer.resolved_path)
             if importer_path not in anonymized_paths or not isinstance(module_ast, vy_ast.Module):
                 continue
-            importer_dir = posixpath.dirname(importer_path)
             anonymized_importer_dir = posixpath.dirname(anonymized_paths[importer_path])
 
             for node in module_ast.get_children(vy_ast.ImportFrom):
@@ -113,11 +112,12 @@ class OutputBundle:
                     importee_path = _posix_relpath(importee.resolved_path)
                     if importee.from_builtin or importee_path not in anonymized_paths:
                         continue
-                    original = posixpath.relpath(importee_path, importer_dir)
-                    bundled = posixpath.relpath(
-                        anonymized_paths[importee_path], anonymized_importer_dir
-                    )
-                    if original != bundled:
+                    # replay the lookup the recompiler will do: the import as
+                    # spelled (e.g. `../base/helper.vy`), joined to the directory
+                    # of the importer inside the bundle, must land on the importee.
+                    spelled = PurePath(importee.path).as_posix()
+                    bundled = posixpath.normpath(posixpath.join(anonymized_importer_dir, spelled))
+                    if bundled != anonymized_paths[importee_path]:
                         raise BundleError(
                             f"cannot bundle `{importee.resolved_path}`: it is imported"
                             f" relatively from `{importer.resolved_path}`, and the import"
