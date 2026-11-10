@@ -1335,6 +1335,7 @@ def test_storage_dead_store_branch_revert(jnz, addr_space):
     """
     _check_pre_post_generic(pre, post, addr_space)
 
+
 def test_dse_different_allocations_non_fixed_offset():
     """
     The mstore uses the location which is not fixed
