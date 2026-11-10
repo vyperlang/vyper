@@ -1,12 +1,15 @@
 import copy
 import json
 
+import pytest
+
 from tests.ast_utils import deepequals
 from vyper import ast as vy_ast
 from vyper import compiler
 from vyper.ast.nodes import NODE_SRC_ATTRIBUTES
 from vyper.ast.parse import parse_to_ast
 from vyper.ast.utils import ast_to_dict, dict_to_ast
+from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import AddressT
 
 
@@ -2150,3 +2153,11 @@ def foo():
     for key in keys:
         assert lib1_ast[key] == lib1_import_ast[key]
         assert lib2_ast[key] == lib2_import_ast[key]
+
+
+def test_hex_dict_input_mismatched_fields():
+    # the zero address passes checksum validation; `value` must not be able
+    # to smuggle in a different literal for codegen
+    node_dict = {"ast_type": "Hex", "original_value": "0x" + "00" * 20, "value": "0x" + "aa" * 20}
+    with pytest.raises(CompilerPanic):
+        dict_to_ast(node_dict)

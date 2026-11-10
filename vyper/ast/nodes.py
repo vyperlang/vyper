@@ -879,6 +879,14 @@ class Hex(Constant):
         # Preserve the source spelling when it is already available.
         self.original_value = getattr(self, "original_value", self.value)
         self.value = self.value.lower()
+        # the two fields come from untrusted input when importing an AST dict.
+        # checksums are validated against `original_value` while codegen uses
+        # `value`, so they must spell the same literal.
+        if self.original_value.lower() != self.value:
+            raise CompilerPanic(
+                f"Hex node `original_value` {self.original_value} "
+                f"does not match `value` {self.value}"
+            )
 
     def validate(self):
         if len(self.original_value) % 2:
