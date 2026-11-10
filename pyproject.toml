@@ -64,10 +64,12 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["B0", "E", "F", "I", "UP031", "UP032", "W"]
-# Unsupported legacy diagnostics remain valid noqa codes. In particular,
-# FS003 (missing f-string prefix) is intentionally dropped; UP031/UP032
-# cover formatting modernization, not missing interpolation.
+# RUF027 (missing f-string prefix) is a preview rule; it stands in for
+# flake8-use-fstring's FS003, with narrower coverage.
+preview = true
+explicit-preview-rules = true
+select = ["B0", "E", "F", "I", "RUF027", "UP031", "UP032", "W"]
+# Unsupported legacy diagnostics remain valid noqa codes.
 external = [
     "E122",
     "E128",

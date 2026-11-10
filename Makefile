@@ -17,7 +17,8 @@ mypy:
 black:
 	black vyper/ tests/ setup.py
 
-ruff:
+# ordered after the fixers so `make -j lint` does not check imports mid-fix
+ruff: isort
 	ruff check vyper/ tests/ setup.py
 
 isort: black
