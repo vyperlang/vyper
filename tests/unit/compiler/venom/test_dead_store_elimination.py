@@ -1395,4 +1395,3 @@ def test_dse_same_allocation_non_fixed_offset():
     """
 
     _check_no_change(pre)
-
