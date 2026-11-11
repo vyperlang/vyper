@@ -1687,7 +1687,7 @@ def foo():
 # Tests for uses/initializes requirements with @abstract/@override
 
 
-def test_stateful_override_without_initializes(make_input_bundle):
+def test_stateful_override_without_initializes(make_input_bundle, tmp_path):
     contract = """
 import abstract_m
 import override_m
@@ -1721,11 +1721,14 @@ def bar() -> uint256:
     with pytest.raises(FunctionDeclarationException) as e:
         compile_code(contract, input_bundle=input_bundle)
 
+    path = (tmp_path / "override_m.vy").as_posix()
+
     assert e.value.message == "Abstract function was not overridden"
-    assert e.value.hint is None
+    expected_hint = f"did you forget to `initializes:` one of the following modules ? `{path}`"
+    assert e.value.hint == expected_hint
 
 
-def test_stateful_indirect_override_without_initializes(make_input_bundle):
+def test_stateful_indirect_override_without_initializes(make_input_bundle, tmp_path):
     # root -calls-> lib_ext -calls abstract-> abstract_m
     # root -imports-> lib_ext -overrides-> abstract_m
     # but no-one initializes lib_ext, so abstract_m is never initialized
@@ -1773,8 +1776,12 @@ def foo():
     with pytest.raises(FunctionDeclarationException) as e:
         compile_code(contract, input_bundle=input_bundle)
 
+    lib_impl_path = (tmp_path / "lib_impl.vy").as_posix()
+
     assert e.value.message == "Abstract function was not overridden"
-    assert e.value.hint is None
+    expected_hint = "did you forget to `initializes:` one of the following modules ?"
+    expected_hint += f" `{lib_impl_path}`"
+    assert e.value.hint == expected_hint
 
 
 def test_call_to_abstract_without_uses(make_input_bundle):
@@ -1940,7 +1947,7 @@ initializes: override_module
     assert "not initialized" in e.value._message
 
 
-def test_uninitialized_abstract_call_fails(make_input_bundle):
+def test_uninitialized_abstract_call_fails(make_input_bundle, tmp_path):
     abstract_module = """
 @abstract
 def foo() -> uint256: ...
@@ -1975,8 +1982,12 @@ def test_foo() -> uint256:
     with pytest.raises(FunctionDeclarationException) as e:
         compile_code(contract, input_bundle=input_bundle)
 
+    override_path = (tmp_path / "override_module.vy").as_posix()
+
     assert e.value.message == "Abstract function was not overridden"
-    assert e.value.hint is None
+    expected_hint = "did you forget to `initializes:` one of the following modules ?"
+    expected_hint += f" `{override_path}`"
+    assert e.value.hint == expected_hint
 
 
 def test_at_call_does_not_propagate_writes(make_input_bundle):

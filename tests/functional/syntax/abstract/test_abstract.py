@@ -823,6 +823,59 @@ def some_method() -> uint256:
     assert e.value.hint == expected_hint
 
 
+def test_multiple_uninitialized_overrides(make_input_bundle, tmp_path):
+    """Test that the hint lists every candidate when none of them is initialized"""
+    contract = """
+import foo
+import bar_override
+import baz_override
+
+uses: foo
+
+@external
+def call_it() -> uint256:
+    return foo.some_method()
+    """
+
+    foo = """
+@abstract
+def some_method() -> uint256: ...
+    """
+
+    bar_override = """
+import foo
+initializes: foo
+
+@override(foo)
+def some_method() -> uint256:
+    return 100
+    """
+
+    baz_override = """
+import foo
+initializes: foo
+
+@override(foo)
+def some_method() -> uint256:
+    return 200
+    """
+
+    input_bundle = make_input_bundle(
+        {"foo.vy": foo, "bar_override.vy": bar_override, "baz_override.vy": baz_override}
+    )
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        compile_code(contract, input_bundle=input_bundle)
+
+    bar_path = (tmp_path / "bar_override.vy").as_posix()
+    baz_path = (tmp_path / "baz_override.vy").as_posix()
+
+    assert e.value.message == "Abstract function was not overridden"
+    expected_hint = "did you forget to `initializes:` one of the following modules ?"
+    expected_hint += f" `{bar_path}`, `{baz_path}`"
+    assert e.value.hint == expected_hint
+
+
 def test_override_validation_order(make_input_bundle):
     """Test that validation errors are reported in the correct order"""
 
@@ -1020,6 +1073,7 @@ def foo() -> uint256:
 
     assert "Abstract function was not overridden" == e.value.message
     assert "bar" in e.value.annotations[0].node_source_code
+    assert e.value.hint is None
 
 
 def test_contract_cannot_have_abstract_methods():
@@ -1039,6 +1093,7 @@ def bar() -> uint256:
 
     assert "Abstract function was not overridden" == e.value.message
     assert "foo" in e.value.annotations[0].node_source_code
+    assert e.value.hint is None
 
 
 def test_cannot_call_overridden_method(make_input_bundle):

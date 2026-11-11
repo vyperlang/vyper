@@ -1155,9 +1155,14 @@ def _check_overrides(module_ast: vy_ast.Module, globally_initialized: OrderedSet
                     msg, func, existing_override, duplicate_override, hint=hint
                 )
             elif len(overrides) == 0:
-                # TODO: Add hint that maybe the module was not initialized
+                hint = None
+                if len(raw_overrides) != 0:
+                    modules = ", ".join(f"`{t.ast_def.module_node.path}`" for t in raw_overrides)
+                    hint = "did you forget to `initializes:` one of the following modules ?"
+                    hint += f" {modules}"
+
                 raise FunctionDeclarationException(
-                    "Abstract function was not overridden", func_t.ast_def
+                    "Abstract function was not overridden", func_t.ast_def, hint=hint
                 )
 
             override_t = overrides[0]
