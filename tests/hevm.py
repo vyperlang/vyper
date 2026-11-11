@@ -81,7 +81,7 @@ def _prep_hevm_venom_fn(fn, fcg, ir_analyses, visitor):
                 assert isinstance(bound, IRLiteral)
                 assert visitor.num_calldataloads < 8
 
-                new_var = fn.ctx.get_next_variable()
+                new_var = fn.get_next_variable()
                 new_inst = IRInstruction(
                     "calldataload", [IRLiteral(visitor.num_calldataloads * 32)], outputs=[new_var]
                 )
