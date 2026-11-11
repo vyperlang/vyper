@@ -396,7 +396,9 @@ def _shorten_call_path(
     override_chain = [func_t.ast_def.module_node]
     curr_t = func_t
     while curr_t.is_abstract:
-        curr_t = curr_t.overridden_by
+        override_t = curr_t.overridden_by
+        assert override_t is not None  # ensured by `_check_overrides`
+        curr_t = override_t
         assert isinstance(curr_t.ast_def, vy_ast.FunctionDef)
         override_chain.append(curr_t.ast_def.module_node)
     override_chain.reverse()

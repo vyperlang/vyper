@@ -1718,14 +1718,63 @@ def bar() -> uint256:
     """
     input_bundle = make_input_bundle({"abstract_m.vy": abstract_m, "override_m.vy": override_m})
 
-    with pytest.raises(InitializerException) as e:
+    with pytest.raises(FunctionDeclarationException) as e:
         compile_code(contract, input_bundle=input_bundle)
 
-    # Verify the error message is helpful
-    expected_msg = "abstract_m.vy` is used but never initialized!"
-    assert expected_msg in e.value._message
-    expected_hint = "add `initializes: abstract_m`"
-    assert expected_hint in e.value._hint
+    assert e.value.message == "Abstract function was not overridden"
+    assert e.value.hint is None
+
+
+def test_stateful_indirect_override_without_initializes(make_input_bundle):
+    # root -calls-> lib_ext -calls abstract-> abstract_m
+    # root -imports-> lib_ext -overrides-> abstract_m
+    # but no-one initializes lib_ext, so abstract_m is never initialized
+    abstract_m = """
+counter: uint256
+
+@abstract
+def bump(): ...
+    """
+
+    lib_impl = """
+import abstract_m
+
+initializes: abstract_m
+
+@override(abstract_m)
+def bump():
+    abstract_m.counter += 1
+    """
+
+    lib_ext = """
+import abstract_m
+
+uses: abstract_m
+
+def foo():
+    abstract_m.bump()
+    """
+
+    contract = """
+import lib_impl
+import lib_ext
+
+# initializes: lib_impl  # without this, there is no override for `bump`
+
+@external
+def foo():
+    lib_ext.foo()
+    """
+
+    input_bundle = make_input_bundle(
+        {"abstract_m.vy": abstract_m, "lib_impl.vy": lib_impl, "lib_ext.vy": lib_ext}
+    )
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        compile_code(contract, input_bundle=input_bundle)
+
+    assert e.value.message == "Abstract function was not overridden"
+    assert e.value.hint is None
 
 
 def test_call_to_abstract_without_uses(make_input_bundle):
@@ -1923,11 +1972,11 @@ def test_foo() -> uint256:
         {"abstract_module.vy": abstract_module, "override_module.vy": override_module}
     )
 
-    with pytest.raises(InitializerException) as e:
+    with pytest.raises(FunctionDeclarationException) as e:
         compile_code(contract, input_bundle=input_bundle)
 
-    assert "abstract_module.vy` is used but never initialized!" in e.value._message
-    assert "add `initializes: abstract_module`" in e.value._hint
+    assert e.value.message == "Abstract function was not overridden"
+    assert e.value.hint is None
 
 
 def test_at_call_does_not_propagate_writes(make_input_bundle):

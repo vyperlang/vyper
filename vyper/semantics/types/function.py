@@ -140,7 +140,9 @@ class ContractFunctionT(VyperType):
 
         self.override_nodes: list[vy_ast.Name] = override_nodes or []
 
-        self._overridden_by: ContractFunctionT | None = None
+        self.overridden_by: ContractFunctionT | None = None
+
+        self.raw_overridden_by: list[ContractFunctionT] = []
 
         self._analysed = False
 
@@ -603,16 +605,6 @@ class ContractFunctionT(VyperType):
             raise CompilerPanic(f"Not nonreentrant {self}", self.ast_def)
 
         self.reentrancy_key_position = position
-
-    def set_overridden_by(self, func_t: ContractFunctionT) -> None:
-        assert self._overridden_by is None
-        self._overridden_by = func_t
-
-    @property
-    def overridden_by(self) -> ContractFunctionT:
-        if self._overridden_by is None:
-            raise FunctionDeclarationException("Abstract function was not overridden", self.ast_def)
-        return self._overridden_by
 
     @classmethod
     def getter_from_VariableDecl(cls, node: vy_ast.VariableDecl) -> "ContractFunctionT":
