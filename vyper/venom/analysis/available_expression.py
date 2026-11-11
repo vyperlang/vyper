@@ -347,7 +347,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
 
         if bb not in self.bb_outs or available_exprs != self.bb_outs[bb]:
             self.bb_outs[bb] = available_exprs
-            # change is only necessery when the output of the
+            # change is only necessary when the output of the
             # basic block is changed (otherwise it wont affect rest)
             change |= True
 

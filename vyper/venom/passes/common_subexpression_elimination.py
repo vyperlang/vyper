@@ -87,7 +87,7 @@ class CSE(IRPass):
                 expr, replace_inst = state
 
                 # heuristic to not replace small expressions across
-                # basic block bounderies (it can create better codesize)
+                # basic block boundaries (it can create better codesize)
                 gas = expr.get_gas
                 if gas > self.gas_heuristic:
                     res[inst] = replace_inst

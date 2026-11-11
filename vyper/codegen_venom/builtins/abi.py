@@ -324,7 +324,7 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     assert wrapped_typ.memory_bytes_required == output_typ.memory_bytes_required
 
     # the output should be always of type that is
-    # propageted in the signature as in the legacy
+    # propagated in the signature as in the legacy
     return VyperValue.from_ptr(output_val.ptr(), output_typ)
 
 
