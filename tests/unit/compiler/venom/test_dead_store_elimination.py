@@ -1372,3 +1372,27 @@ def test_dse_different_allocations_non_fixed_offset():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_dse_same_allocation_non_fixed_offset():
+    pre = """
+    main:
+        %ptr = alloca 160
+
+        ; offset is 160 - 32 since
+        ; that is the max for the mstore
+        ; offset for these allocas
+        ; The size of the allocation
+        ; is set so the bound is easier
+        ; for hevm to handle
+        %offset_a = source_bound 128
+        %offset_b = source_bound 128
+        %a = add %ptr, %offset_a
+        %b = add %ptr, %offset_b
+        mstore %a, 123
+        %res = mload %b
+        sink %res
+    """
+
+    _check_no_change(pre)
+
