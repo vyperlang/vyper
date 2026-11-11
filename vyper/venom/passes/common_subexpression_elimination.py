@@ -18,6 +18,7 @@ UNINTERESTING_OPCODES = PARAM_INSTRUCTIONS | frozenset(
         "assign",
         "phi",
         "source",
+        "source_bound",
         "nop",
         "returndatasize",
         "gasprice",

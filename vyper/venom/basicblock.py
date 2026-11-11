@@ -409,7 +409,7 @@ class IRInstruction:
         a construct for intermediate representation like phi and param.
         """
         # do not reorder `source` instructions in dft pass - for testing
-        return self.is_phi or self.is_param or self.opcode == "source"
+        return self.is_phi or self.is_param or self.opcode in ("source", "source_bound")
 
     def get_read_effects(self) -> effects.Effects:
         return effects.reads.get(self.opcode, effects.EMPTY)
