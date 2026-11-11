@@ -924,12 +924,6 @@ def _check_assign_list(left, right):
         if left.typ.count < right.typ.count:  # pragma: nocover
             FAIL()
 
-        # stricter check for zeroing
-        if right.is_empty_intrinsic and right.typ.count != left.typ.count:  # pragma: nocover
-            raise TypeCheckFailure(
-                f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}"
-            )
-
         # TODO recurse into left, right if literals?
         check_assign(
             dummy_node_for_type(left.typ.value_type), dummy_node_for_type(right.typ.value_type)
