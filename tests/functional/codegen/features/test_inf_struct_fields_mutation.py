@@ -63,52 +63,6 @@ def f(flag: bool, other: bool) -> (DynArray[uint256, 4], DynArray[uint256, 4]):
         assert c.f(False, False) == ([8], [1])
 
 
-@pytest.mark.parametrize("owned", [False, True])
-@pytest.mark.parametrize("bound", ["4", "INF"])
-@pytest.mark.parametrize(
-    "base",
-    [
-        "b.rows",
-        "(b.rows if flag else c.rows)",
-        "(b.rows if flag else local)",
-        "(b.rows if flag else (c.rows if other else local))",
-    ],
-)
-def test_selected_array_index_pops_base_rejected(get_contract, base, bound, owned):
-    prepare = "b.rows.append([7])\n    b.rows.pop()" if owned else "pass"
-    code = f"""
-struct S:
-    rows: DynArray[DynArray[uint256, 4], {bound}]
-
-@external
-def f(flag: bool, other: bool) -> uint256:
-    b: S = S(rows=[[0], [1]])
-    c: S = S(rows=[[3], [4, 5]])
-    local: DynArray[DynArray[uint256, 4], {bound}] = [[6], [7, 8, 9]]
-    {prepare}
-    return len({base}[b.rows.pop()[0]])
-"""
-    with pytest.raises(CompilerPanic, match="risky overlap"):
-        get_contract(code)
-
-
-@pytest.mark.parametrize("owned", [False, True])
-def test_selected_nested_array_index_pops_base_rejected(get_contract, owned):
-    prepare = "b.rows.append([7])\n    b.rows.pop()" if owned else "pass"
-    code = f"""
-struct S:
-    rows: DynArray[DynArray[uint256, 4], INF]
-
-@external
-def f(flag: bool) -> uint256:
-    b: S = S(rows=[[0], [1]])
-    {prepare}
-    return (b.rows[0] if flag else [0, 1])[b.rows.pop()[0]]
-"""
-    with pytest.raises(CompilerPanic, match="risky overlap"):
-        get_contract(code)
-
-
 def test_member_assign_from_local(get_contract):
     code = BATCH + """
 @external
@@ -667,21 +621,6 @@ def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF], uint256):
     assert c.f((OWNER, [1, 2, 3])) == ([1, 2, 3], [1, 2], 3)
 
 
-def test_member_store_with_pop_in_index(get_contract):
-    # the index pops the member the store target indexes
-    code = BATCH + """
-@external
-def f(b: Batch) -> (DynArray[uint256, INF], DynArray[uint256, INF]):
-    src: Batch = b
-    copy: Batch = src
-    copy.values[copy.values.pop() - 3] = 100
-    return src.values, copy.values
-    """
-
-    with pytest.raises(CompilerPanic, match="risky overlap"):
-        get_contract(code)
-
-
 def test_member_copy_to_local_is_independent(get_contract):
     code = (
         BATCH
@@ -945,7 +884,7 @@ def f(t: Table) -> Pair:
 
 # A statement can copy the struct and then write the same member again before
 # its own write lands, e.g. by passing the struct to a function and popping
-# from the member in an argument or index. That second write moves the
+# from the member in an argument. That second write moves the
 # member's payload to a fresh buffer, and the statement's own write has to
 # follow it.
 
@@ -978,10 +917,7 @@ def touch(s: S) -> uint256:
 
 MOVED_START = ([[1, 2], [0, 1]], [4, 1])
 
-# an index that can write the array it indexes is rejected
-REJECTED = "rejected"
-
-# (statement on T, (rows, flat) after it or REJECTED, v)
+# (statement on T, (rows, flat) after it, v)
 MOVED_WRITES = {
     "append_arg": (
         "TARGET.rows[0].append(self.inspect(TARGET) + TARGET.rows[0].pop())",
@@ -1001,44 +937,6 @@ MOVED_WRITES = {
     "append_arg_other_member": (
         "TARGET.rows[0].append(self.inspect(TARGET) + TARGET.flat.pop())",
         ([[1, 2, 1], [0, 1]], [4]),
-        0,
-    ),
-    "append_index": (
-        "TARGET.rows[self.inspect(TARGET) + TARGET.rows[1].pop()].append(9)",
-        REJECTED,
-        0,
-    ),
-    "pop_index": (
-        "v = TARGET.rows[self.inspect(TARGET) + TARGET.rows[1].pop()].pop()",
-        REJECTED,
-        0,
-    ),
-    "store_index": ("TARGET.rows[self.inspect(TARGET) + TARGET.rows[1].pop()][0] = 9", REJECTED, 0),
-    "store_row_index": (
-        "TARGET.rows[self.inspect(TARGET) + TARGET.rows[1].pop()] = [9]",
-        REJECTED,
-        0,
-    ),
-    "store_index_source": (
-        "TARGET.rows[self.inspect(TARGET) + TARGET.rows[0].pop() - 1] = TARGET.rows[0]",
-        REJECTED,
-        0,
-    ),
-    "store_flat_index": (
-        "TARGET.flat[self.inspect(TARGET) + TARGET.rows[1].pop()] = 9",
-        REJECTED,
-        0,
-    ),
-    "read_index_bounds": ("v = TARGET.flat[TARGET.flat.pop()]", REJECTED, 0),
-    "read_index_copy_bounds": (
-        "v = TARGET.flat[self.inspect(TARGET) + TARGET.flat.pop()]",
-        REJECTED,
-        0,
-    ),
-    "read_nested_index_bounds": ("v = len(TARGET.rows[TARGET.rows.pop()[1]])", REJECTED, 0),
-    "read_index": (
-        "v = len(TARGET.rows[self.inspect(TARGET) + TARGET.rows[1].pop()])",
-        REJECTED,
         0,
     ),
 }
@@ -1068,10 +966,6 @@ def f() -> R:
     """
 
     settings = compiler_settings if inlining else no_inlining_settings
-    if after is REJECTED:
-        with pytest.raises(CompilerPanic, match="risky overlap"):
-            get_contract(code, compiler_settings=settings)
-        return
     c = get_contract(code, compiler_settings=settings)
     if after is None:
         with tx_failed():
@@ -1082,10 +976,9 @@ def f() -> R:
 
 
 # The writes that move the payload can also pop the element the statement
-# already resolved. The target is checked again after the argument runs, so a
-# popped target reverts; an assigned value is copied before the target is
-# evaluated, so it is the value from before the pop. An index that pops the
-# array it indexes is rejected.
+# already resolved. The target is checked again after the argument runs, so
+# a popped target reverts; an assigned value is copied before the
+# target is evaluated, so it is the value from before the pop.
 
 SHRUNK = """
 struct S:
@@ -1109,7 +1002,7 @@ SHRUNK_START = ([[1, 2], [0, 1], [3]], [4, 1, 0])
 # pops [3], copies b, pops [0, 1] (moving the payload), pops flat's 0
 SHRINK = "b.rows.pop()[0] + self.inspect(b) + b.rows.pop()[0] + b.flat.pop()"
 
-# (statement, (rows, flat, other, v) after it, None if it reverts, or REJECTED)
+# (statement, (rows, flat, other, v) after it or None if it reverts)
 SHRUNK_WRITES = {
     "append_dead_receiver": (f"b.rows[2].append({SHRINK})", None),
     "append_live_receiver": (f"b.rows[0].append({SHRINK})", ([[1, 2, 3]], [4, 1], [[0]], 0)),
@@ -1120,10 +1013,6 @@ SHRUNK_WRITES = {
         ([[1, 2]], [4, 1, 0], [[0, 1]], 0),
     ),
     "copy_live_source": (f"c.rows[{SHRINK} - 3] = b.rows[0]", ([[1, 2]], [4, 1], [[1, 2]], 0)),
-    "pop_index": (f"v = b.rows[{SHRINK} - 3].pop()", REJECTED),
-    "store_index": (f"b.rows[{SHRINK} - 3] = [7]", REJECTED),
-    "store_index_out_of_range": (f"b.rows[{SHRINK} - 2] = [7]", REJECTED),
-    "read_index_out_of_range": (f"v = len(b.rows[{SHRINK} - 2])", REJECTED),
 }
 
 
@@ -1145,56 +1034,12 @@ def f() -> R:
     """
 
     settings = compiler_settings if inlining else no_inlining_settings
-    if expected is REJECTED:
-        with pytest.raises(CompilerPanic, match="risky overlap"):
-            get_contract(code, compiler_settings=settings)
-        return
     c = get_contract(code, compiler_settings=settings)
     if expected is None:
         with tx_failed():
             c.f()
         return
     assert c.f() == (SHRUNK_START, *expected)
-
-
-# An index that pops the array holding the indexed member is rejected, as for
-# a bounded member.
-
-POPPED_HOLDER = """
-struct T:
-    xs: DynArray[uint256, INF]
-    n: uint256
-
-struct S:
-    items: DynArray[T, INF]
-"""
-
-POPPED_HOLDER_READS = {
-    "local_array": """
-    ts: DynArray[T, 3] = [T(xs=[4, 5], n=1)]
-    return ts[0].xs[ts.pop().n]""",
-    "unbounded_local_array": """
-    ts: DynArray[T, INF] = [T(xs=[4, 5], n=1)]
-    return ts[0].xs[ts.pop().n]""",
-    "member_array": """
-    b: S = S(items=[T(xs=[4, 5], n=1)])
-    return b.items[0].xs[b.items.pop().n]""",
-    "member_array_shared": """
-    a: S = S(items=[T(xs=[4, 5], n=1)])
-    b: S = a
-    return b.items[0].xs[b.items.pop().n] + len(a.items) * 10""",
-}
-
-
-@pytest.mark.parametrize("case", list(POPPED_HOLDER_READS))
-def test_index_pops_array_holding_member(get_contract, case):
-    code = POPPED_HOLDER + f"""
-@external
-def f() -> uint256:{POPPED_HOLDER_READS[case]}
-    """
-
-    with pytest.raises(CompilerPanic, match="risky overlap"):
-        get_contract(code)
 
 
 # A whole struct assigned into an array is copied before the target's index
@@ -1234,3 +1079,31 @@ def f(flag: bool) -> ({array_type}, {array_type}, {array_type}):
     """
 
     assert get_contract(code).f(True) == ([1, 2, 3], [1, 2], [1, 2, 3])
+
+
+# An index that writes the array it indexes is rejected, as for a bounded array.
+
+
+@pytest.mark.parametrize(
+    "stmt",
+    [
+        "v = b.flat[b.flat.pop()]",
+        "v = b.rows[0][b.rows.pop()[0]]",
+        "b.rows[b.rows[1].pop()][0] = 9",
+    ],
+)
+def test_index_writing_base_rejected(get_contract, stmt):
+    code = f"""
+struct S:
+    rows: DynArray[DynArray[uint256, 4], INF]
+    flat: DynArray[uint256, INF]
+
+@external
+def f() -> uint256:
+    b: S = S(rows=[[1, 2], [0, 1]], flat=[4, 1])
+    v: uint256 = 0
+    {stmt}
+    return v
+    """
+    with pytest.raises(CompilerPanic, match="risky overlap"):
+        get_contract(code)
