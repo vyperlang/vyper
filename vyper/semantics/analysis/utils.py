@@ -584,9 +584,14 @@ def get_expr_info(node: vy_ast.ExprNode, allow_type_exprs: bool = False) -> Expr
 
 def type_supremum(*multitypes: List[VyperType], keep_wildcards: bool = False) -> List[VyperType]:
     """
-    A wildcard length is comparable with every length. Where it meets another
-    length, the first operand fixes the result, unless `keep_wildcards` is
-    set: then the wildcard stays, for an expected type to fix it (cf.
+    Return the possible common types of several operands, each given as the
+    list of its possible types: for every two types of different operands
+    where one is a subtype of the other, the supertype.
+
+    Two types which only differ in lengths where one of them has a wildcard
+    are subtypes of each other. The type of the earlier operand is then
+    returned, unless `keep_wildcards` is set: then the wildcards of both are
+    kept, for the caller to fix them from an expected type (cf.
     `ExprVisitor._annotation_type`).
     """
     assert len(multitypes) >= 1
