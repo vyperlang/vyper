@@ -63,7 +63,8 @@ class ConcretizeMemLocPass(IRPass):
         for bb in self.function.get_basic_blocks():
             self._handle_bb(bb)
 
-        self.allocator.record_bb_eom(self.mem_liveness.livesets)
+        if self.function is self.function.ctx.entry_function:
+            self.allocator.record_bb_eom(self.mem_liveness.livesets)
         self.allocator.end_fn_allocation()
 
         self.analyses_cache.invalidate_analysis(MemLivenessAnalysis)

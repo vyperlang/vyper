@@ -94,17 +94,25 @@ class MemoryAllocator:
 
         self.fn_eom[self.current_function] = self.compute_fn_eom()
 
+    def _global_eom(self) -> int:
+        return max((ptr + size for ptr, size in self.global_allocation), default=0)
+
     def compute_fn_eom(self) -> int:
-        eom = 0
-        for ptr, size in self.global_allocation:
-            eom = max(eom, ptr + size)
+        eom = self._global_eom()
         for alloca in self.allocated_fn:
             offset = self.allocated[alloca]
             eom = max(eom, offset + alloca.alloca_size)
         return eom
 
     def record_bb_eom(self, livesets: dict[Allocation, OrderedSet[IRInstruction]]):
-        global_eom = max((ptr + size for ptr, size in self.global_allocation), default=0)
+        """
+        Snapshot the end of the static memory live in each block of the
+        current function, for `FmpLoweringPass` to bound the entry
+        function's FMP roots. Taken here because `ConcretizeMemLocPass`
+        replaces the allocas with literals and invalidates
+        `MemLivenessAnalysis`, so it cannot be derived later.
+        """
+        global_eom = self._global_eom()
         for bb in self.current_function.get_basic_blocks():
             self.bb_eom[bb] = global_eom
         # an invoke's livesets include the callee's frame
