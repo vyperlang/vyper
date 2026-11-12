@@ -1525,9 +1525,15 @@ def _blocks_from(bb) -> set:
     return seen
 
 
-@pytest.mark.parametrize(
-    "opt_level", [OptimizationLevel.O1, OptimizationLevel.GAS, OptimizationLevel.CODESIZE]
-)
+_ROOT_COUNT_OPT_LEVELS = [
+    OptimizationLevel.O1,
+    OptimizationLevel.GAS,
+    OptimizationLevel.CODESIZE,
+    OptimizationLevel.O3,
+]
+
+
+@pytest.mark.parametrize("opt_level", _ROOT_COUNT_OPT_LEVELS)
 def test_runtime_fmp_roots_only_for_externals_using_dynamic_memory(opt_level):
     # each external function that uses dynamic memory seeds its own FMP
     # root; no path through the other external functions passes a root
