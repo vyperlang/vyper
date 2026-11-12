@@ -363,7 +363,8 @@ class FmpLoweringPass(IRPass):
                 root_bbs.append(bb)
 
         if len(root_bbs) == 0:
-            # only unreachable code touches the FMP
+            # only unreachable code touches the FMP. Unreachable blocks are
+            # still lowered and would use an undefined FMP variable
             root_bbs = [fn.entry]
 
         for bb in root_bbs:
