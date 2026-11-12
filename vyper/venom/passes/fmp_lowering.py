@@ -338,7 +338,7 @@ class FmpLoweringPass(IRPass):
         cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         bb_eom = fn.ctx.mem_allocator.bb_eom
 
-        fmp_bbs = OrderedSet(
+        fmp_bbs: OrderedSet[IRBasicBlock] = OrderedSet(
             bb
             for bb in cfg.dfs_pre_walk
             if any(self._inst_needs_fmp(inst) for inst in bb.instructions)
