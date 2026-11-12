@@ -361,11 +361,11 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
     first address above every static frame and stack-spill slot. These are the FMP roots
     of the entry function; `FmpLoweringPass` places them where the FMP is first needed,
     with separate roots for independent entry paths. An external function with default
-    arguments may have multiple roots, one for each selector variant. Internal functions
-    receive their FMP root via `fmp_param` instead. The concrete value is only known once
-    spill analysis completes, so it assembles to a `PUSH` of an assembler-level `CONST`
-    resolved at assembly time. Pure: repeated `initial_fmp` instructions with the same
-    bound may CSE together.
+    arguments may have multiple roots, one for each selector variant that needs the FMP
+    before reaching the shared body. Internal functions receive their FMP root via
+    `fmp_param` instead. The concrete value is only known once spill analysis completes,
+    so it assembles to a `PUSH` of an assembler-level `CONST` resolved at assembly time.
+    Pure: repeated `initial_fmp` instructions with the same bound may CSE together.
   - TODO: spill slots are not tracked per root, and the spiller places every spill region
     above the largest static frame of the whole contract.
   - The entry block must not lie on a cycle through an FMP instruction: a root there
