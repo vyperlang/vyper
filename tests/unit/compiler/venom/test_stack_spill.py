@@ -3,7 +3,12 @@ import pytest
 from tests.venom_utils import stack_spilling_inf_source
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData, generate_bytecode
-from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
+from vyper.compiler.settings import (
+    OptimizationLevel,
+    Settings,
+    VenomOptimizationFlags,
+    anchor_settings,
+)
 from vyper.evm.assembler.instructions import CONST
 from vyper.ir.compile_ir import Label
 from vyper.utils import method_id
@@ -172,7 +177,9 @@ def test_initial_fmp_above_spill_region() -> None:
     bound = root.operands[0].value
 
     compiler = VenomCompiler(ctx)
-    asm = compiler.generate_evm_assembly()
+    # assemble for the evm version the IR was compiled for
+    with anchor_settings(settings):
+        asm = compiler.generate_evm_assembly()
     peak_spill_end = compiler.spiller.peak_spill_end
     assert peak_spill_end > bound
     assert peak_spill_end >= max(ctx.mem_allocator.fn_eom.values(), default=0)
