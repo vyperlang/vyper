@@ -1,5 +1,6 @@
 import pytest
 
+from tests.venom_utils import stack_spilling_inf_source
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData, generate_bytecode
 from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
@@ -157,23 +158,8 @@ def foo({params}) -> uint256:
 
 def test_initial_fmp_above_spill_region() -> None:
     # once anything spills, dynamic memory must start above every spill slot,
-    # even when the static memory bound of its FMP root is lower.
-    # test_dynamic_data_stays_clear_of_stack_spills in
-    # tests/functional/codegen/features/test_inf_free_memory_pointer.py runs
-    # the same source; keep the two in sync
-    params = ", ".join(f"a{i}: uint256" for i in range(16))
-    args = ", ".join(f"a{i}" for i in range(16))
-    total = " + ".join(f"a{i}" for i in range(16))
-    source = f"""
-@internal
-def sum_words({params}) -> uint256:
-    return {total}
-
-@external
-def foo(data: Bytes[INF], {params}) -> (uint256, Bytes[INF]):
-    s: uint256 = self.sum_words({args})
-    return s, data
-    """
+    # even when the static memory bound of its FMP root is lower
+    source = stack_spilling_inf_source()
     settings = Settings(experimental_codegen=True, optimize=OptimizationLevel.O1)
     lowered = compile_code(source, output_formats=["ir_runtime"], settings=settings)["ir_runtime"]
     ctx = parse_venom(str(lowered))

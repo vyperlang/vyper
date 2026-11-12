@@ -7,6 +7,7 @@ limitation, covered by the expected failure below.
 
 import pytest
 
+from tests.venom_utils import stack_spilling_inf_source
 from vyper.compiler.settings import OptimizationLevel
 from vyper.utils import keccak256
 
@@ -192,21 +193,9 @@ def test_dynamic_data_stays_clear_of_stack_spills(get_contract):
     arguments to an internal function spill the stack to memory at O1 while
     the dynamic `data` is live across the call. That this source spills is
     pinned by test_initial_fmp_above_spill_region in
-    tests/unit/compiler/venom/test_stack_spill.py; keep the two in sync.
+    tests/unit/compiler/venom/test_stack_spill.py.
     """
-    params = ", ".join(f"a{i}: uint256" for i in range(16))
-    args = ", ".join(f"a{i}" for i in range(16))
-    total = " + ".join(f"a{i}" for i in range(16))
-    code = f"""
-@internal
-def sum_words({params}) -> uint256:
-    return {total}
-
-@external
-def foo(data: Bytes[INF], {params}) -> (uint256, Bytes[INF]):
-    s: uint256 = self.sum_words({args})
-    return s, data
-    """
+    code = stack_spilling_inf_source()
     c = get_contract(code, override_opt_level=OptimizationLevel.O1)
 
     payload = bytes((i * 37) % 256 for i in range(300))
