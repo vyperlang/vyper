@@ -238,6 +238,7 @@ class FmpLoweringPass(IRPass):
         # `retfmp` (the desugared publishing terminator) is the publish fact
         publishes = info.publishes
 
+        # reset first: root placement already queries it
         self._invoke_callee_infos = {}
         # the FMP root output is used directly as the runner; the rewrite
         # multiply-assigns it (restores, setfmp, adopted-FMP invoke outputs,
