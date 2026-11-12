@@ -341,7 +341,7 @@ class FmpLoweringPass(IRPass):
         fmp_bbs = OrderedSet(
             bb
             for bb in cfg.dfs_pre_walk
-            if any(self._inst_touches_fmp(inst) for inst in bb.instructions)
+            if any(self._inst_needs_fmp(inst) for inst in bb.instructions)
         )
         fmp_succs = [succ for bb in fmp_bbs for succ in cfg.cfg_out(bb)]
         after_fmp = _reachable_blocks(cfg, fmp_succs)
@@ -387,7 +387,7 @@ class FmpLoweringPass(IRPass):
                 index = len(list(bb.phi_instructions))
             bb.insert_instruction(inst, index=index)
 
-    def _inst_touches_fmp(self, inst: IRInstruction) -> bool:
+    def _inst_needs_fmp(self, inst: IRInstruction) -> bool:
         if inst.opcode in RAW_FMP_TOUCH_OPS:
             return True
         if inst.opcode == "invoke":
