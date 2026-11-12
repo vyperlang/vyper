@@ -1072,6 +1072,38 @@ def bar() -> uint256:
     assert c.bar() == 1
 
 
+def test_interface_output_default_args(make_input_bundle, get_contract):
+    code = """
+@external
+def foo(a: uint256, b: uint256 = 5) -> uint256:
+    return a + b
+    """
+
+    out = compile_code(
+        code, contract_path="code.vy", output_formats=["interface", "external_interface", "abi"]
+    )
+
+    assert "def foo(a: uint256, b: uint256 = ...) -> uint256:\n" in out["interface"]
+    expected = "def foo(a: uint256, b: uint256 = ...) -> uint256: nonpayable\n"
+    assert expected in out["external_interface"]
+
+    # the generated interface has both overloads of `foo()`
+    iface_abi = compile_code(out["interface"], contract_path="code.vyi", output_formats=["abi"])
+    assert iface_abi["abi"] == out["abi"]
+
+    caller = """
+import code
+
+@external
+def bar(addr: address) -> uint256:
+    return extcall code(addr).foo(1)
+    """
+    c = get_contract(code)
+    input_bundle = make_input_bundle({"code.vyi": out["interface"]})
+    c2 = get_contract(caller, input_bundle=input_bundle)
+    assert c2.bar(c.address) == 6
+
+
 def test_interface_with_flags():
     code = """
 struct MyStruct:
