@@ -201,12 +201,10 @@ _FIXED_ARITY: dict[str, tuple[int, int, type[OpcodeArityError]]] = {
 }
 
 
-def _check_fixed_arity(caller: IRFunction, inst: IRInstruction, errors: list[VenomError]) -> bool:
+def _check_fixed_arity(caller: IRFunction, inst: IRInstruction, errors: list[VenomError]) -> None:
     expected_operands, expected_outputs, err_cls = _FIXED_ARITY[inst.opcode]
     if len(inst.operands) != expected_operands or inst.num_outputs != expected_outputs:
         errors.append(err_cls(caller, inst))
-        return False
-    return True
 
 
 class DretShapeError(VenomError):
@@ -688,8 +686,11 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
                     # checked before the generic multi-output rule so a
                     # malformed initial_fmp reports its arity error rather
                     # than MultiOutputNotAllowed
-                    arity_ok = _check_fixed_arity(caller, inst, errors)
-                    if arity_ok and not isinstance(inst.operands[0], IRLiteral):
+                    _check_fixed_arity(caller, inst, errors)
+                    # a wrong operand or output count is already reported
+                    if len(inst.operands) != 1 or got_num != 1:
+                        continue
+                    if not isinstance(inst.operands[0], IRLiteral):
                         # the static memory bound is an assembler immediate
                         errors.append(InitialFmpArityError(caller, inst))
                     continue
