@@ -28,7 +28,9 @@ def _lower_dalloca(ctx):
         DretDesugarPass(IRAnalysesCache(fn), fn).run_pass()
         run_ssa(fn)
         # allocas stay abstract here (no ConcretizeMemLocPass), so record an
-        # empty static frame for the entry function's FMP roots
+        # empty static frame for the entry function's FMP roots. This stands
+        # in for ConcretizeMemLocPass, which would replace the allocas the
+        # forwarding passes match on with literals
         ctx.mem_allocator.bb_eom.update((bb, 0) for bb in fn.get_basic_blocks())
         FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
         run_ssa(fn)
