@@ -29,6 +29,10 @@ def big(xs: DynArray[uint256, {bound}]) -> DynArray[uint256, {bound}]:
 """
 
 
+class GasDependsOnBigFrame(Exception):
+    pass
+
+
 # `call` exercises the contract and returns the gas used by the call under test
 def _assert_gas_independent_of_big_frame(get_contract, code, call):
     gas = {}
@@ -36,7 +40,10 @@ def _assert_gas_independent_of_big_frame(get_contract, code, call):
         c = get_contract(code + _big_entry(bound))
         assert c.big([1, 2]) == [1, 2]
         gas[bound] = call(c)
-    assert gas[2048] == gas[2]
+    # not an assert, so that an expected gas difference can be told apart
+    # from a wrong result
+    if gas[2048] != gas[2]:
+        raise GasDependsOnBigFrame(gas)
 
 
 def test_length_gas_independent_of_echo_bound(env, get_contract):
@@ -67,7 +74,9 @@ def length(data: Bytes[INF]) -> uint256:
     assert gas[1024] == gas[32]
 
 
-@pytest.mark.xfail(raises=AssertionError, reason="a stack spill anywhere raises every initial FMP")
+@pytest.mark.xfail(
+    raises=GasDependsOnBigFrame, reason="a stack spill anywhere raises every initial FMP"
+)
 def test_length_gas_independent_of_big_frame_with_unrelated_spills(env, get_contract):
     # Keep 16 scalars live across a loop to force spills even at O2/O3/Os.
     # Only length() and big() are called; unrelated() is never executed.
