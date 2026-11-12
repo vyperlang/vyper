@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import ClassVar
+from typing import ClassVar, Iterable
 
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic
@@ -17,7 +17,6 @@ from vyper.venom.analysis import (
     MemLivenessAnalysis,
     MemoryAliasAnalysis,
     MemSSA,
-    ReachableAnalysis,
     ReadonlyMemoryArgsGlobalAnalysis,
     VarDefinition,
     VariableRangeAnalysis,
@@ -44,6 +43,19 @@ def _after_params_index(fn: IRFunction) -> int:
     if len(params) == 0:
         return 0
     return max(fn.entry.instructions.index(param) for param in params) + 1
+
+
+def _reachable_blocks(cfg: CFGAnalysis, starts: Iterable[IRBasicBlock]) -> set[IRBasicBlock]:
+    # the given blocks and every block reachable from them
+    seen: set[IRBasicBlock] = set()
+    worklist = list(starts)
+    while len(worklist) > 0:
+        bb = worklist.pop()
+        if bb in seen:
+            continue
+        seen.add(bb)
+        worklist.extend(cfg.cfg_out(bb))
+    return seen
 
 
 def _copy_metadata(source: IRInstruction, target: IRInstruction) -> None:
@@ -321,7 +333,6 @@ class FmpLoweringPass(IRPass):
         dynamic allocations can be live.
         """
         cfg = self.analyses_cache.request_analysis(CFGAnalysis)
-        reachable = self.analyses_cache.request_analysis(ReachableAnalysis).reachable
         bb_eom = fn.ctx.mem_allocator.bb_eom
 
         fmp_bbs = {
@@ -329,9 +340,8 @@ class FmpLoweringPass(IRPass):
             for bb in cfg.dfs_pre_walk
             if any(self._touches_fmp(inst) for inst in bb.instructions)
         }
-        after_fmp: set[IRBasicBlock] = set()
-        for bb in fmp_bbs:
-            after_fmp.update(reachable[bb])
+        fmp_succs = [succ for bb in fmp_bbs for succ in cfg.cfg_out(bb)]
+        after_fmp = _reachable_blocks(cfg, fmp_succs)
         if fn.entry in after_fmp:
             # a root on the entry block would rerun on every iteration and
             # reset the FMP below the previous iterations' allocations
@@ -352,7 +362,7 @@ class FmpLoweringPass(IRPass):
             root_bbs = [fn.entry]
 
         for bb in root_bbs:
-            bound = max(bb_eom[other] for other in (bb, *reachable[bb]))
+            bound = max(bb_eom[other] for other in _reachable_blocks(cfg, [bb]))
             inst = IRInstruction("initial_fmp", [IRLiteral(bound)], [fmp_var])
             if bb is fn.entry:
                 index = _after_params_index(fn)
