@@ -246,22 +246,22 @@ def foo():
 
 
 @pytest.mark.parametrize(
-    "code,msg",
+    "typ",
     [
-        (
-            "a: DynArray[DynArray[uint256, INF], 5]",
-            "DynArray element types cannot contain unbounded sequence types",
-        ),
-        (
-            "a: DynArray[Bytes[INF], 5]",
-            "DynArray element types cannot contain unbounded sequence types",
-        ),
+        "DynArray[DynArray[uint256, INF], 5]",
+        "DynArray[Bytes[INF], 5]",
+        "DynArray[Bytes[INF], INF]",
+        "DynArray[DynArray[uint256, INF], INF]",
+        "DynArray[DynArray[Bytes[INF], INF], INF]",
     ],
 )
-def test_dynarray_inf_nested(code, msg):
-    with pytest.raises(StructureException) as e:
-        compile_code(code)
-    assert e.value.message == msg
+def test_dynarray_inf_elements(compile_inf_code, typ):
+    code = f"""
+@external
+def foo(a: {typ}):
+    pass
+    """
+    compile_inf_code(code)
 
 
 def test_dynarray_inf_append(compile_inf_code):
@@ -331,6 +331,12 @@ def foo():
     for y: uint256 in []:
         pass
     """,
+    """
+@external
+def foo():
+    for y: Bytes[INF] in []:
+        pass
+    """,
 ]
 
 
@@ -339,3 +345,76 @@ def test_zero_length_dynarray_for_loop_rejected(bad_code):
     with pytest.raises(StructureException) as e:
         compile_code(bad_code)
     assert e.value.message == "For loop must have at least 1 iteration"
+
+
+unbounded_list_literal_loops = [
+    ("a: Bytes[INF], b: Bytes[INF]", "Bytes[INF]"),
+    ("a: String[INF], b: String[INF]", "String[INF]"),
+    ("a: DynArray[uint256, INF], b: DynArray[uint256, INF]", "DynArray[uint256, INF]"),
+    # bounded items widened to an unbounded loop variable
+    ("a: Bytes[10], b: Bytes[10]", "Bytes[INF]"),
+]
+
+
+@pytest.mark.parametrize("args,typ", unbounded_list_literal_loops)
+def test_list_literal_of_unbounded_items_can_be_iterated(compile_inf_code, args, typ):
+    code = f"""
+@external
+def foo({args}):
+    for x: {typ} in [a, b]:
+        pass
+    """
+    # the annotated ast alone skips the compilation target checks, which is
+    # where legacy codegen rejects the unbounded types
+    out = compile_inf_code(code, output_formats=["annotated_ast_dict", "bytecode"])
+    if out is None:
+        return
+    # the literal is typed as a DynArray of the loop variable's type
+    (loop,) = out["annotated_ast_dict"]["ast"]["body"][0]["body"]
+    iter_type = loop["iter"]["type"]
+    assert iter_type["name"] == "DynArray"
+    assert iter_type["length"] == 2
+    assert iter_type["value_type"] == loop["target"]["target"]["type"]
+
+
+tuple_loop_variables_with_unbounded_members = [
+    ("Bytes[INF]", "(Bytes[INF], uint256)", "[(a, i), (b, j)]"),
+    ("String[INF]", "(String[INF], uint256)", "[(a, i), (b, j)]"),
+    ("DynArray[uint256, INF]", "(DynArray[uint256, INF], uint256)", "[(a, i), (b, j)]"),
+    ("Bytes[INF]", "((Bytes[INF], uint256), uint256)", "[((a, i), j), ((b, j), i)]"),
+    # same rule as for locals: a tuple cannot hold a struct with unbounded members
+    ("Batch", "(Batch, uint256)", "[(a, i), (b, j)]"),
+]
+
+
+@pytest.mark.parametrize("item_typ,loop_typ,items", tuple_loop_variables_with_unbounded_members)
+def test_tuple_loop_variable_with_unbounded_members_rejected(item_typ, loop_typ, items):
+    code = f"""
+struct Batch:
+    xs: DynArray[uint256, INF]
+
+@external
+def foo(a: {item_typ}, b: {item_typ}, i: uint256, j: uint256):
+    for x: {loop_typ} in {items}:
+        pass
+    """
+    with pytest.raises(StructureException) as e:
+        compile_code(code)
+    msg = "Loop variables cannot contain unbounded sequence types inside aggregate types"
+    assert e.value.message == msg
+
+
+def test_list_literal_of_structs_with_unbounded_members_can_be_iterated(compile_inf_code):
+    # a struct with unbounded members has a fixed size, so a list of them has a layout
+    code = """
+struct Batch:
+    values: DynArray[uint256, INF]
+
+@external
+def foo(a: Batch, b: Batch) -> uint256:
+    n: uint256 = 0
+    for x: Batch in [a, b]:
+        n += len(x.values)
+    return n
+    """
+    compile_inf_code(code)

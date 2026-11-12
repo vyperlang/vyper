@@ -40,3 +40,94 @@ def test_dft_does_not_reorder_fmp_register_ops():
         sink %a, %b
     """
     _check_no_change(pre)
+
+
+def test_dft_does_not_hoist_assert_above_invoke():
+    """
+    An `assert` must not move above an earlier `invoke`: if both fail,
+    the callee's revert (with its revert data) must win.
+    """
+    pre = """
+    main:
+        invoke @f
+        %x = calldataload 0
+        %y = add %x, 1
+        %c = gt %x, %y
+        %ok = iszero %c
+        assert %ok
+        mstore 0, %y
+        return 0, 32
+    """
+    _check_no_change(pre)
+
+
+def test_dft_does_not_hoist_assert_above_returndatacopy():
+    """
+    `returndatacopy` aborts with an exceptional halt and `assert` with a
+    revert, so an `assert` must not move above an earlier `returndatacopy`.
+    """
+    pre = """
+    main:
+        returndatacopy 64, 0, 32
+        %x = calldataload 0
+        %ok = iszero %x
+        assert %ok
+        %y = mload 64
+        mstore 32, %y
+        return 32, 32
+    """
+    _check_no_change(pre)
+
+
+def test_dft_computes_assert_condition_after_earlier_invoke():
+    """
+    Each `assert` stays after the `invoke` before it, and its condition is
+    computed next to it rather than up front, where it would stay on the
+    stack across every call.
+    """
+    pre = """
+    main:
+        invoke @f
+        %x = calldataload 0
+        %c1 = iszero %x
+        assert %c1
+        invoke @f
+        %c2 = iszero %x
+        assert %c2
+        mstore 0, %x
+        return 0, 32
+    """
+    _check_no_change(pre)
+
+
+def test_dft_long_chain_of_aborts():
+    # each `assert` is ordered after the `invoke` before it, so the chain of
+    # dependencies is as long as the block
+    n = 2000
+    body = "".join(
+        f"%c{i} = iszero %x\n        assert %c{i}\n        invoke @f\n        " for i in range(n)
+    )
+    pre = f"""
+    main:
+        invoke @f
+        %x = calldataload 0
+        {body}return 0, 32
+    """
+    _check_no_change(pre)
+
+
+def test_dft_keeps_assert_as_entry():
+    """
+    The `returndatacopy` is ordered after the `assert`, but the `sstore`
+    between them is not ordered against either. The `assert` must still be
+    scheduled before the `sstore`, which follows it in the block.
+    """
+    pre = """
+    main:
+        %x = calldataload 0
+        assert %x
+        sstore 0, 1
+        returndatacopy 64, 0, 32
+        stop
+    """
+    _check_no_change(pre)

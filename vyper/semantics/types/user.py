@@ -17,7 +17,6 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.utils import validate_expected_type, validate_kwargs
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import BottomT, VyperType
-from vyper.semantics.types.bytestrings import _BytestringT
 from vyper.semantics.types.infinity import is_runtime_sizable_type
 from vyper.semantics.types.subscriptable import HashMapT
 from vyper.semantics.types.utils import member_slot_size, type_from_abi, type_from_annotation
@@ -126,7 +125,9 @@ class FlagT(_UserType):
     _is_prim_word = True
     _as_hashmap_key = True
 
-    def __init__(self, name: str, members: dict) -> None:
+    def __init__(
+        self, name: str, members: dict, decl_node: Optional[vy_ast.VyperNode] = None
+    ) -> None:
         if len(members.keys()) > 256:
             raise FlagDeclarationException("Flags are limited to 256 members!")
 
@@ -142,6 +143,8 @@ class FlagT(_UserType):
 
         # set the name for exception handling in `get_member`
         self._helper._id = name
+
+        self.decl_node = decl_node
 
     def get_type_member(self, key: str, node: vy_ast.VyperNode) -> "VyperType":
         self._helper.get_member(key, node)
@@ -211,7 +214,7 @@ class FlagT(_UserType):
 
             members[member_name] = i
 
-        return cls(base_node.name, members)
+        return cls(base_node.name, members, decl_node=base_node)
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional[VyperType]:
         # TODO
@@ -236,6 +239,8 @@ class EventT(_UserType):
     indexed : list
         A list of booleans indicating if each argument within the event is
         indexed.
+    is_anonymous : bool
+        Whether this is an anonymous event (note that no backend exists for them)
     name : str
         Name of the event.
     """
@@ -249,12 +254,26 @@ class EventT(_UserType):
         name: str,
         arguments: dict,
         indexed: list,
+        is_anonymous: bool,
         decl_node: Optional[vy_ast.VyperNode] = None,
     ) -> None:
         super().__init__(members=arguments)
         self.name = name
         self.indexed = indexed
-        assert len(self.indexed) == len(self.arguments)
+        self.is_anonymous = is_anonymous
+        assert len(self.arguments) == len(self.indexed)
+
+        indexed_count = self.indexed.count(True)
+
+        if is_anonymous and indexed_count > 4:
+            raise EventDeclarationException(
+                "Anonymous event cannot have more than four indexed arguments", decl_node
+            )
+        if not is_anonymous and indexed_count > 3:
+            raise EventDeclarationException(
+                "Event cannot have more than three indexed arguments", decl_node
+            )
+
         self.event_id = int(keccak256(self.signature.encode()).hex(), 16)
 
         self.decl_node = decl_node
@@ -270,7 +289,7 @@ class EventT(_UserType):
 
     def __repr__(self):
         args = []
-        for is_indexed, (_, argtype) in zip(self.indexed, self.arguments.items()):
+        for is_indexed, (_, argtype) in zip(self.indexed, self.arguments.items(), strict=True):
             argtype_str = repr(argtype)
             if is_indexed:
                 argtype_str = f"indexed({argtype_str})"
@@ -302,7 +321,7 @@ class EventT(_UserType):
         for i, item in enumerate(inputs):
             name = _abi_input_name(item, i, members)
             members[name] = type_from_abi(item)
-        return cls(abi["name"], members, indexed)
+        return cls(abi["name"], members, indexed, is_anonymous=abi.get("anonymous", False))
 
     @classmethod
     def from_EventDef(cls, base_node: vy_ast.EventDef) -> "EventT":
@@ -324,10 +343,6 @@ class EventT(_UserType):
             annotation = node.annotation
             if isinstance(annotation, vy_ast.Call) and annotation.get("func.id") == "indexed":
                 validate_call_args(annotation, 1)
-                if indexed.count(True) == 3:
-                    raise EventDeclarationException(
-                        "Event cannot have more than three indexed arguments", annotation
-                    )
                 indexed.append(True)
                 annotation = annotation.args[0]
             else:
@@ -341,17 +356,25 @@ class EventT(_UserType):
                 )
             _add_user_type_member(members, member_name, node, member_type)
 
-        return cls(base_node.name, members, indexed, base_node)
+        res = cls(base_node.name, members, indexed, is_anonymous=False, decl_node=base_node)
+
+        # check at declaration-site for vyper events
+        res._validate_index_types(base_node)
+
+        return res
+
+    def _validate_index_types(self, pos: vy_ast.VyperNode) -> None:
+        # in vyper we only allow primitive words and bytestrings as indexed events
+        # the former are left as-is, and the latter keccak256-hashed
+        for is_indexed, typ in zip(self.indexed, self.arguments.values(), strict=True):
+            if is_indexed and not typ._as_event_index:
+                raise StructureException("Event indexes may only be value types", pos)
 
     def _ctor_call_return(self, node: vy_ast.Call) -> None:
-        # topics hold a single word: primitive words are logged as-is and
-        # bytestrings are keccak256-hashed; no other type has a topic
-        # encoding. checked at the log site (not the declaration) so that
-        # events with such members can still be declared, e.g. to compute
-        # their id, and so json abi events are covered too.
-        for is_indexed, typ in zip(self.indexed, self.arguments.values()):
-            if is_indexed and not (typ._is_prim_word or isinstance(typ, _BytestringT)):
-                raise StructureException("Event indexes may only be value types", node)
+
+        # check at call-site to report un-callable json EventTs lazily
+        # if/when we allow everything solidity allows, move this to declaration-site
+        self._validate_index_types(node)
 
         # validate keyword arguments if provided
         if len(node.keywords) > 0:
@@ -362,7 +385,8 @@ class EventT(_UserType):
                     node,
                 )
 
-            return validate_kwargs(node, self.arguments, self.typeclass)
+            validate_kwargs(node, self.arguments, self.typeclass)
+            return
 
         # warn about positional argument deprecation
         if len(node.args) != 0:
@@ -493,12 +517,12 @@ class StructT(_UserType):
     typeclass = "struct"
     is_valid_element_type = True
 
-    def __init__(self, _id, members, ast_def=None):
+    def __init__(self, _id, members, decl_node=None):
         super().__init__(members)
 
         self._id = _id
 
-        self.ast_def = ast_def
+        self.decl_node = decl_node
 
     @cached_property
     def name(self) -> str:
@@ -567,7 +591,7 @@ class StructT(_UserType):
             members[member_name] = member_type
             node.target._metadata["type"] = member_type
 
-        return cls(struct_name, members, ast_def=base_node)
+        return cls(struct_name, members, decl_node=base_node)
 
     def __str__(self):
         return f"{self._id}"

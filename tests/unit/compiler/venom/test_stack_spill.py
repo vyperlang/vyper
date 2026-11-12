@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.compiler.phases import generate_bytecode
+from vyper.compiler.phases import CompilerData, generate_bytecode
 from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 from vyper.evm.assembler.instructions import CONST
 from vyper.ir.compile_ir import Label
@@ -595,3 +595,96 @@ def test_stack_spill_stack_invalidation_error():
 
     # Try to reorder with spilled_var as target (should restore it from memory)
     compiler._stack_reorder(assembly, stack, expected_stack, spilled, dry_run=False)
+
+
+@pytest.mark.parametrize(
+    "opt_level", [OptimizationLevel.GAS, OptimizationLevel.O3, OptimizationLevel.CODESIZE]
+)
+def test_sibling_branch_does_not_reuse_live_spill_slot(get_contract, opt_level):
+    # each `if ...: return` branch is generated before its fall-through
+    # sibling and frees the spill slots of the live `x` locals. the
+    # fall-through must not hand those slots out to `z` while `x` is
+    # still spilled there.
+    n, m = 24, 8
+    x_locals = "\n".join(
+        f"    x{i}: uint256 = self.s[{i}]\n    self.s[{5000 + i}] = 1" for i in range(n)
+    )
+    z_locals = "\n".join(
+        f"    z{j}: uint256 = self.s[{200 + j}]\n    self.s[{6000 + j}] = 1" for j in range(m)
+    )
+    z_stores = "\n".join(f"    self.s[{7000 + j}] = z{j}" for j in range(m))
+    x_stores = "\n".join(f"    self.s[{9000 + i}] = x{i}" for i in range(6, n))
+    code = f"""
+s: public(HashMap[uint256, uint256])
+c: uint256
+d: uint256
+
+@external
+def foo():
+{x_locals}
+    self.s[100] = x0 + x1
+    if self.c == 0:
+        return
+    self.s[101] = x2 + x3
+{z_locals}
+    if self.d == 0:
+        return
+    self.s[102] = x4 + x5
+{z_stores}
+{x_stores}
+
+@external
+def set(k: uint256, v: uint256):
+    self.s[k] = v
+
+@external
+def setcd(c: uint256, d: uint256):
+    self.c = c
+    self.d = d
+    """
+    settings = Settings(experimental_codegen=True, optimize=opt_level)
+    c = get_contract(code, compiler_settings=settings)
+
+    def val(k):
+        return 0x1000 + k
+
+    for k in [*range(n), *range(200, 200 + m)]:
+        c.set(k, val(k))
+    c.setcd(1, 1)
+    c.foo()
+
+    expected = {100: val(0) + val(1), 101: val(2) + val(3), 102: val(4) + val(5)}
+    expected |= {7000 + j: val(200 + j) for j in range(m)}
+    expected |= {9000 + i: val(i) for i in range(6, n)}
+    assert {k: c.s(k) for k in expected} == expected
+
+
+def test_sibling_branches_share_fresh_spill_slots():
+    # the external functions are sibling branches of the selector dispatch:
+    # none of the slots one of them spills to is live in another, so a
+    # second spilling function needs no more spill memory than the first
+    def spilling_fn(name):
+        n = 20
+        loads = "\n".join(f"    x{i}: uint256 = self.s[{i}]" for i in range(n))
+        stores = "\n".join(f"    self.s[{100 + i}] = x{i}" for i in range(n))
+        total = " + ".join(f"x{i}" for i in range(n))
+        return f"""
+@external
+def {name}() -> uint256:
+{loads}
+{stores}
+    return {total}
+"""
+
+    def peak_spill_end(code):
+        settings = Settings(experimental_codegen=True, optimize=OptimizationLevel.GAS)
+        data = CompilerData(code, settings=settings)
+        compiler = VenomCompiler(data.venom_runtime)
+        compiler.generate_evm_assembly()
+        return compiler.spiller.peak_spill_end
+
+    state = "s: HashMap[uint256, uint256]\n"
+    one = peak_spill_end(state + spilling_fn("f"))
+    two = peak_spill_end(state + spilling_fn("f") + spilling_fn("g"))
+    assert one > 0
+    assert two == one
