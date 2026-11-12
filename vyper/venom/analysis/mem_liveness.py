@@ -55,7 +55,7 @@ class MemLivenessAnalysis(IRAnalysis):
             if not change:
                 break
         else:
-            raise CompilerPanic("Uppper bound in memory liveness reached")
+            raise CompilerPanic("Upper bound in memory liveness reached")
 
         # an alloca whose pointer escapes SSA tracking (stored to memory as
         # a value, passed to an invoke, ...) can be accessed through the
