@@ -186,6 +186,7 @@ def foo(data: Bytes[INF], {params}) -> (uint256, Bytes[INF]):
     asm = compiler.generate_evm_assembly()
     peak_spill_end = compiler.spiller.peak_spill_end
     assert peak_spill_end > bound
+    assert peak_spill_end >= max(ctx.mem_allocator.fn_eom.values(), default=0)
 
     (const,) = [item for item in asm if isinstance(item, CONST)]
     assert const.name == f"__initial_fmp_{bound}__"

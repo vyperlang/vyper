@@ -211,7 +211,10 @@ class VenomCompiler:
         # when nothing spills; otherwise StackSpiller places every spill slot
         # above every function's static frame. Spill slots are not tracked
         # per region, so any spill raises every root to the spill end.
-        return ceil32(max(bound, self.spiller.peak_spill_end))
+        spill_end = self.spiller.peak_spill_end
+        max_eom = max(self.ctx.mem_allocator.fn_eom.values(), default=0)
+        assert spill_end == 0 or spill_end >= max_eom, (spill_end, max_eom)
+        return ceil32(max(bound, spill_end))
 
     def _stack_reorder(
         self,
