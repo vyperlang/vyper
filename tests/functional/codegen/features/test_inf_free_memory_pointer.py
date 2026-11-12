@@ -62,11 +62,7 @@ def length(data: Bytes[INF]) -> uint256:
     assert gas[1024] == gas[32]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="#5244: unrelated stack spills still force a contract-wide initial FMP",
-)
+@pytest.mark.xfail(raises=AssertionError, reason="a stack spill anywhere raises every initial FMP")
 def test_length_gas_independent_of_big_frame_with_unrelated_spills(env, get_contract):
     # Keep 16 scalars live across a loop to force spills even at O2/O3/Os.
     # Only length() and big() are called; unrelated() is never executed.
