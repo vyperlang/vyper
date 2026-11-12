@@ -2,13 +2,15 @@ import pytest
 
 from tests.evm_backends.base_env import BaseEnv
 from tests.venom_utils import assert_ctx_eq, find_inst, parse_from_basic_block, run_ssa
-from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
+from vyper.compiler import compile_code
+from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 from vyper.evm.address_space import MEMORY
 from vyper.evm.assembler.core import assembly_to_evm
 from vyper.evm.assembler.instructions import CONST
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import Label
+from vyper.utils import method_id
 from vyper.venom import run_passes_on
 from vyper.venom.analysis import (
     BasePtrAnalysis,
@@ -1491,6 +1493,75 @@ def test_entry_block_on_fmp_cycle_rejected():
     run_ssa(fn)
     with pytest.raises(CompilerPanic, match="on a cycle through an FMP instruction"):
         FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+
+def _blocks_from(bb) -> set:
+    seen = set()
+    worklist = [bb]
+    while len(worklist) > 0:
+        cur = worklist.pop()
+        if cur in seen:
+            continue
+        seen.add(cur)
+        worklist.extend(cur.out_bbs)
+    return seen
+
+
+@pytest.mark.parametrize(
+    "opt_level", [OptimizationLevel.O1, OptimizationLevel.GAS, OptimizationLevel.CODESIZE]
+)
+def test_runtime_fmp_roots_only_for_externals_using_dynamic_memory(opt_level):
+    # each external function that uses dynamic memory seeds its own FMP
+    # root; no path through the other external functions passes a root
+    source = """
+total: uint256
+
+@external
+def echo(data: Bytes[INF]) -> Bytes[INF]:
+    return data
+
+@external
+def sum_all(xs: DynArray[uint256, INF]) -> uint256:
+    s: uint256 = 0
+    for x: uint256 in xs:
+        s += x
+    return s
+
+@external
+def add(a: uint256, b: uint256) -> uint256:
+    return a + b
+
+@external
+def set_total(a: uint256):
+    self.total = a
+    """
+    settings = Settings(experimental_codegen=True, optimize=opt_level)
+    lowered = compile_code(source, output_formats=["ir_runtime"], settings=settings)["ir_runtime"]
+    fn = parse_venom(str(lowered)).entry_function
+    blocks = list(fn.get_basic_blocks())
+
+    bounds = _initial_fmp_bounds(fn)
+    root_bbs = [bb for bb in blocks if len(bounds[bb.label.value]) > 0]
+    assert sum(len(roots) for roots in bounds.values()) == 2
+    assert len(root_bbs) == 2
+
+    # the dispatcher labels each external function's first block with its selector
+    def entry_block(signature):
+        suffix = f"_{method_id(signature).hex()}"
+        (bb,) = [bb for bb in blocks if bb.label.value.endswith(suffix)]
+        return bb
+
+    dynamic_entries = [entry_block("echo(bytes)"), entry_block("sum_all(uint256[])")]
+    plain_entries = [entry_block("add(uint256,uint256)"), entry_block("set_total(uint256)")]
+
+    for root_bb in root_bbs:
+        after_root = _blocks_from(root_bb)
+        for plain in plain_entries:
+            assert plain not in after_root
+            assert root_bb not in _blocks_from(plain)
+    for entry, other in (dynamic_entries, reversed(dynamic_entries)):
+        (own_root,) = [bb for bb in root_bbs if bb in _blocks_from(entry)]
+        assert own_root not in _blocks_from(other)
 
 
 def test_fmp_prune_seals_signature_and_callers_see_final_shape(env):

@@ -39,6 +39,10 @@ def _assert_gas_independent_of_big_frame(get_contract, code, call):
 
 
 def test_length_gas_independent_of_echo_bound(env, get_contract):
+    """
+    The contract reported in GH 5244: the gas cost of `length` must not
+    depend on the size of `echo`'s static frame.
+    """
     code = """
 BOUND: constant(uint256) = {bound}
 
