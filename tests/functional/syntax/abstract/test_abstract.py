@@ -871,7 +871,7 @@ def some_method() -> uint256:
     baz_path = (tmp_path / "baz_override.vy").as_posix()
 
     assert e.value.message == "Abstract function was not overridden"
-    expected_hint = "did you forget to `initializes:` one of the following modules ?"
+    expected_hint = "did you forget to `initializes:` one of the following modules?"
     expected_hint += f" `{bar_path}`, `{baz_path}`"
     assert e.value.hint == expected_hint
 

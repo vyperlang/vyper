@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from functools import cache
 from itertools import chain, zip_longest
 from typing import Optional
 
@@ -176,7 +175,6 @@ def _validate_initializable_modules(module_ast: vy_ast.Module, module_t: ModuleT
             )
 
 
-@cache
 def _compute_globally_initialized_modules_r(module_t: ModuleT) -> OrderedSet[ModuleT]:
     """
     Compute the set of all `initializes:`-reachable modules from module_t
@@ -1161,11 +1159,11 @@ def _check_overrides(module_ast: vy_ast.Module, globally_initialized: OrderedSet
                 hint = None
                 if len(raw_overrides) != 0:
                     modules = ", ".join(f"`{t.ast_def.module_node.path}`" for t in raw_overrides)
-                    hint = "did you forget to `initializes:` one of the following modules ?"
+                    hint = "did you forget to `initializes:` one of the following modules?"
                     hint += f" {modules}"
 
                 raise FunctionDeclarationException(
-                    "Abstract function was not overridden", func_t.ast_def, hint=hint
+                    "Abstract function was not overridden", func, hint=hint
                 )
 
             override_t = overrides[0]

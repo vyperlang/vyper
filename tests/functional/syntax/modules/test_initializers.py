@@ -1724,7 +1724,7 @@ def bar() -> uint256:
     path = (tmp_path / "override_m.vy").as_posix()
 
     assert e.value.message == "Abstract function was not overridden"
-    expected_hint = f"did you forget to `initializes:` one of the following modules ? `{path}`"
+    expected_hint = f"did you forget to `initializes:` one of the following modules? `{path}`"
     assert e.value.hint == expected_hint
 
 
@@ -1779,7 +1779,7 @@ def foo():
     lib_impl_path = (tmp_path / "lib_impl.vy").as_posix()
 
     assert e.value.message == "Abstract function was not overridden"
-    expected_hint = "did you forget to `initializes:` one of the following modules ?"
+    expected_hint = "did you forget to `initializes:` one of the following modules?"
     expected_hint += f" `{lib_impl_path}`"
     assert e.value.hint == expected_hint
 
@@ -1985,7 +1985,7 @@ def test_foo() -> uint256:
     override_path = (tmp_path / "override_module.vy").as_posix()
 
     assert e.value.message == "Abstract function was not overridden"
-    expected_hint = "did you forget to `initializes:` one of the following modules ?"
+    expected_hint = "did you forget to `initializes:` one of the following modules?"
     expected_hint += f" `{override_path}`"
     assert e.value.hint == expected_hint
 
