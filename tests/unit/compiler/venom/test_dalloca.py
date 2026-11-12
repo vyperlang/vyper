@@ -1495,6 +1495,24 @@ def test_entry_block_on_fmp_cycle_rejected():
         FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
 
+def test_fmp_lowering_without_recorded_static_memory_end_rejected():
+    # the root bounds come from the static memory ends that
+    # ConcretizeMemLocPass records per block; without them the pass must
+    # fail rather than guess a bound
+    ctx = parse_venom("""
+        function main {
+            main:
+                %p = dalloca 32
+                mstore %p, 1
+                stop
+        }
+        """)
+    fn = ctx.entry_function
+    run_ssa(fn)
+    with pytest.raises(CompilerPanic, match="no static memory end"):
+        FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+
 def _blocks_from(bb) -> set:
     seen = set()
     worklist = [bb]

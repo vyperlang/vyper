@@ -369,7 +369,10 @@ class FmpLoweringPass(IRPass):
             bound = 0
             for other in _reachable_blocks(cfg, [bb]):
                 if other not in bb_eom:
-                    # a block created after ConcretizeMemLocPass took the snapshot
+                    # a block created after ConcretizeMemLocPass took the
+                    # snapshot. Only reachable when the pass is run outside
+                    # a validated pipeline: pipeline validation enforces
+                    # the order
                     raise CompilerPanic(
                         f"no static memory end recorded for {other.label} in {fn.name}: "
                         "ConcretizeMemLocPass must run immediately before FmpLoweringPass"
