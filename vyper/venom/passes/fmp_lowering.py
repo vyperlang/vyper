@@ -3,7 +3,7 @@ from typing import ClassVar, Iterable
 
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic
-from vyper.utils import IDENTITY_PRECOMPILE
+from vyper.utils import IDENTITY_PRECOMPILE, OrderedSet
 from vyper.venom.analysis import (
     BasePtrAnalysis,
     CFGAnalysis,
@@ -338,11 +338,11 @@ class FmpLoweringPass(IRPass):
         cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         bb_eom = fn.ctx.mem_allocator.bb_eom
 
-        fmp_bbs = {
+        fmp_bbs = OrderedSet(
             bb
             for bb in cfg.dfs_pre_walk
             if any(self._inst_touches_fmp(inst) for inst in bb.instructions)
-        }
+        )
         fmp_succs = [succ for bb in fmp_bbs for succ in cfg.cfg_out(bb)]
         after_fmp = _reachable_blocks(cfg, fmp_succs)
         if fn.entry in after_fmp:
