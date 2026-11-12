@@ -983,6 +983,34 @@ def foo(s: MyStruct) -> MyStruct:
     assert "voted: bool" in out
 
 
+def test_interface_output_indexed_event_args():
+    code = """
+event Transfer:
+    sender: indexed(address)
+    receiver: indexed(address)
+    value: uint256
+
+@external
+def foo():
+    log Transfer(sender=msg.sender, receiver=msg.sender, value=1)
+    """
+
+    out = compile_code(code, contract_path="code.vy", output_formats=["interface", "abi"])
+
+    expected = """
+event Transfer:
+    sender: indexed(address)
+    receiver: indexed(address)
+    value: uint256
+"""
+    assert expected in out["interface"]
+
+    # the generated interface declares the same event as the contract
+    iface_abi = compile_code(out["interface"], contract_path="code.vyi", output_formats=["abi"])
+    iface_events = [item for item in iface_abi["abi"] if item["type"] == "event"]
+    assert iface_events == [item for item in out["abi"] if item["type"] == "event"]
+
+
 def test_intrinsic_interface_instantiation(make_input_bundle, get_contract):
     lib1 = """
 @external
