@@ -338,7 +338,7 @@ class FmpLoweringPass(IRPass):
         fmp_bbs = {
             bb
             for bb in cfg.dfs_pre_walk
-            if any(self._touches_fmp(inst) for inst in bb.instructions)
+            if any(self._inst_touches_fmp(inst) for inst in bb.instructions)
         }
         fmp_succs = [succ for bb in fmp_bbs for succ in cfg.cfg_out(bb)]
         after_fmp = _reachable_blocks(cfg, fmp_succs)
@@ -378,12 +378,11 @@ class FmpLoweringPass(IRPass):
                 index = len(list(bb.phi_instructions))
             bb.insert_instruction(inst, index=index)
 
-    def _touches_fmp(self, inst: IRInstruction) -> bool:
+    def _inst_touches_fmp(self, inst: IRInstruction) -> bool:
         if inst.opcode in RAW_FMP_TOUCH_OPS:
             return True
         if inst.opcode == "invoke":
-            callee_info = self._invoke_callee_info(inst)
-            return callee_info is not None and callee_info.needs_fmp
+            return self._invoke_needs_fmp(inst)
         return False
 
     def _compute_entry_states(self, fn: IRFunction) -> dict[IRBasicBlock, _ReclaimState]:
@@ -552,7 +551,7 @@ class FmpLoweringPass(IRPass):
         if opcode == "invoke":
             callee_info = self._invoke_callee_info(inst)
             if out is not None:
-                if callee_info is not None and callee_info.needs_fmp:
+                if self._invoke_needs_fmp(inst):
                     self._augment_invoke(inst, self.fmp_var)
                 out.append(inst)
             if callee_info is not None and callee_info.publishes:
@@ -574,14 +573,19 @@ class FmpLoweringPass(IRPass):
             self._invoke_callee_infos[inst] = info
         return self._invoke_callee_infos[inst]
 
+    def _invoke_needs_fmp(self, inst: IRInstruction) -> bool:
+        callee_info = self._invoke_callee_info(inst)
+        if callee_info is None:
+            return False
+        return callee_info.needs_fmp
+
     def _is_reclaim_point(self, inst: IRInstruction) -> bool:
         if inst.opcode == "dalloca":
             return True
         if inst.opcode in ("jmp", "jnz", "djmp"):
             return True
         if inst.opcode == "invoke":
-            callee_info = self._invoke_callee_info(inst)
-            return callee_info is not None and callee_info.needs_fmp
+            return self._invoke_needs_fmp(inst)
         return False
 
     def _pop_dead_suffix(self, state: _ReclaimState, live_vars) -> IRVariable | None:
