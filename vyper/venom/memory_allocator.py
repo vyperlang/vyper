@@ -110,7 +110,9 @@ class MemoryAllocator:
         current function, for `FmpLoweringPass` to bound the entry
         function's FMP roots. Taken here because `ConcretizeMemLocPass`
         replaces the allocas with literals and invalidates
-        `MemLivenessAnalysis`, so it cannot be derived later.
+        `MemLivenessAnalysis`, so it cannot be derived later. Allocas
+        absent from the livesets are never accessed, so they are outside
+        every bound.
         """
         global_eom = self._global_eom()
         for bb in self.current_function.get_basic_blocks():
