@@ -1,8 +1,8 @@
 """
-Dynamic memory of an external function starts above the static memory that
-function can access, not above the largest static frame in the contract, so
-calling a function which uses unbounded types does not pay memory expansion
-for an unrelated function's large frame.
+Without stack spills, dynamic memory of an external function starts above
+the static memory that function can access. Unrelated large frames therefore
+do not increase its memory-expansion cost. Global spill bounds remain a
+limitation, covered by the expected failure below.
 """
 
 import pytest
@@ -60,6 +60,40 @@ def length(data: Bytes[INF]) -> uint256:
         gas[bound] = env.last_result.gas_used
     # echo's frame is about 135KB at bound 1024
     assert gas[1024] == gas[32]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="#5244: unrelated stack spills still force a contract-wide initial FMP",
+)
+def test_length_gas_independent_of_big_frame_with_unrelated_spills(env, get_contract):
+    # Keep 16 scalars live across a loop to force spills even at O2/O3/Os.
+    # Only length() and big() are called; unrelated() is never executed.
+    params = ", ".join(f"a{i}: uint256" for i in range(16))
+    locals_ = "\n".join(f"    v{i}: uint256 = a{i}" for i in range(16))
+    updates = "\n".join(f"        v{i} = unsafe_add(v{i}, j)" for i in range(16))
+    total = " + ".join(f"v{i}" for i in range(16))
+    code = f"""
+@external
+@pure
+def length(data: Bytes[INF]) -> uint256:
+    return len(data)
+
+@external
+@pure
+def unrelated({params}, count: uint256) -> uint256:
+{locals_}
+    for j: uint256 in range(count, bound=10):
+{updates}
+    return {total}
+    """
+
+    def call(c):
+        assert c.length(b"\x01\x02\x03\x04") == 4
+        return env.last_result.gas_used
+
+    _assert_gas_independent_of_big_frame(get_contract, code, call)
 
 
 @pytest.mark.parametrize("inline", [True, False])

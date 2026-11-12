@@ -363,6 +363,9 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
     completes, so it assembles to a `PUSH` of an assembler-level `CONST` resolved at
     assembly time. Pure: repeated `initial_fmp` instructions with the same bound may CSE
     together.
+  - Limitation: spill slots are not tracked per root, so a stack spill anywhere in the
+    contract (even in an external function that is never called) raises every root above
+    the largest static frame.
 - `store`
   - ```
     %out = op
