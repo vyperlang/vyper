@@ -46,7 +46,9 @@ def _after_params_index(fn: IRFunction) -> int:
 
 
 def _reachable_blocks(cfg: CFGAnalysis, starts: Iterable[IRBasicBlock]) -> set[IRBasicBlock]:
-    # the given blocks and every block reachable from them
+    # the given blocks and every block reachable from them. ReachableAnalysis
+    # is not used: it is an all-pairs fixpoint that no O1 pass requests,
+    # while this needs reachability from a few blocks only
     seen: set[IRBasicBlock] = set()
     worklist = list(starts)
     while len(worklist) > 0:
