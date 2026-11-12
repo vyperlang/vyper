@@ -225,7 +225,9 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
     `fmp_signature` (printed as the `[fmp_lowered(, fmp_publishes)?]` function-header
     annotation). The deletion-only `FmpPrunePass` runs after the optimization tail and
     deletes a hidden FMP param whose use chain died, resealing the signature before any
-    caller is lowered (the pass driver is callee-first).
+    caller is lowered (the pass driver is callee-first). `FmpLoweringPass` must run
+    immediately after `ConcretizeMemLocPass`: the bounds of the `initial_fmp` roots come
+    from the per-block static memory ends recorded there.
 - `dret`
   - ```
     dret dyn_count, <ordinary returns...>, src0, size0, ..., return_pc
@@ -357,22 +359,18 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
   - Pushes an initial free-memory-pointer value: the literal `bound` (the end of the static
     memory accessed after this point) rounded up to a word, or, once anything spills, the
     first address above every static frame and stack-spill slot. These are the FMP roots
-    of the entry function; `FmpLoweringPass` places them where the FMP is first needed (in
-    the runtime, one per external function that uses it). Internal functions receive their
-    FMP root via `fmp_param` instead. The concrete value is only known once spill analysis
-    completes, so it assembles to a `PUSH` of an assembler-level `CONST` resolved at
-    assembly time. Pure: repeated `initial_fmp` instructions with the same bound may CSE
-    together.
-  - TODO: a stack spill anywhere in the contract (even in an external function that is
-    never called) raises every root above the largest static frame. Two pieces are
-    missing: spill slots are not tracked per root, and the spiller places every spill
-    region above the largest static frame of the whole contract, so even a tracked spill
-    would sit above it.
+    of the entry function; `FmpLoweringPass` places them where the FMP is first needed,
+    with separate roots for independent entry paths. An external function with default
+    arguments may have multiple roots, one for each selector variant. Internal functions
+    receive their FMP root via `fmp_param` instead. The concrete value is only known once
+    spill analysis completes, so it assembles to a `PUSH` of an assembler-level `CONST`
+    resolved at assembly time. Pure: repeated `initial_fmp` instructions with the same
+    bound may CSE together.
+  - TODO: spill slots are not tracked per root, and the spiller places every spill region
+    above the largest static frame of the whole contract.
   - The entry block must not lie on a cycle through an FMP instruction: a root there
     would reset the FMP on every iteration. Such a function is rejected with a compiler
     panic.
-  - `FmpLoweringPass` must run immediately after `ConcretizeMemLocPass`: the bounds come
-    from the per-block static memory ends recorded there.
 - `store`
   - ```
     %out = op

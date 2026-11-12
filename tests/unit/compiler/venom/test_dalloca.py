@@ -1588,6 +1588,34 @@ def set_total(a: uint256):
         assert own_root not in _blocks_from(other)
 
 
+@pytest.mark.parametrize("opt_level", _ROOT_COUNT_OPT_LEVELS)
+def test_runtime_fmp_root_per_default_argument_variant(opt_level):
+    # every selector variant of an external function with default arguments
+    # is a separate entry path: each decodes or defaults the unbounded
+    # `suffix` before joining the shared body, so each seeds its own root
+    source = """
+@external
+def tagged(
+    data: Bytes[INF], suffix: Bytes[INF] = b"!", n: uint256 = 7
+) -> (Bytes[INF], uint256):
+    return concat(data, suffix), n
+    """
+    settings = Settings(experimental_codegen=True, optimize=opt_level)
+    lowered = compile_code(source, output_formats=["ir_runtime"], settings=settings)["ir_runtime"]
+    fn = parse_venom(str(lowered)).entry_function
+
+    bounds = _initial_fmp_bounds(fn)
+    root_labels = [label for label, roots in bounds.items() if len(roots) > 0]
+    assert sum(len(roots) for roots in bounds.values()) == 3
+    assert len(root_labels) == 3
+
+    # the dispatcher labels each variant's first block with its selector
+    signatures = ("tagged(bytes)", "tagged(bytes,bytes)", "tagged(bytes,bytes,uint256)")
+    for signature in signatures:
+        suffix = f"_{method_id(signature).hex()}"
+        assert len([label for label in root_labels if label.endswith(suffix)]) == 1
+
+
 def test_fmp_prune_seals_signature_and_callers_see_final_shape(env):
     # callee's dalloca dies in the optimization tail; FmpPrunePass deletes
     # the fmp_param chain and seals the signature BEFORE main is lowered, so
