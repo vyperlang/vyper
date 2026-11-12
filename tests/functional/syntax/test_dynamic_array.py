@@ -1,6 +1,7 @@
 import pytest
 
 from vyper import compile_code
+from vyper.compiler.settings import Settings
 from vyper.exceptions import (
     ArrayIndexException,
     CompilerPanic,
