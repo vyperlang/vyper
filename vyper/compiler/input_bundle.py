@@ -4,7 +4,7 @@ import posixpath
 from dataclasses import asdict, dataclass, field
 from functools import cached_property
 from pathlib import Path, PurePath
-from typing import TYPE_CHECKING, Any, Iterator, Optional
+from typing import TYPE_CHECKING, Any, Iterator, Optional, Sequence
 
 from vyper.exceptions import JSONError
 from vyper.utils import sha256sum
@@ -119,12 +119,18 @@ class InputBundle:
 
         return self._source_ids[resolved_path]
 
-    def load_file(self, path: PathLike | str) -> FileInput:
+    def load_file(
+        self, path: PathLike | str, *, search_paths: Optional[Sequence[PathLike]] = None
+    ) -> FileInput:
+        # Explicit paths replace the defaults for this call only, including
+        # an empty sequence. Later paths have higher precedence.
+        if search_paths is None:
+            search_paths = self.search_paths
         # search path precedence
         tried = []
         if isinstance(path, str):
             path = PurePath(path)
-        for sp in reversed(self.search_paths):
+        for sp in reversed(search_paths):
             # note from pathlib docs:
             # > If the argument is an absolute path, the previous path is ignored.
             # Path("/a") / Path("/b") => Path("/b")
