@@ -363,9 +363,16 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
     completes, so it assembles to a `PUSH` of an assembler-level `CONST` resolved at
     assembly time. Pure: repeated `initial_fmp` instructions with the same bound may CSE
     together.
-  - Limitation: spill slots are not tracked per root, so a stack spill anywhere in the
-    contract (even in an external function that is never called) raises every root above
-    the largest static frame.
+  - TODO: a stack spill anywhere in the contract (even in an external function that is
+    never called) raises every root above the largest static frame. Two pieces are
+    missing: spill slots are not tracked per root, and the spiller places every spill
+    region above the largest static frame of the whole contract, so even a tracked spill
+    would sit above it.
+  - The entry block must not lie on a cycle through an FMP instruction: a root there
+    would reset the FMP on every iteration. Such a function is rejected with a compiler
+    panic.
+  - `FmpLoweringPass` must run immediately after `ConcretizeMemLocPass`: the bounds come
+    from the per-block static memory ends recorded there.
 - `store`
   - ```
     %out = op
