@@ -1,7 +1,6 @@
 import pytest
 
 from vyper import compile_code
-from vyper.compiler.settings import Settings
 from vyper.exceptions import (
     ArrayIndexException,
     CompilerPanic,
@@ -358,17 +357,24 @@ unbounded_list_literal_loops = [
 
 
 @pytest.mark.parametrize("args,typ", unbounded_list_literal_loops)
-def test_list_literal_of_unbounded_items_cannot_be_iterated(args, typ):
+def test_list_literal_of_unbounded_items_can_be_iterated(compile_inf_code, args, typ):
     code = f"""
 @external
 def foo({args}):
     for x: {typ} in [a, b]:
         pass
     """
-    with pytest.raises(StructureException) as e:
-        compile_code(code, settings=Settings(experimental_codegen=True))
-    msg = "Iterating over a list literal of unbounded sequence types is not supported"
-    assert e.value.message == msg
+    # the annotated ast alone skips the compilation target checks, which is
+    # where legacy codegen rejects the unbounded types
+    out = compile_inf_code(code, output_formats=["annotated_ast_dict", "bytecode"])
+    if out is None:
+        return
+    # the literal is typed as a DynArray of the loop variable's type
+    (loop,) = out["annotated_ast_dict"]["ast"]["body"][0]["body"]
+    iter_type = loop["iter"]["type"]
+    assert iter_type["name"] == "DynArray"
+    assert iter_type["length"] == 2
+    assert iter_type["value_type"] == loop["target"]["target"]["type"]
 
 
 tuple_loop_variables_with_unbounded_members = [
