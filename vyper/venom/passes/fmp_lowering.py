@@ -362,7 +362,15 @@ class FmpLoweringPass(IRPass):
             root_bbs = [fn.entry]
 
         for bb in root_bbs:
-            bound = max(bb_eom[other] for other in _reachable_blocks(cfg, [bb]))
+            bound = 0
+            for other in _reachable_blocks(cfg, [bb]):
+                if other not in bb_eom:
+                    # a block created after ConcretizeMemLocPass took the snapshot
+                    raise CompilerPanic(
+                        f"no static memory end recorded for {other.label} in {fn.name}: "
+                        "ConcretizeMemLocPass must run immediately before FmpLoweringPass"
+                    )
+                bound = max(bound, bb_eom[other])
             inst = IRInstruction("initial_fmp", [IRLiteral(bound)], [fmp_var])
             if bb is fn.entry:
                 index = _after_params_index(fn)
