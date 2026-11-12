@@ -183,9 +183,13 @@ def __default__():
 
 
 def test_dynamic_data_stays_clear_of_stack_spills(get_contract):
-    # 16 arguments to an internal function spill the stack to memory at
-    # O1; the dynamic `data` is live across the call and must not share
-    # memory with the spill slots
+    """
+    Guards against dynamic data being overwritten by stack spill slots: 16
+    arguments to an internal function spill the stack to memory at O1 while
+    the dynamic `data` is live across the call. That this source spills is
+    pinned by test_initial_fmp_above_spill_region in
+    tests/unit/compiler/venom/test_stack_spill.py; keep the two in sync.
+    """
     params = ", ".join(f"a{i}: uint256" for i in range(16))
     args = ", ".join(f"a{i}" for i in range(16))
     total = " + ".join(f"a{i}" for i in range(16))

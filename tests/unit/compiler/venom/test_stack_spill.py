@@ -157,7 +157,10 @@ def foo({params}) -> uint256:
 
 def test_initial_fmp_above_spill_region() -> None:
     # once anything spills, dynamic memory must start above every spill slot,
-    # even when the static memory bound of its FMP root is lower
+    # even when the static memory bound of its FMP root is lower.
+    # test_dynamic_data_stays_clear_of_stack_spills in
+    # tests/functional/codegen/features/test_inf_free_memory_pointer.py runs
+    # the same source; keep the two in sync
     params = ", ".join(f"a{i}: uint256" for i in range(16))
     args = ", ".join(f"a{i}" for i in range(16))
     total = " + ".join(f"a{i}" for i in range(16))
