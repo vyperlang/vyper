@@ -38,6 +38,9 @@ class SingleUseExpansion(IRPass):
                 self._process_phi(inst)
                 i += 1
                 continue
+            # the bound of `initial_fmp` is an assembler immediate, like the
+            # operands of `offset`: hoisting it into an assign would break
+            # the emitter's literal requirement
             if inst.opcode in ("assign", "offset", "initial_fmp") or inst.is_param:
                 i += 1
                 continue

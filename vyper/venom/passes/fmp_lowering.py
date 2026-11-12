@@ -344,7 +344,9 @@ class FmpLoweringPass(IRPass):
         after_fmp = _reachable_blocks(cfg, fmp_succs)
         if fn.entry in after_fmp:
             # a root on the entry block would rerun on every iteration and
-            # reset the FMP below the previous iterations' allocations
+            # reset the FMP below the previous iterations' allocations. Only
+            # hand-written Venom produces this: the frontend's entry block
+            # has no predecessors
             raise CompilerPanic(
                 f"entry block of {fn.name} is on a cycle through an FMP instruction"
             )
