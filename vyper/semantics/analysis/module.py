@@ -92,7 +92,7 @@ def analyze_modules(imports: ImportAnalyzer) -> ModuleT:
     ret = _compute_module_type_r(root_module_ast)
 
     root_module_t = root_module_ast._metadata["type"]
-    globally_initialized = _compute_initializes_reachable_modules(root_module_t)
+    globally_initialized = _compute_globally_initialized_modules_r(root_module_t)
 
     for module_ast in modules:
         _check_overrides(module_ast, globally_initialized)
@@ -177,9 +177,12 @@ def _validate_initializable_modules(module_ast: vy_ast.Module, module_t: ModuleT
 
 
 @cache
-def _compute_initializes_reachable_modules(module_t: ModuleT) -> OrderedSet[ModuleT]:
+def _compute_globally_initialized_modules_r(module_t: ModuleT) -> OrderedSet[ModuleT]:
+    """
+    Compute the set of all `initializes:`-reachable modules from module_t
+    """
     reachable = (
-        _compute_initializes_reachable_modules(info.module_info.module_t)
+        _compute_globally_initialized_modules_r(info.module_info.module_t)
         for info in module_t.initialized_modules
     )
     return OrderedSet(chain([module_t], *reachable))
