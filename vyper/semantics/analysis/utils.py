@@ -83,21 +83,28 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
 
     scope_name = "expression"
 
-    def __init__(self, keep_wildcards: bool = False):
+    def __init__(self):
         self.namespace = get_namespace()
-        # see `type_supremum`
-        self.keep_wildcards = keep_wildcards
 
-    def visit(self, node, allow_type_exprs: bool = False) -> list[VyperType]:
+    def visit(
+        self, node, allow_type_exprs: bool = False, keep_wildcards: bool = False
+    ) -> list[VyperType]:
+
+        # only list literals and ternaries combine the types of their
+        # operands (see `type_supremum`), every other node drops the flag
+        keep_wildcards = keep_wildcards and isinstance(node, (vy_ast.List, vy_ast.IfExp))
 
         # this method is a perf hotspot, so we cache the result and
         # try to return it if found.
         k = "possible_types_from_node"
-        if self.keep_wildcards:
+        if keep_wildcards:
             k = "possible_types_from_node_keep_wildcards"
         if k not in node._metadata:
             # we don't pass `allow_type_exprs` to the `visit_...` nodes, as they shouldn't handle it
-            possible_types = super().visit(node)
+            if keep_wildcards:
+                possible_types = super().visit(node, keep_wildcards=True)
+            else:
+                possible_types = super().visit(node)
 
             if all(isinstance(t, IntegerT) for t in possible_types):
                 # for numeric types, sort according to number of bits descending
@@ -271,27 +278,29 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
 
         raise InvalidLiteral(msg, node, hint=hint)
 
-    def visit_IfExp(self, node):
+    def visit_IfExp(self, node, keep_wildcards=False):
         validate_expected_type(node.test, BoolT())
 
-        then_t = self.visit(node.body)
-        else_t = self.visit(node.orelse)
-        types_list = type_supremum(then_t, else_t, keep_wildcards=self.keep_wildcards)
+        then_t = self.visit(node.body, keep_wildcards=keep_wildcards)
+        else_t = self.visit(node.orelse, keep_wildcards=keep_wildcards)
+        types_list = type_supremum(then_t, else_t, keep_wildcards=keep_wildcards)
 
         if not types_list:
             raise TypeMismatch(f"Dislike types: {then_t[0]} and {else_t[0]}", node)
 
         return types_list
 
-    def visit_List(self, node):
+    def visit_List(self, node, keep_wildcards=False):
         # literal array
 
         if len(node.elements) == 0:
             # can't have an empty SArrayT
             return [DArrayT(BottomT(), 0)]
 
-        element_types = (self.visit(element) for element in node.elements)
-        types_list = type_supremum(*element_types, keep_wildcards=self.keep_wildcards)
+        element_types = (
+            self.visit(element, keep_wildcards=keep_wildcards) for element in node.elements
+        )
+        types_list = type_supremum(*element_types, keep_wildcards=keep_wildcards)
 
         if len(types_list) > 0:
             count = len(node.elements)
@@ -344,9 +353,7 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
     def visit_Subscript(self, node):
         # index access, e.g. `foo[1]`
         if isinstance(node.value, (vy_ast.List, vy_ast.Subscript)):
-            # no expected type reaches the base (cf. `ExprVisitor.visit_Subscript`),
-            # so its wildcards are not kept
-            types_list = get_possible_types_from_node(node.value)
+            types_list = self.visit(node.value)
             ret = []
             for t in types_list:
                 t.validate_index_type(node.slice)
@@ -451,7 +458,9 @@ def get_possible_types_from_node(
         List of one or more VyperType objects.
     """
 
-    return _TypeSynthesizer(keep_wildcards).visit(node, allow_type_exprs=allow_type_exprs)
+    return _TypeSynthesizer().visit(
+        node, allow_type_exprs=allow_type_exprs, keep_wildcards=keep_wildcards
+    )
 
 
 def get_exact_type_from_node(node: vy_ast.VyperNode, allow_type_exprs: bool = False) -> VyperType:
