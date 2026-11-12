@@ -282,20 +282,11 @@ class VenomCompiler:
 
     def _initial_fmp_value(self, bound: int) -> int:
         # `bound` is the static memory end of the root's region (see
-        # FmpLoweringPass._insert_initial_fmp_roots). Spill regions are not
-        # tracked per region, so once anything spills every root falls back
-        # to the value below.
-        if self.spiller.peak_spill_end == 0:
-            return ceil32(bound)
-        # Initial FMP must live above every function's static frame
-        # AND above every function's spill region. Spill regions start above
-        # the largest static frame and are disjoint between functions;
-        # `peak_spill_end` tracks the end of the last allocated region.
-        # Placing the initial FMP at or above that value guarantees that the
-        # dynamic allocation region never aliases with a spill area.
-        eoms = [self.ctx.mem_allocator.fn_eom.get(fn, 0) for fn in self.ctx.functions.values()]
-        max_eom = max(eoms, default=0)
-        return ceil32(max(max_eom, self.spiller.peak_spill_end))
+        # FmpLoweringPass._insert_initial_fmp_roots). The spill end is zero
+        # when nothing spills; otherwise StackSpiller places every spill slot
+        # above every function's static frame. Spill slots are not tracked
+        # per region, so any spill raises every root to the spill end.
+        return ceil32(max(bound, self.spiller.peak_spill_end))
 
     def _stack_reorder(
         self,
