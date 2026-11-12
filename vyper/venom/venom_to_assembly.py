@@ -771,6 +771,8 @@ class VenomCompiler:
             # CONSTREF here and declare the CONST with the final value once
             # all per-function codegen (and spill analysis) has completed.
             (bound,) = inst.operands
+            # FmpLoweringPass emits a literal, SingleUseExpansion leaves it
+            # in place and check_venom rejects a non-literal
             assert isinstance(bound, IRLiteral), inst
             assembly.append(PUSH_OFST(CONSTREF(_initial_fmp_const(bound.value)), 0))
             self._initial_fmp_bounds.add(bound.value)
