@@ -206,11 +206,11 @@ class VenomCompiler:
         return asm
 
     def _initial_fmp_value(self, bound: int) -> int:
-        # `bound` is the static memory end of the root's region (see
-        # FmpLoweringPass._insert_initial_fmp_roots). The spill end is zero
-        # when nothing spills; otherwise StackSpiller places every spill slot
-        # above every function's static frame. Spill slots are not tracked
-        # per region, so any spill raises every root to the spill end.
+        # `bound` is the static memory end of the root's region, computed
+        # by FmpLoweringPass. The spill end is zero when nothing spills;
+        # otherwise StackSpiller places every spill slot above every
+        # function's static frame. Spill slots are not tracked per region,
+        # so any spill raises every root to the spill end.
         spill_end = self.spiller.peak_spill_end
         max_eom = max(self.ctx.mem_allocator.fn_eom.values(), default=0)
         assert spill_end == 0 or spill_end >= max_eom, (spill_end, max_eom)
