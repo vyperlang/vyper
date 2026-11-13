@@ -1,7 +1,10 @@
+import warnings
+
 import pytest
 
 from vyper import compiler
 from vyper.exceptions import ModuleNotFound, StructureException
+from vyper.warnings import VyperWarning
 
 CODE_TOP = """
 import subdir0.lib0 as lib0
@@ -194,3 +197,52 @@ def bar():
 
     input_bundle = make_input_bundle({"top.vy": top, "a.vy": a, "subdir/b.vy": b})
     compiler.compile_from_file_input(top, input_bundle=input_bundle)
+
+
+@pytest.mark.parametrize("used,ignored", [(".vy", ".vyi"), (".vy", ".json"), (".vyi", ".json")])
+def test_import_warns_about_ignored_file(make_input_bundle, used, ignored):
+    top = """
+import lib1
+    """
+    input_bundle = make_input_bundle({f"lib1{used}": "", f"lib1{ignored}": "[]"})
+
+    with pytest.warns(VyperWarning, match=rf"ignoring `.*lib1\{ignored}`"):
+        compiler.compile_code(top, input_bundle=input_bundle)
+
+
+def test_import_does_not_warn_for_other_suffixes(make_input_bundle):
+    top = """
+import lib1
+    """
+    input_bundle = make_input_bundle({"lib1.vy": "", "lib1.txt": ""})
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", VyperWarning)
+        compiler.compile_code(top, input_bundle=input_bundle)
+
+
+def test_ignored_file_is_not_read(make_input_bundle, tmp_path):
+    top = """
+import lib1
+    """
+    input_bundle = make_input_bundle({"lib1.vy": ""})
+    # not valid utf-8, so reading it would fail
+    (tmp_path / "lib1.vyi").write_bytes(b"\xff\xfe")
+
+    with pytest.warns(VyperWarning, match=r"ignoring `.*lib1\.vyi`"):
+        compiler.compile_code(top, input_bundle=input_bundle)
+
+    # the ignored file did not take a source id
+    assert all(path.name != "lib1.vyi" for path in input_bundle._source_ids)
+
+
+def test_import_ignores_directory_with_later_suffix(make_input_bundle, tmp_path):
+    top = """
+import lib1
+    """
+    input_bundle = make_input_bundle({"lib1.vy": ""})
+    (tmp_path / "lib1.json").mkdir()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", VyperWarning)
+        compiler.compile_code(top, input_bundle=input_bundle)
