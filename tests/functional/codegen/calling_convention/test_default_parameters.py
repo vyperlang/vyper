@@ -382,6 +382,28 @@ BAR: constant(Bar) = Bar(a=123)
 def foo(x: bool = BAR.a + 1 > 456):
     pass
     """,
+    """
+struct S:
+    x: uint256
+
+A: constant(S[2]) = [S(x=123), S(x=456)]
+
+@external
+def foo(
+    a: S = A[block.number % 2],
+    b: uint256 = A[block.number % 2].x,
+    c: uint256 = A[block.number].x,
+):
+    pass
+    """,
+    """
+# chain state read through a constant base is still evaluable on entry
+A: constant(address) = 0x0000000000000000000000000000000000000001
+
+@external
+def foo(a: uint256 = A.balance):
+    pass
+    """,
 ]
 
 
@@ -476,6 +498,38 @@ def foo(a: uint256[2] = [2, self.x]): pass
 def foo(a: uint256 = msg.value): pass
 """,
         NonPayableViolation,
+    ),
+    (
+        """
+# balance is chain state, not a runtime constant
+x: address
+
+@external
+def foo(a: uint256 = self.x.balance): pass
+     """,
+        StateAccessViolation,
+    ),
+    (
+        """
+# balance is chain state, not a runtime constant
+@external
+def foo(a: uint256 = self.balance): pass
+     """,
+        StateAccessViolation,
+    ),
+    (
+        """
+# a view member is only as constant as the value it is reached through,
+# and storage can be written to mid-call
+interface Foo:
+    def foo() -> uint256: view
+
+iface: Foo
+
+@external
+def foo(a: address = self.iface.address): pass
+     """,
+        StateAccessViolation,
     ),
 ]
 

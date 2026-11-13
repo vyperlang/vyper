@@ -10,7 +10,7 @@ Vyper abstract syntax tree (AST).
 `vyper.semantics` has the following structure:
 
 * [`types/`](types): Subpackage of classes and methods used to represent types
-  * [`bases.py`](types/bases.py): Common base classes for all type objects
+  * [`base.py`](types/base.py): Common base classes for all type objects
   * [`bytestrings.py`](types/bytestrings.py): Single-value subscript types (bytes, string)
   * [`function.py`](types/function.py): Contract function and member function types
   * [`primitives.py`](types/primitives.py): Address, boolean, fixed length byte, integer and decimal types
@@ -19,13 +19,12 @@ Vyper abstract syntax tree (AST).
   * [`user.py`](types/user.py): Flag, event, interface and struct types
   * [`utils.py`](types/utils.py): Functions for generating and fetching type objects
 * [`analysis/`](analysis): Subpackage for type checking and syntax verification logic
-  * [`annotation.py`](analysis/annotation.py): Annotates statements and expressions with the appropriate type information
   * [`base.py`](analysis/base.py): Base validation class
   * [`common.py`](analysis/common.py): Base AST visitor class
   * [`data_positions`](analysis/data_positions.py): Functions for tracking storage variables and allocating storage slots
   * [`levenhtein_utils.py`](analysis/levenshtein_utils.py): Helper for better error messages
   * [`local.py`](analysis/local.py): Validates the local namespace of each function within a contract
-  * [`pre_typecheck.py`](analysis/pre_typecheck.py): Evaluate foldable nodes and populate their metadata with the replacement nodes.
+  * [`constant_folding.py`](analysis/constant_folding.py): Evaluate foldable nodes and populate their metadata with the replacement nodes.
   * [`module.py`](analysis/module.py): Validates the module namespace of a contract.
   * [`utils.py`](analysis/utils.py): Functions for comparing and validating types
 * [`data_locations.py`](data_locations.py): `DataLocation` object for type location information
@@ -45,7 +44,7 @@ consists of four steps:
 
 ### 1. Populating the metadata of foldable nodes with their replacement nodes
 
-[`analysis/pre_typecheck.py`](analysis/pre_typecheck.py) populates the metadata of foldable nodes with their replacement nodes.
+[`analysis/constant_folding.py`](analysis/constant_folding.py) populates the metadata of foldable nodes with their replacement nodes.
 
 This process includes:
 1. Foldable node classes and builtin functions are evaluated via their `fold` method, which attempts to create a new `Constant` from the content of the given node.
@@ -121,6 +120,9 @@ additional restrictions:
 
 * Attempting to replace an existing field raises `NamespaceCollision`
 * Attempting to access a key that does not exist raises `UndeclaredDefinition`
+* Values must expose a `decl_node` attribute, e.g. `VarInfo`, `VyperType` or
+`ModuleInfo`. It is used to point at the previous declaration when reporting a
+`NamespaceCollision`.
 
 To ensure that only one copy of `Namespace` exists throughout the package, you
 should access it using the `get_namespace` method:
@@ -149,7 +151,7 @@ Values added while inside the context are removed when the context is exited.
 
 ```python
 with namespace.enter_scope():
-    namespace['foo'] = 42
+    namespace['foo'] = VarInfo(UINT256_T)
 
 namespace['foo']  # this raises an UndeclaredDefinition
 ```
@@ -164,7 +166,7 @@ methods, which validate an AST node and produce a type object
 which are used to validate interactions and obtain new types based on AST nodes
 
 All possible methods for type objects are outlined within the base
-classes in [`types/bases.py`](types/bases.py). The functionality within the methods
+classes in [`types/base.py`](types/base.py). The functionality within the methods
 of the base classes is typically to raise and give a meaningful explanation
 for _why_ the syntax not valid.
 

@@ -7,6 +7,7 @@ from vyper.exceptions import (
     CodegenPanic,
     InvalidOperation,
     InvalidType,
+    MemoryAllocationException,
     StructureException,
 )
 from vyper.semantics.data_locations import DataLocation
@@ -16,12 +17,13 @@ from vyper.semantics.types.infinity import (
     WILDCARD,
     LengthUpperBound,
     is_bounded_length,
+    is_runtime_sizable_type,
     length_to_json,
     type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.primitives import IntegerT
 from vyper.semantics.types.shortcuts import UINT256_T
-from vyper.semantics.types.utils import get_index_value, type_from_annotation
+from vyper.semantics.types.utils import get_index_value, member_slot_size, type_from_annotation
 from vyper.warnings import VyperWarning, vyper_warn
 
 
@@ -181,6 +183,8 @@ class SArrayT(_SequenceT):
 
     _id = "$SArray"
 
+    length: int  # narrows type from parent
+
     def __init__(self, value_type: VyperType, length: int) -> None:
         if length == 0:
             raise InvalidType("Array length is invalid")
@@ -284,6 +288,9 @@ class DArrayT(_SequenceT):
     def __init__(self, value_type: VyperType, length: LengthUpperBound) -> None:
         super().__init__(value_type, length)
 
+        if length is INF and not value_type.has_wildcard:
+            self._validate_unbounded_element_size(value_type)
+
         from vyper.semantics.types.function import MemberFunctionT
 
         self.add_member("append", MemberFunctionT(self, "append", [self.value_type], None, True))
@@ -326,24 +333,50 @@ class DArrayT(_SequenceT):
     def size_in_bytes(self):
         if self.length is INF:
             raise CodegenPanic("DynArray[..., INF] don't have a size!")
-        # one length word + size of the array items
-        return 32 + self.value_type.size_in_bytes * self.length
+        # one length word + size of the array items; an unbounded element
+        # has a fixed inline size, see `member_slot_size`
+        return 32 + member_slot_size(self.value_type) * self.length
 
     @property
     def has_wildcard(self):
         return self.length is WILDCARD or self.value_type.has_wildcard
 
     @staticmethod
-    def _validate_unbounded_shape(value_type, length, node=None):
-        if type_contains_unbounded_sequence(value_type):
+    def _validate_element_has_inline_size(value_type, node=None):
+        # an unbounded element has a fixed inline size (see `member_slot_size`); a
+        # tuple or static array holding INF has none. `_as_darray` and
+        # `SArrayT.from_annotation` reject such annotations, but a wildcard
+        # static array element (`DynArray[uint256, ...][2]`) only becomes one
+        # when the wildcard resolves to INF
+        if type_contains_unbounded_sequence(value_type) and not is_runtime_sizable_type(value_type):
             raise StructureException(
-                "DynArray element types cannot contain unbounded sequence types", node
+                "DynArray elements cannot contain unbounded sequence types inside aggregate types",
+                node,
+            )
+
+    @staticmethod
+    def _validate_unbounded_element_size(value_type):
+        # the memory and ABI sizes of an INF array are computed at runtime as
+        # its length times the element's size, and the free memory pointer
+        # is bumped by them without an overflow check. capping the element
+        # at the limit for static memory keeps those sizes far from 2**256
+        # for any length the input can claim.
+        size = member_slot_size(value_type)
+        if not type_contains_unbounded_sequence(value_type):
+            # an element holding INF has a runtime ABI size; the INF
+            # sequences inside it are checked when they are constructed
+            size = max(size, value_type.abi_type.size_bound())
+        limit = 2**64
+        if size >= limit:
+            raise MemoryAllocationException(
+                f"Element type of DynArray[..., INF] takes {size} bytes! "
+                f"(limit is {limit} (2**64) bytes)"
             )
 
     def resolve_wildcard(self):
         resolved_value = self.value_type.resolve_wildcard()
         resolved_length = INF if self.length is WILDCARD else self.length
-        self._validate_unbounded_shape(resolved_value, resolved_length)
+        self._validate_element_has_inline_size(resolved_value)
         if resolved_value is not self.value_type or resolved_length is not self.length:
             return DArrayT(resolved_value, resolved_length)
         return self
@@ -393,7 +426,10 @@ class DArrayT(_SequenceT):
         if not value_type._as_darray:
             raise StructureException(f"Arrays of {value_type} are not allowed", value_node)
 
-        cls._validate_unbounded_shape(value_type, length, value_node)
+        # a tuple or static array holding INF is rejected by its own annotation
+        assert not type_contains_unbounded_sequence(value_type) or is_runtime_sizable_type(
+            value_type
+        )
 
         return cls(value_type, length)
 

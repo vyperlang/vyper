@@ -7,13 +7,13 @@ from .infinity import (
     WILDCARD,
     LengthUpperBound,
     is_bounded_length,
+    is_pointer_cell_struct_type,
+    is_runtime_sizable_type,
     is_supported_unbounded_tuple_type,
     is_unbounded_bytestring_type,
     is_unbounded_dynarray_type,
     is_unbounded_sequence_type,
-    type_contains_nested_unbounded_sequence,
     type_contains_unbounded_sequence,
-    type_contains_unsupported_unbounded_sequence,
 )
 from .module import InterfaceT, ModuleT
 from .primitives import AddressT, BoolT, BytesM_T, DecimalT, IntegerT, SelfT

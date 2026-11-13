@@ -497,7 +497,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
         if res is not None:
             changed = True
             should_check_symbols = True
-            value, argz, annotation = res  # type: ignore
+            value, argz, annotation = res
             return finalize(value, argz)
 
     ###

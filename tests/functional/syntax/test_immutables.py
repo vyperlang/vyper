@@ -159,7 +159,7 @@ def __init__():
 def hello() :
     self.x.a =  2
     """,
-        "Immutable value cannot be written to",
+        "Immutable value can only be mutated in the constructor",
         None,
     ),
     (
@@ -174,7 +174,24 @@ def __init__():
 def bump():
     self.VALUE += 1
     """,
-        "Immutable value cannot be written to",
+        "Immutable value can only be mutated in the constructor",
+        None,
+    ),
+    (
+        # the index is modifiable, but that does not make the immutable writable
+        """
+x: immutable(uint256[3])
+
+@deploy
+def __init__():
+    x = [1, 2, 3]
+
+@external
+def hello(i: uint256):
+    j: uint256 = i
+    x[j] = 2
+    """,
+        "Immutable value can only be mutated in the constructor",
         None,
     ),
 ]

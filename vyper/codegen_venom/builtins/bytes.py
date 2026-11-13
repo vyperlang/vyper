@@ -45,7 +45,7 @@ def _new_slice_output(ctx: VenomCodegenContext, out_t, length: IROperand) -> Vyp
         size = ctx.bytestring_runtime_size_from_length(length)
         ptr = ctx.allocate_scratch(size)
         ctx.zero_bytestring_padding(ptr, length)
-        return ctx.dynamic_memory_value(ptr, out_t, annotation="slice")
+        return ctx.owned_memory_value(ptr, out_t, annotation="slice")
 
     return ctx.new_temporary_value(out_t)
 
@@ -56,13 +56,17 @@ def _lower_concat_bounded(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperV
     b = ctx.builder
     args = node.args
 
-    # Calculate max output length (for buffer allocation)
+    # Calculate max output length and the furthest data byte any store can
+    # reach: bytesM args are written with full-word mstores, which can extend
+    # up to 31 bytes past ceil32(max_len)
     max_len = 0
+    data_bound = 0
     for arg in args:
         arg_t = arg._metadata["type"]
         if isinstance(arg_t, _BytestringT):
             max_len += arg_t.maxlen
         else:  # BytesM_T
+            data_bound = max(data_bound, max_len + 32)
             max_len += arg_t.m
 
     # Determine output type (string or bytes)
@@ -73,8 +77,9 @@ def _lower_concat_bounded(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperV
     else:
         out_typ = BytesT(max_len)
 
-    # Allocate output buffer (length word + data)
-    out_val = ctx.new_temporary_value(out_typ)
+    bufsize = max(out_typ.memory_bytes_required, 32 + data_bound)
+    out_buf = ctx.allocate_buffer(bufsize)
+    out_val = VyperValue.from_ptr(out_buf.base_ptr(), out_typ)
     data_ptr = ctx.add_offset(out_val.ptr(), IRLiteral(32))
 
     # Track current offset as a variable
@@ -150,11 +155,9 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             lowered_args.append((arg_t, arg_val, arg_len))
 
         arg_unbounded = is_unbounded_bytestring_type(arg_t)
-        if total_len_unbounded or arg_unbounded:
-            total_len = ctx.checked_add(total_len, arg_len)
-            total_len_unbounded = True
-        else:
-            total_len = b.add(total_len, arg_len)
+        total_len, total_len_unbounded = ctx.add_size(
+            total_len, arg_len, total_len_unbounded, arg_unbounded
+        )
 
     # Allocate output buffer (length word + data)
     out_ptr: IROperand
@@ -167,7 +170,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
         scratch_size = ctx.checked_add(scratch_size, IRLiteral(32))
     scratch_ptr = ctx.allocate_scratch(scratch_size)
     ctx.zero_bytestring_padding(scratch_ptr, total_len)
-    out_val = ctx.dynamic_memory_value(scratch_ptr, out_typ, annotation="concat")
+    out_val = ctx.owned_memory_value(scratch_ptr, out_typ, annotation="concat")
     out_ptr = scratch_ptr
 
     data_ptr = b.add(out_ptr, IRLiteral(32))
@@ -188,11 +191,9 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             dst = b.add(data_ptr, offset)
             ctx.copy_memory_dynamic(dst, arg_data, arg_len, ctx.data_size_bound(arg_t))
             arg_unbounded = is_unbounded_bytestring_type(arg_t)
-            if offset_unbounded or arg_unbounded:
-                new_offset = ctx.checked_add(offset, arg_len)
-                offset_unbounded = True
-            else:
-                new_offset = b.add(offset, arg_len)
+            new_offset, offset_unbounded = ctx.add_size(
+                offset, arg_len, offset_unbounded, arg_unbounded
+            )
             ctx.ptr_store(offset_local.ptr(), new_offset)
         else:
             # Fixed bytesM: the value is already left-aligned in 32 bytes
@@ -200,10 +201,7 @@ def lower_concat(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             offset = ctx.ptr_load(offset_local.ptr())
             dst = b.add(data_ptr, offset)
             b.mstore(dst, arg_val)
-            if offset_unbounded:
-                new_offset = ctx.checked_add(offset, arg_len)
-            else:
-                new_offset = b.add(offset, arg_len)
+            new_offset, offset_unbounded = ctx.add_size(offset, arg_len, offset_unbounded, False)
             ctx.ptr_store(offset_local.ptr(), new_offset)
 
     # Store final length at output buffer

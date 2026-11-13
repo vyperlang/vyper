@@ -21,7 +21,7 @@ from vyper.codegen_venom.abi import (
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.eval_order import later_expressions_can_mutate_memory_or_storage
 from vyper.codegen_venom.value import VyperValue
-from vyper.exceptions import CompilerPanic, StructureException
+from vyper.exceptions import StructureException, UnfoldableNode
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     BytesT,
@@ -58,7 +58,7 @@ def _get_bool_kwarg(node: vy_ast.Call, kwarg_name: str, default: bool) -> bool:
     # Could also be an Int with constant value
     if isinstance(kw_node, vy_ast.Int):
         return bool(kw_node.value)
-    raise CompilerPanic(f"unfoldable boolean kwarg: {kwarg_name}", kw_node)
+    raise UnfoldableNode(f"unfoldable boolean kwarg: {kwarg_name}", kw_node)
 
 
 def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
@@ -194,7 +194,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             ctx, buf_ptr, method_id, encode_unbounded, ctx.checked_add, zero_tail_padding=True
         )
 
-        return ctx.dynamic_memory_value(buf_ptr, node._metadata["type"], annotation="abi_encode")
+        return ctx.owned_memory_value(buf_ptr, node._metadata["type"], annotation="abi_encode")
 
     # Calculate buffer size
     bufsz = encode_type.abi_type.size_bound()
@@ -242,10 +242,14 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     # Reject bounded input buffers which cannot fit the decoded value. An
     # unbounded input is checked against its runtime length below.
-    if not is_unbounded_sequence_type(output_typ):
-        abi_size_bound = wrapped_typ.abi_type.size_bound()
-        input_max_len = data_node._metadata["type"].maxlen
-        if is_bounded_length(input_max_len) and input_max_len < abi_size_bound:
+    input_max_len = data_node._metadata["type"].maxlen
+    if is_bounded_length(input_max_len):
+        if type_contains_unbounded_sequence(output_typ):
+            # no size bound; the input must at least hold the static head
+            abi_size_bound = wrapped_typ.abi_type.static_size()
+        else:
+            abi_size_bound = wrapped_typ.abi_type.size_bound()
+        if input_max_len < abi_size_bound:
             raise StructureException(
                 (
                     "Mismatch between size of input and size of decoded types. "
@@ -286,18 +290,23 @@ def lower_abi_decode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
 
     # Validate size
     abi_min_size = wrapped_typ.abi_type.static_size()
-    abi_max_size = wrapped_typ.abi_type.size_bound()
-
-    if abi_min_size == abi_max_size:
-        # Fixed size: assert exact match
-        b.assert_(b.eq(data_len, IRLiteral(abi_min_size)))
-    else:
-        # Variable size: assert min <= len <= max
-        # ge(a, b) = iszero(lt(a, b))
-        # le(a, b) = iszero(gt(a, b))
+    if type_contains_unbounded_sequence(output_typ):
+        # a struct with unbounded members has no size bound; the decoder
+        # checks every member against `hi` instead
         ge_min = b.iszero(b.lt(data_len, IRLiteral(abi_min_size)))
-        le_max = b.iszero(b.gt(data_len, IRLiteral(abi_max_size)))
-        b.assert_(b.and_(ge_min, le_max))
+        b.assert_(ge_min)
+    else:
+        abi_max_size = wrapped_typ.abi_type.size_bound()
+        if abi_min_size == abi_max_size:
+            # Fixed size: assert exact match
+            b.assert_(b.eq(data_len, IRLiteral(abi_min_size)))
+        else:
+            # Variable size: assert min <= len <= max
+            # ge(a, b) = iszero(lt(a, b))
+            # le(a, b) = iszero(gt(a, b))
+            ge_min = b.iszero(b.lt(data_len, IRLiteral(abi_min_size)))
+            le_max = b.iszero(b.gt(data_len, IRLiteral(abi_max_size)))
+            b.assert_(b.and_(ge_min, le_max))
 
     # Allocate output buffer
     output_val = ctx.new_temporary_value(wrapped_typ)

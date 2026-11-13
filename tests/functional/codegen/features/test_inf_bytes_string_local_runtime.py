@@ -1638,6 +1638,32 @@ def pair(x: Bytes[INF]) -> (Bytes[INF], Bytes[5]):
     assert c.pair(payload) == (payload, b"small")
 
 
+@pytest.mark.parametrize("maxlen", [1, 32])
+@pytest.mark.parametrize("out_type", ["int256", "decimal"])
+def test_internal_dynamic_tuple_empty_bounded_bytes_signed_convert(
+    get_contract, no_inlining_settings, maxlen, out_type
+):
+    # The same call site reuses its bounded member buffer. An empty return
+    # must not retain the sign bit of the previous iteration's data word.
+    code = f"""
+@internal
+def _pair(i: uint256, b: Bytes[{maxlen}]) -> (Bytes[INF], Bytes[{maxlen}]):
+    if i == 0:
+        return b"", b
+    return b"", b""
+
+@external
+def foo(b: Bytes[{maxlen}]) -> {out_type}[2]:
+    result: {out_type}[2] = empty({out_type}[2])
+    for i: uint256 in range(2):
+        result[i] = convert(self._pair(i, b)[1], {out_type})
+    return result
+    """
+
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.foo(b"\xff" * maxlen) == [-1, 0]
+
+
 def test_inf_bytes_internal_tuple_return_subscript(get_contract, no_inlining_settings):
     code = """
 @internal
@@ -2137,8 +2163,12 @@ def deploy({target_arg}s: Bytes[INF], x: Bytes[INF], y: uint256) -> address:
 
     with pytest.raises(StructureException) as e:
         compile_code(code, settings=compiler_settings)
-    message = "constructor arguments cannot contain nested unbounded sequence types"
+    message = (
+        "Unsupported unbounded sequence nesting in constructor argument type: "
+        "(Bytes[INF], uint256)"
+    )
     assert e.value.message == message
+    assert e.value.annotations[0].node_source_code == "(x, y)"
 
 
 def test_inf_bytes_raw_log_data(env, get_contract):
@@ -2625,3 +2655,28 @@ def foo(flag: bool) -> Bytes[3]:
     c = get_contract(code)
     assert c.foo(False) == b"one"
     assert c.foo(True) == b"two"
+
+
+def test_inf_bytes_calldata_checks_before_copy(env, get_contract, tx_failed, no_inlining_settings):
+    # the internal calls are ordered after the checks of `x`'s calldata
+    # encoding, which must still run before `x` is copied to memory: a huge
+    # length must revert, not run out of gas expanding memory.
+    code = """
+@internal
+def _g() -> uint256:
+    return 7
+
+@internal
+def _f(x: Bytes[INF], m: uint256) -> uint256:
+    return len(x) + m
+
+@external
+def foo(x: Bytes[INF]) -> uint256:
+    return self._f(x, self._g())
+    """
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.foo(b"cat") == 10
+
+    data = c.foo.method_id + abi_encode("(uint256,uint256)", (32, 2**64))
+    with tx_failed(ExecutionReverted):
+        env.message_call(c.address, data=data, gas=1_000_000)

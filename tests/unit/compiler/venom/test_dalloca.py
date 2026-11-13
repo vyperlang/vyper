@@ -245,13 +245,16 @@ def test_dalloca_lowering_invalidates_stale_analyses():
     ac.request_analysis(VariableRangeAnalysis)
     ac.request_analysis(ReadonlyMemoryArgsGlobalAnalysis)
 
+    assert ctx.global_analyses_cache is not None
+    canonical = ctx.global_analyses_cache.function_analyses_caches[fn]
+
     FmpLoweringPass(ac, fn).run_pass()
 
-    assert LoadAnalysis not in ac.analyses_cache
-    assert MemSSA not in ac.analyses_cache
-    assert MemoryAliasAnalysis not in ac.analyses_cache
-    assert VarDefinition not in ac.analyses_cache
-    assert VariableRangeAnalysis not in ac.analyses_cache
+    assert LoadAnalysis not in canonical.analyses_cache
+    assert MemSSA not in canonical.analyses_cache
+    assert MemoryAliasAnalysis not in canonical.analyses_cache
+    assert VarDefinition not in canonical.analyses_cache
+    assert VariableRangeAnalysis not in canonical.analyses_cache
     assert ReadonlyMemoryArgsGlobalAnalysis not in ctx.global_analyses_cache.analyses_cache
 
 
@@ -1185,7 +1188,7 @@ def test_getfmp_cse_merges_only_without_intervening_fmp_write():
             sink %a, %b, %c, %p
         """)
     fn = next(iter(ctx.functions.values()))
-    CSE(IRAnalysesCache(fn), fn).run_pass()
+    CSE(IRAnalysesCache(fn), fn).run_pass(gas_heuristic=6)
 
     insts = {inst.output: inst for inst in fn.entry.instructions if inst.num_outputs == 1}
     # %b merged into %a
@@ -1204,7 +1207,7 @@ def test_getfmp_cse_blocked_across_setfmp():
             sink %a, %b
         """)
     fn = next(iter(ctx.functions.values()))
-    CSE(IRAnalysesCache(fn), fn).run_pass()
+    CSE(IRAnalysesCache(fn), fn).run_pass(gas_heuristic=6)
 
     insts = {inst.output: inst for inst in fn.entry.instructions if inst.num_outputs == 1}
     assert insts[IRVariable("%b")].opcode == "getfmp"
