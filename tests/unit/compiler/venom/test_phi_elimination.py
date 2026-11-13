@@ -3,6 +3,7 @@ import pytest
 from tests.venom_utils import PrePostChecker
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel
+from vyper.venom.check_venom import find_semantic_errors
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes import PhiEliminationPass
 
@@ -400,3 +401,137 @@ def test_phi_elim_multi_output_invoke_same_output_eliminated():
     assert len(z_assigns) == 1
     assert z_assigns[0].opcode == "assign"
     assert z_assigns[0].operands[0].name == "%r2"
+
+
+@pytest.mark.parametrize("join_order", [("pjoin", "qjoin", "rjoin"), ("rjoin", "qjoin", "pjoin")])
+def test_phi_elim_preserves_shared_multi_origin_phi(join_order):
+    source = """
+    function main {
+    main:
+        %a = calldataload 0
+        %b = calldataload 32
+        %c = calldataload 64
+        %cond = calldataload 96
+        jnz %cond, @r1, @r2
+    r1:
+        jmp @rjoin
+    r2:
+        jmp @rjoin
+    rjoin:
+        %r = phi @r1, %b, @r2, %c
+        jnz %cond, @direct, @qstart
+    direct:
+        jmp @pjoin
+    qstart:
+        jnz %cond, @q1, @q2
+    q1:
+        jmp @qjoin
+    q2:
+        jmp @qjoin
+    qjoin:
+        %q = phi @q1, %a, @q2, %r
+        jmp @pjoin
+    pjoin:
+        %p = phi @qjoin, %q, @direct, %r
+        mstore 0, %p
+        return 0, 32
+    }
+    """
+    ctx = parse_venom(source)
+    fn = ctx.get_function(IRLabel("main"))
+    # Analyze outer PHIs both before and after their inner barriers are cached.
+    for label in join_order:
+        bb = fn.get_basic_block(label)
+        fn.remove_basic_block(bb)
+        fn.append_basic_block(bb)
+
+    assert find_semantic_errors(ctx) == []
+    PhiEliminationPass(IRAnalysesCache(fn), fn).run_pass()
+    assert find_semantic_errors(ctx) == []
+
+    # Visiting %r through %q must not discard the direct %r operand of %p.
+    p = fn.get_basic_block("pjoin").instructions[0]
+    assert p.opcode == "phi"
+    assert p.output.name == "%p"
+
+
+def test_phi_elim_cycle_memo_respects_active_ancestors():
+    source = """
+    function main {
+    main:
+        %x = calldataload 0
+        %y = calldataload 32
+        %cond = calldataload 64
+        jnz %cond, @X, @Y
+    P:
+        %p = phi @A, %a, @B, %b
+        jnz %cond, @B, @exit
+    A:
+        %a = phi @D, %d, @X, %x
+        jmp @P
+    B:
+        %b = phi @P, %p, @D, %d
+        jnz %cond, @P, @D
+    D:
+        %d = phi @B, %b, @Y, %y
+        jnz %cond, @A, @B
+    X:
+        jmp @A
+    Y:
+        jmp @D
+    exit:
+        mstore 0, %p
+        return 0, 32
+    }
+    """
+    ctx = parse_venom(source)
+    fn = ctx.get_function(IRLabel("main"))
+    assert find_semantic_errors(ctx) == []
+    PhiEliminationPass(IRAnalysesCache(fn), fn).run_pass()
+    assert find_semantic_errors(ctx) == []
+    # A partial result from the walk through A must not turn P into %p = %a.
+    assert fn.get_basic_block("P").instructions[0].opcode == "phi"
+
+
+def test_phi_elim_shared_diamonds_in_loop_have_bounded_traversal():
+    class CountingPhiEliminationPass(PhiEliminationPass):
+        calls = 0
+
+        def _get_phi_origins_r(self, inst, var, visited):
+            self.calls += 1
+            return super()._get_phi_origins_r(inst, var, visited)
+
+    depth = 12
+    blocks = [f"""
+        function main {{
+        main:
+            %init = calldataload 0
+            %cond = calldataload 32
+            jmp @header
+        header:
+            %h = phi @main, %init, @d{depth}, %p{depth}
+            jnz %cond, @l1, @r1
+        """]
+    for i in range(1, depth + 1):
+        prev = "%h" if i == 1 else f"%p{i - 1}"
+        terminator = "jmp @header" if i == depth else f"jnz %cond, @l{i + 1}, @r{i + 1}"
+        blocks.append(f"""
+            l{i}:
+                %x{i} = {prev}
+                jmp @d{i}
+            r{i}:
+                %y{i} = {prev}
+                jmp @d{i}
+            d{i}:
+                %p{i} = phi @l{i}, %x{i}, @r{i}, %y{i}
+                {terminator}
+            """)
+
+    ctx = parse_venom("".join(blocks) + "}")
+    fn = ctx.get_function(IRLabel("main"))
+    assert find_semantic_errors(ctx) == []
+    visitor = CountingPhiEliminationPass(IRAnalysesCache(fn), fn)
+    visitor.run_pass()
+    assert find_semantic_errors(ctx) == []
+    # Path-local traversal without guarded memoization makes 16,443 calls.
+    assert visitor.calls < 20 * depth

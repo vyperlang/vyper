@@ -45,34 +45,53 @@ class PhiEliminationPass(IRPass):
 
     def _get_phi_origins(self, inst: IRInstruction):
         assert inst.opcode == "phi"  # sanity
+        self._origin_memo: dict[
+            IRInstruction, tuple[set[IROperand], set[IRInstruction], set[IRInstruction]]
+        ] = {}
         visited: set[IRInstruction] = set()
-        self.phi_to_origins[inst] = self._get_phi_origins_r(inst, inst.output, visited)
+        self.phi_to_origins[inst], _, _ = self._get_phi_origins_r(inst, inst.output, visited)
 
     # traverse chains of phis and stores to get the "root" definitions
     # for phis. `var` is the ssa variable through which `inst` was
     # reached; it identifies which output of `inst` is the origin.
     def _get_phi_origins_r(
         self, inst: IRInstruction, var: IROperand, visited: set[IRInstruction]
-    ) -> set[IROperand]:
+    ) -> tuple[set[IROperand], set[IRInstruction], set[IRInstruction]]:
         if inst.opcode == "phi":
             if inst in self.phi_to_origins:
-                return self.phi_to_origins[inst]
+                return self.phi_to_origins[inst], set(), set()
 
             if inst in visited:
                 # we have hit a dfg cycle. break the recursion.
                 # if it is only visited we have found a self
                 # reference, and we won't find anything more by
                 # continuing the recursion.
-                return set()
+                return set(), {inst}, set()
+
+            cached = self._origin_memo.get(inst)
+            if cached is not None:
+                _, cuts, tree = cached
+                # Reuse only when the same cycle cuts apply and no expanded
+                # PHI has become an ancestor on this path.
+                if cuts <= visited and tree.isdisjoint(visited):
+                    return cached
 
             visited.add(inst)
 
             res: set[IROperand] = set()
+            cuts: set[IRInstruction] = set()
+            tree: set[IRInstruction] = {inst}
 
             for _, op_var in inst.phi_operands:
                 next_inst = self.dfg.get_producing_instruction(op_var)
                 assert next_inst is not None, (inst, op_var)
-                res |= self._get_phi_origins_r(next_inst, op_var, visited)
+                sub_res, sub_cuts, sub_tree = self._get_phi_origins_r(next_inst, op_var, visited)
+                res |= sub_res
+                cuts |= sub_cuts
+                tree |= sub_tree
+
+            visited.remove(inst)
+            cuts -= tree
 
             if len(res) > 1:
                 # multi-origin phi: treat the phi itself as a "barrier" origin.
@@ -87,8 +106,10 @@ class PhiEliminationPass(IRPass):
                 #   %c = phi %a, %b  ; barrier (two origins)
                 #   %d = %c
                 #   %f = phi %d, %c  ; both paths lead to %c, so %f = %c
-                return set([inst.output])
-            return res
+                res = set([inst.output])
+            result = res, cuts, tree
+            self._origin_memo[inst] = result
+            return result
 
         if inst.opcode == "assign" and isinstance(inst.operands[0], IRVariable):
             # traverse assignment chain
@@ -100,4 +121,4 @@ class PhiEliminationPass(IRPass):
         # root of the phi/assignment chain. note that for multi-output
         # instructions (e.g. invoke), different outputs are distinct
         # origins because their output operands are distinct.
-        return set([var])
+        return set([var]), set(), set()
