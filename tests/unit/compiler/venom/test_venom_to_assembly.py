@@ -1,3 +1,5 @@
+# ruff: noqa: E501
+
 from tests.venom_utils import parse_from_basic_block
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings
