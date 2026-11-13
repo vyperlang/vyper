@@ -109,9 +109,13 @@ For module M1 to override module M2:
 
 1. M1 must :ref:`initialize <initializing-module>` M2
 2. M1 must override each abstract method of M2, see :ref:`Overriding abstract methods <overriding-abstract-methods>`
+3. The root module (the file passed to the `vyper` command) must :ref:`initialize <initializing-module>` (directly or indirectly) M1
 
 .. note::
     So there is no choice to be made about which override to choose, abstract modules can only be overridden once. This is guaranteed by the initialization system.
+
+.. note::
+    Condition 3 allows you to swap between modules overriding the same abstract module by toggling which of the two you initialize.
 
 .. _overriding-abstract-methods:
 
