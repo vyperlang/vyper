@@ -369,8 +369,7 @@ Assembly can be inspected with `-f asm`, whereas an opcode view of the final byt
   - TODO: spill slots are not tracked per root, and the spiller places every spill region
     above the largest static frame of the whole contract.
   - The entry block must not lie on a cycle through an FMP instruction: a root there
-    would reset the FMP on every iteration. Such a function is rejected with a compiler
-    panic.
+    would reset the FMP on every iteration. `FmpLoweringPass` asserts this.
 - `store`
   - ```
     %out = op

@@ -1491,7 +1491,7 @@ def test_entry_block_on_fmp_cycle_rejected():
     fn = ctx.entry_function
     ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
     run_ssa(fn)
-    with pytest.raises(CompilerPanic, match="on a cycle through an FMP instruction"):
+    with pytest.raises(AssertionError, match="on a cycle through an FMP instruction"):
         FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
 
@@ -1509,7 +1509,7 @@ def test_fmp_lowering_without_recorded_static_memory_end_rejected():
         """)
     fn = ctx.entry_function
     run_ssa(fn)
-    with pytest.raises(CompilerPanic, match="no static memory end"):
+    with pytest.raises(AssertionError, match="no static memory end"):
         FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
 
 

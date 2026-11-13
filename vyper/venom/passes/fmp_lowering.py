@@ -345,14 +345,13 @@ class FmpLoweringPass(IRPass):
         )
         fmp_succs = [succ for bb in fmp_bbs for succ in cfg.cfg_out(bb)]
         after_fmp = _reachable_blocks(cfg, fmp_succs)
-        if fn.entry in after_fmp:
-            # a root on the entry block would rerun on every iteration and
-            # reset the FMP below the previous iterations' allocations. Only
-            # hand-written Venom produces this: the frontend's entry block
-            # has no predecessors
-            raise CompilerPanic(
-                f"entry block of {fn.name} is on a cycle through an FMP instruction"
-            )
+        # a root on the entry block would rerun on every iteration and reset
+        # the FMP below the previous iterations' allocations. Only
+        # hand-written Venom produces this: the frontend's entry block has no
+        # predecessors
+        assert (
+            fn.entry not in after_fmp
+        ), f"entry block of {fn.name} is on a cycle through an FMP instruction"
 
         root_bbs = []
         for bb in cfg.dfs_pre_walk:
@@ -370,15 +369,13 @@ class FmpLoweringPass(IRPass):
         for bb in root_bbs:
             bound = 0
             for other in _reachable_blocks(cfg, [bb]):
-                if other not in bb_eom:
-                    # a block created after ConcretizeMemLocPass took the
-                    # snapshot. Only reachable when the pass is run outside
-                    # a validated pipeline: pipeline validation enforces
-                    # the order
-                    raise CompilerPanic(
-                        f"no static memory end recorded for {other.label} in {fn.name}: "
-                        "ConcretizeMemLocPass must run immediately before FmpLoweringPass"
-                    )
+                # a missing block was created after ConcretizeMemLocPass
+                # took the snapshot. Only reachable when the pass is run
+                # outside a validated pipeline: pipeline validation enforces
+                # the order
+                assert (
+                    other in bb_eom
+                ), f"no static memory end recorded for {other.label} in {fn.name}"
                 bound = max(bound, bb_eom[other])
             inst = IRInstruction("initial_fmp", [IRLiteral(bound)], [fmp_var])
             if bb is fn.entry:
