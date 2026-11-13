@@ -172,6 +172,16 @@ def _subscript_read_write_overlap(
     return _contains_risky_call(index_node)
 
 
+def _is_derived_from_pop(node: vy_ast.VyperNode) -> bool:
+    """Return True if `node` is a `pop()` result, or a member or element of one."""
+    while isinstance(node, (vy_ast.Subscript, vy_ast.Attribute)):
+        node = node.value
+    if not isinstance(node, vy_ast.Call):
+        return False
+    func_t = node.func._metadata.get("type")
+    return isinstance(func_t, MemberFunctionT) and func_t.name == "pop"
+
+
 def is_unbounded_array_element(node: vy_ast.VyperNode) -> bool:
     """Return True if `node` is `xs[i]` where `xs` is a DynArray of unbounded
     sequences, i.e. the element is a pointer cell (see
@@ -1057,6 +1067,13 @@ class Expr:
         node = self.node
         assert isinstance(node, vy_ast.Subscript)
         base_typ = node.value._metadata["type"]
+
+        if _is_derived_from_pop(node.value) and _subscript_read_write_overlap(
+            node.value, node.slice
+        ):
+            # The popped element is past the array's new length, so the
+            # index can overwrite it before the base is read.
+            raise CompilerPanic("risky overlap")
 
         base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
         reference = base_vv.reference
