@@ -94,19 +94,18 @@ ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
 # Builtins whose lowering emits call-family opcodes. This mirrors
 # IRnode.contains_risky_call at the source level.
-_RISKY_BUILTINS = {
+# builtins which can run code that writes this contract's (transient) storage
+_STATE_MUTATING_BUILTINS = {
     "raw_call",
     "send",
     "raw_create",
     "create_minimal_proxy_to",
     "create_copy_of",
     "create_from_blueprint",
-    "ecrecover",
-    "ecadd",
-    "ecmul",
-    "sha256",
-    "print",
 }
+
+# precompile and console calls cannot write state, but clobber memory
+_RISKY_BUILTINS = _STATE_MUTATING_BUILTINS | {"ecrecover", "ecadd", "ecmul", "sha256", "print"}
 
 
 def get_referenced_variables(node: vy_ast.VyperNode) -> set:
@@ -122,41 +121,53 @@ def get_referenced_variables(node: vy_ast.VyperNode) -> set:
     return ret
 
 
-def _contains_risky_call(node: vy_ast.VyperNode) -> bool:
+def _contains_risky_call(node: vy_ast.VyperNode, state_only: bool = False) -> bool:
+    """Return True if evaluating `node` can call code which mutates data.
+
+    With `state_only`, only consider calls which can write storage or
+    transient storage. Static calls and precompiles cannot.
+    """
     if isinstance(node, vy_ast.ExprNode):
         # Ignore calls which were folded away at compile time.
         node = node.reduced()
 
-    if isinstance(node, (vy_ast.ExtCall, vy_ast.StaticCall)):
+    if isinstance(node, vy_ast.ExtCall):
+        return True
+
+    if isinstance(node, vy_ast.StaticCall) and not state_only:
         return True
 
     if isinstance(node, vy_ast.Call):
         func_t = node.func._metadata.get("type")
-        if isinstance(func_t, BuiltinFunctionT) and func_t._id in _RISKY_BUILTINS:
+        risky_builtins = _STATE_MUTATING_BUILTINS if state_only else _RISKY_BUILTINS
+        if isinstance(func_t, BuiltinFunctionT) and func_t._id in risky_builtins:
             return True
         if isinstance(func_t, ContractFunctionT) and func_t.is_internal:
-            if _function_contains_risky_call(func_t.get_concrete_override()):
+            if _function_contains_risky_call(func_t.get_concrete_override(), state_only):
                 return True
 
-    return any(_contains_risky_call(child) for child in node._children)
+    return any(_contains_risky_call(child, state_only) for child in node._children)
 
 
-def _function_contains_risky_call(func_t: ContractFunctionT) -> bool:
+def _function_contains_risky_call(func_t: ContractFunctionT, state_only: bool) -> bool:
     decl_node = func_t.decl_node
     assert decl_node is not None
-    if "contains_risky_call" not in decl_node._metadata:
+    key = "contains_state_mutating_call" if state_only else "contains_risky_call"
+    if key not in decl_node._metadata:
         # Recursion is forbidden, so the call graph traversal terminates.
-        decl_node._metadata["contains_risky_call"] = any(
-            _contains_risky_call(child) for child in decl_node._children
+        decl_node._metadata[key] = any(
+            _contains_risky_call(child, state_only) for child in decl_node._children
         )
-    return decl_node._metadata["contains_risky_call"]
+    return decl_node._metadata[key]
 
 
 def _subscript_read_write_overlap(
-    base_node: vy_ast.VyperNode, index_node: vy_ast.VyperNode
+    base_node: vy_ast.VyperNode, index_node: vy_ast.VyperNode, state_only: bool
 ) -> bool:
     # The base is evaluated before the index. Detect an index expression
-    # which can mutate variables used to derive that base.
+    # which can mutate variables used to derive that base. A base which
+    # lives in (transient) storage is only affected by calls which can
+    # write state (`state_only`).
     base_reads = {
         var
         for var in get_referenced_variables(base_node)
@@ -169,7 +180,7 @@ def _subscript_read_write_overlap(
     if base_reads & index_writes:
         return True
 
-    return _contains_risky_call(index_node)
+    return _contains_risky_call(index_node, state_only)
 
 
 def is_unbounded_array_element(node: vy_ast.VyperNode) -> bool:
@@ -1060,20 +1071,25 @@ class Expr:
 
         base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
         reference = base_vv.reference
+        in_state = base_vv.location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
         overlap = (
             reference is not None
             and len(reference.indices) > 0
-            and _subscript_read_write_overlap(node.value, node.slice)
+            and _subscript_read_write_overlap(node.value, node.slice, state_only=in_state)
         )
         if overlap and self.as_ptr:
             raise CompilerPanic("risky overlap")
         if overlap:
-            # An unbounded member of an array element cannot be mutated in
-            # place, so its payload survives removal of the containing frame.
-            if not is_unbounded_sequence_type(base_typ):
-                base_vv = self.ctx.materialize_value(base_vv, base_typ)
-            else:
+            if is_unbounded_sequence_type(base_typ):
+                # An unbounded member of an array element cannot be mutated in
+                # place, so its payload survives removal of the containing frame.
                 base_vv = base_vv.with_reference(None)
+            elif in_state:
+                # Storage bounds need not fit in memory, so snapshot only the
+                # live elements rather than the declared capacity.
+                base_vv = self.ctx.snapshot_live_array(base_vv, base_typ)
+            else:
+                base_vv = self.ctx.materialize_value(base_vv, base_typ)
 
         index = Expr(node.slice, self.ctx).lower_value()
         base_vv = self._resolve_after(base_vv, node.slice, node.value)
@@ -1374,7 +1390,10 @@ class Expr:
     ) -> VyperValue:
         """Consume a live reference after an expression that may invalidate it."""
         reference = value.reference
-        if reference is None or not _subscript_read_write_overlap(derived_from, evaluated):
+        if reference is None:
+            return value
+        in_state = value.location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
+        if not _subscript_read_write_overlap(derived_from, evaluated, state_only=in_state):
             return value
         ptr, reference = reference.resolve(self.ctx, value.operand)
         assert value.location is not None
