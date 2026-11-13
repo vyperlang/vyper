@@ -223,6 +223,12 @@ Integrity Hash
 
 To help tooling detect whether two builds are the same, Vyper provides the ``-f integrity`` output, which outputs the integrity hash of a contract. The integrity hash is recursively defined as the sha256 of the source code with the integrity hashes of its dependencies (imports) and storage layout overrides (if provided).
 
+When a storage layout override is provided, the integrity hash is ``sha256(layout_hash + imports_hash)``, where both operands are hex-encoded digests and ``imports_hash`` is the integrity hash the contract would have without the override. ``layout_hash`` is the sha256 of a canonical serialization of the override, so that it does not depend on the formatting of the layout file: the parsed JSON is re-serialized with object keys sorted, ``", "`` and ``": "`` as separators, no indentation and non-ASCII characters escaped (the output of Python's ``json.dumps(layout, sort_keys=True)``).
+
+.. note::
+
+    Prior to this change, ``layout_hash`` was the sha256 of the layout file as written. Archives recording such an integrity hash are still reproduced as long as the layout file they contain matches it byte for byte.
+
 .. _vyper-archives:
 
 Vyper Archives
