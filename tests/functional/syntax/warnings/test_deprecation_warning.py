@@ -5,6 +5,7 @@ import pytest
 
 import vyper
 from vyper.cli.vyper_json import compile_json
+from vyper.compiler.settings import Settings
 from vyper.exceptions import ImmutableViolation
 
 deprecated = [
@@ -51,6 +52,18 @@ def __init__(x: uint256):
 def test_deprecated_warning(code):
     with pytest.warns(vyper.warnings.Deprecation):
         vyper.compile_code(code)
+
+
+@pytest.mark.parametrize("use_experimental_codegen", [False, True])
+def test_create_forwarder_warning_is_codegen_independent(use_experimental_codegen):
+    code = """
+@external
+def foo() -> address:
+    return create_forwarder_to(0x1234567890123456789012345678901234567890)
+    """
+
+    with pytest.warns(vyper.warnings.Deprecation, match="create_forwarder_to"):
+        vyper.compile_code(code, settings=Settings(experimental_codegen=use_experimental_codegen))
 
 
 def test_multiple_warnings():
