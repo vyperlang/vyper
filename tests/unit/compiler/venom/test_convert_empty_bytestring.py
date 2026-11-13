@@ -19,8 +19,10 @@ def _runtime_venom(code: str):
 
 def _check_reads_in_bounds(ctx):
     """Check each `mload`, and each fixed-size `mcopy`, at a literal offset
-    from an alloca reads inside it, and that no fixed-size `mcopy` reads
-    from a runtime-sized `dalloca`."""
+    from an alloca reads inside it, that each `mload` at a literal offset
+    from a runtime-sized `dalloca` reads its first word (the length word,
+    all an empty value's buffer holds), and that no fixed-size `mcopy`
+    reads from a `dalloca`."""
     for fn in ctx.functions.values():
         insts = [inst for bb in fn.get_basic_blocks() for inst in bb.instructions]
         alloca_size = {}
@@ -30,7 +32,9 @@ def _check_reads_in_bounds(ctx):
                 alloca_size[inst.output] = inst.operands[0].value
             elif inst.opcode == "dalloca":
                 dallocas.add(inst.output)
-        # (alloca size, offset) of each pointer at a literal offset into an alloca
+                # all a `dalloca` is sure to hold is one word
+                alloca_size[inst.output] = 32
+        # (size, offset) of each pointer at a literal offset into an alloca
         ptr = {var: (size, 0) for var, size in alloca_size.items()}
         for inst in insts:
             if inst.opcode != "add":
@@ -88,5 +92,27 @@ def test_widening_bytestring_convert_is_not_read_past(arg_typ, expr, ret_typ):
 def f(x: {arg_typ}) -> {ret_typ}:
     y: {ret_typ} = {expr}
     return y
+    """
+    _check_reads_in_bounds(_runtime_venom(code))
+
+
+@pytest.mark.parametrize(
+    "arg_typ,out_typ",
+    [
+        ("Bytes[INF]", "bool"),
+        ("Bytes[INF]", "uint256"),
+        ("Bytes[INF]", "int256"),
+        ("Bytes[INF]", "decimal"),
+        ("Bytes[INF]", "bytes32"),
+        ("Bytes[INF]", "bytes4"),
+        ("String[INF]", "bool"),
+    ],
+)
+def test_unbounded_bytestring_convert_is_not_read_past(arg_typ, out_typ):
+    # an empty unbounded bytestring's buffer is its length word alone
+    code = f"""
+@external
+def f(x: {arg_typ}) -> {out_typ}:
+    return convert(x, {out_typ})
     """
     _check_reads_in_bounds(_runtime_venom(code))

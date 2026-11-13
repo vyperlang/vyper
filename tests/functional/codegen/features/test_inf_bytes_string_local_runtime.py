@@ -2680,3 +2680,49 @@ def foo(x: Bytes[INF]) -> uint256:
     data = c.foo.method_id + abi_encode("(uint256,uint256)", (32, 2**64))
     with tx_failed(ExecutionReverted):
         env.message_call(c.address, data=data, gas=1_000_000)
+
+
+@pytest.mark.parametrize("val", [b"", b"\x01", b"\xff", b"\x80" + b"\x00" * 3])
+def test_inf_bytes_convert_to_word_types(get_contract, val):
+    # an empty value converts like an empty bounded bytestring
+    code = """
+@external
+def to_bool(x: Bytes[INF]) -> bool:
+    return convert(x, bool)
+
+@external
+def to_uint256(x: Bytes[INF]) -> uint256:
+    return convert(x, uint256)
+
+@external
+def to_int256(x: Bytes[INF]) -> int256:
+    return convert(x, int256)
+
+@external
+def to_decimal(x: Bytes[INF]) -> decimal:
+    return convert(x, decimal)
+
+@external
+def to_bytes32(x: Bytes[INF]) -> bytes32:
+    return convert(x, bytes32)
+
+@external
+def to_bytes4(x: Bytes[INF]) -> bytes4:
+    return convert(x, bytes4)
+
+@external
+def str_to_bool(x: String[INF]) -> bool:
+    return convert(x, bool)
+    """
+    c = get_contract(code)
+    as_uint = int.from_bytes(val, "big")
+    as_int = int.from_bytes(val, "big", signed=True)
+    assert c.to_bool(val) is (as_uint != 0)
+    assert c.to_uint256(val) == as_uint
+    assert c.to_int256(val) == as_int
+    # the raw decimal value, in units of 10**-10
+    assert c.to_decimal(val) == as_int
+    assert c.to_bytes32(val) == val.ljust(32, b"\x00")
+    assert c.to_bytes4(val) == val.ljust(4, b"\x00")
+    if val.isascii():
+        assert c.str_to_bool(val.decode()) is (as_uint != 0)

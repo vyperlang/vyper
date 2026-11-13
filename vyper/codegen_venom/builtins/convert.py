@@ -237,8 +237,7 @@ def _to_bool(
         assert isinstance(val, IRVariable)
         length = b.mload(val)
         _runtime_check_bytes_len(in_t, length, 32, ctx)
-        data_ptr = b.add(val, IRLiteral(32))
-        data = b.mload(data_ptr)
+        data = _load_data_word(val, in_t, length, ctx)
 
         # Right-shift to extract actual value based on length
         # For bytes that are shorter than 32, we need to shift right to
@@ -298,8 +297,7 @@ def _to_int(
         assert isinstance(val, IRVariable)
         length = b.mload(val)
         _runtime_check_bytes_len(in_t, length, 32, ctx)
-        data_ptr = b.add(val, IRLiteral(32))
-        data = b.mload(data_ptr)
+        data = _load_data_word(val, in_t, length, ctx)
         if out_t.is_signed:
             # the data word of an empty bytestring may hold garbage (e.g. an
             # emptied storage bytestring keeps its old data); mask it so sar
@@ -390,8 +388,7 @@ def _to_decimal(
         assert isinstance(val, IRVariable)
         length = b.mload(val)
         _runtime_check_bytes_len(in_t, length, 32, ctx)
-        data_ptr = b.add(val, IRLiteral(32))
-        data = b.mload(data_ptr)
+        data = _load_data_word(val, in_t, length, ctx)
         # the data word of an empty bytestring may hold garbage (see
         # `_to_int`); mask it so sar of an empty value yields 0
         data = b.mul(data, b.iszero(b.iszero(length)))
@@ -447,8 +444,7 @@ def _to_bytes_m(
         assert isinstance(val, IRVariable)
         length = b.mload(val)
         _runtime_check_bytes_len(in_t, length, out_t.m, ctx)
-        data_ptr = b.add(val, IRLiteral(32))
-        data = b.mload(data_ptr)
+        data = _load_data_word(val, in_t, length, ctx)
         # Zero out any dirty high bits based on actual length
         num_zero_bits = b.mul(b.sub(IRLiteral(32), length), IRLiteral(8))
         val = b.shl(num_zero_bits, b.shr(num_zero_bits, data))
@@ -620,6 +616,20 @@ def _runtime_check_bytes_len(
         return
     b = ctx.builder
     b.assert_(b.iszero(b.gt(length, IRLiteral(max_bytes_allowed))))
+
+
+def _load_data_word(
+    val: IRVariable, in_t: _BytestringT, length: IROperand, ctx: VenomCodegenContext
+) -> IROperand:
+    """Load the first data word of the bytestring at `val`."""
+    b = ctx.builder
+    offset: IROperand = IRLiteral(32)
+    if not is_bounded_length(in_t.maxlen):
+        # an empty unbounded bytestring's buffer is its length word alone.
+        # load at `val + 32 * (length != 0)`, so an empty value reads its
+        # length word (zero) rather than past its buffer
+        offset = b.mul(IRLiteral(32), b.iszero(b.iszero(length)))
+    return b.mload(b.add(val, offset))
 
 
 def _int_clamp(val: IROperand, out_t: IntegerT, ctx: VenomCodegenContext) -> IROperand:
