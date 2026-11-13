@@ -120,6 +120,19 @@ class ModuleInfo(AnalysisResult):
     def __hash__(self):
         return hash(id(self.module_t))
 
+    # restore `module_t` before the rest of the state: `__hash__` reads
+    # it, and the state can reach a container holding this object
+    # (through `decl_node` and the AST), which pickle rebuilds before the
+    # state is restored.
+    def __reduce__(self):
+        return self.__class__._produce, (self.module_t,), self.__dict__
+
+    @classmethod
+    def _produce(cls, module_t):
+        ret = cls.__new__(cls)
+        ret.module_t = module_t
+        return ret
+
 
 @dataclass
 class ImportInfo(AnalysisResult):
