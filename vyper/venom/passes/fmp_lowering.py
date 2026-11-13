@@ -354,6 +354,7 @@ class FmpLoweringPass(IRPass):
         ), f"entry block of {fn.name} is on a cycle through an FMP instruction"
 
         root_bbs = []
+        # the order is irrelevant; the walk only restricts to reachable blocks
         for bb in cfg.dfs_pre_walk:
             if bb in after_fmp:
                 continue
