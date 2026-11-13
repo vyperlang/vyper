@@ -584,9 +584,9 @@ def get_expr_info(node: vy_ast.ExprNode, allow_type_exprs: bool = False) -> Expr
 
 def type_supremum(*multitypes: List[VyperType], keep_wildcards: bool = False) -> List[VyperType]:
     """
-    Return the possible common types of several operands, each given as the
-    list of its possible types: for every two types of different operands
-    where one is a subtype of the other, the supertype.
+    Return the supremum of several multitypes (lists of possible types).
+    In other words, for each pair of types such that one is a subtype of the
+    other, take the supertype.
 
     Two types which only differ in lengths where one of them has a wildcard
     are subtypes of each other. The type of the earlier operand is then
