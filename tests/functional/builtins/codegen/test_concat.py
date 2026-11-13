@@ -232,6 +232,21 @@ def sideeffect() -> bool:
     assert c.counter() == 1
 
 
+def test_concat_empty_arg(get_contract):
+    code = """
+@external
+def foo(b: Bytes[64]) -> Bytes[80]:
+    return concat(empty(Bytes[16]), slice(b, 0, 8))
+
+@external
+def bar(s: String[64]) -> String[80]:
+    return concat(s, empty(String[16]))
+    """
+    c = get_contract(code)
+    assert c.foo(b"vyper is a language") == b"vyper is"
+    assert c.bar("horse") == "horse"
+
+
 def test_small_output(get_contract):
     code = """
 @external
