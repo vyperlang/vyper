@@ -75,23 +75,6 @@ def _prep_hevm_venom_fn(fn, fcg, ir_analyses, visitor):
                 inst.operands = [IRLiteral(visitor.num_calldataloads * 32)]
                 visitor.num_calldataloads += 1
 
-            if inst.opcode == "source_bound":
-                assert len(inst.operands) == 1
-                bound = inst.operands[0]
-                assert isinstance(bound, IRLiteral)
-                assert visitor.num_calldataloads < 8
-
-                new_var = fn.get_next_variable()
-                new_inst = IRInstruction(
-                    "calldataload", [IRLiteral(visitor.num_calldataloads * 32)], outputs=[new_var]
-                )
-                index = bb.instructions.index(inst)
-                bb.insert_instruction(new_inst, index)
-                inst.opcode = "mod"
-                inst.operands = [bound, new_inst.output]
-
-                visitor.num_calldataloads += 1
-
         term = bb.instructions[-1]
         # test convention, terminate by `sink`ing the variables
         # you want to check

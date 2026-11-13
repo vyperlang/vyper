@@ -1353,10 +1353,12 @@ def test_dse_different_allocations_non_fixed_offset():
         ; The size of the allocation
         ; is set so the bound is easier
         ; for hevm to handle
-        %offset_a = source_bound 128
-        %offset_b = source_bound 128
-        %a = add %ptr_a, %offset_a
-        %b = add %ptr_b, %offset_b
+        %offset_a = source
+        %offset_b = source
+        %offset_a_mod = mod %offset_a, 128
+        %offset_b_mod = mod %offset_b, 128
+        %a = add %ptr_a, %offset_a_mod
+        %b = add %ptr_b, %offset_b_mod
         mstore %a, 123
         %res = mload %b
         sink %res
@@ -1365,8 +1367,9 @@ def test_dse_different_allocations_non_fixed_offset():
     post = """
     main:
         %ptr_b = alloca 160
-        %offset_b = source_bound 128
-        %b = add %ptr_b, %offset_b
+        %offset_b = source
+        %offset_b_mod = mod %offset_b, 128
+        %b = add %ptr_b, %offset_b_mod
         %res = mload %b
         sink %res
     """
@@ -1385,10 +1388,12 @@ def test_dse_same_allocation_non_fixed_offset():
         ; The size of the allocation
         ; is set so the bound is easier
         ; for hevm to handle
-        %offset_a = source_bound 128
-        %offset_b = source_bound 128
-        %a = add %ptr, %offset_a
-        %b = add %ptr, %offset_b
+        %offset_a = source
+        %offset_b = source
+        %offset_a_mod = mod %offset_a, 128
+        %offset_b_mod = mod %offset_b, 128
+        %a = add %ptr, %offset_a_mod
+        %b = add %ptr, %offset_b_mod
         mstore %a, 123
         %res = mload %b
         sink %res

@@ -413,7 +413,7 @@ class AvailableExpressionAnalysis(IRAnalysis):
         if inst.is_param:
             return op
         # source is a magic opcode for tests
-        if inst.opcode in ("source", "source_bound"):
+        if inst.opcode == "source":
             return op
         # instructions with multiple outputs currently can't be mapped an expression
         if inst.num_outputs > 1:
