@@ -1,5 +1,7 @@
+import pytest
+
 from tests.venom_utils import parse_from_basic_block
-from vyper.evm.address_space import MEMORY
+from vyper.evm.address_space import MEMORY, STORAGE, TRANSIENT
 from vyper.venom.analysis import BasePtrAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.base_ptr_analysis import Ptr
@@ -66,6 +68,78 @@ def test_base_ptr_instruction_with_no_memory_ops():
     # Verify that the instruction doesn't have memory operations
     assert base_ptr_analysis.get_read_location(assignment_inst, MEMORY) is MemoryLocation.EMPTY
     assert base_ptr_analysis.get_write_location(assignment_inst, MEMORY) is MemoryLocation.EMPTY
+
+
+@pytest.mark.parametrize(
+    "reassignment, expected",
+    [
+        ("", MemoryLocation(offset=64, size=32)),
+        ("%ptr = 0", MemoryLocation(offset=None, size=32)),
+        ("%size = 0", MemoryLocation(offset=64, size=None)),
+    ],
+)
+def test_base_ptr_literal_assign_chains(reassignment, expected):
+    # A later pre-SSA assignment must not determine the location of this
+    # earlier copy, even when the redefined variable is behind an alias.
+    ctx = parse_from_basic_block(f"""
+    main:
+        %ptr = 64
+        %size = 32
+        %ptr_alias = %ptr
+        %size_alias = %size
+        calldatacopy %ptr_alias, 0, %size_alias
+        {reassignment}
+        stop
+    """)
+    fn = next(ctx.get_functions())
+    base_ptr = IRAnalysesCache(fn).request_analysis(BasePtrAnalysis)
+    copy = next(inst for inst in fn.entry.instructions if inst.opcode == "calldatacopy")
+
+    assert base_ptr.get_write_location(copy, MEMORY) == expected
+
+
+@pytest.mark.parametrize("addr_space", [STORAGE, TRANSIENT])
+@pytest.mark.parametrize("signed_slot", [-1, -(2**255)])
+@pytest.mark.parametrize("use_assign_chain", [False, True])
+def test_base_ptr_storage_slot_representations(addr_space, signed_slot, use_assign_chain):
+    unsigned_slot = signed_slot + 2**256
+    slot = "%alias" if use_assign_chain else str(signed_slot)
+    ctx = parse_from_basic_block(f"""
+    main:
+        %slot = {signed_slot}
+        %alias = %slot
+        %x = {addr_space.load_op} {slot}
+        {addr_space.store_op} {unsigned_slot}, 1
+        %y = {addr_space.load_op} {unsigned_slot}
+        {addr_space.store_op} {slot}, 2
+        sink %x, %y
+    """)
+    fn = next(ctx.get_functions())
+    base_ptr = IRAnalysesCache(fn).request_analysis(BasePtrAnalysis)
+    expected = MemoryLocation(offset=unsigned_slot, size=1)
+
+    for inst in fn.entry.instructions:
+        if inst.opcode == addr_space.load_op:
+            assert base_ptr.get_read_location(inst, addr_space) == expected
+        elif inst.opcode == addr_space.store_op:
+            assert base_ptr.get_write_location(inst, addr_space) == expected
+
+
+@pytest.mark.parametrize(
+    "assignments", ["%ptr = %ptr", "%ptr = %other\n%other = %ptr", "%ptr = 64\n%ptr = %ptr"]
+)
+def test_base_ptr_cyclic_assign_chain_is_unknown(assignments):
+    ctx = parse_from_basic_block(f"""
+    main:
+        {assignments}
+        %value = mload %ptr
+        sink %value
+    """)
+    fn = next(ctx.get_functions())
+    base_ptr = IRAnalysesCache(fn).request_analysis(BasePtrAnalysis)
+    load = next(inst for inst in fn.entry.instructions if inst.opcode == "mload")
+
+    assert base_ptr.get_read_location(load, MEMORY) == MemoryLocation(offset=None, size=32)
 
 
 def test_base_ptr_loop_offsets_collapse_to_unknown():

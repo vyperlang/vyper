@@ -358,11 +358,8 @@ def test_mcopy_chain_with_size_mismatch():
 
 def test_mcopy_chain_with_variable_size():
     """
-    Test mcopy chains with variable sizes - currently not optimized.
-
-    When mcopy uses variable sizes, the memory location can't be tracked
-    precisely (is_fixed returns False), so no chain optimization happens.
-    This test documents the current behavior.
+    Test mcopy chains whose size is a variable assigned a literal: the
+    size resolves through the assignment, so the chain is optimized.
     """
     if not version_check(begin="cancun"):
         return
@@ -375,7 +372,33 @@ def test_mcopy_chain_with_variable_size():
         %1 = mload 300
         sink %1
     """
-    # No optimization - variable size locations aren't tracked
+    post = """
+    _global:
+        %sz = 32
+        nop
+        mcopy 300, 100, %sz
+        %1 = mload 300
+        sink %1
+    """
+    _check_pre_post(pre, post)
+
+
+def test_mcopy_chain_with_unknown_size():
+    """
+    Test mcopy chains with an unknown size: the memory location can't be
+    tracked precisely, so no chain optimization happens.
+    """
+    if not version_check(begin="cancun"):
+        return
+
+    pre = """
+    _global:
+        %sz = param
+        mcopy 200, 100, %sz
+        mcopy 300, 200, %sz
+        %1 = mload 300
+        sink %1
+    """
     _check_no_change(pre)
 
 

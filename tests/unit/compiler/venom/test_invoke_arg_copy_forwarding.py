@@ -63,6 +63,42 @@ def test_readonly_forwarding_rejects_src_clobber_before_invoke():
     assert invoke.operands[1] == mcopy.operands[2]
 
 
+def test_readonly_forwarding_rejects_clobber_with_reassigned_size():
+    # Global copy forwarding runs before MakeSSA. The final definition of
+    # %size must not make the earlier clobber look like a zero-length copy.
+    src = """
+    function caller {
+    caller:
+        %src = alloca 32
+        %tmp = alloca 32
+        mstore %src, 1
+        mcopy %tmp, %src, 32
+        %size = 32
+        calldatacopy %src, 0, %size
+        %size = 0
+        invoke @callee, %tmp
+        stop
+    }
+
+    function callee {
+    callee:
+        %arg = param
+        %retpc = retpc_param
+        %value = mload %arg
+        sstore 0, %value
+        ret %retpc
+    }
+    """
+
+    ctx = _run_copy_forwarding(src)
+    caller = ctx.get_function(IRLabel("caller"))
+    insts = caller.entry.instructions
+    copy = next(inst for inst in insts if inst.opcode == "mcopy")
+    invoke = next(inst for inst in insts if inst.opcode == "invoke")
+
+    assert invoke.operands[1] == copy.operands[2] == IRVariable("%tmp")
+
+
 def test_readonly_forwarding_still_applies_without_src_clobber():
     src = """
     function caller {

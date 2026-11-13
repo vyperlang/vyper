@@ -4,9 +4,26 @@ from typing import Iterator, Optional
 import vyper.venom.effects as effects
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis, StackOrderAnalysis
+from vyper.venom.analysis.mem_alias import (
+    MemoryAliasAnalysis,
+    MemoryAliasAnalysisAbstract,
+    StorageAliasAnalysis,
+    TransientAliasAnalysis,
+)
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRVariable
 from vyper.venom.function import IRFunction
+from vyper.venom.memory_location import MemoryLocation
 from vyper.venom.passes.base_pass import IRPass
+
+# effects whose dependency edges are filtered with alias info
+_FILTERED_EFFECTS = {
+    effects.MEMORY: MemoryAliasAnalysis,
+    effects.STORAGE: StorageAliasAnalysis,
+    effects.TRANSIENT: TransientAliasAnalysis,
+}
+
+# an access of a filtered effect: the instruction and its location
+_Access = tuple[IRInstruction, MemoryLocation]
 
 # instructions whose purpose includes aborting, and how: with empty revert
 # data (`assert`), with an exceptional halt (`assert_unreachable`, or
@@ -45,6 +62,7 @@ class DFTPass(IRPass):
 
     stack_order: StackOrderAnalysis
     cfg: CFGAnalysis
+    mem_alias: dict[effects.Effects, MemoryAliasAnalysisAbstract]
     # DFT expects single-use-expanded operands and should run just before CFG normalization.
     required_predecessors = ("SingleUseExpansion",)
     required_immediate_successors = ("CFGNormalization",)
@@ -56,6 +74,9 @@ class DFTPass(IRPass):
         self.dfg = self.analyses_cache.force_analysis(DFGAnalysis)
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.stack_order = self.analyses_cache.force_analysis(StackOrderAnalysis)
+        self.mem_alias = {}
+        for eff, mem_alias_type in _FILTERED_EFFECTS.items():
+            self.mem_alias[eff] = self.analyses_cache.request_analysis(mem_alias_type)
 
         worklist = deque(self.cfg.dfs_post_walk)
 
@@ -196,6 +217,10 @@ class DFTPass(IRPass):
         #
         last_write_effects: dict[effects.Effects, IRInstruction] = {}
         all_read_effects: dict[effects.Effects, list[IRInstruction]] = defaultdict(list)
+        # for the filtered effects: the prior writes and reads a later access
+        # may still need an edge to (see _add_write_deps)
+        prior_writes: dict[effects.Effects, list[_Access]] = {eff: [] for eff in self.mem_alias}
+        prior_reads: dict[effects.Effects, list[_Access]] = {eff: [] for eff in self.mem_alias}
         # consecutive aborting instructions of the same kind form a run; each
         # one is ordered after the whole previous run. that is an edge from
         # every member of a run to every member of the previous one
@@ -225,6 +250,11 @@ class DFTPass(IRPass):
             read_effects = inst.get_read_effects()
 
             for write_effect in write_effects:
+                if write_effect in self.mem_alias:
+                    writes = prior_writes[write_effect]
+                    reads = prior_reads[write_effect]
+                    self._add_write_deps(write_effect, inst, writes, reads)
+                    continue
                 # ALL reads must happen before this write
                 if write_effect in all_read_effects:
                     for read_inst in all_read_effects[write_effect]:
@@ -238,9 +268,71 @@ class DFTPass(IRPass):
                     all_read_effects[write_effect] = []
 
             for read_effect in read_effects:
+                if read_effect in self.mem_alias:
+                    writes = prior_writes[read_effect]
+                    reads = prior_reads[read_effect]
+                    self._add_read_deps(read_effect, inst, writes, reads)
+                    continue
                 if read_effect in last_write_effects and last_write_effects[read_effect] != inst:
                     self.eda[inst].add(last_write_effects[read_effect])
                 all_read_effects[read_effect].append(inst)
+
+    def _add_write_deps(
+        self, eff: effects.Effects, inst: IRInstruction, writes: list[_Access], reads: list[_Access]
+    ) -> None:
+        mem_alias = self.mem_alias[eff]
+        loc = mem_alias.base_ptr.get_write_location(inst, mem_alias.addr_space)
+
+        for read_inst, read_loc in reads:
+            if self._may_alias(eff, loc, read_loc):
+                self.eda[inst].add(read_inst)
+        for write_inst, write_loc in writes:
+            if self._may_alias(eff, loc, write_loc):
+                self.eda[inst].add(write_inst)
+
+        # a later access which aliases an access this write covers also
+        # aliases this write, so its edge to this write already orders it
+        # after the covered access. drop the covered accesses; this keeps
+        # the graph a chain (and the scan linear) when nothing is resolved.
+        reads[:] = [a for a in reads if not self._covers(loc, a[1])]
+        writes[:] = [a for a in writes if not self._covers(loc, a[1])]
+        writes.append((inst, loc))
+
+    def _add_read_deps(
+        self, eff: effects.Effects, inst: IRInstruction, writes: list[_Access], reads: list[_Access]
+    ) -> None:
+        mem_alias = self.mem_alias[eff]
+        loc = mem_alias.base_ptr.get_read_location(inst, mem_alias.addr_space)
+
+        for write_inst, write_loc in writes:
+            # an instruction which both reads and writes does not depend on itself
+            if write_inst is not inst and self._may_alias(eff, loc, write_loc):
+                self.eda[inst].add(write_inst)
+        reads.append((inst, loc))
+
+    def _may_alias(
+        self, eff: effects.Effects, loc_a: MemoryLocation, loc_b: MemoryLocation
+    ) -> bool:
+        # the alias analysis treats distinct allocations as disjoint. that
+        # holds in program order, but FmpLoweringPass reclaims a dead dynamic
+        # allocation by restoring the FMP to its mark, so a later `bump` can
+        # hand out the same memory. reordering across such a reuse is exactly
+        # what this pass does, so keep the fence between dynamic allocations.
+        if loc_a.alloca is not None and loc_b.alloca is not None and loc_a.alloca != loc_b.alloca:
+            if loc_a.alloca.is_dynamic and loc_b.alloca.is_dynamic:
+                return True
+        return self.mem_alias[eff].may_alias(loc_a, loc_b)
+
+    @staticmethod
+    def _covers(loc: MemoryLocation, other: MemoryLocation) -> bool:
+        # every access aliasing `other` also aliases `loc` (under _may_alias)
+        if loc.offset is None and not loc.is_empty():
+            # an unknown offset may alias anything in its own allocation, but
+            # not accesses of a different (static) allocation
+            if loc.alloca is None or loc.alloca == other.alloca:
+                return True
+            return loc.alloca.is_dynamic and other.alloca is not None and other.alloca.is_dynamic
+        return loc.completely_contains(other)
 
     def _calculate_data_offspring(self, inst: IRInstruction):
         if inst in self.data_offspring:

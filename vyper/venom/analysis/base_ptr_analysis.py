@@ -14,9 +14,10 @@ from vyper.evm.address_space import (
     AddrSpace,
 )
 from vyper.exceptions import CompilerPanic
-from vyper.utils import OrderedSet
+from vyper.utils import OrderedSet, wrap256
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.basicblock import RET_INSTRUCTIONS, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.memory_location import (
     Allocation,
@@ -101,12 +102,28 @@ class BasePtrAnalysis(IRAnalysis):
     vars_in_allocations: dict[Allocation, set[IRVariable]]
     _untracked_root_memo: dict[IRVariable, bool]
     _untracked_root_active: set[IRVariable]
+    _multi_defined_vars: set[IRVariable]
 
     def analyze(self):
         self.var_to_mem = dict()
         self._untracked_root_memo = dict()
         self._untracked_root_active = set()
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+
+        # Pre-SSA clients can have several definitions of a variable. DFG
+        # records only the last one, which cannot prove a literal value at
+        # every use. Include unreachable blocks too, as DFG does.
+        # Same scan as InvokeCopyForwardingBase._collect_multi_defined_vars;
+        # both go away once DFG owns definitions or the global stage runs
+        # in SSA form.
+        defined: set[IRVariable] = set()
+        self._multi_defined_vars = set()
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                for var in inst.get_outputs():
+                    if var in defined:
+                        self._multi_defined_vars.add(var)
+                    defined.add(var)
 
         # facts are per variable, not per program point: a use can sit any
         # number of blocks below the definition (e.g. a phi operand from a
@@ -247,8 +264,33 @@ class BasePtrAnalysis(IRAnalysis):
             return next(iter(ptrs))
         return None
 
+    def _resolve_literal(self, op: Optional[IROperand]) -> Optional[IROperand]:
+        # see through `%x = <literal>`, which SingleUseExpansion introduces
+        # for every literal operand, so locations stay fixed after that pass
+        if not isinstance(op, IRVariable):
+            return op
+        # requested lazily, see _untracked_root_from_def
+        dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        root: IROperand = op
+        seen: set[IRVariable] = set()
+        while isinstance(root, IRVariable):
+            if root in self._multi_defined_vars or root in seen:
+                return op
+            seen.add(root)
+            inst = dfg.get_producing_instruction(root)
+            if inst is None or inst.opcode != "assign":
+                return op
+            root = inst.operands[0]
+        if not isinstance(root, IRLiteral):
+            return op
+        return root
+
     def segment_from_ops(self, ops: InstAccessOps) -> MemoryLocation:
         size: Optional[int]
+
+        ops = dc.replace(
+            ops, ofst=self._resolve_literal(ops.ofst), size=self._resolve_literal(ops.size)
+        )
 
         if isinstance(ops.size, IRLiteral):
             size = ops.size.value
@@ -320,14 +362,21 @@ class BasePtrAnalysis(IRAnalysis):
 
         return self.segment_from_ops(memory_read_ops(inst))
 
-    # REVIEW: this should be refactored too, like get_storage_read_location
-    # and get_storage_write_location
+    def _get_storage_transient_location(
+        self, ofst: IROperand, addr_space: AddrSpace
+    ) -> MemoryLocation:
+        access_ops = InstAccessOps(ofst=ofst, size=IRLiteral(addr_space.word_scale))
+        loc = self.segment_from_ops(access_ops)
+        if loc.is_concrete and loc.offset is not None:
+            # Storage keys are unsigned EVM words: -1 and 2**256 - 1
+            # identify the same slot. Allocation-relative offsets stay signed.
+            return dc.replace(loc, offset=wrap256(loc.offset))
+        return loc
+
     def _get_storage_transient_write_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
         opcode = inst.opcode
         if opcode == addr_space.store_op:
-            dst = inst.operands[1]
-            access_ops = InstAccessOps(ofst=dst, size=IRLiteral(addr_space.word_scale))
-            return self.segment_from_ops(access_ops)
+            return self._get_storage_transient_location(inst.operands[1], addr_space)
         elif opcode in ("call", "delegatecall", "staticcall"):
             return MemoryLocation.UNDEFINED
         elif opcode == "invoke":
@@ -339,13 +388,10 @@ class BasePtrAnalysis(IRAnalysis):
         assert eff[addr_space] not in inst.get_write_effects()
         return MemoryLocation.EMPTY
 
-    # REVIEW: should be in MemoryLocation -- does not use base ptr analysis
     def _get_storage_transient_read_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
         opcode = inst.opcode
         if opcode == addr_space.load_op:
-            ofst = inst.operands[0]
-            access_ops = InstAccessOps(ofst=ofst, size=IRLiteral(addr_space.word_scale))
-            return self.segment_from_ops(access_ops)
+            return self._get_storage_transient_location(inst.operands[0], addr_space)
         elif opcode in ("call", "delegatecall", "staticcall"):
             return MemoryLocation.UNDEFINED
         elif opcode == "invoke":
@@ -474,10 +520,6 @@ class BasePtrAnalysis(IRAnalysis):
         return ret
 
     def _untracked_root_from_def(self, var: IRVariable) -> bool:
-        # Keep this dependency lazy: importing DFGAnalysis at module scope
-        # creates a cycle through vyper.venom.analysis.__init__.
-        from vyper.venom.analysis.dfg import DFGAnalysis
-
         # requested lazily (not in analyze()): this query runs after other
         # passes may have invalidated DFGAnalysis without touching this
         # analysis, so a reference held from analyze() could be stale.
