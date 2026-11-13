@@ -770,7 +770,7 @@ def long_method_name_a() -> uint256: ...
     assert e.value.hint == "Did you mean 'long_method_name_a'?"
 
 
-def test_duplicate_override_fails(make_input_bundle, tmp_path):
+def test_duplicate_override_fails(make_input_bundle):
     """Test that overriding the same abstract method twice fails with proper error"""
     contract = """
 import foo
@@ -812,14 +812,9 @@ def some_method() -> uint256:
     with pytest.raises(FunctionDeclarationException) as e:
         compile_code(contract, input_bundle=input_bundle)
 
-    foo_path = (tmp_path / "foo.vy").as_posix()
-    bar_path = (tmp_path / "bar_override.vy").as_posix()
-    baz_path = (tmp_path / "baz_override.vy").as_posix()
-
-    assert e.value.message == f"`some_method` was already overridden in `{bar_path}`!"
-    expected_hint = f"the likely root cause is that `{foo_path}` has been initialized"
-    expected_hint += f" in both `{baz_path}` and"
-    expected_hint += f" `{bar_path}`, which is an error"
+    assert e.value.message == "`some_method` is overridden more than once!"
+    expected_hint = "an override only counts if the module is (transitively) initialized"
+    expected_hint += " by the root module"
     assert e.value.hint == expected_hint
 
 

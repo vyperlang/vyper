@@ -1144,17 +1144,19 @@ def _check_overrides(module_ast: vy_ast.Module, globally_initialized: OrderedSet
             ]
 
             if len(overrides) > 1:
-                existing_override = overrides[0].ast_def
-                duplicate_override = overrides[1].ast_def
-                existing_override_path = existing_override.module_node.path
-                msg = f"`{func_t.name}` was already overridden"
-                msg += f" in `{existing_override_path}`!"
-                hint = f"the likely root cause is that `{func.module_node.path}` has"
-                hint += f" been initialized in both `{duplicate_override.module_node.path}` and"
-                hint += f" `{existing_override_path}`, which is an error"
+                msg = f"`{func_t.name}` is overridden more than once!"
+
+                hint = None
+
+                # this hint doesn't make sense if the multiple overrides come from the same file
+                if len({t.ast_def.module_node for t in overrides}) > 1:
+                    hint = "an override only counts if the module is (transitively) initialized "
+                    hint += "by the root module"
+
                 raise FunctionDeclarationException(
-                    msg, func, existing_override, duplicate_override, hint=hint
+                    msg, func, *(t.ast_def for t in overrides), hint=hint
                 )
+
             elif len(overrides) == 0:
                 hint = None
                 if len(raw_overrides) != 0:
