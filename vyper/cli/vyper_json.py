@@ -8,7 +8,9 @@ from pathlib import Path, PurePath
 from typing import Any, Callable, Hashable, Optional
 
 import vyper
+from vyper.compiler import outputs_from_compiler_data
 from vyper.compiler.input_bundle import FileInput, JSONInput, JSONInputBundle, _normpath
+from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 from vyper.evm.opcodes import EVM_VERSIONS
 from vyper.exceptions import JSONError
@@ -40,6 +42,7 @@ TRANSLATE_MAP = {
 }
 
 VENOM_KEYS = ("cfg", "cfg_runtime")
+LEGACY_IR_KEYS = ("ir_dict", "ir_runtime_dict")
 
 
 def _parse_cli_args():
@@ -256,28 +259,15 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
             outputs.remove(key)
             outputs.update([i for i in TRANSLATE_MAP if i.startswith(key)])
 
-        should_output_venom = any(
-            input_dict["settings"].get(alias, False)
-            for alias in ("venomExperimental", "experimentalCodegen")
-        )
-
-        if "*" in outputs:
-            outputs = TRANSLATE_MAP.values()
-            if not should_output_venom:
-                outputs = [k for k in outputs if k not in VENOM_KEYS]
-        else:
-            try:
-                outputs = [TRANSLATE_MAP[i] for i in outputs]
-            except KeyError as e:
-                raise JSONError(f"Invalid outputSelection - {e}")
+        # "*" is expanded only after the target's source pragmas have been
+        # merged. explicit keys next to it are kept so they still get validated
+        # against the selected backend.
+        try:
+            outputs = [i if i == "*" else TRANSLATE_MAP[i] for i in outputs]
+        except KeyError as e:
+            raise JSONError(f"Invalid outputSelection - {e}")
 
         outputs = sorted(list(outputs))
-
-        if not should_output_venom and any(k in outputs for k in VENOM_KEYS):
-            selected_venom_keys = [k for k in outputs if k in VENOM_KEYS]
-            raise JSONError(
-                f"requested {selected_venom_keys} but experimentalCodegen not selected!"
-            )
 
         if path == "*":
             output_paths = [PurePath(path) for path in input_dict["sources"].keys()]
@@ -290,6 +280,22 @@ def get_output_formats(input_dict: dict) -> dict[PurePath, list[str]]:
             output_formats[output_path] = outputs
 
     return output_formats
+
+
+def _select_backend_outputs(outputs: list[str], settings: Settings) -> list[str]:
+    excluded = LEGACY_IR_KEYS if settings.experimental_codegen else VENOM_KEYS
+    rejected = [k for k in outputs if k in excluded]
+    if rejected and settings.experimental_codegen:
+        raise JSONError(
+            "ir and ir_runtime outputs are not supported with experimentalCodegen; "
+            "use cfg or cfg_runtime instead"
+        )
+    if rejected:
+        raise JSONError(f"requested {rejected} but experimentalCodegen not selected!")
+
+    if "*" in outputs:
+        return sorted(k for k in TRANSLATE_MAP.values() if k not in excluded)
+    return outputs
 
 
 def get_search_paths(input_dict: dict) -> list[PurePath]:
@@ -406,17 +412,24 @@ def compile_from_input_dict(
                 # use load_file to get a unique source_id
                 file = input_bundle.load_file(contract_path)
                 assert isinstance(file, FileInput)  # mypy hint
-                data = vyper.compile_from_file_input(
+                compiler_data = CompilerData(
                     file,
                     input_bundle=input_bundle,
-                    output_formats=output_formats[contract_path],
-                    storage_layout_override=storage_layout_override,
+                    storage_layout=storage_layout_override,
                     integrity_sum=integrity,
                     settings=settings,
                     no_bytecode_metadata=no_bytecode_metadata,
                 )
+                selected = _select_backend_outputs(
+                    output_formats[contract_path], compiler_data.settings
+                )
+                data = outputs_from_compiler_data(compiler_data, selected)
                 assert isinstance(data, dict)
                 data["source_id"] = file.source_id
+            except JSONError:
+                # invalid output selection for the resolved backend; reported
+                # against the input json rather than the contract
+                raise
             except Exception as exc:
                 return exc_handler(contract_path, exc, "compiler"), {}
             res[contract_path] = data
