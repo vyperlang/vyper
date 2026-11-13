@@ -86,9 +86,9 @@ def _prep_hevm_venom_fn(fn, fcg, ir_analyses, visitor):
         RETURN_START = 256
 
         num_return_values = 0
-        for op in term.operands:
+        for bound in term.operands:
             ptr = IRLiteral(RETURN_START + num_return_values * 32)
-            new_inst = IRInstruction("mstore", [op, ptr])
+            new_inst = IRInstruction("mstore", [bound, ptr])
             bb.insert_instruction(new_inst, index=-1)
             num_return_values += 1
 
