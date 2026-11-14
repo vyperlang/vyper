@@ -228,6 +228,7 @@ def get_index_value(node: vy_ast.VyperNode) -> LengthUpperBound:
             raise InvalidType("Wildcard length is only allowed in interfaces", node)
         return WILDCARD
 
+    size_expr = node
     node = node.reduced()
 
     # TODO: Maybe instead check that get_possible_types_from_node(node) is _Inf ?
@@ -249,4 +250,32 @@ def get_index_value(node: vy_ast.VyperNode) -> LengthUpperBound:
     if node.value < 0:
         raise ArrayIndexException("Subscript must be at least 0", node)
 
+    try:
+        check_size_expr(size_expr)
+    except UndeclaredDefinition:
+        # the size folded, so every name in it exists, but a module
+        # constant declared later in the module is not in the namespace
+        # until the module's declarations are loaded; the module analyzer
+        # checks the expression then.
+        deferred = size_expr.module_node._metadata.get("deferred_size_exprs")
+        if deferred is None:
+            raise
+        deferred.append(size_expr)
+
     return node.value
+
+
+def check_size_expr(node: vy_ast.VyperNode) -> None:
+    """
+    Type-check the size expression of a type annotation the way the value
+    of an integer constant is checked. Constant folding works on unbounded
+    integers, so the folded size alone can hide an overflow in an
+    intermediate value (e.g. `(1 << 256) >> 255`).
+    """
+    from vyper.semantics.analysis.local import ExprVisitor
+    from vyper.semantics.analysis.utils import get_possible_types_from_node
+
+    # the widest type the expression can have; typed constants and
+    # builtins only have their own
+    typ = get_possible_types_from_node(node)[0]
+    ExprVisitor().visit(node, typ)
