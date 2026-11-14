@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from itertools import zip_longest
+from itertools import chain, zip_longest
 from typing import Optional
 
 from vyper import ast as vy_ast
@@ -90,8 +90,11 @@ def analyze_modules(imports: ImportAnalyzer) -> ModuleT:
     # Collect module members, partial validation
     ret = _compute_module_type_r(root_module_ast)
 
+    root_module_t = root_module_ast._metadata["type"]
+    globally_initialized = _compute_globally_initialized_modules_r(root_module_t)
+
     for module_ast in modules:
-        _check_overrides(module_ast)
+        _check_overrides(module_ast, globally_initialized)
 
     # Remainder of validation: everything that requires module-level/cross-module information
     # Notably function bodies
@@ -170,6 +173,17 @@ def _validate_initializable_modules(module_ast: vy_ast.Module, module_t: ModuleT
                 info.node,
                 hint=f"remove `initializes: {alias}`",
             )
+
+
+def _compute_globally_initialized_modules_r(module_t: ModuleT) -> OrderedSet[ModuleT]:
+    """
+    Compute the set of all `initializes:`-reachable modules from module_t
+    """
+    reachable = (
+        _compute_globally_initialized_modules_r(info.module_info.module_t)
+        for info in module_t.initialized_modules
+    )
+    return OrderedSet(chain([module_t], *reachable))
 
 
 def _validate_used_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
@@ -428,20 +442,7 @@ def _validate_overrides(func_t: ContractFunctionT, node: vy_ast.FunctionDef):
             msg += " it is not an abstract method!"
             raise FunctionDeclarationException(msg, abstract_fn, node)
 
-        if abstract_t._overridden_by is not None:
-            existing_override = abstract_t._overridden_by.ast_def
-            assert existing_override is not None
-            existing_override_path = existing_override.module_node.path
-            msg = f"`{module_info.alias}.{node.name}` was already overridden"
-            msg += f" in `{existing_override_path}`!"
-            hint = f"the likely root cause is that `{module_info.alias}` has"
-            hint += f" been initialized in both `{node.module_node.path}` and"
-            hint += f" `{existing_override_path}`, which is an error"
-            raise FunctionDeclarationException(
-                msg, abstract_fn, existing_override, override_name, hint=hint
-            )
-
-        abstract_t.set_overridden_by(func_t)
+        abstract_t.raw_overridden_by.append(func_t)
 
 
 def _is_supported_constant_type(typ: VyperType) -> bool:
@@ -1130,11 +1131,45 @@ def _compute_override_discrepancies(
     return discrepancies
 
 
-def _check_overrides(module_ast: vy_ast.Module):
+def _check_overrides(module_ast: vy_ast.Module, globally_initialized: OrderedSet[ModuleT]):
     for func in module_ast.get_children(vy_ast.FunctionDef):
         func_t = func._metadata["func_type"]
         if func_t.is_abstract:
-            override_t = func_t.overridden_by
+            raw_overrides = func_t.raw_overridden_by
+
+            overrides = [
+                t
+                for t in raw_overrides
+                if t.ast_def.module_node._metadata["type"] in globally_initialized
+            ]
+
+            if len(overrides) > 1:
+                msg = f"`{func_t.name}` is overridden more than once!"
+
+                hint = None
+
+                # this hint doesn't make sense if the multiple overrides come from the same file
+                if len({t.ast_def.module_node for t in overrides}) > 1:
+                    hint = "an override only counts if the module is (transitively) initialized "
+                    hint += "by the root module"
+
+                raise FunctionDeclarationException(
+                    msg, func, *(t.ast_def for t in overrides), hint=hint
+                )
+
+            elif len(overrides) == 0:
+                hint = None
+                if len(raw_overrides) != 0:
+                    modules = ", ".join(f"`{t.ast_def.module_node.path}`" for t in raw_overrides)
+                    hint = "did you forget to `initializes:` one of the following modules?"
+                    hint += f" {modules}"
+
+                raise FunctionDeclarationException(
+                    "Abstract function was not overridden", func, hint=hint
+                )
+
+            override_t = overrides[0]
+            func_t.overridden_by = override_t
 
             err_list = _compute_override_discrepancies(override_t, func_t)
             err_list.raise_if_not_empty()
