@@ -6,6 +6,7 @@ from vyper.exceptions import (
     ArrayIndexException,
     CodegenPanic,
     InvalidType,
+    MemoryAllocationException,
     StructureException,
     UnknownAttribute,
 )
@@ -284,6 +285,9 @@ class DArrayT(_SequenceT):
     def __init__(self, value_type: VyperType, length: LengthUpperBound) -> None:
         super().__init__(value_type, length)
 
+        if length is INF and not value_type.has_wildcard:
+            self._validate_unbounded_element_size(value_type)
+
         from vyper.semantics.types.function import MemberFunctionT
 
         self.add_member("append", MemberFunctionT(self, "append", [self.value_type], None, True))
@@ -376,6 +380,25 @@ class DArrayT(_SequenceT):
             raise StructureException(
                 "DynArray elements cannot contain unbounded sequence types inside aggregate types",
                 node,
+            )
+
+    @staticmethod
+    def _validate_unbounded_element_size(value_type):
+        # the memory and ABI sizes of an INF array are computed at runtime as
+        # its length times the element's size, and the free memory pointer
+        # is bumped by them without an overflow check. capping the element
+        # at the limit for static memory keeps those sizes far from 2**256
+        # for any length the input can claim.
+        size = member_slot_size(value_type)
+        if not type_contains_unbounded_sequence(value_type):
+            # an element holding INF has a runtime ABI size; the INF
+            # sequences inside it are checked when they are constructed
+            size = max(size, value_type.abi_type.size_bound())
+        limit = 2**64
+        if size >= limit:
+            raise MemoryAllocationException(
+                f"Element type of DynArray[..., INF] takes {size} bytes! "
+                f"(limit is {limit} (2**64) bytes)"
             )
 
     def resolve_wildcard(self):
