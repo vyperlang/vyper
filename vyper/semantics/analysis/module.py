@@ -66,7 +66,7 @@ from vyper.semantics.types.infinity import (
     type_contains_unbounded_sequence,
 )
 from vyper.semantics.types.module import ModuleT
-from vyper.semantics.types.utils import type_from_annotation
+from vyper.semantics.types.utils import check_size_expr, type_from_annotation
 from vyper.utils import OrderedSet
 
 
@@ -486,6 +486,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase[None]):
 
         self._to_visit = self.ast.body.copy()
 
+        # size expressions in types which name constants that are not in
+        # the namespace yet; filled in by `get_index_value`
+        self.ast._metadata["deferred_size_exprs"] = []
+
         # handle imports
         self._visit_nodes_linear((vy_ast.Import, vy_ast.ImportFrom))
 
@@ -509,6 +513,10 @@ class ModuleAnalyzer(VyperNodeVisitorBase[None]):
         # handle functions
         # run before exports for exception handling priority
         self._visit_nodes_looping((vy_ast.VariableDecl, vy_ast.FunctionDef))
+
+        # all module-level constants are in the namespace now
+        for size_expr in self.ast._metadata.pop("deferred_size_exprs"):
+            check_size_expr(size_expr)
 
         # mutates _exposed_functions
         self._visit_nodes_linear(vy_ast.ExportsDecl)
