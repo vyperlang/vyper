@@ -86,14 +86,25 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
     def __init__(self):
         self.namespace = get_namespace()
 
-    def visit(self, node, allow_type_exprs: bool = False) -> list[VyperType]:
+    def visit(
+        self, node, allow_type_exprs: bool = False, keep_wildcards: bool = False
+    ) -> list[VyperType]:
+
+        # only list literals and ternaries combine the types of their
+        # operands (see `type_supremum`), every other node drops the flag
+        keep_wildcards = keep_wildcards and isinstance(node, (vy_ast.List, vy_ast.IfExp))
 
         # this method is a perf hotspot, so we cache the result and
         # try to return it if found.
         k = "possible_types_from_node"
+        if keep_wildcards:
+            k = "possible_types_from_node_keep_wildcards"
         if k not in node._metadata:
             # we don't pass `allow_type_exprs` to the `visit_...` nodes, as they shouldn't handle it
-            possible_types = super().visit(node)
+            if keep_wildcards:
+                possible_types = super().visit(node, keep_wildcards=True)
+            else:
+                possible_types = super().visit(node)
 
             if all(isinstance(t, IntegerT) for t in possible_types):
                 # for numeric types, sort according to number of bits descending
@@ -267,26 +278,29 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
 
         raise InvalidLiteral(msg, node, hint=hint)
 
-    def visit_IfExp(self, node):
+    def visit_IfExp(self, node, keep_wildcards=False):
         validate_expected_type(node.test, BoolT())
 
-        then_t = self.visit(node.body)
-        else_t = self.visit(node.orelse)
-        types_list = type_supremum(then_t, else_t)
+        then_t = self.visit(node.body, keep_wildcards=keep_wildcards)
+        else_t = self.visit(node.orelse, keep_wildcards=keep_wildcards)
+        types_list = type_supremum(then_t, else_t, keep_wildcards=keep_wildcards)
 
         if not types_list:
             raise TypeMismatch(f"Dislike types: {then_t[0]} and {else_t[0]}", node)
 
         return types_list
 
-    def visit_List(self, node):
+    def visit_List(self, node, keep_wildcards=False):
         # literal array
 
         if len(node.elements) == 0:
             # can't have an empty SArrayT
             return [DArrayT(BottomT(), 0)]
 
-        types_list = get_common_types(*node.elements)
+        element_types = (
+            self.visit(element, keep_wildcards=keep_wildcards) for element in node.elements
+        )
+        types_list = type_supremum(*element_types, keep_wildcards=keep_wildcards)
 
         if len(types_list) > 0:
             count = len(node.elements)
@@ -423,7 +437,9 @@ def get_modifiability(node: vy_ast.ExprNode) -> Modifiability:
     return get_expr_info(node).modifiability
 
 
-def get_possible_types_from_node(node, allow_type_exprs: bool = False) -> list[VyperType]:
+def get_possible_types_from_node(
+    node, allow_type_exprs: bool = False, keep_wildcards: bool = False
+) -> list[VyperType]:
     """
     Return a list of possible types for the given node.
 
@@ -433,6 +449,8 @@ def get_possible_types_from_node(node, allow_type_exprs: bool = False) -> list[V
     ---------
     node : VyperNode
         A vyper ast node.
+    keep_wildcards : bool
+        See `type_supremum`.
 
     Returns
     -------
@@ -440,7 +458,9 @@ def get_possible_types_from_node(node, allow_type_exprs: bool = False) -> list[V
         List of one or more VyperType objects.
     """
 
-    return _TypeSynthesizer().visit(node, allow_type_exprs=allow_type_exprs)
+    return _TypeSynthesizer().visit(
+        node, allow_type_exprs=allow_type_exprs, keep_wildcards=keep_wildcards
+    )
 
 
 def get_exact_type_from_node(node: vy_ast.VyperNode, allow_type_exprs: bool = False) -> VyperType:
@@ -562,7 +582,18 @@ def get_expr_info(node: vy_ast.ExprNode, allow_type_exprs: bool = False) -> Expr
     return node._expr_info
 
 
-def type_supremum(*multitypes: List[VyperType]) -> List[VyperType]:
+def type_supremum(*multitypes: List[VyperType], keep_wildcards: bool = False) -> List[VyperType]:
+    """
+    Return the supremum of several multitypes (lists of possible types).
+    In other words, for each pair of types such that one is a subtype of the
+    other, take the supertype.
+
+    Two types which only differ in lengths where one of them has a wildcard
+    are subtypes of each other. The type of the earlier operand is then
+    returned, unless `keep_wildcards` is set: then the wildcards of both are
+    kept, for the caller to fix them from an expected type (cf.
+    `ExprVisitor._annotation_type`).
+    """
     assert len(multitypes) >= 1
 
     common_types = multitypes[0]
@@ -573,7 +604,10 @@ def type_supremum(*multitypes: List[VyperType]) -> List[VyperType]:
                 # The supremum is the type such that both are subtypes
 
                 if t.is_subtype_of(c):
-                    tmp.append(c)
+                    if keep_wildcards and c.is_subtype_of(t):
+                        tmp.append(c.merge_wildcards(t))
+                    else:
+                        tmp.append(c)
 
                 elif c.is_subtype_of(t):
                     tmp.append(t)

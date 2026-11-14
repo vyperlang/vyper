@@ -993,7 +993,9 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
         if not typ.has_wildcard:
             return typ
 
-        possible_types = get_possible_types_from_node(node)
+        # keep the wildcards of list literal and ternary operands, so that
+        # `typ` fixes them instead of the first operand
+        possible_types = get_possible_types_from_node(node, keep_wildcards=True)
 
         candidates = [t for t in possible_types if t.is_subtype_of(typ)]
         assert len(candidates) == 1
@@ -1211,8 +1213,9 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
                     )
                 if return_t is not None and return_t.has_wildcard:
                     if not typ.has_wildcard and typ is not VOID_TYPE:
-                        # Replace wildcard-containing type by the concrete expected type
-                        return_t = typ
+                        # Replace the wildcards by the lengths of the concrete expected
+                        # type, which can be wider than the fixed lengths of the return type
+                        return_t = self._interpolate(return_t, typ, pos=node)
                     else:
                         # Replace wildcards in the type by INF, since there is no expected type
                         return_t = return_t.resolve_wildcard()
@@ -1321,10 +1324,16 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
 
     def visit_IfExp(self, node: vy_ast.IfExp, typ: VyperType) -> None:
         self.visit(node.test, BoolT())
+        if typ.has_wildcard:
+            # type both arms with the resolved type (cf. `_annotation_type`)
+            typ = self._annotation_type(node, typ)
         self.visit(node.body, typ)
         self.visit(node.orelse, typ)
 
     def visit_List(self, node: vy_ast.List, typ: VyperType) -> None:
+        if typ.has_wildcard:
+            # type the elements with the resolved element type (cf. `_annotation_type`)
+            typ = self._annotation_type(node, typ)
         assert isinstance(typ, (SArrayT, DArrayT))
         for element in node.elements:
             self.visit(element, typ.value_type)

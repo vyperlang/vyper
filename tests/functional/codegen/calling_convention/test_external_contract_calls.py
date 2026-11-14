@@ -2705,3 +2705,195 @@ def boo() -> uint256:
 
     assert c.foo() == [1, 2, 3, 4]
     assert c.bar() == [1, 2, 3, 4]
+
+
+@pytest.mark.parametrize(
+    "arg,expected",
+    [
+        ('[b"x", staticcall Target(addr).source()]', [b"x", b"hello"]),
+        ('[staticcall Target(addr).source(), b"x"]', [b"hello", b"x"]),
+        ('[b"x", staticcall Target(addr).source(), b"y"]', [b"x", b"hello", b"y"]),
+    ],
+)
+def test_wildcard_arg_list_literal_wildcard_call_element(get_contract, arg, expected):
+    # the call return takes the parameter's element bound, whichever element
+    # comes first, so a return longer than the literal elements is accepted
+    target_code = """
+xs: DynArray[Bytes[10], 3]
+
+@external
+@view
+def source() -> Bytes[10]:
+    return b"hello"
+
+@external
+def sink(xs: DynArray[Bytes[10], 3]):
+    self.xs = xs
+
+@external
+@view
+def stored() -> DynArray[Bytes[10], 3]:
+    return self.xs
+    """
+
+    caller_code = f"""
+interface Target:
+    def source() -> Bytes[...]: view
+    def sink(xs: DynArray[Bytes[10], ...]): nonpayable
+
+@external
+def forward(addr: address):
+    extcall Target(addr).sink({arg})
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    caller.forward(target.address)
+    assert target.stored() == expected
+
+
+@pytest.mark.parametrize("returned,ok", [(b"h", True), (b"hello", False)])
+def test_subscripted_list_literal_wildcard_call_element(get_contract, tx_failed, returned, ok):
+    # the subscript does not pass the parameter's bound on to the list, so the
+    # first element fixes the bound of the call return
+    target_code = f"""
+x: public(Bytes[10])
+
+@external
+@view
+def source() -> Bytes[10]:
+    return {returned!r}
+
+@external
+def sink(x: Bytes[10]):
+    self.x = x
+    """
+
+    caller_code = """
+interface Target:
+    def source() -> Bytes[...]: view
+    def sink(x: Bytes[10]): nonpayable
+
+@external
+def forward(addr: address, i: uint256):
+    extcall Target(addr).sink([b"x", staticcall Target(addr).source()][i])
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    if not ok:
+        with tx_failed():
+            caller.forward(target.address, 1)
+        return
+
+    caller.forward(target.address, 1)
+    assert target.x() == returned
+    caller.forward(target.address, 0)
+    assert target.x() == b"x"
+
+
+@pytest.mark.parametrize(
+    "arg,expected",
+    [
+        (
+            "[staticcall Target(addr).wide(), staticcall Target(addr).bounded()]",
+            [[b"a" * 20, b"b"], [b"c" * 10]],
+        ),
+        (
+            "[staticcall Target(addr).bounded(), staticcall Target(addr).wide()]",
+            [[b"c" * 10], [b"a" * 20, b"b"]],
+        ),
+    ],
+)
+def test_wildcard_arg_list_literal_wildcard_call_elements(
+    get_contract, tx_failed, experimental_codegen, arg, expected
+):
+    if not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
+
+    # a call return wider than the other one arrives whole, whichever comes
+    # first, and each call still checks the fixed bounds of its return type
+    target_code = """
+xs: DynArray[DynArray[Bytes[20], 2], 2]
+long_bounded: bool
+
+@external
+def set_long_bounded():
+    self.long_bounded = True
+
+@external
+@view
+def wide() -> DynArray[Bytes[20], 2]:
+    return [b"aaaaaaaaaaaaaaaaaaaa", b"b"]
+
+@external
+@view
+def bounded() -> DynArray[Bytes[20], 2]:
+    if self.long_bounded:
+        return [b"ccccccccccc"]
+    return [b"cccccccccc"]
+
+@external
+def sink(xs: DynArray[DynArray[Bytes[20], 2], 2]):
+    self.xs = xs
+
+@external
+@view
+def stored() -> DynArray[DynArray[Bytes[20], 2], 2]:
+    return self.xs
+    """
+
+    caller_code = f"""
+interface Target:
+    def wide() -> DynArray[Bytes[...], ...]: view
+    def bounded() -> DynArray[Bytes[10], ...]: view
+    def sink(xs: DynArray[DynArray[Bytes[...], ...], ...]): nonpayable
+
+@external
+def forward(addr: address):
+    extcall Target(addr).sink({arg})
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    caller.forward(target.address)
+    assert target.stored() == expected
+
+    target.set_long_bounded()
+    with tx_failed():
+        caller.forward(target.address)
+
+
+def test_wildcard_call_return_assigned_to_wider_bound(get_contract, tx_failed):
+    # the variable only fixes the wildcard of the return type
+    target_code = """
+n: uint256
+
+@external
+def set_length(n: uint256):
+    self.n = n
+
+@external
+@view
+def source() -> DynArray[Bytes[20], 5]:
+    return [slice(b"aaaaaaaaaaaaaaaaaaaa", 0, self.n), b"b"]
+    """
+
+    caller_code = """
+interface Target:
+    def source() -> DynArray[Bytes[10], ...]: view
+
+@external
+def fetch(addr: address) -> DynArray[Bytes[20], 5]:
+    xs: DynArray[Bytes[20], 5] = staticcall Target(addr).source()
+    return xs
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    target.set_length(10)
+    assert caller.fetch(target.address) == [b"a" * 10, b"b"]
+
+    target.set_length(11)
+    with tx_failed():
+        caller.fetch(target.address)

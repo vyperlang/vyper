@@ -189,6 +189,18 @@ class VyperType:
     def resolve_wildcard(self):
         return self
 
+    def merge_wildcards(self, other: "VyperType") -> "VyperType":
+        """
+        Return this type with the wildcards of both types. The types must be
+        subtypes of each other, so that they only differ in lengths where one
+        of them has a wildcard.
+        """
+        if type(self) is not type(other):
+            return self
+        if other.has_wildcard:
+            return other
+        return self
+
     @property
     def getter_signature(self):
         return (), self
