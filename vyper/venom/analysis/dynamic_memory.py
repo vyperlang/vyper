@@ -8,7 +8,7 @@ from vyper.venom.function import IRFunction
 
 # raw FMP opcodes: a function containing any of these touches the FMP and
 # needs it threaded by FmpLoweringPass.
-_RAW_FMP_TOUCH_OPS = frozenset(["dalloca", "dret", "getfmp", "setfmp", "retfmp"])
+RAW_FMP_TOUCH_OPS = frozenset(["dalloca", "dret", "getfmp", "setfmp", "retfmp"])
 
 # raw publishing terminators: the publish fact lives in the terminator
 # opcode. `dret` (raw) and `retfmp` (desugared) both make the caller adopt
@@ -91,7 +91,7 @@ class DynamicMemoryAnalysis(IRGlobalAnalysis):
 
     def _touches_fmp(self, fn: IRFunction) -> bool:
         return any(
-            inst.opcode in _RAW_FMP_TOUCH_OPS
+            inst.opcode in RAW_FMP_TOUCH_OPS
             for bb in fn.get_basic_blocks()
             for inst in bb.instructions
         )

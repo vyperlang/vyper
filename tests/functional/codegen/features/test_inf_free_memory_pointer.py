@@ -1,0 +1,212 @@
+"""
+Without stack spills, dynamic memory of an external function starts above
+the static memory that function can access. Unrelated large frames therefore
+do not increase its memory-expansion cost. Global spill bounds remain a
+limitation, covered by the expected failure below.
+"""
+
+import pytest
+
+from tests.venom_utils import stack_spilling_inf_source
+from vyper.compiler.settings import OptimizationLevel
+from vyper.utils import keccak256
+
+
+@pytest.fixture(autouse=True)
+def _venom_only(experimental_codegen):
+    if not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
+
+
+# an unrelated external function whose static frame grows with `bound`
+# (about 128KB at bound 2048: memory expansion would cost ~45k gas)
+def _big_entry(bound):
+    return f"""
+@external
+@pure
+def big(xs: DynArray[uint256, {bound}]) -> DynArray[uint256, {bound}]:
+    return xs
+"""
+
+
+class GasDependsOnBigFrame(Exception):
+    pass
+
+
+# `call` exercises the contract and returns the gas used by the call under test
+def _assert_gas_independent_of_big_frame(get_contract, code, call):
+    gas = {}
+    for bound in (2, 2048):
+        c = get_contract(code + _big_entry(bound))
+        assert c.big([1, 2]) == [1, 2]
+        gas[bound] = call(c)
+    # not an assert, so that an expected gas difference can be told apart
+    # from a wrong result
+    if gas[2048] != gas[2]:
+        raise GasDependsOnBigFrame(gas)
+
+
+def test_length_gas_independent_of_echo_bound(env, get_contract):
+    """
+    The contract reported in GH 5244: the gas cost of `length` must not
+    depend on the size of `echo`'s static frame.
+    """
+    code = """
+BOUND: constant(uint256) = {bound}
+
+@external
+@pure
+def echo(values: DynArray[Bytes[BOUND], 64]) -> DynArray[Bytes[BOUND], 64]:
+    return values
+
+@external
+@pure
+def length(data: Bytes[INF]) -> uint256:
+    return len(data)
+    """
+    gas = {}
+    for bound in (32, 1024):
+        c = get_contract(code.format(bound=bound))
+        assert c.echo([b"ab", b"c"]) == [b"ab", b"c"]
+        assert c.length(b"\x01\x02\x03\x04") == 4
+        gas[bound] = env.last_result.gas_used
+    # echo's frame is about 135KB at bound 1024
+    assert gas[1024] == gas[32]
+
+
+@pytest.mark.xfail(
+    raises=GasDependsOnBigFrame, reason="a stack spill anywhere raises every initial FMP"
+)
+def test_length_gas_independent_of_big_frame_with_unrelated_spills(env, get_contract):
+    # Keep 16 scalars live across a loop to force spills even at O2/O3/Os.
+    # Only length() and big() are called; unrelated() is never executed.
+    params = ", ".join(f"a{i}: uint256" for i in range(16))
+    locals_ = "\n".join(f"    v{i}: uint256 = a{i}" for i in range(16))
+    updates = "\n".join(f"        v{i} = unsafe_add(v{i}, j)" for i in range(16))
+    total = " + ".join(f"v{i}" for i in range(16))
+    code = f"""
+@external
+@pure
+def length(data: Bytes[INF]) -> uint256:
+    return len(data)
+
+@external
+@pure
+def unrelated({params}, count: uint256) -> uint256:
+{locals_}
+    for j: uint256 in range(count, bound=10):
+{updates}
+    return {total}
+    """
+
+    def call(c):
+        assert c.length(b"\x01\x02\x03\x04") == 4
+        return env.last_result.gas_used
+
+    _assert_gas_independent_of_big_frame(get_contract, code, call)
+
+
+@pytest.mark.parametrize("inline", [True, False])
+def test_internal_function_shared_by_small_and_big_entries(
+    env, get_contract, no_inlining_settings, inline
+):
+    # `_tag` keeps static locals live across its own dynamic allocations,
+    # and its callers pass dynamic data into it: both the caller's data and
+    # the callee's result must stay clear of the callee's frame
+    code = """
+@internal
+def _tag(data: Bytes[INF], n: uint256) -> Bytes[INF]:
+    words: uint256[4] = [n, n + 1, n + 2, n + 3]
+    out: Bytes[INF] = concat(data, b"|")
+    return concat(out, convert(words[0] + words[3], bytes32), data)
+
+@external
+def small(data: Bytes[INF]) -> Bytes[INF]:
+    return self._tag(data, 1)
+
+@external
+def large(data: Bytes[INF], xs: DynArray[uint256, 2048]) -> Bytes[INF]:
+    total: uint256 = 0
+    for x: uint256 in xs:
+        total += x
+    return self._tag(data, total)
+    """
+    settings = {} if inline else {"compiler_settings": no_inlining_settings}
+    payload = bytes(range(200))
+
+    def expected(n):
+        return payload + b"|" + (2 * n + 3).to_bytes(32, "big") + payload
+
+    c = get_contract(code, **settings)
+    assert c.small(payload) == expected(1)
+    assert c.large(payload, [5, 6]) == expected(11)
+    assert c.small(b"") == b"|" + (5).to_bytes(32, "big")
+
+    def call(c):
+        assert c.small(payload) == expected(1)
+        return env.last_result.gas_used
+
+    _assert_gas_independent_of_big_frame(lambda src: get_contract(src, **settings), code, call)
+
+
+def test_kwargs_entry_points(env, get_contract):
+    # each kwarg variant is a separate entry point into the same body
+    code = """
+@external
+def tagged(
+    data: Bytes[INF], suffix: Bytes[INF] = b"!", n: uint256 = 7
+) -> (Bytes[INF], uint256):
+    return concat(data, suffix), n
+    """
+    payload = b"\xaa" * 70
+
+    def call(c):
+        gas = []
+        assert c.tagged(payload) == (payload + b"!", 7)
+        gas.append(env.last_result.gas_used)
+        assert c.tagged(payload, b"??") == (payload + b"??", 7)
+        gas.append(env.last_result.gas_used)
+        assert c.tagged(payload, b"", 3) == (payload, 3)
+        gas.append(env.last_result.gas_used)
+        return gas
+
+    _assert_gas_independent_of_big_frame(get_contract, code, call)
+
+
+def test_default_function(env, get_contract):
+    code = """
+size: public(uint256)
+digest: public(bytes32)
+
+@external
+def __default__():
+    data: Bytes[INF] = concat(msg.data, b"!")
+    self.size = len(data)
+    self.digest = keccak256(data)
+    """
+    payload = bytes(range(100))
+
+    def call(c):
+        env.message_call(c.address, data=payload)
+        gas = env.last_result.gas_used
+        assert c.size() == len(payload) + 1
+        assert c.digest() == keccak256(payload + b"!")
+        return gas
+
+    _assert_gas_independent_of_big_frame(get_contract, code, call)
+
+
+def test_dynamic_data_stays_clear_of_stack_spills(get_contract):
+    """
+    Guards against dynamic data being overwritten by stack spill slots: 16
+    arguments to an internal function spill the stack to memory at O1 while
+    the dynamic `data` is live across the call. That this source spills is
+    pinned by test_initial_fmp_above_spill_region in
+    tests/unit/compiler/venom/test_stack_spill.py.
+    """
+    code = stack_spilling_inf_source()
+    c = get_contract(code, override_opt_level=OptimizationLevel.O1)
+
+    payload = bytes((i * 37) % 256 for i in range(300))
+    values = list(range(1, 17))
+    assert c.foo(payload, *values) == (sum(values), payload)

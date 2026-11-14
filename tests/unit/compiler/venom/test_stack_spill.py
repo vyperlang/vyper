@@ -1,8 +1,15 @@
 import pytest
 
+from tests.venom_utils import stack_spilling_inf_source
 from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData, generate_bytecode
-from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
+from vyper.compiler.settings import (
+    OptimizationLevel,
+    Settings,
+    VenomOptimizationFlags,
+    anchor_settings,
+)
+from vyper.evm.assembler.instructions import CONST
 from vyper.ir.compile_ir import Label
 from vyper.utils import method_id
 from vyper.venom import generate_assembly_experimental, run_passes_on
@@ -152,6 +159,34 @@ def foo({params}) -> uint256:
     calldata = method_id(signature) + b"".join(value.to_bytes(32, "big") for value in values)
     result = env.message_call(contract.address, data=calldata)
     assert int.from_bytes(result, "big") == sum(values)
+
+
+def test_initial_fmp_above_spill_region() -> None:
+    # once anything spills, dynamic memory must start above every spill slot,
+    # even when the static memory bound of its FMP root is lower
+    source = stack_spilling_inf_source()
+    settings = Settings(experimental_codegen=True, optimize=OptimizationLevel.O1)
+    lowered = compile_code(source, output_formats=["ir_runtime"], settings=settings)["ir_runtime"]
+    ctx = parse_venom(str(lowered))
+    (root,) = [
+        inst
+        for bb in ctx.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "initial_fmp"
+    ]
+    bound = root.operands[0].value
+
+    compiler = VenomCompiler(ctx)
+    # assemble for the evm version the IR was compiled for
+    with anchor_settings(settings):
+        asm = compiler.generate_evm_assembly()
+    peak_spill_end = compiler.spiller.peak_spill_end
+    assert peak_spill_end > bound
+    assert peak_spill_end >= max(ctx.mem_allocator.fn_eom.values(), default=0)
+
+    (const,) = [item for item in asm if isinstance(item, CONST)]
+    assert const.name == f"__initial_fmp_{bound}__"
+    assert const.value >= peak_spill_end
 
 
 def test_swap_spills_deep_stack() -> None:

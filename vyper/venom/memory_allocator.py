@@ -2,7 +2,7 @@ from typing import ClassVar
 
 from vyper.utils import OrderedSet
 from vyper.venom.analysis.base_ptr_analysis import Ptr
-from vyper.venom.basicblock import IRInstruction, IRLiteral
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral
 from vyper.venom.function import IRFunction
 from vyper.venom.memory_location import Allocation
 
@@ -18,6 +18,8 @@ class MemoryAllocator:
 
     #   function => end of memory for that function
     fn_eom: dict[IRFunction, int]
+    #   basic block => end of the static memory live in that block
+    bb_eom: dict[IRBasicBlock, int]
 
     # mems allocated in current function
     allocated_fn: OrderedSet[Allocation]
@@ -36,6 +38,7 @@ class MemoryAllocator:
         self.allocated = dict()
         self.mems_used = dict()
         self.fn_eom = dict()
+        self.bb_eom = dict()
         self.allocated_fn = OrderedSet()
 
     def set_position(self, alloca: Allocation, position: int):
@@ -91,14 +94,34 @@ class MemoryAllocator:
 
         self.fn_eom[self.current_function] = self.compute_fn_eom()
 
+    def _global_eom(self) -> int:
+        return max((ptr + size for ptr, size in self.global_allocation), default=0)
+
     def compute_fn_eom(self) -> int:
-        eom = 0
-        for ptr, size in self.global_allocation:
-            eom = max(eom, ptr + size)
+        eom = self._global_eom()
         for alloca in self.allocated_fn:
             offset = self.allocated[alloca]
             eom = max(eom, offset + alloca.alloca_size)
         return eom
+
+    def record_bb_eom(self, livesets: dict[Allocation, OrderedSet[IRInstruction]]):
+        """
+        Snapshot the end of the static memory live in each block of the
+        current function, for `FmpLoweringPass` to bound the entry
+        function's FMP roots. Taken here because `ConcretizeMemLocPass`
+        replaces the allocas with literals and invalidates
+        `MemLivenessAnalysis`, so it cannot be derived later. Allocas
+        absent from the livesets are never accessed, so they are outside
+        every bound.
+        """
+        global_eom = self._global_eom()
+        for bb in self.current_function.get_basic_blocks():
+            self.bb_eom[bb] = global_eom
+        # an invoke's livesets include the callee's frame
+        for alloca, insts in livesets.items():
+            end = self.allocated[alloca] + alloca.alloca_size
+            for inst in insts:
+                self.bb_eom[inst.parent] = max(self.bb_eom[inst.parent], end)
 
     def reset(self):
         self.reserved = self.global_allocation.copy()

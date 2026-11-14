@@ -48,10 +48,11 @@ def _revert_postamble() -> list[AssemblyInstruction]:
     return [Label("revert"), *PUSH(0), "DUP1", "REVERT"]
 
 
-# Name of the assembler-level CONST used by the `initial_fmp` Venom opcode.
-# The CONST is declared at the end of assembly generation (after spill
-# analysis completes) and resolved at assembly time.
-_INITIAL_FMP_CONST = "__initial_fmp__"
+# Name of the assembler-level CONST used by `initial_fmp <bound>`. The CONST
+# is declared at the end of assembly generation (after spill analysis
+# completes) and resolved at assembly time.
+def _initial_fmp_const(bound: int) -> str:
+    return f"__initial_fmp_{bound}__"
 
 
 class _DeadStackItem(IROperand):
@@ -126,7 +127,7 @@ class VenomCompiler:
         self.label_counter = 0
         self.visited_basicblocks = OrderedSet()
         self.spiller = StackSpiller(ctx)
-        self._uses_initial_fmp_const = False
+        self._initial_fmp_bounds: OrderedSet[int] = OrderedSet()
         self._analyses_cache: IRAnalysesCache | None = None
         self._stack_cleanup_safety: StackCleanupSafety | None = None
         self._function_peak_stack_heights: dict[IRFunction, int] = {}
@@ -139,7 +140,7 @@ class VenomCompiler:
         self.visited_basicblocks = OrderedSet()
         self.label_counter = 0
         self.spiller.reset_for_codegen()
-        self._uses_initial_fmp_const = False
+        self._initial_fmp_bounds = OrderedSet()
         self._analyses_cache = None
         self._stack_cleanup_safety = None
         self._function_peak_stack_heights = {}
@@ -172,14 +173,16 @@ class VenomCompiler:
             self._stack_cleanup_safety = None
             self.spiller.set_current_function(None)
 
-        # Declare the initial-FMP CONST if anything referenced it (the
-        # entry function's FMP root is an explicit `initial_fmp`
-        # instruction, lowered to a CONSTREF push below). The declaration
-        # must sit in the assembly stream before resolve_symbols runs; its
-        # value is known now that all per-function codegen (and spill
-        # analysis) has completed.
-        if self._uses_initial_fmp_const:
-            asm = [CONST(_INITIAL_FMP_CONST, self._initial_fmp_value())] + asm
+        # Declare the initial-FMP CONSTs referenced (the entry function's FMP
+        # roots are explicit `initial_fmp` instructions, lowered to CONSTREF
+        # pushes below). The declarations must sit in the assembly stream
+        # before resolve_symbols runs; their values are known now that all
+        # per-function codegen (and spill analysis) has completed.
+        initial_fmp_consts = [
+            CONST(_initial_fmp_const(bound), self._initial_fmp_value(bound))
+            for bound in self._initial_fmp_bounds
+        ]
+        asm = initial_fmp_consts + asm
 
         asm.extend(_revert_postamble())
         # Append data segment
@@ -202,16 +205,16 @@ class VenomCompiler:
 
         return asm
 
-    def _initial_fmp_value(self) -> int:
-        # Initial FMP must live above every function's static frame
-        # AND above every function's spill region. Spill regions start above
-        # the largest static frame and are disjoint between functions;
-        # `peak_spill_end` tracks the end of the last allocated region.
-        # Placing the initial FMP at or above that value guarantees that the
-        # dynamic allocation region never aliases with a spill area.
-        eoms = [self.ctx.mem_allocator.fn_eom.get(fn, 0) for fn in self.ctx.functions.values()]
-        max_eom = max(eoms, default=0)
-        return ceil32(max(max_eom, self.spiller.peak_spill_end))
+    def _initial_fmp_value(self, bound: int) -> int:
+        # `bound` is the static memory end of the root's region, computed
+        # by FmpLoweringPass. The spill end is zero when nothing spills;
+        # otherwise StackSpiller places every spill slot above every
+        # function's static frame. Spill slots are not tracked per region,
+        # so any spill raises every root to the spill end.
+        spill_end = self.spiller.peak_spill_end
+        max_eom = max(self.ctx.mem_allocator.fn_eom.values(), default=0)
+        assert spill_end == 0 or spill_end >= max_eom, (spill_end, max_eom)
+        return ceil32(max(bound, spill_end))
 
     def _stack_reorder(
         self,
@@ -667,6 +670,9 @@ class VenomCompiler:
             log_topic_count = inst.operands[0].value
             assert log_topic_count in [0, 1, 2, 3, 4], "Invalid topic count"
             operands = inst.operands[1:]
+        elif opcode == "initial_fmp":
+            # the bound is an immediate, not a stack operand
+            operands = []
         elif opcode == "ret":
             # Schedule all operands (return values + return_pc) to ensure correct stack order.
             # IR convention: rightmost operand (return_pc) at TOS, values below.
@@ -764,8 +770,12 @@ class VenomCompiler:
             # Lowers to a deferred PUSH of the initial FMP value. We emit a
             # CONSTREF here and declare the CONST with the final value once
             # all per-function codegen (and spill analysis) has completed.
-            assembly.append(PUSH_OFST(CONSTREF(_INITIAL_FMP_CONST), 0))
-            self._uses_initial_fmp_const = True
+            (bound,) = inst.operands
+            # FmpLoweringPass emits a literal, SingleUseExpansion leaves it
+            # in place and check_venom rejects a non-literal
+            assert isinstance(bound, IRLiteral), inst
+            assembly.append(PUSH_OFST(CONSTREF(_initial_fmp_const(bound.value)), 0))
+            self._initial_fmp_bounds.add(bound.value)
         elif opcode in ("param", "fmp_param", "retpc_param"):
             # names for entry stack slots; all three assemble identically
             # (no code emitted)

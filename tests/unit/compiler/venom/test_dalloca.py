@@ -2,13 +2,15 @@ import pytest
 
 from tests.evm_backends.base_env import BaseEnv
 from tests.venom_utils import assert_ctx_eq, find_inst, parse_from_basic_block, run_ssa
-from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
+from vyper.compiler import compile_code
+from vyper.compiler.settings import OptimizationLevel, Settings, VenomOptimizationFlags
 from vyper.evm.address_space import MEMORY
 from vyper.evm.assembler.core import assembly_to_evm
 from vyper.evm.assembler.instructions import CONST
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic
 from vyper.ir.compile_ir import Label
+from vyper.utils import method_id
 from vyper.venom import run_passes_on
 from vyper.venom.analysis import (
     BasePtrAnalysis,
@@ -1314,7 +1316,7 @@ def test_fmp_param_retpc_param_round_trip():
 
 def test_entry_function_seeds_initial_fmp_no_prelude(env):
     # the entry function's FMP root is an explicit `initial_fmp` instruction
-    # (lowered to the deferred __initial_fmp__ CONST); the assembler entry
+    # (lowered to a deferred initial-FMP CONST); the assembler entry
     # prelude special case is gone, so the assembly starts with the CONST
     # declaration followed directly by the entry label.
     src = """
@@ -1340,13 +1342,278 @@ def test_entry_function_seeds_initial_fmp_no_prelude(env):
 
     asm = VenomCompiler(ctx).generate_evm_assembly(no_optimize=True)
     assert isinstance(asm[0], CONST)
-    assert asm[0].name == "__initial_fmp__"
+    assert asm[0].name == "__initial_fmp_0__"
     # no prelude PUSH between the CONST declaration and the entry label
     assert isinstance(asm[1], Label)
 
     bytecode, _ = assembly_to_evm(asm)
     out = _execute(env, bytecode)
     assert _word(out) == 7
+
+
+def _initial_fmp_bounds(fn) -> dict[str, list[int]]:
+    return {
+        bb.label.value: [
+            inst.operands[0].value for inst in bb.instructions if inst.opcode == "initial_fmp"
+        ]
+        for bb in fn.get_basic_blocks()
+    }
+
+
+def test_entry_fmp_root_per_branch(env):
+    # each branch gets its own FMP root, bounded by the static memory that
+    # branch can access rather than by the whole function's static frame
+    src = """
+    function main {
+        main:
+            %c = calldataload 0
+            jnz %c, @big, @small
+
+        small:
+            %s = alloca 64
+            mstore %s, 5
+            %p = dalloca 32
+            %v = mload %s
+            mstore %p, %v
+            %w = mload %p
+            mstore %s, %w
+            return %s, 32
+
+        big:
+            %b = alloca 4096
+            calldatacopy %b, 0, 4096
+            %q = dalloca 32
+            %x = mload %b
+            mstore %q, %x
+            %y = mload %q
+            mstore %b, %y
+            return %b, 32
+    }
+    """
+    ctx = parse_venom(src)
+    _apply_lowering(ctx.entry_function)
+    assert _initial_fmp_bounds(ctx.entry_function) == {"main": [], "small": [64], "big": [4096]}
+
+    asm = VenomCompiler(ctx).generate_evm_assembly()
+    consts = {item.name: item.value for item in asm if isinstance(item, CONST)}
+    assert consts == {"__initial_fmp_64__": 64, "__initial_fmp_4096__": 4096}
+
+    bytecode, _ = assembly_to_evm(asm)
+    assert _word(_execute(env, bytecode, (0).to_bytes(32, "big"))) == 5
+    assert _word(_execute(env, bytecode, (1).to_bytes(32, "big"))) == 1
+
+
+_JOINED_REGIONS_SRC = """
+function main {
+    main:
+        %c = calldataload 0
+        jnz %c, @a, @b
+
+    a:
+        %s = alloca 256
+        calldatacopy %s, 0, 256
+        %h = mload %s
+        mstore %s, %h
+        jmp @join
+
+    b:
+        %p = dalloca 64
+        mstore %p, 9
+        jmp @join
+
+    join:
+        %q = dalloca 32
+        mstore %q, 11
+        return %q, 32
+}
+"""
+
+
+def test_entry_fmp_roots_meet_in_phi(env):
+    # `a` does not use the FMP but branches to `join`, which also follows
+    # `b`'s allocation: `a` and `b` each seed a root and the two meet in a
+    # phi at `join`
+    ctx = parse_venom(_JOINED_REGIONS_SRC)
+    fn = ctx.entry_function
+    _apply_dalloca_lowering(fn)
+    assert _initial_fmp_bounds(fn) == {"main": [], "a": [256], "b": [0], "join": []}
+
+    a_root = find_inst(fn, "initial_fmp")
+    assert a_root.parent.label == IRLabel("a")
+    join = fn.get_basic_block("join")
+    phi = join.instructions[0]
+    assert phi.opcode == "phi"
+    assert dict(phi.phi_operands)[IRLabel("a")] == a_root.output
+    join_bump = next(inst for inst in join.instructions if inst.opcode == "bump")
+    assert phi.output in join_bump.operands
+
+    for selector in (0, 1):
+        out = _run_program(env, _JOINED_REGIONS_SRC, selector.to_bytes(32, "big"))
+        assert _word(out) == 11
+
+
+def test_entry_fmp_root_when_only_unreachable_code_allocates():
+    # no reachable block needs the FMP; the entry block still gets the root
+    # so the unreachable allocation lowers against a defined FMP
+    ctx = parse_venom("""
+        function main {
+            main:
+                stop
+
+            dead:
+                %d = dalloca 32
+                mstore %d, 1
+                stop
+        }
+        """)
+    fn = ctx.entry_function
+    _apply_dalloca_lowering(fn)
+    assert _initial_fmp_bounds(fn) == {"main": [0], "dead": []}
+    dead_bump = find_inst(fn, "bump")
+    root = find_inst(fn, "initial_fmp")
+    assert root.output in dead_bump.operands
+
+
+def test_entry_block_on_fmp_cycle_rejected():
+    # every block follows the allocation, so no root placement keeps the
+    # previous iteration's allocation live: fail loudly
+    ctx = parse_venom("""
+        function main {
+            main:
+                %p = dalloca 32
+                %c = mload %p
+                jnz %c, @main, @exit
+
+            exit:
+                stop
+        }
+        """)
+    fn = ctx.entry_function
+    ConcretizeMemLocPass(IRAnalysesCache(fn), fn).run_pass()
+    run_ssa(fn)
+    with pytest.raises(AssertionError, match="on a cycle through an FMP instruction"):
+        FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+
+def test_fmp_lowering_without_recorded_static_memory_end_rejected():
+    # the root bounds come from the static memory ends that
+    # ConcretizeMemLocPass records per block; without them the pass must
+    # fail rather than guess a bound
+    ctx = parse_venom("""
+        function main {
+            main:
+                %p = dalloca 32
+                mstore %p, 1
+                stop
+        }
+        """)
+    fn = ctx.entry_function
+    run_ssa(fn)
+    with pytest.raises(AssertionError, match="no static memory end"):
+        FmpLoweringPass(IRAnalysesCache(fn), fn).run_pass()
+
+
+def _blocks_from(bb) -> set:
+    seen = set()
+    worklist = [bb]
+    while len(worklist) > 0:
+        cur = worklist.pop()
+        if cur in seen:
+            continue
+        seen.add(cur)
+        worklist.extend(cur.out_bbs)
+    return seen
+
+
+_ROOT_COUNT_OPT_LEVELS = [
+    OptimizationLevel.O1,
+    OptimizationLevel.GAS,
+    OptimizationLevel.CODESIZE,
+    OptimizationLevel.O3,
+]
+
+
+@pytest.mark.parametrize("opt_level", _ROOT_COUNT_OPT_LEVELS)
+def test_runtime_fmp_roots_only_for_externals_using_dynamic_memory(opt_level):
+    # each external function that uses dynamic memory seeds its own FMP
+    # root; no path through the other external functions passes a root
+    source = """
+total: uint256
+
+@external
+def echo(data: Bytes[INF]) -> Bytes[INF]:
+    return data
+
+@external
+def sum_all(xs: DynArray[uint256, INF]) -> uint256:
+    s: uint256 = 0
+    for x: uint256 in xs:
+        s += x
+    return s
+
+@external
+def add(a: uint256, b: uint256) -> uint256:
+    return a + b
+
+@external
+def set_total(a: uint256):
+    self.total = a
+    """
+    settings = Settings(experimental_codegen=True, optimize=opt_level)
+    lowered = compile_code(source, output_formats=["ir_runtime"], settings=settings)["ir_runtime"]
+    fn = parse_venom(str(lowered)).entry_function
+    blocks = list(fn.get_basic_blocks())
+
+    bounds = _initial_fmp_bounds(fn)
+    root_bbs = [bb for bb in blocks if len(bounds[bb.label.value]) > 0]
+    assert sum(len(roots) for roots in bounds.values()) == 2
+    assert len(root_bbs) == 2
+
+    # the dispatcher labels each external function's first block with its selector
+    def entry_block(signature):
+        suffix = f"_{method_id(signature).hex()}"
+        (bb,) = [bb for bb in blocks if bb.label.value.endswith(suffix)]
+        return bb
+
+    dynamic_entries = [entry_block("echo(bytes)"), entry_block("sum_all(uint256[])")]
+    plain_entries = [entry_block("add(uint256,uint256)"), entry_block("set_total(uint256)")]
+
+    for root_bb in root_bbs:
+        after_root = _blocks_from(root_bb)
+        for plain in plain_entries:
+            assert plain not in after_root
+            assert root_bb not in _blocks_from(plain)
+    for entry, other in (dynamic_entries, reversed(dynamic_entries)):
+        (own_root,) = [bb for bb in root_bbs if bb in _blocks_from(entry)]
+        assert own_root not in _blocks_from(other)
+
+
+@pytest.mark.parametrize("opt_level", _ROOT_COUNT_OPT_LEVELS)
+def test_runtime_fmp_root_per_default_argument_variant(opt_level):
+    # every selector variant of an external function with default arguments
+    # is a separate entry path: each decodes or defaults the unbounded
+    # `suffix` before joining the shared body, so each seeds its own root
+    source = """
+@external
+def tagged(
+    data: Bytes[INF], suffix: Bytes[INF] = b"!", n: uint256 = 7
+) -> (Bytes[INF], uint256):
+    return concat(data, suffix), n
+    """
+    settings = Settings(experimental_codegen=True, optimize=opt_level)
+    lowered = compile_code(source, output_formats=["ir_runtime"], settings=settings)["ir_runtime"]
+    fn = parse_venom(str(lowered)).entry_function
+
+    bounds = _initial_fmp_bounds(fn)
+    root_labels = [label for label, roots in bounds.items() if len(roots) > 0]
+    assert sum(len(roots) for roots in bounds.values()) == 3
+    assert len(root_labels) == 3
+
+    # the dispatcher labels each variant's first block with its selector
+    signatures = ("tagged(bytes)", "tagged(bytes,bytes)", "tagged(bytes,bytes,uint256)")
+    for signature in signatures:
+        suffix = f"_{method_id(signature).hex()}"
+        assert len([label for label in root_labels if label.endswith(suffix)]) == 1
 
 
 def test_fmp_prune_seals_signature_and_callers_see_final_shape(env):
