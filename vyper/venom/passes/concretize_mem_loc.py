@@ -4,6 +4,7 @@ from vyper.venom.analysis import BasePtrAnalysis, DFGAnalysis, MemLivenessAnalys
 from vyper.venom.basicblock import IRBasicBlock
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
+from vyper.venom.analysis.loop_detection import NaturalLoopDetectionAnalysis
 
 
 class ConcretizeMemLocPass(IRPass):
@@ -26,12 +27,22 @@ class ConcretizeMemLocPass(IRPass):
         self.updater = InstUpdater(self.dfg)
         self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.mem_liveness = self.analyses_cache.request_analysis(MemLivenessAnalysis)
+        self.loop_det = self.analyses_cache.request_analysis(NaturalLoopDetectionAnalysis)
 
         self.allocator.start_fn_allocation(self.function)
 
         livesets = list(self.mem_liveness.livesets.items())
         already_allocated = [item for item in livesets if self.allocator.is_allocated(item[0])]
         to_allocate = [item for item in livesets if not self.allocator.is_allocated(item[0])]
+
+        bb_loop = dict()
+        for bb in self.function.get_basic_blocks():
+            count = 0
+            for loop in self.loop_det.loops.values():
+                if bb in loop:
+                    count += 1
+            bb_loop[bb] = count
+        
         # (note this is *heuristic*; our goal is to minimize conflicts
         # between livesets). escaped allocas are live to the end of the
         # function and so conflict with everything after their first use;
@@ -41,7 +52,7 @@ class ConcretizeMemLocPass(IRPass):
         # buffer.
         escaped = self.mem_liveness.escaped
         to_allocate.sort(
-            key=lambda x: (x[0] not in escaped, len(x[1]), x[0].alloca_size, str(x[0].inst.output))
+            key=lambda x: heuristic(x[0] not in escaped, len(x[1]), bb_loop[x[0].inst.parent], x[0].alloca_size, str(x[0].inst.output))
         )
 
         self.allocator.add_allocated([mem for mem, _ in already_allocated])
@@ -105,3 +116,6 @@ class ConcretizeMemLocPass(IRPass):
                 ), f"alloca not allocated by livesets: {inst}"
                 concrete = self.allocator.get_concrete(base_ptr)
                 self.updater.replace(inst, "assign", [concrete])
+
+def heuristic(a: bool, b: int, c: int, d: int, e: str):
+    return (a,-c,d,e,b)
