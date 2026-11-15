@@ -575,6 +575,10 @@ class Concat(BuiltinFunctionT):
             dst_data = add_ofst(bytes_data_ptr(dst), ofst)
 
             if isinstance(arg.typ, _BytestringT):
+                if arg.location is None:
+                    # `empty()` is not a pointer; copy_bytes needs one
+                    arg = ensure_in_memory(arg, context)
+
                 with arg.cache_when_complex("arg") as (b1, arg):
                     argdata = bytes_data_ptr(arg)
 
