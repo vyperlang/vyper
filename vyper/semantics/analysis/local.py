@@ -594,6 +594,16 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
         if isinstance(node.value, vy_ast.Tuple):
             raise StructureException("Right-hand side of assignment cannot be a tuple", node.value)
 
+        # neither codegen pipeline supports unpacking into nested targets,
+        # e.g. `a, (b, c) = ...`
+        if isinstance(node.target, vy_ast.Tuple):
+            for item in node.target.elements:
+                if isinstance(item, vy_ast.Tuple):
+                    hint = "assign to a tuple-typed variable and unpack it separately"
+                    raise StructureException(
+                        "Nested tuple assignment targets are not supported", item, hint=hint
+                    )
+
         target = get_expr_info(node.target)
 
         # check mutability of the function
