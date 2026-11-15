@@ -173,18 +173,17 @@ class VenomCompiler:
             self._stack_cleanup_safety = None
             self.spiller.set_current_function(None)
 
+        asm.extend(_revert_postamble())
+
         # Declare the initial-FMP CONSTs referenced (the entry function's FMP
         # roots are explicit `initial_fmp` instructions, lowered to CONSTREF
         # pushes below). The declarations must sit in the assembly stream
         # before resolve_symbols runs; their values are known now that all
-        # per-function codegen (and spill analysis) has completed.
-        initial_fmp_consts = [
-            CONST(_initial_fmp_const(bound), self._initial_fmp_value(bound))
-            for bound in self._initial_fmp_bounds
-        ]
-        asm = initial_fmp_consts + asm
+        # per-function codegen (and spill analysis) has completed. They emit
+        # no bytes and are kept after the code, next to the data segment.
+        for bound in self._initial_fmp_bounds:
+            asm.append(CONST(_initial_fmp_const(bound), self._initial_fmp_value(bound)))
 
-        asm.extend(_revert_postamble())
         # Append data segment
         for data_section in self.ctx.data_segment:
             label = data_section.label

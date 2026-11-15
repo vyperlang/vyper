@@ -1341,10 +1341,10 @@ def test_entry_function_seeds_initial_fmp_no_prelude(env):
     assert not any(inst.is_param for inst in main.entry.instructions)
 
     asm = VenomCompiler(ctx).generate_evm_assembly(no_optimize=True)
-    assert isinstance(asm[0], CONST)
-    assert asm[0].name == "__initial_fmp_0__"
-    # no prelude PUSH between the CONST declaration and the entry label
-    assert isinstance(asm[1], Label)
+    (const,) = [item for item in asm if isinstance(item, CONST)]
+    assert const.name == "__initial_fmp_0__"
+    # no prelude PUSH before the entry label
+    assert isinstance(asm[0], Label)
 
     bytecode, _ = assembly_to_evm(asm)
     out = _execute(env, bytecode)
