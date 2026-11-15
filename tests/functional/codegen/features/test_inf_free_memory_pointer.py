@@ -74,10 +74,7 @@ def length(data: Bytes[INF]) -> uint256:
     assert gas[1024] == gas[32]
 
 
-@pytest.mark.xfail(
-    raises=GasDependsOnBigFrame, reason="a stack spill anywhere raises every initial FMP"
-)
-def test_length_gas_independent_of_big_frame_with_unrelated_spills(env, get_contract):
+def test_unrelated_stack_spill_raises_every_initial_fmp(env, get_contract):
     # Keep 16 scalars live across a loop to force spills even at O2/O3/Os.
     # Only length() and big() are called; unrelated() is never executed.
     params = ", ".join(f"a{i}: uint256" for i in range(16))
@@ -103,7 +100,10 @@ def unrelated({params}, count: uint256) -> uint256:
         assert c.length(b"\x01\x02\x03\x04") == 4
         return env.last_result.gas_used
 
-    _assert_gas_independent_of_big_frame(get_contract, code, call)
+    # spill slots are not tracked per FMP root, so a spill in `unrelated`
+    # still makes `length` pay for the frame of `big`
+    with pytest.raises(GasDependsOnBigFrame):
+        _assert_gas_independent_of_big_frame(get_contract, code, call)
 
 
 @pytest.mark.parametrize("inline", [True, False])
