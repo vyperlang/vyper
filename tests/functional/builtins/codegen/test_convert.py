@@ -729,6 +729,67 @@ def foo() -> uint8:
     assert_compile_failed(lambda: get_contract(code), InvalidLiteral)
 
 
+# GH 2754: narrowing a bytesM literal must drop only zero bytes.
+@pytest.mark.parametrize(
+    "typ,val",
+    [
+        ("bytes1", "0xffff"),
+        ("bytes1", "0x0001"),
+        ("bytes2", "0x1234ff"),
+        ("bytes31", "0x" + "00" * 31 + "01"),
+    ],
+)
+def test_conversion_bytes_m_literal_out_of_range(get_contract, typ, val):
+    code = f"""
+@external
+def foo() -> {typ}:
+    return convert({val}, {typ})
+    """
+    with pytest.raises(InvalidLiteral) as e:
+        get_contract(code)
+    # the error points at the converted literal
+    node = e.value.annotations[0].get_original_node()
+    assert (node.lineno, node.col_offset) == (4, 19)
+
+    code = f"""
+FOO: constant(bytes{(len(val) - 2) // 2}) = {val}
+
+@external
+def foo() -> {typ}:
+    return convert(FOO, {typ})
+    """
+    with pytest.raises(InvalidLiteral) as e:
+        get_contract(code)
+    node = e.value.annotations[0].get_original_node()
+    assert (node.lineno, node.col_offset) == (6, 19)
+
+
+@pytest.mark.parametrize(
+    "typ,val,expected",
+    [
+        ("bytes1", "0xff00", b"\xff"),
+        ("bytes1", "0x0000", b"\x00"),
+        ("bytes2", "0x123400", b"\x12\x34"),
+        ("bytes31", "0x" + "ff" * 31 + "00", b"\xff" * 31),
+    ],
+)
+def test_conversion_bytes_m_literal_in_range(get_contract, typ, val, expected):
+    code = f"""
+FOO: constant(bytes{(len(val) - 2) // 2}) = {val}
+
+@external
+def foo() -> {typ}:
+    return convert({val}, {typ})
+
+@external
+def bar() -> {typ}:
+    return convert(FOO, {typ})
+    """
+    c = get_contract(code)
+    assert c.foo() == expected
+    assert c.bar() == expected
+
+
 def test_conversion_constant_different_leghts(get_contract):
     code = r"""
 FOO: constant(Bytes[2]) = b'\xff'
@@ -770,7 +831,8 @@ def foo() -> {o_typ}:
     # if isinstance(o_typ, IntegerT.signeds()) and isinstance(i_typ, Address()):
     #    skip_c1 = True
 
-    if isinstance(o_typ, BytesM_T):
+    # bytes20 literals which are valid checksum addresses are typed as address
+    if i_typ == BYTES20_T and is_checksum_encoded(_vyper_literal(val, BYTES20_T)):
         skip_c1 = True
 
     # if o_typ in (AddressT(), BYTES20_T):

@@ -276,6 +276,16 @@ def _literal_decimal(expr, arg_typ, out_typ):
     return IRnode.from_list(val, typ=out_typ)
 
 
+def _literal_bytes_m(expr, out_typ):
+    # narrowing a bytesM literal drops its trailing bytes, which must be zero
+    if any(expr.bytes_value[out_typ.m :]):
+        raise InvalidLiteral(
+            f"Value out of range for {out_typ}",
+            expr,
+            hint="only zero bytes can be dropped when narrowing",
+        )
+
+
 # any base type or bytes/string
 @_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BoolT, BytesT, StringT)
 def to_bool(expr, arg, out_typ):
@@ -395,6 +405,8 @@ def to_bytes_m(expr, arg, out_typ):
     elif is_bytes_m_type(arg.typ):
         # clamp if it's a downcast
         if arg.typ.m > out_typ.m:
+            if isinstance(expr, vy_ast.Hex):
+                _literal_bytes_m(expr, out_typ)
             arg = bytes_clamp(arg, out_typ.m)
 
     elif is_integer_type(arg.typ) or arg.typ == AddressT():
