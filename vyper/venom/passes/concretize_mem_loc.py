@@ -117,5 +117,5 @@ class ConcretizeMemLocPass(IRPass):
                 concrete = self.allocator.get_concrete(base_ptr)
                 self.updater.replace(inst, "assign", [concrete])
 
-def heuristic(a: bool, b: int, c: int, d: int, e: str):
-    return (a,-c,d,e,b)
+def heuristic(not_escaped: bool, live_count: int, loop_depth: int, alloca_size: int, name: str):
+    return (not_escaped, -loop_depth, alloca_size, name, live_count)
