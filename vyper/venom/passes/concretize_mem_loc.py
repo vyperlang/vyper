@@ -5,6 +5,7 @@ from vyper.venom.basicblock import IRBasicBlock
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
 from vyper.venom.analysis.loop_detection import NaturalLoopDetectionAnalysis
+from vyper.compiler.settings import get_global_settings, OptimizationLevel
 
 
 class ConcretizeMemLocPass(IRPass):
@@ -117,5 +118,11 @@ class ConcretizeMemLocPass(IRPass):
                 concrete = self.allocator.get_concrete(base_ptr)
                 self.updater.replace(inst, "assign", [concrete])
 
-def heuristic(not_escaped: bool, live_count: int, loop_depth: int, alloca_size: int, name: str):
-    return (not_escaped, -loop_depth, alloca_size, name, live_count)
+def heuristic(not_escaped: bool, live_count: int, loop_depth: int, alloca_size: int, name: str) -> tuple:
+    settings = get_global_settings()
+    assert settings is not None
+    is_codesize = settings.optimize == OptimizationLevel.Os
+    if is_codesize:
+        return (not_escaped, -loop_depth, live_count, alloca_size, name)
+    else:
+        return (not_escaped, -loop_depth, alloca_size, name, live_count)
