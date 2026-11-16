@@ -1361,6 +1361,14 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
         else:
             base_type = get_exact_type_from_node(node.value)
 
+        # the expected type does not reach the elements of a literal base,
+        # so fix up any `Never` in them from `typ`, e.g. `[[]][i]` (GH issue 5243)
+        if isinstance(base_type, (SArrayT, DArrayT, TupleT)):
+            value_type = base_type.get_subscripted_type(node.slice)
+            if _contains_bottom(value_type):
+                value_type = self._interpolate(value_type, typ, pos=node)
+                base_type = _replace_value_type(base_type, node.slice, value_type)
+
         if isinstance(base_type, HashMapT):
             index_type = base_type.key_type
         else:
@@ -1384,6 +1392,34 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
 
     def visit_UnaryOp(self, node: vy_ast.UnaryOp, typ: VyperType) -> None:
         self.visit(node.operand, typ)
+
+
+def _contains_bottom(typ: VyperType) -> bool:
+    if isinstance(typ, BottomT):
+        return True
+    if isinstance(typ, (SArrayT, DArrayT)):
+        return _contains_bottom(typ.value_type)
+    if isinstance(typ, TupleT):
+        return any(_contains_bottom(t) for t in typ.member_types)
+    return False
+
+
+def _replace_value_type(typ: VyperType, index: vy_ast.ExprNode, value_type: VyperType) -> VyperType:
+    """
+    Return `typ` with the type of its element at `index` replaced by `value_type`.
+    """
+    if isinstance(typ, TupleT):
+        index_val = index.reduced()
+        assert isinstance(index_val, vy_ast.Int)  # help mypy
+        member_types = list(typ.member_types)
+        member_types[index_val.value] = value_type
+        return TupleT(tuple(member_types))
+
+    if isinstance(typ, SArrayT):
+        return SArrayT(value_type, typ.length)
+
+    assert isinstance(typ, DArrayT)
+    return DArrayT(value_type, typ.length)
 
 
 def _validate_range_call(node: vy_ast.Call):

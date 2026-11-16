@@ -3,7 +3,7 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import CompilerPanic, InvalidOperation, TypeCheckFailure
+from vyper.exceptions import CompilerPanic, TypeCheckFailure
 
 
 def test_negative_ix_access(get_contract, tx_failed):
@@ -489,8 +489,8 @@ def foo(i: uint256) -> uint256:
     pytest.xfail("compilation succeeded with correct bytecode, but should have rejected `[][i]`")
 
 
-@pytest.mark.xfail(raises=InvalidOperation)
 def test_index_all_empty_lists_variable_index(get_contract, tx_failed):
+    # GH issue 5243
     code = """
 @external
 def foo(i: uint256) -> DynArray[uint256, 5]:
@@ -503,3 +503,119 @@ def foo(i: uint256) -> DynArray[uint256, 5]:
     assert c.foo(1) == []
     with tx_failed():
         c.foo(2)
+
+
+# GH issue 5243
+empty_literal_subscript_cases = [
+    (
+        """
+@external
+def foo(i: uint256) -> DynArray[uint256, 5]:
+    return [[]][i]
+    """,
+        [],
+    ),
+    (
+        """
+@external
+def foo(i: uint256) -> DynArray[uint256, 5]:
+    x: DynArray[uint256, 5] = [[]][i]
+    return x
+    """,
+        [],
+    ),
+    (
+        """
+@external
+def foo(i: uint256) -> DynArray[String[5], 5]:
+    return [[]][i]
+    """,
+        [],
+    ),
+    (
+        """
+@external
+def foo(i: uint256) -> DynArray[DynArray[uint256, 3], 5]:
+    return [[[]]][i]
+    """,
+        [[]],
+    ),
+    (
+        """
+@external
+def foo(i: uint256) -> DynArray[uint256, 5]:
+    return [[[]]][0][i]
+    """,
+        [],
+    ),
+    (
+        """
+d: DynArray[uint256, 5]
+
+@external
+def foo(i: uint256) -> DynArray[uint256, 5]:
+    self.d = [1, 2]
+    self.d = [[]][i]
+    return self.d
+    """,
+        [],
+    ),
+    (
+        """
+@internal
+def bar(x: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
+    return x
+
+@external
+def foo(i: uint256) -> DynArray[uint256, 5]:
+    return self.bar([[]][i])
+    """,
+        [],
+    ),
+    (
+        """
+@external
+def foo(i: uint256) -> DynArray[uint256, 5]:
+    return [([], True)][i][0]
+    """,
+        [],
+    ),
+]
+
+
+@pytest.mark.parametrize("code,expected", empty_literal_subscript_cases)
+def test_subscript_empty_list_literal(get_contract, tx_failed, code, expected):
+    c = get_contract(code)
+    assert c.foo(0) == expected
+    with tx_failed():
+        c.foo(1)
+
+
+def test_subscript_empty_list_literal_wildcard_param(get_contract):
+    target_code = """
+@external
+@view
+def foo(xs: DynArray[uint256, 5]) -> uint256:
+    return len(xs) + 1
+    """
+    caller_code = """
+interface Target:
+    def foo(xs: DynArray[uint256, ...]) -> uint256: view
+
+@external
+def bar(a: address, i: uint256) -> uint256:
+    return staticcall Target(a).foo([[]][i])
+    """
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.bar(target.address, 0) == 1
+
+
+def test_subscript_tuple_literal_with_empty_list(get_contract):
+    code = """
+@external
+def foo() -> DynArray[uint256, 5]:
+    return ([], True)[0]
+    """
+    c = get_contract(code)
+    assert c.foo() == []
