@@ -194,10 +194,9 @@ class VyperType:
         Return this type with the wildcards of both types. `other` must be a
         subtype of this type.
         """
-        if type(self) is not type(other):
-            return self
-        if other.has_wildcard:
-            return other
+        assert not self.has_wildcard
+        assert not other.has_wildcard
+
         return self
 
     @property
