@@ -710,6 +710,62 @@ def do_it(addr: address, b: bool) -> DynArray[Bytes[10], 2]:
     assert caller.do_it(target.address, test) == expected
 
 
+@pytest.mark.parametrize(
+    "member,d",
+    [
+        ("staticcall Target(addr).bounded() if d else staticcall Target(addr).wide()", False),
+        ("staticcall Target(addr).wide() if d else staticcall Target(addr).bounded()", True),
+    ],
+)
+def test_ternary_of_tuples_wildcard_call_member(get_contract, member, d):
+    # the parameter fixes the bound of `wide()` through the tuple, so its
+    # elements can be longer than those of the other arm
+    target_code = """
+struct Arg:
+    xs: DynArray[Bytes[20], 2]
+    flag: bool
+
+got: DynArray[Bytes[20], 2]
+
+@external
+def sink(arg: Arg):
+    self.got = arg.xs
+
+@external
+@view
+def get() -> DynArray[Bytes[20], 2]:
+    return self.got
+
+@external
+@view
+def bounded() -> DynArray[Bytes[10], 2]:
+    return [b"ab", b"c"]
+
+@external
+@view
+def wide() -> DynArray[Bytes[20], 2]:
+    return [b"longer than ten", b"vyper"]
+    """
+
+    caller_code = f"""
+interface Target:
+    def bounded() -> DynArray[Bytes[10], 2]: view
+    def wide() -> DynArray[Bytes[...], 2]: view
+    def sink(arg: (DynArray[Bytes[20], ...], bool)): nonpayable
+
+@external
+def do_it(addr: address, c: bool, d: bool):
+    extcall Target(addr).sink(
+        ({member}, True) if c else (staticcall Target(addr).bounded(), False)
+    )
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    caller.do_it(target.address, True, d)
+    assert target.get() == [b"longer than ten", b"vyper"]
+
+
 @pytest.mark.parametrize("test", [True, False])
 def test_ternary_tuple_assigned_to_storage(get_contract, test):
     # the selected tuple is copied into storage word by word through the

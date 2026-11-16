@@ -1454,6 +1454,33 @@ def f(a: address):
 
 
 @pytest.mark.parametrize(
+    "member",
+    [
+        "staticcall I(a).bounded() if d else staticcall I(a).wide()",
+        "staticcall I(a).wide() if d else staticcall I(a).bounded()",
+    ],
+)
+def test_wildcard_arg_ternary_of_tuples_wildcard_call_member_types(member):
+    # the parameter fixes the wildcard of `wide()` through the tuple,
+    # whichever arm of the inner ternary comes first
+    code = f"""
+interface I:
+    def wide() -> DynArray[Bytes[...], 2]: view
+    def bounded() -> DynArray[Bytes[10], 2]: view
+    def sink(xs: (DynArray[Bytes[20], ...], bool)): nonpayable
+
+@external
+def f(a: address, c: bool, d: bool):
+    extcall I(a).sink(({member}, True) if c else (staticcall I(a).bounded(), False))
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.func.get("attr") == "sink"]
+    (arg_node,) = call.args
+    assert arg_node._metadata["type"] == TupleT((DArrayT(BytesT(20), 2), BoolT()))
+    assert _call_return_types(arg_node)["wide"] == DArrayT(BytesT(20), 2)
+
+
+@pytest.mark.parametrize(
     "code,node_class,typ,call_return_type",
     [
         # the subscript does not pass its type on to the list
