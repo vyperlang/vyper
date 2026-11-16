@@ -229,9 +229,8 @@ class SArrayT(_SequenceT):
             return SArrayT(resolved_value, self.length)
         return self
 
-    def merge_wildcards(self, other):
-        if type(self) is not type(other):
-            return self
+    def _merge_wildcards(self, other):
+        assert isinstance(other, SArrayT)
         return SArrayT(self.value_type.merge_wildcards(other.value_type), self.length)
 
     def compare_type(self, other):
@@ -381,9 +380,8 @@ class DArrayT(_SequenceT):
             return DArrayT(resolved_value, resolved_length)
         return self
 
-    def merge_wildcards(self, other):
-        if type(self) is not type(other):
-            return self
+    def _merge_wildcards(self, other):
+        assert isinstance(other, DArrayT)
         value_type = self.value_type.merge_wildcards(other.value_type)
         if other.length is WILDCARD:
             return DArrayT(value_type, WILDCARD)
@@ -519,9 +517,8 @@ class TupleT(VyperType):
             return TupleT(resolved)
         return self
 
-    def merge_wildcards(self, other):
-        if type(self) is not type(other):
-            return self
+    def _merge_wildcards(self, other):
+        assert isinstance(other, TupleT)
         member_types = zip(self.member_types, other.member_types, strict=True)
         return TupleT(tuple(x.merge_wildcards(y) for x, y in member_types))
 

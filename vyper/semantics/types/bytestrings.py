@@ -106,10 +106,8 @@ class _BytestringT(VyperType):
 
         return self._length >= other._length
 
-    def merge_wildcards(self, other):
-        # BottomT can occur as the element type of an empty list.
-        if type(self) is not type(other):
-            return self
+    def _merge_wildcards(self, other):
+        assert isinstance(other, type(self))
         if other.has_wildcard:
             return other
         return self

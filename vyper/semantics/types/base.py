@@ -194,6 +194,12 @@ class VyperType:
         Return this type with the wildcards of both types. `other` must be a
         subtype of this type.
         """
+        if isinstance(other, BottomT):
+            # the element type of an empty list
+            return self
+        return self._merge_wildcards(other)
+
+    def _merge_wildcards(self, other: "VyperType") -> "VyperType":
         assert not self.has_wildcard
         assert not other.has_wildcard
 
