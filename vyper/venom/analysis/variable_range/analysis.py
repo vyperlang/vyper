@@ -323,6 +323,9 @@ class VariableRangeAnalysis(IRAnalysis):
 
         if isinstance(lhs, IRVariable) and isinstance(rhs, IRLiteral):
             current = state.get(lhs, ValueRange.top())
+            if current.is_empty:
+                # Edge is already unreachable, nothing to narrow
+                return state
             bound = wrap256(rhs.value, signed=signed)
             # For unsigned comparisons with ranges that could include negatives
             if not signed and (current.is_top or current.lo < 0):
@@ -342,6 +345,8 @@ class VariableRangeAnalysis(IRAnalysis):
             )
         elif isinstance(lhs, IRLiteral) and isinstance(rhs, IRVariable):
             current = state.get(rhs, ValueRange.top())
+            if current.is_empty:
+                return state
             bound = wrap256(lhs.value, signed=signed)
             # Same logic but with left_side=False (bound on left of comparison)
             # lt: bound < var, so var > bound => gt semantics for var
