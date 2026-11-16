@@ -1454,6 +1454,36 @@ def f(a: address):
 
 
 @pytest.mark.parametrize(
+    "arg",
+    [
+        "staticcall I(a).wide() if c else staticcall I(a).longer()",
+        "staticcall I(a).longer() if c else staticcall I(a).wide()",
+    ],
+)
+def test_wildcard_arg_ternary_wildcard_call_arm_shorter_than_other_arm_types(arg):
+    # the type of `longer()` is the supertype of the two, but the parameter
+    # fixes the wildcard of `wide()`, whichever arm comes first
+    code = f"""
+interface I:
+    def wide() -> DynArray[Bytes[...], 2]: view
+    def longer() -> DynArray[Bytes[10], 3]: view
+    def sink(xs: DynArray[Bytes[20], ...]): nonpayable
+
+@external
+def f(a: address, c: bool):
+    extcall I(a).sink({arg})
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.func.get("attr") == "sink"]
+    (arg_node,) = call.args
+    assert arg_node._metadata["type"] == DArrayT(BytesT(20), 3)
+    assert _call_return_types(arg_node) == {
+        "wide": DArrayT(BytesT(20), 2),
+        "longer": DArrayT(BytesT(10), 3),
+    }
+
+
+@pytest.mark.parametrize(
     "member",
     [
         "staticcall I(a).bounded() if d else staticcall I(a).wide()",

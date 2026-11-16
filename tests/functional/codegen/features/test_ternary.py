@@ -711,6 +711,59 @@ def do_it(addr: address, b: bool) -> DynArray[Bytes[10], 2]:
 
 
 @pytest.mark.parametrize(
+    "arg,test",
+    [
+        ("staticcall Target(addr).wide() if b else staticcall Target(addr).longer()", True),
+        ("staticcall Target(addr).longer() if b else staticcall Target(addr).wide()", False),
+    ],
+)
+def test_ternary_wildcard_call_arm_shorter_than_other_arm(get_contract, arg, test):
+    # the parameter fixes the bound of `wide()`, so its elements can be
+    # longer than those of the other arm, which has more of them
+    target_code = """
+got: DynArray[Bytes[20], 3]
+
+@external
+def sink(xs: DynArray[Bytes[20], 3]):
+    self.got = xs
+
+@external
+@view
+def get() -> DynArray[Bytes[20], 3]:
+    return self.got
+
+@external
+@view
+def longer() -> DynArray[Bytes[10], 3]:
+    return [b"a", b"b", b"c"]
+
+@external
+@view
+def wide() -> DynArray[Bytes[20], 2]:
+    return [b"longer than ten", b"vyper"]
+    """
+
+    caller_code = f"""
+interface Target:
+    def longer() -> DynArray[Bytes[10], 3]: view
+    def wide() -> DynArray[Bytes[...], 2]: view
+    def sink(xs: DynArray[Bytes[20], ...]): nonpayable
+
+@external
+def do_it(addr: address, b: bool):
+    extcall Target(addr).sink({arg})
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    caller.do_it(target.address, test)
+    assert target.get() == [b"longer than ten", b"vyper"]
+
+    caller.do_it(target.address, not test)
+    assert target.get() == [b"a", b"b", b"c"]
+
+
+@pytest.mark.parametrize(
     "member,d",
     [
         ("staticcall Target(addr).bounded() if d else staticcall Target(addr).wide()", False),

@@ -191,9 +191,8 @@ class VyperType:
 
     def merge_wildcards(self, other: "VyperType") -> "VyperType":
         """
-        Return this type with the wildcards of both types. The types must be
-        subtypes of each other, so that they only differ in lengths where one
-        of them has a wildcard.
+        Return this type with the wildcards of both types. `other` must be a
+        subtype of this type.
         """
         if type(self) is not type(other):
             return self

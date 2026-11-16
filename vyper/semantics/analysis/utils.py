@@ -589,8 +589,10 @@ def type_supremum(*multitypes: List[VyperType], keep_wildcards: bool = False) ->
 
     Two types which only differ in lengths where one of them has a wildcard
     are subtypes of each other. The type of the earlier operand is then
-    returned, unless `keep_wildcards` is set: then the wildcards of both are
-    kept, for the caller to fix them from an expected type (cf.
+    returned.
+
+    With `keep_wildcards`, the supertype also gets the wildcards of the
+    subtype, for the caller to fix them from an expected type (cf.
     `ExprVisitor._annotation_type`).
     """
     assert len(multitypes) >= 1
@@ -603,13 +605,15 @@ def type_supremum(*multitypes: List[VyperType], keep_wildcards: bool = False) ->
                 # The supremum is the type such that both are subtypes
 
                 if t.is_subtype_of(c):
-                    if keep_wildcards and c.is_subtype_of(t):
-                        tmp.append(c.merge_wildcards(t))
-                    else:
-                        tmp.append(c)
-
+                    supertype, subtype = c, t
                 elif c.is_subtype_of(t):
-                    tmp.append(t)
+                    supertype, subtype = t, c
+                else:
+                    continue
+
+                if keep_wildcards:
+                    supertype = supertype.merge_wildcards(subtype)
+                tmp.append(supertype)
 
         common_types = tmp
 
