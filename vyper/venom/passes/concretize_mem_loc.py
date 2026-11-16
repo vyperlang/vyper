@@ -121,7 +121,7 @@ class ConcretizeMemLocPass(IRPass):
 def heuristic(not_escaped: bool, live_count: int, loop_depth: int, alloca_size: int, name: str) -> tuple:
     settings = get_global_settings()
     assert settings is not None
-    is_codesize = settings.optimize == OptimizationLevel.Os
+    is_codesize = settings.optimize == OptimizationLevel.CODESIZE
     if is_codesize:
         return (not_escaped, -loop_depth, live_count, alloca_size, name)
     else:
