@@ -1217,7 +1217,9 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
                         # type, which can be wider than the fixed lengths of the return type
                         return_t = self._interpolate(return_t, typ, pos=node)
                     else:
-                        # Replace wildcards in the type by INF, since there is no expected type
+                        # If the expected type is absent or still contains wildcards,
+                        # preserve the existing decoding behavior: resolve all return
+                        # wildcards to INF, even where the expected type has fixed bounds.
                         return_t = return_t.resolve_wildcard()
                         # unsupported INF shapes from wildcard resolution only exist per call site
                         if not is_runtime_sizable_return_type(return_t):
