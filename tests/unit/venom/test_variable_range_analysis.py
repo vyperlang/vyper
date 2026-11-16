@@ -2374,3 +2374,127 @@ def test_sdiv_by_divisor_narrowed_to_unsigned_constant():
     assert d_rng == ValueRange.constant(word)
     rng = analysis.get_range(sdiv_inst.output, big.instructions[-1])
     assert rng.is_top or rng.lo <= -49 <= rng.hi, f"-49 excluded from {rng}"
+
+
+def test_sgt_false_branch_keeps_negative_words_of_unsigned_range():
+    """
+    GH 5012: `and %a, -2` is ranged as [0, 2**256 - 2], whose words above
+    SIGNED_MAX are negative when read as signed. The false edge of
+    `sgt %x, 0` clamped the raw bounds to [0, 0] and dropped them.
+    """
+    analysis, fn = _analyze("""
+        function test {
+        entry:
+            %a = calldataload 0
+            %x = and %a, -2
+            %c = sgt %x, 0
+            jnz %c, @pos, @nonpos
+        nonpos:
+            %sink = add %x, 0
+            stop
+        pos:
+            stop
+        }
+        """)
+
+    x_var = fn.get_basic_block("entry").instructions[1].output
+    sink = fn.get_basic_block("nonpos").instructions[0]
+    rng = analysis.get_range(x_var, sink)
+    assert rng.lo <= -2 and rng.hi >= 0, f"-2 excluded from {rng}"
+
+
+def test_slt_false_branch_with_literal_on_left_keeps_negative_words():
+    """`slt 5, %x` false means x <= 5 signed, which includes x = -2."""
+    analysis, fn = _analyze("""
+        function test {
+        entry:
+            %a = calldataload 0
+            %x = and %a, -2
+            %c = slt 5, %x
+            jnz %c, @big, @small
+        small:
+            %sink = add %x, 0
+            stop
+        big:
+            stop
+        }
+        """)
+
+    x_var = fn.get_basic_block("entry").instructions[1].output
+    sink = fn.get_basic_block("small").instructions[0]
+    rng = analysis.get_range(x_var, sink)
+    assert rng.lo <= -2 and rng.hi >= 4, f"-2 excluded from {rng}"
+
+
+def test_slt_narrows_range_above_signed_max_as_negative():
+    """
+    A range lying entirely above SIGNED_MAX holds only negative words, so
+    signed narrowing can keep it, shifted to signed representation.
+    """
+    word = 2**256 - 5
+    analysis, fn = _analyze(f"""
+        function test {{
+        entry:
+            %a = calldataload 0
+            %x = and %a, -2
+            %c = lt %x, {word}
+            jnz %c, @exit, @high
+        high:
+            %s = slt %x, -3
+            jnz %s, @neg, @exit
+        neg:
+            %sink = add %x, 0
+            stop
+        exit:
+            stop
+        }}
+        """)
+
+    x_var = fn.get_basic_block("entry").instructions[1].output
+    high = fn.get_basic_block("high").instructions[0]
+    assert analysis.get_range(x_var, high) == ValueRange.iv(word, 2**256 - 2)
+    sink = fn.get_basic_block("neg").instructions[0]
+    assert analysis.get_range(x_var, sink) == ValueRange.iv(-5, -4)
+
+
+def test_eq_var_var_intersects_across_representations():
+    """
+    [0, 2**256 - 2] and [-5, 3] share the words -5..-2 and 0..3, but a raw
+    max/min intersection gave [0, 3].
+    """
+    analysis, fn = _analyze("""
+        function test {
+        entry:
+            %a = calldataload 0
+            %x = and %a, -2
+            %b = calldataload 32
+            %y = signextend 0, %b
+            %above = sgt %y, 3
+            jnz %above, @exit, @check
+        check:
+            %below = slt %y, -5
+            jnz %below, @exit, @cmp
+        cmp:
+            %e = eq %x, %y
+            jnz %e, @same, @exit
+        same:
+            %sink = add %x, 0
+            stop
+        exit:
+            stop
+        }
+        """)
+
+    x_var = fn.get_basic_block("entry").instructions[1].output
+    sink = fn.get_basic_block("same").instructions[0]
+    assert analysis.get_range(x_var, sink) == ValueRange.iv(-5, 3)
+
+
+def test_as_signed():
+    assert ValueRange.iv(0, SIGNED_MAX).as_signed() == ValueRange.iv(0, SIGNED_MAX)
+    assert ValueRange.iv(-5, 3).as_signed() == ValueRange.iv(-5, 3)
+    assert ValueRange.iv(2**256 - 10, 2**256 - 1).as_signed() == ValueRange.iv(-10, -1)
+    assert ValueRange.iv(0, 2**256 - 2).as_signed().is_top
+    assert ValueRange.iv(-5, SIGNED_MAX + 1).as_signed().is_top
+    assert ValueRange.empty().as_signed().is_empty
+    assert ValueRange.top().as_signed().is_top

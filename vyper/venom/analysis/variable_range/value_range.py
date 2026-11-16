@@ -146,6 +146,20 @@ class ValueRange:
             return self._lo
         return None
 
+    def as_signed(self) -> ValueRange:
+        """Return this range in signed representation.
+
+        A word can appear as either -k or 2**256 - k, so ranges extending
+        above SIGNED_MAX contain words that are negative when read as
+        signed. A range entirely above SIGNED_MAX shifts down to a negative
+        range; one that crosses SIGNED_MAX wraps around and becomes TOP.
+        """
+        if self._kind != VRangeKind.IV or self.hi <= SIGNED_MAX:
+            return self
+        if self.lo > SIGNED_MAX:
+            return ValueRange.iv(self.lo - (UNSIGNED_MAX + 1), self.hi - (UNSIGNED_MAX + 1))
+        return ValueRange.top()
+
     def union(self, other: ValueRange) -> ValueRange:
         """Compute the union (join) of two ranges."""
         if self._kind == VRangeKind.TOP or other._kind == VRangeKind.TOP:
@@ -165,6 +179,11 @@ class ValueRange:
             return self
         if self._kind == VRangeKind.BOT or other._kind == VRangeKind.BOT:
             return ValueRange.empty()
+
+        # one side holds negative words written as signed, the other as
+        # unsigned: compare both in signed representation
+        if (self.lo < 0 and other.hi > SIGNED_MAX) or (other.lo < 0 and self.hi > SIGNED_MAX):
+            return self.as_signed().intersect(other.as_signed())
 
         lo = max(self.lo, other.lo)
         hi = min(self.hi, other.hi)
