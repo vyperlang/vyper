@@ -52,7 +52,7 @@ class ConcretizeMemLocPass(IRPass):
         # buffer.
         escaped = self.mem_liveness.escaped
         to_allocate.sort(
-            key=lambda x: (x[0] not in escaped, -bb_loop[x[0].inst.parent], x[0].alloca_size, str(x[0].inst.output))
+            key=lambda x: heuristic(x[0] not in escaped, len(x[1]), bb_loop[x[0].inst.parent], x[0].alloca_size, str(x[0].inst.output))
         )
 
         self.allocator.add_allocated([mem for mem, _ in already_allocated])
@@ -116,3 +116,6 @@ class ConcretizeMemLocPass(IRPass):
                 ), f"alloca not allocated by livesets: {inst}"
                 concrete = self.allocator.get_concrete(base_ptr)
                 self.updater.replace(inst, "assign", [concrete])
+
+def heuristic(a: bool, b: int, c: int, d: int, e: str):
+    return (a,-c,d,e,b)
