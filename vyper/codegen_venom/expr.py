@@ -587,7 +587,12 @@ class Expr:
                     result_typ,
                 )
 
-        # Non-bytestring: get values directly
+        if not (left_typ._is_prim_word and right_typ._is_prim_word):
+            raise TypeMismatch(
+                f"operation not yet supported for {left_typ}, {right_typ}, see issue #2638", node.op
+            )
+
+        # Primitive words: get values directly
         left = Expr(node.left, self.ctx).lower_value()
         right = Expr(node.right, self.ctx).lower_value()
 

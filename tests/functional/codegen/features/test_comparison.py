@@ -2,6 +2,37 @@
 # most tests under tests/ast/nodes/test_evaluate_compare.py
 import pytest
 
+from vyper import compile_code
+from vyper.exceptions import TypeMismatch
+
+
+@pytest.mark.parametrize("op", ["==", "!="])
+@pytest.mark.parametrize(
+    "typ",
+    [
+        "DynArray[uint256, 1]",
+        "uint256[1]",
+        "S",
+        "(uint256, uint256)",
+        "DynArray[DynArray[uint256, 1], 1]",
+        "DynArray[uint256, INF]",
+    ],
+)
+def test_aggregate_equality_unsupported(typ, op, experimental_codegen):
+    if "INF" in typ and not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
+
+    code = f"""
+struct S:
+    x: uint256
+
+@external
+def foo(a: {typ}, b: {typ}) -> bool:
+    return a {op} b
+    """
+    with pytest.raises(TypeMismatch, match="operation not yet supported.*see issue #2638"):
+        compile_code(code)
+
 
 def test_3034_verbatim(get_contract):
     # test GH issue 3034 exactly
