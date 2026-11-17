@@ -12,7 +12,7 @@ from vyper.venom.analysis import (
     MemSSA,
 )
 from vyper.venom.analysis.analysis import IRAnalysis
-from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IRVariable
+from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.effects import Effects, to_addr_space
 from vyper.venom.memory_location import (
     Allocation,
@@ -32,7 +32,13 @@ _STORES = {"mstore": Effects.MEMORY, "sstore": Effects.STORAGE, "tstore": Effect
 
 # Type alias for copy tracking: maps memory location to the copy instruction
 CopyMap = dict[MemoryLocation, IRInstruction]
+# opcode and operands of each copy in a CopyMap, when the map was recorded
+CopySnapshot = dict[MemoryLocation, tuple[str, tuple[IROperand, ...]]]
 TranslateMap = dict[Allocation, tuple[Allocation, IRInstruction]]
+
+
+def _copy_snapshot(inst: IRInstruction) -> tuple[str, tuple[IROperand, ...]]:
+    return (inst.opcode, tuple(inst.operands))
 
 
 class MemoryCopyElisionPass(IRPass):
@@ -51,6 +57,7 @@ class MemoryCopyElisionPass(IRPass):
     loads: dict[Effects, dict[IRVariable, tuple[MemoryLocation, IRInstruction]]]
     # For cross-BB analysis: maps BB -> copy state at end of BB
     bb_copies: dict[IRBasicBlock, CopyMap]
+    bb_copy_snapshots: dict[IRBasicBlock, CopySnapshot]
     copy_forwarding: CopyForwardingPolicy
 
     def run_pass(self):
@@ -63,9 +70,14 @@ class MemoryCopyElisionPass(IRPass):
             self.function, self.dfg, self.base_ptr, self.mem_alias
         )
         self.loads = {Effects.MEMORY: dict(), Effects.STORAGE: dict(), Effects.TRANSIENT: dict()}
-        self.bb_copies = {}
 
         while True:
+            # the translation step below rewrites and nops copies, so copy
+            # state from an earlier round can point at instructions which no
+            # longer write their recorded location. start each round fresh.
+            self.bb_copies = {}
+            self.bb_copy_snapshots = {}
+
             # Use worklist algorithm for cross-BB copy propagation
             worklist = deque(self.cfg.dfs_pre_walk)
 
@@ -110,14 +122,14 @@ class MemoryCopyElisionPass(IRPass):
         if first_pred not in self.bb_copies:
             return {}
 
-        result = self.bb_copies[first_pred].copy()
+        result = self._pred_copies(first_pred)
 
         # Intersect with other predecessors
         for pred in preds[1:]:
             if pred not in self.bb_copies:
                 # If any predecessor hasn't been processed, be conservative
                 return {}
-            other = self.bb_copies[pred]
+            other = self._pred_copies(pred)
             # Keep only entries that exist in both with equivalent instructions
             common_keys = result.keys() & other.keys()
             new_result = {}
@@ -128,6 +140,17 @@ class MemoryCopyElisionPass(IRPass):
             result = new_result
 
         return result
+
+    def _pred_copies(self, pred: IRBasicBlock) -> CopyMap:
+        # revisiting an ancestor of `pred` can nop a copy recorded for
+        # `pred`, or rewrite its source, after `pred` was processed. its
+        # facts were checked against the old instruction, so drop them.
+        snapshots = self.bb_copy_snapshots[pred]
+        return {
+            loc: inst
+            for loc, inst in self.bb_copies[pred].items()
+            if _copy_snapshot(inst) == snapshots[loc]
+        }
 
     def _copies_equivalent(self, inst1: IRInstruction, inst2: IRInstruction) -> bool:
         """Check if two copy instructions are semantically equivalent."""
@@ -205,8 +228,16 @@ class MemoryCopyElisionPass(IRPass):
         # Check if state changed
         change = False
         old_copies = self.bb_copies.get(bb, None)
-        if old_copies is None or old_copies != self.copies:
+        snapshot = {loc: _copy_snapshot(inst) for loc, inst in self.copies.items()}
+        # copies are compared by identity, so also compare snapshots: a
+        # copy rewritten in place must reach the successors again
+        if (
+            old_copies is None
+            or old_copies != self.copies
+            or self.bb_copy_snapshots[bb] != snapshot
+        ):
             self.bb_copies[bb] = self.copies.copy()
+            self.bb_copy_snapshots[bb] = snapshot
             change = True
 
         return change
