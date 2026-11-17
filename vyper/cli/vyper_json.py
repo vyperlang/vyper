@@ -457,7 +457,7 @@ def format_to_output_dict(compiler_data: dict) -> dict:
             output_contracts["evm"] = {"methodIdentifiers": data["method_identifiers"]}
 
         evm_keys = ("bytecode", "opcodes")
-        pc_maps_keys = ("source_map",)
+        pc_maps_keys = ("source_map", "symbol_map")
         if any(i in data for i in evm_keys + pc_maps_keys):
             evm = output_contracts.setdefault("evm", {}).setdefault("bytecode", {})
             if "bytecode" in data:

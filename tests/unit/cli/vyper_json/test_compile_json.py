@@ -275,6 +275,23 @@ def test_different_outputs(input_bundle, input_json, experimental_codegen):
     assert foo["evm"]["methodIdentifiers"] == method_identifiers
 
 
+@pytest.mark.parametrize(
+    "selection,evm_key,data_key",
+    [
+        ("evm.bytecode.symbolMap", "bytecode", "symbol_map"),
+        ("evm.deployedBytecode.symbolMap", "deployedBytecode", "symbol_map_runtime"),
+    ],
+)
+def test_symbol_map_only(input_json, selection, evm_key, data_key):
+    input_json["settings"]["outputSelection"] = {"contracts/foo.vy": [selection]}
+    compiler_data, _ = compile_from_input_dict(input_json)
+    expected = compiler_data[PurePath("contracts/foo.vy")][data_key]
+
+    output_json = compile_json(input_json)
+    foo = output_json["contracts"]["contracts/foo.vy"]["foo"]
+    assert foo == {"evm": {evm_key: {"symbolMap": expected}}}
+
+
 def test_wrong_language():
     with pytest.raises(JSONError):
         compile_json({"language": "Solidity"})
