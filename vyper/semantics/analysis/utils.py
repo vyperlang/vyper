@@ -365,10 +365,19 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
         return [t.get_subscripted_type(node.slice)]
 
     def visit_Tuple(self, node):
-        types_list = [
-            get_exact_type_from_node(i, keep_wildcards=self.keep_wildcards) for i in node.elements
-        ]
+        types_list = [self._exact_type(i) for i in node.elements]
         return [TupleT(types_list)]
+
+    def _exact_type(self, node):
+        # like `get_exact_type_from_node`, but a member which is not typed
+        # yet keeps its wildcards if this synthesizer does
+        if not self.keep_wildcards or "type" in node._metadata:
+            return get_exact_type_from_node(node)
+
+        types_list = self.visit(node)
+        if len(types_list) > 1:
+            raise StructureException("Ambiguous type", node)
+        return types_list[0]
 
     def visit_UnaryOp(self, node):
         # unary operation: `-foo`
@@ -456,9 +465,7 @@ def get_possible_types_from_node(
     return _TypeSynthesizer(keep_wildcards).visit(node, allow_type_exprs=allow_type_exprs)
 
 
-def get_exact_type_from_node(
-    node: vy_ast.VyperNode, allow_type_exprs: bool = False, keep_wildcards: bool = False
-) -> VyperType:
+def get_exact_type_from_node(node: vy_ast.VyperNode, allow_type_exprs: bool = False) -> VyperType:
     """
     Return *the* type of a given node.
 
@@ -468,8 +475,6 @@ def get_exact_type_from_node(
     ---------
     node : VyperNode
         A vyper ast node.
-    keep_wildcards : bool
-        See `type_supremum`.
 
     Returns
     -------
@@ -485,9 +490,7 @@ def get_exact_type_from_node(
             _raise_if_type(typ, node)
         return typ
 
-    types_list = get_possible_types_from_node(
-        node, allow_type_exprs=allow_type_exprs, keep_wildcards=keep_wildcards
-    )
+    types_list = get_possible_types_from_node(node, allow_type_exprs=allow_type_exprs)
 
     if len(types_list) > 1:
         raise StructureException("Ambiguous type", node)
