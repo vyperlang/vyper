@@ -128,6 +128,34 @@ def test_literal_codesize_no_shl(orig_value):
     _check_no_change(pre)
 
 
+@pytest.mark.parametrize("k", range(25, 249, 2))
+def test_literal_codesize_shl_avoids_repeated_operand(k):
+    """
+    `k << k` would become `shl k, k`, but DFT and venom_to_assembly can't
+    schedule an instruction which repeats a literal operand, so it is
+    emitted as `shl k - 1, 2 * k`
+    """
+    orig_value = k << k
+
+    pre = f"""
+    main:
+        %1 = {orig_value}
+        sink %1
+    """
+
+    post = f"""
+    main:
+        %1 = shl {k - 1}, {2 * k}
+        sink %1
+    """
+
+    _check_pre_post(pre, post)
+
+    # still smaller than pushing the literal
+    new_size = _calc_push_size(2 * k) + _calc_push_size(k - 1) + 1
+    assert new_size < _calc_push_size(orig_value), orig_value
+
+
 def test_literal_codesize_no_inplace_mutation_for_shared_literals():
     pre = """
     main:
