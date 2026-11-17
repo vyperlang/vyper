@@ -106,11 +106,11 @@ class _BytestringT(VyperType):
 
         return self._length >= other._length
 
-    def _merge_wildcards(self, other):
+    def _merge_wildcards(self, other, keep_wildcards):
         assert isinstance(other, type(self))
-        if other.has_wildcard:
-            return other
-        return self
+        if keep_wildcards:
+            return other if other.has_wildcard else self
+        return other if self.has_wildcard else self
 
     @classmethod
     def from_annotation(cls, node: vy_ast.VyperNode) -> "_BytestringT":

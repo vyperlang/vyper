@@ -2753,9 +2753,18 @@ def forward(addr: address):
 
 
 @pytest.mark.parametrize("returned,ok", [(b"h", True), (b"hello", False)])
-def test_subscripted_list_literal_wildcard_call_element(get_contract, tx_failed, returned, ok):
+@pytest.mark.parametrize(
+    "base,call_index",
+    [
+        ('[b"x", staticcall Target(addr).source()]', 1),
+        ('[staticcall Target(addr).source(), b"x"]', 0),
+    ],
+)
+def test_subscripted_list_literal_wildcard_call_element(
+    get_contract, tx_failed, base, call_index, returned, ok
+):
     # the subscript does not pass the parameter's bound on to the list, so the
-    # first element fixes the bound of the call return
+    # other element fixes the bound of the call return, whichever comes first
     target_code = f"""
 x: public(Bytes[10])
 
@@ -2769,26 +2778,26 @@ def sink(x: Bytes[10]):
     self.x = x
     """
 
-    caller_code = """
+    caller_code = f"""
 interface Target:
     def source() -> Bytes[...]: view
     def sink(x: Bytes[10]): nonpayable
 
 @external
 def forward(addr: address, i: uint256):
-    extcall Target(addr).sink([b"x", staticcall Target(addr).source()][i])
+    extcall Target(addr).sink({base}[i])
     """
 
     target = get_contract(target_code)
     caller = get_contract(caller_code)
     if not ok:
         with tx_failed():
-            caller.forward(target.address, 1)
+            caller.forward(target.address, call_index)
         return
 
-    caller.forward(target.address, 1)
+    caller.forward(target.address, call_index)
     assert target.x() == returned
-    caller.forward(target.address, 0)
+    caller.forward(target.address, 1 - call_index)
     assert target.x() == b"x"
 
 

@@ -674,9 +674,18 @@ def memory_or_storage(
 
 
 @pytest.mark.parametrize("test", [True, False])
-def test_ternary_wildcard_call_arm_as_for_loop_iterable(get_contract, test):
+@pytest.mark.parametrize(
+    "iterable,bounded_first",
+    [
+        ("staticcall Target(addr).bounded() if b else staticcall Target(addr).wide()", True),
+        ("staticcall Target(addr).wide() if b else staticcall Target(addr).bounded()", False),
+    ],
+)
+def test_ternary_wildcard_call_arm_as_for_loop_iterable(
+    get_contract, iterable, bounded_first, test
+):
     # the loop variable does not pass its type on to the iterable, so the
-    # first arm fixes the bounds of the call return in the other arm
+    # other arm fixes the bounds of the call return, whichever comes first
     target_code = """
 @external
 @view
@@ -689,7 +698,7 @@ def wide() -> DynArray[Bytes[10], 2]:
     return [b"hello", b"vyper"]
     """
 
-    caller_code = """
+    caller_code = f"""
 interface Target:
     def bounded() -> DynArray[Bytes[10], 2]: view
     def wide() -> DynArray[Bytes[...], ...]: view
@@ -697,16 +706,14 @@ interface Target:
 @external
 def do_it(addr: address, b: bool) -> DynArray[Bytes[10], 2]:
     ys: DynArray[Bytes[10], 2] = []
-    for x: Bytes[10] in (
-        staticcall Target(addr).bounded() if b else staticcall Target(addr).wide()
-    ):
+    for x: Bytes[10] in ({iterable}):
         ys.append(x)
     return ys
     """
 
     target = get_contract(target_code)
     caller = get_contract(caller_code)
-    expected = [b"ab", b"c"] if test else [b"hello", b"vyper"]
+    expected = [b"ab", b"c"] if test == bounded_first else [b"hello", b"vyper"]
     assert caller.do_it(target.address, test) == expected
 
 

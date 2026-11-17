@@ -588,12 +588,12 @@ def type_supremum(*multitypes: List[VyperType], keep_wildcards: bool = False) ->
     other, take the supertype.
 
     Two types which only differ in lengths where one of them has a wildcard
-    are subtypes of each other. The type of the earlier operand is then
-    returned.
+    are subtypes of each other. Their supremum has the fixed length in each
+    of these positions, whichever operand comes first.
 
-    With `keep_wildcards`, the supertype also gets the wildcards of the
-    subtype, for the caller to fix them from an expected type (cf.
-    `ExprVisitor._annotation_type`).
+    With `keep_wildcards`, it has the wildcard instead, and the supertype of
+    two types also gets the wildcards of the subtype, for the caller to fix
+    them from an expected type (cf. `ExprVisitor._annotation_type`).
     """
     assert len(multitypes) >= 1
 
@@ -604,6 +604,10 @@ def type_supremum(*multitypes: List[VyperType], keep_wildcards: bool = False) ->
             for t in branch:
                 # The supremum is the type such that both are subtypes
 
+                if t.is_equivalent_to(c):
+                    tmp.append(c.merge_wildcards(t, keep_wildcards))
+                    continue
+
                 if t.is_subtype_of(c):
                     supertype, subtype = c, t
                 elif c.is_subtype_of(t):
@@ -612,7 +616,7 @@ def type_supremum(*multitypes: List[VyperType], keep_wildcards: bool = False) ->
                     continue
 
                 if keep_wildcards:
-                    supertype = supertype.merge_wildcards(subtype)
+                    supertype = supertype.merge_wildcards(subtype, keep_wildcards=True)
                 tmp.append(supertype)
 
         common_types = tmp
