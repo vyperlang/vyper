@@ -192,7 +192,7 @@ class Expr:
             return ret
 
         if varinfo.is_constant:
-            return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
+            return Expr.parse_constant_expr(varinfo.decl_node.value, self.context)
 
         if varinfo.is_immutable:
             mutable = self.context.is_ctor_context
@@ -319,7 +319,7 @@ class Expr:
         # self.x: global attribute
         if (varinfo := self.expr._expr_info.var_info) is not None:
             if varinfo.is_constant:
-                return Expr.parse_value_expr(varinfo.decl_node.value, self.context)
+                return Expr.parse_constant_expr(varinfo.decl_node.value, self.context)
 
             location = data_location_to_address_space(
                 varinfo.location, self.context.is_ctor_context
@@ -834,6 +834,16 @@ class Expr:
     @classmethod
     def parse_value_expr(cls, expr, context):
         return unwrap_location(cls(expr, context).ir_node)
+
+    # Parse the declaration of a constant. unlike `parse_value_expr`, the type
+    # can be an aggregate, and an aggregate stays a pointer. unwrapping one
+    # loads its first word and drops its location (GH issue 4444)
+    @classmethod
+    def parse_constant_expr(cls, expr, context):
+        ret = cls(expr, context).ir_node
+        if not ret.typ._is_prim_word:
+            return ret
+        return unwrap_location(ret)
 
     # Parse an expression that represents a pointer to memory/calldata or storage.
     @classmethod

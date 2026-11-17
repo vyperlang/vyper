@@ -197,6 +197,89 @@ def test() -> Bytes[100]:
     assert c.test() == test_str
 
 
+# a constant bytestring whose declaration is not a literal does not get
+# folded, so codegen reads it through its declaration. it is a pointer, and
+# unwrapping it loaded its length word instead (GH issue 4444)
+def test_constant_bytestring_from_struct_member(get_contract):
+    code = """
+struct Foo:
+    a: uint256
+    b: Bytes[64]
+    s: String[32]
+
+FOO: constant(Foo) = Foo(a=1, b=b"abcd", s="hello")
+
+X: constant(Bytes[64]) = FOO.b
+Y: constant(String[32]) = FOO.s
+
+bar: Bytes[64]
+
+@internal
+def _length(b: Bytes[64]) -> uint256:
+    return len(b)
+
+@external
+def assign() -> Bytes[64]:
+    y: Bytes[64] = X
+    return y
+
+@external
+def assign_string() -> String[32]:
+    y: String[32] = Y
+    return y
+
+@external
+def ret() -> Bytes[64]:
+    return X
+
+@external
+def length() -> uint256:
+    return len(X)
+
+@external
+def via_internal() -> uint256:
+    return self._length(X)
+
+@external
+def concatenated() -> Bytes[70]:
+    return concat(X, b"zz")
+
+@external
+def hashed() -> bytes32:
+    return keccak256(X)
+
+@external
+def hashed_literal() -> bytes32:
+    return keccak256(b"abcd")
+
+@external
+def compared() -> bool:
+    return X == b"abcd"
+
+@external
+def sliced() -> Bytes[2]:
+    return slice(X, 1, 2)
+
+@external
+def to_storage() -> Bytes[64]:
+    self.bar = X
+    return self.bar
+    """
+
+    c = get_contract(code)
+
+    assert c.assign() == b"abcd"
+    assert c.assign_string() == "hello"
+    assert c.ret() == b"abcd"
+    assert c.length() == 4
+    assert c.via_internal() == 4
+    assert c.concatenated() == b"abcdzz"
+    assert c.hashed() == c.hashed_literal()
+    assert c.compared() is True
+    assert c.sliced() == b"bc"
+    assert c.to_storage() == b"abcd"
+
+
 def test_constant_folds(experimental_codegen):
     # This test verifies constant folding by checking the IR structure.
     # Skip for experimental codegen since Venom IR has a different structure

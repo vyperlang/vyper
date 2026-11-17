@@ -78,6 +78,45 @@ def foo(ix: uint256) -> uint256:
         c.foo(3)
 
 
+def test_import_constant_bytestring(make_input_bundle, get_contract):
+    # a bytestring constant declared from a non-literal is not folded, so
+    # codegen reads it through its declaration, which is a pointer (GH issue 4444)
+    mod1 = """
+struct Foo:
+    a: uint256
+    b: Bytes[64]
+    s: String[32]
+
+FOO: constant(Foo) = Foo(a=1, b=b"abcd", s="hello")
+
+X: constant(Bytes[64]) = FOO.b
+Y: constant(String[32]) = FOO.s
+    """
+    contract = """
+import mod1
+
+@external
+def foo() -> Bytes[64]:
+    return mod1.X
+
+@external
+def length() -> uint256:
+    return len(mod1.X)
+
+@external
+def bar() -> String[32]:
+    return mod1.Y
+    """
+
+    input_bundle = make_input_bundle({"mod1.vy": mod1})
+
+    c = get_contract(contract, input_bundle=input_bundle)
+
+    assert c.foo() == b"abcd"
+    assert c.length() == 4
+    assert c.bar() == "hello"
+
+
 def test_module_constant_builtin(make_input_bundle, get_contract):
     # test empty builtin, which is not (currently) foldable 2024-02-06
     mod1 = """
