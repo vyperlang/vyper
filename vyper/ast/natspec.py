@@ -71,9 +71,10 @@ def _parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
         args = tuple(i.arg for i in node.args.args)
         invalid_fields = ("title", "license")
         fn_natspec = _parse_docstring(source, docstring, invalid_fields, args, ret_len)
+        notice = fn_natspec.pop("notice", None)
         for method_id in func_type.method_ids:
-            if "notice" in fn_natspec:
-                userdoc.setdefault("methods", {})[method_id] = {"notice": fn_natspec.pop("notice")}
+            if notice is not None:
+                userdoc.setdefault("methods", {})[method_id] = {"notice": notice}
             if fn_natspec:
                 devdoc.setdefault("methods", {})[method_id] = fn_natspec
 
