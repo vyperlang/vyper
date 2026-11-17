@@ -624,3 +624,76 @@ def baz(t: bool) -> S:
     assert c.foo(test) == (empty_s if test else s)
     assert c.bar(test) == (s if test else empty_s)
     assert c.baz(test) == empty_s
+
+
+# GH issues 5002, 4934: with a literal test, the dead arm (and the internal
+# call in it) gets eliminated, which used to trip the IR optimizer's symbols
+# check once the surviving arm landed under an arithmetic rewrite.
+@pytest.mark.parametrize("test", [True, False])
+def test_ternary_literal_test_with_call_arm(get_contract, test):
+    code = f"""
+struct S:
+    a: uint256
+    b: uint256
+
+calls: public(uint256)
+
+@internal
+def f() -> S:
+    self.calls += 1
+    return S(a=7, b=8)
+
+@internal
+def g() -> uint256[2]:
+    return [7, 8]
+
+@internal
+def h() -> uint256:
+    return 1
+
+@external
+def foo() -> uint256:
+    s: S = S(a=1, b=2)
+    return (self.f() if {test} else s).b
+
+@external
+def bar() -> uint256:
+    t: uint256[2] = [1, 2]
+    return (self.g() if {test} else t)[1]
+
+@external
+def baz() -> uint256:
+    t: DynArray[uint256, 2] = [10, 11]
+    return t[self.h() if {test} else 0]
+    """
+    c = get_contract(code)
+    assert c.foo() == (8 if test else 2)
+    assert c.bar() == (8 if test else 2)
+    assert c.baz() == (11 if test else 10)
+    # the eliminated arm must not run, and the live one must
+    assert c.calls() == (1 if test else 0)
+
+
+# GH issue 4075: same panic with the ternary in an `if`/`assert` condition,
+# where it is the comparison that gets rewritten.
+@pytest.mark.parametrize("test", [True, False])
+def test_ternary_literal_test_in_condition(get_contract, tx_failed, test):
+    code = f"""
+@internal
+def foo() -> uint256:
+    return 42
+
+@external
+def bar():
+    assert 43 == (self.foo() if {test} else self.foo()), "test"
+
+@external
+def baz() -> bool:
+    if 43 == (self.foo() if {test} else self.foo()):
+        return True
+    return False
+    """
+    c = get_contract(code)
+    with tx_failed(exc_text="test"):
+        c.bar()
+    assert c.baz() is False
