@@ -84,11 +84,11 @@ class _BytestringT(VyperType):
             return type(self)(INF)
         return self
 
-    def compare_type(self, other):
+    def compare_type(self, other, weak: bool = False):
         if isinstance(other, BottomT):
             return True
 
-        if not super().compare_type(other):
+        if not super().compare_type(other, weak=weak):
             return False
 
         # Wildcard matches any length (bidirectional)

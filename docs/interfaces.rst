@@ -126,6 +126,22 @@ Multiple ``implements`` statements can be grouped into one:
         Bar,
     )
 
+It's possible to implement an address-returning function by an interface-returning one:
+
+.. code-block:: vyper
+
+    interface Foo:
+        def get_address() -> address: view
+
+    implements: Foo
+
+    import Bar # an interface
+
+    @external
+    @view
+    def get_address() -> Bar: # valid
+        return Bar(some_address)
+
 .. note::
 
   Functions involving length-bounded types (``Bytes``, ``DynArray``, ``String``) follow standard variance rules:
