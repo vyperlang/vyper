@@ -203,7 +203,7 @@ class AlgebraicOptimizationPass(IRPass):
         # range-based: if x is in the valid signed range for (n+1) bytes,
         # signextend is a no-op
         x_range = self.range_analysis.get_range(x_op, inst)
-        if x_range.is_top:
+        if x_range.is_top or x_range.is_empty:
             return
         bits = 8 * (n + 1)
         if x_range.lo >= -(1 << (bits - 1)) and x_range.hi <= (1 << (bits - 1)) - 1:

@@ -657,6 +657,35 @@ def test_signextend_chain_uses_wrapped_byte_indexes():
     _check_pre_post(pre, post, hevm=False)
 
 
+def test_signextend_on_unreachable_edge():
+    # %x is [0, 255], so the `gt %x, 255` true edge is unreachable and %x is
+    # BOTTOM in @dead. signextend must not read its bounds.
+    pre = """
+    main:
+        %input = source
+        %x = and %input, 255
+        %c = gt %x, 255
+        jnz %c, @dead, @exit
+    dead:
+        %y = signextend 0, %x
+        sink %y
+    exit:
+        sink 0
+    """
+    post = """
+    main:
+        %input = source
+        %x = and 255, %input
+        jnz 0, @dead, @exit
+    dead:
+        %y = signextend 0, %x
+        sink %y
+    exit:
+        sink 0
+    """
+    _check_pre_post(pre, post, hevm=False)
+
+
 @pytest.mark.skip(reason="Range-based comparison needs investigation - flip timing issue")
 def test_comparison_range_always_true():
     # When range proves comparison is always true
