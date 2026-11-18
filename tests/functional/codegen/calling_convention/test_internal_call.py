@@ -820,3 +820,34 @@ def test_swap() -> uint256:
     c = get_contract(code)
     assert c.test_increment() == 6
     assert c.test_swap() == 30
+
+
+def test_reassign_from_internal_call_then_conditional_call(get_contract):
+    # venom's memory copy elision used copy facts from an earlier round
+    # here and failed an assertion
+    code = """
+last: public(uint256)
+
+@internal
+def ident(s: DynArray[uint256, 4]) -> DynArray[uint256, 4]:
+    return s
+
+@internal
+def touch(a: DynArray[uint256, 4]):
+    self.last = len(a)
+
+@external
+def foo(xs: DynArray[uint256, 4], n: uint256) -> DynArray[uint256, 4]:
+    s: DynArray[uint256, 4] = xs
+    s = self.ident(s)
+    if n > 3:
+        self.touch(s)
+    return s
+    """
+    c = get_contract(code)
+    assert c.foo([1, 2, 3], 5) == [1, 2, 3]
+    assert c.last() == 3
+    assert c.foo([1, 2], 0) == [1, 2]
+    assert c.last() == 3
+    assert c.foo([], 5) == []
+    assert c.last() == 0
