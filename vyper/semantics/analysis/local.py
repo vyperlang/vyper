@@ -20,6 +20,7 @@ from vyper.exceptions import (
     StructureException,
     TypeCheckFailure,
     TypeMismatch,
+    UnimplementedException,
     VariableDeclarationException,
     VyperException,
 )
@@ -759,15 +760,13 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
             len_ = len(iter_val.elements)
             if len_ == 0:
                 raise StructureException("For loop must have at least 1 iteration", iter_node)
-            # the literal is typed as a static array, which has no layout for
-            # unbounded items (see `SArrayT.from_annotation`). a struct with
-            # unbounded members has a fixed size and is fine
+            # a static array cannot hold unbounded items (see
+            # `SArrayT.from_annotation`), a DynArray can. any other item,
+            # such as a struct with unbounded members, has a fixed size
             if is_unbounded_sequence_type(target_type):
-                raise StructureException(
-                    "Iterating over a list literal of unbounded sequence types is not supported",
-                    iter_node,
-                )
-            iter_type = SArrayT(target_type, len_)
+                iter_type = DArrayT(target_type, len_)
+            else:
+                iter_type = SArrayT(target_type, len_)
         else:
             try:
                 iter_type = get_exact_type_from_node(iter_node)
@@ -878,6 +877,8 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
             raise StructureException(
                 f"Cannot emit logs from {self.func.mutability} functions", node
             )
+        if f.typedef.is_anonymous:
+            raise UnimplementedException("Anonymous events are not currently supported", node)
         t = map_void(f.fetch_call_return(node.value))
         # CMC 2024-02-05 annotate the event type for codegen usage
         # TODO: refactor this

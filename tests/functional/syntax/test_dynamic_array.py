@@ -7,6 +7,7 @@ from vyper.exceptions import (
     CompilerPanic,
     ImmutableViolation,
     InvalidOperation,
+    MemoryAllocationException,
     StructureException,
     TypeMismatch,
     UndeclaredDefinition,
@@ -265,6 +266,71 @@ def foo(a: {typ}):
     compile_inf_code(code)
 
 
+# an INF array's element may take at most 2**64 - 1 bytes in memory and in
+# the ABI, the limit static memory allocations have
+@pytest.mark.parametrize(
+    ("typ", "structs"),
+    [
+        # memory size 2**64 - 32
+        ("DynArray[DynArray[uint256, 2**59 - 2], INF]", ""),
+        ("DynArray[uint256[2**59 - 1], INF]", ""),
+        ("DynArray[S, INF]", "struct S:\n    a: Bytes[INF]\n    b: DynArray[uint256, 2**59 - 4]"),
+    ],
+)
+def test_dynarray_inf_element_size_below_limit(compile_inf_code, typ, structs):
+    code = f"""
+{structs}
+
+@external
+def foo(xs: {typ}) -> uint256:
+    return len(xs)
+    """
+    compile_inf_code(code)
+
+
+@pytest.mark.parametrize(
+    ("typ", "structs"),
+    [
+        # memory size close to 2**256
+        ("DynArray[DynArray[uint256, 2**251 - 3], INF]", ""),
+        # memory size 2**64
+        ("DynArray[DynArray[uint256, 2**59 - 1], INF]", ""),
+        ("DynArray[uint256[2**59], INF]", ""),
+        ("DynArray[S, INF]", "struct S:\n    a: Bytes[INF]\n    b: DynArray[uint256, 2**59 - 3]"),
+        # memory size 2**64 - 32, ABI size bound 1.5 * 2**64 - 64
+        ("DynArray[DynArray[Bytes[1], 2**58 - 1], INF]", ""),
+        # nested in an INF element
+        ("DynArray[DynArray[DynArray[uint256, 2**59 - 1], INF], INF]", ""),
+    ],
+)
+def test_dynarray_inf_element_size_limit(typ, structs):
+    code = f"""
+{structs}
+
+@external
+def foo(xs: {typ}) -> uint256:
+    return len(xs)
+    """
+    with pytest.raises(MemoryAllocationException) as e:
+        compile_code(code, settings=Settings(experimental_codegen=True))
+    assert "Element type of DynArray[..., INF]" in e.value.message
+
+
+def test_dynarray_inf_element_size_limit_wildcard():
+    # the wildcard resolves to INF where the call has no expected bound
+    code = """
+interface I:
+    def foo() -> DynArray[DynArray[uint256, 2**59 - 1], ...]: view
+
+@external
+def f(a: address) -> uint256:
+    return len(staticcall I(a).foo())
+    """
+    with pytest.raises(MemoryAllocationException) as e:
+        compile_code(code, settings=Settings(experimental_codegen=True))
+    assert "Element type of DynArray[..., INF]" in e.value.message
+
+
 def test_dynarray_inf_append(compile_inf_code):
     code = """
 @external
@@ -358,17 +424,24 @@ unbounded_list_literal_loops = [
 
 
 @pytest.mark.parametrize("args,typ", unbounded_list_literal_loops)
-def test_list_literal_of_unbounded_items_cannot_be_iterated(args, typ):
+def test_list_literal_of_unbounded_items_can_be_iterated(compile_inf_code, args, typ):
     code = f"""
 @external
 def foo({args}):
     for x: {typ} in [a, b]:
         pass
     """
-    with pytest.raises(StructureException) as e:
-        compile_code(code, settings=Settings(experimental_codegen=True))
-    msg = "Iterating over a list literal of unbounded sequence types is not supported"
-    assert e.value.message == msg
+    # the annotated ast alone skips the compilation target checks, which is
+    # where legacy codegen rejects the unbounded types
+    out = compile_inf_code(code, output_formats=["annotated_ast_dict", "bytecode"])
+    if out is None:
+        return
+    # the literal is typed as a DynArray of the loop variable's type
+    (loop,) = out["annotated_ast_dict"]["ast"]["body"][0]["body"]
+    iter_type = loop["iter"]["type"]
+    assert iter_type["name"] == "DynArray"
+    assert iter_type["length"] == 2
+    assert iter_type["value_type"] == loop["target"]["target"]["type"]
 
 
 tuple_loop_variables_with_unbounded_members = [

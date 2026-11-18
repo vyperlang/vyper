@@ -245,11 +245,32 @@ jobs:
         run: exit 1
 
 
+  # fetch test durations
+  # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
+  # `pytest -m "fuzzing" --store-durations -r aR tests/`
+  fetch-durations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+    - name: Fetch test-durations
+      run: curl --fail --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/master/test_durations" -o .test_durations
+
+    - name: Upload test-durations artifact
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: test-durations
+        include-hidden-files: true
+        path: .test_durations
+        if-no-files-found: error
+        retention-days: 1
+
   # fuzzing + slow/exhaustive tests (things that are too slow to run in
   # the regular test suite)
   fuzzing:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    needs: fetch-durations
 
     strategy:
       matrix:
@@ -273,11 +294,11 @@ jobs:
     - name: Install dependencies
       run: pip install . --group test
 
-    # fetch test durations
-    # NOTE: if the tests get poorly distributed, run this and commit the resulting `.test_durations` file to the `vyper-test-durations` repo.
-    # `pytest -m "fuzzing" --store-durations -r aR tests/`
-    - name: Fetch test-durations
-      run: curl --location "https://raw.githubusercontent.com/vyperlang/vyper-test-durations/master/test_durations" -o .test_durations
+    # get test durations from artifact, see `fetch-durations` above
+    - name: Download test-durations
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: test-durations
 
     - name: Run tests
       run: |
