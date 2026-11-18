@@ -1422,6 +1422,29 @@ def _call_return_types(node):
 
 
 @pytest.mark.parametrize(
+    "elements",
+    [
+        "staticcall I(a).wide(), staticcall I(a).short(), xs",
+        "staticcall I(a).short() if cond else staticcall I(a).wide(), xs",
+    ],
+)
+def test_wildcard_list_preserves_fixed_sibling_limit(elements):
+    code = f"""
+interface I:
+    def wide() -> DynArray[Bytes[2], ...]: view
+    def short() -> DynArray[Bytes[2], 1]: view
+    def sink(xs: DynArray[DynArray[Bytes[2], 1], ...]): nonpayable
+
+@external
+def f(a: address, xs: DynArray[Bytes[1], 2], cond: bool):
+    extcall I(a).sink([{elements}])
+    """
+    # The sink can fix the return wildcard to 1, but xs can contain two items.
+    with pytest.raises(TypeMismatch, match=r"expected DynArray\[Bytes\[2\], 1\]"):
+        compiler.compile_code(code)
+
+
+@pytest.mark.parametrize(
     "arg",
     [
         "[staticcall I(a).wide(), staticcall I(a).bounded()]",

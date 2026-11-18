@@ -1,3 +1,5 @@
+from itertools import permutations
+
 import pytest
 from eth.codecs import abi
 
@@ -2871,6 +2873,59 @@ def forward(addr: address):
     target.set_long_bounded()
     with tx_failed():
         caller.forward(target.address)
+
+
+@pytest.mark.parametrize(
+    "order,conditional",
+    [(order, False) for order in permutations(("wide", "short", "narrow"))]
+    + [(("wide", "short", "narrow"), True), (("short", "wide", "narrow"), True)],
+)
+def test_wildcard_list_three_operands(get_contract, order, conditional):
+    callee = get_contract("""
+@external
+@view
+def wide() -> DynArray[Bytes[2], 2]:
+    return [b"aa", b"bb"]
+
+@external
+@view
+def short() -> DynArray[Bytes[2], 1]:
+    return [b"cc"]
+
+@external
+@view
+def narrow() -> DynArray[Bytes[1], 2]:
+    return [b"d", b"e"]
+
+@external
+@view
+def echo(xs: DynArray[DynArray[Bytes[2], 2], 3]) -> DynArray[DynArray[Bytes[2], 2], 3]:
+    return xs
+""")
+    first, second, third = [f"staticcall I(a).{name}()" for name in order]
+    if conditional:
+        arg = f"[{first} if flag else {second}, {third}]"
+    else:
+        arg = f"[{first}, {second}, {third}]"
+    caller = get_contract(f"""
+interface I:
+    def wide() -> DynArray[Bytes[2], ...]: view
+    def short() -> DynArray[Bytes[2], 1]: view
+    def narrow() -> DynArray[Bytes[1], 2]: view
+    def echo(xs: DynArray[DynArray[Bytes[2], 2], ...]) -> DynArray[DynArray[Bytes[2], 2], 3]: view
+
+@external
+@view
+def forward(a: address, flag: bool) -> DynArray[DynArray[Bytes[2], 2], 3]:
+    return staticcall I(a).echo({arg})
+""")
+    values = {"wide": [b"aa", b"bb"], "short": [b"cc"], "narrow": [b"d", b"e"]}
+    if conditional:
+        for flag in (False, True):
+            chosen = order[0] if flag else order[1]
+            assert caller.forward(callee.address, flag) == [values[chosen], values[order[2]]]
+    else:
+        assert caller.forward(callee.address, False) == [values[name] for name in order]
 
 
 def test_wildcard_call_return_assigned_to_wider_bound(get_contract, tx_failed):

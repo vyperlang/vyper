@@ -1,3 +1,5 @@
+from itertools import permutations
+
 import pytest
 
 from vyper.exceptions import (
@@ -9,14 +11,35 @@ from vyper.exceptions import (
     UnknownAttribute,
 )
 from vyper.semantics.analysis.base import VarInfo
-from vyper.semantics.analysis.utils import get_possible_types_from_node
-from vyper.semantics.types import AddressT, BoolT, DArrayT, SArrayT
+from vyper.semantics.analysis.utils import get_possible_types_from_node, type_supremum
+from vyper.semantics.types import AddressT, BoolT, BytesT, DArrayT, SArrayT
+from vyper.semantics.types.infinity import WILDCARD
 from vyper.semantics.types.shortcuts import INT128_T
 
 INTEGER_LITERALS = [(42, 31337), (-1, 1), (69, 2**128)]
 DECIMAL_LITERALS = [("4.2", "-1.337")]
 BOOL_LITERALS = [(True, False), (True, True), (False, False)]
 STRING_LITERALS = [("'hi'", "'there'"), ("'foo'", "'bar'"), ("'longer'", "'short'")]
+
+
+def test_wildcard_supremum_respects_alternative_types():
+    # Each wildcard matches a different alternative in the third operand.
+    # Combining their fixed bounds would give Bytes[1] in a one-item array,
+    # which cannot hold either alternative.
+    short = DArrayT(BytesT(2), 1)
+    narrow = DArrayT(BytesT(1), 2)
+    branches = ([DArrayT(BytesT(WILDCARD), 1)], [DArrayT(BytesT(1), WILDCARD)], [short, narrow])
+    for order in permutations(branches):
+        assert set(type_supremum(*order)) == {short, narrow}
+        assert type_supremum(*order, keep_wildcards=True) == [DArrayT(BytesT(WILDCARD), WILDCARD)]
+
+
+def test_list_supertype_can_follow_incomparable_elements():
+    short = DArrayT(BytesT(2), 1)
+    narrow = DArrayT(BytesT(1), 2)
+    wide = DArrayT(BytesT(2), 2)
+    for order in permutations(([short], [narrow], [wide])):
+        assert type_supremum(*order) == [wide]
 
 
 def test_attribute(build_node, namespace):

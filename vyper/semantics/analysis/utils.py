@@ -274,11 +274,10 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
     def visit_IfExp(self, node):
         validate_expected_type(node.test, BoolT())
 
-        then_t = self.visit(node.body)
-        else_t = self.visit(node.orelse)
-        types_list = type_supremum(then_t, else_t, keep_wildcards=self.keep_wildcards)
-
+        types_list = self._common_operand_types((node.body, node.orelse))
         if not types_list:
+            then_t = self.visit(node.body)
+            else_t = self.visit(node.orelse)
             raise TypeMismatch(f"Dislike types: {then_t[0]} and {else_t[0]}", node)
 
         return types_list
@@ -290,8 +289,7 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
             # can't have an empty SArrayT
             return [DArrayT(BottomT(), 0)]
 
-        element_types = (self.visit(element) for element in node.elements)
-        types_list = type_supremum(*element_types, keep_wildcards=self.keep_wildcards)
+        types_list = self._common_operand_types(node.elements)
 
         if len(types_list) > 0:
             count = len(node.elements)
@@ -300,6 +298,25 @@ class _TypeSynthesizer(VyperNodeVisitorBase[list[VyperType]]):
             ret.extend([DArrayT(t, count) for t in types_list])
             return ret
         raise InvalidLiteral("Array contains multiple, incompatible types", node)
+
+    def _common_operand_types(self, operands):
+        branches = [self.visit(node) for node in operands]
+        common = type_supremum(*branches, keep_wildcards=self.keep_wildcards)
+        if common or self.keep_wildcards:
+            return common
+
+        # A nested aggregate may already have fixed a wildcard using only
+        # its own siblings. Recover those candidates while keeping the
+        # concrete bounds that the nested expression must still satisfy.
+        alternatives = []
+        for node in operands:
+            if isinstance(node, (vy_ast.IfExp, vy_ast.List, vy_ast.Tuple)):
+                types = get_possible_types_from_node(node, keep_wildcards=True)
+                if any(t.has_wildcard for t in types):
+                    alternatives.append(types)
+        if alternatives:
+            return type_supremum(*branches, *alternatives)
+        return common
 
     def visit_Name(self, node):
         # variable name, e.g. `foo`
@@ -586,45 +603,69 @@ def get_expr_info(node: vy_ast.ExprNode, allow_type_exprs: bool = False) -> Expr
 
 def type_supremum(*multitypes: List[VyperType], keep_wildcards: bool = False) -> List[VyperType]:
     """
-    Return the supremum of several multitypes (lists of possible types).
-    In other words, for each pair of types such that one is a subtype of the
-    other, take the supertype.
+    Find common supertypes across lists of possible operand types.
 
-    Two types which only differ in lengths where one of them has a wildcard
-    are subtypes of each other. Their supremum has the fixed length in each
-    of these positions, whichever operand comes first.
-
-    With `keep_wildcards`, it has the wildcard instead, and the supertype of
-    two types also gets the wildcards of the subtype, for the caller to fix
-    them from an expected type (cf. `ExprVisitor._annotation_type`).
+    When an operand has a wildcard, consider bounds from every operand
+    before choosing between equivalent supertypes. Prefer fixed bounds from
+    the common supertypes. With `keep_wildcards`, keep wildcard positions
+    from the matching operands so the expected type can supply their bounds
+    (see `ExprVisitor._annotation_type`).
     """
     assert len(multitypes) >= 1
 
-    common_types = multitypes[0]
-    for branch in multitypes[1:]:
-        tmp = []
-        for c in common_types:
-            for t in branch:
-                # The supremum is the type such that both are subtypes
+    if len(multitypes) == 1:
+        return multitypes[0]
 
-                if t.is_equivalent_to(c):
-                    tmp.append(c.merge_wildcards(t, keep_wildcards))
-                    continue
+    # The overwhelmingly common binary case needs only a subtype comparison.
+    if len(multitypes) == 2 and not any(t.has_wildcard for branch in multitypes for t in branch):
+        left, right = multitypes
+        common = []
+        for a in left:
+            for b in right:
+                if b.is_subtype_of(a):
+                    common.append(a)
+                elif a.is_subtype_of(b):
+                    common.append(b)
+        return common
 
-                if t.is_subtype_of(c):
-                    supertype, subtype = c, t
-                elif c.is_subtype_of(t):
-                    supertype, subtype = t, c
-                else:
-                    continue
+    # An operand later in a list can be a supertype of two incomparable
+    # earlier operands. Check the original candidates before merging bounds.
+    # Large literals often repeat a type or a whole list of possible types.
+    operands: dict[object, VyperType] = {}
+    branches = set()
+    for branch in multitypes:
+        keys: list[object] = []
+        for t in branch:
+            try:
+                operands.setdefault(t, t)
+                keys.append(t)
+            except TypeError:
+                # Some internal types only support identity as a key.
+                operands[id(t)] = t
+                keys.append(id(t))
+        branches.add(frozenset(keys))
 
-                if keep_wildcards:
-                    supertype = supertype.merge_wildcards(subtype, keep_wildcards=True)
-                tmp.append(supertype)
+    groups: dict[frozenset, list[VyperType]] = {}
+    for candidate in operands.values():
+        matches = frozenset(k for k, t in operands.items() if t.is_subtype_of(candidate))
+        if all(not branch.isdisjoint(matches) for branch in branches):
+            groups.setdefault(matches, []).append(candidate)
 
-        common_types = tmp
-
-    return common_types
+    result = []
+    for matches, supertypes in groups.items():
+        # Each candidate in this group accepts exactly the same alternatives
+        # in every operand. Mixing bounds from different groups could exclude
+        # every alternative of an operand, even if each candidate fits alone.
+        merged = supertypes[0]
+        if keep_wildcards:
+            for key in matches:
+                merged = merged.merge_wildcards(operands[key], keep_wildcards=True)
+        else:
+            for t in supertypes[1:]:
+                merged = merged.merge_wildcards(t, keep_wildcards=False)
+        if merged not in result:
+            result.append(merged)
+    return result
 
 
 def get_common_types(*nodes: vy_ast.VyperNode, filter_fn: Callable = None) -> List[VyperType]:
