@@ -170,7 +170,7 @@ class DeadStoreElimination(IRPass):
             return False
 
         # Memory locations with unknown offset or size are never dead stores.
-        if not mem_def.loc.is_fixed:
+        if not mem_def.loc.is_fixed and mem_def.loc.is_concrete:
             return False
 
         # If the instruction output is used, it is not a dead store.
