@@ -42,6 +42,26 @@ def test_list_supertype_can_follow_incomparable_elements():
         assert type_supremum(*order) == [wide]
 
 
+@pytest.mark.parametrize("with_wildcard", [False, True])
+def test_list_bound_inference_uses_linear_subtype_checks(monkeypatch, with_wildcard):
+    branches = [[DArrayT(INT128_T, n)] for n in range(1, 33)]
+    widest = branches[-1]
+    if with_wildcard:
+        branches.insert(0, [DArrayT(INT128_T, WILDCARD)])
+
+    checks = 0
+    compare = DArrayT.compare_type
+
+    def counted_compare(self, other):
+        nonlocal checks
+        checks += 1
+        return compare(self, other)
+
+    monkeypatch.setattr(DArrayT, "compare_type", counted_compare)
+    assert type_supremum(*branches) == widest
+    assert checks <= 3 * len(branches)
+
+
 def test_attribute(build_node, namespace):
     node = build_node("self.foo")
     with namespace.enter_scope():

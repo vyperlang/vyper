@@ -645,8 +645,21 @@ def type_supremum(*multitypes: List[VyperType], keep_wildcards: bool = False) ->
                 keys.append(id(t))
         branches.add(frozenset(keys))
 
+    candidates = list(operands.values())
+    if all(len(branch) == 1 for branch in branches):
+        # If a concrete operand is a supertype of all the concrete operands,
+        # it replaces any narrower candidate and survives the rest of the
+        # scan. Verify the survivor below, since a common supertype may not
+        # exist. Wildcard compatibility isn't transitive, so retain each
+        # wildcard candidate for that check.
+        concrete = None
+        for t in candidates:
+            if not t.has_wildcard and (concrete is None or not t.is_subtype_of(concrete)):
+                concrete = t
+        candidates = [t for t in candidates if t is concrete or t.has_wildcard]
+
     groups: dict[frozenset, list[VyperType]] = {}
-    for candidate in operands.values():
+    for candidate in candidates:
         matches = frozenset(k for k, t in operands.items() if t.is_subtype_of(candidate))
         if all(not branch.isdisjoint(matches) for branch in branches):
             groups.setdefault(matches, []).append(candidate)
