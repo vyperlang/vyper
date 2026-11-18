@@ -25,6 +25,26 @@ def find_inst(fn: IRFunction, opcode: str) -> IRInstruction:
     )
 
 
+def stack_spilling_inf_source() -> str:
+    """
+    Vyper source in which 16 arguments to an internal function spill the
+    stack to memory at O1 while the dynamic `data` is live across the call.
+    """
+    params = ", ".join(f"a{i}: uint256" for i in range(16))
+    args = ", ".join(f"a{i}" for i in range(16))
+    total = " + ".join(f"a{i}" for i in range(16))
+    return f"""
+@internal
+def sum_words({params}) -> uint256:
+    return {total}
+
+@external
+def foo(data: Bytes[INF], {params}) -> (uint256, Bytes[INF]):
+    s: uint256 = self.sum_words({args})
+    return s, data
+    """
+
+
 def run_ssa(fn: IRFunction) -> None:
     ac = IRAnalysesCache(fn)
     MakeSSA(ac, fn).run_pass()
