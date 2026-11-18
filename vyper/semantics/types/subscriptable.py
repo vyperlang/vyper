@@ -452,7 +452,7 @@ class TupleT(VyperType):
 
     typeclass = "tuple"
 
-    _equality_attrs = ("members",)
+    _equality_attrs = ("member_types",)
     _id = "$Tuple"
 
     # note: docs say that tuples are not instantiable but they
@@ -468,7 +468,7 @@ class TupleT(VyperType):
         for mt in member_types:
             if not mt.is_valid_member_type:
                 raise StructureException(f"not a valid tuple member: {mt}")
-        self.member_types = member_types
+        self.member_types = tuple(member_types)
         self.key_type = UINT256_T  # API Compatibility
 
     def __repr__(self):
@@ -477,7 +477,6 @@ class TupleT(VyperType):
             return f"({t},)"
         return "(" + ", ".join(f"{t}" for t in self.member_types) + ")"
 
-    # TODO should we instead set _equality_attrs = ("member_types",)?
     def _addl_dict_fields(self):
         ret = {}
         ret["member_types"] = [t.to_dict() for t in self.member_types]

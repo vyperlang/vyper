@@ -1506,7 +1506,7 @@ def f(a: address, c: bool, d: bool):
     module = compiler.CompilerData(code).annotated_vyper_module
     (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.func.get("attr") == "sink"]
     (arg_node,) = call.args
-    assert arg_node._metadata["type"] == TupleT((DArrayT(BytesT(20), 2), BoolT()))
+    assert tuple(arg_node._metadata["type"].member_types) == (DArrayT(BytesT(20), 2), BoolT())
     assert _call_return_types(arg_node)["wide"] == DArrayT(BytesT(20), 2)
 
 
@@ -1652,6 +1652,33 @@ def f(a: address, x: Bytes[INF]) -> uint256:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
     message = "Function arguments cannot contain unbounded sequence types inside aggregate types"
     assert e.value.message == message
+
+
+@pytest.mark.parametrize("venom", [False, True])
+def test_nested_tuple_wildcard_call_return(venom):
+    interface = """
+interface I:
+    def source() -> ((Bytes[...], bool), bool): view
+"""
+    settings = Settings(experimental_codegen=venom)
+    bounded = """
+@external
+def f(a: address) -> ((Bytes[8], bool), bool):
+    return staticcall I(a).source()
+"""
+    compiler.compile_code(interface + bounded, settings=settings)
+
+    unbounded = """
+@external
+def f(a: address) -> Bytes[512]:
+    return abi_encode(staticcall I(a).source())
+"""
+    with pytest.raises(StructureException) as exc:
+        compiler.compile_code(interface + unbounded, settings=settings)
+    assert exc.value.message == (
+        "Unsupported unbounded sequence nesting in abi_encode argument type: "
+        "((Bytes[INF], bool), bool)"
+    )
 
 
 @pytest.mark.parametrize(
