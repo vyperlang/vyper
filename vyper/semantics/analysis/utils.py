@@ -601,6 +601,37 @@ def get_expr_info(node: vy_ast.ExprNode, allow_type_exprs: bool = False) -> Expr
     return node._expr_info
 
 
+def _finite_lengths(
+    typ: VyperType, path: tuple[int, ...] = ()
+) -> Iterable[tuple[tuple[int, ...], int]]:
+    """Yield (position, bound) for finite sequence lengths in an operand type."""
+    if isinstance(typ, (SArrayT, DArrayT, BytesT, StringT)) and isinstance(typ.length, int):
+        yield path, typ.length
+    if isinstance(typ, (SArrayT, DArrayT)):
+        yield from _finite_lengths(typ.value_type, (*path, -1))  # array element
+    elif isinstance(typ, TupleT):
+        for i, member in enumerate(typ.member_types):
+            yield from _finite_lengths(member, (*path, i))
+
+
+def _required_lengths(
+    operands: dict[object, VyperType], branches: set[frozenset[object]]
+) -> dict[tuple[int, ...], int]:
+    lengths = {k: dict(_finite_lengths(t)) for k, t in operands.items()}
+    if not any(lengths.values()):
+        return {}
+    required: dict[tuple[int, ...], int] = {}
+    for branch in branches:
+        options = (lengths[k] for k in branch)
+        common = next(options)
+        # An operand imposes a minimum only where all its alternatives do.
+        for option in options:
+            common = {path: min(n, option[path]) for path, n in common.items() if path in option}
+        for path, n in common.items():
+            required[path] = max(required.get(path, 0), n)
+    return required
+
+
 def type_supremum(*multitypes: List[VyperType], keep_wildcards: bool = False) -> List[VyperType]:
     """
     Find common supertypes across lists of possible operand types.
@@ -634,6 +665,8 @@ def type_supremum(*multitypes: List[VyperType], keep_wildcards: bool = False) ->
     operands: dict[object, VyperType] = {}
     branches = set()
     for branch in multitypes:
+        if not branch:
+            return []
         keys: list[object] = []
         for t in branch:
             try:
@@ -657,6 +690,17 @@ def type_supremum(*multitypes: List[VyperType], keep_wildcards: bool = False) ->
             if not t.has_wildcard and (concrete is None or not t.is_subtype_of(concrete)):
                 concrete = t
         candidates = [t for t in candidates if t is concrete or t.has_wildcard]
+
+    # One or two remaining candidates already take at most two coverage scans.
+    # Otherwise reject candidates whose fixed lengths are too small for some
+    # operand before checking them against every type. Wildcards and INF
+    # impose no constraint in this filter; the subtype checks below decide.
+    if len(candidates) > 2:
+        required = _required_lengths(operands, branches)
+        if required:
+            candidates = [
+                t for t in candidates if all(n >= required.get(p, 0) for p, n in _finite_lengths(t))
+            ]
 
     groups: dict[frozenset, list[VyperType]] = {}
     for candidate in candidates:

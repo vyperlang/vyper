@@ -13,6 +13,7 @@ from vyper.exceptions import (
 from vyper.semantics.analysis.base import VarInfo
 from vyper.semantics.analysis.utils import get_possible_types_from_node, type_supremum
 from vyper.semantics.types import AddressT, BoolT, BytesT, DArrayT, SArrayT
+from vyper.semantics.types.base import VyperType
 from vyper.semantics.types.infinity import WILDCARD
 from vyper.semantics.types.shortcuts import INT128_T
 
@@ -43,23 +44,32 @@ def test_list_supertype_can_follow_incomparable_elements():
 
 
 @pytest.mark.parametrize("with_wildcard", [False, True])
-def test_list_bound_inference_uses_linear_subtype_checks(monkeypatch, with_wildcard):
-    branches = [[DArrayT(INT128_T, n)] for n in range(1, 33)]
+@pytest.mark.parametrize("element_type", [INT128_T, BytesT(WILDCARD)])
+@pytest.mark.parametrize("nested", [False, True])
+def test_list_bound_inference_uses_linear_subtype_checks(
+    monkeypatch, with_wildcard, element_type, nested
+):
+    def element_types(bound):
+        t = DArrayT(element_type, bound)
+        # A list literal [x] has both static and dynamic array candidates.
+        return [SArrayT(t, 1), DArrayT(t, 1)] if nested else [t]
+
+    branches = [element_types(n) for n in range(1, 33)]
     widest = branches[-1]
     if with_wildcard:
-        branches.insert(0, [DArrayT(INT128_T, WILDCARD)])
+        branches.insert(0, element_types(WILDCARD))
 
     checks = 0
-    compare = DArrayT.compare_type
+    compare = VyperType.is_subtype_of
 
     def counted_compare(self, other):
         nonlocal checks
         checks += 1
         return compare(self, other)
 
-    monkeypatch.setattr(DArrayT, "compare_type", counted_compare)
+    monkeypatch.setattr(VyperType, "is_subtype_of", counted_compare)
     assert type_supremum(*branches) == widest
-    assert checks <= 3 * len(branches)
+    assert checks <= 3 * len(branches) * len(widest) ** 2
 
 
 def test_attribute(build_node, namespace):
