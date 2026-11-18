@@ -1,11 +1,13 @@
 import pytest
 
 from vyper import compile_code
+from vyper.compiler.settings import Settings
 from vyper.exceptions import (
     ArrayIndexException,
     CompilerPanic,
     ImmutableViolation,
     InvalidOperation,
+    MemoryAllocationException,
     StructureException,
     TypeMismatch,
     UndeclaredDefinition,
@@ -262,6 +264,71 @@ def foo(a: {typ}):
     pass
     """
     compile_inf_code(code)
+
+
+# an INF array's element may take at most 2**64 - 1 bytes in memory and in
+# the ABI, the limit static memory allocations have
+@pytest.mark.parametrize(
+    ("typ", "structs"),
+    [
+        # memory size 2**64 - 32
+        ("DynArray[DynArray[uint256, 2**59 - 2], INF]", ""),
+        ("DynArray[uint256[2**59 - 1], INF]", ""),
+        ("DynArray[S, INF]", "struct S:\n    a: Bytes[INF]\n    b: DynArray[uint256, 2**59 - 4]"),
+    ],
+)
+def test_dynarray_inf_element_size_below_limit(compile_inf_code, typ, structs):
+    code = f"""
+{structs}
+
+@external
+def foo(xs: {typ}) -> uint256:
+    return len(xs)
+    """
+    compile_inf_code(code)
+
+
+@pytest.mark.parametrize(
+    ("typ", "structs"),
+    [
+        # memory size close to 2**256
+        ("DynArray[DynArray[uint256, 2**251 - 3], INF]", ""),
+        # memory size 2**64
+        ("DynArray[DynArray[uint256, 2**59 - 1], INF]", ""),
+        ("DynArray[uint256[2**59], INF]", ""),
+        ("DynArray[S, INF]", "struct S:\n    a: Bytes[INF]\n    b: DynArray[uint256, 2**59 - 3]"),
+        # memory size 2**64 - 32, ABI size bound 1.5 * 2**64 - 64
+        ("DynArray[DynArray[Bytes[1], 2**58 - 1], INF]", ""),
+        # nested in an INF element
+        ("DynArray[DynArray[DynArray[uint256, 2**59 - 1], INF], INF]", ""),
+    ],
+)
+def test_dynarray_inf_element_size_limit(typ, structs):
+    code = f"""
+{structs}
+
+@external
+def foo(xs: {typ}) -> uint256:
+    return len(xs)
+    """
+    with pytest.raises(MemoryAllocationException) as e:
+        compile_code(code, settings=Settings(experimental_codegen=True))
+    assert "Element type of DynArray[..., INF]" in e.value.message
+
+
+def test_dynarray_inf_element_size_limit_wildcard():
+    # the wildcard resolves to INF where the call has no expected bound
+    code = """
+interface I:
+    def foo() -> DynArray[DynArray[uint256, 2**59 - 1], ...]: view
+
+@external
+def f(a: address) -> uint256:
+    return len(staticcall I(a).foo())
+    """
+    with pytest.raises(MemoryAllocationException) as e:
+        compile_code(code, settings=Settings(experimental_codegen=True))
+    assert "Element type of DynArray[..., INF]" in e.value.message
 
 
 def test_dynarray_inf_append(compile_inf_code):
