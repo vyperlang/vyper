@@ -1183,7 +1183,10 @@ class Expr:
         # bytes/string: get pointer, hash the data portion
         # sha3 only works on memory - copy non-memory data first
         key_vv = Expr(key_node, self.ctx).lower()
-        key_typ = key_node._metadata["type"]
+        # size the copy by the key's own type, not the map's key type,
+        # which can be much wider
+        assert isinstance(key_node, vy_ast.ExprNode)
+        key_typ = key_node._expr_info.typ
         assert isinstance(key_typ, _BytestringT)
         key_mem = self.ctx.ensure_bytestring_in_memory(key_vv, key_typ)
         data_ptr_op = self.ctx.bytes_data_ptr(key_mem)

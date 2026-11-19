@@ -228,3 +228,80 @@ def do_the_thing(_index: uint256) -> uint256:
     c = get_contract(code)
 
     assert c.do_the_thing(12) == 31337
+
+
+# copying a narrow key out of storage, transient storage or immutables
+# must be sized by the key's own type, not by the map's key type:
+# the cost must not scale with the map's declared key size.
+NARROW_KEY_GAS_BOUND = 100_000
+
+
+@pytest.mark.parametrize("typ,key", [("Bytes", b"hello"), ("String", "hello")])
+@pytest.mark.parametrize("location", ["storage", "immutable"])
+def test_narrow_key_into_wide_map(env, get_contract, typ, key, location):
+    if location == "storage":
+        decl, init, k = f"b: {typ}[5]", "self.b = k", "self.b"
+    else:
+        decl, init, k = f"B: immutable({typ}[5])", "B = k", "self.B"
+
+    code = f"""
+a: HashMap[{typ}[100000], int128]
+{decl}
+
+@deploy
+def __init__(k: {typ}[5]):
+    {init}
+
+@external
+def set_narrow(v: int128):
+    self.a[{k}] = v
+
+@external
+def get_narrow() -> int128:
+    return self.a[{k}]
+
+@external
+def get_wide(k: {typ}[100000]) -> int128:
+    return self.a[k]
+    """
+
+    c = get_contract(code, key)
+
+    c.set_narrow(1069)
+    assert env.last_result.gas_used < NARROW_KEY_GAS_BOUND
+    assert c.get_wide(key) == 1069
+
+    assert c.get_narrow() == 1069
+    assert env.last_result.gas_used < NARROW_KEY_GAS_BOUND
+
+
+@pytest.mark.requires_evm_version("cancun")
+@pytest.mark.parametrize("typ,key", [("Bytes", b"hello"), ("String", "hello")])
+def test_narrow_transient_key_into_wide_map(env, get_contract, typ, key):
+    code = f"""
+a: HashMap[{typ}[100000], int128]
+b: transient({typ}[5])
+
+@external
+def set_narrow(k: {typ}[5], v: int128):
+    self.b = k
+    self.a[self.b] = v
+
+@external
+def get_narrow(k: {typ}[5]) -> int128:
+    self.b = k
+    return self.a[self.b]
+
+@external
+def get_wide(k: {typ}[100000]) -> int128:
+    return self.a[k]
+    """
+
+    c = get_contract(code)
+
+    c.set_narrow(key, 1069)
+    assert env.last_result.gas_used < NARROW_KEY_GAS_BOUND
+    assert c.get_wide(key) == 1069
+
+    assert c.get_narrow(key) == 1069
+    assert env.last_result.gas_used < NARROW_KEY_GAS_BOUND
