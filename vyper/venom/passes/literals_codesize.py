@@ -53,12 +53,6 @@ class ReduceLiteralsCodesize(IRPass):
                 assert (val >> ix) << ix == val, val
                 assert (val >> ix) & 1 == 1, val
 
-                if val >> ix == ix:
-                    # `shl k, k` would repeat a literal operand, which DFT
-                    # and venom_to_assembly don't support. emit
-                    # `shl k - 1, 2 * k` instead.
-                    ix -= 1
-
                 inst.opcode = "shl"
                 inst.operands = [IRLiteral(val >> ix), IRLiteral(ix)]
                 continue

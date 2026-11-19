@@ -111,6 +111,9 @@ PASSES_Os: List[PassConfig] = [
     RemoveUnusedVariablesPass,
     SingleUseExpansion,
     ReduceLiteralsCodesize,
+    # the codesize rewrite introduces literal operands, including `shl k, k`.
+    # expand those again so DFT sees two distinct variables.
+    SingleUseExpansion,
     DFTPass,
     CFGNormalization,
 ]
