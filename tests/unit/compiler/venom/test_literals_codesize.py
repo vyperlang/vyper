@@ -131,8 +131,9 @@ def test_literal_codesize_no_shl(orig_value):
 @pytest.mark.parametrize("k", range(25, 249, 2))
 def test_literal_codesize_shl_k_k(k):
     """
-    `k << k` is shorter as `shl k, k`. The repeated literal is split by the
-    SingleUseExpansion that runs after this pass.
+    `k << k` is shorter as `shl k, k`. The two literals are the same value,
+    so they are split into distinct assigns here. Other shl literals stay
+    inline, because a later expansion reschedules them.
     """
     orig_value = k << k
 
@@ -144,7 +145,9 @@ def test_literal_codesize_shl_k_k(k):
 
     post = f"""
     main:
-        %1 = shl {k}, {k}
+        %2 = {k}
+        %3 = {k}
+        %1 = shl %3, %2
         sink %1
     """
 

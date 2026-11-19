@@ -254,8 +254,8 @@ def contains(a: int128) -> bool:
 
 @pytest.mark.parametrize("value", [25 << 25, 31 << 31, 247 << 247])
 def test_constant_of_value_shifted_by_itself(get_contract, value):
-    # venom -O codesize rewrites this as `shl k, k`. a second
-    # SingleUseExpansion splits the two literals before DFT.
+    # venom -O codesize rewrites this as `shl k, k` and splits the
+    # repeated literal into two assigns. other codesize literals stay inline.
     code = f"""
 X: constant(uint256) = {value}
 
