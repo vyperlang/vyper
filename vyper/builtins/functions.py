@@ -2385,20 +2385,23 @@ class ABIEncode(BuiltinFunctionT):
         return BytesT(maxlen)
 
     @staticmethod
-    def _parse_method_id(method_id_literal):
+    def _parse_method_id(method_id_literal, node):
         if method_id_literal is None:
             return None
         if isinstance(method_id_literal, bytes):
-            assert len(method_id_literal) == 4
-            return fourbytes_to_int(method_id_literal)
-        if method_id_literal.startswith("0x"):
-            method_id_literal = method_id_literal[2:]
-        return fourbytes_to_int(bytes.fromhex(method_id_literal))
+            raw = method_id_literal
+        else:
+            if method_id_literal.startswith("0x"):
+                method_id_literal = method_id_literal[2:]
+            raw = bytes.fromhex(method_id_literal)
+        if len(raw) != 4:
+            raise StructureException("method_id must be a 4 byte literal", node)
+        return fourbytes_to_int(raw)
 
     @process_inputs
     def build_IR(self, expr, args, kwargs, context):
         ensure_tuple = kwargs["ensure_tuple"]
-        method_id = self._parse_method_id(kwargs["method_id"])
+        method_id = self._parse_method_id(kwargs["method_id"], expr)
 
         if len(args) < 1:
             raise StructureException("abi_encode expects at least one argument", expr)

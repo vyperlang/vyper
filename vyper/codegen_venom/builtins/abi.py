@@ -61,6 +61,12 @@ def _get_bool_kwarg(node: vy_ast.Call, kwarg_name: str, default: bool) -> bool:
     raise UnfoldableNode(f"unfoldable boolean kwarg: {kwarg_name}", kw_node)
 
 
+def _require_four_bytes(node: vy_ast.VyperNode, raw: bytes) -> int:
+    if len(raw) != 4:
+        raise StructureException("method_id must be a 4 byte literal", node)
+    return fourbytes_to_int(raw)
+
+
 def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
     """Parse method_id kwarg to integer."""
     if method_id_node is None:
@@ -75,12 +81,14 @@ def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
         hex_val = method_id_node.value
         if isinstance(hex_val, str):
             hex_str = hex_val[2:] if hex_val.startswith("0x") else hex_val
-            return fourbytes_to_int(bytes.fromhex(hex_str))
-        return fourbytes_to_int(hex_val)
+            raw = bytes.fromhex(hex_str)
+        else:
+            raw = hex_val
+        return _require_four_bytes(method_id_node, raw)
 
     # b"\xaa\xbb\xcc\xdd" and x"aabbccdd"
     if isinstance(method_id_node, (vy_ast.Bytes, vy_ast.HexBytes)):
-        return fourbytes_to_int(method_id_node.value)
+        return _require_four_bytes(method_id_node, method_id_node.value)
 
     if isinstance(method_id_node, vy_ast.Int):
         return method_id_node.value
