@@ -408,7 +408,7 @@ def _compute_and_validate_reachable_r(
 
 
 def _validate_overrides(func_t: ContractFunctionT, node: vy_ast.FunctionDef):
-    """Validate @override decorators and set `overridden_by` on abstract methods."""
+    """Validate @override decorators and set `raw_overridden_by` on abstract methods."""
     for override_name in func_t.override_nodes:
         try:
             module_info = get_namespace()[override_name.id]

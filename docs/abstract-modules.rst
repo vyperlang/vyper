@@ -112,7 +112,7 @@ For module M1 to override module M2:
 3. The root module (the file passed to the ``vyper`` command) must :ref:`initialize <initializing-module>` (directly or indirectly) M1
 
 .. note::
-    Condition 3 allows you to swap between modules overriding the same abstract module by toggling which of the two you initialize.
+    Condition 3 allows you to swap between modules overriding the same abstract module by initializing the one you want.
 
 Note that conditions 1 and 2 must always be satisfied together:
 
