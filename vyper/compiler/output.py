@@ -106,6 +106,13 @@ def build_integrity(compiler_data: CompilerData) -> str:
     return compiler_data.integrity_sum
 
 
+def _format_fn_args(func: ContractFunctionT) -> str:
+    args = [f"{arg.name}: {arg.typ}" for arg in func.positional_args]
+    # interfaces don't carry the default value, `...` keeps the arg optional
+    args += [f"{arg.name}: {arg.typ} = ..." for arg in func.keyword_args]
+    return ", ".join(args)
+
+
 def build_external_interface_output(compiler_data: CompilerData) -> str:
     interface = compiler_data.annotated_vyper_module._metadata["type"].interface
     stem = PurePath(compiler_data.contract_path).stem
@@ -116,7 +123,7 @@ def build_external_interface_output(compiler_data: CompilerData) -> str:
     for func in interface.functions.values():
         if func.visibility == FunctionVisibility.INTERNAL or func.name == "__init__":
             continue
-        args = ", ".join([f"{arg.name}: {arg.typ}" for arg in func.arguments])
+        args = _format_fn_args(func)
         return_value = f" -> {func.return_type}" if func.return_type is not None else ""
         mutability = func.mutability.value
         out = f"{out}    def {func.name}({args}){return_value}: {mutability}\n"
@@ -171,7 +178,7 @@ def build_interface_output(compiler_data: CompilerData) -> str:
                 continue
             if func.mutability != StateMutability.NONPAYABLE:
                 out += f"@{func.mutability.value}\n"
-            args = ", ".join([f"{arg.name}: {arg.typ}" for arg in func.arguments])
+            args = _format_fn_args(func)
             return_value = f" -> {func.return_type}" if func.return_type is not None else ""
             out += f"@external\ndef {func.name}({args}){return_value}:\n    ...\n\n\n"
 
