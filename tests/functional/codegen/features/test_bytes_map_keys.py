@@ -242,7 +242,7 @@ def test_narrow_key_into_wide_map(env, get_contract, typ, key, location):
     if location == "storage":
         decl, init, k = f"b: {typ}[5]", "self.b = k", "self.b"
     else:
-        decl, init, k = f"B: immutable({typ}[5])", "B = k", "self.B"
+        decl, init, k = f"B: immutable({typ}[5])", "self.B = k", "self.B"
 
     code = f"""
 a: HashMap[{typ}[100000], int128]
