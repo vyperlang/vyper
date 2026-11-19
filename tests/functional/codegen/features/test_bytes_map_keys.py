@@ -237,10 +237,12 @@ NARROW_KEY_GAS_BOUND = 100_000
 
 
 @pytest.mark.parametrize("typ,key", [("Bytes", b"hello"), ("String", "hello")])
-@pytest.mark.parametrize("location", ["storage", "immutable"])
+@pytest.mark.parametrize("location", ["storage", "map_value", "immutable"])
 def test_narrow_key_into_wide_map(env, get_contract, typ, key, location):
     if location == "storage":
         decl, init, k = f"b: {typ}[5]", "self.b = k", "self.b"
+    elif location == "map_value":
+        decl, init, k = f"c: HashMap[uint256, {typ}[5]]", "self.c[0] = k", "self.c[0]"
     else:
         decl, init, k = f"B: immutable({typ}[5])", "self.B = k", "self.B"
 

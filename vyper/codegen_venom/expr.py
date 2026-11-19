@@ -1185,8 +1185,7 @@ class Expr:
         key_vv = Expr(key_node, self.ctx).lower()
         # size the copy by the key's own type, not the map's key type,
         # which can be much wider
-        assert isinstance(key_node, vy_ast.ExprNode)
-        key_typ = key_node._expr_info.typ
+        key_typ = key_vv.typ
         assert isinstance(key_typ, _BytestringT)
         key_mem = self.ctx.ensure_bytestring_in_memory(key_vv, key_typ)
         data_ptr_op = self.ctx.bytes_data_ptr(key_mem)
