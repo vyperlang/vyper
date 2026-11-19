@@ -114,6 +114,11 @@ For module M1 to override module M2:
 .. note::
     Condition 3 allows you to swap between modules overriding the same abstract module by toggling which of the two you initialize.
 
+Note that conditions 1 and 2 must always be satisfied together:
+
+* initializing an abstract module requires overriding all its methods
+* overriding the methods of an abstract module requires initializing it
+
 .. _overriding-abstract-methods:
 
 Overriding abstract methods

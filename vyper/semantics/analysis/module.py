@@ -94,6 +94,9 @@ def analyze_modules(imports: ImportAnalyzer) -> ModuleT:
     globally_initialized = _compute_globally_initialized_modules_r(root_module_t)
 
     for module_ast in modules:
+        _check_abstract_initializations(module_ast)
+
+    for module_ast in modules:
         _check_overrides(module_ast, globally_initialized)
 
     # Remainder of validation: everything that requires module-level/cross-module information
@@ -1129,6 +1132,34 @@ def _compute_override_discrepancies(
         )
 
     return discrepancies
+
+
+def _check_abstract_initializations(module_ast: vy_ast.Module) -> None:
+    """
+    If a module `initializes` an abstract module, it must be a valid override
+    """
+    module_t = module_ast._metadata["type"]
+
+    for info in module_t.initialized_modules:
+        initialized_t = info.module_info.module_t
+
+        missing = [
+            fn_t
+            for fn_t in initialized_t.functions.values()
+            if fn_t.is_abstract
+            and not any(o.ast_def.module_node is module_ast for o in fn_t.raw_overridden_by)
+        ]
+
+        if len(missing) != 0:
+            alias = info.module_info.alias
+            names = ", ".join(f"`{fn_t.name}`" for fn_t in missing)
+            msg = f"`{alias}` is initialized here, but some of its abstract method(s)"
+            msg += f" are not overridden: {names}"
+            hint = "did you forget to add `@override` on some methods?"
+
+            raise InitializerException(
+                msg, info.node, *(fn_t.ast_def for fn_t in missing), hint=hint
+            )
 
 
 def _check_overrides(module_ast: vy_ast.Module, globally_initialized: OrderedSet[ModuleT]):

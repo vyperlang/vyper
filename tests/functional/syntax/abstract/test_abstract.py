@@ -5,6 +5,7 @@ from vyper.exceptions import (
     ArgumentException,
     CallViolation,
     FunctionDeclarationException,
+    InitializerException,
     VyperException,
 )
 
@@ -777,7 +778,6 @@ import foo
 import bar_override
 import baz_override
 
-initializes: foo
 initializes: bar_override
 initializes: baz_override
     """
@@ -1063,12 +1063,15 @@ def foo() -> uint256:
 
     input_bundle = make_input_bundle({"abstract_module.vy": abstract_module})
 
-    with pytest.raises(FunctionDeclarationException) as e:
+    with pytest.raises(InitializerException) as e:
         compile_code(contract, input_bundle=input_bundle)
 
-    assert "Abstract function was not overridden" == e.value.message
-    assert "bar" in e.value.annotations[0].node_source_code
-    assert e.value.hint is None
+    expected_msg = "`abstract_module` is initialized here, but some of its abstract"
+    expected_msg += " method(s) are not overridden: `bar`"
+    assert e.value.message == expected_msg
+    assert "initializes: abstract_module" in e.value.annotations[0].node_source_code
+    assert "bar" in e.value.annotations[1].node_source_code
+    assert e.value.hint == "did you forget to add `@override` on some methods?"
 
 
 def test_contract_cannot_have_abstract_methods():
