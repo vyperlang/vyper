@@ -66,7 +66,11 @@ def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
     if method_id_node is None:
         return None
 
-    # Handle bytes literal: method_id=0xaabbccdd
+    # Constants and method_id("sig") are folded. x"..." is HexBytes, which
+    # is not a subclass of Bytes, so it has to be accepted on its own.
+    method_id_node = method_id_node.reduced()
+
+    # 0xaabbccdd
     if isinstance(method_id_node, vy_ast.Hex):
         hex_val = method_id_node.value
         if isinstance(hex_val, str):
@@ -74,26 +78,14 @@ def _parse_method_id(method_id_node: vy_ast.VyperNode) -> Optional[int]:
             return fourbytes_to_int(bytes.fromhex(hex_str))
         return fourbytes_to_int(hex_val)
 
-    # Handle bytes constant: method_id=b"\xaa\xbb\xcc\xdd"
-    if isinstance(method_id_node, vy_ast.Bytes):
+    # b"\xaa\xbb\xcc\xdd" and x"aabbccdd"
+    if isinstance(method_id_node, (vy_ast.Bytes, vy_ast.HexBytes)):
         return fourbytes_to_int(method_id_node.value)
 
-    # Handle Int literal
     if isinstance(method_id_node, vy_ast.Int):
         return method_id_node.value
 
-    # If it has a folded value (constant expression)
-    if hasattr(method_id_node, "_metadata") and "folded_value" in method_id_node._metadata:
-        folded = method_id_node._metadata["folded_value"]
-        if isinstance(folded, vy_ast.Bytes):
-            return fourbytes_to_int(folded.value)
-        if isinstance(folded, vy_ast.Hex):
-            hex_val = folded.value
-            if isinstance(hex_val, str):
-                hex_str = hex_val[2:] if hex_val.startswith("0x") else hex_val
-                return fourbytes_to_int(bytes.fromhex(hex_str))
-
-    return None
+    raise StructureException("method_id must be a 4 byte literal", method_id_node)
 
 
 def _build_abi_encoded_bytes(
