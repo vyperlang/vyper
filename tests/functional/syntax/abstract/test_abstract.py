@@ -818,6 +818,35 @@ def some_method() -> uint256:
     assert e.value.hint == expected_hint
 
 
+def test_uninitialized_override_signature_is_checked(make_input_bundle):
+    """Test that an override is validated even when it is not selected"""
+    contract = """
+import bar_override
+    """
+
+    foo = """
+@abstract
+def some_method() -> uint256: ...
+    """
+
+    bar_override = """
+import foo
+initializes: foo
+
+@override(foo)
+def some_method() -> int256:
+    return -200
+    """
+
+    input_bundle = make_input_bundle({"foo.vy": foo, "bar_override.vy": bar_override})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        compile_code(contract, input_bundle=input_bundle)
+
+    expected = "some_method returns int256 but the method it overrides returns uint256"
+    assert e.value.message == expected
+
+
 def test_multiple_uninitialized_overrides(make_input_bundle, tmp_path):
     """Test that the hint lists every candidate when none of them is initialized"""
     contract = """
