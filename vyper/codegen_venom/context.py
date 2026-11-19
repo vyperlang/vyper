@@ -996,7 +996,7 @@ class VenomCodegenContext:
         """Return a bytestring value guaranteed to be in memory.
 
         Hashing and certain builtins require memory-backed bytestring data.
-        STORAGE/TRANSIENT/CODE values are copied into a temporary memory buffer
+        STORAGE/TRANSIENT/IMMUTABLES values are copied into a temporary memory buffer
         sized by the value's own type (the annotated type of the expression
         it came from can be wider, e.g. a map key or comparison operand).
         """
