@@ -28,7 +28,7 @@ def _prepare_hash_input(node: vy_ast.Call, ctx: VenomCodegenContext) -> tuple[IR
 
     if isinstance(arg_t, _BytestringT):
         arg_vv = Expr(arg_node, ctx).lower()
-        arg_mem = ctx.ensure_bytestring_in_memory(arg_vv, arg_t)
+        arg_mem = ctx.ensure_bytestring_in_memory(arg_vv)
         return ctx.bytes_data_ptr(arg_mem), ctx.bytestring_length(arg_mem)
 
     # Fixed-size word values are hashed from a temporary 32-byte buffer.
