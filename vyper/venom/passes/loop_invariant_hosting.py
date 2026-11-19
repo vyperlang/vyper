@@ -97,10 +97,22 @@ class LoopInvariantHoisting(IRPass):
     def _hoist(self, header: IRBasicBlock, hoistable: list[IRInstruction]):
         target_bb = self.loop_analysis.get_pre_header(header)
         assert target_bb is not None
-        for inst in hoistable:
-            bb = inst.parent
-            bb.remove_instruction(inst)
-            target_bb.insert_instruction(inst, index=len(target_bb.instructions) - 1)
+        top_sort = []
+        while len(hoistable) > 0:
+            for idx, inst in enumerate(hoistable):
+                uses = self.dfg.get_uses(inst.output)
+                used = any(use in hoistable for use in uses)
+                if not used:
+                    top_sort.append(inst)
+                    del hoistable[idx]
+                    break
+        for inst in reversed(top_sort):
+            self._hoist_inst(target_bb, inst)
+
+    def _hoist_inst(self, target: IRBasicBlock, inst: IRInstruction):
+        bb = inst.parent
+        bb.remove_instruction(inst)
+        target.insert_instruction(inst, index=len(target.instructions) - 1)
 
     def _get_loop_effects_write(self, loop: OrderedSet[IRBasicBlock]) -> _LoopEffects:
         res = _LoopEffects(EMPTY, set())
