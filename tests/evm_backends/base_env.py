@@ -543,6 +543,13 @@ def _compile(
     else:
         fake_path = _make_fake_path(Path(input_bundle.search_paths[0]))
 
+    if settings is not None and settings.experimental_codegen:
+        # a test can override the session backend. the dictionary formats
+        # describe legacy IR and are rejected by Venom.
+        output_formats = {
+            k: v for k, v in output_formats.items() if k not in ("ir_dict", "ir_runtime_dict")
+        }
+
     out = compile_code(
         source_code,
         fake_path,
