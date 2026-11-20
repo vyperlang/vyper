@@ -406,6 +406,31 @@ def do_it(addr: address, b: bool) -> uint256:
 
 
 @pytest.mark.parametrize("test", [True, False])
+def test_ternary_wildcard_arg_empty_smaller_capacity(get_contract, test):
+    # the `empty()` element has a smaller capacity than the other arm's element
+    target_code = """
+@external
+def echo(xs: DynArray[DynArray[uint256, 3], 3]) -> DynArray[DynArray[uint256, 3], 3]:
+    return xs
+    """
+
+    caller_code = """
+interface Target:
+    def echo(
+        xs: DynArray[DynArray[uint256, ...], 3]
+    ) -> DynArray[DynArray[uint256, 3], 3]: nonpayable
+
+@external
+def foo(target: address, t: bool) -> DynArray[DynArray[uint256, 3], 3]:
+    return extcall Target(target).echo([empty(DynArray[uint256, 2])] if t else [[1, 2, 3]])
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+    assert caller.foo(target.address, test) == ([[]] if test else [[1, 2, 3]])
+
+
+@pytest.mark.parametrize("test", [True, False])
 def test_ternary_as_event_argument(get_contract, get_logs, test):
     code = """
 event Picked:

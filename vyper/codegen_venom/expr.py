@@ -381,7 +381,6 @@ class Expr:
         typ = node._metadata["type"]
         elem_typ = typ.value_type
         # a static array holds no unbounded sequence (`SArrayT.from_annotation`)
-        # TODO: `_analyse_list_iter` still types a for-loop list literal as one
         assert not (isinstance(typ, SArrayT) and is_unbounded_sequence_type(elem_typ))
         elem_is_cell = is_unbounded_sequence_type(elem_typ)
         elem_size = self.ctx.array_elem_size_in(typ, DataLocation.MEMORY)
@@ -587,6 +586,13 @@ class Expr:
                     ),
                     result_typ,
                 )
+
+        # Block complex types (mirrors legacy codegen), otherwise we would
+        # compare the pointers. See issue #2638 for context
+        if not (left_typ._is_prim_word and right_typ._is_prim_word):
+            raise TypeMismatch(
+                f"operation not yet supported for {left_typ}, {right_typ}, see issue #2638", node.op
+            )
 
         # Non-bytestring: get values directly
         left = Expr(node.left, self.ctx).lower_value()
@@ -1943,7 +1949,7 @@ class Expr:
         capacity = darray_typ.count  # Maximum length
 
         # 1. Load current length
-        length = self.builder.load(darray_ptr, data_loc)
+        length = self.ctx.load_word(darray_ptr, data_loc)
 
         # 2. Assert length < capacity
         if is_bounded_length(capacity):
@@ -1963,19 +1969,21 @@ class Expr:
             assert isinstance(elem_ptr, IRVariable)
             self.ctx.store_pointer_cell(elem_ptr, elem_val, IRLiteral(0))
         elif elem_typ._is_prim_word:
-            self.builder.store(elem_ptr, elem_val, data_loc)
+            self.ctx.store_word(elem_ptr, elem_val, data_loc)
         elif data_loc == DataLocation.MEMORY:
             self.ctx.store_memory(elem_val, elem_ptr, elem_typ, src_typ=elem_src_typ)
         elif data_loc == DataLocation.STORAGE:
             self.ctx.store_storage(elem_val, elem_ptr, elem_typ)
         elif data_loc == DataLocation.TRANSIENT:
             self.ctx.store_transient(elem_val, elem_ptr, elem_typ)
+        elif data_loc == DataLocation.IMMUTABLES:
+            self.ctx.store_immutable(elem_val, elem_ptr, elem_typ)
         else:  # pragma: nocover
             raise CompilerPanic(f"Unsupported location for append: {data_loc}")
 
         # 5. Increment and store new length
         new_length = self.builder.add(length, IRLiteral(1))
-        self.builder.store(darray_ptr, new_length, data_loc)
+        self.ctx.store_word(darray_ptr, new_length, data_loc)
 
         # append() returns nothing
         return VyperValue.from_stack_op(IRLiteral(0), VOID_TYPE)
@@ -2142,7 +2150,7 @@ class Expr:
         elem_size = self.ctx.array_elem_size_in(darray_typ, data_loc)
 
         # 1. Load current length
-        length = self.builder.load(darray_ptr, data_loc)
+        length = self.ctx.load_word(darray_ptr, data_loc)
 
         # 2. Assert length > 0 (can't pop empty array)
         valid = self.builder.iszero(self.builder.iszero(length))
@@ -2152,7 +2160,7 @@ class Expr:
         new_length = self.builder.sub(length, IRLiteral(1))
 
         # 4. Store new length
-        self.builder.store(darray_ptr, new_length, data_loc)
+        self.ctx.store_word(darray_ptr, new_length, data_loc)
 
         # 5. Return element at new_length index (the popped element)
         overhead = word_scale * DYNAMIC_ARRAY_OVERHEAD

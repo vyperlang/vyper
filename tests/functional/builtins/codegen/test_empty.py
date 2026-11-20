@@ -474,6 +474,37 @@ def foo():
     c.foo()
 
 
+def test_empty_dynarray_smaller_capacity(get_contract):
+    code = """
+s: DynArray[uint256, 5]
+
+@internal
+def length(xs: DynArray[uint256, 5]) -> uint256:
+    return len(xs)
+
+@external
+def foo() -> DynArray[DynArray[uint256, 3], 2]:
+    x: DynArray[uint256, 5] = [1, 2]
+    x = empty(DynArray[uint256, 2])
+    assert len(x) == 0
+
+    self.s = [1, 2, 3]
+    self.s = empty(DynArray[uint256, 2])
+    assert len(self.s) == 0
+
+    assert self.length(empty(DynArray[uint256, 2])) == 0
+    return [empty(DynArray[uint256, 2]), [1, 2, 3]]
+
+@external
+def bar() -> DynArray[uint256, 5]:
+    return empty(DynArray[uint256, 2])
+    """
+
+    c = get_contract(code)
+    assert c.foo() == [[], [1, 2, 3]]
+    assert c.bar() == []
+
+
 def test_param_empty(get_contract):
     code = """
 interface Mirror:

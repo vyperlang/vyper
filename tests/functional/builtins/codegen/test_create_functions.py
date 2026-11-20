@@ -868,6 +868,30 @@ def deploy_from_memory() -> address:
     assert env.get_code(res) == runtime
 
 
+def test_raw_create_immutable_bytecode(get_contract, env):
+    out = compile_code("foo: public(uint256)", output_formats=["bytecode", "bytecode_runtime"])
+    initcode = bytes.fromhex(out["bytecode"].removeprefix("0x"))
+    runtime = bytes.fromhex(out["bytecode_runtime"].removeprefix("0x"))
+    deployer = get_contract(
+        """
+initcode: immutable(Bytes[1024])
+deployed: public(address)
+
+@deploy
+def __init__(bytecode: Bytes[1024]):
+    self.initcode = bytecode
+    self.deployed = raw_create(self.initcode)
+
+@external
+def deploy() -> address:
+    return raw_create(self.initcode)
+        """,
+        initcode,
+    )
+    assert env.get_code(deployer.deployed()) == runtime
+    assert env.get_code(deployer.deploy()) == runtime
+
+
 # `initcode` and `value` arguments overlap
 def test_raw_create_memory_overlap(get_contract, env):
     to_deploy_code = """

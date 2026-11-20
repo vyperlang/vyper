@@ -61,6 +61,16 @@ def lower_convert(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand | Vy
         in_t = arg_vv.typ
     arg = ctx.unwrap(arg_vv)
 
+    # a zero-capacity bytestring's buffer is its length word alone, so
+    # loading its data word would read past the buffer. its value is
+    # empty, which converts to 0 for every word type.
+    if (
+        isinstance(in_t, _BytestringT)
+        and in_t.maxlen == 0
+        and not isinstance(out_t, (BytesT, StringT))
+    ):
+        return IRLiteral(0)
+
     # Dispatch based on output type
     if out_t == BoolT():
         return _to_bool(arg, in_t, out_t, arg_node, ctx)
@@ -93,6 +103,21 @@ def _bytestring_convert_value(
     reference = source.reference if source.location == DataLocation.MEMORY else None
     if is_unbounded_bytestring_type(out_t):
         return ctx.dynamic_memory_value(ptr, out_t, annotation="convert").with_reference(reference)
+    src_t = source.typ
+    if (
+        is_unbounded_bytestring_type(src_t)
+        or src_t.memory_bytes_required < out_t.memory_bytes_required
+    ):
+        # consumers read a bounded value up to its type's size, which is past
+        # the source's buffer here: copy the value into a buffer of `out_t`
+        ret = ctx.new_temporary_value(out_t, annotation="convert")
+        assert isinstance(ret.operand, IRVariable)
+        if is_unbounded_bytestring_type(src_t):
+            size = ctx.bytestring_runtime_size(ptr)
+            ctx.copy_memory_dynamic(ret.operand, ptr, size, out_t.memory_bytes_required)
+        else:
+            ctx.copy_memory(ret.operand, ptr, src_t.memory_bytes_required)
+        return ret
     buf = Buffer(_ptr=ptr, size=out_t.memory_bytes_required, annotation="convert")
     return VyperValue.from_ptr(buf.base_ptr(), out_t, reference)
 
@@ -275,10 +300,11 @@ def _to_int(
         _runtime_check_bytes_len(in_t, length, 32, ctx)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
-        if not is_bounded_length(in_t.maxlen):
-            # empty INF bytestrings allocate only the length word, so the
-            # data word may hold garbage; mask it so sar of an empty value
-            # yields 0 (sar with shift >= 256 propagates the sign bit)
+        if out_t.is_signed:
+            # the data word of an empty bytestring may hold garbage (e.g. an
+            # emptied storage bytestring keeps its old data); mask it so sar
+            # of an empty value yields 0 (sar with shift >= 256 propagates
+            # the sign bit)
             data = b.mul(data, b.iszero(b.iszero(length)))
         # Right-shift to convert left-aligned bytes to right-aligned int
         # num_zero_bits = (32 - len) * 8
@@ -366,11 +392,9 @@ def _to_decimal(
         _runtime_check_bytes_len(in_t, length, 32, ctx)
         data_ptr = b.add(val, IRLiteral(32))
         data = b.mload(data_ptr)
-        if not is_bounded_length(in_t.maxlen):
-            # empty INF bytestrings allocate only the length word, so the
-            # data word may hold garbage; mask it so sar of an empty value
-            # yields 0 (sar with shift >= 256 propagates the sign bit)
-            data = b.mul(data, b.iszero(b.iszero(length)))
+        # the data word of an empty bytestring may hold garbage (see
+        # `_to_int`); mask it so sar of an empty value yields 0
+        data = b.mul(data, b.iszero(b.iszero(length)))
         num_zero_bits = b.mul(b.sub(IRLiteral(32), length), IRLiteral(8))
         val = b.sar(num_zero_bits, data)
         # Clamp to decimal bounds if needed

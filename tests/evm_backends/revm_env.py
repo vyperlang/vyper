@@ -115,6 +115,9 @@ class RevmEnv(BaseEnv):
     def get_code(self, address: str):
         return self._evm.basic(address).code.rstrip(b"\0")
 
+    def get_storage(self, address: str, slot: int) -> int:
+        return self._evm.storage(address, slot)
+
     def get_excess_blob_gas(self) -> Optional[int]:
         return self._evm.env.block.excess_blob_gas
 

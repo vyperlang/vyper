@@ -323,6 +323,15 @@ def lower_raw_create(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
             bytecode_vv.location,
         )
         bytecode = mem_buf.operand
+    elif bytecode_vv.location is DataLocation.IMMUTABLES:
+        mem_buf = ctx.new_temporary_value(bytecode_typ)
+        ctx.copy_to_memory(
+            mem_buf.operand,
+            bytecode_vv.operand,
+            bytecode_typ.memory_bytes_required,
+            DataLocation.IMMUTABLES,
+        )
+        bytecode = mem_buf.operand
     else:
         # Memory bytecode: copy to fresh buffer to avoid potential overlap
         # when evaluating value, salt, or ctor_args expressions
