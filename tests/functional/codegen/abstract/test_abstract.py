@@ -638,6 +638,54 @@ def test_multiple_calls() -> uint256:
     assert c.test_multiple_calls() == 3
 
 
+@pytest.mark.parametrize("selected, expected", [("bar_override", 100), ("baz_override", 200)])
+def test_select_override_by_initializing(get_contract, make_input_bundle, selected, expected):
+    # two override modules are imported; the initialized one is selected
+    contract = f"""
+import foo
+import bar_override
+import baz_override
+
+uses: foo
+initializes: {selected}
+
+@external
+def call_it() -> uint256:
+    return foo.some_method()
+    """
+
+    foo = """
+@abstract
+def some_method() -> uint256: ...
+    """
+
+    bar_override = """
+import foo
+initializes: foo
+
+@override(foo)
+def some_method() -> uint256:
+    return 100
+    """
+
+    baz_override = """
+import foo
+initializes: foo
+
+@override(foo)
+def some_method() -> uint256:
+    return 200
+    """
+
+    input_bundle = make_input_bundle(
+        {"foo.vy": foo, "bar_override.vy": bar_override, "baz_override.vy": baz_override}
+    )
+
+    c = get_contract(contract, input_bundle=input_bundle)
+
+    assert c.call_it() == expected
+
+
 OVERRIDE_DEFAULT_PARAM_CALLS = [
     (
         "x: uint256, y: uint256 = ...",

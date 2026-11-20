@@ -5,6 +5,7 @@ from vyper.exceptions import (
     ArgumentException,
     CallViolation,
     FunctionDeclarationException,
+    InitializerException,
     VyperException,
 )
 
@@ -770,14 +771,13 @@ def long_method_name_a() -> uint256: ...
     assert e.value.hint == "Did you mean 'long_method_name_a'?"
 
 
-def test_duplicate_override_fails(make_input_bundle, tmp_path):
+def test_duplicate_override_fails(make_input_bundle):
     """Test that overriding the same abstract method twice fails with proper error"""
     contract = """
 import foo
 import bar_override
 import baz_override
 
-initializes: foo
 initializes: bar_override
 initializes: baz_override
     """
@@ -812,13 +812,91 @@ def some_method() -> uint256:
     with pytest.raises(FunctionDeclarationException) as e:
         compile_code(contract, input_bundle=input_bundle)
 
+    assert e.value.message == "`some_method` is overridden more than once!"
+    expected_hint = "an override only counts if the module is (transitively) initialized"
+    expected_hint += " by the root module"
+    assert e.value.hint == expected_hint
+
+
+def test_uninitialized_override_signature_is_checked(make_input_bundle):
+    """Test that an override is validated even when it is not selected"""
+    contract = """
+import bar_override
+    """
+
+    foo = """
+@abstract
+def some_method() -> uint256: ...
+    """
+
+    bar_override = """
+import foo
+initializes: foo
+
+@override(foo)
+def some_method() -> int256:
+    return -200
+    """
+
+    input_bundle = make_input_bundle({"foo.vy": foo, "bar_override.vy": bar_override})
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        compile_code(contract, input_bundle=input_bundle)
+
+    expected = "some_method returns int256 but the method it overrides returns uint256"
+    assert e.value.message == expected
+
+
+def test_multiple_uninitialized_overrides(make_input_bundle, tmp_path):
+    """Test that the hint lists every candidate when none of them is initialized"""
+    contract = """
+import foo
+import bar_override
+import baz_override
+
+uses: foo
+
+@external
+def call_it() -> uint256:
+    return foo.some_method()
+    """
+
+    foo = """
+@abstract
+def some_method() -> uint256: ...
+    """
+
+    bar_override = """
+import foo
+initializes: foo
+
+@override(foo)
+def some_method() -> uint256:
+    return 100
+    """
+
+    baz_override = """
+import foo
+initializes: foo
+
+@override(foo)
+def some_method() -> uint256:
+    return 200
+    """
+
+    input_bundle = make_input_bundle(
+        {"foo.vy": foo, "bar_override.vy": bar_override, "baz_override.vy": baz_override}
+    )
+
+    with pytest.raises(FunctionDeclarationException) as e:
+        compile_code(contract, input_bundle=input_bundle)
+
     bar_path = (tmp_path / "bar_override.vy").as_posix()
     baz_path = (tmp_path / "baz_override.vy").as_posix()
 
-    assert e.value.message == f"`foo.some_method` was already overridden in `{bar_path}`!"
-    expected_hint = "the likely root cause is that `foo` has been initialized"
-    expected_hint += f" in both `{baz_path}` and"
-    expected_hint += f" `{bar_path}`, which is an error"
+    assert e.value.message == "Abstract function was not overridden"
+    expected_hint = "did you forget to `initializes:` one of the following modules?"
+    expected_hint += f" `{bar_path}`, `{baz_path}`"
     assert e.value.hint == expected_hint
 
 
@@ -1014,11 +1092,15 @@ def foo() -> uint256:
 
     input_bundle = make_input_bundle({"abstract_module.vy": abstract_module})
 
-    with pytest.raises(FunctionDeclarationException) as e:
+    with pytest.raises(InitializerException) as e:
         compile_code(contract, input_bundle=input_bundle)
 
-    assert "Abstract function was not overridden" == e.value.message
-    assert "bar" in e.value.annotations[0].node_source_code
+    expected_msg = "`abstract_module` is initialized here, but some of its abstract"
+    expected_msg += " method(s) are not overridden: `bar`"
+    assert e.value.message == expected_msg
+    assert "initializes: abstract_module" in e.value.annotations[0].node_source_code
+    assert "bar" in e.value.annotations[1].node_source_code
+    assert e.value.hint == "did you forget to add `@override` on some methods?"
 
 
 def test_contract_cannot_have_abstract_methods():
@@ -1038,6 +1120,7 @@ def bar() -> uint256:
 
     assert "Abstract function was not overridden" == e.value.message
     assert "foo" in e.value.annotations[0].node_source_code
+    assert e.value.hint is None
 
 
 def test_cannot_call_overridden_method(make_input_bundle):
