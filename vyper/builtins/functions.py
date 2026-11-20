@@ -1099,9 +1099,7 @@ class RawCall(BuiltinFunctionT):
         kw = {k.arg: k.value for k in node.keywords}
 
         is_static = kw.get("is_static_call", None)
-        is_static = is_static.get_folded_value() if is_static else False
-
-        if is_static:
+        if is_static is not None and is_static.get_folded_value().value:
             return StateMutability.VIEW
 
         return StateMutability.NONPAYABLE
