@@ -237,6 +237,73 @@ def bar() -> uint256:
     assert c.foo() == 1
 
 
+@pytest.mark.parametrize(
+    "code",
+    [
+        """
+a: DynArray[uint256[1], 1]
+
+@external
+def foo() -> uint256:
+    self.a = [[42]]
+    return self.a.pop()[self.bar()]
+
+@internal
+def bar() -> uint256:
+    self.a = [[99]]
+    return 0
+    """,
+        """
+struct S:
+    d: DynArray[uint256[1], 1]
+
+s: S
+
+@external
+def foo() -> uint256:
+    self.s = S(d=[[42]])
+    return self.s.d.pop()[self.bar()]
+
+@internal
+def bar() -> uint256:
+    self.s = S(d=[])
+    return 0
+    """,
+        """
+@external
+def foo() -> uint256:
+    x: DynArray[uint256[2], 3] = [[1, 2], [1, 0], [3, 4]]
+    return x.pop()[x.pop()[0]]
+    """,
+    ],
+)
+def test_array_index_overlap_pop(get_contract, code):
+    # the index can write the popped array, so it could overwrite the popped
+    # element, which is past the array's new length. the check is
+    # conservative, like legacy codegen: a `pop()` in the index only shortens
+    # the array, but the program is rejected all the same
+    with pytest.raises(CompilerPanic, match="risky overlap"):
+        get_contract(code)
+
+
+def test_array_index_pop_no_overlap(get_contract):
+    code = """
+a: DynArray[uint256[2], 2]
+
+@external
+def foo(i: uint256) -> uint256:
+    self.a = [[1, 2], [3, 4]]
+    return self.a.pop()[i] + self.a.pop()[self.bar()]
+
+@internal
+@view
+def bar() -> uint256:
+    return 0
+    """
+    c = get_contract(code)
+    assert c.foo(1) == 5
+
+
 # to fix in future release
 @pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
 def test_array_index_overlap_store(get_contract):
