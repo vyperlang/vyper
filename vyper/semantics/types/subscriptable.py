@@ -5,6 +5,7 @@ from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABITyp
 from vyper.exceptions import (
     ArrayIndexException,
     CodegenPanic,
+    InvalidOperation,
     InvalidType,
     MemoryAllocationException,
     StructureException,
@@ -71,6 +72,10 @@ class HashMapT(_SubscriptableT):
 
     def __repr__(self):
         return f"HashMap[{self.key_type}, {self.value_type}]"
+
+    @property
+    def abi_type(self) -> ABIType:
+        raise InvalidOperation(f"`{self}` does not have an abi encoding")
 
     # TODO not sure this is used?
     def compare_type(self, other):
