@@ -30,7 +30,7 @@ from vyper.exceptions import (
     UnimplementedException,
     tag_exceptions,
 )
-from vyper.semantics.analysis.base import Modifiability
+from vyper.semantics.analysis.base import Modifiability, VarInfo
 from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
@@ -152,6 +152,28 @@ def _function_contains_risky_call(func_t: ContractFunctionT) -> bool:
     return decl_node._metadata["contains_risky_call"]
 
 
+def get_reachable_internal_functions(node: vy_ast.VyperNode) -> set[ContractFunctionT]:
+    # the concrete functions a call in `node` can run, abstract calls
+    # resolved to their overrides
+    ret = set()
+    for call in node.get_descendants(vy_ast.Call, include_self=True):
+        func_t = call.func._metadata.get("type")
+        if isinstance(func_t, ContractFunctionT) and func_t.is_internal:
+            concrete = func_t.get_concrete_override()
+            ret.add(concrete)
+            ret.update(concrete.reachable_internal_functions)
+    return ret
+
+
+def get_writes_with_overrides(node: vy_ast.VyperNode) -> set[VarInfo]:
+    # `get_expr_writes` takes an abstract callee's writes from its `...`
+    # body; add the writes of the overrides it runs instead.
+    ret = {access.variable for access in get_expr_writes(node)}
+    for func_t in get_reachable_internal_functions(node):
+        ret.update(access.variable for access in func_t.get_variable_writes())
+    return ret
+
+
 def _subscript_read_write_overlap(
     base_node: vy_ast.VyperNode, index_node: vy_ast.VyperNode
 ) -> bool:
@@ -165,7 +187,7 @@ def _subscript_read_write_overlap(
     if not base_reads:
         return False
 
-    index_writes = {access.variable for access in get_expr_writes(index_node)}
+    index_writes = get_writes_with_overrides(index_node)
     if base_reads & index_writes:
         return True
 
