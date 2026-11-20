@@ -423,7 +423,9 @@ def optimize(node: IRnode) -> IRnode:
 
 
 def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
-    starting_symbols = node.unique_symbols
+    # sanity check the input IR; `unique_symbols` raises if the same symbol
+    # occurs twice in the tree. (it is cached, so this is not a new walk)
+    _ = node.unique_symbols
 
     res = [_optimize(arg, node) for arg in node.args]
     argz: list
@@ -450,6 +452,7 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
     # the dead branch eliminator will almost always trip the symbols check.
     # but for certain operations, particularly binops, we want to do the check.
     should_check_symbols = False
+    starting_symbols: set = set()
 
     def finalize(val, args):
         if not changed and not args_changed:
@@ -497,6 +500,11 @@ def _optimize(node: IRnode, parent: Optional[IRnode]) -> Tuple[bool, IRnode]:
         if res is not None:
             changed = True
             should_check_symbols = True
+            # the symbols this rewrite must preserve. take them from the
+            # optimized args and not from `node`, since optimizing an arg can
+            # legitimately drop symbols (e.g. the dead branch eliminator), and
+            # that is not something this rewrite did. (GH issue 5002)
+            starting_symbols = set().union(*(arg.unique_symbols for arg in argz))
             value, argz, annotation = res
             return finalize(value, argz)
 
