@@ -219,6 +219,25 @@ def _check_literal_decimal_bounds(arg_node: vy_ast.VyperNode, in_t, out_t: Decim
         raise InvalidLiteral("Number out of range", literal)
 
 
+def _check_literal_bytes_m_bounds(arg_node: vy_ast.VyperNode, out_t: BytesM_T) -> None:
+    """
+    Check if a narrowed compile-time bytesM constant fits in the output type.
+
+    Narrowing drops the trailing bytes, so they must be zero.
+    Raises InvalidLiteral otherwise.
+    """
+    literal = _get_folded_value(arg_node)
+    if not isinstance(literal, vy_ast.Hex):
+        return
+
+    if any(literal.bytes_value[out_t.m :]):
+        raise InvalidLiteral(
+            f"Value out of range for {out_t}",
+            literal,
+            hint="only zero bytes can be dropped when narrowing",
+        )
+
+
 def _to_bool(
     val: IROperand, in_t, out_t, arg_node: vy_ast.VyperNode, ctx: VenomCodegenContext
 ) -> IROperand:
@@ -457,6 +476,7 @@ def _to_bytes_m(
     # From bytesM: clamp downcast or widen
     if isinstance(in_t, BytesM_T):
         if in_t.m > out_t.m:
+            _check_literal_bytes_m_bounds(arg_node, out_t)
             # Downcast: assert low bytes are zero (bytes_clamp pattern)
             # bytesM is left-aligned, so check that shl(out_t.m * 8, val) == 0
             # This ensures bits that would be truncated are all zero
