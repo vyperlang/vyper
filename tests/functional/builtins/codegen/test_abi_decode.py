@@ -4,6 +4,7 @@ from eth.codecs import abi
 from tests.evm_backends.base_env import EvmError, ExecutionReverted
 from tests.utils import decimal_to_int, deploy_raw_returner
 from vyper.compiler import compile_code
+from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import ArgumentException, StructureException
 from vyper.utils import method_id
 
@@ -965,12 +966,16 @@ def f(x: Bytes[{buffer_size}]):
         env.message_call(c.address, data=data)
 
 
-def test_abi_decode_head_roundtrip(tx_failed, get_contract, env):
+def test_abi_decode_head_roundtrip(tx_failed, get_contract, env, experimental_codegen, optimize):
     # top-level head in the y2 buffer points to the y1 buffer
     # and y1 contains intermediate heads pointing to the inner arrays
     # which are in turn in the y2 buffer
     # NOTE: the test is memory allocator dependent - we assume that y1 and y2
     # have the 800 & 960 addresses respectively
+    if experimental_codegen and optimize == OptimizationLevel.GAS:
+        # venom O2 reuses the slot of the dead y1 (address 0) for the copy of
+        # y2 that it decodes, so no buffer lies below the one being decoded
+        pytest.skip("the memory layout this test assumes does not exist at venom O2")
     buffer_size1 = 4 * 32
     buffer_size2 = 2 * 32 + 3 * 32 + 3 * 32 * 4
     code = f"""
