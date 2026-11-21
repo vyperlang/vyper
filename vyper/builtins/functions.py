@@ -851,7 +851,17 @@ class Extract32(BuiltinFunctionT):
     _kwargs = {"output_type": KwargSettings(TYPE_T.any(), BYTES32_T)}
 
     def fetch_call_return(self, node):
-        self._validate_arg_types(node)
+        input_type, _ = self.infer_arg_types(node)
+
+        # validate that the 32 bytes read are in bounds, like `slice` does
+        if is_bounded_length(input_type.length):
+            if input_type.length < 32:
+                raise ArgumentException(f"extract32 out of bounds for {input_type}", node.args[0])
+
+            start = node.args[1].reduced()
+            if isinstance(start, vy_ast.Int) and start.value + 32 > input_type.length:
+                raise ArgumentException(f"extract32 out of bounds for {input_type}", node.args[1])
+
         return_type = self.infer_kwarg_types(node)["output_type"].typedef
         return return_type
 
