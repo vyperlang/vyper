@@ -1436,7 +1436,8 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
     """,
         lambda xs: [1, 2] + xs if len(xs) <= 3 else None,
     ),
-    # empty list literal src (dst-type fallback in local analysis)
+    # empty list literal src (`Never` element type; interpolation fills it
+    # with the dst element type in local analysis)
     (
         """
 @external
@@ -1447,58 +1448,6 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
     return ys
     """,
         lambda xs: [1, 2] + xs if len(xs) <= 3 else None,
-    ),
-    # nested empty list literal src (`Never` is below the top level of the
-    # inferred literal type; the dst-type fallback covers this too)
-    (
-        """
-@external
-def foo(xs: DynArray[uint256, 5]) -> DynArray[DynArray[uint256, 3], 3]:
-    ys: DynArray[DynArray[uint256, 3], 3] = []
-    ys.extend([[]])
-    return ys
-    """,
-        lambda xs: [[]],
-    ),
-    # `Never` nested under a fixed-size array: the bottom-type scan must
-    # recurse through SArrayT elements too, not just DynArrayT elements
-    (
-        """
-@external
-def foo(xs: DynArray[uint256, 5]) -> DynArray[DynArray[uint256, 3][2], 3]:
-    ys: DynArray[DynArray[uint256, 3][2], 3] = []
-    ys.extend([[[], []]])
-    return ys
-        """,
-        lambda xs: [[[], []]],
-    ),
-    # widening element type src (memory dst): the staging buffer re-lays
-    # the elements out at the dst stride (Bytes[2] -> Bytes[64] changes
-    # the stride from 64 to 96 bytes)
-    (
-        """
-@external
-def foo(xs: DynArray[uint256, 5]) -> DynArray[Bytes[64], 3]:
-    src: DynArray[Bytes[2], 2] = [b"a", b"b"]
-    dst: DynArray[Bytes[64], 3] = []
-    dst.extend(src)
-    return dst
-    """,
-        lambda xs: [b"a", b"b"],
-    ),
-    # widening element type src (storage dst)
-    (
-        """
-my_array: DynArray[Bytes[64], 3]
-
-@external
-def foo(xs: DynArray[uint256, 5]) -> DynArray[Bytes[64], 3]:
-    src: DynArray[Bytes[2], 2] = [b"c", b"d"]
-    self.my_array = []
-    self.my_array.extend(src)
-    return self.my_array
-    """,
-        lambda xs: [b"c", b"d"],
     ),
     # nonempty list literal src
     (
@@ -1525,29 +1474,6 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
     """,
         lambda xs: [1, 2, 3] + xs if len(xs) <= 2 else None,
     ),
-    # list literal src into memory dst; the literal's length alone exceeds the
-    # dst capacity, which is not rejected at compile time but reverts at runtime
-    (
-        """
-@external
-def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 1]:
-    a: DynArray[uint256, 1] = []
-    a.extend([1, 2])
-    return a
-    """,
-        lambda xs: None,
-    ),
-    # boundary: list literal src exactly fills the dst capacity
-    (
-        """
-@external
-def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 2]:
-    a: DynArray[uint256, 2] = []
-    a.extend([1, 2])
-    return a
-    """,
-        lambda xs: [1, 2],
-    ),
     # smaller-capacity src into larger-capacity dst
     (
         """
@@ -1561,29 +1487,6 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
     return self.my_array
     """,
         lambda xs: [1, 2, 3] + xs if len(xs) <= 2 else None,
-    ),
-    # self-aliasing (memory)
-    (
-        """
-@external
-def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 6]:
-    ys: DynArray[uint256, 6] = [1, 2, 3]
-    ys.extend(ys)
-    return ys
-    """,
-        lambda xs: [1, 2, 3, 1, 2, 3],
-    ),
-    # self-aliasing (storage)
-    (
-        """
-my_array: DynArray[uint256, 6]
-@external
-def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 6]:
-    self.my_array = [1, 2, 3]
-    self.my_array.extend(self.my_array)
-    return self.my_array
-    """,
-        lambda xs: [1, 2, 3, 1, 2, 3],
     ),
 ]
 
@@ -1601,6 +1504,166 @@ def test_extend(get_contract, tx_failed, code, check_result, test_data):
         assert c.foo(test_data) == expected_result
 
 
+# cases whose outcome does not depend on the input run once, instead of under
+# the input-length parametrization of `test_extend`
+extend_fixed_tests = [
+    # nested empty list literal src (`Never` is below the top level of the
+    # inferred literal type; interpolation fills it with the dst element type)
+    (
+        """
+@external
+def foo() -> DynArray[DynArray[uint256, 3], 3]:
+    ys: DynArray[DynArray[uint256, 3], 3] = []
+    ys.extend([[]])
+    return ys
+    """,
+        [[]],
+    ),
+    # `Never` nested under a fixed-size array: interpolation recurses through
+    # SArrayT elements too, not just DynArrayT elements
+    (
+        """
+@external
+def foo() -> DynArray[DynArray[uint256, 3][2], 3]:
+    ys: DynArray[DynArray[uint256, 3][2], 3] = []
+    ys.extend([[[], []]])
+    return ys
+    """,
+        [[[], []]],
+    ),
+    # widening element type src (memory dst): the staging buffer re-lays
+    # the elements out at the dst stride (Bytes[2] -> Bytes[64] changes
+    # the stride from 64 to 96 bytes)
+    (
+        """
+@external
+def foo() -> DynArray[Bytes[64], 3]:
+    src: DynArray[Bytes[2], 2] = [b"a", b"b"]
+    dst: DynArray[Bytes[64], 3] = []
+    dst.extend(src)
+    return dst
+    """,
+        [b"a", b"b"],
+    ),
+    # widening element type src (storage dst)
+    (
+        """
+my_array: DynArray[Bytes[64], 3]
+
+@external
+def foo() -> DynArray[Bytes[64], 3]:
+    src: DynArray[Bytes[2], 2] = [b"c", b"d"]
+    self.my_array = []
+    self.my_array.extend(src)
+    return self.my_array
+    """,
+        [b"c", b"d"],
+    ),
+    # list literal src into memory dst; the literal's length alone exceeds the
+    # dst capacity, which is not rejected at compile time but reverts at runtime
+    (
+        """
+@external
+def foo() -> DynArray[uint256, 1]:
+    a: DynArray[uint256, 1] = []
+    a.extend([1, 2])
+    return a
+    """,
+        None,
+    ),
+    # boundary: list literal src exactly fills the dst capacity
+    (
+        """
+@external
+def foo() -> DynArray[uint256, 2]:
+    a: DynArray[uint256, 2] = []
+    a.extend([1, 2])
+    return a
+    """,
+        [1, 2],
+    ),
+    # self-aliasing (memory)
+    (
+        """
+@external
+def foo() -> DynArray[uint256, 6]:
+    ys: DynArray[uint256, 6] = [1, 2, 3]
+    ys.extend(ys)
+    return ys
+    """,
+        [1, 2, 3, 1, 2, 3],
+    ),
+    # self-aliasing (storage)
+    (
+        """
+my_array: DynArray[uint256, 6]
+@external
+def foo() -> DynArray[uint256, 6]:
+    self.my_array = [1, 2, 3]
+    self.my_array.extend(self.my_array)
+    return self.my_array
+    """,
+        [1, 2, 3, 1, 2, 3],
+    ),
+    # `empty()` src of larger capacity than the dst
+    (
+        """
+@external
+def foo() -> DynArray[uint256, 3]:
+    x: DynArray[uint256, 3] = [1, 2, 3]
+    x.extend(empty(DynArray[uint256, 10]))
+    return x
+    """,
+        [1, 2, 3],
+    ),
+    # struct elements, src of larger capacity than the dst; second element
+    # fits the dst capacity
+    (
+        """
+struct Foo:
+    x: uint256
+
+my_array: DynArray[Foo, 2]
+@external
+def foo() -> DynArray[Foo, 2]:
+    self.my_array = [Foo(x=1)]
+    fs: DynArray[Foo, 5] = [Foo(x=2)]
+    self.my_array.extend(fs)
+    return self.my_array
+    """,
+        [(1,), (2,)],
+    ),
+    # struct elements, src of larger capacity than the dst; dst capacity
+    # exceeded
+    (
+        """
+struct Foo:
+    x: uint256
+
+my_array: DynArray[Foo, 2]
+@external
+def foo() -> DynArray[Foo, 2]:
+    self.my_array = [Foo(x=1)]
+    fs: DynArray[Foo, 5] = [Foo(x=2), Foo(x=3)]
+    self.my_array.extend(fs)
+    return self.my_array
+    """,
+        None,
+    ),
+]
+
+
+@pytest.mark.parametrize("code,expected", extend_fixed_tests)
+def test_extend_fixed(get_contract, tx_failed, code, expected):
+    c = get_contract(code)
+    if expected is None:
+        # None is sentinel to indicate txn should revert
+        with tx_failed():
+            c.foo()
+    else:
+        assert c.foo() == expected
+
+
 transient_extend_tests = [
     (
         """
@@ -1611,32 +1674,7 @@ def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 5]:
     return self.my_array
     """,
         lambda xs: xs,
-    ),
-    # complex (multi-word) elements
-    (
-        """
-my_array: transient(DynArray[Bytes[32], 3])
-@external
-def foo(xs: DynArray[uint256, 5]) -> DynArray[Bytes[32], 3]:
-    self.my_array = [b"a"]
-    bs: DynArray[Bytes[32], 2] = [b"b", b"c"]
-    self.my_array.extend(bs)
-    return self.my_array
-    """,
-        lambda xs: [b"a", b"b", b"c"],
-    ),
-    # self-aliasing
-    (
-        """
-my_array: transient(DynArray[uint256, 6])
-@external
-def foo(xs: DynArray[uint256, 5]) -> DynArray[uint256, 6]:
-    self.my_array = [1, 2, 3]
-    self.my_array.extend(self.my_array)
-    return self.my_array
-    """,
-        lambda xs: [1, 2, 3, 1, 2, 3],
-    ),
+    )
 ]
 
 
@@ -1652,6 +1690,42 @@ def test_extend_transient(get_contract, tx_failed, code, check_result, test_data
             c.foo(test_data)
     else:
         assert c.foo(test_data) == expected_result
+
+
+transient_extend_fixed_tests = [
+    # complex (multi-word) elements
+    (
+        """
+my_array: transient(DynArray[Bytes[32], 3])
+@external
+def foo() -> DynArray[Bytes[32], 3]:
+    self.my_array = [b"a"]
+    bs: DynArray[Bytes[32], 2] = [b"b", b"c"]
+    self.my_array.extend(bs)
+    return self.my_array
+    """,
+        [b"a", b"b", b"c"],
+    ),
+    # self-aliasing
+    (
+        """
+my_array: transient(DynArray[uint256, 6])
+@external
+def foo() -> DynArray[uint256, 6]:
+    self.my_array = [1, 2, 3]
+    self.my_array.extend(self.my_array)
+    return self.my_array
+    """,
+        [1, 2, 3, 1, 2, 3],
+    ),
+]
+
+
+@pytest.mark.requires_evm_version("cancun")
+@pytest.mark.parametrize("code,expected", transient_extend_fixed_tests)
+def test_extend_transient_fixed(get_contract, code, expected):
+    c = get_contract(code)
+    assert c.foo() == expected
 
 
 def test_extend_storage_src(get_contract):
@@ -2092,49 +2166,6 @@ def foo(y: DynArray[uint256, 4]) -> DynArray[uint256, 3]:
     return x
     """,
         lambda y: y if len(y) <= 3 else None,
-    ),
-    # `empty()` src of larger capacity than the dst
-    (
-        """
-@external
-def foo(xs: DynArray[uint256, 6]) -> DynArray[uint256, 3]:
-    x: DynArray[uint256, 3] = [1, 2, 3]
-    x.extend(empty(DynArray[uint256, 10]))
-    return x
-    """,
-        lambda xs: [1, 2, 3],
-    ),
-    # struct elements; second element fits the dst capacity
-    (
-        """
-struct Foo:
-    x: uint256
-
-my_array: DynArray[Foo, 2]
-@external
-def foo(xs: DynArray[uint256, 6]) -> DynArray[Foo, 2]:
-    self.my_array = [Foo(x=1)]
-    fs: DynArray[Foo, 5] = [Foo(x=2)]
-    self.my_array.extend(fs)
-    return self.my_array
-    """,
-        lambda xs: [(1,), (2,)],
-    ),
-    # struct elements; dst capacity exceeded
-    (
-        """
-struct Foo:
-    x: uint256
-
-my_array: DynArray[Foo, 2]
-@external
-def foo(xs: DynArray[uint256, 6]) -> DynArray[Foo, 2]:
-    self.my_array = [Foo(x=1)]
-    fs: DynArray[Foo, 5] = [Foo(x=2), Foo(x=3)]
-    self.my_array.extend(fs)
-    return self.my_array
-    """,
-        lambda xs: None,
     ),
 ]
 
