@@ -2,8 +2,25 @@ import pytest
 
 from vyper import compiler
 from vyper.compiler.settings import Settings
-from vyper.exceptions import InvalidOperation
+from vyper.exceptions import InvalidOperation, InvalidReference
 from vyper.utils import method_id_int
+
+fail_list = [
+    # a bare type name is not a value (vararg)
+    # see https://github.com/vyperlang/vyper/issues/4609
+    """
+@external
+def foo():
+    print(uint256)
+    """
+]
+
+
+@pytest.mark.parametrize("bad_code", fail_list)
+def test_print_fail(bad_code):
+    with pytest.raises(InvalidReference):
+        compiler.compile_code(bad_code)
+
 
 valid_list = [
     """
