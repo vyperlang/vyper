@@ -5,6 +5,7 @@ from vyper import ast as vy_ast
 from vyper.codegen.core import _freshname, eval_once_check, make_setter
 from vyper.codegen.ir_node import IRnode
 from vyper.evm.address_space import MEMORY
+from vyper.evm.opcodes import version_check
 from vyper.exceptions import StateAccessViolation
 from vyper.semantics.types.subscriptable import TupleT
 
@@ -112,16 +113,24 @@ def ir_for_self_call(stmt_expr: vy_ast.Call, context):
     else:
         copy_args = make_setter(args_dst, args_as_tuple)
 
-    goto_op = ["goto", func_t._ir_info.internal_function_label(context.is_ctor_context)]
-    # pass return buffer to subroutine
-    if return_buffer is not None:
-        goto_op += [return_buffer]
-    # pass return label to subroutine
-    goto_op.append(["symbol", return_label])
-
+    func_label = func_t._ir_info.internal_function_label(context.is_ctor_context)
     call_sequence: list = ["seq"]
     call_sequence.append(eval_once_check(_freshname(stmt_expr.node_source_code)))
-    call_sequence.extend([copy_args, goto_op, ["label", return_label, ["var_list"], "pass"]])
+    if version_check(begin="future"):
+        # EIP-7979: CALLSUB pushes the return address onto the return stack,
+        # so no return label is passed and none is needed after the call.
+        gosub_op = ["gosub", func_label]
+        if return_buffer is not None:
+            gosub_op += [return_buffer]
+        call_sequence.extend([copy_args, gosub_op])
+    else:
+        goto_op = ["goto", func_label]
+        # pass return buffer to subroutine
+        if return_buffer is not None:
+            goto_op += [return_buffer]
+        # pass return label to subroutine
+        goto_op.append(["symbol", return_label])
+        call_sequence.extend([copy_args, goto_op, ["label", return_label, ["var_list"], "pass"]])
     if return_buffer is not None:
         # push return buffer location to stack
         call_sequence += [return_buffer]

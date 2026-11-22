@@ -81,6 +81,10 @@ def resolve_symbols(
                 source_map["pc_jump_map"][pc] = "-"
         elif item in ("JUMPI", "JUMPDEST"):
             source_map["pc_jump_map"][pc] = "-"
+        elif item == "CALLSUB":  # EIP-7979: enter an internal function
+            source_map["pc_jump_map"][pc] = "i"
+        elif item == "RETURNSUB":  # EIP-7979: exit an internal function
+            source_map["pc_jump_map"][pc] = "o"
 
         if isinstance(item, CONST):
             continue  # CONST declarations do not go into bytecode
