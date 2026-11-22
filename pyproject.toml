@@ -23,7 +23,7 @@ dynamic = [
 ]
 dependencies = [
     "cbor2>=5.4.6,<6",
-    "pycryptodome>=3.5.1,<4",
+    "pycryptodome>=3.5.1,<5",
     "packaging>=23.1",
     "lark>=1.0.0,<2",
     "wheel",
