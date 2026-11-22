@@ -231,6 +231,11 @@ class SArrayT(_SequenceT):
             return SArrayT(resolved_value, self.length)
         return self
 
+    def _merge_wildcards(self, other, keep_wildcards):
+        assert isinstance(other, SArrayT)
+        value_type = self.value_type.merge_wildcards(other.value_type, keep_wildcards)
+        return SArrayT(value_type, self.length)
+
     def compare_type(self, other):
         if isinstance(other, BottomT):
             return True
@@ -409,6 +414,15 @@ class DArrayT(_SequenceT):
             return DArrayT(resolved_value, resolved_length)
         return self
 
+    def _merge_wildcards(self, other, keep_wildcards):
+        assert isinstance(other, DArrayT)
+        value_type = self.value_type.merge_wildcards(other.value_type, keep_wildcards)
+        if keep_wildcards and other.length is WILDCARD:
+            return DArrayT(value_type, WILDCARD)
+        if not keep_wildcards and self.length is WILDCARD:
+            return DArrayT(value_type, other.length)
+        return DArrayT(value_type, self.length)
+
     def _compare_length(self, other):
 
         # Wildcard matches any length (bidirectional)
@@ -471,7 +485,7 @@ class TupleT(VyperType):
 
     typeclass = "tuple"
 
-    _equality_attrs = ("members",)
+    _equality_attrs = ("member_types",)
     _id = "$Tuple"
 
     # note: docs say that tuples are not instantiable but they
@@ -487,7 +501,7 @@ class TupleT(VyperType):
         for mt in member_types:
             if not mt.is_valid_member_type:
                 raise StructureException(f"not a valid tuple member: {mt}")
-        self.member_types = member_types
+        self.member_types = tuple(member_types)
         self.key_type = UINT256_T  # API Compatibility
 
     def __repr__(self):
@@ -496,7 +510,6 @@ class TupleT(VyperType):
             return f"({t},)"
         return "(" + ", ".join(f"{t}" for t in self.member_types) + ")"
 
-    # TODO should we instead set _equality_attrs = ("member_types",)?
     def _addl_dict_fields(self):
         ret = {}
         ret["member_types"] = [t.to_dict() for t in self.member_types]
@@ -538,6 +551,11 @@ class TupleT(VyperType):
         if resolved != self.member_types:
             return TupleT(resolved)
         return self
+
+    def _merge_wildcards(self, other, keep_wildcards):
+        assert isinstance(other, TupleT)
+        member_types = zip(self.member_types, other.member_types, strict=True)
+        return TupleT(tuple(x.merge_wildcards(y, keep_wildcards) for x, y in member_types))
 
     @property
     def size_in_bytes(self):
