@@ -187,7 +187,11 @@ def _subscript_read_write_overlap(
     if not base_reads:
         return False
 
-    index_writes = get_writes_with_overrides(index_node)
+    index_writes = {access.variable for access in get_expr_writes(index_node)}
+    # semantic analysis takes an abstract callee's writes from its `...`
+    # body. Reject a base that only its override writes, as legacy does.
+    if base_reads & (get_writes_with_overrides(index_node) - index_writes):
+        raise CompilerPanic("risky overlap")
     if base_reads & index_writes:
         return True
 

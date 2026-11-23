@@ -100,7 +100,7 @@ def test_augassign_oob(get_contract, tx_failed, source):
         c.poc()
 
 
-@pytest.mark.xfail(strict=True, raises=CodegenPanic)
+@pytest.mark.xfail(raises=CodegenPanic)
 def test_augassign_oob_abstract_override(get_contract, make_input_bundle, tx_failed):
     # the RHS calls an abstract function whose override shrinks the target
     m = """

@@ -238,13 +238,8 @@ def bar() -> uint256:
 
 
 @pytest.mark.parametrize("hook_body", ["m.d[0] = [5, 6]", "m.d[0].pop()", "m.shrink()"])
-def test_array_index_overlap_abstract_override(
-    get_contract, make_input_bundle, experimental_codegen, hook_body
-):
+def test_array_index_overlap_abstract_override(get_contract, make_input_bundle, hook_body):
     # the index calls an abstract function whose override writes the base
-    if not experimental_codegen:
-        pytest.xfail("legacy codegen still rejects risky subscript overlap")
-
     m = """
 d: DynArray[DynArray[uint256, 2], 2]
 
@@ -271,8 +266,8 @@ def run() -> uint256:
     m.d = [[1, 2]]
     return m.get()
     """
-    c = get_contract(code, input_bundle=make_input_bundle({"m.vy": m}))
-    assert c.run() == 2
+    with pytest.raises(CompilerPanic, match="risky overlap"):
+        get_contract(code, input_bundle=make_input_bundle({"m.vy": m}))
 
 
 # to fix in future release
