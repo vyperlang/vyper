@@ -44,10 +44,7 @@ class ConcretizeMemLocPass(IRPass):
         escaped = self.mem_liveness.escaped
         to_allocate.sort(
             key=lambda x: heuristic(
-                x[0] not in escaped,
-                len(x[1]),
-                x[0].alloca_size,
-                str(x[0].inst.output),
+                x[0] not in escaped, len(x[1]), x[0].alloca_size, str(x[0].inst.output)
             )
         )
 
@@ -118,9 +115,7 @@ class ConcretizeMemLocPass(IRPass):
                 self.updater.replace(inst, "assign", [concrete])
 
 
-def heuristic(
-    not_escaped: bool, live_count: int, alloca_size: int, name: str
-) -> tuple:
+def heuristic(not_escaped: bool, live_count: int, alloca_size: int, name: str) -> tuple:
     settings = get_global_settings()
     assert settings is not None
     is_codesize = settings.optimize == OptimizationLevel.CODESIZE
