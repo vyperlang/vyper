@@ -2990,20 +2990,13 @@ def test_wildcard_call_return_passed_to_wildcard_parameter(
     # value reverts in the caller. `sink()` itself would accept it
     target_code = """
 xs: DynArray[Bytes[20], 10]
-length: uint256
-size: uint256
-
-@external
-def set_source(length: uint256, size: uint256):
-    self.length = length
-    self.size = size
 
 @external
 @view
-def source() -> DynArray[Bytes[20], 10]:
+def source(length: uint256, size: uint256) -> DynArray[Bytes[20], 10]:
     xs: DynArray[Bytes[20], 10] = []
-    for i: uint256 in range(self.length, bound=10):
-        xs.append(slice(b"aaaaaaaaaaaaaaaaaaaa", 0, self.size))
+    for i: uint256 in range(length, bound=10):
+        xs.append(slice(b"aaaaaaaaaaaaaaaaaaaa", 0, size))
     return xs
 
 @external
@@ -3018,22 +3011,20 @@ def stored() -> DynArray[Bytes[20], 10]:
 
     caller_code = f"""
 interface Target:
-    def source() -> {return_type}: view
+    def source(length: uint256, size: uint256) -> {return_type}: view
     def sink(xs: {param_type}): nonpayable
 
 @external
-def forward(addr: address):
-    extcall Target(addr).sink(staticcall Target(addr).source())
+def forward(addr: address, length: uint256, size: uint256):
+    extcall Target(addr).sink(staticcall Target(addr).source(length, size))
     """
 
     target = get_contract(target_code)
     caller = get_contract(caller_code)
 
     length, size = accepted
-    target.set_source(length, size)
-    caller.forward(target.address)
+    caller.forward(target.address, length, size)
     assert target.stored() == [b"a" * size] * length
 
-    target.set_source(*rejected)
     with tx_failed():
-        caller.forward(target.address)
+        caller.forward(target.address, *rejected)
