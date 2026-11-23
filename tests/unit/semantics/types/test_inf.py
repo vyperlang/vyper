@@ -1606,6 +1606,50 @@ def f(a: address):
 
 
 @pytest.mark.parametrize(
+    "return_type,param_type,call_return_type,codegens",
+    [
+        # unbounded sequence types only compile with --experimental-codegen
+        ("DynArray[Bytes[...], ...]", "DynArray[Bytes[10], ...]", DArrayT(BytesT(10), INF), [True]),
+        ("DynArray[Bytes[...], ...]", "DynArray[Bytes[...], 5]", DArrayT(BytesT(INF), 5), [True]),
+        (
+            "DynArray[Bytes[...], 3]",
+            "DynArray[Bytes[10], ...]",
+            DArrayT(BytesT(10), 3),
+            [False, True],
+        ),
+        (
+            "(Bytes[...], DynArray[uint256, 3])",
+            "(Bytes[10], DynArray[uint256, ...])",
+            TupleT((BytesT(10), DArrayT(UINT256_T, 3))),
+            [False, True],
+        ),
+    ],
+)
+def test_wildcard_call_return_passed_to_wildcard_parameter_types(
+    return_type, param_type, call_return_type, codegens
+):
+    # the fixed lengths of the parameter fix the wildcards of the return type,
+    # and a length which is a wildcard in both is unbounded
+    code = f"""
+interface I:
+    def source() -> {return_type}: view
+    def sink(xs: {param_type}): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).sink(staticcall I(a).source())
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.func.get("attr") == "sink"]
+    (arg_node,) = call.args
+    assert arg_node._metadata["type"] == call_return_type
+    assert _call_return_types(arg_node) == {"source": call_return_type}
+
+    for experimental_codegen in codegens:
+        compiler.compile_code(code, settings=Settings(experimental_codegen=experimental_codegen))
+
+
+@pytest.mark.parametrize(
     "param_type,arg,arg_type",
     [
         # the arg's own bounds are kept, however large the parameter's fixed bounds are

@@ -2961,3 +2961,79 @@ def fetch(addr: address) -> DynArray[Bytes[20], 5]:
     target.set_length(11)
     with tx_failed():
         caller.fetch(target.address)
+
+
+@pytest.mark.parametrize(
+    "return_type,param_type,unbounded,accepted,rejected",
+    [
+        # accepted and rejected are the (length, element size) of the returned array
+        ("DynArray[Bytes[...], 3]", "DynArray[Bytes[10], ...]", False, (3, 10), (3, 11)),
+        ("DynArray[Bytes[20], ...]", "DynArray[Bytes[...], 5]", False, (5, 20), (6, 20)),
+        ("DynArray[Bytes[...], ...]", "DynArray[Bytes[10], ...]", True, (6, 10), (1, 11)),
+        ("DynArray[Bytes[...], ...]", "DynArray[Bytes[...], 5]", True, (5, 11), (6, 1)),
+    ],
+)
+def test_wildcard_call_return_passed_to_wildcard_parameter(
+    get_contract,
+    tx_failed,
+    experimental_codegen,
+    return_type,
+    param_type,
+    unbounded,
+    accepted,
+    rejected,
+):
+    if unbounded and not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
+
+    # the fixed lengths of the parameter bound the call return, so a longer
+    # value reverts in the caller. `sink()` itself would accept it
+    target_code = """
+xs: DynArray[Bytes[20], 10]
+length: uint256
+size: uint256
+
+@external
+def set_source(length: uint256, size: uint256):
+    self.length = length
+    self.size = size
+
+@external
+@view
+def source() -> DynArray[Bytes[20], 10]:
+    xs: DynArray[Bytes[20], 10] = []
+    for i: uint256 in range(self.length, bound=10):
+        xs.append(slice(b"aaaaaaaaaaaaaaaaaaaa", 0, self.size))
+    return xs
+
+@external
+def sink(xs: DynArray[Bytes[20], 10]):
+    self.xs = xs
+
+@external
+@view
+def stored() -> DynArray[Bytes[20], 10]:
+    return self.xs
+    """
+
+    caller_code = f"""
+interface Target:
+    def source() -> {return_type}: view
+    def sink(xs: {param_type}): nonpayable
+
+@external
+def forward(addr: address):
+    extcall Target(addr).sink(staticcall Target(addr).source())
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+
+    length, size = accepted
+    target.set_source(length, size)
+    caller.forward(target.address)
+    assert target.stored() == [b"a" * size] * length
+
+    target.set_source(*rejected)
+    with tx_failed():
+        caller.forward(target.address)
