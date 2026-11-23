@@ -1212,22 +1212,19 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
                         node,
                     )
                 if return_t is not None and return_t.has_wildcard:
-                    if not typ.has_wildcard and typ is not VOID_TYPE:
-                        # Replace the wildcards by the lengths of the concrete expected
-                        # type, which can be wider than the fixed lengths of the return type
-                        return_t = self._interpolate(return_t, typ, pos=node)
-                    else:
-                        # If the expected type is absent or still contains wildcards,
-                        # preserve the existing decoding behavior: resolve all return
-                        # wildcards to INF, even where the expected type has fixed bounds.
-                        return_t = return_t.resolve_wildcard()
-                        # unsupported INF shapes from wildcard resolution only exist per call site
-                        if not is_runtime_sizable_return_type(return_t):
-                            raise StructureException(
-                                "Function returns cannot contain unbounded sequence types "
-                                "inside aggregate types",
-                                node,
-                            )
+                    # a call which returns a value always has an expected type
+                    assert typ is not VOID_TYPE
+                    # Replace the wildcards by the lengths of the expected type,
+                    # which can be wider than the fixed lengths of the return type.
+                    # Where the expected type has a wildcard too, the length is INF.
+                    return_t = self._interpolate(return_t, typ, pos=node)
+                    # unsupported INF shapes from wildcard resolution only exist per call site
+                    if not is_runtime_sizable_return_type(return_t):
+                        raise StructureException(
+                            "Function returns cannot contain unbounded sequence types "
+                            "inside aggregate types",
+                            node,
+                        )
                     # Sanity check
                     assert func_type.return_type is not None
                     assert return_t.is_subtype_of(func_type.return_type)
