@@ -2,7 +2,6 @@ from vyper.compiler.settings import OptimizationLevel, get_global_settings
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import BasePtrAnalysis, DFGAnalysis, MemLivenessAnalysis
-from vyper.venom.analysis.loop_detection import NaturalLoopDetectionAnalysis
 from vyper.venom.basicblock import IRBasicBlock
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.machinery.inst_updater import InstUpdater
@@ -28,21 +27,12 @@ class ConcretizeMemLocPass(IRPass):
         self.updater = InstUpdater(self.dfg)
         self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.mem_liveness = self.analyses_cache.request_analysis(MemLivenessAnalysis)
-        self.loop_det = self.analyses_cache.request_analysis(NaturalLoopDetectionAnalysis)
 
         self.allocator.start_fn_allocation(self.function)
 
         livesets = list(self.mem_liveness.livesets.items())
         already_allocated = [item for item in livesets if self.allocator.is_allocated(item[0])]
         to_allocate = [item for item in livesets if not self.allocator.is_allocated(item[0])]
-
-        bb_loop = dict()
-        for bb in self.function.get_basic_blocks():
-            count = 0
-            for loop in self.loop_det.loops.values():
-                if bb in loop:
-                    count += 1
-            bb_loop[bb] = count
 
         # (note this is *heuristic*; our goal is to minimize conflicts
         # between livesets). escaped allocas are live to the end of the
@@ -56,7 +46,6 @@ class ConcretizeMemLocPass(IRPass):
             key=lambda x: heuristic(
                 x[0] not in escaped,
                 len(x[1]),
-                bb_loop[x[0].inst.parent],
                 x[0].alloca_size,
                 str(x[0].inst.output),
             )
@@ -130,12 +119,12 @@ class ConcretizeMemLocPass(IRPass):
 
 
 def heuristic(
-    not_escaped: bool, live_count: int, loop_depth: int, alloca_size: int, name: str
+    not_escaped: bool, live_count: int, alloca_size: int, name: str
 ) -> tuple:
     settings = get_global_settings()
     assert settings is not None
     is_codesize = settings.optimize == OptimizationLevel.CODESIZE
     if is_codesize:
-        return (not_escaped, -loop_depth, live_count, alloca_size, name)
+        return (not_escaped, live_count, alloca_size, name)
     else:
-        return (not_escaped, -loop_depth, alloca_size, name, live_count)
+        return (not_escaped, alloca_size, name)
