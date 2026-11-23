@@ -203,7 +203,18 @@ struct S:
     # Reject the declaration even when the struct is never instantiated.
     with pytest.raises(InvalidType) as e:
         compiler.compile_code("import IW", input_bundle=input_bundle)
-    assert e.value.message == "Wildcard lengths are not allowed in struct members"
+    assert e.value.message == "Wildcard length is not allowed in struct members"
+    assert e.value.annotations[0].node_source_code == "..."
+
+
+def test_module_struct_rejects_wildcard_member():
+    code = """
+struct S:
+    xs: Bytes[...]
+    """
+    with pytest.raises(InvalidType) as e:
+        compiler.compile_code(code)
+    assert e.value.message == "Wildcard length is not allowed in struct members"
     assert e.value.annotations[0].node_source_code == "..."
 
 
@@ -226,7 +237,7 @@ def f(a: address):
     input_bundle = make_input_bundle({"IW.vyi": interface})
     with pytest.raises(InvalidType) as e:
         compiler.compile_code(code, input_bundle=input_bundle)
-    assert e.value.message == "Wildcard lengths are not allowed in struct members"
+    assert e.value.message == "Wildcard length is not allowed in struct members"
 
 
 def test_wildcard_subtyping():
