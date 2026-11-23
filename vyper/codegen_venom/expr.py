@@ -165,13 +165,24 @@ def get_reachable_internal_functions(node: vy_ast.VyperNode) -> set[ContractFunc
     return ret
 
 
+def get_override_writes(node: vy_ast.VyperNode) -> set[VarInfo]:
+    # semantic analysis takes an abstract callee's writes from its `...`
+    # body. Collect the writes of the overrides that the abstract calls
+    # `node` can reach run instead, and of what those overrides call.
+    overrides = set()
+    for scope in [node, *(f.decl_node for f in get_reachable_internal_functions(node))]:
+        for call in scope.get_descendants(vy_ast.Call, include_self=True):
+            func_t = call.func._metadata.get("type")
+            if isinstance(func_t, ContractFunctionT) and func_t.is_abstract:
+                concrete = func_t.get_concrete_override()
+                overrides.add(concrete)
+                overrides.update(concrete.reachable_internal_functions)
+    return {access.variable for f in overrides for access in f.get_variable_writes()}
+
+
 def get_writes_with_overrides(node: vy_ast.VyperNode) -> set[VarInfo]:
-    # `get_expr_writes` takes an abstract callee's writes from its `...`
-    # body; add the writes of the overrides it runs instead.
-    ret = {access.variable for access in get_expr_writes(node)}
-    for func_t in get_reachable_internal_functions(node):
-        ret.update(access.variable for access in func_t.get_variable_writes())
-    return ret
+    expr_writes = {access.variable for access in get_expr_writes(node)}
+    return expr_writes | get_override_writes(node)
 
 
 def _subscript_read_write_overlap(
@@ -187,11 +198,11 @@ def _subscript_read_write_overlap(
     if not base_reads:
         return False
 
-    index_writes = {access.variable for access in get_expr_writes(index_node)}
-    # semantic analysis takes an abstract callee's writes from its `...`
-    # body. Reject a base that only its override writes, as legacy does.
-    if base_reads & (get_writes_with_overrides(index_node) - index_writes):
+    # an abstract callee's override writing the base is rejected, as legacy
+    # does, whether or not a concrete callee writes it too
+    if base_reads & get_override_writes(index_node):
         raise CompilerPanic("risky overlap")
+    index_writes = {access.variable for access in get_expr_writes(index_node)}
     if base_reads & index_writes:
         return True
 

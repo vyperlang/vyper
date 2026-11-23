@@ -238,9 +238,10 @@ def bar() -> uint256:
 
 
 @pytest.mark.parametrize("hook_body", ["m.d[0] = [5, 6]", "m.d[0].pop()", "m.shrink()"])
-def test_array_index_overlap_abstract_override(get_contract, make_input_bundle, hook_body):
+@pytest.mark.parametrize("index", ["self.hook()", "self.hook() + self.write_d()"])
+def test_array_index_overlap_abstract_override(get_contract, make_input_bundle, hook_body, index):
     # the index calls an abstract function whose override writes the base
-    m = """
+    m = f"""
 d: DynArray[DynArray[uint256, 2], 2]
 
 @abstract
@@ -249,8 +250,12 @@ def hook() -> uint256: ...
 def shrink():
     self.d[0].pop()
 
+def write_d() -> uint256:
+    self.d[1] = [3, 4]
+    return 0
+
 def get() -> uint256:
-    return self.d[0][self.hook()]
+    return self.d[0][{index}]
     """
     code = f"""
 import m
