@@ -94,10 +94,10 @@ def analyze_modules(imports: ImportAnalyzer) -> ModuleT:
     globally_initialized = _compute_globally_initialized_modules_r(root_module_t)
 
     for module_ast in modules:
-        _check_abstract_initializations(module_ast)
+        _validate_abstract_initializations(module_ast)
 
     for module_ast in modules:
-        _check_overrides(module_ast, globally_initialized)
+        _validate_overrides(module_ast, globally_initialized)
 
     # Remainder of validation: everything that requires module-level/cross-module information
     # Notably function bodies
@@ -1134,7 +1134,7 @@ def _compute_override_discrepancies(
     return discrepancies
 
 
-def _check_abstract_initializations(module_ast: vy_ast.Module) -> None:
+def _validate_abstract_initializations(module_ast: vy_ast.Module) -> None:
     """
     If a module `initializes` an abstract module, it must be a valid override
     """
@@ -1172,7 +1172,7 @@ def _check_abstract_initializations(module_ast: vy_ast.Module) -> None:
         discrepancies.raise_if_not_empty()
 
 
-def _check_overrides(module_ast: vy_ast.Module, globally_initialized: OrderedSet[ModuleT]):
+def _validate_overrides(module_ast: vy_ast.Module, globally_initialized: OrderedSet[ModuleT]):
     for func in module_ast.get_children(vy_ast.FunctionDef):
         func_t = func._metadata["func_type"]
         if func_t.is_abstract:
@@ -1209,5 +1209,5 @@ def _check_overrides(module_ast: vy_ast.Module, globally_initialized: OrderedSet
                     "Abstract function was not overridden", func, hint=hint
                 )
 
-            # note: the override has already been validated in `_check_abstract_initializations`
+            # note: the override has already been validated in `_validate_abstract_initializations`
             func_t.overridden_by = overrides[0]
