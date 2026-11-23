@@ -238,6 +238,7 @@ def f(a: address):
 
 
 def test_interface_wildcard_of_struct_allowed(make_input_bundle):
+    # the wildcard wraps the struct, so it is not in a struct member
     interface = """
 struct S:
     x: uint256
