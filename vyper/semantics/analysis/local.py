@@ -760,15 +760,13 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
             len_ = len(iter_val.elements)
             if len_ == 0:
                 raise StructureException("For loop must have at least 1 iteration", iter_node)
-            # the literal is typed as a static array, which has no layout for
-            # unbounded items (see `SArrayT.from_annotation`). a struct with
-            # unbounded members has a fixed size and is fine
+            # a static array cannot hold unbounded items (see
+            # `SArrayT.from_annotation`), a DynArray can. any other item,
+            # such as a struct with unbounded members, has a fixed size
             if is_unbounded_sequence_type(target_type):
-                raise StructureException(
-                    "Iterating over a list literal of unbounded sequence types is not supported",
-                    iter_node,
-                )
-            iter_type = SArrayT(target_type, len_)
+                iter_type = DArrayT(target_type, len_)
+            else:
+                iter_type = SArrayT(target_type, len_)
         else:
             try:
                 iter_type = get_exact_type_from_node(iter_node)
@@ -995,7 +993,9 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
         if not typ.has_wildcard:
             return typ
 
-        possible_types = get_possible_types_from_node(node)
+        # keep the wildcards of list literal and ternary operands, so that
+        # `typ` fixes them instead of the first operand
+        possible_types = get_possible_types_from_node(node, keep_wildcards=True)
 
         candidates = [t for t in possible_types if t.is_subtype_of(typ)]
         assert len(candidates) == 1
@@ -1213,10 +1213,13 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
                     )
                 if return_t is not None and return_t.has_wildcard:
                     if not typ.has_wildcard and typ is not VOID_TYPE:
-                        # Replace wildcard-containing type by the concrete expected type
-                        return_t = typ
+                        # Replace the wildcards by the lengths of the concrete expected
+                        # type, which can be wider than the fixed lengths of the return type
+                        return_t = self._interpolate(return_t, typ, pos=node)
                     else:
-                        # Replace wildcards in the type by INF, since there is no expected type
+                        # If the expected type is absent or still contains wildcards,
+                        # preserve the existing decoding behavior: resolve all return
+                        # wildcards to INF, even where the expected type has fixed bounds.
                         return_t = return_t.resolve_wildcard()
                         # unsupported INF shapes from wildcard resolution only exist per call site
                         if not is_runtime_sizable_return_type(return_t):
@@ -1323,10 +1326,16 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
 
     def visit_IfExp(self, node: vy_ast.IfExp, typ: VyperType) -> None:
         self.visit(node.test, BoolT())
+        if typ.has_wildcard:
+            # type both arms with the resolved type (cf. `_annotation_type`)
+            typ = self._annotation_type(node, typ)
         self.visit(node.body, typ)
         self.visit(node.orelse, typ)
 
     def visit_List(self, node: vy_ast.List, typ: VyperType) -> None:
+        if typ.has_wildcard:
+            # type the elements with the resolved element type (cf. `_annotation_type`)
+            typ = self._annotation_type(node, typ)
         assert isinstance(typ, (SArrayT, DArrayT))
         for element in node.elements:
             self.visit(element, typ.value_type)

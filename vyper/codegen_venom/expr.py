@@ -403,7 +403,6 @@ class Expr:
         typ = node._metadata["type"]
         elem_typ = typ.value_type
         # a static array holds no unbounded sequence (`SArrayT.from_annotation`)
-        # TODO: `_analyse_list_iter` still types a for-loop list literal as one
         assert not (isinstance(typ, SArrayT) and is_unbounded_sequence_type(elem_typ))
         elem_is_cell = is_unbounded_sequence_type(elem_typ)
         elem_size = self.ctx.array_elem_size_in(typ, DataLocation.MEMORY)
@@ -609,6 +608,13 @@ class Expr:
                     ),
                     result_typ,
                 )
+
+        # Block complex types (mirrors legacy codegen), otherwise we would
+        # compare the pointers. See issue #2638 for context
+        if not (left_typ._is_prim_word and right_typ._is_prim_word):
+            raise TypeMismatch(
+                f"operation not yet supported for {left_typ}, {right_typ}, see issue #2638", node.op
+            )
 
         # Non-bytestring: get values directly
         left = Expr(node.left, self.ctx).lower_value()

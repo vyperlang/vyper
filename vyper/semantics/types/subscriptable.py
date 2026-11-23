@@ -2,7 +2,13 @@ from typing import Any, Dict, Optional, Tuple
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABI_DynamicArray, ABI_StaticArray, ABI_Tuple, ABIType
-from vyper.exceptions import ArrayIndexException, CodegenPanic, InvalidType, StructureException
+from vyper.exceptions import (
+    ArrayIndexException,
+    CodegenPanic,
+    InvalidType,
+    MemoryAllocationException,
+    StructureException,
+)
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types.base import BottomT, VyperType
 from vyper.semantics.types.infinity import (
@@ -223,6 +229,11 @@ class SArrayT(_SequenceT):
             return SArrayT(resolved_value, self.length)
         return self
 
+    def _merge_wildcards(self, other, keep_wildcards):
+        assert isinstance(other, SArrayT)
+        value_type = self.value_type.merge_wildcards(other.value_type, keep_wildcards)
+        return SArrayT(value_type, self.length)
+
     def compare_type(self, other):
         if isinstance(other, BottomT):
             return True
@@ -276,6 +287,9 @@ class DArrayT(_SequenceT):
 
     def __init__(self, value_type: VyperType, length: LengthUpperBound) -> None:
         super().__init__(value_type, length)
+
+        if length is INF and not value_type.has_wildcard:
+            self._validate_unbounded_element_size(value_type)
 
         from vyper.semantics.types.function import MemberFunctionT
 
@@ -340,6 +354,25 @@ class DArrayT(_SequenceT):
                 node,
             )
 
+    @staticmethod
+    def _validate_unbounded_element_size(value_type):
+        # the memory and ABI sizes of an INF array are computed at runtime as
+        # its length times the element's size, and the free memory pointer
+        # is bumped by them without an overflow check. capping the element
+        # at the limit for static memory keeps those sizes far from 2**256
+        # for any length the input can claim.
+        size = member_slot_size(value_type)
+        if not type_contains_unbounded_sequence(value_type):
+            # an element holding INF has a runtime ABI size; the INF
+            # sequences inside it are checked when they are constructed
+            size = max(size, value_type.abi_type.size_bound())
+        limit = 2**64
+        if size >= limit:
+            raise MemoryAllocationException(
+                f"Element type of DynArray[..., INF] takes {size} bytes! "
+                f"(limit is {limit} (2**64) bytes)"
+            )
+
     def resolve_wildcard(self):
         resolved_value = self.value_type.resolve_wildcard()
         resolved_length = INF if self.length is WILDCARD else self.length
@@ -347,6 +380,15 @@ class DArrayT(_SequenceT):
         if resolved_value is not self.value_type or resolved_length is not self.length:
             return DArrayT(resolved_value, resolved_length)
         return self
+
+    def _merge_wildcards(self, other, keep_wildcards):
+        assert isinstance(other, DArrayT)
+        value_type = self.value_type.merge_wildcards(other.value_type, keep_wildcards)
+        if keep_wildcards and other.length is WILDCARD:
+            return DArrayT(value_type, WILDCARD)
+        if not keep_wildcards and self.length is WILDCARD:
+            return DArrayT(value_type, other.length)
+        return DArrayT(value_type, self.length)
 
     def _compare_length(self, other):
 
@@ -410,7 +452,7 @@ class TupleT(VyperType):
 
     typeclass = "tuple"
 
-    _equality_attrs = ("members",)
+    _equality_attrs = ("member_types",)
     _id = "$Tuple"
 
     # note: docs say that tuples are not instantiable but they
@@ -426,7 +468,7 @@ class TupleT(VyperType):
         for mt in member_types:
             if not mt.is_valid_member_type:
                 raise StructureException(f"not a valid tuple member: {mt}")
-        self.member_types = member_types
+        self.member_types = tuple(member_types)
         self.key_type = UINT256_T  # API Compatibility
 
     def __repr__(self):
@@ -435,7 +477,6 @@ class TupleT(VyperType):
             return f"({t},)"
         return "(" + ", ".join(f"{t}" for t in self.member_types) + ")"
 
-    # TODO should we instead set _equality_attrs = ("member_types",)?
     def _addl_dict_fields(self):
         ret = {}
         ret["member_types"] = [t.to_dict() for t in self.member_types]
@@ -477,6 +518,11 @@ class TupleT(VyperType):
         if resolved != self.member_types:
             return TupleT(resolved)
         return self
+
+    def _merge_wildcards(self, other, keep_wildcards):
+        assert isinstance(other, TupleT)
+        member_types = zip(self.member_types, other.member_types, strict=True)
+        return TupleT(tuple(x.merge_wildcards(y, keep_wildcards) for x, y in member_types))
 
     @property
     def size_in_bytes(self):
