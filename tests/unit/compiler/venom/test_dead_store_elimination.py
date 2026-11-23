@@ -1334,3 +1334,69 @@ def test_storage_dead_store_branch_revert(jnz, addr_space):
             sink %1
     """
     _check_pre_post_generic(pre, post, addr_space)
+
+
+def test_dse_different_allocations_non_fixed_offset():
+    """
+    The mstore uses the location which is not fixed
+    but the cannot alias the mload so it can be
+    eliminated
+    """
+    pre = """
+    main:
+        %ptr_a = alloca 160
+        %ptr_b = alloca 160
+
+        ; offset is 160 - 32 since
+        ; that is the max for the mstore
+        ; offset for these allocas
+        ; The size of the allocation
+        ; is set so the bound is easier
+        ; for hevm to handle
+        %offset_a = source
+        %offset_b = source
+        %offset_a_mod = mod %offset_a, 128
+        %offset_b_mod = mod %offset_b, 128
+        %a = add %ptr_a, %offset_a_mod
+        %b = add %ptr_b, %offset_b_mod
+        mstore %a, 123
+        %res = mload %b
+        sink %res
+    """
+
+    post = """
+    main:
+        %ptr_b = alloca 160
+        %offset_b = source
+        %offset_b_mod = mod %offset_b, 128
+        %b = add %ptr_b, %offset_b_mod
+        %res = mload %b
+        sink %res
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_dse_same_allocation_non_fixed_offset():
+    pre = """
+    main:
+        %ptr = alloca 160
+
+        ; offset is 160 - 32 since
+        ; that is the max for the mstore
+        ; offset for these allocas
+        ; The size of the allocation
+        ; is set so the bound is easier
+        ; for hevm to handle
+        %offset_a = source
+        %offset_b = source
+        %offset_a_mod = mod %offset_a, 128
+        %offset_b_mod = mod %offset_b, 128
+        %a = add %ptr, %offset_a_mod
+        %b = add %ptr, %offset_b_mod
+        mstore %a, 123
+        %res = mload %b
+        sink %res
+    """
+
+    _check_no_change(pre)

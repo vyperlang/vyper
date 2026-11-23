@@ -1,11 +1,12 @@
 from dataclasses import dataclass, field
-from typing import ClassVar
+from typing import ClassVar, Iterable
 
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import CompilerPanic
-from vyper.utils import IDENTITY_PRECOMPILE
+from vyper.utils import IDENTITY_PRECOMPILE, OrderedSet
 from vyper.venom.analysis import (
     BasePtrAnalysis,
+    CFGAnalysis,
     DFGAnalysis,
     DominatorTreeAnalysis,
     DynamicMemoryAnalysis,
@@ -21,6 +22,7 @@ from vyper.venom.analysis import (
     VariableRangeAnalysis,
 )
 from vyper.venom.analysis.base_ptr_analysis import escaping_operands
+from vyper.venom.analysis.dynamic_memory import RAW_FMP_TOUCH_OPS
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 from vyper.venom.call_layout import FunctionCallLayout, InvokeLayout, has_dret, parse_dret_shape
 from vyper.venom.function import FmpSignature, IRFunction
@@ -41,6 +43,21 @@ def _after_params_index(fn: IRFunction) -> int:
     if len(params) == 0:
         return 0
     return max(fn.entry.instructions.index(param) for param in params) + 1
+
+
+def _reachable_blocks(cfg: CFGAnalysis, starts: Iterable[IRBasicBlock]) -> set[IRBasicBlock]:
+    # the given blocks and every block reachable from them. ReachableAnalysis
+    # is not used: it is an all-pairs fixpoint that no O1 pass requests,
+    # while this needs reachability from a few blocks only
+    seen: set[IRBasicBlock] = set()
+    worklist = list(starts)
+    while len(worklist) > 0:
+        bb = worklist.pop()
+        if bb in seen:
+            continue
+        seen.add(bb)
+        worklist.extend(cfg.cfg_out(bb))
+    return seen
 
 
 def _copy_metadata(source: IRInstruction, target: IRInstruction) -> None:
@@ -146,7 +163,7 @@ class FmpLoweringPass(IRPass):
     Lower `dalloca` and the FMP virtual-register opcodes into explicit
     FMP-threaded IR. This pass is the *single owner* of the hidden-FMP
     calling convention: it alone materializes the hidden FMP param
-    (`fmp_param`), seeds the entry function's FMP root (`initial_fmp`),
+    (`fmp_param`), seeds the entry function's FMP roots (`initial_fmp`),
     and writes the hidden invoke operand (assert-and-set, never ensure).
 
     Producer-facing dynamic allocation has one output:
@@ -174,6 +191,9 @@ class FmpLoweringPass(IRPass):
 
     required_predecessors: ClassVar[tuple[PassRef, ...]] = ("MakeSSA",)
     required_successors: ClassVar[tuple[PassRef, ...]] = ("MakeSSA",)
+    # the entry function's FMP roots read the per-block static memory ends
+    # that ConcretizeMemLocPass records for the blocks it saw
+    required_immediate_predecessors: ClassVar[tuple[PassRef, ...]] = ("ConcretizeMemLocPass",)
 
     # per-run reclaim engine context, (re)computed in run_pass
     fmp_var: IRVariable
@@ -218,6 +238,8 @@ class FmpLoweringPass(IRPass):
         # `retfmp` (the desugared publishing terminator) is the publish fact
         publishes = info.publishes
 
+        # reset first: root placement already queries it
+        self._invoke_callee_infos = {}
         # the FMP root output is used directly as the runner; the rewrite
         # multiply-assigns it (restores, setfmp, adopted-FMP invoke outputs,
         # bump outputs), which the required MakeSSA successor repairs
@@ -226,7 +248,6 @@ class FmpLoweringPass(IRPass):
         self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
         self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
         self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
-        self._invoke_callee_infos = {}
         self._pinned_allocations = self._compute_escaping_allocations(self.base_ptrs)
         capture_facts = self._compute_capture_facts(fn)
         self._capture_derived, self._pinned_captures, self._var_roots = capture_facts
@@ -263,8 +284,8 @@ class FmpLoweringPass(IRPass):
     def _materialize_fmp_root(self, fn: IRFunction) -> tuple[IRVariable, bool]:
         """
         Materialize the function's FMP root and return `(root_var,
-        has_fmp_param)`. The entry function's root is an explicit
-        `initial_fmp` instruction (lowered to the deferred assembler CONST);
+        has_fmp_param)`. The entry function's roots are explicit
+        `initial_fmp` instructions (see `_insert_initial_fmp_roots`);
         every other FMP-needing function receives a hidden `fmp_param`,
         physically placed after the user params and before the return-PC
         param. The return-PC param, when discoverable, is normalized to its
@@ -274,8 +295,7 @@ class FmpLoweringPass(IRPass):
         fmp_var = fn.get_next_variable()
 
         if fn is fn.ctx.entry_function:
-            inst = IRInstruction("initial_fmp", [], [fmp_var])
-            fn.entry.insert_instruction(inst, index=_after_params_index(fn))
+            self._insert_initial_fmp_roots(fn, fmp_var)
             return fmp_var, False
 
         layout = FunctionCallLayout(fn)
@@ -298,6 +318,79 @@ class FmpLoweringPass(IRPass):
         param_inst = IRInstruction("fmp_param", [], [fmp_var])
         fn.entry.insert_instruction(param_inst, index=layout.hidden_fmp_param_insert_index)
         return fmp_var, True
+
+    def _insert_initial_fmp_roots(self, fn: IRFunction, fmp_var: IRVariable) -> None:
+        """
+        Seed the entry function's FMP with `initial_fmp <bound>` roots, each
+        placed where the FMP is first needed and bounded only by the static
+        memory that can be accessed after it. In the runtime entry this
+        gives each external function its own initial FMP, so calling a small
+        one does not pay memory expansion for an unrelated large frame.
+
+        No FMP instruction has run on entry to a block that no FMP
+        instruction reaches, so the FMP may start fresh there. Roots go in
+        such blocks that use the FMP or branch to a block an FMP instruction
+        reaches; MakeSSA joins them. A root's bound is the largest static
+        memory end (`MemoryAllocator.bb_eom`) of the blocks reachable from
+        its block, which covers every static allocation accessed while its
+        dynamic allocations can be live.
+        """
+        cfg = self.analyses_cache.request_analysis(CFGAnalysis)
+        bb_eom = fn.ctx.mem_allocator.bb_eom
+
+        fmp_bbs: OrderedSet[IRBasicBlock] = OrderedSet(
+            bb
+            for bb in cfg.dfs_pre_walk
+            if any(self._inst_needs_fmp(inst) for inst in bb.instructions)
+        )
+        fmp_succs = [succ for bb in fmp_bbs for succ in cfg.cfg_out(bb)]
+        after_fmp = _reachable_blocks(cfg, fmp_succs)
+        # a root on the entry block would rerun on every iteration and reset
+        # the FMP below the previous iterations' allocations. Only
+        # hand-written Venom produces this: the frontend's entry block has no
+        # predecessors
+        assert (
+            fn.entry not in after_fmp
+        ), f"entry block of {fn.name} is on a cycle through an FMP instruction"
+
+        root_bbs = []
+        # the order is irrelevant; the walk only restricts to reachable blocks
+        for bb in cfg.dfs_pre_walk:
+            if bb in after_fmp:
+                continue
+            enters_fmp_region = any(succ in after_fmp for succ in cfg.cfg_out(bb))
+            if bb in fmp_bbs or enters_fmp_region:
+                root_bbs.append(bb)
+
+        if len(root_bbs) == 0:
+            # only unreachable code touches the FMP. Unreachable blocks are
+            # still lowered and would use an undefined FMP variable
+            root_bbs = [fn.entry]
+
+        for bb in root_bbs:
+            bound = 0
+            for other in _reachable_blocks(cfg, [bb]):
+                # a missing block was created after ConcretizeMemLocPass
+                # took the snapshot. Only reachable when the pass is run
+                # outside a validated pipeline: pipeline validation enforces
+                # the order
+                assert (
+                    other in bb_eom
+                ), f"no static memory end recorded for {other.label} in {fn.name}"
+                bound = max(bound, bb_eom[other])
+            inst = IRInstruction("initial_fmp", [IRLiteral(bound)], [fmp_var])
+            if bb is fn.entry:
+                index = _after_params_index(fn)
+            else:
+                index = len(list(bb.phi_instructions))
+            bb.insert_instruction(inst, index=index)
+
+    def _inst_needs_fmp(self, inst: IRInstruction) -> bool:
+        if inst.opcode in RAW_FMP_TOUCH_OPS:
+            return True
+        if inst.opcode == "invoke":
+            return self._invoke_needs_fmp(inst)
+        return False
 
     def _compute_entry_states(self, fn: IRFunction) -> dict[IRBasicBlock, _ReclaimState]:
         """
@@ -465,7 +558,7 @@ class FmpLoweringPass(IRPass):
         if opcode == "invoke":
             callee_info = self._invoke_callee_info(inst)
             if out is not None:
-                if callee_info is not None and callee_info.needs_fmp:
+                if self._invoke_needs_fmp(inst):
                     self._augment_invoke(inst, self.fmp_var)
                 out.append(inst)
             if callee_info is not None and callee_info.publishes:
@@ -487,14 +580,19 @@ class FmpLoweringPass(IRPass):
             self._invoke_callee_infos[inst] = info
         return self._invoke_callee_infos[inst]
 
+    def _invoke_needs_fmp(self, inst: IRInstruction) -> bool:
+        callee_info = self._invoke_callee_info(inst)
+        if callee_info is None:
+            return False
+        return callee_info.needs_fmp
+
     def _is_reclaim_point(self, inst: IRInstruction) -> bool:
         if inst.opcode == "dalloca":
             return True
         if inst.opcode in ("jmp", "jnz", "djmp"):
             return True
         if inst.opcode == "invoke":
-            callee_info = self._invoke_callee_info(inst)
-            return callee_info is not None and callee_info.needs_fmp
+            return self._invoke_needs_fmp(inst)
         return False
 
     def _pop_dead_suffix(self, state: _ReclaimState, live_vars) -> IRVariable | None:

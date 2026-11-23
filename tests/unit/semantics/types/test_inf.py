@@ -1358,6 +1358,344 @@ def f(a: address, xs: DynArray[uint256, 5]):
     compiler.compile_code(code)
 
 
+@pytest.mark.parametrize(
+    "param_type,arg,arg_type,child_types",
+    [
+        # the elements are typed with the list's own element type, not with the
+        # (larger) element type of the parameter
+        (
+            "DynArray[DynArray[uint256, 9], ...]",
+            "[[1], [2, 3]]",
+            DArrayT(DArrayT(UINT256_T, 2), 2),
+            [DArrayT(UINT256_T, 2), DArrayT(UINT256_T, 2)],
+        ),
+        # inner wildcard
+        (
+            "DynArray[DynArray[uint256, ...], 3]",
+            "[[1], [2, 3]]",
+            DArrayT(DArrayT(UINT256_T, 2), 2),
+            [DArrayT(UINT256_T, 2), DArrayT(UINT256_T, 2)],
+        ),
+        (
+            "DynArray[DynArray[uint256, ...], ...]",
+            "[[1], [2, 3]]",
+            DArrayT(DArrayT(UINT256_T, 2), 2),
+            [DArrayT(UINT256_T, 2), DArrayT(UINT256_T, 2)],
+        ),
+        (
+            "DynArray[DynArray[DynArray[uint256, 3], ...], ...]",
+            "[[[1]], [[2], [3, 4]]]",
+            DArrayT(DArrayT(DArrayT(UINT256_T, 2), 2), 2),
+            [DArrayT(DArrayT(UINT256_T, 2), 2), DArrayT(DArrayT(UINT256_T, 2), 2)],
+        ),
+        # both ternary arms are typed with the ternary's type
+        (
+            "DynArray[DynArray[uint256, 9], ...]",
+            "[[1]] if c else xs",
+            DArrayT(DArrayT(UINT256_T, 2), 2),
+            [DArrayT(DArrayT(UINT256_T, 2), 2), DArrayT(DArrayT(UINT256_T, 2), 2)],
+        ),
+        # also an empty arm, which has no elements to take its type from
+        (
+            "DynArray[Bytes[100], ...]",
+            '[b"x"] if c else []',
+            DArrayT(BytesT(1), 1),
+            [DArrayT(BytesT(1), 1), DArrayT(BytesT(1), 1)],
+        ),
+    ],
+)
+def test_wildcard_arg_nested_list_literal_types(param_type, arg, arg_type, child_types):
+    code = f"""
+interface I:
+    def foo(xs: {param_type}): nonpayable
+
+@external
+def f(a: address, c: bool):
+    xs: DynArray[DynArray[uint256, 2], 2] = []
+    extcall I(a).foo({arg})
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.func.get("attr") == "foo"]
+    (arg_node,) = call.args
+    assert arg_node._metadata["type"] == arg_type
+
+    if isinstance(arg_node, vy_ast.IfExp):
+        children = [arg_node.body, arg_node.orelse]
+    else:
+        children = arg_node.elements
+    assert [child._metadata["type"] for child in children] == child_types
+
+    # every list literal agrees with its elements
+    for list_node in arg_node.get_descendants(vy_ast.List, include_self=True):
+        list_type = list_node._metadata["type"]
+        for element in list_node.elements:
+            assert element._metadata["type"] == list_type.value_type
+
+    for experimental_codegen in (False, True):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=experimental_codegen))
+
+
+@pytest.mark.parametrize(
+    "arg", ['[b"x", staticcall I(a).source()]', '[staticcall I(a).source(), b"x"]']
+)
+def test_wildcard_arg_list_literal_wildcard_call_element_types(arg):
+    # a wildcard call return in the list takes the parameter's element bound,
+    # whichever element comes first
+    code = f"""
+interface I:
+    def source() -> Bytes[...]: view
+    def sink(xs: DynArray[Bytes[10], ...]): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).sink({arg})
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.func.get("attr") == "sink"]
+    (arg_node,) = call.args
+    assert arg_node._metadata["type"] == DArrayT(BytesT(10), 2)
+    assert [element._metadata["type"] for element in arg_node.elements] == [BytesT(10)] * 2
+    (source_call,) = [
+        n for n in arg_node.get_descendants(vy_ast.Call) if n.func.get("attr") == "source"
+    ]
+    assert source_call._metadata["call_return_type"] == BytesT(10)
+
+    for experimental_codegen in (False, True):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=experimental_codegen))
+
+
+def _call_return_types(node):
+    return {
+        call.func.attr: call._metadata["call_return_type"]
+        for call in node.get_descendants(vy_ast.Call)
+        if "call_return_type" in call._metadata
+    }
+
+
+@pytest.mark.parametrize(
+    "elements",
+    [
+        "staticcall I(a).wide(), staticcall I(a).short(), xs",
+        "staticcall I(a).short() if cond else staticcall I(a).wide(), xs",
+    ],
+)
+def test_wildcard_list_preserves_fixed_sibling_limit(elements):
+    code = f"""
+interface I:
+    def wide() -> DynArray[Bytes[2], ...]: view
+    def short() -> DynArray[Bytes[2], 1]: view
+    def sink(xs: DynArray[DynArray[Bytes[2], 1], ...]): nonpayable
+
+@external
+def f(a: address, xs: DynArray[Bytes[1], 2], cond: bool):
+    extcall I(a).sink([{elements}])
+    """
+    # The sink can fix the return wildcard to 1, but xs can contain two items.
+    with pytest.raises(TypeMismatch, match=r"expected DynArray\[Bytes\[2\], 1\]"):
+        compiler.compile_code(code)
+
+
+@pytest.mark.parametrize(
+    "arg",
+    [
+        "[staticcall I(a).wide(), staticcall I(a).bounded()]",
+        "[staticcall I(a).bounded(), staticcall I(a).wide()]",
+    ],
+)
+def test_wildcard_arg_list_literal_wildcard_call_elements_types(arg):
+    # the element type has every wildcard of the call returns, whichever
+    # comes first, and each call keeps the fixed bounds of its return type
+    code = f"""
+interface I:
+    def wide() -> DynArray[Bytes[...], ...]: view
+    def bounded() -> DynArray[Bytes[10], ...]: view
+    def sink(xs: DynArray[DynArray[Bytes[...], ...], ...]): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).sink({arg})
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.func.get("attr") == "sink"]
+    (arg_node,) = call.args
+    assert arg_node._metadata["type"] == DArrayT(DArrayT(BytesT(INF), INF), 2)
+    assert _call_return_types(arg_node) == {
+        "wide": DArrayT(BytesT(INF), INF),
+        "bounded": DArrayT(BytesT(10), INF),
+    }
+
+    compiler.compile_code(code, settings=Settings(experimental_codegen=True))
+
+
+@pytest.mark.parametrize(
+    "arg",
+    [
+        "staticcall I(a).wide() if c else staticcall I(a).longer()",
+        "staticcall I(a).longer() if c else staticcall I(a).wide()",
+    ],
+)
+def test_wildcard_arg_ternary_wildcard_call_arm_shorter_than_other_arm_types(arg):
+    # the type of `longer()` is the supertype of the two, but the parameter
+    # fixes the wildcard of `wide()`, whichever arm comes first
+    code = f"""
+interface I:
+    def wide() -> DynArray[Bytes[...], 2]: view
+    def longer() -> DynArray[Bytes[10], 3]: view
+    def sink(xs: DynArray[Bytes[20], ...]): nonpayable
+
+@external
+def f(a: address, c: bool):
+    extcall I(a).sink({arg})
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.func.get("attr") == "sink"]
+    (arg_node,) = call.args
+    assert arg_node._metadata["type"] == DArrayT(BytesT(20), 3)
+    assert _call_return_types(arg_node) == {
+        "wide": DArrayT(BytesT(20), 2),
+        "longer": DArrayT(BytesT(10), 3),
+    }
+
+
+@pytest.mark.parametrize(
+    "member",
+    [
+        "staticcall I(a).bounded() if d else staticcall I(a).wide()",
+        "staticcall I(a).wide() if d else staticcall I(a).bounded()",
+    ],
+)
+def test_wildcard_arg_ternary_of_tuples_wildcard_call_member_types(member):
+    # the parameter fixes the wildcard of `wide()` through the tuple,
+    # whichever arm of the inner ternary comes first
+    code = f"""
+interface I:
+    def wide() -> DynArray[Bytes[...], 2]: view
+    def bounded() -> DynArray[Bytes[10], 2]: view
+    def sink(xs: (DynArray[Bytes[20], ...], bool)): nonpayable
+
+@external
+def f(a: address, c: bool, d: bool):
+    extcall I(a).sink(({member}, True) if c else (staticcall I(a).bounded(), False))
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.func.get("attr") == "sink"]
+    (arg_node,) = call.args
+    assert tuple(arg_node._metadata["type"].member_types) == (DArrayT(BytesT(20), 2), BoolT())
+    assert _call_return_types(arg_node)["wide"] == DArrayT(BytesT(20), 2)
+
+
+@pytest.mark.parametrize(
+    "base", ['[b"x", staticcall I(a).source()]', '[staticcall I(a).source(), b"x"]']
+)
+def test_subscripted_list_literal_wildcard_call_element_types(base):
+    # the subscript does not pass its type on to the list, so the other
+    # element fixes the wildcard of the call return, whichever comes first
+    code = f"""
+interface I:
+    def source() -> Bytes[...]: view
+    def sink(x: Bytes[10]): nonpayable
+
+@external
+def f(a: address, i: uint256):
+    extcall I(a).sink({base}[i])
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (node,) = module.get_descendants(vy_ast.List)
+    assert node._metadata["type"] == SArrayT(BytesT(1), 2)
+    assert _call_return_types(node)["source"] == BytesT(1)
+
+    for experimental_codegen in (False, True):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=experimental_codegen))
+
+
+@pytest.mark.parametrize(
+    "iterable",
+    [
+        "staticcall I(a).bounded() if c else staticcall I(a).source()",
+        "staticcall I(a).source() if c else staticcall I(a).bounded()",
+    ],
+)
+def test_for_loop_ternary_iterable_wildcard_call_arm_types(iterable):
+    # the loop variable does not pass its type on to the iterable, so the
+    # other arm fixes the wildcards of the call return, whichever comes first
+    code = f"""
+interface I:
+    def source() -> DynArray[Bytes[...], ...]: view
+    def bounded() -> DynArray[Bytes[10], 2]: view
+
+@external
+def f(a: address, c: bool) -> uint256:
+    n: uint256 = 0
+    for x: Bytes[10] in ({iterable}):
+        n += len(x)
+    return n
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (node,) = module.get_descendants(vy_ast.IfExp)
+    assert node._metadata["type"] == DArrayT(BytesT(10), 2)
+    assert _call_return_types(node)["source"] == DArrayT(BytesT(10), 2)
+
+    for experimental_codegen in (False, True):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=experimental_codegen))
+
+
+def test_wildcard_call_return_wider_expected_type():
+    # the expected type only fixes the wildcards of the return type
+    code = """
+interface I:
+    def source() -> DynArray[Bytes[10], ...]: view
+
+@external
+def f(a: address):
+    xs: DynArray[Bytes[20], 5] = staticcall I(a).source()
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    assert _call_return_types(module) == {"source": DArrayT(BytesT(10), 5)}
+
+    for experimental_codegen in (False, True):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=experimental_codegen))
+
+
+@pytest.mark.parametrize(
+    "param_type,arg,arg_type",
+    [
+        # the arg's own bounds are kept, however large the parameter's fixed bounds are
+        ("DynArray[DynArray[uint256, 2**58], ...]", "xs", DArrayT(DArrayT(UINT256_T, 2), 2)),
+        (
+            "DynArray[DynArray[uint256, 2**58], ...]",
+            "xs if c else ys",
+            DArrayT(DArrayT(UINT256_T, 2), 2),
+        ),
+        (
+            "(DynArray[DynArray[uint256, 2**58], ...], uint256)",
+            "(xs if c else ys, 5)",
+            TupleT((DArrayT(DArrayT(UINT256_T, 2), 2), UINT256_T)),
+        ),
+    ],
+)
+def test_wildcard_arg_variable_keeps_own_bounds(param_type, arg, arg_type):
+    code = f"""
+interface I:
+    def foo(xs: {param_type}): nonpayable
+
+@external
+def f(a: address, c: bool):
+    xs: DynArray[DynArray[uint256, 2], 2] = []
+    ys: DynArray[DynArray[uint256, 2], 2] = []
+    extcall I(a).foo({arg})
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.func.get("attr") == "foo"]
+    (arg_node,) = call.args
+    assert arg_node._metadata["type"] == arg_type
+    for name in arg_node.get_descendants(vy_ast.Name):
+        if name.id in ("xs", "ys"):
+            assert name._metadata["type"] == DArrayT(DArrayT(UINT256_T, 2), 2)
+
+    for experimental_codegen in (False, True):
+        compiler.compile_code(code, settings=Settings(experimental_codegen=experimental_codegen))
+
+
 def test_wildcard_arg_ternary_sarray_element():
     # Note: this should pass once we use expected type typing
     code = """
@@ -1388,6 +1726,33 @@ def f(a: address, x: Bytes[INF]) -> uint256:
         compiler.compile_code(code, settings=Settings(experimental_codegen=True))
     message = "Function arguments cannot contain unbounded sequence types inside aggregate types"
     assert e.value.message == message
+
+
+@pytest.mark.parametrize("venom", [False, True])
+def test_nested_tuple_wildcard_call_return(venom):
+    interface = """
+interface I:
+    def source() -> ((Bytes[...], bool), bool): view
+"""
+    settings = Settings(experimental_codegen=venom)
+    bounded = """
+@external
+def f(a: address) -> ((Bytes[8], bool), bool):
+    return staticcall I(a).source()
+"""
+    compiler.compile_code(interface + bounded, settings=settings)
+
+    unbounded = """
+@external
+def f(a: address) -> Bytes[512]:
+    return abi_encode(staticcall I(a).source())
+"""
+    with pytest.raises(StructureException) as exc:
+        compiler.compile_code(interface + unbounded, settings=settings)
+    assert exc.value.message == (
+        "Unsupported unbounded sequence nesting in abi_encode argument type: "
+        "((Bytes[INF], bool), bool)"
+    )
 
 
 @pytest.mark.parametrize(
