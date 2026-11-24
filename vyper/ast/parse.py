@@ -478,6 +478,15 @@ class AnnotatingVisitor(python_ast.NodeTransformer):
                         node.lineno,
                         node.col_offset,
                     )
+                try:
+                    bytes.fromhex(node.value)
+                except ValueError:
+                    raise SyntaxException(
+                        "Hex string must contain only hexadecimal digits",
+                        self._source_code,
+                        node.lineno,
+                        node.col_offset,
+                    ) from None
                 node.ast_type = "HexBytes"
                 self._pre_parser.hex_string_locations.remove(key)
             else:
