@@ -992,12 +992,16 @@ class VenomCodegenContext:
         # code path needs ctor-aware CODE loads, add an explicit branch here.
         return self.builder.load(addr, location)
 
-    def ensure_bytestring_in_memory(self, vv: VyperValue, typ: _BytestringT) -> VyperValue:
+    def ensure_bytestring_in_memory(self, vv: VyperValue) -> VyperValue:
         """Return a bytestring value guaranteed to be in memory.
 
         Hashing and certain builtins require memory-backed bytestring data.
-        STORAGE/TRANSIENT/CODE values are copied into a temporary memory buffer.
+        STORAGE/TRANSIENT/IMMUTABLES values are copied into a temporary memory buffer
+        sized by the value's own type (the annotated type of the expression
+        it came from can be wider, e.g. a map key or comparison operand).
         """
+        typ = vv.typ
+        assert isinstance(typ, _BytestringT)
         if vv.location is DataLocation.STORAGE or vv.location is DataLocation.TRANSIENT:
             buf_val = self.new_temporary_value(typ)
             self.slot_to_memory(vv.operand, buf_val.operand, typ.storage_size_in_words, vv.location)
