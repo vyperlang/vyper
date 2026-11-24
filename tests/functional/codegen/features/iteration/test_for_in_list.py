@@ -1041,3 +1041,176 @@ def get_trace() -> DynArray[uint256, 3]:
     c = get_contract(code)
     c.test()
     assert c.get_trace() == [0, 0, 0]
+
+
+@pytest.mark.parametrize(
+    "array_typ",
+    [
+        "DynArray[uint256, 8]",
+        pytest.param(
+            "transient(DynArray[uint256, 8])", marks=pytest.mark.requires_evm_version("cancun")
+        ),
+    ],
+)
+def test_iterator_reentrant_pop(get_contract, array_typ):
+    # GH 3185: a re-entrant call shrinks the array; the loop must not read
+    # elements past its current end
+    code = f"""
+interface A:
+    def shrink(): nonpayable
+
+array: {array_typ}
+
+@external
+def shrink():
+    self.array.pop()
+
+@external
+def test() -> DynArray[uint256, 8]:
+    self.array = [0, 1, 2, 3, 4, 5, 6, 7]
+    seen: DynArray[uint256, 8] = []
+    for i: uint256 in self.array:
+        seen.append(i)
+        extcall A(self).shrink()
+    return seen
+    """
+    c = get_contract(code)
+    assert c.test() == [0, 1, 2, 3]
+
+
+def test_iterator_reentrant_clear_via_internal(get_contract):
+    # GH 3185: the call is reached through an internal function, and the
+    # array shrinks below the loop index
+    code = """
+interface A:
+    def clear(): nonpayable
+
+array: DynArray[uint256, 8]
+
+@external
+def clear():
+    self.array = []
+
+@internal
+def notify():
+    extcall A(self).clear()
+
+@external
+def test() -> DynArray[uint256, 8]:
+    self.array = [5, 6, 7]
+    seen: DynArray[uint256, 8] = []
+    for i: uint256 in self.array:
+        seen.append(i)
+        if i == 6:
+            self.notify()
+    return seen
+    """
+    c = get_contract(code)
+    assert c.test() == [5, 6]
+
+
+def test_iterator_modified_via_module_init(get_contract, make_input_bundle):
+    # the call is reached through a module's `__init__`, which delegatecalls
+    # code that clears the array
+    clearer = """
+array: DynArray[uint256, 8]
+
+@external
+def __default__():
+    self.array = []
+    """
+    lib = """
+@deploy
+def __init__(target: address):
+    raw_call(target, b"", is_delegate_call=True)
+    """
+    main = """
+import lib
+
+initializes: lib
+
+array: DynArray[uint256, 8]
+seen: DynArray[uint256, 8]
+
+@deploy
+def __init__(target: address):
+    self.array = [1, 2, 3]
+    for i: uint256 in self.array:
+        self.seen.append(i)
+        lib.__init__(target)
+
+@external
+def get_seen() -> DynArray[uint256, 8]:
+    return self.seen
+    """
+    target = get_contract(clearer)
+    input_bundle = make_input_bundle({"lib.vy": lib})
+    c = get_contract(main, target.address, input_bundle=input_bundle)
+    assert c.get_seen() == [1]
+
+
+def test_iterator_reentrant_append(get_contract):
+    # elements appended by a re-entrant call are not iterated: the loop
+    # stops at the length the array had when it started
+    code = """
+interface A:
+    def grow(): nonpayable
+
+array: DynArray[uint256, 8]
+
+@external
+def grow():
+    self.array.append(9)
+
+@external
+def test() -> DynArray[uint256, 8]:
+    self.array = [1, 2]
+    seen: DynArray[uint256, 8] = []
+    for i: uint256 in self.array:
+        seen.append(i)
+        extcall A(self).grow()
+    return seen
+    """
+    c = get_contract(code)
+    assert c.test() == [1, 2]
+
+
+_SLOAD_LOOP_TEMPLATE = """
+interface A:
+    def f(): nonpayable
+
+array: DynArray[uint256, 8]
+m: HashMap[uint256, uint256]
+
+@internal
+def helper(x: uint256):
+    self.m[x] = 1
+
+@external
+def test():
+    for x: uint256 in self.array:
+        {body}
+"""
+
+
+@pytest.mark.parametrize(
+    "body,reloads",
+    [
+        ("self.m[x] = 1", False),
+        ("self.helper(x)", False),
+        ("extcall A(self).f()", True),
+        ("raw_call(self, b'', is_static_call=True)", False),
+        ("raw_call(self, b'')", True),
+        ("raw_call(self, b'', is_static_call=False)", True),
+    ],
+)
+def test_iterator_length_reload_only_with_call(body, reloads, compiler_settings):
+    # the current length is re-read each iteration only when the body can
+    # reach a call that may re-enter and modify the array
+    def count_sloads(body):
+        code = _SLOAD_LOOP_TEMPLATE.format(body=body)
+        out = compile_code(code, output_formats=["opcodes_runtime"], settings=compiler_settings)
+        return out["opcodes_runtime"].split(" ").count("SLOAD")
+
+    baseline = count_sloads("pass")
+    assert count_sloads(body) == baseline + (1 if reloads else 0)

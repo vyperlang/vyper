@@ -9,6 +9,7 @@ from vyper.codegen.core import (
     IRnode,
     add_ofst,
     clamp_le,
+    contains_writeable_call,
     get_dyn_array_count,
     get_element_ptr,
     get_type_for_exact_size,
@@ -314,6 +315,16 @@ class Stmt:
                 array_len = get_dyn_array_count(iter_list)
             else:
                 array_len = repeat_bound
+
+            # A call in the body can re-enter and shrink a storage array, so
+            # also stop at its current length (GH 3185)
+            if (
+                isinstance(iter_list.typ, DArrayT)
+                and iter_list.location.word_addressable
+                and any(contains_writeable_call(stmt) for stmt in self.stmt.body)
+            ):
+                cur_len = get_dyn_array_count(iter_list)
+                body = ["seq", ["if", ["ge", i, cur_len], "break"], body]
 
             ret.append(["repeat", i, 0, array_len, repeat_bound, body])
 
