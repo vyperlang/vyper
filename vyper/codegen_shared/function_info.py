@@ -8,11 +8,13 @@ and can be removed at that point.
 
 from dataclasses import dataclass
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional
 
 from vyper.semantics.types.function import ContractFunctionT
 
 if TYPE_CHECKING:
+    from vyper.codegen_legacy.function_definitions.common import FrameInfo, InternalFuncIR
+    from vyper.codegen_legacy.ir_node import IRnode
     from vyper.venom.basicblock import IRVariable
 
 
@@ -20,8 +22,8 @@ if TYPE_CHECKING:
 class _FuncIRInfo:
     func_t: ContractFunctionT
     gas_estimate: Optional[int] = None
-    frame_info: Optional[Any] = None  # FrameInfo (legacy-only)
-    func_ir: Optional[Any] = None  # InternalFuncIR (legacy-only)
+    frame_info: Optional["FrameInfo"] = None
+    func_ir: Optional["InternalFuncIR"] = None
     # For venom codegen: maps kwarg names to alloca IRVariables for sharing between entry points
     kwarg_alloca_vars: Optional[dict[str, "IRVariable"]] = None
 
@@ -45,13 +47,13 @@ class _FuncIRInfo:
         # with the same name but which come from different modules
         return f"{self.visibility} {function_id} {name}({argz})"
 
-    def set_frame_info(self, frame_info: Any) -> None:
+    def set_frame_info(self, frame_info: "FrameInfo") -> None:
         if self.frame_info is not None:
             assert frame_info == self.frame_info
         else:
             self.frame_info = frame_info
 
-    def set_func_ir(self, func_ir: Any) -> None:
+    def set_func_ir(self, func_ir: "InternalFuncIR") -> None:
         assert self.func_t.is_internal or self.func_t.is_deploy
         self.func_ir = func_ir
 
@@ -77,7 +79,7 @@ class _FuncIRInfo:
 class EntryPointInfo:
     func_t: ContractFunctionT
     min_calldatasize: int  # the min calldata required for this entry point
-    ir_node: Optional[Any] = None  # the ir for this entry point (None for venom codegen)
+    ir_node: Optional["IRnode"] = None  # the ir for this entry point (None for venom codegen)
 
     def __post_init__(self):
         # sanity check ABI v2 properties guaranteed by the spec.
