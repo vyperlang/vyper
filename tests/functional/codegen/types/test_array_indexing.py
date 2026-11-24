@@ -275,6 +275,36 @@ def run() -> uint256:
         get_contract(code, input_bundle=make_input_bundle({"m.vy": m}))
 
 
+def test_array_index_abstract_override_writes_other(get_contract, make_input_bundle):
+    # the override writes a variable the base doesn't read: no rejection
+    m = """
+d: DynArray[DynArray[uint256, 2], 2]
+c: uint256
+
+@abstract
+def hook() -> uint256: ...
+
+def get() -> uint256:
+    return self.d[0][self.hook()]
+    """
+    code = """
+import m
+initializes: m
+
+@override(m)
+def hook() -> uint256:
+    m.c = 5
+    return 1
+
+@external
+def run() -> uint256:
+    m.d = [[1, 2]]
+    return m.get() + m.c
+    """
+    c = get_contract(code, input_bundle=make_input_bundle({"m.vy": m}))
+    assert c.run() == 7
+
+
 # to fix in future release
 @pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
 def test_array_index_overlap_store(get_contract):

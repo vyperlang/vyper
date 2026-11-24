@@ -19,6 +19,7 @@ from vyper.codegen_venom.abi import (
 )
 from vyper.codegen_venom.arithmetic import apply_binop
 from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
+from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     VyperType,
@@ -45,9 +46,9 @@ from .eval_order import (
 )
 from .expr import (
     Expr,
+    get_override_writes,
     get_reachable_internal_functions,
     get_referenced_variables,
-    get_writes_with_overrides,
     is_unbounded_array_element,
     is_unbounded_struct_member,
 )
@@ -374,7 +375,8 @@ class Stmt:
         # GHSA-4w26-8p97-f4jp: the target is computed and bounds-checked
         # before the RHS. Reject an RHS which could invalidate a complex
         # variable used to derive that target.
-        rhs_writes = get_writes_with_overrides(right_node)
+        rhs_writes = {access.variable for access in get_expr_writes(right_node)}
+        rhs_writes |= get_override_writes(right_node)
         for var in get_referenced_variables(target):
             if var.typ._is_prim_word:
                 continue

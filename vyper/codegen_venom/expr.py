@@ -180,11 +180,6 @@ def get_override_writes(node: vy_ast.VyperNode) -> set[VarInfo]:
     return {access.variable for f in overrides for access in f.get_variable_writes()}
 
 
-def get_writes_with_overrides(node: vy_ast.VyperNode) -> set[VarInfo]:
-    expr_writes = {access.variable for access in get_expr_writes(node)}
-    return expr_writes | get_override_writes(node)
-
-
 def _subscript_read_write_overlap(
     base_node: vy_ast.VyperNode, index_node: vy_ast.VyperNode
 ) -> bool:
