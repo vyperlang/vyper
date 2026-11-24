@@ -56,6 +56,13 @@ def calculate_largest_power(a: int, num_bits: int, is_signed: bool) -> int:
         return 1  # Value is assumed to be in range, therefore power of 1 is max
 
     # Do a bit of iteration to ensure we have the exact number
+
+    # CMC 2022-05-06 (TODO we should be able to this with algebra
+    # instead of looping):
+    # a ** x == 2**value_bits
+    # x ln(a) = ln(2**value_bits)
+    # x = ln(2**value_bits) / ln(a)
+
     num_iterations = 0
     while a ** (b + 1) < 2**value_bits:
         b += 1
@@ -112,6 +119,13 @@ def calculate_largest_base(b: int, num_bits: int, is_signed: bool) -> Tuple[int,
     value_bits = num_bits - (1 if is_signed else 0)
     if b > value_bits:  # pragma: no cover
         raise TypeCheckFailure("Value is too large and will always throw")
+
+    # CMC 2022-05-06 TODO we should be able to do this with algebra
+    # instead of looping):
+    # x ** b == 2**value_bits
+    # b ln(x) == ln(2**value_bits)
+    # ln(x) == ln(2**value_bits) / b
+    # x == exp( ln(2**value_bits) / b)
 
     # Estimate (up to ~39 digits precision required)
     a = math.ceil(2 ** (decimal.Decimal(value_bits) / decimal.Decimal(b)))

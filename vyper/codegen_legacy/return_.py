@@ -79,7 +79,6 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
         # optimize: if the value already happens to be ABI encoded in
         # memory, don't bother running abi_encode, just return the
         # buffer it is in.
-        assert ir_val.typ is not None  # help mypy
         can_skip_encode = (
             abi_encoding_matches_vyper(ir_val.typ)
             and ir_val.location == MEMORY
@@ -89,7 +88,7 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
         )
 
         if can_skip_encode:
-            assert ir_val.typ.memory_bytes_required == maxlen
+            assert ir_val.typ.memory_bytes_required == maxlen  # type: ignore
             jump_to_exit += [ir_val, maxlen]
             return finalize(["pass"])
 

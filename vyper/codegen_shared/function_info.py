@@ -50,6 +50,7 @@ class _FuncIRInfo:
         return f"{self.visibility} {function_id} {name}({argz})"
 
     def set_frame_info(self, frame_info: "FrameInfo") -> None:
+        # XXX: when can this happen?
         if self.frame_info is not None:
             assert frame_info == self.frame_info
         else:
@@ -85,12 +86,14 @@ class EntryPointInfo:
 
     def __post_init__(self):
         # sanity check ABI v2 properties guaranteed by the spec.
+        # https://docs.soliditylang.org/en/v0.8.21/abi-spec.html#formal-specification-of-the-encoding states:  # noqa: E501
+        # > Note that for any X, len(enc(X)) is a multiple of 32.
         assert self.min_calldatasize >= 4
         assert (self.min_calldatasize - 4) % 32 == 0
 
 
 def init_ir_info(func_t: ContractFunctionT):
-    """Initialize IRInfo on the function type."""
+    # initialize IRInfo on the function
     func_t._ir_info = _FuncIRInfo(func_t)
 
 
