@@ -1,7 +1,7 @@
 """
 ABI encoding/decoding for Venom IR.
 
-Port of vyper/codegen/abi_encoder.py for direct AST-to-Venom codegen.
+Port of vyper/codegen_legacy/abi_encoder.py for direct AST-to-Venom codegen.
 
 The ABI encoding follows the Ethereum ABI spec:
 - Static types are encoded inline at fixed offsets

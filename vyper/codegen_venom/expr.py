@@ -307,7 +307,7 @@ class Expr:
         Allocates memory for the tuple and stores each element at the correct offset.
         Returns pointer to the allocated tuple in memory.
 
-        Reference: vyper/codegen/expr.py:parse_Tuple
+        Reference: vyper/codegen_legacy/expr.py:parse_Tuple
         """
         node = self.node
         assert isinstance(node, vy_ast.Tuple)
@@ -374,7 +374,7 @@ class Expr:
         - DArrayT: length word at offset 0, elements at offset 32+
         - SArrayT: no length word, elements at offset 0+
 
-        Reference: vyper/codegen/expr.py:parse_List
+        Reference: vyper/codegen_legacy/expr.py:parse_List
         """
         node = self.node
         assert isinstance(node, vy_ast.List)
@@ -1807,7 +1807,7 @@ class Expr:
 
         Allocates memory for struct and stores field values in field order.
 
-        Reference: vyper/codegen/expr.py:handle_struct_literal
+        Reference: vyper/codegen_legacy/expr.py:handle_struct_literal
         """
         node = self.node
         assert isinstance(node, vy_ast.Call)
@@ -1887,7 +1887,7 @@ class Expr:
         6. Store element
         7. Increment and store new length
 
-        Reference: vyper/codegen/core.py:append_dyn_array
+        Reference: vyper/codegen_legacy/core.py:append_dyn_array
         """
         node = self.node
         assert isinstance(node, vy_ast.Call)
@@ -2121,7 +2121,7 @@ class Expr:
         4. Store new length
         5. Return element at new_length index (the popped element)
 
-        Reference: vyper/codegen/core.py:pop_dyn_array
+        Reference: vyper/codegen_legacy/core.py:pop_dyn_array
         """
         node = self.node
         assert isinstance(node, vy_ast.Call)
