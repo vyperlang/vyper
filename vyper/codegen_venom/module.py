@@ -18,7 +18,14 @@ from typing import Optional
 
 import vyper.ast as vy_ast
 from vyper.codegen_shared import jumptable_utils
-from vyper.codegen_shared.function_info import EntryPointInfo, _FuncIRInfo
+from vyper.codegen_shared.function_info import (
+    EntryPointInfo,
+    _FuncIRInfo,
+    _is_constructor,
+    _is_fallback,
+    _is_internal,
+    _runtime_reachable_functions,
+)
 from vyper.codegen_venom.abi.abi_decoder import (
     abi_decode_to_buf,
     decode_unbounded_sequence_to_scratch,
@@ -39,7 +46,7 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
-from vyper.utils import OrderedSet, method_id_int
+from vyper.utils import method_id_int
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 from vyper.venom.context import IRContext
@@ -79,33 +86,6 @@ class IDGenerator:
             self._id += 1
         else:
             self._id = max(self._id, fn_t._function_id + 1)
-
-
-def _is_constructor(func_ast) -> bool:
-    return func_ast._metadata["func_type"].is_constructor
-
-
-def _is_fallback(func_ast) -> bool:
-    return func_ast._metadata["func_type"].is_fallback
-
-
-def _is_internal(func_ast) -> bool:
-    return func_ast._metadata["func_type"].is_internal
-
-
-def _runtime_reachable_functions(module_t: ModuleT, id_generator: IDGenerator):
-    """Calculate globally reachable functions for runtime code."""
-    ret: OrderedSet[ContractFunctionT] = OrderedSet()
-
-    for fn_t in module_t.exposed_functions:
-        assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
-        ret.update(fn_t.reachable_internal_functions)
-        ret.add(fn_t)
-
-    for fn_t in ret:
-        id_generator.ensure_id(fn_t)
-
-    return ret
 
 
 def _init_ir_info(func_t: ContractFunctionT) -> None:

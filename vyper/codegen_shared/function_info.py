@@ -10,7 +10,9 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import TYPE_CHECKING, Optional
 
+import vyper.ast as vy_ast
 from vyper.semantics.types.function import ContractFunctionT
+from vyper.utils import OrderedSet
 
 if TYPE_CHECKING:
     from vyper.codegen_legacy.function_definitions.common import FrameInfo, InternalFuncIR
@@ -90,3 +92,33 @@ class EntryPointInfo:
 def init_ir_info(func_t: ContractFunctionT):
     """Initialize IRInfo on the function type."""
     func_t._ir_info = _FuncIRInfo(func_t)
+
+
+# calculate globally reachable functions to see which
+# ones should make it into the final bytecode.
+def _runtime_reachable_functions(module_t, id_generator):
+    ret = OrderedSet()
+
+    for fn_t in module_t.exposed_functions:
+        assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
+
+        ret.update(fn_t.reachable_internal_functions)
+        ret.add(fn_t)
+
+    # create globally unique IDs for each function
+    for fn_t in ret:
+        id_generator.ensure_id(fn_t)
+
+    return ret
+
+
+def _is_constructor(func_ast):
+    return func_ast._metadata["func_type"].is_constructor
+
+
+def _is_fallback(func_ast):
+    return func_ast._metadata["func_type"].is_fallback
+
+
+def _is_internal(func_ast):
+    return func_ast._metadata["func_type"].is_internal

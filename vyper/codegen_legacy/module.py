@@ -2,7 +2,6 @@
 
 from typing import Any, List
 
-import vyper.ast as vy_ast
 from vyper.codegen_legacy import core
 from vyper.codegen_legacy.core import shr
 from vyper.codegen_legacy.function_definitions import (
@@ -11,28 +10,16 @@ from vyper.codegen_legacy.function_definitions import (
 )
 from vyper.codegen_legacy.ir_node import IRnode
 from vyper.codegen_shared import jumptable_utils
+from vyper.codegen_shared.function_info import (
+    _is_constructor,
+    _is_fallback,
+    _is_internal,
+    _runtime_reachable_functions,
+)
 from vyper.compiler.settings import _is_debug_mode
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import OrderedSet, method_id_int
-
-
-# calculate globally reachable functions to see which
-# ones should make it into the final bytecode.
-def _runtime_reachable_functions(module_t, id_generator):
-    ret = OrderedSet()
-
-    for fn_t in module_t.exposed_functions:
-        assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
-
-        ret.update(fn_t.reachable_internal_functions)
-        ret.add(fn_t)
-
-    # create globally unique IDs for each function
-    for fn_t in ret:
-        id_generator.ensure_id(fn_t)
-
-    return ret
 
 
 class IDGenerator:
@@ -43,18 +30,6 @@ class IDGenerator:
         if fn_t._function_id is None:
             fn_t._function_id = self._id
             self._id += 1
-
-
-def _is_constructor(func_ast):
-    return func_ast._metadata["func_type"].is_constructor
-
-
-def _is_fallback(func_ast):
-    return func_ast._metadata["func_type"].is_fallback
-
-
-def _is_internal(func_ast):
-    return func_ast._metadata["func_type"].is_internal
 
 
 def _is_payable(func_ast):
