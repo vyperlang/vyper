@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Sequence, Union
+from typing import TYPE_CHECKING, Optional, Sequence, Union
 
 from vyper.exceptions import CompilerPanic
 from vyper.venom.basicblock import (
@@ -15,6 +15,7 @@ from vyper.venom.basicblock import (
 from vyper.venom.function import IRFunction
 
 if TYPE_CHECKING:
+    from vyper.ast.nodes import VyperNode
     from vyper.semantics.data_locations import DataLocation
     from vyper.venom.context import IRContext
 
@@ -32,8 +33,8 @@ class VenomBuilder:
     ctx: IRContext
     fn: IRFunction
     _current_bb: IRBasicBlock
-    _ast_source_stack: list  # stack of VyperNode for source tracking
-    _error_msg_stack: list  # stack of Optional[str] for source tracking
+    _ast_source_stack: list[VyperNode]
+    _error_msg_stack: list[Optional[str]]
 
     def __init__(self, ctx: IRContext, fn: IRFunction):
         self.ctx = ctx
@@ -572,7 +573,7 @@ class VenomBuilder:
 
     # === Source Tracking ===
     @contextmanager
-    def source_context(self, ast_node):
+    def source_context(self, ast_node: VyperNode):
         """Track source location for error messages.
 
         Usage:
@@ -601,11 +602,11 @@ class VenomBuilder:
         finally:
             self._error_msg_stack.pop()
 
-    def _current_ast_source(self):
-        return self._ast_source_stack[-1] if self._ast_source_stack else None
+    def _current_ast_source(self) -> Optional[VyperNode]:
+        return self._ast_source_stack[-1] if len(self._ast_source_stack) > 0 else None
 
-    def _current_error_msg(self):
-        return self._error_msg_stack[-1] if self._error_msg_stack else None
+    def _current_error_msg(self) -> Optional[str]:
+        return self._error_msg_stack[-1] if len(self._error_msg_stack) > 0 else None
 
     # === Internal Implementation ===
     def _emit(self, opcode: str, *args: Operand) -> None:
