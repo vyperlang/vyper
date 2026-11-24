@@ -9,6 +9,7 @@ from vyper.exceptions import (
     DuplicateImport,
     ImportCycle,
     ModuleNotFound,
+    NamespaceCollision,
     StructureException,
     TypeMismatch,
 )
@@ -330,6 +331,44 @@ import math as math2
     """
     with pytest.raises(DuplicateImport):
         compiler.compile_code(contract_source)
+
+
+import_collision_cases = [
+    # (contract source, hint suggested for the later import)
+    ("from a import math\nimport math", "import math as math_m"),
+    ("from a import foo\nfrom b import foo", "from b import foo as foo_m"),
+    ("import a.foo as foo\nfrom b import foo", "from b import foo as foo_m"),
+    ("from a import foo\nimport b.foo as foo", "import b.foo as foo_m"),
+]
+
+
+@pytest.mark.parametrize("contract_source,expected_hint", import_collision_cases)
+def test_import_alias_collision(make_input_bundle, contract_source, expected_hint):
+    input_bundle = make_input_bundle({"a/math.vy": "", "a/foo.vy": "", "b/foo.vy": ""})
+    with pytest.raises(NamespaceCollision) as e:
+        compiler.compile_code(contract_source, input_bundle=input_bundle)
+
+    assert e.value._message.endswith("is already imported as a module")
+    assert e.value.hint == f"use a different alias, e.g. `{expected_hint}`"
+    # both the earlier and the later import are annotated
+    assert e.value.prev_decl is not None
+    assert e.value.prev_decl.lineno == 1
+    assert e.value.annotations[0].lineno == 2
+    # internal reprs do not leak into the error
+    assert "ModuleInfo" not in str(e.value)
+
+
+def test_variable_collides_with_import():
+    contract_source = """
+import math
+
+math: uint256
+    """
+    with pytest.raises(NamespaceCollision) as e:
+        compiler.compile_code(contract_source)
+
+    assert "has already been declared as an imported module" in e.value._message
+    assert "ModuleInfo" not in str(e.value)
 
 
 def test_accept_builtin_and_relative_with_same_path_math(make_input_bundle):
