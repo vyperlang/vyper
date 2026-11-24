@@ -587,6 +587,13 @@ class Expr:
                     result_typ,
                 )
 
+        # Block complex types (mirrors legacy codegen), otherwise we would
+        # compare the pointers. See issue #2638 for context
+        if not (left_typ._is_prim_word and right_typ._is_prim_word):
+            raise TypeMismatch(
+                f"operation not yet supported for {left_typ}, {right_typ}, see issue #2638", node.op
+            )
+
         # Non-bytestring: get values directly
         left = Expr(node.left, self.ctx).lower_value()
         right = Expr(node.right, self.ctx).lower_value()
@@ -1176,9 +1183,7 @@ class Expr:
         # bytes/string: get pointer, hash the data portion
         # sha3 only works on memory - copy non-memory data first
         key_vv = Expr(key_node, self.ctx).lower()
-        key_typ = key_node._metadata["type"]
-        assert isinstance(key_typ, _BytestringT)
-        key_mem = self.ctx.ensure_bytestring_in_memory(key_vv, key_typ)
+        key_mem = self.ctx.ensure_bytestring_in_memory(key_vv)
         data_ptr_op = self.ctx.bytes_data_ptr(key_mem)
         length = self.ctx.bytestring_length(key_mem)
         return self.builder.sha3(data_ptr_op, length)
@@ -1209,10 +1214,7 @@ class Expr:
 
         # Not a constant - compute at runtime
         vv = Expr(node, self.ctx).lower()
-        assert isinstance(node, vy_ast.ExprNode)
-        typ = node._expr_info.typ
-        assert isinstance(typ, _BytestringT)
-        vv_mem = self.ctx.ensure_bytestring_in_memory(vv, typ)
+        vv_mem = self.ctx.ensure_bytestring_in_memory(vv)
         data_ptr_op = self.ctx.bytes_data_ptr(vv_mem)
         length = self.ctx.bytestring_length(vv_mem)
         return self.builder.sha3(data_ptr_op, length)
