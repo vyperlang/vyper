@@ -1,6 +1,7 @@
 from vyper.codegen import core
+from vyper.compiler import compile_code
 from vyper.compiler.phases import CompilerData
-from vyper.compiler.settings import OptimizationLevel, _is_debug_mode
+from vyper.compiler.settings import OptimizationLevel, Settings, _is_debug_mode
 
 
 def test_default_settings():
@@ -32,3 +33,20 @@ def test_codegen_opt_level(optimize):
 def test_debug_mode(pytestconfig):
     debug_mode = pytestconfig.getoption("enable_compiler_debug_mode")
     assert _is_debug_mode() == debug_mode
+
+
+def test_venom_compiler_data_without_global_settings(monkeypatch):
+    # `CompilerData` used on its own: no caller has anchored the settings
+    monkeypatch.setattr("vyper.compiler.settings._settings", None)
+
+    source_code = """
+@external
+def foo(x: uint256) -> uint256:
+    return x + 1
+    """
+    compiler_data = CompilerData(source_code, settings=Settings(experimental_codegen=True))
+    expected = compile_code(
+        source_code, output_formats=["bytecode"], settings=Settings(experimental_codegen=True)
+    )
+
+    assert "0x" + compiler_data.bytecode.hex() == expected["bytecode"]
