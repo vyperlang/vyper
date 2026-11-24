@@ -22,7 +22,6 @@ from vyper.codegen_legacy.core import (
     make_setter,
     pop_dyn_array,
     potential_overlap,
-    punnable,
     read_write_overlap,
     sar,
     shl,
@@ -31,6 +30,7 @@ from vyper.codegen_legacy.core import (
 )
 from vyper.codegen_legacy.ir_node import IRnode
 from vyper.codegen_legacy.keccak256_helper import keccak256_helper
+from vyper.codegen_shared.abi_utils import punnable
 from vyper.evm.address_space import MEMORY
 from vyper.evm.opcodes import version_check
 from vyper.exceptions import (

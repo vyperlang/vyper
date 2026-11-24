@@ -15,7 +15,7 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Callable, ClassVar, Optional, Sequence
 
-from vyper.codegen_legacy.core import punnable
+from vyper.codegen_shared.abi_utils import punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.bytestring_literal import LiteralPool, chain_instructions
 from vyper.codegen_venom.constants import POINTER_CELL_CAPACITY_OFFSET
