@@ -15,9 +15,6 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.subscriptable import SArrayT
 
-# In storage, dyn arrays use 1 slot for the length.
-# In memory, dyn arrays use 32 bytes (1 word) for the length.
-# (This constant is for storage; for memory, see context.py DYNAMIC_ARRAY_OVERHEAD_BYTES.)
 DYNAMIC_ARRAY_OVERHEAD = 1
 
 
