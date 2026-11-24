@@ -379,10 +379,13 @@ class VyperNode:
         return self.get_ancestor(Module)
 
     def get_id_dict(self):
+        # synthetic nodes (e.g. public getters) have no node_id of their own;
+        # point at the node they were generated from
+        node = self.get_original_node()
         source_id = None
-        if self.module_node is not None:
-            source_id = self.module_node.source_id
-        return {"node_id": self.node_id, "source_id": source_id}
+        if node.module_node is not None:
+            source_id = node.module_node.source_id
+        return {"node_id": node.node_id, "source_id": source_id}
 
     @property
     def is_literal_value(self):

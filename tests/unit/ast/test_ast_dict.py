@@ -2231,3 +2231,37 @@ def foo():
     for key in keys:
         assert lib1_ast[key] == lib1_import_ast[key]
         assert lib2_ast[key] == lib2_import_ast[key]
+
+
+def test_public_getter_type_decl_node(make_input_bundle):
+    # a public getter called through a module's interface: its function type's
+    # decl_node is the synthetic getter FunctionDef, which has no node_id
+    lib1 = """
+is_member: public(HashMap[address, bool])
+    """
+    main = """
+import lib1
+
+@external
+def foo(a: address, o: lib1.__interface__) -> bool:
+    return staticcall o.is_member(a)
+    """
+    input_bundle = make_input_bundle({"lib1.vy": lib1, "main.vy": main})
+    main_file = input_bundle.load_file("main.vy")
+    out = compiler.compile_from_file_input(
+        main_file, input_bundle=input_bundle, output_formats=["annotated_ast_dict"]
+    )
+    ast_dict = out["annotated_ast_dict"]
+
+    lib1_ast = ast_dict["imports"][0]
+    var_decl = lib1_ast["body"][0]
+    assert var_decl["ast_type"] == "VariableDecl"
+
+    call = ast_dict["ast"]["body"][1]["body"][0]["value"]["value"]
+    getter_type = call["func"]["type"]
+    assert getter_type["name"] == "is_member"
+    # the getter's type points at the `public()` declaration it was generated from
+    assert getter_type["type_decl_node"] == {
+        "node_id": var_decl["node_id"],
+        "source_id": lib1_ast["source_id"],
+    }
