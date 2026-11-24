@@ -105,6 +105,24 @@ def test() -> Bytes[10]:
     (
         """
 @external
+def test() -> Bytes[2]:
+    a: Bytes[2] = x"zz"  # even length, but not hex digits
+    return a
+    """,
+        SyntaxException,
+    ),
+    (
+        """
+@external
+def test() -> Bytes[4]:
+    a: Bytes[4] = x"0xabcd"  # 0x prefix inside a hex string
+    return a
+    """,
+        SyntaxException,
+    ),
+    (
+        """
+@external
 def foo():
     a: Bytes = b"abc"
     """,
