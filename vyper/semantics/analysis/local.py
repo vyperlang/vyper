@@ -1198,10 +1198,6 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
                         "inside aggregate types",
                         arg,
                     )
-            for kwarg in node.keywords:
-                # We should only see special kwargs
-                kwarg_typ = func_type.call_site_kwargs[kwarg.arg].typ
-                self.visit(kwarg.value, kwarg_typ)
 
             if func_type.is_external:
                 return_t = func_type.return_type
@@ -1230,6 +1226,15 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
                     assert return_t.is_subtype_of(func_type.return_type)
                 # TODO: Instead overwrite the normal type metadata ?
                 node._metadata["call_return_type"] = return_t
+
+            for kwarg in node.keywords:
+                # We should only see special kwargs
+                kwarg_typ = func_type.call_site_kwargs[kwarg.arg].typ
+                if kwarg.arg == "default_return_value":
+                    # the default stands in for the returned value, so it has
+                    # to fit the return type as resolved for this call site
+                    kwarg_typ = node._metadata["call_return_type"]
+                self.visit(kwarg.value, kwarg_typ)
 
         elif is_type_t(func_type, EventT):
             # event ctors
