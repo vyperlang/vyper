@@ -324,9 +324,6 @@ class VariableRangeAnalysis(IRAnalysis):
         if isinstance(lhs, IRVariable) and isinstance(rhs, IRLiteral):
             current = state.get(lhs, ValueRange.top())
             bound = wrap256(rhs.value, signed=signed)
-            if signed:
-                # signed bounds can only clamp a range in signed representation
-                self._write_range(state, lhs, current.as_signed())
             # For unsigned comparisons with ranges that could include negatives
             if not signed and (current.is_top or current.lo < 0):
                 # Check if this is a "safe" narrowing case
@@ -346,8 +343,6 @@ class VariableRangeAnalysis(IRAnalysis):
         elif isinstance(lhs, IRLiteral) and isinstance(rhs, IRVariable):
             current = state.get(rhs, ValueRange.top())
             bound = wrap256(lhs.value, signed=signed)
-            if signed:
-                self._write_range(state, rhs, current.as_signed())
             # Same logic but with left_side=False (bound on left of comparison)
             # lt: bound < var, so var > bound => gt semantics for var
             # gt: bound > var, so var < bound => lt semantics for var

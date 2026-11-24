@@ -2498,3 +2498,32 @@ def test_as_signed():
     assert ValueRange.iv(-5, SIGNED_MAX + 1).as_signed().is_top
     assert ValueRange.empty().as_signed().is_empty
     assert ValueRange.top().as_signed().is_top
+
+
+def test_signed_branch_preserves_unsigned_lower_bound():
+    analysis, fn = _analyze(f"""
+        function test {{
+        entry:
+            %a = calldataload 0
+            %x = mod %a, {SIGNED_MAX + 2}
+            %small = lt %x, 10
+            jnz %small, @exit, @check
+        check:
+            %positive = sgt %x, 0
+            jnz %positive, @pos, @exit
+        pos:
+            stop
+        exit:
+            stop
+        }}
+        """)
+    x = fn.entry.instructions[1].output
+    use = fn.get_basic_block("pos").instructions[0]
+    assert analysis.get_range(x, use) == ValueRange.iv(10, SIGNED_MAX)
+
+
+def test_intersect_preserves_contained_mixed_interval():
+    outer = ValueRange.iv(-2, SIGNED_MAX + 2)
+    inner = ValueRange.iv(-1, SIGNED_MAX + 1)
+    assert inner.intersect(inner) == inner
+    assert inner.intersect(outer) == outer.intersect(inner) == inner

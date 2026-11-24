@@ -183,6 +183,11 @@ class ValueRange:
         # one side holds negative words written as signed, the other as
         # unsigned: compare both in signed representation
         if (self.lo < 0 and other.hi > SIGNED_MAX) or (other.lo < 0 and self.hi > SIGNED_MAX):
+            # Containment is exact even when converting a range to signed would yield TOP.
+            if self.lo <= other.lo and other.hi <= self.hi:
+                return other
+            if other.lo <= self.lo and self.hi <= other.hi:
+                return self
             return self.as_signed().intersect(other.as_signed())
 
         lo = max(self.lo, other.lo)
@@ -191,15 +196,9 @@ class ValueRange:
 
     def clamp(self, lo: Optional[int] = None, hi: Optional[int] = None) -> ValueRange:
         """Clamp this range to the specified bounds."""
-        if self._kind == VRangeKind.TOP:
-            new_lo = SIGNED_MIN if lo is None else max(SIGNED_MIN, lo)
-            new_hi = UNSIGNED_MAX if hi is None else min(UNSIGNED_MAX, hi)
-        elif self._kind == VRangeKind.BOT:
-            return self
-        else:
-            new_lo = self.lo if lo is None else max(self.lo, lo)
-            new_hi = self.hi if hi is None else min(self.hi, hi)
-        return ValueRange.iv(new_lo, new_hi)
+        lo = SIGNED_MIN if lo is None else max(SIGNED_MIN, lo)
+        hi = UNSIGNED_MAX if hi is None else min(UNSIGNED_MAX, hi)
+        return self.intersect(ValueRange.iv(lo, hi))
 
     def __repr__(self) -> str:
         if self._kind == VRangeKind.TOP:
