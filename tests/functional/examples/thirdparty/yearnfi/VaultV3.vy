@@ -234,11 +234,11 @@ def __init__(asset: IERC20, name: String[64], symbol: String[32], role_manager: 
     @param profit_max_unlock_time
         The maximum amount of time that the profit can be locked for
     """
-    ASSET = asset
-    DECIMALS = convert(staticcall IERC20Detailed(asset.address).decimals(), uint256)
-    assert DECIMALS < 256 # dev: see VVE-2020-0001
+    self.ASSET = asset
+    self.DECIMALS = convert(staticcall IERC20Detailed(asset.address).decimals(), uint256)
+    assert self.DECIMALS < 256 # dev: see VVE-2020-0001
     
-    FACTORY = msg.sender
+    self.FACTORY = msg.sender
 
     # Must be > 0 so we can unlock shares
     assert profit_max_unlock_time > 0 # dev: profit unlock time too low
@@ -542,7 +542,7 @@ def _deposit(sender: address, recipient: address, assets: uint256) -> uint256:
 
     assert self._total_assets() + assets <= self.deposit_limit, "exceed deposit limit"
  
-    self.erc20_safe_transfer_from(ASSET.address, msg.sender, self, assets)
+    self.erc20_safe_transfer_from(self.ASSET.address, msg.sender, self, assets)
     self.total_idle += assets
    
     shares: uint256 = self._issue_shares_for_amount(assets, recipient)
@@ -608,7 +608,7 @@ def _redeem(sender: address, receiver: address, owner: address, shares_to_burn: 
         assets_to_withdraw: uint256 = 0
 
         # NOTE: to compare against real withdrawals from strategies
-        previous_balance: uint256 = staticcall ASSET.balanceOf(self)
+        previous_balance: uint256 = staticcall self.ASSET.balanceOf(self)
         for strategy: address in _strategies:
             assert self.strategies[strategy].activation != 0, "inactive strategy"
 
@@ -667,7 +667,7 @@ def _redeem(sender: address, receiver: address, owner: address, shares_to_burn: 
             
             # WITHDRAW FROM STRATEGY
             extcall IStrategy(strategy).withdraw(assets_to_withdraw, self, self)
-            post_balance: uint256 = staticcall ASSET.balanceOf(self)
+            post_balance: uint256 = staticcall self.ASSET.balanceOf(self)
             
             # If we have not received what we expected, we consider the difference a loss
             loss: uint256 = 0
@@ -711,7 +711,7 @@ def _redeem(sender: address, receiver: address, owner: address, shares_to_burn: 
     self._burn_shares(shares, owner)
     # commit memory to storage
     self.total_idle = curr_total_idle - requested_assets
-    self.erc20_safe_transfer(ASSET.address, receiver, requested_assets)
+    self.erc20_safe_transfer(self.ASSET.address, receiver, requested_assets)
 
     log Withdraw(
         sender=sender,
@@ -726,7 +726,7 @@ def _redeem(sender: address, receiver: address, owner: address, shares_to_burn: 
 @internal
 def _add_strategy(new_strategy: address):
     assert new_strategy not in [self, empty(address)], "strategy cannot be zero address"
-    assert staticcall IStrategy(new_strategy).asset() == ASSET.address, "invalid asset"
+    assert staticcall IStrategy(new_strategy).asset() == self.ASSET.address, "invalid asset"
     assert self.strategies[new_strategy].activation == 0, "strategy already active"
 
     self.strategies[new_strategy] = StrategyParams(
@@ -832,9 +832,9 @@ def _update_debt(strategy: address, target_debt: uint256) -> uint256:
         unrealised_losses_share: uint256 = self._assess_share_of_unrealised_losses(strategy, assets_to_withdraw)
         assert unrealised_losses_share == 0, "strategy has unrealised losses"
         
-        pre_balance: uint256 = staticcall ASSET.balanceOf(self)
+        pre_balance: uint256 = staticcall self.ASSET.balanceOf(self)
         extcall IStrategy(strategy).withdraw(assets_to_withdraw, self, self)
-        post_balance: uint256 = staticcall ASSET.balanceOf(self)
+        post_balance: uint256 = staticcall self.ASSET.balanceOf(self)
         
         # making sure we are changing according to the real result no matter what. This will spend more gas but makes it more robust
         # also prevents issues from faulty strategy that either under or over delievers 'assets_to_withdraw'
@@ -868,11 +868,11 @@ def _update_debt(strategy: address, target_debt: uint256) -> uint256:
             assets_to_deposit = available_idle
 
         if assets_to_deposit > 0:
-            self.erc20_safe_approve(ASSET.address, strategy, assets_to_deposit)
-            pre_balance: uint256 = staticcall ASSET.balanceOf(self)
+            self.erc20_safe_approve(self.ASSET.address, strategy, assets_to_deposit)
+            pre_balance: uint256 = staticcall self.ASSET.balanceOf(self)
             extcall IStrategy(strategy).deposit(assets_to_deposit, self)
-            post_balance: uint256 = staticcall ASSET.balanceOf(self)
-            self.erc20_safe_approve(ASSET.address, strategy, 0)
+            post_balance: uint256 = staticcall self.ASSET.balanceOf(self)
+            self.erc20_safe_approve(self.ASSET.address, strategy, 0)
 
             # making sure we are changing according to the real result no matter what. 
             # This will spend more gas but makes it more robust
@@ -903,7 +903,7 @@ def _assess_protocol_fees() -> (uint256, address):
         protocol_fee_bps: uint16 = 0
         protocol_fee_last_change: uint32 = 0
 
-        protocol_fee_bps, protocol_fee_last_change, protocol_fee_recipient = staticcall IFactory(FACTORY).protocol_fee_config()
+        protocol_fee_bps, protocol_fee_last_change, protocol_fee_recipient = staticcall IFactory(self.FACTORY).protocol_fee_config()
 
         if(protocol_fee_bps > 0):
             # NOTE: charge fees since last report OR last fee change (this will mean less fees are charged after a change in protocol_fees, but fees should not change frequently)
@@ -1192,7 +1192,7 @@ def pricePerShare() -> uint256:
     exact precision should use convertToAssets or convertToShares instead.
     @return The price per share.
     """
-    return self._convert_to_assets(10 ** DECIMALS, Rounding.ROUND_DOWN)
+    return self._convert_to_assets(10 ** self.DECIMALS, Rounding.ROUND_DOWN)
 
 
 @view
@@ -1229,8 +1229,8 @@ def sweep(token: address) -> (uint256):
     assert token != self, "can't sweep self"
     assert self.strategies[token].activation == 0, "can't sweep strategy"
     amount: uint256 = 0
-    if token == ASSET.address:
-        amount = staticcall ASSET.balanceOf(self) - self.total_idle
+    if token == self.ASSET.address:
+        amount = staticcall self.ASSET.balanceOf(self) - self.total_idle
     else:
         amount = staticcall IERC20(token).balanceOf(self)
     assert amount != 0, "no dust"
@@ -1472,7 +1472,7 @@ def asset() -> address:
     @notice Get the address of the asset.
     @return The address of the asset.
     """
-    return ASSET.address
+    return self.ASSET.address
 
 @view
 @external
@@ -1481,7 +1481,7 @@ def decimals() -> uint8:
     @notice Get the number of decimals of the asset/share.
     @return The number of decimals of the asset/share.
     """
-    return convert(DECIMALS, uint8)
+    return convert(self.DECIMALS, uint8)
 
 @view
 @external

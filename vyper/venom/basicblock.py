@@ -6,6 +6,7 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Iterator, Optional, Sequence, Union
 
 import vyper.venom.effects as effects
+from vyper.evm.opcodes import get_opcodes
 from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 
@@ -15,15 +16,36 @@ if TYPE_CHECKING:
 
 # instructions which can terminate a basic block
 BB_TERMINATORS = frozenset(
-    ["jmp", "djmp", "jnz", "ret", "return", "revert", "stop", "sink", "invalid", "selfdestruct"]
+    [
+        "jmp",
+        "djmp",
+        "jnz",
+        "ret",
+        "dret",
+        "retfmp",
+        "return",
+        "revert",
+        "stop",
+        "sink",
+        "invalid",
+        "selfdestruct",
+    ]
 )
 
 # Terminators that halt program/message call execution
 HALTING_TERMINATORS = frozenset(["return", "revert", "stop", "invalid", "selfdestruct"])
 
-VOLATILE_INSTRUCTIONS = frozenset(
+# internal-function return terminators (subset of BB_TERMINATORS)
+RET_INSTRUCTIONS = frozenset(["ret", "dret", "retfmp"])
+
+# entry stack-slot naming instructions. `fmp_param` names the hidden FMP
+# slot and `retpc_param` the return-PC slot of the lowered internal calling
+# convention; all three assemble identically (they are names for values
+# already on the stack at function entry).
+PARAM_INSTRUCTIONS = frozenset(["param", "fmp_param", "retpc_param"])
+
+VOLATILE_INSTRUCTIONS = PARAM_INSTRUCTIONS | frozenset(
     [
-        "param",
         "call",
         "staticcall",
         "delegatecall",
@@ -42,6 +64,9 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "dloadbytes",
         "return",
         "ret",
+        "dret",
+        "retfmp",
+        "setfmp",
         "sink",
         "jmp",
         "jnz",
@@ -53,6 +78,7 @@ VOLATILE_INSTRUCTIONS = frozenset(
         "assert",
         "assert_unreachable",
         "stop",
+        "dalloca",
     ]
 )
 
@@ -70,6 +96,9 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "extcodecopy",
         "return",
         "ret",
+        "dret",
+        "retfmp",
+        "setfmp",
         "sink",
         "revert",
         "assert",
@@ -82,6 +111,81 @@ NO_OUTPUT_INSTRUCTIONS = frozenset(
         "jnz",
         "log",
         "nop",
+    ]
+)
+
+ONE_TO_ONE_INSTRUCTIONS = frozenset(
+    [
+        "revert",
+        "coinbase",
+        "calldatasize",
+        "calldatacopy",
+        "mcopy",
+        "calldataload",
+        "gas",
+        "gasprice",
+        "gaslimit",
+        "chainid",
+        "address",
+        "origin",
+        "number",
+        "extcodesize",
+        "extcodehash",
+        "codecopy",
+        "extcodecopy",
+        "returndatasize",
+        "returndatacopy",
+        "callvalue",
+        "selfbalance",
+        "sload",
+        "sstore",
+        "mload",
+        "mstore",
+        "tload",
+        "tstore",
+        "timestamp",
+        "caller",
+        "blockhash",
+        "selfdestruct",
+        "signextend",
+        "stop",
+        "shr",
+        "shl",
+        "sar",
+        "and",
+        "xor",
+        "or",
+        "add",
+        "sub",
+        "mul",
+        "div",
+        "smul",
+        "sdiv",
+        "mod",
+        "smod",
+        "exp",
+        "addmod",
+        "mulmod",
+        "eq",
+        "iszero",
+        "not",
+        "lt",
+        "gt",
+        "slt",
+        "sgt",
+        "create",
+        "create2",
+        "balance",
+        "call",
+        "staticcall",
+        "delegatecall",
+        "codesize",
+        "basefee",
+        "blobhash",
+        "blobbasefee",
+        "prevrandao",
+        "difficulty",
+        "invalid",
     ]
 )
 
@@ -242,6 +346,7 @@ class IRInstruction:
     annotation: Optional[str]
     ast_source: Optional[VyperNode]
     error_msg: Optional[str]
+    memory_read_max_size: Optional[int]
 
     def __init__(
         self,
@@ -261,6 +366,9 @@ class IRInstruction:
 
         self.ast_source = None
         self.error_msg = None
+        # Optional frontend proof for dynamic memory reads. This is metadata,
+        # not an IR operand, so it cannot affect emitted code.
+        self.memory_read_max_size = None
 
     @property
     def is_volatile(self) -> bool:
@@ -288,7 +396,11 @@ class IRInstruction:
 
     @property
     def is_param(self) -> bool:
-        return self.opcode == "param"
+        return self.opcode in PARAM_INSTRUCTIONS
+
+    @property
+    def is_evm_inst(self) -> bool:
+        return self.opcode in ONE_TO_ONE_INSTRUCTIONS
 
     @property
     def is_pseudo(self) -> bool:
@@ -364,6 +476,7 @@ class IRInstruction:
         self.opcode = "nop"
         self._outputs = []
         self.operands = []
+        self.memory_read_max_size = None
 
     def flip(self):
         """
@@ -422,13 +535,92 @@ class IRInstruction:
 
     @property
     def code_size_cost(self) -> int:
-        if self.opcode in ("ret", "param"):
+        if self.opcode in RET_INSTRUCTIONS or self.is_param:
             return 0
-        if self.opcode in ("assign", "alloca"):
+        if self.opcode in ("assign", "alloca", "getfmp", "setfmp"):
+            # getfmp/setfmp lower to assigns of the threaded FMP variable
             return 1
-        if self.opcode == "memtop":
-            return 1  # lowers to single MSIZE byte
+        if self.opcode == "initial_fmp":
+            # Pure value: repeated initial_fmp instructions with the same
+            # bound intentionally may CSE together. Lowers to
+            # PUSH {initial_fmp_value}; typical values fit in PUSH1 (2 bytes)
+            # but may grow for large static frames.
+            return 2
+        if self.opcode == "dalloca":
+            # `dalloca` is high-level sugar and is eliminated by FmpLoweringPass
+            # before assembly emission. The lowered generic form is:
+            #   PUSH1 31 + ADD, PUSH1 31 + NOT, AND, DUP2 + ADD
+            return 10
+        if self.opcode == "bump":
+            return 2  # DUP2 ADD
         return 2
+
+    @property
+    def gas_cost(self) -> int:
+        """Approximate local gas cost, not a bound on execution gas.
+
+        Uses the active fork's opcode costs and estimates pseudo-instructions
+        from their lowering. Excludes general operand preparation, stack
+        scheduling, dynamic charges (including memory expansion), and callee
+        execution. Branch costs are before fallthrough optimization; assertions
+        count only their successful path.
+        """
+        opcode = self.opcode
+        opcodes = get_opcodes()
+
+        def gas(opcode: str) -> int:
+            return opcodes[opcode.upper()][3]
+
+        if self.is_evm_inst:
+            # Signed and unsigned multiplication use the same EVM instruction.
+            return gas("mul" if opcode == "smul" else opcode)
+        elif opcode in ("alloca", "initial_fmp", "assign", "offset"):
+            # Model a materialized value as one PUSH (or DUP for an assign).
+            return gas("push1")
+        elif opcode == "bump":
+            return gas("dup2") + gas("add")
+        elif opcode == "dalloca":
+            # ceil32(size), followed by bump: PUSH1 31 ADD PUSH1 31 NOT AND DUP2 ADD.
+            return 2 * gas("push1") + 2 * gas("add") + gas("not") + gas("and") + gas("dup2")
+        elif opcode == "dret":
+            # Only the return jump; packing/copying depends on the dynamic payload.
+            return gas("jump")
+        elif opcode in ("getfmp", "setfmp") or self.is_param:
+            return 0
+        elif opcode in ("dbname", "phi", "nop"):
+            return 0
+        elif opcode == "jnz":
+            # Include the false-path jump (the more expensive local path).
+            return 2 * gas("push1") + gas("jumpi") + gas("jump")
+        elif opcode == "jmp":
+            return gas("push1") + gas("jump")
+        elif opcode == "invoke":
+            # Push return PC and callee address; include the return JUMPDEST.
+            return 2 * gas("push1") + gas("jump") + gas("jumpdest")
+        elif opcode in ("djmp", "ret", "retfmp"):
+            return gas("jump")
+        elif opcode in ("return", "sha3"):
+            return gas(opcode)
+        elif opcode == "assert":
+            return gas("iszero") + gas("push1") + gas("jumpi")
+        elif opcode == "assert_unreachable":
+            return gas("push1") + gas("jumpi") + gas("jumpdest")
+        elif opcode == "log":
+            topic_count = self.operands[0]
+            assert isinstance(topic_count, IRLiteral) and 0 <= topic_count.value <= 4
+            return gas(f"log{topic_count.value}")
+        elif opcode == "iload":
+            return gas("mload")
+        elif opcode == "istore":
+            return gas("swap1") + gas("mstore")
+        elif opcode == "dload":
+            return gas("add") + gas("codecopy") + gas("mload")
+        elif opcode == "dloadbytes":
+            return gas("add") + gas("codecopy")
+        elif opcode in TEST_INSTRUCTIONS:  # pragma: nocover
+            return 0
+        else:
+            raise CompilerPanic(f"Unknown opcode: {opcode}")
 
     def get_ast_source(self) -> Optional[VyperNode]:
         if self.ast_source:
@@ -444,6 +636,7 @@ class IRInstruction:
         ret.annotation = self.annotation
         ret.ast_source = self.ast_source
         ret.error_msg = self.error_msg
+        ret.memory_read_max_size = self.memory_read_max_size
         ret.parent = self.parent
         return ret
 
@@ -455,7 +648,7 @@ class IRInstruction:
         opcode = f"{self.opcode} " if self.opcode != "assign" else ""
         s += opcode
         operands = self.operands
-        if opcode not in ["jmp", "jnz", "djmp", "invoke"]:
+        if self.opcode not in ("jmp", "jnz", "djmp", "phi", "dret", "retfmp"):
             operands = list(reversed(operands))
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
         return s
@@ -470,7 +663,7 @@ class IRInstruction:
         operands = self.operands
         if self.opcode == "invoke":
             operands = [operands[0]] + list(reversed(operands[1:]))
-        elif self.opcode not in ("jmp", "jnz", "djmp", "phi"):
+        elif self.opcode not in ("jmp", "jnz", "djmp", "phi", "dret", "retfmp"):
             operands = reversed(operands)  # type: ignore
         s += ", ".join([(f"@{op}" if isinstance(op, IRLabel) else str(op)) for op in operands])
 
@@ -651,7 +844,7 @@ class IRBasicBlock:
             assert inst.parent == self  # sanity check
 
         def key(inst):
-            if inst.opcode in ("phi", "param"):
+            if inst.opcode == "phi" or inst.is_param:
                 return 0
             if inst.is_bb_terminator:
                 return 2
@@ -674,7 +867,7 @@ class IRBasicBlock:
     @property
     def param_instructions(self) -> Iterator[IRInstruction]:
         for inst in self.instructions:
-            if inst.opcode == "param":
+            if inst.is_param:
                 yield inst
             else:
                 return
@@ -744,13 +937,6 @@ class IRBasicBlock:
         if len(self.instructions) == 0:
             return False
         return self.instructions[-1].opcode in HALTING_TERMINATORS
-
-    def copy(self) -> IRBasicBlock:
-        bb = IRBasicBlock(self.label, self.parent)
-        bb.instructions = [inst.copy() for inst in self.instructions]
-        for inst in bb.instructions:
-            inst.parent = bb
-        return bb
 
     def __repr__(self) -> str:
         printer = ir_printer.get()

@@ -1,10 +1,12 @@
 import pytest
 
 from vyper import compile_code
+from vyper.compiler.settings import Settings
 from vyper.exceptions import (
     ArgumentException,
     InvalidType,
     StateAccessViolation,
+    StructureException,
     SyntaxException,
     TypeMismatch,
 )
@@ -118,6 +120,23 @@ def foo(a: address):
     """,
         StateAccessViolation,
     ),
+    # only max_outsize accepts INF
+    (
+        """
+@external
+def foo(_addr: address):
+    raw_call(_addr, method_id("foo()"), gas=INF)
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
+@external
+def foo(_addr: address):
+    raw_call(_addr, method_id("foo()"), value=INF)
+    """,
+        TypeMismatch,
+    ),
 ]
 
 
@@ -195,3 +214,67 @@ def foo():
 @pytest.mark.parametrize("good_code", valid_list)
 def test_raw_call_success(good_code):
     assert compile_code(good_code) is not None
+
+
+unbounded_outsize_list = [
+    """
+@external
+def foo(target: address) -> Bytes[INF]:
+    x: Bytes[INF] = raw_call(target, b"", max_outsize=INF)
+    return x
+    """,
+    """
+@external
+def foo(target: address) -> uint256:
+    return len(raw_call(target, b"", max_outsize=INF))
+    """,
+    """
+@external
+def foo(target: address) -> bytes32:
+    return keccak256(raw_call(target, b"", max_outsize=INF))
+    """,
+    """
+@external
+def foo(target: address) -> bool:
+    return raw_call(target, b"", max_outsize=INF, revert_on_failure=False)[0]
+    """,
+]
+
+
+@pytest.mark.parametrize("code", unbounded_outsize_list)
+def test_raw_call_unbounded_outsize_requires_experimental_codegen(code, experimental_codegen):
+    if not experimental_codegen:
+        with pytest.raises(StructureException) as e:
+            compile_code(code)
+        assert e.value.message == "unbounded sequence types require --experimental-codegen"
+    else:
+        assert compile_code(code) is not None
+
+
+narrowing_list = [
+    (
+        """
+@external
+def foo(_addr: address):
+    x: Bytes[100] = raw_call(_addr, method_id("foo()"), max_outsize=INF)
+    """,
+        "Given reference has type Bytes[INF], expected Bytes[100]",
+    ),
+    (
+        """
+@external
+def foo(_addr: address):
+    ok: bool = False
+    x: Bytes[100] = b""
+    ok, x = raw_call(_addr, method_id("foo()"), max_outsize=INF, revert_on_failure=False)
+    """,
+        "Given reference has type (bool, Bytes[INF]), expected (bool, Bytes[100])",
+    ),
+]
+
+
+@pytest.mark.parametrize("code,message", narrowing_list)
+def test_raw_call_unbounded_outsize_rejects_bounded_target(code, message):
+    with pytest.raises(TypeMismatch) as e:
+        compile_code(code, settings=Settings(experimental_codegen=True))
+    assert e.value.message == message

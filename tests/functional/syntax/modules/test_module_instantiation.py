@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import InstantiationException, StructureException
+from vyper.exceptions import ImmutableViolation, InstantiationException, StructureException
 
 fail_list = [
     (
@@ -44,3 +44,26 @@ foo: uint256
 
     with pytest.raises(exc, match=match_regex):
         compile_code(bad_code, input_bundle=input_bundle)
+
+
+def test_assign_to_module(make_input_bundle):
+    # a module is not a reference, so it cannot be the target of an assignment
+    lib1 = """
+foo: uint256
+    """
+    code = """
+import lib1
+
+uses: lib1
+
+@external
+def f():
+    lib1 = 1
+    """
+
+    input_bundle = make_input_bundle({"lib1.vy": lib1})
+
+    with pytest.raises(ImmutableViolation) as e:
+        compile_code(code, input_bundle=input_bundle)
+
+    assert e.value.message == "Read-only expression cannot be mutated."

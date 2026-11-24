@@ -40,9 +40,9 @@ from vyper.semantics.types import (
     FlagT,
     IntegerT,
     StringT,
+    _BytestringT,
+    is_bounded_length,
 )
-from vyper.semantics.types.bytestrings import _BytestringT
-from vyper.semantics.types.infinity import is_bounded_length
 from vyper.semantics.types.shortcuts import INT256_T, UINT160_T, UINT256_T
 from vyper.utils import DECIMAL_DIVISOR, round_towards_zero, unsigned_to_signed
 
@@ -86,17 +86,26 @@ def _bytes_to_num(arg, out_typ, signed):
         if not is_bounded_length(arg.typ.maxlen):
             raise CodegenPanic("convert: unbounded bytestring type")
         _len = get_bytearray_length(arg)
-        arg = LOAD(bytes_data_ptr(arg))
-        num_zero_bits = ["mul", 8, ["sub", 32, _len]]
+        data = LOAD(bytes_data_ptr(arg))
+        if signed:
+            with _len.cache_when_complex("len") as (b1, _len):
+                num_zero_bits = ["mul", 8, ["sub", 32, _len]]
+                # when len is 0, the data word may hold stale bytes (e.g.
+                # a storage bytestring which was emptied), and sar by 256
+                # propagates its sign bit. mask it so the result is 0.
+                data = ["mul", data, ["iszero", ["iszero", _len]]]
+                ret = b1.resolve(sar(num_zero_bits, data))
+        else:
+            num_zero_bits = ["mul", 8, ["sub", 32, _len]]
+            ret = shr(num_zero_bits, data)
     elif is_bytes_m_type(arg.typ):
         num_zero_bits = 8 * (32 - arg.typ.m)
+        if signed:
+            ret = sar(num_zero_bits, arg)
+        else:
+            ret = shr(num_zero_bits, arg)
     else:  # pragma: nocover
         raise CompilerPanic("unreachable")
-
-    if signed:
-        ret = sar(num_zero_bits, arg)
-    else:
-        ret = shr(num_zero_bits, arg)
 
     annotation = (f"__intrinsic__byte_array_to_num({out_typ})",)
     return IRnode.from_list(ret, annotation=annotation)
@@ -368,7 +377,7 @@ def to_decimal(expr, arg, out_typ):
         raise CompilerPanic("unreachable")
 
 
-@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BytesT, BoolT)
+@_input_types(IntegerT, DecimalT, BytesM_T, AddressT, BytesT, BoolT, FlagT)
 def to_bytes_m(expr, arg, out_typ):
     _check_bytes(expr, arg, out_typ, max_bytes_allowed=out_typ.m)
 
@@ -408,6 +417,16 @@ def to_bytes_m(expr, arg, out_typ):
 
         # note: neg numbers not OOB. keep sign bit
         arg = shl(256 - out_typ.m_bits, arg)
+
+    elif is_flag_type(arg.typ):
+        if out_typ.m_bits != 256:
+            _FAIL(arg.typ, out_typ, expr)
+
+        # leave `arg` as-is, equivalent to the way we treat uin256:
+        # arg = shl(256 - out_typ.m_bits, arg)
+        # => arg = shl(256 - 256, arg)
+        # => arg = shl(0, arg)
+        # => arg = arg
 
     else:
         # bool

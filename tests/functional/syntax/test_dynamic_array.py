@@ -1,7 +1,17 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import CodegenPanic, StructureException, TypeMismatch, UndeclaredDefinition
+from vyper.compiler.settings import Settings
+from vyper.exceptions import (
+    ArrayIndexException,
+    CompilerPanic,
+    ImmutableViolation,
+    InvalidOperation,
+    MemoryAllocationException,
+    StructureException,
+    TypeMismatch,
+    UndeclaredDefinition,
+)
 
 fail_list = [
     (
@@ -64,6 +74,31 @@ def foo(x: DynArray[uint256, INF]) -> DynArray[uint256, 5]:
     """,
         TypeMismatch,
     ),
+    (
+        """
+@external
+def foo():
+    [].append(1)
+    """,
+        TypeMismatch,
+    ),
+    (
+        """
+@external
+def foo():
+    x: uint256 = [].pop()
+    """,
+        # this branch rejects mutating a temporary instead of panicking
+        ImmutableViolation,
+    ),
+    (
+        """
+@external
+def foo() -> uint256:
+    return [][0]
+    """,
+        ArrayIndexException,
+    ),
 ]
 
 
@@ -71,6 +106,30 @@ def foo(x: DynArray[uint256, INF]) -> DynArray[uint256, 5]:
 def test_block_fail(bad_code, exc):
     with pytest.raises(exc):
         compile_code(bad_code)
+
+
+@pytest.mark.parametrize("op,always", [("in", "False"), ("not in", "True")])
+def test_membership_in_empty_list(op, always):
+    code = f"""
+@external
+def foo():
+    x: bool = 1 {op} []
+    """
+    with pytest.raises(InvalidOperation) as excinfo:
+        compile_code(code)
+    assert excinfo.value.message == "Cannot perform membership comparison against an empty list"
+    assert excinfo.value.hint == f"the result is always `{always}`"
+
+
+def test_dynarray_negative_length():
+    code = """
+@external
+def foo():
+    x: DynArray[uint256, -1] = []
+    """
+    with pytest.raises(ArrayIndexException) as excinfo:
+        compile_code(code)
+    assert excinfo.value.message == "Subscript must be at least 0"
 
 
 valid_list = [
@@ -81,6 +140,15 @@ flag Foo:
 
 bar: DynArray[Foo, 10]
     """,  # dynamic arrays of flags are allowed, but not static arrays
+    """
+flag Foo:
+    FE
+    FI
+
+@external
+def bar():
+    d: DynArray[Foo, 10] = []
+    """,  # empty arrays can be assigned to dynamic arrays of flags
     """
 bar: DynArray[Bytes[30], 10]
     """,  # dynamic arrays of bytestrings are allowed, but not static arrays
@@ -112,6 +180,35 @@ interface IFoo:
 interface IFoo:
     def bar() -> DynArray[uint256, ...]: nonpayable
     """,  # DynArray with wildcard in interface return type
+    """
+interface IFoo:
+    def bar() -> DynArray[Bytes[10], ...]: nonpayable
+    """,  # DynArray with wildcard in interface return type can have dynamic elements
+    """
+@external
+def foo():
+    tmp: DynArray[Bytes[3], 1] = [[b"abc"], []][0]
+    """,
+    """
+@external
+def foo():
+    tmp: DynArray[Bytes[3], 1] = [[], [b"abc"]][1]
+    """,
+    """
+@external
+def foo():
+    x: uint256 = len([])
+    """,
+    """
+@external
+def foo():
+    x: DynArray[uint256, 0] = []
+    """,
+    """
+@external
+def foo():
+    x: DynArray[uint256, 4] = []
+    """,
 ]
 
 
@@ -120,73 +217,271 @@ def test_dynarray_pass(good_code):
     assert compile_code(good_code) is not None
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_dynarray_inf_param():
+def test_len_of_singleton_list_literal(request, experimental_codegen):
+    if not experimental_codegen:
+        request.node.add_marker(pytest.mark.xfail(raises=CompilerPanic))
+    code = """
+@external
+def foo():
+    x: uint256 = len([1])
+    """
+    compile_code(code)
+
+
+def test_dynarray_inf_param(compile_inf_code):
     code = """
 @external
 def foo(x: DynArray[uint256, INF]):
     pass
     """
-    compile_code(code)
+    compile_inf_code(code)
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_dynarray_inf_state_var():
-    code = """
-a: DynArray[uint256, INF]
-
-@external
-def foo() -> DynArray[uint256, INF]:
-    return self.a
-    """
-    compile_code(code)
-
-
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_dynarray_inf_local_var():
+def test_dynarray_inf_local_var(compile_inf_code):
     code = """
 @external
 def foo():
     a: DynArray[uint256, INF] = []
     b: DynArray[uint256, INF] = [1, 2, 3, 4, 5, max_value(uint256)]
     """
-    compile_code(code)
+    compile_inf_code(code)
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_dynarray_inf_nested():
-    code = """
-a: DynArray[DynArray[uint256, 5], INF]
-b: DynArray[DynArray[uint256, INF], 5]
-
+@pytest.mark.parametrize(
+    "typ",
+    [
+        "DynArray[DynArray[uint256, INF], 5]",
+        "DynArray[Bytes[INF], 5]",
+        "DynArray[Bytes[INF], INF]",
+        "DynArray[DynArray[uint256, INF], INF]",
+        "DynArray[DynArray[Bytes[INF], INF], INF]",
+    ],
+)
+def test_dynarray_inf_elements(compile_inf_code, typ):
+    code = f"""
 @external
-def foo(other_a: DynArray[DynArray[uint256, 5], INF]) -> DynArray[DynArray[uint256, 5], INF]:
-    return self.a
-
-@external
-def bar(other_b: DynArray[DynArray[uint256, INF], 5]) -> DynArray[DynArray[uint256, INF], 5]:
-    return self.b
+def foo(a: {typ}):
+    pass
     """
-    compile_code(code)
+    compile_inf_code(code)
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_dynarray_inf_append():
+# an INF array's element may take at most 2**64 - 1 bytes in memory and in
+# the ABI, the limit static memory allocations have
+@pytest.mark.parametrize(
+    ("typ", "structs"),
+    [
+        # memory size 2**64 - 32
+        ("DynArray[DynArray[uint256, 2**59 - 2], INF]", ""),
+        ("DynArray[uint256[2**59 - 1], INF]", ""),
+        ("DynArray[S, INF]", "struct S:\n    a: Bytes[INF]\n    b: DynArray[uint256, 2**59 - 4]"),
+    ],
+)
+def test_dynarray_inf_element_size_below_limit(compile_inf_code, typ, structs):
+    code = f"""
+{structs}
+
+@external
+def foo(xs: {typ}) -> uint256:
+    return len(xs)
+    """
+    compile_inf_code(code)
+
+
+@pytest.mark.parametrize(
+    ("typ", "structs"),
+    [
+        # memory size close to 2**256
+        ("DynArray[DynArray[uint256, 2**251 - 3], INF]", ""),
+        # memory size 2**64
+        ("DynArray[DynArray[uint256, 2**59 - 1], INF]", ""),
+        ("DynArray[uint256[2**59], INF]", ""),
+        ("DynArray[S, INF]", "struct S:\n    a: Bytes[INF]\n    b: DynArray[uint256, 2**59 - 3]"),
+        # memory size 2**64 - 32, ABI size bound 1.5 * 2**64 - 64
+        ("DynArray[DynArray[Bytes[1], 2**58 - 1], INF]", ""),
+        # nested in an INF element
+        ("DynArray[DynArray[DynArray[uint256, 2**59 - 1], INF], INF]", ""),
+    ],
+)
+def test_dynarray_inf_element_size_limit(typ, structs):
+    code = f"""
+{structs}
+
+@external
+def foo(xs: {typ}) -> uint256:
+    return len(xs)
+    """
+    with pytest.raises(MemoryAllocationException) as e:
+        compile_code(code, settings=Settings(experimental_codegen=True))
+    assert "Element type of DynArray[..., INF]" in e.value.message
+
+
+def test_dynarray_inf_element_size_limit_wildcard():
+    # the wildcard resolves to INF where the call has no expected bound
+    code = """
+interface I:
+    def foo() -> DynArray[DynArray[uint256, 2**59 - 1], ...]: view
+
+@external
+def f(a: address) -> uint256:
+    return len(staticcall I(a).foo())
+    """
+    with pytest.raises(MemoryAllocationException) as e:
+        compile_code(code, settings=Settings(experimental_codegen=True))
+    assert "Element type of DynArray[..., INF]" in e.value.message
+
+
+def test_dynarray_inf_append(compile_inf_code):
     code = """
 @external
 def foo():
     a: DynArray[uint256, INF] = []
     a.append(1)
     """
-    compile_code(code)
+    compile_inf_code(code)
 
 
-@pytest.mark.xfail(raises=CodegenPanic, reason="unbounded sequence types not yet fully supported")
-def test_dynarray_inf_assign_bounded_to_unbounded():
+def test_dynarray_mutating_temporary_rejected():
+    for code in (
+        """
+@external
+def foo():
+    empty(DynArray[uint256, 5]).append(1)
+        """,
+        """
+@internal
+def _xs() -> DynArray[uint256, INF]:
+    return [1, 2]
+
+@external
+def foo():
+    self._xs().append(3)
+        """,
+        """
+@external
+def foo() -> uint256:
+    return empty(DynArray[uint256, INF]).pop()
+        """,
+    ):
+        with pytest.raises(ImmutableViolation) as e:
+            compile_code(code)
+        assert e.value.message == "Read-only expression cannot be mutated."
+
+
+def test_dynarray_inf_assign_bounded_to_unbounded(compile_inf_code):
     code = """
 @external
 def foo():
     a: DynArray[uint256, 5] = [1, 2, 3]
     b: DynArray[uint256, INF] = a
     """
-    compile_code(code)
+    compile_inf_code(code)
+
+
+zero_length_for_loop_list = [
+    """
+@external
+def foo(x: DynArray[uint256, 0]):
+    for y: uint256 in x:
+        pass
+    """,
+    """
+@external
+def foo():
+    x: DynArray[uint256, 0] = []
+    for y: uint256 in x:
+        pass
+    """,
+    """
+@external
+def foo():
+    for y: uint256 in []:
+        pass
+    """,
+    """
+@external
+def foo():
+    for y: Bytes[INF] in []:
+        pass
+    """,
+]
+
+
+@pytest.mark.parametrize("bad_code", zero_length_for_loop_list)
+def test_zero_length_dynarray_for_loop_rejected(bad_code):
+    with pytest.raises(StructureException) as e:
+        compile_code(bad_code)
+    assert e.value.message == "For loop must have at least 1 iteration"
+
+
+unbounded_list_literal_loops = [
+    ("a: Bytes[INF], b: Bytes[INF]", "Bytes[INF]"),
+    ("a: String[INF], b: String[INF]", "String[INF]"),
+    ("a: DynArray[uint256, INF], b: DynArray[uint256, INF]", "DynArray[uint256, INF]"),
+    # bounded items widened to an unbounded loop variable
+    ("a: Bytes[10], b: Bytes[10]", "Bytes[INF]"),
+]
+
+
+@pytest.mark.parametrize("args,typ", unbounded_list_literal_loops)
+def test_list_literal_of_unbounded_items_can_be_iterated(compile_inf_code, args, typ):
+    code = f"""
+@external
+def foo({args}):
+    for x: {typ} in [a, b]:
+        pass
+    """
+    # the annotated ast alone skips the compilation target checks, which is
+    # where legacy codegen rejects the unbounded types
+    out = compile_inf_code(code, output_formats=["annotated_ast_dict", "bytecode"])
+    if out is None:
+        return
+    # the literal is typed as a DynArray of the loop variable's type
+    (loop,) = out["annotated_ast_dict"]["ast"]["body"][0]["body"]
+    iter_type = loop["iter"]["type"]
+    assert iter_type["name"] == "DynArray"
+    assert iter_type["length"] == 2
+    assert iter_type["value_type"] == loop["target"]["target"]["type"]
+
+
+tuple_loop_variables_with_unbounded_members = [
+    ("Bytes[INF]", "(Bytes[INF], uint256)", "[(a, i), (b, j)]"),
+    ("String[INF]", "(String[INF], uint256)", "[(a, i), (b, j)]"),
+    ("DynArray[uint256, INF]", "(DynArray[uint256, INF], uint256)", "[(a, i), (b, j)]"),
+    ("Bytes[INF]", "((Bytes[INF], uint256), uint256)", "[((a, i), j), ((b, j), i)]"),
+    # same rule as for locals: a tuple cannot hold a struct with unbounded members
+    ("Batch", "(Batch, uint256)", "[(a, i), (b, j)]"),
+]
+
+
+@pytest.mark.parametrize("item_typ,loop_typ,items", tuple_loop_variables_with_unbounded_members)
+def test_tuple_loop_variable_with_unbounded_members_rejected(item_typ, loop_typ, items):
+    code = f"""
+struct Batch:
+    xs: DynArray[uint256, INF]
+
+@external
+def foo(a: {item_typ}, b: {item_typ}, i: uint256, j: uint256):
+    for x: {loop_typ} in {items}:
+        pass
+    """
+    with pytest.raises(StructureException) as e:
+        compile_code(code)
+    msg = "Loop variables cannot contain unbounded sequence types inside aggregate types"
+    assert e.value.message == msg
+
+
+def test_list_literal_of_structs_with_unbounded_members_can_be_iterated(compile_inf_code):
+    # a struct with unbounded members has a fixed size, so a list of them has a layout
+    code = """
+struct Batch:
+    values: DynArray[uint256, INF]
+
+@external
+def foo(a: Batch, b: Batch) -> uint256:
+    n: uint256 = 0
+    for x: Batch in [a, b]:
+        n += len(x.values)
+    return n
+    """
+    compile_inf_code(code)

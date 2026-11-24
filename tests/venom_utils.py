@@ -4,6 +4,7 @@ from vyper.venom.context import IRContext
 from vyper.venom.function import IRFunction
 from vyper.venom.optimization_levels.types import PassConfig
 from vyper.venom.parser import parse_venom
+from vyper.venom.passes import MakeSSA, PhiEliminationPass
 from vyper.venom.passes.base_pass import IRPass
 
 
@@ -13,6 +14,41 @@ def parse_from_basic_block(source: str, funcname="_global"):
     """
     source = f"function {funcname} {{\n{source}\n}}"
     return parse_venom(source)
+
+
+def find_inst(fn: IRFunction, opcode: str) -> IRInstruction:
+    """
+    Return the first instruction in `fn` with the given opcode.
+    """
+    return next(
+        inst for bb in fn.get_basic_blocks() for inst in bb.instructions if inst.opcode == opcode
+    )
+
+
+def stack_spilling_inf_source() -> str:
+    """
+    Vyper source in which 16 arguments to an internal function spill the
+    stack to memory at O1 while the dynamic `data` is live across the call.
+    """
+    params = ", ".join(f"a{i}: uint256" for i in range(16))
+    args = ", ".join(f"a{i}" for i in range(16))
+    total = " + ".join(f"a{i}" for i in range(16))
+    return f"""
+@internal
+def sum_words({params}) -> uint256:
+    return {total}
+
+@external
+def foo(data: Bytes[INF], {params}) -> (uint256, Bytes[INF]):
+    s: uint256 = self.sum_words({args})
+    return s, data
+    """
+
+
+def run_ssa(fn: IRFunction) -> None:
+    ac = IRAnalysesCache(fn)
+    MakeSSA(ac, fn).run_pass()
+    PhiEliminationPass(ac, fn).run_pass()
 
 
 def instructions_eq(i1: IRInstruction, i2: IRInstruction) -> bool:
@@ -35,6 +71,8 @@ def assert_bb_eq(bb1: IRBasicBlock, bb2: IRBasicBlock):
 
 def assert_fn_eq(fn1: IRFunction, fn2: IRFunction):
     assert fn1.name.value == fn2.name.value
+    assert fn1._fmp_signature == fn2._fmp_signature
+    assert fn1.noinline == fn2.noinline
     assert len(fn1._basic_block_dict) == len(fn2._basic_block_dict)
 
     for name1, bb1 in fn1._basic_block_dict.items():

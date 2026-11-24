@@ -13,7 +13,6 @@ any errors.
 
     The easiest way to experiment with the language is to use an online compiler:
 
-    - `Try Vyper! <https://try.vyperlang.org>`_: maintained by the Vyper team, requires GitHub login
     - `Remix <https://remix.ethereum.org>`_: maintained by the Ethereum Foundation, activate the vyper-remix plugin in the Plugin manager
 
 

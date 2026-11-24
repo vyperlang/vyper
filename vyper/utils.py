@@ -184,7 +184,7 @@ class StringEnum(enum.Enum):
         if not isinstance(other, self.__class__):
             raise CompilerPanic(f"bad comparison: ({type(other)}, {type(self)})")
         options = self.__class__.options()
-        return options.index(self) < options.index(other)  # type: ignore
+        return options.index(self) < options.index(other)
 
     def __le__(self, other: object) -> bool:
         return self.__eq__(other) or self.__lt__(other)
@@ -219,7 +219,15 @@ class DecimalContextOverride(decimal.Context):
         super().__setattr__(name, value)
 
 
+# set the context for the thread which imports vyper
 decimal.setcontext(DecimalContextOverride(prec=78))
+
+# contexts are thread-local; a thread which has not called setcontext()
+# gets a context copied from the original `DefaultContext` template on
+# first use. Mutate that template in place instead of rebinding
+# `decimal.DefaultContext`, which the C decimal module does not use for
+# seeding new thread contexts.
+decimal.DefaultContext.prec = 78
 
 
 def keccak256(x):
@@ -426,6 +434,11 @@ class MemoryPositions:
     RESERVED_MEMORY = 64
 
 
+# An INF local or struct member holds a payload pointer and capacity.
+# Shared by type sizing and Venom codegen.
+POINTER_CELL_SIZE = 64
+
+
 # Sizes of different data types. Used to clamp types.
 class SizeLimits:
     MAX_INT128 = 2**127 - 1
@@ -459,7 +472,6 @@ VALID_IR_MACROS = {
     "dloadbytes",
     "ceil32",
     "continue",
-    "debugger",
     "ge",
     "if",
     "select",
@@ -494,6 +506,12 @@ assert EIP_3860_LIMIT == 49152  # directly from the EIP
 
 SHA3_BASE = 30
 SHA3_PER_WORD = 6
+
+# 0x04: identity precompile. Lives here rather than codegen_venom/constants.py
+# because FmpLoweringPass (vyper.venom) also needs it, and vyper.venom does
+# not import from vyper.codegen_venom. (ECRECOVER/SHA256 stayed behind since
+# only codegen uses them.)
+IDENTITY_PRECOMPILE = 0x04
 
 
 def indent(text: str, indent_chars: Union[str, List[str]] = " ", level: int = 1) -> str:

@@ -10,8 +10,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from vyper import ast as vy_ast
-from vyper.semantics.types import BytesM_T
-from vyper.semantics.types.bytestrings import _BytestringT
+from vyper.codegen_venom.constants import SHA256_PRECOMPILE
+from vyper.semantics.types import BytesM_T, _BytestringT
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
@@ -28,7 +28,7 @@ def _prepare_hash_input(node: vy_ast.Call, ctx: VenomCodegenContext) -> tuple[IR
 
     if isinstance(arg_t, _BytestringT):
         arg_vv = Expr(arg_node, ctx).lower()
-        arg_mem = ctx.ensure_bytestring_in_memory(arg_vv, arg_t)
+        arg_mem = ctx.ensure_bytestring_in_memory(arg_vv)
         return ctx.bytes_data_ptr(arg_mem), ctx.bytestring_length(arg_mem)
 
     # Fixed-size word values are hashed from a temporary 32-byte buffer.
@@ -68,12 +68,7 @@ def lower_sha256(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Call SHA256 precompile: staticcall(gas, 0x2, in_ptr, in_len, out_ptr, 32)
     success = b.staticcall(
-        b.gas(),
-        IRLiteral(2),
-        data_ptr,
-        length,
-        out_buf._ptr,
-        IRLiteral(32),  # SHA256 precompile address
+        b.gas(), IRLiteral(SHA256_PRECOMPILE), data_ptr, length, out_buf._ptr, IRLiteral(32)
     )
 
     # Assert success (precompile should always succeed with valid input)

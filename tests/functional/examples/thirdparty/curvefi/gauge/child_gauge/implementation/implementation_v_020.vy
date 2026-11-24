@@ -119,13 +119,13 @@ root_gauge: public(address)
 @deploy
 def __init__(_factory: Factory):
     self.lp_token = empty(address)
-    FACTORY = _factory
+    self.FACTORY = _factory
 
 
 @internal
 @view
 def _crv() -> address:
-    return staticcall FACTORY.CRV()
+    return staticcall self.FACTORY.CRV()
 
 
 @internal
@@ -166,7 +166,7 @@ def _checkpoint(_user: address):
     if crv_balance != 0:
         current_week: uint256 = block.timestamp // WEEK
         self.inflation_rate[current_week] += crv_balance // ((current_week + 1) * WEEK - block.timestamp)
-        success: bool = extcall IERC20(self._crv()).transfer(FACTORY.address, crv_balance)
+        success: bool = extcall IERC20(self._crv()).transfer(self.FACTORY.address, crv_balance)
         assert success
 
     period += 1
@@ -487,7 +487,7 @@ def user_checkpoint(addr: address) -> bool:
     @param addr User address
     @return bool success
     """
-    assert msg.sender in [addr, FACTORY.address]  # dev: unauthorized
+    assert msg.sender in [addr, self.FACTORY.address]  # dev: unauthorized
     self._checkpoint(addr)
     self._update_liquidity_limit(addr, self.balanceOf[addr], self.totalSupply)
     return True
@@ -501,7 +501,7 @@ def claimable_tokens(addr: address) -> uint256:
     @return uint256 number of claimable tokens per user
     """
     self._checkpoint(addr)
-    return self.integrate_fraction[addr] - staticcall FACTORY.minted(addr, self)
+    return self.integrate_fraction[addr] - staticcall self.FACTORY.minted(addr, self)
 
 
 @view
@@ -568,7 +568,7 @@ def add_reward(_reward_token: address, _distributor: address):
     """
     @notice Set the active reward contract
     """
-    assert msg.sender == self.manager or msg.sender == staticcall FACTORY.owner()
+    assert msg.sender == self.manager or msg.sender == staticcall self.FACTORY.owner()
 
     reward_count: uint256 = self.reward_count
     assert reward_count < MAX_REWARDS
@@ -583,7 +583,7 @@ def add_reward(_reward_token: address, _distributor: address):
 def set_reward_distributor(_reward_token: address, _distributor: address):
     current_distributor: address = self.reward_data[_reward_token].distributor
 
-    assert msg.sender == current_distributor or msg.sender == self.manager or msg.sender == staticcall FACTORY.owner()
+    assert msg.sender == current_distributor or msg.sender == self.manager or msg.sender == staticcall self.FACTORY.owner()
     assert current_distributor != empty(address)
     assert _distributor != empty(address)
 
@@ -614,7 +614,7 @@ def deposit_reward_token(_reward_token: address, _amount: uint256):
 
 @external
 def set_manager(_manager: address):
-    assert msg.sender == staticcall FACTORY.owner()
+    assert msg.sender == staticcall self.FACTORY.owner()
 
     self.manager = _manager
 
@@ -625,7 +625,7 @@ def set_root_gauge(_root: address):
     @notice Set Root contract in case something went wrong (e.g. between implementation updates)
     @param _root Root gauge to set
     """
-    assert msg.sender == staticcall FACTORY.owner()
+    assert msg.sender == staticcall self.FACTORY.owner()
     assert _root != empty(address)
 
     self.root_gauge = _root
@@ -636,7 +636,7 @@ def update_voting_escrow():
     """
     @notice Update the voting escrow contract in storage
     """
-    self.voting_escrow = staticcall FACTORY.voting_escrow()
+    self.voting_escrow = staticcall self.FACTORY.voting_escrow()
 
 
 @external
@@ -645,7 +645,7 @@ def set_killed(_is_killed: bool):
     @notice Set the kill status of the gauge
     @param _is_killed Kill status to put the gauge into
     """
-    assert msg.sender == staticcall FACTORY.owner()
+    assert msg.sender == staticcall self.FACTORY.owner()
 
     self.is_killed = _is_killed
 
@@ -668,7 +668,7 @@ def integrate_checkpoint() -> uint256:
 @view
 @external
 def factory() -> Factory:
-    return FACTORY
+    return self.FACTORY
 
 
 @view

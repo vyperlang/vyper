@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, TypeGuard, Union
 
 from vyper import ast as vy_ast
 from vyper.abi_types import ABIType
@@ -36,7 +36,14 @@ class _GenericTypeAcceptor:
     def is_equivalent_to(self, other):
         return self.compare_type(other) and other.compare_type(self)
 
+    @property
+    def has_wildcard(self):
+        return False
+
     def compare_type(self, other):
+        if isinstance(other, BottomT):
+            return True
+
         if isinstance(other, self.type_):
             return True
         # compare two GenericTypeAcceptors -- they are the same if the base
@@ -78,12 +85,17 @@ class VyperType:
         Whether or not this type can be attributed in a type
         annotation, like IFoo.SomeType. Currently limited to
         `InterfaceT`s.
+    _view_builtin_members: Tuple, optional
+        Builtin members which display the same data in a different type.
+        For example an interface member `foo` is internally just an address,
+        so `foo.address` has the same data (and therefore shares properties such as modifiability).
     """
 
     typeclass: str = None  # type: ignore
 
     _id: str  # rename to `_name`
-    _type_members: Optional[Dict] = None
+    _builtin_members: Optional[Dict] = None
+    _view_builtin_members: Tuple = ()
     _valid_literal: Tuple = ()
     _invalid_locations: Tuple = ()
     _is_prim_word: bool = False
@@ -106,8 +118,8 @@ class VyperType:
         self.members: Dict = {}
 
         # add members that are on the class instance.
-        if self._type_members is not None:
-            for k, v in self._type_members.items():
+        if self._builtin_members is not None:
+            for k, v in self._builtin_members.items():
                 # for builtin members like `contract.address` -- skip namespace
                 # validation, as it introduces a dependency cycle
                 self.add_member(k, v)
@@ -167,10 +179,32 @@ class VyperType:
         return self.is_valid_element_type
 
     @property
+    def _as_event_index(self):
+        return self._as_hashmap_key
+
+    @property
     def has_wildcard(self):
         return False
 
     def resolve_wildcard(self):
+        return self
+
+    def merge_wildcards(self, other: "VyperType", keep_wildcards: bool) -> "VyperType":
+        """
+        Return this type, with the lengths merged where one of the two types
+        has a wildcard and the other has not: to the wildcard if
+        `keep_wildcards`, to the other length if not. `other` must be a
+        subtype of this type.
+        """
+        if isinstance(other, BottomT):
+            # the element type of an empty list
+            return self
+        return self._merge_wildcards(other, keep_wildcards)
+
+    def _merge_wildcards(self, other: "VyperType", keep_wildcards: bool) -> "VyperType":
+        assert not self.has_wildcard
+        assert not other.has_wildcard
+
         return self
 
     @property
@@ -407,6 +441,9 @@ class VyperType:
         bool
             Indicates if the types are equivalent.
         """
+        if isinstance(other, BottomT):
+            return True
+
         return isinstance(other, type(self))
 
     def fetch_call_return(self, node: vy_ast.Call) -> Optional["VyperType"]:
@@ -480,6 +517,33 @@ class KwargSettings:
         self.require_literal = require_literal
 
 
+class BottomT(VyperType):
+    """
+    Bottom type, the ultimate subtype: is a subtype of every other type.
+    It is uninhabited: no value has this type.
+
+    It is for example the element type for empty lists: `[]: DynArray[Never, 0]`
+    """
+
+    _id = "Never"  # see python's typing.Never
+    _equality_attrs = ()
+
+    @property
+    def abi_type(self) -> ABIType:
+        """
+        The ABI type corresponding to this type
+        """
+        raise InvalidOperation(f"`{self._id}` does not have an abi encoding")
+
+
+class _Inf(VyperType):
+    _id = "INF"
+    _equality_attrs = ()
+
+
+INF_T = _Inf()
+
+
 class _VoidType(VyperType):
     _id = "(void)"
 
@@ -514,11 +578,6 @@ class TYPE_T(VyperType):
     def __repr__(self):
         return f"type({self.typedef})"
 
-    def check_modifiability_for_call(self, node, modifiability):
-        if hasattr(self.typedef, "_ctor_modifiability_for_call"):
-            return self.typedef._ctor_modifiability_for_call(node, modifiability)
-        raise StructureException("Value is not callable", node)
-
     # dispatch into ctor if it's called
     def fetch_call_return(self, node):
         if hasattr(self.typedef, "_ctor_call_return"):
@@ -543,5 +602,5 @@ class TYPE_T(VyperType):
         raise UnknownAttribute("Value is not attributable", node)
 
 
-def is_type_t(x: VyperType, t: type) -> bool:
+def is_type_t(x: VyperType, t: type) -> TypeGuard[TYPE_T]:
     return isinstance(x, TYPE_T) and isinstance(x.typedef, t)

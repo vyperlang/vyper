@@ -2,7 +2,8 @@ import pytest
 from pytest import raises
 
 from vyper import compiler
-from vyper.exceptions import TypeMismatch
+from vyper.compiler.settings import Settings
+from vyper.exceptions import EvmVersionException, TypeMismatch
 
 fail_list = [
     (
@@ -181,3 +182,18 @@ def foo() -> uint256:
 @pytest.mark.parametrize("good_code", valid_list)
 def test_block_blob_success(good_code):
     assert compiler.compile_code(good_code) is not None
+
+
+# both pipelines are pinned explicitly: the venom CI entries all run a
+# post-cancun evm version, so an `experimental_codegen` fixture would never
+# exercise the pre-cancun path
+@pytest.mark.parametrize("experimental", [True, False])
+def test_block_blobbasefee_pre_cancun(experimental):
+    code = """
+@external
+def foo() -> uint256:
+    return block.blobbasefee
+    """
+    settings = Settings(evm_version="paris", experimental_codegen=experimental)
+    with raises(EvmVersionException):
+        compiler.compile_code(code, settings=settings)

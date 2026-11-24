@@ -1,3 +1,5 @@
+from vyper.compiler.settings import OptimizationLevel, get_global_settings
+from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet
 from vyper.venom.analysis import BasePtrAnalysis, DFGAnalysis, MemLivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock
@@ -12,6 +14,15 @@ class ConcretizeMemLocPass(IRPass):
 
     def run_pass(self):
         self.allocator = self.function.ctx.mem_allocator
+
+        # The built-in pipelines freeze the FMP signature only after memory
+        # locations have been concretized. For text-round-tripped functions,
+        # `eom` is the authoritative record of that now-invisible static
+        # frame. Running this pass again would see no allocas and overwrite
+        # the restored EOM with zero, allowing stack spills to alias the frame.
+        if self._is_already_concretized():
+            return
+
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         self.updater = InstUpdater(self.dfg)
         self.base_ptrs = self.analyses_cache.request_analysis(BasePtrAnalysis)
@@ -22,9 +33,20 @@ class ConcretizeMemLocPass(IRPass):
         livesets = list(self.mem_liveness.livesets.items())
         already_allocated = [item for item in livesets if self.allocator.is_allocated(item[0])]
         to_allocate = [item for item in livesets if not self.allocator.is_allocated(item[0])]
+
         # (note this is *heuristic*; our goal is to minimize conflicts
-        # between livesets)
-        to_allocate.sort(key=lambda x: len(x[1]), reverse=False)
+        # between livesets). escaped allocas are live to the end of the
+        # function and so conflict with everything after their first use;
+        # allocate them first so they take the lowest offsets. memory
+        # expansion is paid for the highest address touched, so a small
+        # always-live alloca must not sit above a large, rarely-touched
+        # buffer.
+        escaped = self.mem_liveness.escaped
+        to_allocate.sort(
+            key=lambda x: heuristic(
+                x[0] not in escaped, len(x[1]), x[0].alloca_size, str(x[0].inst.output)
+            )
+        )
 
         self.allocator.add_allocated([mem for mem, _ in already_allocated])
 
@@ -45,11 +67,27 @@ class ConcretizeMemLocPass(IRPass):
         for bb in self.function.get_basic_blocks():
             self._handle_bb(bb)
 
+        # only the entry function has `initial_fmp` roots; other functions
+        # take their FMP from `fmp_param`
+        if self.function is self.function.ctx.entry_function:
+            self.allocator.record_bb_eom(self.mem_liveness.livesets)
         self.allocator.end_fn_allocation()
 
         self.analyses_cache.invalidate_analysis(MemLivenessAnalysis)
         self.analyses_cache.invalidate_analysis(DFGAnalysis)
         self.analyses_cache.invalidate_analysis(BasePtrAnalysis)
+
+    def _is_already_concretized(self) -> bool:
+        fn = self.function
+        if fn._fmp_signature is None or fn not in self.allocator.fn_eom:
+            return False
+
+        if any(inst.opcode == "alloca" for bb in fn.get_basic_blocks() for inst in bb.instructions):
+            raise CompilerPanic(
+                f"Function {fn.name} is marked fmp_lowered but still contains alloca"
+            )
+
+        return True
 
     def _handle_bb(self, bb: IRBasicBlock):
         for inst in bb.instructions:
@@ -75,3 +113,13 @@ class ConcretizeMemLocPass(IRPass):
                 ), f"alloca not allocated by livesets: {inst}"
                 concrete = self.allocator.get_concrete(base_ptr)
                 self.updater.replace(inst, "assign", [concrete])
+
+
+def heuristic(not_escaped: bool, live_count: int, alloca_size: int, name: str) -> tuple:
+    settings = get_global_settings()
+    assert settings is not None
+    is_codesize = settings.optimize == OptimizationLevel.CODESIZE
+    if is_codesize:
+        return (not_escaped, live_count, alloca_size, name)
+    else:
+        return (not_escaped, alloca_size, name)

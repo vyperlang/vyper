@@ -1,6 +1,7 @@
 import pytest
 
 from vyper.compiler import compile_code
+from vyper.compiler.settings import OptimizationLevel
 from vyper.exceptions import TypeMismatch
 
 
@@ -380,14 +381,54 @@ MY_BYTES: immutable(Bytes[100])
 
 @deploy
 def __init__():
-    MY_BYTES = b"hello"
+    self.MY_BYTES = b"hello"
 
 @external
 def compare(x: Bytes[100]) -> bool:
-    return x == MY_BYTES
+    return x == self.MY_BYTES
     """
     c = get_contract(code)
     assert c.compare(b"hello") is True
     assert c.compare(b"world") is False
     assert c.compare(b"") is False
     assert c.compare(b"hello world") is False
+
+
+def test_narrow_map_value_compared_to_wide_bytes(env, get_contract):
+    # the copy of the narrow operand out of storage must be sized by its
+    # own type, not by the wider type the comparison is checked at
+    code = """
+c: HashMap[uint256, Bytes[5]]
+
+@deploy
+def __init__():
+    self.c[0] = b"hello"
+
+@external
+def eq(x: Bytes[100000]) -> bool:
+    return self.c[0] == x
+
+@external
+def ne(x: Bytes[100000]) -> bool:
+    return self.c[0] != x
+    """
+    c = get_contract(code)
+
+    for x, expected in [(b"hello", True), (b"world", False), (b"hello world", False)]:
+        assert c.eq(x) is expected
+        assert env.last_result.gas_used < 100_000
+        assert c.ne(x) is not expected
+        assert env.last_result.gas_used < 100_000
+
+
+@pytest.mark.parametrize("n", [32, 33, 63, 64, 65, 96, 97, 100, 200])
+@pytest.mark.parametrize("opt", [OptimizationLevel.GAS, OptimizationLevel.CODESIZE])
+def test_bytes_literal_return(get_contract, n, opt):
+    data = bytes(range(1, 256))[:n]
+    code = f"""
+@external
+def foo() -> Bytes[{n}]:
+    return x"{data.hex()}"
+    """
+    c = get_contract(code, override_opt_level=opt)
+    assert c.foo() == data

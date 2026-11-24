@@ -2,7 +2,7 @@ import pytest
 from eth.codecs import abi
 
 from tests.evm_backends.base_env import EvmError, ExecutionReverted
-from tests.utils import decimal_to_int
+from tests.utils import decimal_to_int, deploy_raw_returner
 from vyper.compiler import compile_code
 from vyper.exceptions import ArgumentException, StructureException
 from vyper.utils import method_id
@@ -537,6 +537,88 @@ def _replicate(value: int, count: int) -> tuple[int, ...]:
     return (value,) * count
 
 
+def test_abi_arg_wrapped_dynarray_head(env, get_contract):
+    """Calldata/CODE decodes preserve legacy's lenient offset arithmetic."""
+    typ = "DynArray[DynArray[uint256, 1], 1]"
+    code = f"""
+@external
+def f(xs: {typ}) -> uint256:
+    return xs[0][0]
+"""
+    c = get_contract(code)
+
+    # The inner array base is one word after the outer length. Adding this
+    # offset wraps it back to the outer length word, which becomes inner.len.
+    wrapped_head = 2**256 - 0x20
+    payload = _abi_payload_from_tuple((0x20, 1, wrapped_head), 3 * 32)
+
+    ret = env.message_call(c.address, data=method_id("f(uint256[][])") + payload)
+    assert ret == wrapped_head.to_bytes(32, "big")
+
+    # Constructor arguments use CODE instead of CALLDATA and have the same
+    # intentionally lenient semantics.
+    _test_ctor_decode(env, typ, payload, [[wrapped_head]])
+
+
+def test_abi_arg_wrapped_complex_member_head(env, get_contract):
+    """Exercise wrapped offsets navigated through _getelemptr_abi()."""
+    preamble = """
+struct Point:
+    x: uint256
+    ys: DynArray[uint256, 1]
+"""
+    typ = "DynArray[Point, 1]"
+    code = f"""
+{preamble}
+@external
+def f(xs: {typ}) -> (uint256, uint256):
+    return xs[0].x, xs[0].ys[0]
+"""
+    c = get_contract(code)
+
+    # Point.ys is based two words after the outer length. Its offset wraps
+    # back to that length word, while its first element aliases Point's head.
+    wrapped_head = 2**256 - 0x40
+    payload = _abi_payload_from_tuple((0x20, 1, 0x20, 123, wrapped_head), 5 * 32)
+
+    signature = "f((uint256,uint256[])[])"
+    ret = env.message_call(c.address, data=method_id(signature) + payload)
+    assert ret == _abi_payload_from_tuple((123, 0x20), 2 * 32)
+
+    _test_ctor_decode(env, typ, payload, [(123, [0x20])], preamble=preamble)
+
+
+def test_abi_decode_bytestring_at_end_of_buffer(get_contract):
+    # a non-canonical offset puts the payload in the last two words of `x`,
+    # with less than the maximum size of `Bytes[200]` left after it
+    code = """
+@external
+def f(x: Bytes[288]) -> Bytes[200]:
+    return abi_decode(x, Bytes[200])
+    """
+    c = get_contract(code)
+    payload = _abi_payload_from_tuple((0xE0,) + (0,) * 6 + (1, b"\x42".ljust(32, b"\0")), 288)
+    assert len(payload) == 288
+    assert c.f(payload) == b"\x42"
+
+
+def test_returndata_bytestring_at_end_of_buffer(env, get_contract):
+    # the callee returns its payload at a non-canonical offset, in the last
+    # two words of the returndata
+    code = """
+interface I:
+    def g() -> Bytes[100]: view
+
+@external
+def f(a: address) -> Bytes[100]:
+    return staticcall I(a).g()
+    """
+    c = get_contract(code)
+    returndata = _abi_payload_from_tuple((0x60, 0, 0, 1, b"\x42".ljust(32, b"\0")), 160)
+    callee = deploy_raw_returner(env, returndata)
+    assert c.f(callee.address) == b"\x42"
+
+
 def test_abi_decode_arithmetic_overflow(env, tx_failed, get_contract):
     # test based on GHSA-9p8r-4xp4-gw5w:
     # https://github.com/vyperlang/vyper/security/advisories/GHSA-9p8r-4xp4-gw5w#advisory-comment-91841
@@ -702,7 +784,7 @@ def run(x: Bytes[{buffer_size}]):
     expected.append(_abi_payload_from_tuple(_replicate(0x01, 3), 96))
     expected.append(b"")
 
-    # ctor decoding isn't strict, thus it shouldn't fail
+    # Constructor decoding is lenient here, matching legacy.
     _test_ctor_decode(env, typ, data, expected, should_fail=False)
 
 
@@ -900,6 +982,8 @@ def run(x1: Bytes[{buffer_size1}], x2: Bytes[{buffer_size2}]):
         y2,
         DynArray[DynArray[uint256, 3], 3]
     )
+    # keep y1 live so its buffer is not reused
+    assert len(y1) == {buffer_size1}
     """
     c = get_contract(code)
 
@@ -1471,7 +1555,7 @@ def run(x: Bytes[{buffer_size}]):
     with tx_failed():
         c.run(data)
 
-    # oob is allowed in ctor context
+    # Constructor decoding is lenient here, matching legacy.
     _test_ctor_decode(env, typ, data, [], should_fail=False)
 
 
@@ -1609,3 +1693,13 @@ def run() -> uint256:
 
     with tx_failed():
         c.run()
+
+
+def test_complex_tuple_wrap(get_contract):
+    code = """
+@external
+def run(xs: Bytes[1953]) -> (DynArray[String[532], 3],):
+    ret: (DynArray[String[532], 3],) = abi_decode(xs, (DynArray[String[532], 3],))
+    return ret
+    """
+    _ = get_contract(code)

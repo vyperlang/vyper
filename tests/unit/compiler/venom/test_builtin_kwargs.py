@@ -3,7 +3,7 @@ import pytest
 from vyper import ast as vy_ast
 from vyper.codegen_venom.builtins.abi import _get_bool_kwarg as get_abi_bool_kwarg
 from vyper.codegen_venom.builtins.misc import _get_bool_kwarg as get_misc_bool_kwarg
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import UnfoldableNode
 
 
 def _call_node(source):
@@ -22,5 +22,5 @@ def test_bool_kwarg_uses_reduced_value(get_bool_kwarg):
 def test_bool_kwarg_rejects_unreduced_value(get_bool_kwarg):
     call_node = _call_node("foo(flag=FLAG)")
 
-    with pytest.raises(CompilerPanic, match="unfoldable boolean kwarg: flag"):
+    with pytest.raises(UnfoldableNode, match="unfoldable boolean kwarg: flag"):
         get_bool_kwarg(call_node, "flag", True)

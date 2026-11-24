@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.variable_range import VariableRangeAnalysis
-from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX, SIGNED_MIN
+from vyper.venom.analysis.variable_range.evaluators import eval_sdiv, eval_smod
+from vyper.venom.analysis.variable_range.value_range import SIGNED_MAX, SIGNED_MIN, ValueRange
 from vyper.venom.parser import parse_venom
 
 
@@ -2174,6 +2175,30 @@ def test_sdiv_negative_divisor_returns_top():
     assert rng.is_top
 
 
+def test_sdiv_of_constant_wrapped_past_signed_max():
+    """
+    SIGNED_MAX + 1 wraps to the word 2**255, which is SIGNED_MIN. The
+    constant must be stored as SIGNED_MIN so that sdiv sees a negative
+    dividend: sdiv(SIGNED_MIN, 2) = -2**254, not +2**254.
+    """
+    analysis, fn = _analyze(f"""
+        function test {{
+        entry:
+            %x = {SIGNED_MAX}
+            %a = add %x, 1
+            %q = sdiv %a, 2
+            stop
+        }}
+        """)
+
+    entry = fn.get_basic_block("entry")
+    add_inst = next(inst for inst in entry.instructions if inst.opcode == "add")
+    sdiv_inst = next(inst for inst in entry.instructions if inst.opcode == "sdiv")
+    stop_inst = entry.instructions[-1]
+    assert analysis.get_range(add_inst.output, stop_inst) == ValueRange.constant(SIGNED_MIN)
+    assert analysis.get_range(sdiv_inst.output, stop_inst) == ValueRange.constant(-(2**254))
+
+
 def test_smod_positive_dividend():
     """Test smod with positive dividend range."""
     analysis, fn = _analyze("""
@@ -2248,3 +2273,257 @@ def test_smod_by_zero():
     smod_inst = next(inst for inst in entry.instructions if inst.opcode == "smod")
     rng = analysis.get_range(smod_inst.output, entry.instructions[-1])
     assert rng.lo == 0 and rng.hi == 0
+
+
+def test_smod_dividend_spanning_sign_boundary():
+    """
+    Bug: smod narrowed based on raw lo/hi signs for ranges crossing the
+    signed boundary. [0, 2**256 - 32] contains the word 2**256 - 32, which
+    is -32 in signed interpretation. smod(-32, 10) = -2 (the word
+    2**256 - 2), which the old result [0, 9] excluded.
+    """
+    dividend = ValueRange.iv(0, 2**256 - 32)
+    rng = eval_smod(dividend, ValueRange.constant(10))
+    # the result must include -2 (the word 2**256 - 2)
+    assert rng.is_top or rng.lo <= -2 <= rng.hi, f"-2 excluded from {rng}"
+    assert rng.lo == -9 and rng.hi == 9
+
+
+def test_sdiv_dividend_spanning_sign_boundary_is_top():
+    """
+    Bug: sdiv narrowed based on raw lo/hi signs for ranges crossing the
+    signed boundary. [0, 2**256 - 32] contains the word 2**256 - 32, which
+    is -32 in signed interpretation. sdiv(-32, 10) = -3 (the word
+    2**256 - 3), which the old result [0, (2**256 - 32) // 10] excluded.
+    """
+    dividend = ValueRange.iv(0, 2**256 - 32)
+    rng = eval_sdiv(dividend, ValueRange.constant(10))
+    assert rng.is_top
+
+
+def test_smod_dividend_above_signed_max():
+    """A dividend range entirely above SIGNED_MAX is all negative words."""
+    dividend = ValueRange.iv(SIGNED_MAX + 1, 2**256 - 32)
+    rng = eval_smod(dividend, ValueRange.constant(10))
+    # all dividend words are negative; -2 must be included
+    assert rng.lo <= -2 <= rng.hi, f"-2 excluded from {rng}"
+
+
+def test_sdiv_dividend_above_signed_max_is_top():
+    """A dividend range entirely above SIGNED_MAX is all negative words."""
+    dividend = ValueRange.iv(SIGNED_MAX + 1, 2**256 - 32)
+    rng = eval_sdiv(dividend, ValueRange.constant(10))
+    assert rng.is_top
+
+
+def test_sdiv_all_negative_dividend():
+    """
+    [-100, -1] sdiv 3 truncates toward zero, giving [-33, 0]. The bounds
+    were computed swapped as [0, -33], which ValueRange.iv normalizes to
+    BOTTOM, so a phi union then silently dropped the sdiv path.
+    """
+    rng = eval_sdiv(ValueRange.iv(-100, -1), ValueRange.constant(3))
+    assert rng == ValueRange.iv(-33, 0)
+
+
+def test_sdiv_divisor_constant_in_unsigned_representation():
+    """
+    The word 2**256 - 2 is -2 as a signed divisor. Treating it as a huge
+    positive divisor gave {0} for [0, 99] sdiv -2, but sdiv(99, -2) = -49.
+    """
+    rng = eval_sdiv(ValueRange.iv(0, 99), ValueRange.constant(2**256 - 2))
+    assert rng.is_top or rng.lo <= -49 <= rng.hi, f"-49 excluded from {rng}"
+
+
+def test_smod_divisor_constant_in_unsigned_representation():
+    """
+    The word 2**256 - 2 is -2 as a signed divisor, so the result magnitude
+    is bounded by 1. Reading it as a huge positive divisor gave [0, 99].
+    """
+    rng = eval_smod(ValueRange.iv(0, 99), ValueRange.constant(2**256 - 2))
+    assert rng == ValueRange.iv(0, 1)
+
+
+def test_sdiv_by_divisor_narrowed_to_unsigned_constant():
+    """
+    Branch narrowing on an unsigned comparison pins %d to the word
+    2**256 - 2 on the false edge of `lt %d, 2**256 - 2`. That word is -2
+    as a signed divisor, so sdiv(%v, %d) with %v in [0, 99] can be -49.
+    """
+    word = 2**256 - 2
+    analysis, fn = _analyze(f"""
+        function test {{
+        entry:
+            %x = calldataload 0
+            %y = calldataload 32
+            %d = and %x, {word}
+            %c = lt %d, {word}
+            jnz %c, @other, @big
+        big:
+            %v = mod %y, 100
+            %q = sdiv %v, %d
+            stop
+        other:
+            stop
+        }}
+        """)
+
+    big = fn.get_basic_block("big")
+    sdiv_inst = next(inst for inst in big.instructions if inst.opcode == "sdiv")
+    d_rng = analysis.get_range(sdiv_inst.operands[-2], sdiv_inst)
+    assert d_rng == ValueRange.constant(word)
+    rng = analysis.get_range(sdiv_inst.output, big.instructions[-1])
+    assert rng.is_top or rng.lo <= -49 <= rng.hi, f"-49 excluded from {rng}"
+
+
+def test_sgt_false_branch_keeps_negative_words_of_unsigned_range():
+    """
+    GH 5012: `and %a, -2` is ranged as [0, 2**256 - 2], whose words above
+    SIGNED_MAX are negative when read as signed. The false edge of
+    `sgt %x, 0` clamped the raw bounds to [0, 0] and dropped them.
+    """
+    analysis, fn = _analyze("""
+        function test {
+        entry:
+            %a = calldataload 0
+            %x = and %a, -2
+            %c = sgt %x, 0
+            jnz %c, @pos, @nonpos
+        nonpos:
+            %sink = add %x, 0
+            stop
+        pos:
+            stop
+        }
+        """)
+
+    x_var = fn.get_basic_block("entry").instructions[1].output
+    sink = fn.get_basic_block("nonpos").instructions[0]
+    rng = analysis.get_range(x_var, sink)
+    assert rng.lo <= -2 and rng.hi >= 0, f"-2 excluded from {rng}"
+
+
+def test_slt_false_branch_with_literal_on_left_keeps_negative_words():
+    """`slt 5, %x` false means x <= 5 signed, which includes x = -2."""
+    analysis, fn = _analyze("""
+        function test {
+        entry:
+            %a = calldataload 0
+            %x = and %a, -2
+            %c = slt 5, %x
+            jnz %c, @big, @small
+        small:
+            %sink = add %x, 0
+            stop
+        big:
+            stop
+        }
+        """)
+
+    x_var = fn.get_basic_block("entry").instructions[1].output
+    sink = fn.get_basic_block("small").instructions[0]
+    rng = analysis.get_range(x_var, sink)
+    assert rng.lo <= -2 and rng.hi >= 4, f"-2 excluded from {rng}"
+
+
+def test_slt_narrows_range_above_signed_max_as_negative():
+    """
+    A range lying entirely above SIGNED_MAX holds only negative words, so
+    signed narrowing can keep it, shifted to signed representation.
+    """
+    word = 2**256 - 5
+    analysis, fn = _analyze(f"""
+        function test {{
+        entry:
+            %a = calldataload 0
+            %x = and %a, -2
+            %c = lt %x, {word}
+            jnz %c, @exit, @high
+        high:
+            %s = slt %x, -3
+            jnz %s, @neg, @exit
+        neg:
+            %sink = add %x, 0
+            stop
+        exit:
+            stop
+        }}
+        """)
+
+    x_var = fn.get_basic_block("entry").instructions[1].output
+    high = fn.get_basic_block("high").instructions[0]
+    assert analysis.get_range(x_var, high) == ValueRange.iv(word, 2**256 - 2)
+    sink = fn.get_basic_block("neg").instructions[0]
+    assert analysis.get_range(x_var, sink) == ValueRange.iv(-5, -4)
+
+
+def test_eq_var_var_intersects_across_representations():
+    """
+    [0, 2**256 - 2] and [-5, 3] share the words -5..-2 and 0..3, but a raw
+    max/min intersection gave [0, 3].
+    """
+    analysis, fn = _analyze("""
+        function test {
+        entry:
+            %a = calldataload 0
+            %x = and %a, -2
+            %b = calldataload 32
+            %y = signextend 0, %b
+            %above = sgt %y, 3
+            jnz %above, @exit, @check
+        check:
+            %below = slt %y, -5
+            jnz %below, @exit, @cmp
+        cmp:
+            %e = eq %x, %y
+            jnz %e, @same, @exit
+        same:
+            %sink = add %x, 0
+            stop
+        exit:
+            stop
+        }
+        """)
+
+    x_var = fn.get_basic_block("entry").instructions[1].output
+    sink = fn.get_basic_block("same").instructions[0]
+    assert analysis.get_range(x_var, sink) == ValueRange.iv(-5, 3)
+
+
+def test_as_signed():
+    assert ValueRange.iv(0, SIGNED_MAX).as_signed() == ValueRange.iv(0, SIGNED_MAX)
+    assert ValueRange.iv(-5, 3).as_signed() == ValueRange.iv(-5, 3)
+    assert ValueRange.iv(2**256 - 10, 2**256 - 1).as_signed() == ValueRange.iv(-10, -1)
+    assert ValueRange.iv(0, 2**256 - 2).as_signed().is_top
+    assert ValueRange.iv(-5, SIGNED_MAX + 1).as_signed().is_top
+    assert ValueRange.empty().as_signed().is_empty
+    assert ValueRange.top().as_signed().is_top
+
+
+def test_signed_branch_preserves_unsigned_lower_bound():
+    analysis, fn = _analyze(f"""
+        function test {{
+        entry:
+            %a = calldataload 0
+            %x = mod %a, {SIGNED_MAX + 2}
+            %small = lt %x, 10
+            jnz %small, @exit, @check
+        check:
+            %positive = sgt %x, 0
+            jnz %positive, @pos, @exit
+        pos:
+            stop
+        exit:
+            stop
+        }}
+        """)
+    x = fn.entry.instructions[1].output
+    use = fn.get_basic_block("pos").instructions[0]
+    assert analysis.get_range(x, use) == ValueRange.iv(10, SIGNED_MAX)
+
+
+def test_intersect_preserves_contained_mixed_interval():
+    outer = ValueRange.iv(-2, SIGNED_MAX + 2)
+    inner = ValueRange.iv(-1, SIGNED_MAX + 1)
+    assert inner.intersect(inner) == inner
+    assert inner.intersect(outer) == outer.intersect(inner) == inner

@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING, Optional, Union
 from vyper import ast as vy_ast
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import ArgumentException, CompilerPanic, StateAccessViolation
-from vyper.semantics.types import BytesT, TupleT
-from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
+from vyper.semantics.types import BoolT, BytesT, TupleT, is_unbounded_bytestring_type
+from vyper.semantics.types.shortcuts import BYTES32_T
 from vyper.venom.basicblock import IRLiteral, IROperand, IRVariable
 
 if TYPE_CHECKING:
@@ -73,6 +73,8 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         - bool if max_outsize=0 and revert_on_failure=False
         - Bytes[N] if max_outsize>0 and revert_on_failure=True
         - (bool, Bytes[N]) if max_outsize>0 and revert_on_failure=False
+        - Bytes[INF] / (bool, Bytes[INF]) for an unbounded return, sized by
+          returndatasize at runtime
     """
     from vyper.codegen_venom.expr import Expr
 
@@ -81,8 +83,19 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
     # Parse positional args
     to = Expr(node.args[0], ctx).lower_value()
 
+    # the node annotation may be widened by the consumer, so the call's own
+    # return type decides whether the output is bounded
+    return_t = node.func._metadata["type"].fetch_call_return(node)
+    out_t = return_t.member_types[1] if isinstance(return_t, TupleT) else return_t
+    unbounded_outsize = is_unbounded_bytestring_type(out_t)
+
     # Parse kwargs (need to know is_static before constancy check)
-    max_outsize = _get_literal_kwarg(node, "max_outsize", 0)
+    if unbounded_outsize:
+        # the whole returndata is copied after the call; the call itself
+        # gets no output buffer
+        max_outsize = 0
+    else:
+        max_outsize = _get_literal_kwarg(node, "max_outsize", 0)
     is_delegate = _get_literal_kwarg(node, "is_delegate_call", False)
     is_static = _get_literal_kwarg(node, "is_static_call", False)
     revert_on_failure = _get_literal_kwarg(node, "revert_on_failure", True)
@@ -140,17 +153,23 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
     out_val: Optional["VyperValue"]
     out_ptr: IROperand
     if max_outsize > 0:
+        assert isinstance(out_t, BytesT) and out_t.length == max_outsize
         out_val = ctx.new_temporary_value(BytesT(max_outsize))
         out_ptr = b.add(out_val.operand, IRLiteral(32))
     else:
         out_val = None
         out_ptr = ctx.allocate_buffer(0)._ptr
 
-    # Copy msg.data to scratch AFTER all kwarg evaluation, so nothing
-    # else overwrites the memtop scratch region before the call.
+    # calldatasize must be computed before allocate_scratch, since the
+    # allocation is runtime-sized now. The copy stays after all kwarg
+    # evaluation, preserving the instruction order of the previous
+    # memtop (MSIZE-based) lowering, where the scratch region was
+    # genuinely unreserved and the copy had to be last; with a tracked
+    # `dalloca` buffer the ordering is no longer load-bearing, it is
+    # kept only to avoid disturbing generated code.
     if use_msg_data:
-        data_ptr = ctx.allocate_dyn()
         data_len = b.calldatasize()
+        data_ptr = ctx.allocate_scratch(data_len)
         b.calldatacopy(data_ptr, IRLiteral(0), data_len)
 
     # Build the call instruction
@@ -181,6 +200,8 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         b.append_block(ok_label)
         b.set_block(ok_label)
 
+        if unbounded_outsize:
+            return ctx.materialize_returndata_bytes(out_t)
         if max_outsize > 0:
             # Store actual return size (capped at max_outsize)
             ret_size = b.returndatasize()
@@ -194,6 +215,10 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
         # No return value (returns None in Vyper)
         return IRLiteral(0)
     else:
+        if unbounded_outsize:
+            assert isinstance(return_t, TupleT)
+            returndata = ctx.materialize_returndata_bytes(out_t)
+            return ctx.dynamic_tuple_frame_from_outputs([success, returndata.operand], return_t)
         if max_outsize > 0:
             # Store actual return size (capped at max_outsize)
             ret_size = b.returndatasize()
@@ -206,7 +231,7 @@ def lower_raw_call(node: vy_ast.Call, ctx: VenomCodegenContext) -> Union[IROpera
             # Return (success, data) tuple with inline bytes
             # Layout: [bool (32)][bytes_len (32)][bytes_data (ceil32(max_outsize))]
             bytes_t = BytesT(max_outsize)
-            tuple_t = TupleT((UINT256_T, bytes_t))
+            tuple_t = TupleT((BoolT(), bytes_t))
             tuple_local = ctx.new_temporary_value(tuple_t)
 
             # Store success at offset 0

@@ -8,7 +8,7 @@ from tests.venom_utils import assert_ctx_eq, parse_venom
 from vyper.compiler import compile_code
 from vyper.compiler.input_bundle import FilesystemInputBundle
 from vyper.compiler.phases import generate_bytecode
-from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
+from vyper.compiler.settings import VenomOptimizationFlags
 from vyper.venom import generate_assembly_experimental, run_passes_on
 from vyper.venom.context import IRContext
 
@@ -36,17 +36,12 @@ def get_example_paths() -> list[Path]:
 
 
 @pytest.mark.parametrize("path", get_example_paths())
-def test_round_trip_examples(path: Path, debug, optimize, compiler_settings, request):
+def test_round_trip_examples(path: Path, debug, optimize, compiler_settings):
     """
     Check all examples round trip
     """
     if not compiler_settings.experimental_codegen:
         pytest.skip("tests n/a when venom is not enabled")
-
-    if debug and optimize == OptimizationLevel.CODESIZE:
-        # FIXME: some round-trips fail when debug is enabled due to labels
-        # not getting pinned
-        request.node.add_marker(pytest.mark.xfail(strict=False))
 
     if path.is_dir():
         # Create input bundle from folder
@@ -78,11 +73,6 @@ def test_round_trip_sources(vyper_source, debug, optimize, compiler_settings, re
         pytest.skip("tests n/a when venom is not enabled")
 
     vyper_source = textwrap.dedent(vyper_source)
-
-    if debug and optimize == OptimizationLevel.CODESIZE:
-        # FIXME: some round-trips fail when debug is enabled due to labels
-        # not getting pinned
-        request.node.add_marker(pytest.mark.xfail(strict=False))
 
     _round_trip_helper(vyper_source, optimize, compiler_settings)
 

@@ -95,7 +95,7 @@ use_custom_protocol_fee: public(HashMap[address, bool])
 @deploy
 def __init__(name: String[64], vault_blueprint: address, governance: address):
     self.name = name
-    VAULT_BLUEPRINT = vault_blueprint
+    self.VAULT_BLUEPRINT = vault_blueprint
     self.governance = governance
 
 @external
@@ -120,7 +120,7 @@ def deploy_new_vault(
 
     # Deploy the new vault using the blueprint.
     vault_address: address = create_from_blueprint(
-            VAULT_BLUEPRINT, 
+            self.VAULT_BLUEPRINT, 
             asset, 
             name, 
             symbol, 
@@ -140,7 +140,7 @@ def vault_blueprint()-> address:
     @notice Get the address of the vault blueprint
     @return The address of the vault blueprint
     """
-    return VAULT_BLUEPRINT
+    return self.VAULT_BLUEPRINT
 
 @view
 @external

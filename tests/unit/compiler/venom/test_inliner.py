@@ -1,10 +1,13 @@
 from tests.venom_utils import parse_venom
 from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
+from vyper.evm.assembler.core import assembly_to_evm
+from vyper.evm.assembler.instructions import PUSHLABEL, Label
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGGlobalAnalysis
 from vyper.venom.basicblock import IRLabel
 from vyper.venom.check_venom import check_venom_ctx
 from vyper.venom.passes import FunctionInlinerPass, SimplifyCFGPass
+from vyper.venom.venom_to_assembly import VenomCompiler
 
 
 def test_inliner_phi_invalidation():
@@ -35,9 +38,10 @@ def test_inliner_phi_invalidation():
 
     function f {
     main:
+        %retpc = retpc_param
         %p = source
         %1 = add %p, 1
-        ret %1
+        ret %retpc, %1
     }
     """
 
@@ -91,9 +95,10 @@ def test_inliner_phi_invalidation_inner():
 
     function f {
     main:
+        %retpc = retpc_param
         %p = source
         %1 = add %p, 1
-        ret %1
+        ret %retpc, %1
     }
     """
 
@@ -134,3 +139,106 @@ def test_fcg_analysis_remains_requestable_from_function_cache():
     fcg = IRAnalysesCache(ctx.entry_function).force_analysis(FCGGlobalAnalysis)
 
     assert fcg.get_callees(ctx.entry_function).first() == ctx.get_function(IRLabel("callee"))
+
+
+def test_inliner_preserves_memory_read_max_size():
+    src = """
+    function main {
+    main:
+        %dst = alloca 64
+        %src = alloca 64
+        %size = 64
+        invoke @callee, %dst, %src, %size
+        stop
+    }
+
+    function callee {
+    callee:
+        %dst = param
+        %src = param
+        %size = param
+        %retpc = retpc_param
+        mcopy %dst, %src, %size
+        ret %retpc
+    }
+    """
+
+    ctx = parse_venom(src)
+    callee = ctx.get_function(IRLabel("callee"))
+    original_copy = next(inst for inst in callee.entry.instructions if inst.opcode == "mcopy")
+    original_copy.memory_read_max_size = 64
+
+    analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
+    flags = VenomOptimizationFlags(level=OptimizationLevel.CODESIZE)
+    FunctionInlinerPass(analyses, ctx, flags).run_pass()
+
+    main = ctx.get_function(IRLabel("main"))
+    inlined_copy = next(
+        inst for bb in main.get_basic_blocks() for inst in bb.instructions if inst.opcode == "mcopy"
+    )
+    assert inlined_copy.memory_read_max_size == 64
+
+
+def test_noinline_annotation():
+    src = """
+    function main {
+    main:
+        %1 = invoke @f
+        sink %1
+    }
+
+    function f [noinline] {
+    f:
+        %retpc = retpc_param
+        %1 = 42
+        ret %retpc, %1
+    }
+    """
+
+    flags = VenomOptimizationFlags(level=OptimizationLevel.CODESIZE)
+
+    def run_inliner(source):
+        ctx = parse_venom(source)
+        analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
+        FunctionInlinerPass(analyses, ctx, flags).run_pass()
+        return ctx
+
+    # a single call site would otherwise always be inlined
+    assert IRLabel("f") in run_inliner(src).functions
+
+    # sanity check: without the annotation, the function gets inlined
+    assert IRLabel("f") not in run_inliner(src.replace(" [noinline]", "")).functions
+
+
+def test_inliner_retpc_retain():
+    code = """
+    function main {
+    main:
+        %1 = invoke @f
+        %ptr = alloca 32
+        mstore %ptr, %1
+        return %ptr, 32
+    }
+
+    function f {
+    f:
+        %retpc = retpc_param
+        %1 = 42
+        ret %retpc, %1
+    }
+    """
+
+    flags = VenomOptimizationFlags(level=OptimizationLevel.CODESIZE)
+
+    def run_inliner(source):
+        ctx = parse_venom(source)
+        analyses = {fn: IRAnalysesCache(fn) for fn in ctx.functions.values()}
+        FunctionInlinerPass(analyses, ctx, flags).run_pass()
+        for fn in ctx.functions.values():
+            SimplifyCFGPass(analyses[fn], fn).run_pass()
+        return ctx
+
+    ctx = run_inliner(code)
+    asm = VenomCompiler(ctx).generate_evm_assembly()
+    assert PUSHLABEL(Label("f")) not in asm
+    _ = assembly_to_evm(asm)

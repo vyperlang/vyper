@@ -93,12 +93,12 @@ COUNTER: immutable(uint256)
 
 @deploy
 def __init__():
-    COUNTER = 1234
+    self.COUNTER = 1234
 
 @pure
 @external
 def foo() -> uint256:
-    return COUNTER
+    return self.COUNTER
     """
     with pytest.raises(StateAccessViolation):
         compile_code(code)
@@ -139,7 +139,7 @@ COUNTER: immutable(uint256)
 
 @deploy
 def __init__():
-    COUNTER = 123
+    self.COUNTER = 123
     """
     code = """
 import lib1

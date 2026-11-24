@@ -7,7 +7,7 @@ from vyper.codegen_legacy.core import (
 )
 from vyper.codegen_legacy.ir_node import IRnode
 from vyper.codegen_shared.arithmetic import calculate_largest_base, calculate_largest_power
-from vyper.exceptions import TypeCheckFailure, UnimplementedException
+from vyper.exceptions import CodegenPanic, TypeCheckFailure, UnimplementedException
 
 
 # def safe_add(x: IRnode, y: IRnode) -> IRnode:
@@ -228,11 +228,9 @@ def safe_pow(x, y):
                 ok = ["and", ["sge", x, lower_bound], ["sle", x, upper_bound]]
             else:
                 ok = ["le", x, upper_bound]
-    else:
-        # `a ** b` where neither `a` or `b` are known
-        # TODO this is currently unreachable, once we implement a way to do it safely
-        # remove the check in `vyper/context/types/value/numeric.py`
-        return
+    else:  # pragma: nocover
+        # type checker guarantees pow has at least one literal operand
+        raise CodegenPanic("unreachable")
 
     assertion = IRnode.from_list(["assert", ok], error_msg="safepow")
     return IRnode.from_list(["seq", assertion, ["exp", x, y]])

@@ -394,7 +394,7 @@ def test_memmerging_bypass_fence():
     currently do not
     """
     if not version_check(begin="cancun"):
-        raise AssertionError()  # xfail
+        pytest.xfail()
 
     pre = """
     function _global {
@@ -414,7 +414,7 @@ def test_memmerging_bypass_fence():
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
         SCCP(ac, fn).run_pass()
-        MemMergePass(ac, fn).run_pass()
+        MemMergePass(ac, fn).run_pass(memory_abstract=False)
 
     fn = next(iter(ctx.functions.values()))
     bb = fn.entry
@@ -1684,6 +1684,57 @@ def test_merge_mstore_dload_disallowed():
         mstore %d2, %par
         mstore 1000, %d2
         sink %d1, %d2
+    """
+
+    _check_no_change(pre)
+
+
+def test_merge_mstore_dload_dst_disallowed():
+    """
+    Test that the dload/mstore merge does not fire when the only use of
+    the dload output is as the *destination* pointer of the mstore
+    (rather than the stored value).
+    """
+    pre = """
+    _global:
+        %par = source
+        %d = dload %par
+        mstore %d, 42
+        stop
+    """
+
+    _check_no_change(pre)
+
+
+def test_merge_mstore_dload_self_dst_disallowed():
+    """
+    Test that the dload/mstore merge does not fire when the dload output
+    is used both as the stored value and as the destination pointer of
+    the mstore (single-use path).
+    """
+    pre = """
+    _global:
+        %par = source
+        %d = dload %par
+        mstore %d, %d
+        stop
+    """
+
+    _check_no_change(pre)
+
+
+def test_merge_mstore_dload_self_dst_more_uses_disallowed():
+    """
+    Test that the dload/mstore merge does not fire when the dload output
+    is used both as the stored value and as the destination pointer of
+    the mstore (multi-use path).
+    """
+    pre = """
+    _global:
+        %par = source
+        %d = dload %par
+        mstore %d, %d
+        sink %d
     """
 
     _check_no_change(pre)

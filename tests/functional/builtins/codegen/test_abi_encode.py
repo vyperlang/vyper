@@ -2,6 +2,8 @@ import pytest
 from eth.codecs import abi
 
 from tests.utils import decimal_to_int
+from vyper.compiler import compile_code
+from vyper.exceptions import StructureException
 
 
 # @pytest.mark.parametrize("string", ["a", "abc", "abcde", "potato"])
@@ -159,6 +161,46 @@ def abi_encode(d: DynArray[uint256, 3], ensure_tuple: bool, include_method_id: b
     assert (
         c.abi_encode(arg, True, True).hex() == (method_id + abi.encode("(uint256[])", (arg,))).hex()
     )
+
+
+def test_abi_encode_dynamic_tuple(get_contract):
+    code = """
+@external
+def abi_encode(s: String[5], x: uint256, ensure_tuple: bool, include_method_id: bool) -> Bytes[196]:
+    t: (String[5], uint256) = (s, x)
+    if ensure_tuple:
+        if not include_method_id:
+            return abi_encode(t) # default ensure_tuple=True
+        return abi_encode(t, method_id=0xdeadbeef)
+    else:
+        if not include_method_id:
+            return abi_encode(t, ensure_tuple=False)
+        return abi_encode(t, ensure_tuple=False, method_id=0xdeadbeef)
+    """
+    c = get_contract(code)
+
+    method_id = 0xDEADBEEF.to_bytes(4, "big")
+
+    arg = ("abc", 7)
+    unwrapped = abi.encode("(string,uint256)", arg)
+    wrapped = abi.encode("((string,uint256))", (arg,))
+    assert c.abi_encode(*arg, False, False).hex() == unwrapped.hex()
+    assert c.abi_encode(*arg, True, False).hex() == wrapped.hex()
+    assert c.abi_encode(*arg, False, True).hex() == (method_id + unwrapped).hex()
+    assert c.abi_encode(*arg, True, True).hex() == (method_id + wrapped).hex()
+
+
+def test_abi_encode_snapshots_bounded_dynarray_before_later_mutation(get_contract):
+    code = """
+@external
+def run() -> Bytes[192]:
+    x: DynArray[uint256, 3] = [1, 2, 3]
+    return abi_encode(x, x.pop())
+    """
+    c = get_contract(code)
+
+    expected = abi.encode("(uint256[],uint256)", ([1, 2, 3], 3))
+    assert c.run().hex() == expected.hex()
 
 
 nested_2d_array_args = [
@@ -392,3 +434,13 @@ def foo(ensure_tuple: bool) -> Bytes[96]:
     assert c.foo(False) == expected_output
     expected_output = b"\x00" * 31 + b"\x20" + b"\x00" * 32
     assert c.foo(True) == expected_output
+
+
+def test_abi_encode_no_args():
+    code = """
+@external
+def foo() -> Bytes[32]:
+    return abi_encode()
+    """
+    with pytest.raises(StructureException, match="abi_encode expects at least one argument"):
+        compile_code(code)

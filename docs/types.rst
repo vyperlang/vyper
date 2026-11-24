@@ -561,6 +561,182 @@ In the ABI, they are represented as ``_Type[]``. For instance, ``DynArray[int128
     Defining a dynamic array in storage whose size is significantly larger than ``2**64`` can result in security vulnerabilities due to risk of overflow.
 
 
+.. index:: unbounded sequences, INF
+
+.. _unbounded_types:
+
+Unbounded Sequence Types
+------------------------
+
+When using the experimental code generator, ``Bytes``, ``String`` and ``DynArray``
+may use ``INF`` as the length bound:
+
+.. code-block:: vyper
+
+    #pragma experimental-codegen
+
+    @external
+    def echo(x: Bytes[INF]) -> Bytes[INF]:
+        return x
+
+    @external
+    def values(xs: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
+        ys: DynArray[uint256, INF] = xs
+        ys.append(42)
+        return ys
+
+An *unbounded sequence type* is ``Bytes[INF]``, ``String[INF]``, or
+``DynArray[T, INF]``. An *unbounded type* is an unbounded sequence type or any
+type that contains one, directly or indirectly. Unbounded types have no
+compile-time upper bound on the total memory needed to hold their values,
+including separately allocated member data. A struct with unbounded members
+can still have a fixed-size inline layout.
+
+``Bytes[INF]`` and ``String[INF]`` can hold any runtime length. ``DynArray[T, INF]``
+can hold any runtime item count. ``T`` can be any valid ``DynArray`` element
+type.
+
+.. code-block:: vyper
+
+    @external
+    def multicall(calls: DynArray[Bytes[512], INF]) -> DynArray[Bytes[512], INF]:
+        results: DynArray[Bytes[512], INF] = []
+        for data: Bytes[512] in calls:
+            results.append(raw_call(self, data, max_outsize=512, is_delegate_call=True))
+        return results
+
+Every element reserves the full memory size of ``T``, whatever its actual
+length: three 5-byte elements of ``DynArray[Bytes[512], INF]`` occupy
+``3 * 544`` bytes of memory, and encoding them reserves ``3 * 576`` bytes of
+buffer. Decoding reserves that memory from the claimed element count before
+the elements are validated, and element offsets in the input may overlap, so a
+malformed but accepted payload can cost memory expansion of up to
+``memsize(T) / 32`` times its own size (17x for ``Bytes[512]``). ``INF``
+decoders also check every element against the readable region
+(``calldatasize`` or the returndata size), so truncated trailing data is
+rejected where a bounded array in calldata would be zero-filled.
+
+Unbounded sequence values are supported for memory locals, function arguments,
+function returns, event and custom error members, ABI encoding and decoding, and
+bytes-oriented builtins such as ``concat``, ``slice``, ``convert``, ``empty`` and
+``print``. Top-level return tuples may contain unbounded sequence members,
+for example ``(uint256, Bytes[INF])``.
+
+Unbounded types are not supported in storage, transient storage, immutable
+module variables, static arrays, or mappings. Tuple arguments and local tuple
+variables containing unbounded types are also rejected.
+
+.. _unbounded_elements:
+
+Unbounded Elements
+******************
+
+The element type of a ``DynArray`` may itself be an unbounded sequence, nested to
+any depth, and the outer array may be bounded or unbounded. For example:
+
+* ``DynArray[Bytes[INF], INF]``
+* ``DynArray[String[INF], 5]``
+* ``DynArray[DynArray[uint256, INF], INF]``
+
+.. code-block:: vyper
+
+    #pragma experimental-codegen
+
+    @external
+    def longest(calls: DynArray[Bytes[INF], INF]) -> uint256:
+        best: uint256 = 0
+        for i: uint256 in range(len(calls), bound=max_value(uint256)):
+            best = max(best, len(calls[i]))
+        return best
+
+Arrays of unbounded elements behave like other dynamic arrays, subject to the
+following restrictions.
+
+.. TODO: Support mutation of unbounded elements in place.
+
+Currently, an element cannot be modified in place, such as with ``xs[i][j] = v`` or
+``xs[i].append(v)``. Copy the element to a local variable, modify it, then
+store it back:
+
+.. code-block:: vyper
+
+    xs[i].append(v)  # rejected
+
+    e: DynArray[uint256, INF] = xs[i]
+    e.append(v)
+    xs[i] = e  # allowed
+
+Arrays of unbounded elements cannot be returned inside tuples.
+
+Decoding an array of unbounded elements has no compile-time cost ceiling:
+
+* ``INF`` places no limit on the element count or on the size of any element,
+  so decoding can take arbitrary memory and gas. Bounded types cap both by
+  the product of their bounds.
+* The ABI does not require element offsets to be distinct, so ``n`` elements
+  may all point at one ``m``-word tail. Decoding gives every element its own
+  copy: memory proportional to ``n * m`` from input proportional to ``n + m``.
+* The sender pays for calldata, but a contract decoding the return data of a
+  call it made, or ``abi_decode`` of bytes it did not produce, pays for that
+  itself. Return data is decoded in the caller after the call returns, so a
+  ``gas=`` limit on the call does not cap it.
+
+A contract that decodes such arrays from untrusted sources should bound its own
+exposure.
+
+.. _unbounded_struct_members:
+
+Unbounded Struct Members
+************************
+
+A struct member may itself be an unbounded sequence. Such a struct keeps its
+usual ABI encoding -- ``Batch`` below is the ABI tuple ``(address,uint256[])``
+-- so a signed batch or configuration struct does not have to pick an arbitrary
+field cap:
+
+.. code-block:: vyper
+
+    #pragma experimental-codegen
+
+    struct Batch:
+        owner: address
+        values: DynArray[uint256, INF]
+
+    @external
+    def total(b: Batch) -> uint256:
+        acc: uint256 = 0
+        for v: uint256 in b.values:
+            acc += v
+        return acc
+
+A struct member may be any type except a tuple containing an unbounded
+sequence, such as ``(Bytes[INF], uint256)``.
+
+Structs with unbounded members behave like other structs, subject to the
+following restrictions.
+
+.. TODO: Support mutation of unbounded members through array elements.
+
+Currently, writing to an unbounded member of an array element, or to anything
+inside it, is rejected. Copy the element to a local variable, modify it, then store
+it back:
+
+.. code-block:: vyper
+
+    xs[i].values.append(1)  # rejected
+
+    b: Batch = xs[i]
+    b.values.append(1)
+    xs[i] = b  # allowed
+
+Structs with unbounded members, and types containing such structs, are supported
+only in memory and cannot be returned inside tuples.
+
+.. note::
+    ``INF`` sequence types require ``#pragma experimental-codegen`` or compiling
+    with ``--experimental-codegen``. The legacy code generator rejects them.
+
+
 .. _types-struct:
 
 Structs
@@ -584,6 +760,23 @@ Struct members can be accessed via ``struct.argname``.
 
     # Accessing a value
     exampleStruct.value1 = 1
+
+.. note::
+
+    As with other assignments in Vyper, assigning a struct copies its value.
+    Changes to the copy, including changes to nested members, do not affect
+    the original.
+
+    .. code-block:: vyper
+
+        struct Numbers:
+            values: DynArray[uint256, 3]
+
+        original: Numbers = Numbers(values=[1, 2])
+        copied: Numbers = original
+        copied.values[0] = 7
+        copied.values.append(3)
+        # original.values is still [1, 2]
 
 .. index:: !mapping
 

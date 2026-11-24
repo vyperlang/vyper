@@ -13,6 +13,11 @@ class Effects(Flag):
     LOG = auto()
     BALANCE = auto()
     EXTCODE = auto()
+    # the FMP virtual register (free memory pointer). `getfmp` reads it;
+    # `setfmp` writes it; `dalloca`/`bump` read and advance it. This row keeps
+    # FMP reads from being merged/moved across FMP writes by effect-aware
+    # passes (available-expression/CSE, DFT ordering).
+    FMP = auto()
 
 
 def to_addr_space(eff: Effects) -> Optional[space.AddrSpace]:
@@ -35,6 +40,7 @@ RETURNDATA = Effects.RETURNDATA
 LOG = Effects.LOG
 BALANCE = Effects.BALANCE
 EXTCODE = Effects.EXTCODE
+FMP = Effects.FMP
 NON_MEMORY_EFFECTS = ~Effects.MEMORY
 NON_STORAGE_EFFECTS = ~Effects.STORAGE
 NON_TRANSIENT_EFFECTS = ~Effects.TRANSIENT
@@ -58,6 +64,9 @@ _writes = {
     "codecopy": MEMORY,
     "extcodecopy": MEMORY,
     "mcopy": MEMORY,
+    "setfmp": FMP,
+    "dalloca": FMP,
+    "bump": FMP,
 }
 
 _reads = {
@@ -84,7 +93,9 @@ _reads = {
     "revert": MEMORY,
     "sha3": MEMORY,
     "return": MEMORY,
-    "memtop": MEMORY,  # lowers to MSIZE; depends on all prior memory writes
+    "getfmp": FMP,
+    "dalloca": FMP,
+    "bump": FMP,
 }
 
 reads = _reads.copy()

@@ -12,7 +12,8 @@ from vyper.venom.analysis import (
     MemoryAliasAnalysis,
 )
 from vyper.venom.analysis.readonly_memory_args import ReadonlyMemoryArgsGlobalAnalysis
-from vyper.venom.basicblock import IRInstruction, IRLabel, IRLiteral, IROperand, IRVariable
+from vyper.venom.basicblock import IRInstruction, IRLiteral, IROperand, IRVariable
+from vyper.venom.call_layout import InvokeLayout
 from vyper.venom.effects import EMPTY, Effects
 from vyper.venom.passes.base_pass import IRPass
 from vyper.venom.passes.copy_forwarding import CopyForwardingPolicy
@@ -46,34 +47,35 @@ class InvokeCopyForwardingBase(IRPass):
         self.readonly_memory_args = self.analyses_cache.force_analysis(
             ReadonlyMemoryArgsGlobalAnalysis
         )
+        self._multi_defined_vars = self._collect_multi_defined_vars()
+
+    def _collect_multi_defined_vars(self) -> set[IRVariable]:
+        # the pre-inlining run of these passes sees pre-SSA IR, where a
+        # variable can be assigned on several paths. DFGAnalysis records a
+        # single producer per variable, so an assign chain walked through
+        # such a variable would follow just one of its definitions.
+        seen: set[IRVariable] = set()
+        multi: set[IRVariable] = set()
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                for out in inst.get_outputs():
+                    if out in seen:
+                        multi.add(out)
+                    seen.add(out)
+        return multi
 
     def _finish(self, changed: bool) -> None:
         if changed:
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _is_after(self, copy_inst: IRInstruction, use_inst: IRInstruction) -> bool:
-        copy_bb = copy_inst.parent
-        use_bb = use_inst.parent
+        return self.domtree.is_after(use_inst, copy_inst)
 
-        if use_bb is copy_bb:
-            bb_insts = copy_bb.instructions
-            return bb_insts.index(use_inst) > bb_insts.index(copy_inst)
+    def _invoke_user_arg_index(self, invoke_inst: IRInstruction, operand_idx: int) -> int | None:
+        return self._invoke_layout(invoke_inst).user_arg_index(operand_idx)
 
-        return self.domtree.dominates(copy_bb, use_bb)
-
-    def _invoke_has_return_buffer(self, invoke_inst: IRInstruction) -> bool:
-        callee = self._get_invoke_callee(invoke_inst)
-        if callee is None:
-            return False
-
-        if callee._invoke_param_count is None or callee._has_memory_return_buffer_param is None:
-            return False
-
-        invoke_arg_count = len(invoke_inst.operands) - 1
-        if invoke_arg_count != callee._invoke_param_count:
-            return False
-
-        return callee._has_memory_return_buffer_param
+    def _invoke_return_buffer_operand_pos(self, invoke_inst: IRInstruction) -> int | None:
+        return self._invoke_layout(invoke_inst).return_buffer_operand_pos
 
     def _is_alloca_like(self, inst: IRInstruction | None) -> bool:
         return inst is not None and inst.opcode == "alloca"
@@ -83,21 +85,22 @@ class InvokeCopyForwardingBase(IRPass):
         return isinstance(size, IRLiteral) and size.value == expected_size
 
     def _is_readonly_invoke_operand(self, invoke_inst: IRInstruction, operand_idx: int) -> bool:
-        if operand_idx == 0:
-            return False
-
         callee = self._get_invoke_callee(invoke_inst)
         if callee is None:
             return False
 
+        arg_idx = self._invoke_user_arg_index(invoke_inst, operand_idx)
+        if arg_idx is None:
+            return False
+
         readonly_idxs = self.readonly_memory_args.get_readonly_invoke_arg_idxs(callee)
-        return (operand_idx - 1) in readonly_idxs
+        return arg_idx in readonly_idxs
 
     def _get_invoke_callee(self, invoke_inst: IRInstruction):
-        target = invoke_inst.operands[0]
-        if not isinstance(target, IRLabel):
-            return None
-        return self.function.ctx.functions.get(target)
+        return self._invoke_layout(invoke_inst).callee
+
+    def _invoke_layout(self, invoke_inst: IRInstruction) -> InvokeLayout:
+        return InvokeLayout(self.function.ctx, invoke_inst)
 
     def _has_src_clobber_between(
         self, copy_inst: IRInstruction, rewrite_sites: set[tuple[IRInstruction, int]]
@@ -120,7 +123,12 @@ class InvokeCopyForwardingBase(IRPass):
 
         return False
 
-    def _collect_assign_aliases(self, root: IRVariable) -> set[IRVariable]:
+    def _collect_assign_aliases(self, root: IRVariable) -> set[IRVariable] | None:
+        """
+        `root` and every variable assigned from it through assign chains,
+        or None when one of those variables is multiply defined and so does
+        not alias `root` on every path.
+        """
         aliases: set[IRVariable] = {root}
         worklist = deque([root])
 
@@ -130,6 +138,8 @@ class InvokeCopyForwardingBase(IRPass):
                 if use.opcode != "assign":
                     continue
                 out = use.output
+                if out in self._multi_defined_vars:
+                    return None
                 if out in aliases:
                     continue
                 aliases.add(out)
@@ -153,13 +163,20 @@ class InvokeCopyForwardingBase(IRPass):
     def _is_assign_output_use(self, use: IRInstruction, operand_pos: int) -> bool:
         return use.opcode == "assign" and operand_pos == 0
 
-    def _assign_root(self, op: IROperand) -> IROperand:
+    def _assign_root(self, op: IROperand) -> IROperand | None:
         if not isinstance(op, IRVariable):
             return op
         return self._assign_root_var(op)
 
-    def _assign_root_var(self, var: IRVariable) -> IRVariable:
+    def _assign_root_var(self, var: IRVariable) -> IRVariable | None:
+        """
+        The variable at the start of `var`'s assign chain, or None when the
+        chain passes through a multiply defined variable, whose root differs
+        per path.
+        """
         while True:
+            if var in self._multi_defined_vars:
+                return None
             inst = self.dfg.get_producing_instruction(var)
             if inst is None or inst.opcode != "assign":
                 return var

@@ -17,7 +17,12 @@ from vyper.compiler.settings import (
     should_run_legacy_optimizer,
 )
 from vyper.ir import compile_ir, optimizer
-from vyper.semantics import analyze_modules, set_data_positions, validate_compilation_target
+from vyper.semantics import (
+    analyze_modules,
+    set_data_positions,
+    validate_compilation_target,
+    validate_legacy_codegen_target,
+)
 from vyper.semantics.analysis.data_positions import generate_layout_export
 from vyper.semantics.analysis.imports import resolve_imports
 from vyper.semantics.types.function import ContractFunctionT
@@ -208,7 +213,7 @@ class CompilerData:
         """
         module_t = self.annotated_vyper_module._metadata["type"]
 
-        validate_compilation_target(module_t)
+        validate_compilation_target(module_t, self.settings.experimental_codegen is True)
         return self.annotated_vyper_module
 
     @cached_property
@@ -231,6 +236,13 @@ class CompilerData:
 
     @cached_property
     def _ir_output(self):
+        if self.settings.experimental_codegen:
+            # legacy IR is still reachable under venom through the `ir_dict`
+            # outputs. legacy codegen cannot lower venom-only types, so
+            # reject them with a diagnostic instead of panicking in codegen.
+            validate_legacy_codegen_target(
+                self.global_ctx, "legacy IR output does not support unbounded sequence types"
+            )
         # fetch both deployment and runtime IR
         return generate_ir_nodes(self.global_ctx, self.settings)
 
@@ -246,9 +258,13 @@ class CompilerData:
 
     @property
     def function_signatures(self) -> dict[str, ContractFunctionT]:
-        # some metadata gets calculated during codegen, so
-        # ensure codegen is run:
-        _ = self._ir_output
+        # Some metadata gets calculated during codegen, so ensure codegen is
+        # run for contracts. Interfaces have no function bodies to generate.
+        if not self.annotated_vyper_module.is_interface:
+            if self.settings.experimental_codegen:
+                _ = self.venom_runtime
+            else:
+                _ = self._ir_output
 
         fs = self.annotated_vyper_module.get_children(vy_ast.FunctionDef)
         return {f.name: f._metadata["func_type"] for f in fs}

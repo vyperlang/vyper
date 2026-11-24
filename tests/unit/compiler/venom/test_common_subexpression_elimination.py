@@ -3,16 +3,17 @@ import pytest
 from tests.hevm import hevm_check_venom
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis.analysis import IRAnalysesCache
+from vyper.venom.analysis.available_expression import NONIDEMPOTENT_INSTRUCTIONS
 from vyper.venom.passes.common_subexpression_elimination import CSE
 
 pytestmark = pytest.mark.hevm
 
 
-def _check_pre_post(pre: str, post: str, hevm: bool = True):
+def _check_pre_post(pre: str, post: str, hevm: bool = True, gas_heuristic: int = 6):
     ctx = parse_from_basic_block(pre)
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
-        CSE(ac, fn).run_pass()
+        CSE(ac, fn).run_pass(gas_heuristic=gas_heuristic)
     assert_ctx_eq(ctx, parse_from_basic_block(post))
 
     if not hevm:
@@ -153,8 +154,8 @@ def test_cse_logs_no_indepontent():
     pre = """
     main:
         %1 = 10
-        log %1
-        log %1
+        log %1, 0
+        log %1, 0
         stop
     """
 
@@ -261,7 +262,7 @@ def test_cse_different_branches_can_optimize():
 
     def same_opt(i):
         return f"""
-        %d{i} = mload 0
+        %d{i} = %d0
         %a{i} = %a0
         %m{i} = mul {i}, %a{i}
         """
@@ -302,7 +303,7 @@ def test_cse_different_branches_can_optimize():
         sink %m0, %m3, %m
     """
 
-    _check_pre_post(pre, post)
+    _check_pre_post(pre, post, gas_heuristic=1)
 
 
 def test_cse_invoke_idempotent():
@@ -360,6 +361,24 @@ def test_cse_non_idempotent():
     """
 
     _check_no_change(pre)
+
+
+def test_cse_gas_not_idempotent():
+    """
+    Test that distinct `gas` reads (and expressions built on top of them)
+    are not coalesced, since `gas` returns the remaining gas which
+    decreases as execution proceeds
+    """
+    pre = """
+    main:
+        %g1 = gas
+        %d1 = div %g1, 3
+        %g2 = gas
+        %d2 = div %g2, 3
+        sink %d1, %d2
+    """
+
+    _check_no_change(pre, hevm=False)
 
 
 @pytest.mark.xfail
@@ -503,12 +522,26 @@ def test_cse_self_conflicting_effects():
     """
     pre1 = """
     main:
-        mcopy 10, 100, 10
-        mcopy 10, 100, 10
+        mcopy 10, 20, 11
+        mcopy 10, 20, 11
         stop
     """
 
     pre2 = """
+    main:
+        %load1 = mload 990
+        mstore 1000, %load1
+        %load2 = mload 990
+        mstore 1000, %load2
+        stop
+    """
+
+    _check_no_change(pre1)
+    _check_no_change(pre2)
+
+
+def test_cse_effect_conflict_does_not_alias():
+    pre = """
     main:
         %load1 = mload 0
         mstore 1000, %load1
@@ -517,8 +550,16 @@ def test_cse_self_conflicting_effects():
         stop
     """
 
-    _check_no_change(pre1)
-    _check_no_change(pre2)
+    post = """
+    main:
+        %load1 = mload 0
+        mstore 1000, %load1
+        %load2 = %load1
+        nop
+        stop
+    """
+
+    _check_pre_post(pre, post)
 
 
 def test_cse_allowed_deep_self_conflict():
@@ -590,3 +631,113 @@ def test_cse_different_params():
     """
 
     _check_no_change(pre)
+
+
+def test_cse_multi_output_invoke_effects():
+    """
+    A multi-output (tuple-returning) invoke has write effects like any
+    other invoke; an sload before the invoke must not be forwarded to
+    an sload after it, since the callee may write the same slot.
+    """
+    pre = """
+    main:
+        %1 = sload 0
+        %a, %b = invoke @f
+        %2 = sload 0
+        sink %1, %2, %a, %b
+    """
+
+    _check_no_change(pre, hevm=False)
+
+
+def test_cse_dalloca_not_merged():
+    # two identical `dalloca`s are distinct dynamic allocations and
+    # must not be merged by CSE
+    pre = """
+    main:
+        %p1 = dalloca 32
+        %p2 = dalloca 32
+        sink %p1, %p2
+    """
+
+    _check_no_change(pre, hevm=False)
+
+
+def test_fmp_allocation_ops_are_nonidempotent():
+    # the behavior tests above are additionally masked by CSE's multi-output
+    # skip (well-formed bump has 2 outputs), so pin the set membership
+    # directly: these derive from the Effects.FMP row and removing any of
+    # them would make identical allocations CSE-mergeable.
+    assert "bump" in NONIDEMPOTENT_INSTRUCTIONS
+    assert "dalloca" in NONIDEMPOTENT_INSTRUCTIONS
+    assert "setfmp" in NONIDEMPOTENT_INSTRUCTIONS
+
+
+def test_cse_bump_not_merged():
+    # two `bump`s with identical operands are distinct allocations in the
+    # FMP threading chain and must not be merged by CSE
+    pre = """
+    main:
+        %fmp = source
+        %p1, %f1 = bump 32, %fmp
+        %p2, %f2 = bump 32, %fmp
+        sink %p1, %p2
+    """
+
+    _check_no_change(pre, hevm=False)
+
+
+def test_cse_abstract_memory():
+    pre = """
+    main:
+        %ptr_a = alloca 32
+        %ptr_b = alloca 32
+        %1 = mload %ptr_a
+        mstore %ptr_b, 0
+        %2 = mload %ptr_a
+        sink %1, %2
+    """
+
+    post = """
+    main:
+        %ptr_a = alloca 32
+        %ptr_b = alloca 32
+        %1 = mload %ptr_a
+        mstore %ptr_b, 0
+        %2 = %1
+        sink %1, %2
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_cse_abstract_memory_undefined():
+    pre = """
+    main:
+        %ptr_a = alloca 32
+        %ptr_b = alloca 32
+        %offset = source
+        %1 = add %ptr_a, %offset
+        %2 = mload %1
+        %3 = add %ptr_b, %offset
+        mstore %3, 0
+        %4 = add %ptr_a, %offset
+        %5 = mload %4
+        sink %2, %5
+    """
+
+    post = """
+    main:
+        %ptr_a = alloca 32
+        %ptr_b = alloca 32
+        %offset = source
+        %1 = add %ptr_a, %offset
+        %2 = mload %1
+        %3 = add %ptr_b, %offset
+        mstore %3, 0
+        %4 = %1
+        %5 = %2
+        sink %2, %5
+    """
+
+    _check_pre_post(pre, post)

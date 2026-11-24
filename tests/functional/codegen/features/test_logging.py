@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from eth.codecs import abi
 from eth_utils import to_text
@@ -12,6 +14,7 @@ from vyper.exceptions import (
     StructureException,
     TypeMismatch,
     UndeclaredDefinition,
+    UnimplementedException,
     UnknownAttribute,
 )
 from vyper.utils import keccak256
@@ -188,8 +191,47 @@ event MyLog:
     arg4: indexed(int128)
     """
 
-    with pytest.raises(EventDeclarationException):
+    with pytest.raises(EventDeclarationException) as e:
         compile_code(loggy_code)
+    assert e.value.message == "Event cannot have more than three indexed arguments"
+
+
+@pytest.mark.xfail(raises=UnimplementedException, reason="anonymous events not yet supported")
+def test_json_abi_anonymous_four_indexed_log(get_contract, get_logs, make_input_bundle):
+    iface_abi = json.dumps(
+        [
+            {
+                "type": "event",
+                "name": "MyLog",
+                "anonymous": True,
+                "inputs": [
+                    {"name": "arg1", "type": "int128", "indexed": True},
+                    {"name": "arg2", "type": "bool", "indexed": True},
+                    {"name": "arg3", "type": "address", "indexed": True},
+                    {"name": "arg4", "type": "uint256", "indexed": True},
+                ],
+            }
+        ]
+    )
+    main = """
+import iface
+
+@external
+def foo():
+    log iface.MyLog(arg1=-2, arg2=True, arg3=self, arg4=42)
+    """
+    input_bundle = make_input_bundle({"iface.json": iface_abi, "main.vy": main})
+
+    c = get_contract(main, input_bundle=input_bundle)
+    c.foo()
+
+    (log,) = get_logs(c)
+    # anonymous events have no event-id topic
+    assert len(log.topics) == 4
+    assert int.from_bytes(log.topics[0], "big") == (-2) % (2**256)
+    assert int.from_bytes(log.topics[1], "big") == 1
+    assert log.topics[2][-20:] == bytes.fromhex(c.address[2:])
+    assert int.from_bytes(log.topics[3], "big") == 42
 
 
 def test_event_logging_with_data(get_logs, keccak, get_contract):
@@ -220,6 +262,26 @@ def foo():
     # Event is decoded correctly
     (log,) = get_logs(c, "MyLog")
     assert log.args.arg1 == 123
+
+
+def test_event_logging_snapshots_bounded_dynarray_before_later_mutation(get_logs, get_contract):
+    loggy_code = """
+event MyLog:
+    xs: DynArray[uint256, 3]
+    popped: uint256
+
+@external
+def foo():
+    x: DynArray[uint256, 3] = [1, 2, 3]
+    log MyLog(xs=x, popped=x.pop())
+    """
+
+    c = get_contract(loggy_code)
+    c.foo()
+
+    (log,) = get_logs(c, "MyLog")
+    assert log.args.xs == [1, 2, 3]
+    assert log.args.popped == 3
 
 
 def test_event_logging_with_fixed_array_data(env, keccak, get_logs, get_contract):

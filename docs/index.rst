@@ -1,10 +1,15 @@
-.. image:: logo.svg
-    :width: 140px
+.. image:: _static/logo-dark.svg
+    :class: dark-only
     :alt: Vyper logo
     :align: center
 
-Vyper
-#####
+.. image:: _static/logo-light.svg
+    :class: light-only
+    :alt: Vyper logo
+    :align: center
+
+Overview
+########
 
 Vyper is a Pythonic smart contract language that compiles to `Ethereum Virtual Machine (EVM) <https://ethereum.org/learn/#ethereum-basics>`_ bytecode.
 It prioritises **security**, **auditability**, and **simplicity**.

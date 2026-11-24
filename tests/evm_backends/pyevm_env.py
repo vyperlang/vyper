@@ -48,8 +48,6 @@ class PyEvmEnv(BaseEnv):
             logger = logging.getLogger("eth.vm.computation.BaseComputation")
             setup_DEBUG2_logging()
             logger.setLevel("DEBUG2")
-            # from vdb import vdb
-            # vdb.set_evm_opcode_debugger()
 
         spec = getattr(chain_builder.builders, evm_version + "_at")(block_number)
         self._chain: ChainAPI = chain_builder.build(MainnetChain, spec).from_genesis(
@@ -172,6 +170,9 @@ class PyEvmEnv(BaseEnv):
 
     def get_code(self, address: str):
         return self._state.get_code(_addr(address))
+
+    def get_storage(self, address: str, slot: int) -> int:
+        return self._state.get_storage(_addr(address), slot)
 
     def get_excess_blob_gas(self) -> Optional[int]:
         return self._context.excess_blob_gas

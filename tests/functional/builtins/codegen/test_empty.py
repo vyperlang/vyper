@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.compiler import compile_code
-from vyper.exceptions import ArrayIndexException, InstantiationException, TypeMismatch
+from vyper.exceptions import InstantiationException, InvalidType, TypeMismatch
 
 
 @pytest.mark.parametrize(
@@ -264,6 +264,68 @@ def test_clear_literals(contract, assert_compile_failed, get_contract):
     assert_compile_failed(lambda: get_contract(contract), Exception)
 
 
+def test_empty_constant_name_not_a_type():
+    code = """
+MAX_MESSAGES: constant(uint256) = 64
+
+@external
+def foo():
+    bar: DynArray[uint16, MAX_MESSAGES] = empty(MAX_MESSAGES)
+    """
+    with pytest.raises(InvalidType, match="is not a type"):
+        compile_code(code)
+
+
+def test_empty_constant_name_not_a_type_in_assignment():
+    code = """
+MESSAGE: constant(String[10]) = "Hello"
+
+@external
+def foo():
+    bar: String[10] = empty(MESSAGE)
+    """
+    with pytest.raises(InvalidType, match="is not a type"):
+        compile_code(code)
+
+
+def test_empty_immutable_name_not_a_type():
+    code = """
+FOO: immutable(uint256)
+
+@deploy
+def __init__():
+    FOO = 1
+
+@external
+def foo():
+    bar: uint256 = empty(FOO)
+    """
+    with pytest.raises(InvalidType, match="is not a type"):
+        compile_code(code)
+
+
+def test_empty_state_variable_name_not_a_type():
+    code = """
+n: uint256
+
+@external
+def foo():
+    bar: uint256 = empty(self.n)
+    """
+    with pytest.raises(InvalidType, match="is not a type"):
+        compile_code(code)
+
+
+def test_empty_function_parameter_name_not_a_type():
+    code = """
+@external
+def foo(x: uint256):
+    bar: uint256 = empty(x)
+    """
+    with pytest.raises(InvalidType, match="is not a type"):
+        compile_code(code)
+
+
 def test_empty_bytes(get_contract):
     code = """
 foobar: Bytes[5]
@@ -412,8 +474,37 @@ def foo():
     c.foo()
 
 
-# param empty not working yet
-@pytest.mark.xfail
+def test_empty_dynarray_smaller_capacity(get_contract):
+    code = """
+s: DynArray[uint256, 5]
+
+@internal
+def length(xs: DynArray[uint256, 5]) -> uint256:
+    return len(xs)
+
+@external
+def foo() -> DynArray[DynArray[uint256, 3], 2]:
+    x: DynArray[uint256, 5] = [1, 2]
+    x = empty(DynArray[uint256, 2])
+    assert len(x) == 0
+
+    self.s = [1, 2, 3]
+    self.s = empty(DynArray[uint256, 2])
+    assert len(self.s) == 0
+
+    assert self.length(empty(DynArray[uint256, 2])) == 0
+    return [empty(DynArray[uint256, 2]), [1, 2, 3]]
+
+@external
+def bar() -> DynArray[uint256, 5]:
+    return empty(DynArray[uint256, 2])
+    """
+
+    c = get_contract(code)
+    assert c.foo() == [[], [1, 2, 3]]
+    assert c.bar() == []
+
+
 def test_param_empty(get_contract):
     code = """
 interface Mirror:
@@ -424,7 +515,7 @@ interface Mirror:
 @internal
 def write_junk_to_memory():
     xs: int128[1024] = empty(int128[1024])
-    for i: uint256 in range(1024):
+    for i: int128 in range(1024):
         xs[i] = -(i + 1)
 @internal
 def priv(xs: int128[111], ys: Bytes[1024], zs: Bytes[31]) -> bool:
@@ -456,8 +547,6 @@ def pub3(x: address) -> bool:
     assert c.pub3(mirror.address)
 
 
-# return empty not working yet
-@pytest.mark.xfail
 def test_return_empty(get_contract):
     code = """
 struct X:
@@ -470,7 +559,7 @@ struct X:
 @internal
 def write_junk_to_memory():
     xs: int128[1024] = empty(int128[1024])
-    for i: uint256 in range(1024):
+    for i: int128 in range(1024):
         xs[i] = -(i + 1)
 
 @external
@@ -501,8 +590,8 @@ def e() -> X:
     c = get_contract(code)
 
     assert c.a() == 0
-    assert c.b() == (0) * 5
-    assert c.c() == ([0] * 5) * 5
+    assert c.b() == [0] * 5
+    assert c.c() == [[0] * 5] * 5
     assert c.d() == b""
     assert c.e() == (0, "0x" + "0" * 40, 0x0, [0])
 
@@ -709,7 +798,7 @@ def test():
 def test():
     a: Bytes[32] = empty(Bytes[0])
     """,
-            ArrayIndexException,
+            InvalidType,
         ),
     ],
 )

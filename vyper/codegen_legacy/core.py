@@ -6,7 +6,7 @@ from vyper.codegen_shared.abi_utils import (
     is_tuple_like,
     needs_external_call_wrap,
 )
-from vyper.compiler.settings import _opt_codesize, _opt_gas, _opt_none
+from vyper.compiler.settings import _opt_codesize, _opt_gas, _opt_lowering_only_ir
 from vyper.evm.address_space import (
     CALLDATA,
     DATA,
@@ -23,6 +23,7 @@ from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,
     BoolT,
+    BottomT,
     BytesM_T,
     DArrayT,
     DecimalT,
@@ -33,8 +34,9 @@ from vyper.semantics.types import (
     TupleT,
     VyperType,
     _BytestringT,
+    is_bounded_length,
+    is_unbounded_sequence_type,
 )
-from vyper.semantics.types.infinity import is_bounded_length
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.subscriptable import SArrayT
 from vyper.semantics.types.user import FlagT
@@ -493,7 +495,7 @@ def append_dyn_array(darray_node, elem_node):
 
     if not is_bounded_length(darray_node.typ.count):
         raise CodegenPanic("append not yet implemented for unbounded DynArray")
-    assert darray_node.typ.count > 0, "jerk boy u r out"
+    assert darray_node.typ.count >= 0, "jerk boy u r out"
 
     ret = ["seq"]
     with darray_node.cache_when_complex("darray") as (b1, darray_node):
@@ -843,12 +845,6 @@ def _check_assign_list(left, right):
         if left.typ.count < right.typ.count:  # pragma: nocover
             FAIL()
 
-        # stricter check for zeroing
-        if right.is_empty_intrinsic and right.typ.count != left.typ.count:  # pragma: nocover
-            raise TypeCheckFailure(
-                f"Bad type for clearing bytes: expected {left.typ} but got {right.typ}"
-            )
-
         # TODO recurse into left, right if literals?
         check_assign(
             dummy_node_for_type(left.typ.value_type), dummy_node_for_type(right.typ.value_type)
@@ -896,7 +892,10 @@ def check_assign(left, right):
     def FAIL():  # pragma: no cover
         raise TypeCheckFailure(f"assigning {right.typ} to {left.typ} {left} {right}")
 
-    if isinstance(left.typ, _BytestringT):
+    if isinstance(right.typ, BottomT):
+        # Universal subtype, can be widened to anything
+        pass
+    elif isinstance(left.typ, _BytestringT):
         _check_assign_bytes(left, right)
     elif is_array_like(left.typ):
         _check_assign_list(left, right)
@@ -1150,7 +1149,7 @@ def _complex_make_setter(left, right, hi=None):
                 # kind of arbitrary, but cut off when code used > ~160 bytes
                 should_batch_copy = len_ >= 32 * 10
             else:
-                assert _opt_none()
+                assert _opt_lowering_only_ir()
                 # don't care, just generate the most readable version
                 should_batch_copy = True
         else:
@@ -1194,6 +1193,45 @@ def _complex_make_setter(left, right, hi=None):
         return b1.resolve(b2.resolve(IRnode.from_list(ret)))
 
 
+def punnable(src_typ, dst_typ):
+    """
+    Return True if memory laid out as `src_typ` can be read (punned) as `dst_typ`.
+
+    Compatible types can differ in element or member layout, e.g.
+    DynArray[Bytes[10], 5] vs DynArray[Bytes[512], 5] (element stride 64
+    vs 544). A wider bytestring bound or DynArray capacity at the top level
+    does not change the layout of the data that is present.
+    """
+    if isinstance(dst_typ, (DArrayT, SArrayT)):
+        assert isinstance(src_typ, (DArrayT, SArrayT))
+        pairs = [(src_typ.value_type, dst_typ.value_type)]
+    elif isinstance(dst_typ, TupleT):
+        assert isinstance(src_typ, TupleT)
+        n = len(dst_typ.member_types)
+        assert len(src_typ.member_types) == n
+        pairs = [(src_typ.member_types[i], dst_typ.member_types[i]) for i in range(n)]
+    else:
+        # primitive words, bytestrings ([length][data]) and (nominal) structs
+        return True
+
+    # nested values also need equal sizes: they determine strides and offsets
+    return all(_punnable_nested(s, d) for s, d in pairs)
+
+
+def _punnable_nested(src_typ, dst_typ):
+    # an unbounded element or member is a pointer cell holding a payload
+    # pointer, not the value. A cell is never interchangeable with an inline
+    # value, even when the inline value's size happens to equal the cell's,
+    # and a cell is read as the payload type it was written for.
+    src_cell = is_unbounded_sequence_type(src_typ)
+    dst_cell = is_unbounded_sequence_type(dst_typ)
+    if src_cell or dst_cell:
+        return src_cell and dst_cell and src_typ == dst_typ
+    return src_typ.memory_bytes_required == dst_typ.memory_bytes_required and punnable(
+        src_typ, dst_typ
+    )
+
+
 def ensure_in_memory(ir_var, context):
     """
     Ensure a variable is in memory. This is useful for functions
@@ -1205,8 +1243,9 @@ def ensure_in_memory(ir_var, context):
     return create_memory_copy(ir_var, context)
 
 
-def create_memory_copy(ir_var, context):
-    typ = ir_var.typ
+def create_memory_copy(ir_var, context, typ=None):
+    if typ is None:
+        typ = ir_var.typ
     buf = context.new_internal_variable(typ)
     do_copy = make_setter(buf, ir_var)
     return IRnode.from_list(["seq", do_copy, buf], typ=typ, location=MEMORY)

@@ -1106,6 +1106,62 @@ def test_mstore_before_ret_is_not_dead():
     _check_no_change(pre, hevm=False)
 
 
+@pytest.mark.parametrize("location", [STORAGE, TRANSIENT])
+def test_store_before_ret_is_not_dead(location):
+    """Memory stores before ret (internal function return) are live because
+    the caller can observe memory after the function returns.
+    Regression test: DSE was eliminating the free memory pointer update
+    in alloc()-style functions, causing all allocations to alias."""
+
+    opcode = location.store_op
+
+    pre = f"""
+    _global:
+        %retpc = retpc_param
+        {opcode} 64, 1
+        ret %retpc, 1
+    """
+    _check_no_change_generic(pre, addr_space=location, hevm=False)
+
+
+@pytest.mark.parametrize("location", [MEMORY, STORAGE, TRANSIENT])
+def test_store_before_retfmp_is_not_dead(location):
+    """Memory stores before ret (internal function return) are live because
+    the caller can observe memory after the function returns.
+    Regression test: DSE was eliminating the free memory pointer update
+    in alloc()-style functions, causing all allocations to alias."""
+
+    opcode = location.store_op
+
+    pre = f"""
+    _global:
+        %retpc = retpc_param
+        %fmp = getfmp
+        {opcode} 64, 1
+        retfmp %fmp, 1, %retpc
+    """
+    _check_no_change_generic(pre, addr_space=location, hevm=False)
+
+
+@pytest.mark.parametrize("location", [MEMORY, STORAGE, TRANSIENT])
+def test_store_before_dret_is_not_dead(location):
+    """Memory stores before ret (internal function return) are live because
+    the caller can observe memory after the function returns.
+    Regression test: DSE was eliminating the free memory pointer update
+    in alloc()-style functions, causing all allocations to alias."""
+
+    opcode = location.store_op
+
+    pre = f"""
+    _global:
+        %retpc = retpc_param
+        %src = dalloca 32
+        {opcode} 64, 1
+        dret 1, %src, 32, %retpc
+    """
+    _check_no_change_generic(pre, addr_space=location, hevm=False)
+
+
 def test_mstore_before_ret_clobbered_is_dead():
     """A store before ret that is clobbered by a later store IS dead."""
     pre = """
@@ -1172,6 +1228,10 @@ _persistent_address_spaces = (STORAGE, TRANSIENT)
 
 def _check_pre_post_generic(pre, post, addr_space):
     VolatilePrePostChecker([DeadStoreElimination], addr_space=addr_space)(pre, post)
+
+
+def _check_no_change_generic(code, addr_space, hevm=False):
+    VolatilePrePostChecker([DeadStoreElimination], addr_space=addr_space)(code, code, hevm=hevm)
 
 
 @pytest.mark.parametrize("addr_space", _persistent_address_spaces)
@@ -1274,3 +1334,69 @@ def test_storage_dead_store_branch_revert(jnz, addr_space):
             sink %1
     """
     _check_pre_post_generic(pre, post, addr_space)
+
+
+def test_dse_different_allocations_non_fixed_offset():
+    """
+    The mstore uses the location which is not fixed
+    but the cannot alias the mload so it can be
+    eliminated
+    """
+    pre = """
+    main:
+        %ptr_a = alloca 160
+        %ptr_b = alloca 160
+
+        ; offset is 160 - 32 since
+        ; that is the max for the mstore
+        ; offset for these allocas
+        ; The size of the allocation
+        ; is set so the bound is easier
+        ; for hevm to handle
+        %offset_a = source
+        %offset_b = source
+        %offset_a_mod = mod %offset_a, 128
+        %offset_b_mod = mod %offset_b, 128
+        %a = add %ptr_a, %offset_a_mod
+        %b = add %ptr_b, %offset_b_mod
+        mstore %a, 123
+        %res = mload %b
+        sink %res
+    """
+
+    post = """
+    main:
+        %ptr_b = alloca 160
+        %offset_b = source
+        %offset_b_mod = mod %offset_b, 128
+        %b = add %ptr_b, %offset_b_mod
+        %res = mload %b
+        sink %res
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_dse_same_allocation_non_fixed_offset():
+    pre = """
+    main:
+        %ptr = alloca 160
+
+        ; offset is 160 - 32 since
+        ; that is the max for the mstore
+        ; offset for these allocas
+        ; The size of the allocation
+        ; is set so the bound is easier
+        ; for hevm to handle
+        %offset_a = source
+        %offset_b = source
+        %offset_a_mod = mod %offset_a, 128
+        %offset_b_mod = mod %offset_b, 128
+        %a = add %ptr, %offset_a_mod
+        %b = add %ptr, %offset_b_mod
+        mstore %a, 123
+        %res = mload %b
+        sink %res
+    """
+
+    _check_no_change(pre)
