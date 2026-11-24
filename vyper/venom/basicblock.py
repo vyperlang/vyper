@@ -807,23 +807,13 @@ class IRBasicBlock:
         self.instructions.append(inst)
         return outputs
 
-    def insert_instruction(
-        self,
-        instruction: IRInstruction,
-        index: Optional[int] = None,
-        ast_source: Optional[VyperNode] = None,
-        error_msg: Optional[str] = None,
-    ) -> None:
+    def insert_instruction(self, instruction: IRInstruction, index: Optional[int] = None) -> None:
         assert isinstance(instruction, IRInstruction), "instruction must be an IRInstruction"
 
         if index is None:
             assert not self.is_terminated, (self, instruction)
             index = len(self.instructions)
         instruction.parent = self
-        if ast_source is not None:
-            instruction.ast_source = ast_source
-        if error_msg is not None:
-            instruction.error_msg = error_msg
         self.instructions.insert(index, instruction)
 
     def clear_nops(self) -> None:
