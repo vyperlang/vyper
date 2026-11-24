@@ -163,6 +163,33 @@ def abi_encode(d: DynArray[uint256, 3], ensure_tuple: bool, include_method_id: b
     )
 
 
+def test_abi_encode_dynamic_tuple(get_contract):
+    code = """
+@external
+def abi_encode(s: String[5], x: uint256, ensure_tuple: bool, include_method_id: bool) -> Bytes[196]:
+    t: (String[5], uint256) = (s, x)
+    if ensure_tuple:
+        if not include_method_id:
+            return abi_encode(t) # default ensure_tuple=True
+        return abi_encode(t, method_id=0xdeadbeef)
+    else:
+        if not include_method_id:
+            return abi_encode(t, ensure_tuple=False)
+        return abi_encode(t, ensure_tuple=False, method_id=0xdeadbeef)
+    """
+    c = get_contract(code)
+
+    method_id = 0xDEADBEEF.to_bytes(4, "big")
+
+    arg = ("abc", 7)
+    unwrapped = abi.encode("(string,uint256)", arg)
+    wrapped = abi.encode("((string,uint256))", (arg,))
+    assert c.abi_encode(*arg, False, False).hex() == unwrapped.hex()
+    assert c.abi_encode(*arg, True, False).hex() == wrapped.hex()
+    assert c.abi_encode(*arg, False, True).hex() == (method_id + unwrapped).hex()
+    assert c.abi_encode(*arg, True, True).hex() == (method_id + wrapped).hex()
+
+
 def test_abi_encode_snapshots_bounded_dynarray_before_later_mutation(get_contract):
     code = """
 @external
