@@ -189,6 +189,24 @@ class VyperType:
     def resolve_wildcard(self):
         return self
 
+    def merge_wildcards(self, other: "VyperType", keep_wildcards: bool) -> "VyperType":
+        """
+        Return this type, with the lengths merged where one of the two types
+        has a wildcard and the other has not: to the wildcard if
+        `keep_wildcards`, to the other length if not. `other` must be a
+        subtype of this type.
+        """
+        if isinstance(other, BottomT):
+            # the element type of an empty list
+            return self
+        return self._merge_wildcards(other, keep_wildcards)
+
+    def _merge_wildcards(self, other: "VyperType", keep_wildcards: bool) -> "VyperType":
+        assert not self.has_wildcard
+        assert not other.has_wildcard
+
+        return self
+
     @property
     def getter_signature(self):
         return (), self
