@@ -1752,7 +1752,7 @@ def test_post_lowering_check_fires_on_corrupted_shape():
             %retpc = param
             %q = dalloca 32
             mstore %q, 9
-            log 0, %q, 32
+            log %q, 32, 0
             ret %retpc
     }
     """

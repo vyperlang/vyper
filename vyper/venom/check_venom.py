@@ -207,6 +207,26 @@ def _check_fixed_arity(caller: IRFunction, inst: IRInstruction, errors: list[Ven
         errors.append(err_cls(caller, inst))
 
 
+class LogArityError(OpcodeArityError):
+    message: str = (
+        "log must have a literal topic count in 0..4 followed by exactly "
+        "that many topics, a size and an offset"
+    )
+
+
+def _check_log_arity(caller: IRFunction, inst: IRInstruction, errors: list[VenomError]) -> None:
+    # internal operand order is [topic_count, topic_n-1, ..., topic0, size, offset].
+    # the assembler trusts topic_count to pick LOG0..LOG4, so a mismatch
+    # would emit a LOGn that consumes the wrong number of stack items.
+    topic_count = inst.operands[0] if len(inst.operands) > 0 else None
+    if (
+        not isinstance(topic_count, IRLiteral)
+        or not 0 <= topic_count.value <= 4
+        or len(inst.operands) != topic_count.value + 3
+    ):
+        errors.append(LogArityError(caller, inst))
+
+
 class DretShapeError(VenomError):
     message: str = "dret operands are malformed"
 
@@ -704,6 +724,9 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
                     continue
                 if inst.opcode in _FIXED_ARITY:
                     _check_fixed_arity(caller, inst, errors)
+                    continue
+                if inst.opcode == "log":
+                    _check_log_arity(caller, inst, errors)
                     continue
                 if inst.opcode == "memtop":
                     errors.append(
