@@ -3,15 +3,12 @@ from dataclasses import dataclass
 from vyper.codegen_legacy.context import Constancy, Context
 from vyper.codegen_legacy.ir_node import IRnode
 from vyper.codegen_legacy.memory_allocator import MemoryAllocator
-from vyper.codegen_shared.function_info import EntryPointInfo, _FuncIRInfo, init_ir_info
+from vyper.codegen_shared.function_info import EntryPointInfo, init_ir_info
 from vyper.evm.opcodes import version_check
 from vyper.semantics.types import VyperType
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import MemoryPositions
-
-# Re-export shared types for downstream consumers
-__all__ = ["EntryPointInfo", "_FuncIRInfo", "FrameInfo", "init_ir_info"]
 
 
 @dataclass
