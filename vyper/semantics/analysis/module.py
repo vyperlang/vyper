@@ -17,6 +17,7 @@ from vyper.exceptions import (
     InterfaceViolation,
     InvalidLiteral,
     InvalidType,
+    NamespaceCollision,
     StateAccessViolation,
     StructureException,
     UndeclaredDefinition,
@@ -438,6 +439,9 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         self._events: list[EventT] = []
         self._errors: list[ErrorT] = []
+
+        # keep track of import aliases, for collision error messages
+        self._import_aliases: dict[str, vy_ast.alias] = {}
 
         self.module_t: Optional[ModuleT] = None
 
@@ -903,13 +907,37 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
         self._add_import(node)
 
     def _add_import(self, node: vy_ast.Import | vy_ast.ImportFrom) -> None:
-        for import_info in node._metadata["import_infos"]:
+        import_infos = node._metadata["import_infos"]
+        for alias_node, import_info in zip(node.names, import_infos, strict=True):
             # similar structure to import analyzer
             module_info = self._load_import(import_info)
 
             import_info._typ = module_info
 
+            self._check_import_collision(node, alias_node, import_info.alias)
+
             self.namespace[import_info.alias] = module_info
+            self._import_aliases[import_info.alias] = alias_node
+
+    def _check_import_collision(
+        self, node: vy_ast.Import | vy_ast.ImportFrom, alias_node: vy_ast.alias, alias: str
+    ) -> None:
+        prev_alias_node = self._import_aliases.get(alias)
+        if prev_alias_node is None:
+            # not a collision between two imports. any other kind of
+            # collision is handled by `Namespace.validate_assignment()`.
+            return
+
+        # suggest renaming the later import, keeping its original form
+        if isinstance(node, vy_ast.ImportFrom):
+            module = "." * node.level + (node.module or "")
+            suggestion = f"from {module} import {alias_node.name} as {alias}_m"
+        else:
+            suggestion = f"import {alias_node.name} as {alias}_m"
+
+        msg = f"'{alias}' is already imported as a module"
+        hint = f"use a different alias, e.g. `{suggestion}`"
+        raise NamespaceCollision(msg, alias_node, prev_decl=prev_alias_node, hint=hint)
 
     def _load_import(self, import_info: ImportInfo) -> ModuleInfo | InterfaceT:
         path = import_info.compiler_input.path
