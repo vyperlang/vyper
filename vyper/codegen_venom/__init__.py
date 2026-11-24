@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import Optional
 
 from vyper.codegen_venom import module
-from vyper.compiler.settings import Settings, anchor_settings
+from vyper.compiler.settings import Settings
 from vyper.semantics.types.module import ModuleT
 from vyper.venom import run_passes_on
 from vyper.venom.context import IRContext
@@ -37,8 +37,7 @@ def generate_venom_runtime(module_t: ModuleT, settings: Settings) -> IRContext:
     IRContext must be compiled to bytecode before generating
     deploy code.
     """
-    with anchor_settings(settings):
-        ctx = module.generate_venom_runtime(module_t, settings)
+    ctx = module.generate_venom_runtime(module_t, settings)
     return _finalize_venom_ctx(ctx, settings)
 
 
@@ -62,8 +61,7 @@ def generate_venom_deploy(
         cbor_metadata: Optional CBOR-encoded metadata to append to bytecode
     """
     immutables_len = module_t.immutable_section_bytes
-    with anchor_settings(settings):
-        ctx = module.generate_venom_deploy(
-            module_t, settings, runtime_bytecode, immutables_len, cbor_metadata
-        )
+    ctx = module.generate_venom_deploy(
+        module_t, settings, runtime_bytecode, immutables_len, cbor_metadata
+    )
     return _finalize_venom_ctx(ctx, settings)
