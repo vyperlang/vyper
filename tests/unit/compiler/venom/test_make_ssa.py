@@ -1,8 +1,13 @@
 import pytest
 
+from tests.evm_backends.base_env import BaseEnv
 from tests.hevm import hevm_check_venom_ctx
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block, parse_venom
+from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
+from vyper.evm.assembler.core import assembly_to_evm
+from vyper.venom import generate_assembly_experimental, run_passes_on
 from vyper.venom.analysis import IRAnalysesCache
+from vyper.venom.check_venom import check_venom_ctx
 from vyper.venom.passes import MakeSSA
 
 
@@ -356,3 +361,136 @@ def test_make_ssa_error():
         # RemoveUnusedVariablesPass(ac, fn).run_pass()
 
     hevm_check_venom_ctx(ctx, post_ctx)
+
+
+def _execute_venom(
+    env: BaseEnv, code: str, calldata: bytes = b"", level: OptimizationLevel = OptimizationLevel.O1
+) -> int:
+    ctx = parse_venom(code)
+    flags = VenomOptimizationFlags(level=level)
+    run_passes_on(ctx, flags)
+    asm = generate_assembly_experimental(ctx, optimize=level)
+    bytecode, _ = assembly_to_evm(asm)
+    initcode = bytes.fromhex(f"61{len(bytecode):04x}3d81600a3d39f3") + bytecode
+    contract = env.deploy([], initcode)
+    out = env.message_call(contract.address, data=calldata, gas=1_000_000)
+    return int.from_bytes(out, "big")
+
+
+def _assert_single_assignment(ctx) -> None:
+    for fn in ctx.functions.values():
+        seen = set()
+        for bb in fn.get_basic_blocks():
+            for inst in bb.instructions:
+                for out in inst.get_outputs():
+                    assert out not in seen, f"duplicate SSA definition of {out} in [{inst}]"
+                    seen.add(out)
+
+
+def test_user_var_ssa_name_collision_diamond(env):
+    """
+    Regression test for GH #5401: MakeSSA must not capture or collide with
+    pre-existing user variables whose names match the `%name:version` pattern.
+    """
+    code = """
+    function main [fmp_lowered, eom=0] {
+      main:
+        %z = 0
+        %1 = calldataload %z
+        jnz %1, @b1, @b2
+      b1:
+        %1 = 11
+        jmp @join
+      b2:
+        %1 = 22
+        jmp @join
+      join:
+        %1:1 = 77
+        %2 = add %1, %1:1
+        mstore %z, %2
+        %3 = 32
+        return %z, %3
+    }
+    """
+    ctx = parse_venom(code)
+    for fn in ctx.functions.values():
+        MakeSSA(IRAnalysesCache(fn), fn).run_pass()
+    _assert_single_assignment(ctx)
+    check_venom_ctx(ctx)
+
+    # calldata != 0 -> branch b1 (11 + 77 = 88); calldata == 0 -> branch b2 (22 + 77 = 99)
+    for level in (OptimizationLevel.O1, OptimizationLevel.O2):
+        assert _execute_venom(env, code, (1).to_bytes(32, "big"), level=level) == 88
+        assert _execute_venom(env, code, (0).to_bytes(32, "big"), level=level) == 99
+
+
+def test_user_var_ssa_name_collision_same_block_and_chained(env):
+    """
+    Verify MakeSSA avoids collisions in straight-line code, both when a
+    colon-suffixed variable is defined before and after reassignments, and
+    when multiple colliding names (%1:1, %1:2, %1:1:1) already exist.
+    """
+    code = """
+    function main [fmp_lowered, eom=0] {
+      main:
+        %z = 0
+        %1 = 10
+        %1:1 = 100
+        %1:2 = 200
+        %1:1:1 = 300
+        %1 = 20
+        %1:1 = 400
+        %s1 = add %1, %1:1
+        %s2 = add %1:2, %1:1:1
+        %res = add %s1, %s2
+        mstore %z, %res
+        %sz = 32
+        return %z, %sz
+    }
+    """
+    ctx = parse_venom(code)
+    for fn in ctx.functions.values():
+        MakeSSA(IRAnalysesCache(fn), fn).run_pass()
+    _assert_single_assignment(ctx)
+    check_venom_ctx(ctx)
+
+    # 20 + 400 + 200 + 300 = 920
+    assert _execute_venom(env, code) == 920
+
+
+def test_user_var_ssa_name_collision_sibling_branches(env):
+    """
+    Verify MakeSSA does not assign a versioned name to a variable in one branch
+    that collides with a pre-existing user variable in a sibling branch.
+    """
+    code = """
+    function main [fmp_lowered, eom=0] {
+      main:
+        %z = 0
+        %c = calldataload %z
+        %1 = 1
+        jnz %c, @left, @right
+      left:
+        %1 = 2
+        %a = add %1, 10
+        mstore %z, %a
+        jmp @done
+      right:
+        %1:1 = 50
+        %b = add %1, %1:1
+        mstore %z, %b
+        jmp @done
+      done:
+        %sz = 32
+        return %z, %sz
+    }
+    """
+    ctx = parse_venom(code)
+    for fn in ctx.functions.values():
+        MakeSSA(IRAnalysesCache(fn), fn).run_pass()
+    _assert_single_assignment(ctx)
+    check_venom_ctx(ctx)
+
+    # calldata != 0 -> left (2 + 10 = 12); calldata == 0 -> right (1 + 50 = 51)
+    assert _execute_venom(env, code, (1).to_bytes(32, "big")) == 12
+    assert _execute_venom(env, code, (0).to_bytes(32, "big")) == 51
