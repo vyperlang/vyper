@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.codegen.ir_node import IRnode
+from vyper.codegen_legacy.ir_node import IRnode
 from vyper.ir.s_expressions import parse_s_exp
 
 fail_list = [

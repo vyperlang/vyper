@@ -2,16 +2,21 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from vyper.evm.assembler.instructions import CONST, CONSTREF, DATA_ITEM, PUSH, PUSH_OFST, DataHeader
-from vyper.evm.opcodes import get_opcodes
-from vyper.exceptions import CompilerPanic
-from vyper.ir.compile_ir import (
+from vyper.evm.assembler.instructions import (
+    CONST,
+    CONSTREF,
+    DATA_ITEM,
+    PUSH,
+    PUSH_OFST,
     PUSHLABEL,
     AssemblyInstruction,
+    DataHeader,
     Label,
     TaggedInstruction,
-    optimize_assembly,
 )
+from vyper.evm.assembler.optimizer import optimize_assembly
+from vyper.evm.opcodes import get_opcodes
+from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet, ceil32, wrap256
 from vyper.venom.analysis import (
     CFGAnalysis,

@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 import cbor2
 
-from vyper.codegen.ir_node import IRnode
+from vyper.codegen_legacy.ir_node import IRnode
 from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.assembler.core import assembly_to_evm, get_data_segment_lengths
 from vyper.evm.assembler.instructions import (

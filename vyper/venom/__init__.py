@@ -4,7 +4,7 @@
 from typing import Any, Dict, List
 
 from vyper.compiler.settings import OptimizationLevel, VenomOptimizationFlags
-from vyper.ir.compile_ir import AssemblyInstruction
+from vyper.evm.assembler.instructions import AssemblyInstruction
 from vyper.venom.analysis import IRGlobalAnalysesCache, ReadonlyMemoryArgsGlobalAnalysis
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.analysis.fcg import FCGGlobalAnalysis
