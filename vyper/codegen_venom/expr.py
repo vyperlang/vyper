@@ -1160,7 +1160,7 @@ class Expr:
 
         # Handle bytes/string keys - need to hash them first
         if isinstance(key_typ, _BytestringT):
-            key = self._lower_keccak256_key(node.slice)
+            key = self._get_bytestring_hash(node.slice)
         else:
             key = Expr(node.slice, self.ctx).lower_value()
 
@@ -1178,20 +1178,10 @@ class Expr:
         ptr = Ptr(operand=slot, location=location)
         return VyperValue.from_ptr(ptr, value_typ)
 
-    def _lower_keccak256_key(self, key_node: vy_ast.VyperNode) -> IROperand:
-        """Hash the data portion of a bytes/string mapping key."""
-        # bytes/string: get pointer, hash the data portion
-        # sha3 only works on memory - copy non-memory data first
-        key_vv = Expr(key_node, self.ctx).lower()
-        key_mem = self.ctx.ensure_bytestring_in_memory(key_vv)
-        data_ptr_op = self.ctx.bytes_data_ptr(key_mem)
-        length = self.ctx.bytestring_length(key_mem)
-        return self.builder.sha3(data_ptr_op, length)
-
     def _get_bytestring_hash(self, node: vy_ast.VyperNode) -> IROperand:
-        """Get keccak256 hash of a bytestring for comparison.
+        """Get the keccak256 hash of a bytestring for a comparison or mapping key.
 
-        For constant literals (Str, Bytes), compute hash at compile time.
+        For string and bytes literals, compute the hash at compile time.
         This avoids memory allocation issues where loop body literals
         share memory with init phase literals.
 
@@ -1206,7 +1196,7 @@ class Expr:
             hash_val = int.from_bytes(keccak256(bytez), "big")
             return IRLiteral(hash_val)
 
-        if isinstance(reduced, vy_ast.Bytes):
+        if isinstance(reduced, (vy_ast.Bytes, vy_ast.HexBytes)):
             # Bytes literal: hash the raw bytes
             bytez = reduced.value
             hash_val = int.from_bytes(keccak256(bytez), "big")
