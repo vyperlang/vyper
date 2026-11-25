@@ -168,31 +168,49 @@ def _check_buffer_size(typ: VyperType, bufsz: int | None) -> None:
         raise CompilerPanic("Bad ABI size calc")
 
 
-def abi_encode_values_to_buf(
+def abi_encode_value_to_buf(
     ctx: VenomCodegenContext,
     dst: IRVariable,
-    arg_vals: list[VyperValue],
+    arg_val: VyperValue,
     encode_type: VyperType,
     bufsz: int | None,
 ) -> IROperand:
     """
-    Encode `arg_vals` to ABI format at dst as a value of `encode_type`.
+    Encode the single value `arg_val` to ABI format at dst as a value of
+    `encode_type`, its own type.
+
+    `bufsz` is the number of bytes available at dst (the allocation size
+    minus any prefix before dst), or None for a runtime-sized buffer.
+    """
+    _check_buffer_size(encode_type, bufsz)
+
+    if encode_type._is_prim_word:
+        ctx.store_vyper_value(arg_val, dst, encode_type)
+        return IRLiteral(encode_type.abi_type.static_size())
+
+    src = ctx.unwrap(arg_val)
+    assert isinstance(src, IRVariable)
+    return _abi_encode_to_buf(ctx, dst, src, encode_type)
+
+
+def abi_encode_values_to_buf(
+    ctx: VenomCodegenContext,
+    dst: IRVariable,
+    arg_vals: list[VyperValue],
+    encode_type: TupleT,
+    bufsz: int | None,
+) -> IROperand:
+    """
+    Encode `arg_vals`, the members of the tuple `encode_type`, to ABI format
+    at dst as a value of `encode_type`.
 
     `bufsz` is the number of bytes available at dst (the allocation size
     minus any prefix before dst), or None for a runtime-sized buffer.
     """
     b = ctx.builder
 
+    assert isinstance(encode_type, TupleT)
     _check_buffer_size(encode_type, bufsz)
-
-    if not isinstance(encode_type, TupleT):
-        if encode_type._is_prim_word:
-            ctx.store_vyper_value(arg_vals[0], dst, encode_type)
-            return IRLiteral(encode_type.abi_type.static_size())
-
-        src = ctx.unwrap(arg_vals[0])
-        assert isinstance(src, IRVariable)
-        return _abi_encode_to_buf(ctx, dst, src, encode_type)
 
     dyn_ofst_val = ctx.new_temporary_value(UINT256_T)
     ctx.ptr_store(dyn_ofst_val.ptr(), IRLiteral(encode_type.abi_type.static_size()))
