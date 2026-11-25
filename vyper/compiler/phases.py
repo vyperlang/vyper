@@ -1,7 +1,7 @@
 import copy
-from functools import cached_property
+from functools import cached_property, wraps
 from pathlib import Path, PurePath
-from typing import Any, Optional
+from typing import Any, Callable, Optional, TypeVar
 
 import vyper.codegen.core as codegen
 from vyper import ast as vy_ast
@@ -33,6 +33,19 @@ from vyper.venom import generate_assembly_experimental
 from vyper.warnings import VyperWarning, vyper_warn
 
 DEFAULT_CONTRACT_PATH = PurePath("VyperContract.vy")
+
+_T = TypeVar("_T")
+
+
+def _compiler_phase(func: Callable[["CompilerData"], _T]) -> cached_property[_T]:
+    """Run a lazy phase with this compilation's resolved settings and cache its result."""
+
+    @wraps(func)
+    def run(compiler_data: "CompilerData") -> _T:
+        with anchor_settings(compiler_data.settings):
+            return func(compiler_data)
+
+    return cached_property(run)
 
 
 class CompilerData:
@@ -190,7 +203,7 @@ class CompilerData:
     def resolved_imports(self):
         return self._resolve_imports[1]
 
-    @cached_property
+    @_compiler_phase
     def _annotate(self) -> tuple[natspec.NatspecOutput, vy_ast.Module]:
         root_module, imports, _ = self._resolve_imports
         analyze_modules(imports)
@@ -216,7 +229,7 @@ class CompilerData:
         validate_compilation_target(module_t, self.settings.experimental_codegen is True)
         return self.annotated_vyper_module
 
-    @cached_property
+    @_compiler_phase
     def storage_layout(self) -> StorageLayout:
         module_ast = self.compilation_target
         storage_layout = None
@@ -285,7 +298,7 @@ class CompilerData:
             self.global_ctx, self.settings, self.bytecode_runtime, self.bytecode_metadata
         )
 
-    @cached_property
+    @_compiler_phase
     def assembly(self) -> list:
         metadata = None
         if not self.no_bytecode_metadata:
@@ -317,7 +330,7 @@ class CompilerData:
             metadata, runtime_codesize, runtime_data_segment_lengths, immutables_len
         )
 
-    @cached_property
+    @_compiler_phase
     def assembly_runtime(self) -> list:
         if self.settings.experimental_codegen:
             assert self.settings.optimize is not None  # mypy hint
@@ -327,7 +340,7 @@ class CompilerData:
         else:
             return generate_assembly(self.ir_runtime, self.settings.optimize)
 
-    @cached_property
+    @_compiler_phase
     def _bytecode(self) -> tuple[bytes, dict[str, Any]]:
         return generate_bytecode(self.assembly)
 
@@ -339,7 +352,7 @@ class CompilerData:
     def source_map(self) -> dict[str, Any]:
         return self._bytecode[1]
 
-    @cached_property
+    @_compiler_phase
     def _bytecode_runtime(self) -> tuple[bytes, dict[str, Any]]:
         return generate_bytecode(self.assembly_runtime)
 
