@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.compiler.settings import OptimizationLevel
-from vyper.exceptions import InvalidType
+from vyper.exceptions import InvalidType, StateAccessViolation
 
 
 def test_assert_refund(env, get_contract, tx_failed):
@@ -121,6 +121,30 @@ def foo():
     """
     assert_compile_failed(lambda: get_contract(raise_code), InvalidType)
     assert_compile_failed(lambda: get_contract(assert_code), InvalidType)
+
+
+def test_reason_extcall_is_rejected(get_contract, assert_compile_failed):
+    # the revert reason is compiled in a constant context, so a mutating
+    # external call there must be a clean compile error rather than a
+    # compiler panic. See issue #4966.
+    interface = """
+interface I:
+    def get_msg() -> String[20]: nonpayable
+    """
+    assert_code = f"""
+{interface}
+@external
+def foo(x: bool, target: address):
+    assert x, extcall I(target).get_msg()
+    """
+    raise_code = f"""
+{interface}
+@external
+def foo(target: address):
+    raise extcall I(target).get_msg()
+    """
+    assert_compile_failed(lambda: get_contract(assert_code), StateAccessViolation)
+    assert_compile_failed(lambda: get_contract(raise_code), StateAccessViolation)
 
 
 def test_reason_string_literal_at_max_length(get_contract):

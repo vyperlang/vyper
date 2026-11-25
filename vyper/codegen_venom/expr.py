@@ -2373,9 +2373,12 @@ class Expr:
 
         # === Dispatch CALL or STATICCALL ===
         use_staticcall = fn_type.mutability in (StateMutability.VIEW, StateMutability.PURE)
-        if self.ctx.is_constant():
-            # Non-static calls in constant context should be rejected by the typechecker.
-            assert use_staticcall
+        if self.ctx.is_constant() and not use_staticcall:
+            raise StateAccessViolation(
+                f"May not call state modifying function "
+                f"'{fn_type.name}' within {self.ctx.pp_constancy()}.",
+                call_node,
+            )
 
         # Return buffer location and size
         ret_ofst = buf_ptr
