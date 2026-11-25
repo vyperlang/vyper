@@ -375,8 +375,8 @@ class Stmt:
         # GHSA-4w26-8p97-f4jp: the target is computed and bounds-checked
         # before the RHS. Reject an RHS which could invalidate a complex
         # variable used to derive that target.
-        rhs_writes = {access.variable for access in get_expr_writes(right_node)}
-        rhs_writes |= get_override_writes(right_node)
+        rhs_writes = get_override_writes(right_node)
+        rhs_writes.update(access.variable for access in get_expr_writes(right_node))
         for var in get_referenced_variables(target):
             if var.typ._is_prim_word:
                 continue
