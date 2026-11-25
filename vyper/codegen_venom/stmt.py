@@ -11,11 +11,8 @@ from __future__ import annotations
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.codegen_shared.abi_utils import (
-    calculate_type_for_external_return,
-    has_length_word,
-    punnable,
-)
+from vyper.codegen_shared.abi_utils import calculate_type_for_external_return
+from vyper.codegen_shared.layout import has_length_word, punnable
 from vyper.codegen_venom.abi import (
     abi_encode_to_buf,
     abi_encode_values_to_buf,

@@ -14,10 +14,10 @@ import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.builtins._signatures import BuiltinFunctionT
 from vyper.codegen_shared.abi_utils import (
-    DYNAMIC_ARRAY_OVERHEAD,
     calculate_type_for_external_return,
     needs_external_call_wrap,
 )
+from vyper.codegen_shared.layout import DYNAMIC_ARRAY_OVERHEAD
 from vyper.codegen_venom.arithmetic import apply_binop
 from vyper.codegen_venom.layout import struct_member_offsets
 from vyper.evm.opcodes import version_check

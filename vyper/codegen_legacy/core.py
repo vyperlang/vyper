@@ -1,12 +1,11 @@
 import vyper.codegen_legacy.context as ctx
 from vyper.codegen_legacy.ir_node import Encoding, IRnode
 from vyper.codegen_shared.abi_utils import (
-    DYNAMIC_ARRAY_OVERHEAD,
     calculate_type_for_external_return,
-    has_length_word,
     is_tuple_like,
     needs_external_call_wrap,
 )
+from vyper.codegen_shared.layout import DYNAMIC_ARRAY_OVERHEAD, has_length_word
 from vyper.compiler.settings import _opt_codesize, _opt_gas, _opt_lowering_only_ir
 from vyper.evm.address_space import (
     CALLDATA,
