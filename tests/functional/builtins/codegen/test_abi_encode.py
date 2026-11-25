@@ -444,3 +444,84 @@ def foo() -> Bytes[32]:
     """
     with pytest.raises(StructureException, match="abi_encode expects at least one argument"):
         compile_code(code)
+
+
+def test_abi_encode_folded_expression_shorter_than_type(get_contract):
+    code = """
+X: constant(String[100]) = ""
+Y: constant(String[100]) = "hello"
+Z: constant(Bytes[100]) = b""
+T: constant((uint256, String[100])) = (7, "")
+
+@external
+def encode_ifexp_true() -> Bytes[192]:
+    return abi_encode("" if True else X)
+
+@external
+def encode_ifexp_false() -> Bytes[192]:
+    return abi_encode("" if False else Y)
+
+@external
+def encode_ifexp_no_tuple() -> Bytes[160]:
+    return abi_encode("" if True else X, ensure_tuple=False)
+
+@external
+def encode_ifexp_method_id() -> Bytes[196]:
+    return abi_encode("" if True else X, method_id=0xdeadbeef)
+
+@external
+def encode_const_direct() -> Bytes[192]:
+    return abi_encode(X)
+
+@external
+def encode_ifexp_bytes() -> Bytes[192]:
+    return abi_encode(b"" if True else Z)
+
+@external
+def encode_concat_const(s: String[10]) -> Bytes[192]:
+    return abi_encode(concat(X, s))
+
+@external
+def encode_const_tuple() -> Bytes[256]:
+    return abi_encode(T)
+    """
+    c = get_contract(code)
+
+    empty_tuple_encoded = b"\x00" * 31 + b"\x20" + b"\x00" * 32
+    empty_unwrapped = b"\x00" * 32
+    method_id = 0xDEADBEEF.to_bytes(4, "big")
+
+    assert c.encode_ifexp_true() == empty_tuple_encoded
+    assert c.encode_ifexp_false() == abi.encode("(string)", ("hello",))
+    assert c.encode_ifexp_no_tuple() == empty_unwrapped
+    assert c.encode_ifexp_method_id() == method_id + empty_tuple_encoded
+    assert c.encode_const_direct() == empty_tuple_encoded
+    assert c.encode_ifexp_bytes() == empty_tuple_encoded
+    assert c.encode_concat_const("vyper") == abi.encode("(string)", ("vyper",))
+    assert c.encode_const_tuple() == abi.encode("((uint256,string))", ((7, ""),))
+
+
+def test_abi_encode_folded_expression_preserves_return_type(get_contract):
+    code = """
+X: constant(String[100]) = ""
+Y: constant(String[100]) = "hello"
+
+@external
+def roundtrip_empty() -> String[100]:
+    return abi_decode(abi_encode("" if True else X), String[100])
+
+@external
+def roundtrip_nonempty() -> String[100]:
+    return abi_decode(abi_encode("" if False else Y), String[100])
+
+@external
+def ternary_mixed(cond: bool, s: String[100]) -> Bytes[192]:
+    encoded: Bytes[192] = abi_encode("" if True else X) if cond else abi_encode(s)
+    return encoded
+    """
+    c = get_contract(code)
+
+    assert c.roundtrip_empty() == ""
+    assert c.roundtrip_nonempty() == "hello"
+    assert c.ternary_mixed(True, "runtime") == b"\x00" * 31 + b"\x20" + b"\x00" * 32
+    assert c.ternary_mixed(False, "runtime") == abi.encode("(string)", ("runtime",))

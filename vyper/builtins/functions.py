@@ -2411,12 +2411,13 @@ class ABIEncode(BuiltinFunctionT):
             encode_input = ir_tuple_from_args(args)
 
         input_abi_t = encode_input.typ.abi_type
-        maxlen = input_abi_t.size_bound()
+        input_maxlen = input_abi_t.size_bound()
         if method_id is not None:
-            maxlen += 4
+            input_maxlen += 4
 
-        buf_t = BytesT(maxlen)
-        assert self.fetch_call_return(expr).length == maxlen
+        buf_t = self.fetch_call_return(expr)
+        maxlen = buf_t.length
+        assert input_maxlen <= maxlen
         buf = context.new_internal_variable(buf_t)
 
         ret = ["seq"]
@@ -2427,7 +2428,7 @@ class ABIEncode(BuiltinFunctionT):
             ret += [["mstore", add_ofst(buf, 4), method_id]]
             # abi encode, and grab length as stack item
             length = abi_encode(
-                add_ofst(buf, 36), encode_input, context, returns_len=True, bufsz=maxlen
+                add_ofst(buf, 36), encode_input, context, returns_len=True, bufsz=maxlen - 4
             )
             # write the output length to where bytestring stores its length
             ret += [["mstore", buf, ["add", length, 4]]]
