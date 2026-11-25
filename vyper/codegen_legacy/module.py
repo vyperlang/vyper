@@ -11,10 +11,10 @@ from vyper.codegen_legacy.function_definitions import (
 from vyper.codegen_legacy.ir_node import IRnode
 from vyper.codegen_shared import jumptable_utils
 from vyper.codegen_shared.function_info import (
-    _is_constructor,
-    _is_fallback,
-    _is_internal,
-    _runtime_reachable_functions,
+    is_constructor,
+    is_fallback,
+    is_internal,
+    runtime_reachable_functions,
 )
 from vyper.compiler.settings import _is_debug_mode
 from vyper.exceptions import CompilerPanic
@@ -396,16 +396,14 @@ def _selector_section_linear(external_functions, module_t):
 def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
     # order functions so that each function comes after all of its callees
     id_generator = IDGenerator()
-    runtime_reachable = _runtime_reachable_functions(module_t, id_generator)
+    runtime_reachable = runtime_reachable_functions(module_t, id_generator)
 
     function_defs = [fn_t.ast_def for fn_t in runtime_reachable]
 
-    runtime_functions = [f for f in function_defs if not _is_constructor(f)]
-    internal_functions = [f for f in runtime_functions if _is_internal(f)]
-    external_functions = [
-        f for f in runtime_functions if not _is_internal(f) and not _is_fallback(f)
-    ]
-    default_function = next((f for f in runtime_functions if _is_fallback(f)), None)
+    runtime_functions = [f for f in function_defs if not is_constructor(f)]
+    internal_functions = [f for f in runtime_functions if is_internal(f)]
+    external_functions = [f for f in runtime_functions if not is_internal(f) and not is_fallback(f)]
+    default_function = next((f for f in runtime_functions if is_fallback(f)), None)
 
     internal_functions_ir: list[IRnode] = []
 

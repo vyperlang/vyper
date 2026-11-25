@@ -99,7 +99,7 @@ def init_ir_info(func_t: ContractFunctionT):
 
 # calculate globally reachable functions to see which
 # ones should make it into the final bytecode.
-def _runtime_reachable_functions(module_t, id_generator):
+def runtime_reachable_functions(module_t, id_generator):
     ret = OrderedSet()
 
     for fn_t in module_t.exposed_functions:
@@ -115,13 +115,13 @@ def _runtime_reachable_functions(module_t, id_generator):
     return ret
 
 
-def _is_constructor(func_ast):
+def is_constructor(func_ast):
     return func_ast._metadata["func_type"].is_constructor
 
 
-def _is_fallback(func_ast):
+def is_fallback(func_ast):
     return func_ast._metadata["func_type"].is_fallback
 
 
-def _is_internal(func_ast):
+def is_internal(func_ast):
     return func_ast._metadata["func_type"].is_internal
