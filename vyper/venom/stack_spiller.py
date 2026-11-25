@@ -1,7 +1,7 @@
 from typing import Optional
 
+from vyper.evm.assembler.instructions import PUSH
 from vyper.exceptions import CompilerPanic
-from vyper.ir.compile_ir import PUSH
 from vyper.utils import OrderedSet
 from vyper.venom.basicblock import IROperand, IRVariable
 from vyper.venom.context import IRContext

@@ -11,9 +11,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable, Optional
 
 from vyper import ast as vy_ast
-from vyper.codegen.core import calculate_type_for_external_return
+from vyper.codegen_shared.abi_utils import calculate_type_for_external_return
 from vyper.codegen_venom.abi import (
     abi_decode_to_buf,
+    abi_encode_value_to_buf,
     abi_encode_values_to_buf,
     decode_unbounded_sequence_to_scratch,
     runtime_abi_size_for_encode,
@@ -167,10 +168,18 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             )
         )
 
-    if len(arg_vals) == 1 and not ensure_tuple:
+    unwrap_single = len(arg_vals) == 1 and not ensure_tuple
+    if unwrap_single:
         encode_type: VyperType = arg_types[0]
     else:
         encode_type = TupleT(tuple(arg_types))
+
+    def encode_args(dst: IRVariable, bufsz: Optional[int]) -> IROperand:
+        if unwrap_single:
+            # encode the argument itself, not as the members of a tuple
+            return abi_encode_value_to_buf(ctx, dst, arg_vals[0], encode_type, bufsz)
+        assert isinstance(encode_type, TupleT)
+        return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type, bufsz)
 
     if any(type_contains_unbounded_sequence(t) for t in arg_types):
         alloc_size = runtime_abi_size_for_encode(ctx, arg_vals, encode_type)
@@ -188,7 +197,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
             ctx.zero_bytestring_padding(buf_ptr, alloc_size)
 
         def encode_unbounded(dst: IRVariable) -> IROperand:
-            return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type, None)
+            return encode_args(dst, None)
 
         _build_abi_encoded_bytes(
             ctx, buf_ptr, method_id, encode_unbounded, ctx.checked_add, zero_tail_padding=True
@@ -208,7 +217,7 @@ def lower_abi_encode(node: vy_ast.Call, ctx: VenomCodegenContext) -> VyperValue:
     assert isinstance(buf_val.operand, IRVariable)
 
     def encode_bounded(dst: IRVariable) -> IROperand:
-        return abi_encode_values_to_buf(ctx, dst, arg_vals, encode_type, bufsz)
+        return encode_args(dst, bufsz)
 
     _build_abi_encoded_bytes(ctx, buf_val.operand, method_id, encode_bounded, b.add)
 

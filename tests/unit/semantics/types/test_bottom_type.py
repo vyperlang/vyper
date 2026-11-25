@@ -2,6 +2,7 @@ import pytest
 
 from vyper import compiler
 from vyper.exceptions import InvalidType
+from vyper.semantics.analysis.utils import type_supremum
 from vyper.semantics.types import (
     INF,
     PRIMITIVE_TYPES,
@@ -16,6 +17,7 @@ from vyper.semantics.types import (
     TupleT,
 )
 from vyper.semantics.types.base import BottomT, VyperType
+from vyper.semantics.types.infinity import WILDCARD
 from vyper.semantics.types.shortcuts import UINT256_T
 
 REPRESENTATIVE_TYPES = [t for t in PRIMITIVE_TYPES.values() if isinstance(t, VyperType)] + [
@@ -53,6 +55,24 @@ def test_bottom_is_strict_subtype(typ):
     else:
         assert not BottomT().is_supertype_of(typ)
         assert not typ.is_subtype_of(BottomT())
+
+
+@pytest.mark.parametrize(
+    "typ",
+    REPRESENTATIVE_TYPES
+    + [
+        BytesT(WILDCARD),
+        StringT(WILDCARD),
+        DArrayT(BytesT(WILDCARD), WILDCARD),
+        SArrayT(DArrayT(UINT256_T, WILDCARD), 2),
+        TupleT((BytesT(WILDCARD), BoolT())),
+    ],
+    ids=repr,
+)
+def test_bottom_is_identity_for_wildcard_supremum(typ):
+    # Empty list elements contribute no bounds, in either operand order.
+    assert type_supremum([typ], [BottomT()], keep_wildcards=True) == [typ]
+    assert type_supremum([BottomT()], [typ], keep_wildcards=True) == [typ]
 
 
 NEVER_IN_USER_PROGRAM_SOURCES = [
