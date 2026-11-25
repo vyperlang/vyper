@@ -247,7 +247,7 @@ class CompilerData:
         _ = self.natspec
         return self.annotated_vyper_module._metadata["type"]
 
-    @cached_property
+    @_compiler_phase
     def _ir_output(self):
         if self.settings.experimental_codegen:
             # legacy IR is still reachable under venom through the `ir_dict`
