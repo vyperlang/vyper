@@ -101,3 +101,69 @@ def foo(f: F, i: I, b: bytes4, d: decimal, t: bool) -> bool:
     assert c.foo(1, "0x" + "00" * 20, b"\x01\x02\x03\x04", decimal_to_int("1.5"), True) is True
     assert c.foo(2, "0x" + "00" * 20, b"\x01\x02\x03\x04", decimal_to_int("1.5"), True) is False
     assert c.foo(1, "0x" + "00" * 20, b"\x01\x02\x03\x04", decimal_to_int("1.5"), False) is False
+
+
+@pytest.mark.parametrize("mask", ["-2", "min_value(int256)"])
+def test_signed_compare_after_negative_mask(get_contract, mask):
+    # GH 5012: `-2 & a` was ranged as [0, 2**256 - 2], and the false edge
+    # of `x > 0` clamped that to [0, 0], so `x < 0` folded to false
+    code = f"""
+@external
+def foo(a: int256) -> int256:
+    x: int256 = {mask} & a
+    if x > 0:
+        return 1
+    elif x < 0:
+        return -1
+    else:
+        return 0
+    """
+    c = get_contract(code)
+    m = -2 if mask == "-2" else -(2**255)
+    for a in (-1, -2, -3, 0, 1, 5, 2**255 - 1, -(2**255)):
+        x = m & a
+        assert c.foo(a) == (x > 0) - (x < 0)
+
+
+def test_eq_after_negative_mask(get_contract):
+    # same as above, but through the var-var `==` refinement, which
+    # intersected [0, 2**256 - 2] with [-5, 3] into [0, 3]
+    code = """
+@external
+def foo(a: int256) -> int256:
+    x: int256 = -2 & a
+    y: int256 = a
+    if y > 3:
+        return 7
+    if y < -5:
+        return 8
+    if x == y:
+        if x < 0:
+            return -1
+        return 1
+    return 0
+    """
+    c = get_contract(code)
+    for a, expected in ((-2, -1), (-4, -1), (-1, 0), (2, 1), (0, 1), (4, 7), (-6, 8)):
+        assert c.foo(a) == expected
+
+
+def test_signed_compare_after_large_unsigned_mod(get_contract):
+    # `u % (2**256 - 2)` is ranged as [0, 2**256 - 3], which holds words
+    # that are negative once reinterpreted as int256
+    code = """
+@external
+def foo(a: int256) -> int256:
+    u: uint256 = convert(convert(a, bytes32), uint256) % (max_value(uint256) - 1)
+    y: int256 = convert(convert(u, bytes32), int256)
+    if y > 0:
+        return 1
+    elif y < 0:
+        return -1
+    return 0
+    """
+    c = get_contract(code)
+    for a in (-1, -2, -3, -4, 0, 3, -(2**255)):
+        y = (a % 2**256) % (2**256 - 2)
+        y = y - 2**256 if y >= 2**255 else y
+        assert c.foo(a) == (y > 0) - (y < 0)
