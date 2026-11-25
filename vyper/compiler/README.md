@@ -25,7 +25,7 @@ The compilation process includes the following broad phases:
 
 1. In [`vyper.ast`](../ast), the source code is parsed and converted to an
 abstract syntax tree.
-1. In [`vyper.codegen.module`](../codegen/module.py), the contextualized nodes are
+1. In [`vyper.codegen_legacy.module`](../codegen_legacy/module.py), the contextualized nodes are
 converted into IR nodes.
 1. In [`vyper.compile_ir`](../ir/compile_ir.py), the IR nodes are converted to
 assembly instructions.

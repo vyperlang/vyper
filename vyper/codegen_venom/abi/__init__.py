@@ -12,6 +12,7 @@ from vyper.codegen_venom.abi.abi_decoder import (
 )
 from vyper.codegen_venom.abi.abi_encoder import (
     abi_encode_to_buf,
+    abi_encode_value_to_buf,
     abi_encode_values_to_buf,
     runtime_abi_size_for_encode,
 )
@@ -19,6 +20,7 @@ from vyper.codegen_venom.abi.abi_encoder import (
 __all__ = [
     "abi_encode_to_buf",
     "abi_decode_to_buf",
+    "abi_encode_value_to_buf",
     "abi_encode_values_to_buf",
     "decode_unbounded_sequence_to_scratch",
     "runtime_abi_size_for_encode",
