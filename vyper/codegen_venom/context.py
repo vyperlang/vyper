@@ -1683,6 +1683,7 @@ class VenomCodegenContext:
                 batch = not is_dynamic and _opt_codesize()
                 if batch and word_count >= self._BATCHED_STATIC_RUN_MIN_WORDS:
                     # copy the run of adjacent static members as one block
+                    assert sum(t.memory_bytes_required for t in members) == 32 * word_count
                     member_src = self._with_byte_offset(src, mem_ofst)
                     member_slot = self._with_byte_offset(slot, slot_ofst)
                     self._word_copy_loop(
