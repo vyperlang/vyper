@@ -3,11 +3,11 @@ from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Any, Optional
 
-import vyper.codegen.core as codegen
+import vyper.codegen_legacy.core as codegen
 from vyper import ast as vy_ast
 from vyper.ast import natspec
-from vyper.codegen import module
-from vyper.codegen.ir_node import IRnode
+from vyper.codegen_legacy import module
+from vyper.codegen_legacy.ir_node import IRnode
 from vyper.compiler.input_bundle import FileInput, FilesystemInputBundle, InputBundle, JSONInput
 from vyper.compiler.settings import (
     OptimizationLevel,

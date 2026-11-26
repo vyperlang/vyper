@@ -3,8 +3,8 @@ from typing import Any, Optional
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
-from vyper.codegen.expr import Expr
-from vyper.codegen.ir_node import IRnode
+from vyper.codegen_legacy.expr import Expr
+from vyper.codegen_legacy.ir_node import IRnode
 from vyper.exceptions import CompilerPanic, TypeMismatch, UnfoldableNode
 from vyper.semantics.analysis.base import Modifiability, StateMutability
 from vyper.semantics.analysis.utils import (

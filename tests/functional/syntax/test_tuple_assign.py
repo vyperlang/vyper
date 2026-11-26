@@ -124,6 +124,50 @@ def foo():
      """,
         StateAccessViolation,
     ),
+    (
+        """
+@external
+def f(data: Bytes[96]) -> uint256:
+    a: uint256 = 0
+    b: uint256 = 0
+    c: uint256 = 0
+    a, (b, c) = abi_decode(data, (uint256, (uint256, uint256)))
+    return a + b + c
+    """,
+        StructureException,
+    ),
+    (
+        """
+@internal
+def g() -> (uint256, (uint256, uint256)):
+    return 1, (2, 3)
+
+@external
+def f() -> uint256:
+    a: uint256 = 0
+    b: uint256 = 0
+    c: uint256 = 0
+    a, (b, c) = self.g()
+    return a + b + c
+    """,
+        StructureException,
+    ),
+    (
+        """
+@internal
+def g() -> ((uint256, uint256), uint256):
+    return (1, 2), 3
+
+@external
+def f() -> uint256:
+    a: uint256 = 0
+    b: uint256 = 0
+    c: uint256 = 0
+    (a, b), c = self.g()
+    return a + b + c
+    """,
+        StructureException,
+    ),
 ]
 
 
@@ -135,3 +179,69 @@ def test_tuple_assign_fail(bad_code):
     else:
         with raises(TypeMismatch):
             compiler.compile_code(bad_code)
+
+
+def test_nested_tuple_assign_target_message():
+    code = """
+@internal
+def g() -> (uint256, (uint256, uint256)):
+    return 1, (2, 3)
+
+@external
+def f():
+    a: uint256 = 0
+    b: uint256 = 0
+    c: uint256 = 0
+    a, (b, c) = self.g()
+    """
+    with raises(StructureException) as e:
+        compiler.compile_code(code)
+    assert e.value.message == "Nested tuple assignment targets are not supported"
+    assert e.value.annotations[0].node_source_code == "(b, c)"
+    assert e.value.hint == "assign to a tuple-typed variable and unpack it separately"
+
+
+valid_list = [
+    """
+@internal
+def g() -> (uint256, (uint256, uint256)):
+    return 1, (2, 3)
+
+@external
+def f() -> uint256:
+    a: uint256 = 0
+    p: (uint256, uint256) = (0, 0)
+    a, p = self.g()
+    return a + p[0] + p[1]
+    """,
+    """
+@internal
+def g() -> (uint256, uint256):
+    return 1, 2
+
+@external
+def f() -> uint256:
+    a: uint256 = 0
+    b: uint256 = 0
+    (a, b) = self.g()
+    return a + b
+    """,
+    """
+x: uint256[2]
+
+@internal
+def g() -> (uint256, uint256):
+    return 1, 2
+
+@external
+def f() -> uint256:
+    a: uint256 = 0
+    a, self.x[1] = self.g()
+    return a + self.x[1]
+    """,
+]
+
+
+@pytest.mark.parametrize("good_code", valid_list)
+def test_tuple_assign_pass(good_code):
+    assert compiler.compile_code(good_code) is not None
