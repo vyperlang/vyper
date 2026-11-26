@@ -172,7 +172,7 @@ Vyper has four built-ins for contract creation; the first three contract creatio
         @external
         def foo() -> address:
             # create the bytes of an empty vyper contract
-            return raw_create(x"0x61000361000f6000396100036000f35f5ffd855820cd372fb85148700fa88095e3492d3f9f5beb43e555e5ff26d95f5a6adc36f8e6038000a1657679706572830004020033")
+            return raw_create(x"61000361000f6000396100036000f35f5ffd855820cd372fb85148700fa88095e3492d3f9f5beb43e555e5ff26d95f5a6adc36f8e6038000a1657679706572830004020033")
 
 
 .. py:function:: raw_call(to: address, data: Bytes, max_outsize: uint256 = 0, gas: uint256 = gasLeft, value: uint256 = 0, is_delegate_call: bool = False, is_static_call: bool = False, revert_on_failure: bool = True) -> Bytes[max_outsize]
