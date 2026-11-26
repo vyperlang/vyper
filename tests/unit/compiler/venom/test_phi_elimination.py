@@ -7,8 +7,6 @@ from vyper.venom.parser import parse_venom
 from vyper.venom.passes import PhiEliminationPass
 from vyper.venom.check_venom import find_semantic_errors
 from tests.hevm import hevm_check_venom_ctx
-from vyper.venom import generate_assembly_experimental
-from vyper.ir.compile_ir import assembly_to_evm
 
 _check_pre_post = PrePostChecker([PhiEliminationPass], default_hevm=False)
 
