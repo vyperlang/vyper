@@ -80,6 +80,13 @@ CASES = [
         ["ab"],
         [1, 2, AB, X, 64, X, X],
     ),
+    (
+        "DynArray[A, 2]",
+        [([1, 2, 3], 4), ([5, 6, 7], 8)],
+        [([7, 7, 7], 7), ([7, 7, 7], 7)],
+        [([9], 10)],
+        [1, 1, 9, 2, 3, 10, 3, 5, 6, 7, 8],
+    ),
 ]
 
 # an empty bytestring writes only its length word. legacy codegen also

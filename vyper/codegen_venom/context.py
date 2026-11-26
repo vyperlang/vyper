@@ -1911,37 +1911,9 @@ class VenomCodegenContext:
         elem_mem_size = elem_typ.memory_bytes_required
         elem_words = elem_typ.storage_size_in_words
 
-        # Create loop blocks
-        cond_block = b.create_block("dyn_cond")
-        body_block = b.create_block("dyn_body")
-        exit_block = b.create_block("dyn_exit")
+        def copy_element(counter: IRVariable) -> None:
+            src_ptr = b.add(src, b.mul(counter, IRLiteral(elem_mem_size)))
+            dst_slot_i = b.add(dst_slot, b.mul(counter, IRLiteral(elem_words)))
+            self._store_memory_to_slots(src_ptr, dst_slot_i, elem_typ, transient)
 
-        # Entry: counter = 0, jump to cond
-        counter = b.assign(IRLiteral(0))
-        b.jmp(cond_block.label)
-
-        # Condition: if counter >= count, goto exit, else body
-        b.append_block(cond_block)
-        b.set_block(cond_block)
-        # done = counter >= count = iszero(lt(counter, count))
-        done = b.iszero(b.lt(counter, count))
-        cond_finish = b.current_block
-
-        # Body: copy one element
-        b.append_block(body_block)
-        b.set_block(body_block)
-
-        src_ptr = b.add(src, b.mul(counter, IRLiteral(elem_mem_size)))
-        dst_slot_i = b.add(dst_slot, b.mul(counter, IRLiteral(elem_words)))
-        self._store_memory_to_slots(src_ptr, dst_slot_i, elem_typ, transient)
-
-        # Increment counter and loop
-        new_counter = b.add(counter, IRLiteral(1))
-        b.assign_to(new_counter, counter)
-        b.jmp(cond_block.label)
-
-        # Wire up conditional jump (done after body to have block refs)
-        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
-
-        b.append_block(exit_block)
-        b.set_block(exit_block)
+        self.emit_counted_loop(count, copy_element, "dyn")
