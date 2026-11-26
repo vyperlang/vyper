@@ -148,8 +148,6 @@ def hevm_raises():
 
 # use hevm to check equality between two bytecodes (hex)
 def hevm_check_bytecode(bytecode1, bytecode2, verbose=False, addl_args: list = None):
-    if not has_hevm():
-        return
     # debug:
     if verbose:
         print("RUN HEVM:")
