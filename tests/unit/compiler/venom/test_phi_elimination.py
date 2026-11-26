@@ -6,7 +6,7 @@ from vyper.venom.basicblock import IRLabel
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes import PhiEliminationPass
 from vyper.venom.check_venom import find_semantic_errors
-from tests.hevm import hevm_check_bytecode
+from tests.hevm import hevm_check_venom_ctx
 from vyper.venom import generate_assembly_experimental
 from vyper.ir.compile_ir import assembly_to_evm
 
@@ -452,9 +452,4 @@ def test_dominated_basicblock_in_the_middle():
     PhiEliminationPass(IRAnalysesCache(fn), fn).run_pass()
     assert find_semantic_errors(ctx) == []
 
-    orig_asm = generate_assembly_experimental(orig_ctx)
-    asm = generate_assembly_experimental(ctx)
-    orig_bytecode = assembly_to_evm(orig_asm)[0].hex()
-    bytecode = assembly_to_evm(asm)[0].hex()
-
-    hevm_check_bytecode(bytecode, orig_bytecode)
+    hevm_check_venom_ctx(orig_ctx, ctx)
