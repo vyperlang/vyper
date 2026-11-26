@@ -142,6 +142,19 @@ def echo(x: DynArray[uint256, INF]) -> DynArray[uint256, INF]:
     assert c.echo(payload) == payload
 
 
+def test_inf_dynarray_dynamic_elements_then_allocation(get_contract):
+    # the array's buffer stays reserved while a later buffer is allocated
+    code = """
+@external
+def f(xs: DynArray[DynArray[uint256, 4], INF]) -> (uint256, uint256, uint256, uint256):
+    b: Bytes[INF] = concat(msg.data, b"")
+    return len(xs), len(xs[0]), xs[0][0], len(b)
+    """
+
+    c = get_contract(code)
+    assert c.f([[7]]) == (1, 1, 7, 164)
+
+
 def test_inf_dynarray_reassignment_larger_and_smaller(get_contract):
     code = """
 @external

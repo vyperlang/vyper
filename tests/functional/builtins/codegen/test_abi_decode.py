@@ -982,6 +982,8 @@ def run(x1: Bytes[{buffer_size1}], x2: Bytes[{buffer_size2}]):
         y2,
         DynArray[DynArray[uint256, 3], 3]
     )
+    # keep y1 live so its buffer is not reused
+    assert len(y1) == {buffer_size1}
     """
     c = get_contract(code)
 

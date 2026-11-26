@@ -2655,3 +2655,28 @@ def foo(flag: bool) -> Bytes[3]:
     c = get_contract(code)
     assert c.foo(False) == b"one"
     assert c.foo(True) == b"two"
+
+
+def test_inf_bytes_calldata_checks_before_copy(env, get_contract, tx_failed, no_inlining_settings):
+    # the internal calls are ordered after the checks of `x`'s calldata
+    # encoding, which must still run before `x` is copied to memory: a huge
+    # length must revert, not run out of gas expanding memory.
+    code = """
+@internal
+def _g() -> uint256:
+    return 7
+
+@internal
+def _f(x: Bytes[INF], m: uint256) -> uint256:
+    return len(x) + m
+
+@external
+def foo(x: Bytes[INF]) -> uint256:
+    return self._f(x, self._g())
+    """
+    c = get_contract(code, compiler_settings=no_inlining_settings)
+    assert c.foo(b"cat") == 10
+
+    data = c.foo.method_id + abi_encode("(uint256,uint256)", (32, 2**64))
+    with tx_failed(ExecutionReverted):
+        env.message_call(c.address, data=data, gas=1_000_000)

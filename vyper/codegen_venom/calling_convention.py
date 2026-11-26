@@ -9,7 +9,7 @@ This module is the single source of truth for these decisions.
 
 from __future__ import annotations
 
-from vyper.codegen.core import is_tuple_like
+from vyper.codegen_shared.abi_utils import is_tuple_like
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types import (
     VyperType,
