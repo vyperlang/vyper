@@ -20,7 +20,8 @@ from vyper.codegen_venom.abi import (
 )
 from vyper.codegen_venom.arithmetic import apply_binop
 from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
-from vyper.semantics.analysis.utils import get_expr_writes, get_referenced_variables
+from vyper.semantics.analysis.local import get_referenced_variables
+from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     VyperType,

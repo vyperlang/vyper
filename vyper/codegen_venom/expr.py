@@ -31,7 +31,7 @@ from vyper.exceptions import (
     UnimplementedException,
     tag_exceptions,
 )
-from vyper.semantics.analysis.utils import get_runtime_reads, index_writes_base
+from vyper.semantics.analysis.local import get_runtime_reads, index_writes_base
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,

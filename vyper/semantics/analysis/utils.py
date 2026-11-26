@@ -25,7 +25,7 @@ from vyper.semantics.analysis.common import VyperNodeVisitorBase
 from vyper.semantics.analysis.levenshtein_utils import get_levenshtein_error_suggestions
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.namespace import get_namespace
-from vyper.semantics.types.base import TYPE_T, BottomT, VyperType, is_type_t
+from vyper.semantics.types.base import TYPE_T, BottomT, VyperType
 from vyper.semantics.types.bytestrings import BytesT, StringT
 
 if TYPE_CHECKING:
@@ -882,66 +882,6 @@ def get_expr_writes(node: vy_ast.VyperNode) -> OrderedSet[VarAccess]:
         ret |= get_expr_writes(c)
     node._metadata["writes_r"] = ret
     return ret
-
-
-def _struct_member_value(node: vy_ast.VyperNode) -> vy_ast.VyperNode:
-    """Return the expression a member of a struct literal takes its value
-    from, through nested members: `S(a=x, b=y).a` is `x`. Other nodes are
-    returned unchanged."""
-    from vyper.semantics.types.user import StructT
-
-    if not isinstance(node, vy_ast.Attribute):
-        return node
-    receiver = _struct_member_value(node.value)
-    if not isinstance(receiver, vy_ast.Call):
-        return node
-    func_t = receiver.func._metadata.get("type")
-    if func_t is None or not is_type_t(func_t, StructT):
-        return node
-    return next(kw.value for kw in receiver.keywords if kw.arg == node.attr)
-
-
-def get_referenced_variables(node: vy_ast.VyperNode) -> OrderedSet[VarInfo]:
-    """Return the variables read while evaluating an expression."""
-    if isinstance(node, vy_ast.ExprNode):
-        # Ignore reads which were folded away at compile time.
-        node = node.reduced()
-    value = _struct_member_value(node)
-    if value is not node:
-        # The other members do not contribute to the value.
-        return get_referenced_variables(value)
-    ret: OrderedSet[VarInfo] = OrderedSet()
-    if isinstance(node, vy_ast.ExprNode) and node._expr_info is not None:
-        ret.addmany(access.variable for access in node._expr_info._reads)
-    for child in node._children:
-        ret |= get_referenced_variables(child)
-    return ret
-
-
-def get_runtime_reads(node: vy_ast.VyperNode) -> OrderedSet[VarInfo]:
-    """Return the variables an expression reads at runtime, i.e. all but
-    constants."""
-    return OrderedSet(
-        var
-        for var in get_referenced_variables(node)
-        if var.decl_node is not None and var.modifiability != Modifiability.CONSTANT
-    )
-
-
-def index_writes_base(base: vy_ast.VyperNode, index: vy_ast.VyperNode) -> bool:
-    """Return True if evaluating `index` can write a variable read by `base`.
-
-    The check is per variable, not per member: popping `x.a` writes `x`.
-    Writes by internal callees count; external calls are not modeled.
-    """
-    base_reads = get_runtime_reads(base)
-    # not `get_expr_writes`, which caches its result on the nodes
-    return any(
-        access.variable in base_reads
-        for node in index.get_descendants(include_self=True)
-        if isinstance(node, vy_ast.ExprNode) and node._expr_info is not None
-        for access in node._expr_info._writes
-    )
 
 
 def validate_kwargs(node: vy_ast.Call, members: dict[str, VyperType], typeclass: str):
