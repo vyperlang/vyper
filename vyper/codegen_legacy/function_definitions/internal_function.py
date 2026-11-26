@@ -1,12 +1,12 @@
 from vyper import ast as vy_ast
-from vyper.codegen.function_definitions.common import (
+from vyper.codegen_legacy.function_definitions.common import (
     InternalFuncIR,
     get_nonreentrant_lock,
     initialize_context,
     tag_frame_info,
 )
-from vyper.codegen.ir_node import IRnode
-from vyper.codegen.stmt import parse_body
+from vyper.codegen_legacy.ir_node import IRnode
+from vyper.codegen_legacy.stmt import parse_body
 
 
 def generate_ir_for_internal_function(

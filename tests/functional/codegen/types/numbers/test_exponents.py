@@ -2,7 +2,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from vyper.codegen.arithmetic import calculate_largest_base, calculate_largest_power
+from vyper.codegen_shared.arithmetic import calculate_largest_base, calculate_largest_power
 from vyper.compiler import compile_code
 from vyper.exceptions import InvalidLiteral
 

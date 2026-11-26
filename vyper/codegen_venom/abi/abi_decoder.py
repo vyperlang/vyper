@@ -1,7 +1,7 @@
 """
 ABI decoding for Venom IR.
 
-Port of ABI decoding logic from vyper/codegen/core.py for direct AST-to-Venom codegen.
+Port of ABI decoding logic from vyper/codegen_legacy/core.py for direct AST-to-Venom codegen.
 
 ABI decoding reads data in ABI format and writes to Vyper memory layout.
 Unlike the legacy code where decoding was embedded in make_setter, this module
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from vyper.codegen.core import is_tuple_like
+from vyper.codegen_shared.abi_utils import is_tuple_like
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.value import VyperValue
 from vyper.exceptions import CompilerPanic
@@ -52,7 +52,7 @@ def needs_clamp(typ: VyperType) -> bool:
     """
     Check if ABI-decoded value needs validation.
 
-    Port of needs_clamp() from vyper/codegen/core.py.
+    Port of needs_clamp() from vyper/codegen_legacy/core.py.
     Returns True if the type requires clamping/validation after ABI decode.
     """
     if isinstance(typ, (_BytestringT, DArrayT)):
@@ -73,7 +73,7 @@ def int_clamp(ctx: VenomCodegenContext, val: IROperand, bits: int, signed: bool)
     """
     Validate integer is in range.
 
-    Port of int_clamp() from vyper/codegen/core.py.
+    Port of int_clamp() from vyper/codegen_legacy/core.py.
 
     For signed integers, we check that signextend(val) == val.
     For unsigned integers, we check that the high bits are zero.
@@ -101,7 +101,7 @@ def bytes_clamp(ctx: VenomCodegenContext, val: IROperand, m: int) -> IROperand:
     """
     Validate bytesM has zero padding in low bits.
 
-    Port of bytes_clamp() from vyper/codegen/core.py.
+    Port of bytes_clamp() from vyper/codegen_legacy/core.py.
 
     BytesM is left-aligned, so the low (32-m)*8 bits must be zero.
     We check: assert iszero(val << (m * 8))
@@ -120,7 +120,7 @@ def clamp_basetype(ctx: VenomCodegenContext, val: IROperand, typ: VyperType) -> 
     """
     Validate primitive value, return clamped value.
 
-    Port of clamp_basetype() from vyper/codegen/core.py.
+    Port of clamp_basetype() from vyper/codegen_legacy/core.py.
     Dispatches to the appropriate clamping function based on type.
     """
     if not typ._is_prim_word:  # pragma: nocover
@@ -155,7 +155,7 @@ def clamp_bytestring(
     """
     Validate bytestring length and bounds.
 
-    Port of clamp_bytestring() from vyper/codegen/core.py.
+    Port of clamp_bytestring() from vyper/codegen_legacy/core.py.
 
     Checks:
     1. length <= maxlen
@@ -198,7 +198,7 @@ def clamp_dyn_array(
     """
     Validate DynArray count and bounds.
 
-    Port of clamp_dyn_array() from vyper/codegen/core.py.
+    Port of clamp_dyn_array() from vyper/codegen_legacy/core.py.
 
     Checks:
     1. count <= max_count
@@ -250,7 +250,7 @@ def _getelemptr_abi(
     """
     Navigate to ABI-encoded element.
 
-    Port of _getelemptr_abi_helper() from vyper/codegen/core.py.
+    Port of _getelemptr_abi_helper() from vyper/codegen_legacy/core.py.
 
     For static types: returns parent + static_offset
     For dynamic types: reads offset at static location, adds to parent base
