@@ -1,4 +1,4 @@
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
+from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis, DominatorTreeAnalysis
 from vyper.venom.basicblock import IRInstruction, IROperand, IRVariable
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
@@ -10,6 +10,7 @@ class PhiEliminationPass(IRPass):
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
         self.updater = InstUpdater(self.dfg)
         self._calculate_phi_origins()
 
@@ -37,7 +38,7 @@ class PhiEliminationPass(IRPass):
     def _calculate_phi_origins(self):
         self.phi_to_origins = dict()
 
-        for bb in self.function.get_basic_blocks():
+        for bb in reversed(list(self.dom.dom_post_order)):
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     break
@@ -46,8 +47,6 @@ class PhiEliminationPass(IRPass):
     def _get_phi_origins(self, inst: IRInstruction):
         assert inst.opcode == "phi"  # sanity
         visited: set[IRInstruction] = set()
-        if inst in self.phi_to_origins:
-            del self.phi_to_origins[inst]
         self.phi_to_origins[inst] = self._get_phi_origins_r(inst, inst.output, visited)
 
     # traverse chains of phis and stores to get the "root" definitions
@@ -89,8 +88,7 @@ class PhiEliminationPass(IRPass):
                 #   %c = phi %a, %b  ; barrier (two origins)
                 #   %d = %c
                 #   %f = phi %d, %c  ; both paths lead to %c, so %f = %c
-                res = set([inst.output])
-            self.phi_to_origins[inst] = res
+                return set([inst.output])
             return res
 
         if inst.opcode == "assign" and isinstance(inst.operands[0], IRVariable):
