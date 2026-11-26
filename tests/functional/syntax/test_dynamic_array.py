@@ -238,6 +238,9 @@ struct S:
     a: DynArray[uint256, 4]
     b: DynArray[uint256, 4]
 
+struct Outer:
+    inner: S
+
 d: DynArray[uint256, 4]
 e: DynArray[uint256, 4]
 
@@ -248,7 +251,8 @@ def hook() -> uint256:
 
 @external
 def foo() -> uint256:
-    return S(a=self.d, b=self.e).a[self.hook()]
+    x: uint256 = S(a=self.d, b=self.e).a[self.hook()]
+    return Outer(inner=S(a=self.d, b=self.e)).inner.a[self.hook()]
     """,
 ]
 
@@ -418,6 +422,7 @@ def foo() -> uint256:
     assert e.value.message == (
         "Index may modify the indexed array: it writes a variable the array reads"
     )
+    assert e.value.annotations[0].node_source_code == expr
 
 
 @pytest.mark.parametrize("stmt", ["return x[x.pop()]", "x[x.pop()] = 1\n    return 0"])
@@ -433,6 +438,7 @@ def foo() -> uint256:
     assert e.value.message == (
         "Index may modify the indexed array: it writes a variable the array reads"
     )
+    assert e.value.annotations[0].node_source_code == "x[x.pop()]"
 
 
 def test_dynarray_mutating_temporary_rejected():

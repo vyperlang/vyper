@@ -884,16 +884,21 @@ def get_expr_writes(node: vy_ast.VyperNode) -> OrderedSet[VarAccess]:
     return ret
 
 
-def _selected_struct_member(node: vy_ast.VyperNode) -> vy_ast.VyperNode | None:
-    """For a member of a struct literal, `S(a=x, b=y).a`, return `x`."""
+def _struct_member_value(node: vy_ast.VyperNode) -> vy_ast.VyperNode:
+    """Return the expression a member of a struct literal takes its value
+    from, through nested members: `S(a=x, b=y).a` is `x`. Other nodes are
+    returned unchanged."""
     from vyper.semantics.types.user import StructT
 
-    if not isinstance(node, vy_ast.Attribute) or not isinstance(node.value, vy_ast.Call):
-        return None
-    func_t = node.value.func._metadata.get("type")
+    if not isinstance(node, vy_ast.Attribute):
+        return node
+    receiver = _struct_member_value(node.value)
+    if not isinstance(receiver, vy_ast.Call):
+        return node
+    func_t = receiver.func._metadata.get("type")
     if func_t is None or not is_type_t(func_t, StructT):
-        return None
-    return next(kw.value for kw in node.value.keywords if kw.arg == node.attr)
+        return node
+    return next(kw.value for kw in receiver.keywords if kw.arg == node.attr)
 
 
 def get_referenced_variables(node: vy_ast.VyperNode) -> OrderedSet[VarInfo]:
@@ -901,10 +906,10 @@ def get_referenced_variables(node: vy_ast.VyperNode) -> OrderedSet[VarInfo]:
     if isinstance(node, vy_ast.ExprNode):
         # Ignore reads which were folded away at compile time.
         node = node.reduced()
-    member = _selected_struct_member(node)
-    if member is not None:
+    value = _struct_member_value(node)
+    if value is not node:
         # The other members do not contribute to the value.
-        return get_referenced_variables(member)
+        return get_referenced_variables(value)
     ret: OrderedSet[VarInfo] = OrderedSet()
     if isinstance(node, vy_ast.ExprNode) and node._expr_info is not None:
         ret.addmany(access.variable for access in node._expr_info._reads)
