@@ -111,8 +111,8 @@ def test_dead_phi_is_popped():
     code = """
     function foo {
     main:
-        %pc = param
         %c = param
+        %pc = param
         jnz %c, @then, @else
     then:
         %a = 1
@@ -138,8 +138,8 @@ def test_dead_phi_is_popped_below_live_phi():
     code = """
     function foo {
     main:
-        %pc = param
         %c = param
+        %pc = param
         jnz %c, @then, @else
     then:
         %a = 1
@@ -150,18 +150,19 @@ def test_dead_phi_is_popped_below_live_phi():
         %e = 4
         jmp @join
     join:
-        %x = phi @then, %a, @else, %d  ; dead
         %y = phi @then, %b, @else, %e
+        %x = phi @then, %a, @else, %d  ; dead
         ret %pc, %y
     }
     """
     ctx = parse_venom(code)
     asm = VenomCompiler(ctx).generate_evm_assembly()
 
-    # previously `join` was `SWAP2 JUMP`, which returned with %x still on
-    # the stack.
+    # the dead %x sits underneath the live %y: [pc, x, y]. it must be
+    # %x that is popped, leaving [y, pc] for the return. previously `join`
+    # was `SWAP1 SWAP2 JUMP`, which returned with %x still on the stack.
     join = asm.index(Label("join"))
-    assert asm[join + 1 : join + 4] == ["POP", "SWAP1", "JUMP"]
+    assert asm[join + 1 : join + 5] == ["SWAP1", "POP", "SWAP1", "JUMP"]
 
 
 def test_popmany_bulk_removal_of_suffix():

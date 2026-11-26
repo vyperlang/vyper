@@ -24,6 +24,7 @@ def _venom_settings(compiler_settings, opt_level):
     )
 
 
+@pytest.mark.requires_evm_version("cancun")
 @pytest.mark.parametrize("opt_level", OPT_LEVELS)
 def test_dead_phi_does_not_corrupt_caller_stack(get_contract, compiler_settings, opt_level):
     # the dead phi in `h1` (from the inlined `or` in `h0`) used to be
@@ -94,3 +95,49 @@ def f(a1: int256) -> bool:
     c = get_contract(code, compiler_settings=_venom_settings(compiler_settings, opt_level))
 
     assert c.f(12345) is True
+
+
+@pytest.mark.parametrize("opt_level", OPT_LEVELS)
+def test_dead_phi_minimized_corrupt(get_contract, compiler_settings, opt_level):
+    # minimized PoC 1 from the issue: each call to `h` used to leave its
+    # dead phi on the caller's stack, so `new_owner` was read as 0.
+    code = """
+a: bool
+b: bool
+owner: public(address)
+
+@internal
+def h():
+    v: uint256 = (1 if self.a else 2) if (self.b or self.a) else 0
+
+@external
+def f(new_owner: address) -> address:
+    self.h()
+    self.h()
+    self.owner = new_owner
+    return new_owner
+    """
+    c = get_contract(code, compiler_settings=_venom_settings(compiler_settings, opt_level))
+
+    new_owner = "0x" + "11" * 20
+    assert c.f(new_owner) == new_owner
+    assert c.owner() == new_owner
+
+
+@pytest.mark.parametrize("opt_level", OPT_LEVELS)
+def test_dead_phi_minimized_underflow(get_contract, compiler_settings, opt_level):
+    # minimized PoC 2 from the issue: used to underflow at -O3
+    code = """
+a: bool
+b: bool
+
+@external
+def f() -> bool:
+    v: uint256 = (1 if self.a else 0) if (self.b or self.a) else 0
+    for i: uint256 in range(2):
+        pass
+    return True
+    """
+    c = get_contract(code, compiler_settings=_venom_settings(compiler_settings, opt_level))
+
+    assert c.f() is True
