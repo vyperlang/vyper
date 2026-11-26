@@ -1,15 +1,14 @@
 import pytest
 
+from tests.hevm import hevm_check_bytecode
 from tests.venom_utils import PrePostChecker
+from vyper.ir.compile_ir import assembly_to_evm
+from vyper.venom import generate_assembly_experimental
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel
+from vyper.venom.check_venom import find_semantic_errors
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes import PhiEliminationPass
-from vyper.venom.check_venom import find_semantic_errors
-from tests.hevm import hevm_check_bytecode
-from vyper.venom import generate_assembly_experimental
-from vyper.ir.compile_ir import assembly_to_evm
-
 
 _check_pre_post = PrePostChecker([PhiEliminationPass], default_hevm=False)
 
@@ -405,7 +404,7 @@ def test_phi_elim_multi_output_invoke_same_output_eliminated():
     assert len(z_assigns) == 1
     assert z_assigns[0].opcode == "assign"
     assert z_assigns[0].operands[0].name == "%r2"
-    
+
 
 @pytest.mark.hevm
 def test_tmp():
@@ -455,4 +454,3 @@ def test_tmp():
     bytecode = assembly_to_evm(asm)[0].hex()
 
     hevm_check_bytecode(bytecode, orig_bytecode)
-
