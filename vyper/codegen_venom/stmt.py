@@ -11,20 +11,15 @@ from __future__ import annotations
 from typing import Optional
 
 from vyper import ast as vy_ast
-from vyper.codegen.core import calculate_type_for_external_return, has_length_word, punnable
+from vyper.codegen_shared.abi_utils import calculate_type_for_external_return
+from vyper.codegen_shared.layout import has_length_word, punnable
 from vyper.codegen_venom.abi import (
     abi_encode_to_buf,
     abi_encode_values_to_buf,
     runtime_abi_size_for_encode,
 )
 from vyper.codegen_venom.arithmetic import apply_binop
-from vyper.exceptions import (
-    CodegenPanic,
-    CompilerPanic,
-    TypeCheckFailure,
-    TypeMismatch,
-    tag_exceptions,
-)
+from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
 from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
@@ -156,8 +151,8 @@ class Stmt:
         This ensures proper semantics for cases like `c[0] = c.pop()` where
         the RHS modifies the array length before the LHS bounds check.
 
-        Reference: vyper/codegen/core.py:make_setter
-        Reference: vyper/codegen/stmt.py:parse_Assign (for evaluation order)
+        Reference: vyper/codegen_legacy/core.py:make_setter
+        Reference: vyper/codegen_legacy/stmt.py:parse_Assign (for evaluation order)
         """
         node = self.node
         assert isinstance(node, vy_ast.Assign)
@@ -282,8 +277,8 @@ class Stmt:
         Key insight: Must load ALL values from source FIRST before assigning
         to any target. This handles cases like `a, b = b, a` correctly.
 
-        Reference: vyper/codegen/stmt.py:_get_target (for tuple targets)
-        Reference: vyper/codegen/core.py:make_setter (for multi handling)
+        Reference: vyper/codegen_legacy/stmt.py:_get_target (for tuple targets)
+        Reference: vyper/codegen_legacy/core.py:make_setter (for multi handling)
         """
         node = self.node
         assert isinstance(node, vy_ast.Assign)
@@ -1425,7 +1420,7 @@ class Stmt:
         - topic1-3: Indexed parameters (up to 3)
         - data: Non-indexed parameters, ABI-encoded
 
-        Source: vyper/codegen/stmt.py:parse_Log and vyper/codegen/events.py
+        Source: vyper/codegen_legacy/stmt.py:parse_Log and vyper/codegen_legacy/events.py
         """
         node = self.node
         assert isinstance(node, vy_ast.Log)
@@ -1506,7 +1501,7 @@ class Stmt:
         - Primitive word types (uint, int, address, bool, bytesN): use directly
         - bytes/string: keccak256 hash of contents
 
-        Source: vyper/codegen/events.py:_encode_log_topics
+        Source: vyper/codegen_legacy/events.py:_encode_log_topics
         """
         if typ._is_prim_word:
             # Primitive word type - use value directly
@@ -1522,11 +1517,9 @@ class Stmt:
             length = self.builder.mload(val)
             return self.builder.sha3(data_ptr, length)
 
-        else:
+        else:  # pragma: nocover
             # unreachable: rejected at the log site in `EventT._ctor_call_return`
-            raise TypeMismatch(
-                "Event indexes may only be value types", self.node
-            )  # pragma: nocover
+            raise CodegenPanic(f"Event indexes may only be value types, got {typ}")
 
     # === Error Handling (Assert/Raise) ===
 
@@ -1538,7 +1531,7 @@ class Stmt:
         2. UNREACHABLE: jnz cond, ok, fail; fail: invalid; ok: continue
         3. With reason string: encode Error(string) and revert
 
-        Source: vyper/codegen/stmt.py:parse_Assert, _assert_reason
+        Source: vyper/codegen_legacy/stmt.py:parse_Assert, _assert_reason
         """
         node = self.node
         assert isinstance(node, vy_ast.Assert)
@@ -1572,7 +1565,7 @@ class Stmt:
         2. UNREACHABLE: invalid
         3. With reason: encode Error(string) and revert
 
-        Source: vyper/codegen/stmt.py:parse_Raise
+        Source: vyper/codegen_legacy/stmt.py:parse_Raise
         """
         node = self.node
         assert isinstance(node, vy_ast.Raise)
@@ -1597,7 +1590,7 @@ class Stmt:
     def _assert_with_reason(self, cond: IROperand, msg: vy_ast.VyperNode) -> None:
         """Handle assert with reason (including UNREACHABLE).
 
-        Source: vyper/codegen/stmt.py:_assert_reason
+        Source: vyper/codegen_legacy/stmt.py:_assert_reason
         """
         if isinstance(msg, vy_ast.Name) and msg.id == "UNREACHABLE":
             # UNREACHABLE: use invalid opcode on failure
@@ -1699,7 +1692,7 @@ class Stmt:
         - buf+32: ABI-encoded (string,) tuple
         Final revert: from buf+28 with length 4 + encoded_len
 
-        Source: vyper/codegen/stmt.py:_assert_reason
+        Source: vyper/codegen_legacy/stmt.py:_assert_reason
         """
         # Evaluate message in constant context (prevent state changes)
         with self.ctx.revert_scope():

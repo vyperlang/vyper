@@ -187,10 +187,12 @@ def test_multi_lhs_non_invoke_rejected():
             "%fmp = calldatasize\n        %a, %b, %c = bump 32, %fmp\n        sink %a, %b, %c",
         ),
         ("bump", "%fmp = calldatasize\n        %a, %b = bump %fmp\n        sink %a, %b"),
-        # initial_fmp must have exactly 0 operands and 1 output
-        ("initial_fmp", "%p = initial_fmp 1\n        sink %p"),
-        ("initial_fmp", "initial_fmp\n        stop"),
-        ("initial_fmp", "%p, %q = initial_fmp\n        sink %p, %q"),
+        # initial_fmp must have exactly 1 literal operand and 1 output
+        ("initial_fmp", "%p = initial_fmp\n        sink %p"),
+        ("initial_fmp", "%p = initial_fmp 1, 2\n        sink %p"),
+        ("initial_fmp", "%b = calldatasize\n        %p = initial_fmp %b\n        sink %p"),
+        ("initial_fmp", "initial_fmp 1\n        stop"),
+        ("initial_fmp", "%p, %q = initial_fmp 1\n        sink %p, %q"),
         # dalloca must have exactly 1 operand and 1 output
         ("dalloca", "%p, %mark = dalloca 32\n        sink %p, %mark"),
         ("dalloca", "%p, %mark = dalloca\n        sink %p, %mark"),
@@ -952,7 +954,7 @@ def test_mixed_raw_ops_with_bump_rejected():
         # bump without annotation
         "%fmp = calldatasize\n        %a, %b = bump 32, %fmp\n        sink %a, %b",
         # initial_fmp without annotation
-        "%fmp = initial_fmp\n        sink %fmp",
+        "%fmp = initial_fmp 0\n        sink %fmp",
     ],
 )
 def test_lowered_artifacts_require_annotation(body):
@@ -1048,7 +1050,7 @@ def test_annotated_publishing_function_shape_accepted():
     function f [fmp_lowered, fmp_publishes] {
     f:
         %retpc = retpc_param
-        %base = initial_fmp
+        %base = initial_fmp 0
         %p, %new = bump 32, %base
         ret %p, %new, %retpc
     }
@@ -1077,7 +1079,7 @@ def test_publishing_lowered_callee_rejected_in_raw_caller():
     function f [fmp_lowered, fmp_publishes] {
     f:
         %retpc = retpc_param
-        %base = initial_fmp
+        %base = initial_fmp 0
         %p, %new = bump 32, %base
         ret %p, %new, %retpc
     }

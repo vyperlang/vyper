@@ -17,8 +17,15 @@ from __future__ import annotations
 from typing import Optional
 
 import vyper.ast as vy_ast
-from vyper.codegen import jumptable_utils
-from vyper.codegen.function_definitions.common import EntryPointInfo, _FuncIRInfo
+from vyper.codegen_shared import jumptable_utils
+from vyper.codegen_shared.function_info import (
+    EntryPointInfo,
+    _FuncIRInfo,
+    is_constructor,
+    is_fallback,
+    is_internal,
+    runtime_reachable_functions,
+)
 from vyper.codegen_venom.abi.abi_decoder import (
     abi_decode_to_buf,
     decode_unbounded_sequence_to_scratch,
@@ -39,7 +46,7 @@ from vyper.semantics.types import (
 )
 from vyper.semantics.types.function import ContractFunctionT, StateMutability
 from vyper.semantics.types.module import ModuleT
-from vyper.utils import OrderedSet, method_id_int
+from vyper.utils import method_id_int
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 from vyper.venom.builder import VenomBuilder
 from vyper.venom.context import IRContext
@@ -81,33 +88,6 @@ class IDGenerator:
             self._id = max(self._id, fn_t._function_id + 1)
 
 
-def _is_constructor(func_ast) -> bool:
-    return func_ast._metadata["func_type"].is_constructor
-
-
-def _is_fallback(func_ast) -> bool:
-    return func_ast._metadata["func_type"].is_fallback
-
-
-def _is_internal(func_ast) -> bool:
-    return func_ast._metadata["func_type"].is_internal
-
-
-def _runtime_reachable_functions(module_t: ModuleT, id_generator: IDGenerator):
-    """Calculate globally reachable functions for runtime code."""
-    ret: OrderedSet[ContractFunctionT] = OrderedSet()
-
-    for fn_t in module_t.exposed_functions:
-        assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
-        ret.update(fn_t.reachable_internal_functions)
-        ret.add(fn_t)
-
-    for fn_t in ret:
-        id_generator.ensure_id(fn_t)
-
-    return ret
-
-
 def _init_ir_info(func_t: ContractFunctionT) -> None:
     """Initialize IRInfo on a function if not already set."""
     if func_t._ir_info is None:
@@ -130,15 +110,13 @@ def generate_venom_runtime(module_t: ModuleT, settings: Settings) -> IRContext:
     id_generator = IDGenerator(module_t)
 
     # Find all reachable functions
-    reachable = _runtime_reachable_functions(module_t, id_generator)
+    reachable = runtime_reachable_functions(module_t, id_generator)
     function_defs = [fn_t.ast_def for fn_t in reachable]
 
-    runtime_functions = [f for f in function_defs if not _is_constructor(f)]
-    internal_functions = [f for f in runtime_functions if _is_internal(f)]
-    external_functions = [
-        f for f in runtime_functions if not _is_internal(f) and not _is_fallback(f)
-    ]
-    default_function = next((f for f in runtime_functions if _is_fallback(f)), None)
+    runtime_functions = [f for f in function_defs if not is_constructor(f)]
+    internal_functions = [f for f in runtime_functions if is_internal(f)]
+    external_functions = [f for f in runtime_functions if not is_internal(f) and not is_fallback(f)]
+    default_function = next((f for f in runtime_functions if is_fallback(f)), None)
 
     # Create runtime IR context
     runtime_ctx = IRContext()

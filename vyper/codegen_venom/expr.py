@@ -13,11 +13,11 @@ from typing import Optional
 import vyper.utils as util
 from vyper import ast as vy_ast
 from vyper.builtins._signatures import BuiltinFunctionT
-from vyper.codegen.core import (
-    DYNAMIC_ARRAY_OVERHEAD,
+from vyper.codegen_shared.abi_utils import (
     calculate_type_for_external_return,
     needs_external_call_wrap,
 )
+from vyper.codegen_shared.layout import DYNAMIC_ARRAY_OVERHEAD
 from vyper.codegen_venom.arithmetic import apply_binop
 from vyper.codegen_venom.layout import struct_member_offsets
 from vyper.evm.opcodes import version_check
@@ -307,7 +307,7 @@ class Expr:
         Allocates memory for the tuple and stores each element at the correct offset.
         Returns pointer to the allocated tuple in memory.
 
-        Reference: vyper/codegen/expr.py:parse_Tuple
+        Reference: vyper/codegen_legacy/expr.py:parse_Tuple
         """
         node = self.node
         assert isinstance(node, vy_ast.Tuple)
@@ -374,14 +374,13 @@ class Expr:
         - DArrayT: length word at offset 0, elements at offset 32+
         - SArrayT: no length word, elements at offset 0+
 
-        Reference: vyper/codegen/expr.py:parse_List
+        Reference: vyper/codegen_legacy/expr.py:parse_List
         """
         node = self.node
         assert isinstance(node, vy_ast.List)
         typ = node._metadata["type"]
         elem_typ = typ.value_type
         # a static array holds no unbounded sequence (`SArrayT.from_annotation`)
-        # TODO: `_analyse_list_iter` still types a for-loop list literal as one
         assert not (isinstance(typ, SArrayT) and is_unbounded_sequence_type(elem_typ))
         elem_is_cell = is_unbounded_sequence_type(elem_typ)
         elem_size = self.ctx.array_elem_size_in(typ, DataLocation.MEMORY)
@@ -587,6 +586,13 @@ class Expr:
                     ),
                     result_typ,
                 )
+
+        # Block complex types (mirrors legacy codegen), otherwise we would
+        # compare the pointers. See issue #2638 for context
+        if not (left_typ._is_prim_word and right_typ._is_prim_word):
+            raise TypeMismatch(
+                f"operation not yet supported for {left_typ}, {right_typ}, see issue #2638", node.op
+            )
 
         # Non-bytestring: get values directly
         left = Expr(node.left, self.ctx).lower_value()
@@ -1143,7 +1149,7 @@ class Expr:
 
         # Handle bytes/string keys - need to hash them first
         if isinstance(key_typ, _BytestringT):
-            key = self._lower_keccak256_key(node.slice)
+            key = self._get_bytestring_hash(node.slice)
         else:
             key = Expr(node.slice, self.ctx).lower_value()
 
@@ -1161,22 +1167,10 @@ class Expr:
         ptr = Ptr(operand=slot, location=location)
         return VyperValue.from_ptr(ptr, value_typ)
 
-    def _lower_keccak256_key(self, key_node: vy_ast.VyperNode) -> IROperand:
-        """Hash the data portion of a bytes/string mapping key."""
-        # bytes/string: get pointer, hash the data portion
-        # sha3 only works on memory - copy non-memory data first
-        key_vv = Expr(key_node, self.ctx).lower()
-        key_typ = key_node._metadata["type"]
-        assert isinstance(key_typ, _BytestringT)
-        key_mem = self.ctx.ensure_bytestring_in_memory(key_vv, key_typ)
-        data_ptr_op = self.ctx.bytes_data_ptr(key_mem)
-        length = self.ctx.bytestring_length(key_mem)
-        return self.builder.sha3(data_ptr_op, length)
-
     def _get_bytestring_hash(self, node: vy_ast.VyperNode) -> IROperand:
-        """Get keccak256 hash of a bytestring for comparison.
+        """Get the keccak256 hash of a bytestring for a comparison or mapping key.
 
-        For constant literals (Str, Bytes), compute hash at compile time.
+        For string and bytes literals, compute the hash at compile time.
         This avoids memory allocation issues where loop body literals
         share memory with init phase literals.
 
@@ -1191,7 +1185,7 @@ class Expr:
             hash_val = int.from_bytes(keccak256(bytez), "big")
             return IRLiteral(hash_val)
 
-        if isinstance(reduced, vy_ast.Bytes):
+        if isinstance(reduced, (vy_ast.Bytes, vy_ast.HexBytes)):
             # Bytes literal: hash the raw bytes
             bytez = reduced.value
             hash_val = int.from_bytes(keccak256(bytez), "big")
@@ -1199,10 +1193,7 @@ class Expr:
 
         # Not a constant - compute at runtime
         vv = Expr(node, self.ctx).lower()
-        assert isinstance(node, vy_ast.ExprNode)
-        typ = node._expr_info.typ
-        assert isinstance(typ, _BytestringT)
-        vv_mem = self.ctx.ensure_bytestring_in_memory(vv, typ)
+        vv_mem = self.ctx.ensure_bytestring_in_memory(vv)
         data_ptr_op = self.ctx.bytes_data_ptr(vv_mem)
         length = self.ctx.bytestring_length(vv_mem)
         return self.builder.sha3(data_ptr_op, length)
@@ -1795,7 +1786,7 @@ class Expr:
 
         Allocates memory for struct and stores field values in field order.
 
-        Reference: vyper/codegen/expr.py:handle_struct_literal
+        Reference: vyper/codegen_legacy/expr.py:handle_struct_literal
         """
         node = self.node
         assert isinstance(node, vy_ast.Call)
@@ -1875,7 +1866,7 @@ class Expr:
         6. Store element
         7. Increment and store new length
 
-        Reference: vyper/codegen/core.py:append_dyn_array
+        Reference: vyper/codegen_legacy/core.py:append_dyn_array
         """
         node = self.node
         assert isinstance(node, vy_ast.Call)
@@ -2109,7 +2100,7 @@ class Expr:
         4. Store new length
         5. Return element at new_length index (the popped element)
 
-        Reference: vyper/codegen/core.py:pop_dyn_array
+        Reference: vyper/codegen_legacy/core.py:pop_dyn_array
         """
         node = self.node
         assert isinstance(node, vy_ast.Call)
