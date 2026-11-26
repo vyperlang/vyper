@@ -3,7 +3,7 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import CompilerPanic, InvalidOperation, TypeCheckFailure
+from vyper.exceptions import InvalidOperation, StructureException, TypeCheckFailure
 
 
 def test_negative_ix_access(get_contract, tx_failed):
@@ -153,7 +153,7 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    with pytest.raises(CompilerPanic, match="risky overlap"):
+    with pytest.raises(StructureException, match="Index may modify the indexed array"):
         get_contract(code)
 
 
@@ -177,7 +177,7 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    with pytest.raises(CompilerPanic, match="risky overlap"):
+    with pytest.raises(StructureException, match="Index may modify the indexed array"):
         get_contract(code)
 
 
@@ -198,7 +198,7 @@ def calculate_index() -> uint256:
     self.a[0] = [1]
     return 0
     """
-    with pytest.raises(CompilerPanic, match="risky overlap"):
+    with pytest.raises(StructureException, match="Index may modify the indexed array"):
         get_contract(code)
 
 
@@ -220,51 +220,12 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    with pytest.raises(CompilerPanic, match="risky overlap"):
-        get_contract(code)
-
-
-@pytest.mark.parametrize(
-    "decl,write,expr",
-    [
-        ("d: DynArray[uint256, 1]", "self.d = [5]", "self.d[self.hook()]"),
-        ("d: DynArray[uint256, 1][1]", "self.d[0] = [5]", "self.d[0][self.hook()]"),
-        ("d: HashMap[uint256, DynArray[uint256, 1]]", "self.d[0] = [5]", "self.d[0][self.hook()]"),
-        ("d: uint256[1]", "self.d[0] = 5", "self.d[self.hook()]"),
-        ("d: DynArray[uint256[1], 1]", "self.d = [[5]]", "self.d.pop()[self.hook()]"),
-    ],
-)
-def test_array_index_overlap_root(get_contract, decl, write, expr):
-    # the index writes the indexed variable, whatever the base's shape
-    code = f"""
-{decl}
-
-@internal
-def hook() -> uint256:
-    {write}
-    return 0
-
-@external
-def run() -> uint256:
-    return {expr}
-    """
-    with pytest.raises(CompilerPanic, match="risky overlap"):
-        get_contract(code)
-
-
-def test_array_index_overlap_local_pop(get_contract):
-    code = """
-@external
-def run() -> uint256:
-    x: DynArray[uint256, 3] = [10, 20, 30]
-    return x[x.pop() - 29]
-    """
-    with pytest.raises(CompilerPanic, match="risky overlap"):
+    with pytest.raises(StructureException, match="Index may modify the indexed array"):
         get_contract(code)
 
 
 # to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+@pytest.mark.xfail(raises=StructureException, reason="index may modify the indexed array")
 def test_array_index_overlap_store(get_contract):
     code = """
 a: DynArray[DynArray[uint256, 5], 5]
@@ -286,7 +247,7 @@ def bar() -> uint256:
 
 
 # to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+@pytest.mark.xfail(raises=StructureException, reason="index may modify the indexed array")
 def test_array_index_overlap_store_attribute(get_contract):
     code = """
 struct Foo:
@@ -311,7 +272,7 @@ def bar() -> uint256:
 
 
 # to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+@pytest.mark.xfail(raises=StructureException, reason="index may modify the indexed array")
 def test_array_index_overlap_store_attribute_target(get_contract):
     code = """
 struct Foo:
@@ -341,7 +302,7 @@ _MEMBER_CALLS = [("append(5)", [[[7, 5], [8]], [[9], [2]]]), ("pop()", [[[], [8]
 
 
 # to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+@pytest.mark.xfail(raises=StructureException, reason="index may modify the indexed array")
 @pytest.mark.parametrize("call,expected", _MEMBER_CALLS)
 def test_array_index_overlap_member_call_target(get_contract, call, expected):
     code = f"""
@@ -356,7 +317,7 @@ def foo() -> DynArray[DynArray[DynArray[uint256, 3], 3], 3]:
 
 
 # to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+@pytest.mark.xfail(raises=StructureException, reason="index may modify the indexed array")
 @pytest.mark.parametrize("call,expected", _MEMBER_CALLS)
 def test_array_index_overlap_member_call_target_storage(get_contract, call, expected):
     code = f"""
@@ -378,7 +339,7 @@ def idx() -> uint256:
 
 
 # to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
+@pytest.mark.xfail(raises=StructureException, reason="index may modify the indexed array")
 @pytest.mark.parametrize("call,expected", [("append(5)", [7, 5]), ("pop()", [])])
 def test_array_index_overlap_member_call_target_struct_field(get_contract, call, expected):
     code = f"""

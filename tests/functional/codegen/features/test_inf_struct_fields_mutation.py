@@ -5,7 +5,7 @@ from eth_abi import encode as eth_abi_encode
 from vyper.codegen_venom.module import generate_venom_runtime
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import anchor_settings
-from vyper.exceptions import CompilerPanic
+from vyper.exceptions import StructureException
 from vyper.utils import method_id
 
 
@@ -1105,5 +1105,5 @@ def f() -> uint256:
     {stmt}
     return v
     """
-    with pytest.raises(CompilerPanic, match="risky overlap"):
+    with pytest.raises(StructureException, match="Index may modify the indexed array"):
         get_contract(code)

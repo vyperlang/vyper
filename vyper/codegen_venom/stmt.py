@@ -20,7 +20,7 @@ from vyper.codegen_venom.abi import (
 )
 from vyper.codegen_venom.arithmetic import apply_binop
 from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
-from vyper.semantics.analysis.utils import get_expr_writes
+from vyper.semantics.analysis.utils import get_expr_writes, get_referenced_variables
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     VyperType,
@@ -45,12 +45,7 @@ from .eval_order import (
     expression_can_mutate_memory_or_storage,
     later_expressions_can_mutate_memory_or_storage,
 )
-from .expr import (
-    Expr,
-    get_referenced_variables,
-    is_unbounded_array_element,
-    is_unbounded_struct_member,
-)
+from .expr import Expr, is_unbounded_array_element, is_unbounded_struct_member
 from .packed_return import pack_value_with_payloads
 from .value import VyperValue
 

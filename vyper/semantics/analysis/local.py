@@ -39,6 +39,7 @@ from vyper.semantics.analysis.utils import (
     get_exact_type_from_node,
     get_expr_info,
     get_possible_types_from_node,
+    index_writes_base,
     uses_state,
     validate_expected_type,
 )
@@ -1390,6 +1391,15 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
 
         self.visit(node.value, base_type)
         self.visit(node.slice, index_type)
+
+        # the element read would depend on whether the base or the index
+        # is evaluated first
+        if isinstance(base_type, (SArrayT, DArrayT)) and index_writes_base(node.value, node.slice):
+            raise StructureException(
+                "Index may modify the indexed array: it writes a variable the array reads",
+                node,
+                hint="evaluate the index into a local variable first",
+            )
 
     def visit_Tuple(self, node: vy_ast.Tuple, typ: VyperType) -> None:
         if isinstance(typ, TYPE_T):

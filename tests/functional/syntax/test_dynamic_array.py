@@ -209,6 +209,29 @@ def foo():
 def foo():
     x: DynArray[uint256, 4] = []
     """,
+    # only array subscripts are checked
+    """
+m: HashMap[uint256, uint256]
+
+@internal
+def hook() -> uint256:
+    self.m[0] = 5
+    return 0
+
+@external
+def foo() -> uint256:
+    return self.m[self.hook()]
+    """,
+    # constants and unrelated variables can't overlap
+    """
+C: constant(uint256[2]) = [1, 2]
+d: DynArray[uint256, 4]
+
+@external
+def foo() -> uint256:
+    x: DynArray[uint256, 4] = [1, 2]
+    return C[self.d.pop()] + x[self.d.pop()]
+    """,
 ]
 
 
@@ -339,6 +362,58 @@ def foo():
     a.append(1)
     """
     compile_inf_code(code)
+
+
+_STRUCT_S = "struct S:\n    a: DynArray[uint256, 4]\n    b: DynArray[uint256, 4]"
+
+
+@pytest.mark.parametrize(
+    "decls,write,expr",
+    [
+        ("d: DynArray[uint256, 4]", "self.d = [5]", "self.d[self.hook()]"),
+        ("d: uint256[4]", "self.d[0] = 5", "self.d[self.hook()]"),
+        ("d: HashMap[uint256, DynArray[uint256, 4]]", "self.d[0] = [5]", "self.d[0][self.hook()]"),
+        # per variable, not per member
+        (_STRUCT_S + "\nd: S", "self.d.b = [5]", "self.d.a[self.hook()]"),
+        (
+            "d: DynArray[uint256, 4]",
+            "self.d = [5]",
+            "(self.d if self.d[0] == 0 else [1])[self.hook()]",
+        ),
+    ],
+)
+def test_index_writing_base_rejected(decls, write, expr):
+    code = f"""
+{decls}
+
+@internal
+def hook() -> uint256:
+    {write}
+    return 0
+
+@external
+def foo() -> uint256:
+    return {expr}
+    """
+    with pytest.raises(StructureException) as e:
+        compile_code(code, output_formats=["annotated_ast_dict"])
+    assert e.value.message == (
+        "Index may modify the indexed array: it writes a variable the array reads"
+    )
+
+
+def test_index_popping_local_base_rejected():
+    code = """
+@external
+def foo() -> uint256:
+    x: DynArray[uint256, 4] = [1, 2]
+    return x[x.pop()]
+    """
+    with pytest.raises(StructureException) as e:
+        compile_code(code, output_formats=["annotated_ast_dict"])
+    assert e.value.message == (
+        "Index may modify the indexed array: it writes a variable the array reads"
+    )
 
 
 def test_dynarray_mutating_temporary_rejected():

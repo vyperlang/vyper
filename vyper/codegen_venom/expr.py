@@ -26,12 +26,12 @@ from vyper.exceptions import (
     CompilerPanic,
     EvmVersionException,
     StateAccessViolation,
+    StructureException,
     TypeMismatch,
     UnimplementedException,
     tag_exceptions,
 )
-from vyper.semantics.analysis.base import Modifiability
-from vyper.semantics.analysis.utils import get_expr_writes
+from vyper.semantics.analysis.utils import get_runtime_reads, index_writes_base
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,
@@ -109,19 +109,6 @@ _RISKY_BUILTINS = {
 }
 
 
-def get_referenced_variables(node: vy_ast.VyperNode) -> set:
-    """Return variables read while evaluating an expression."""
-    if isinstance(node, vy_ast.ExprNode):
-        # Ignore reads which were folded away at compile time.
-        node = node.reduced()
-    ret: set = set()
-    if isinstance(node, vy_ast.ExprNode) and node._expr_info is not None:
-        ret.update(access.variable for access in node._expr_info._reads)
-    for child in node._children:
-        ret |= get_referenced_variables(child)
-    return ret
-
-
 def _contains_risky_call(node: vy_ast.VyperNode) -> bool:
     if isinstance(node, vy_ast.ExprNode):
         # Ignore calls which were folded away at compile time.
@@ -157,19 +144,10 @@ def _subscript_read_write_overlap(
 ) -> bool:
     # The base is evaluated before the index. Detect an index expression
     # which can mutate variables used to derive that base.
-    base_reads = {
-        var
-        for var in get_referenced_variables(base_node)
-        if var.decl_node is not None and var.modifiability != Modifiability.CONSTANT
-    }
-    if not base_reads:
-        return False
-
-    index_writes = {access.variable for access in get_expr_writes(index_node)}
-    if base_reads & index_writes:
+    if index_writes_base(base_node, index_node):
         return True
 
-    return _contains_risky_call(index_node)
+    return len(get_runtime_reads(base_node)) > 0 and _contains_risky_call(index_node)
 
 
 def is_unbounded_array_element(node: vy_ast.VyperNode) -> bool:
@@ -1065,11 +1043,16 @@ class Expr:
         assert isinstance(node, vy_ast.Subscript)
         base_typ = node.value._metadata["type"]
 
-        # Reject an index that can write what the base reads, as legacy
-        # codegen does: the element read would depend on whether the base or
-        # the index is evaluated first.
+        # Semantic analysis rejects an index that writes what the base reads.
+        # Like legacy codegen, also reject one that makes an external call,
+        # which may reenter and write it.
         if _subscript_read_write_overlap(node.value, node.slice):
-            raise CompilerPanic("risky overlap")
+            raise StructureException(
+                "Index may modify the indexed array: it makes an external call"
+                " or writes a variable the array reads",
+                node,
+                hint="evaluate the index into a local variable first",
+            )
 
         base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
         index = Expr(node.slice, self.ctx).lower_value()

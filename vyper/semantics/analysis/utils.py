@@ -884,6 +884,45 @@ def get_expr_writes(node: vy_ast.VyperNode) -> OrderedSet[VarAccess]:
     return ret
 
 
+def get_referenced_variables(node: vy_ast.VyperNode) -> OrderedSet[VarInfo]:
+    """Return the variables read while evaluating an expression."""
+    if isinstance(node, vy_ast.ExprNode):
+        # Ignore reads which were folded away at compile time.
+        node = node.reduced()
+    ret: OrderedSet[VarInfo] = OrderedSet()
+    if isinstance(node, vy_ast.ExprNode) and node._expr_info is not None:
+        ret.addmany(access.variable for access in node._expr_info._reads)
+    for child in node._children:
+        ret |= get_referenced_variables(child)
+    return ret
+
+
+def get_runtime_reads(node: vy_ast.VyperNode) -> OrderedSet[VarInfo]:
+    """Return the variables an expression reads at runtime, i.e. all but
+    constants."""
+    return OrderedSet(
+        var
+        for var in get_referenced_variables(node)
+        if var.decl_node is not None and var.modifiability != Modifiability.CONSTANT
+    )
+
+
+def index_writes_base(base: vy_ast.VyperNode, index: vy_ast.VyperNode) -> bool:
+    """Return True if evaluating `index` can write a variable read by `base`.
+
+    The check is per variable, not per member: popping `x.a` writes `x`.
+    Writes by internal callees count; external calls are not modeled.
+    """
+    base_reads = get_runtime_reads(base)
+    # not `get_expr_writes`, which caches its result on the nodes
+    return any(
+        access.variable in base_reads
+        for node in index.get_descendants(include_self=True)
+        if isinstance(node, vy_ast.ExprNode) and node._expr_info is not None
+        for access in node._expr_info._writes
+    )
+
+
 def validate_kwargs(node: vy_ast.Call, members: dict[str, VyperType], typeclass: str):
     # manually validate kwargs for better error messages instead of
     # relying on `validate_call_args`
