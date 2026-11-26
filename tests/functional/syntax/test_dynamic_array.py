@@ -232,6 +232,24 @@ def foo() -> uint256:
     x: DynArray[uint256, 4] = [1, 2]
     return C[self.d.pop()] + x[self.d.pop()]
     """,
+    # only the selected member of a struct literal is indexed
+    """
+struct S:
+    a: DynArray[uint256, 4]
+    b: DynArray[uint256, 4]
+
+d: DynArray[uint256, 4]
+e: DynArray[uint256, 4]
+
+@internal
+def hook() -> uint256:
+    self.e = [5]
+    return 0
+
+@external
+def foo() -> uint256:
+    return S(a=self.d, b=self.e).a[self.hook()]
+    """,
 ]
 
 
