@@ -46,6 +46,8 @@ class PhiEliminationPass(IRPass):
     def _get_phi_origins(self, inst: IRInstruction):
         assert inst.opcode == "phi"  # sanity
         visited: set[IRInstruction] = set()
+        if inst in self.phi_to_origins:
+            del self.phi_to_origins[inst]
         self.phi_to_origins[inst] = self._get_phi_origins_r(inst, inst.output, visited)
 
     # traverse chains of phis and stores to get the "root" definitions
@@ -87,7 +89,8 @@ class PhiEliminationPass(IRPass):
                 #   %c = phi %a, %b  ; barrier (two origins)
                 #   %d = %c
                 #   %f = phi %d, %c  ; both paths lead to %c, so %f = %c
-                return set([inst.output])
+                res = set([inst.output])
+            self.phi_to_origins[inst] = res
             return res
 
         if inst.opcode == "assign" and isinstance(inst.operands[0], IRVariable):
