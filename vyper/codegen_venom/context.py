@@ -1642,8 +1642,10 @@ class VenomCodegenContext:
         Only the words that hold the value are written: a DynArray's length
         and its first `length` elements, and a bytestring's length word and
         the words holding its bytes, at any nesting depth. The slots past
-        them keep their contents, as in legacy codegen. Subtrees without
-        dynamic data are copied whole.
+        them keep their contents, as in legacy codegen, except that legacy
+        codegen writes the data word of a bytestring of at most 32 bytes
+        from the source buffer even when the value is empty. Subtrees
+        without dynamic data are copied whole.
         """
         b = self.builder
         if transient:

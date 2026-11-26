@@ -34,6 +34,10 @@ struct D:
     a: DynArray[uint256, 2]
     s: uint256[3]
     t: String[40]
+
+struct E:
+    b: Bytes[16]
+    c: uint256
 """
 
 # (type, old, junk, new, slots after storing new over old)
@@ -78,14 +82,21 @@ CASES = [
     ),
 ]
 
+# an empty bytestring writes only its length word. legacy codegen also
+# writes the data word of a bytestring of at most 32 bytes, from the
+# source buffer, so these cases hold only under venom
+EMPTY_BYTESTRING_CASES = [
+    ("E", (b"ab", 2), (b"y" * 16, 7), (b"", 4), [0, AB, 4]),
+    ("String[32]", "ab", "y" * 32, "", [0, AB]),
+]
+
 
 def _first_slot():
     # before cancun, slot 0 holds the reentrancy lock
     return 0 if version_check(begin="cancun") else 1
 
 
-@pytest.mark.parametrize("typ,old,junk,new,expected", CASES)
-def test_storage_write_keeps_dead_slots(env, get_contract, typ, old, junk, new, expected):
+def _check_storage_write(env, get_contract, typ, old, junk, new, expected):
     code = f"""
 {STRUCTS}
 
@@ -107,6 +118,20 @@ def get() -> {typ}:
     assert c.get() == new
     base = _first_slot()
     assert [env.get_storage(c.address, base + i) for i in range(len(expected))] == expected
+
+
+@pytest.mark.parametrize("typ,old,junk,new,expected", CASES)
+def test_storage_write_keeps_dead_slots(env, get_contract, typ, old, junk, new, expected):
+    _check_storage_write(env, get_contract, typ, old, junk, new, expected)
+
+
+@pytest.mark.parametrize("typ,old,junk,new,expected", EMPTY_BYTESTRING_CASES)
+def test_storage_write_of_empty_bytestring_keeps_data_word(
+    env, get_contract, experimental_codegen, typ, old, junk, new, expected
+):
+    if not experimental_codegen:
+        pytest.skip("legacy codegen writes the data word of an empty short bytestring")
+    _check_storage_write(env, get_contract, typ, old, junk, new, expected)
 
 
 def test_storage_append_keeps_dead_slots(env, get_contract):
@@ -134,9 +159,7 @@ def pop():
     assert [env.get_storage(c.address, base + i) for i in range(6)] == [1, 1, 5, 2, 3, 6]
 
 
-@pytest.mark.requires_evm_version("cancun")
-@pytest.mark.parametrize("typ,old,junk,new,expected", CASES)
-def test_transient_write_keeps_dead_slots(get_contract, typ, old, junk, new, expected):
+def _check_transient_write(get_contract, typ, old, junk, new, expected):
     # transient storage can't be read from outside, so the contract reads
     # its own slots through a delegatecall to `reader`, whose first transient
     # variable lies at the same slot as `t`
@@ -166,3 +189,19 @@ def run(reader: address, old: {typ}, junk: {typ}, new: {typ}) -> ({typ}, uint256
     """
     c = get_contract(code)
     assert c.run(reader.address, old, junk, new) == (new, expected)
+
+
+@pytest.mark.requires_evm_version("cancun")
+@pytest.mark.parametrize("typ,old,junk,new,expected", CASES)
+def test_transient_write_keeps_dead_slots(get_contract, typ, old, junk, new, expected):
+    _check_transient_write(get_contract, typ, old, junk, new, expected)
+
+
+@pytest.mark.requires_evm_version("cancun")
+@pytest.mark.parametrize("typ,old,junk,new,expected", EMPTY_BYTESTRING_CASES)
+def test_transient_write_of_empty_bytestring_keeps_data_word(
+    get_contract, experimental_codegen, typ, old, junk, new, expected
+):
+    if not experimental_codegen:
+        pytest.skip("legacy codegen writes the data word of an empty short bytestring")
+    _check_transient_write(get_contract, typ, old, junk, new, expected)
