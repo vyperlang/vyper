@@ -1,12 +1,12 @@
 import pytest
 
+from tests.hevm import hevm_check_venom_ctx
 from tests.venom_utils import PrePostChecker
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel
+from vyper.venom.check_venom import find_semantic_errors
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes import PhiEliminationPass
-from vyper.venom.check_venom import find_semantic_errors
-from tests.hevm import hevm_check_venom_ctx
 
 _check_pre_post = PrePostChecker([PhiEliminationPass], default_hevm=False)
 
