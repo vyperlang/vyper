@@ -1643,9 +1643,9 @@ class VenomCodegenContext:
         and its first `length` elements, and a bytestring's length word and
         the words holding its bytes, at any nesting depth. The slots past
         them keep their contents, as in legacy codegen, except that legacy
-        codegen writes the data word of a bytestring of at most 32 bytes
-        from the source buffer even when the value is empty. Subtrees
-        without dynamic data are copied whole.
+        codegen writes the data word of a bytestring with a maximum length
+        of at most 32 from the source buffer even when the value is empty.
+        Subtrees without dynamic data are copied whole.
         """
         b = self.builder
         if transient:
