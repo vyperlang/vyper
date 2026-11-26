@@ -1,7 +1,7 @@
 import pytest
 
 from vyper import compiler
-from vyper.exceptions import TypeMismatch, UnfoldableNode
+from vyper.exceptions import TypeMismatch
 
 fail_list = [
     (
@@ -50,7 +50,6 @@ def test_abi_decode_success(good_code):
     assert compiler.compile_code(good_code) is not None
 
 
-@pytest.mark.xfail(raises=UnfoldableNode)
 def test_abi_decode_unwrap_tuple_foldable_expr():
     code = """
 @external

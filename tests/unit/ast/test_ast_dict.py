@@ -1051,6 +1051,17 @@ def foo():
                                 "name": "int24",
                                 "typeclass": "integer",
                             },
+                            "folded_value": {
+                                "ast_type": "Int",
+                                "node_id": 136,
+                                "value": 0,
+                                "type": {
+                                    "bits": 24,
+                                    "is_signed": True,
+                                    "name": "int24",
+                                    "typeclass": "integer",
+                                },
+                            },
                         },
                     },
                     {
@@ -1504,6 +1515,12 @@ def foo():
                             "keywords": [],
                             "node_id": 203,
                             "type": {"m": 24, "name": "bytes24", "typeclass": "bytes_m"},
+                            "folded_value": {
+                                "ast_type": "Hex",
+                                "node_id": 203,
+                                "value": "0x000000000000000000000000000000000000000000000000",
+                                "type": {"m": 24, "name": "bytes24", "typeclass": "bytes_m"},
+                            },
                         },
                     }
                 ],
