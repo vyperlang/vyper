@@ -277,6 +277,72 @@ def test_invalid_pragma(code):
         PreParser(is_interface=False).parse(code)
 
 
+# pragmas which are not in the canonical `# pragma <directive>` form
+# must not be silently treated as ordinary comments
+malformed_pragmas = [
+    "# pragma\tnonreentrancy on",
+    "# \u200bpragma nonreentrancy on",  # zero-width space
+    "#\u200b pragma nonreentrancy on",
+    "# \u2060pragma nonreentrancy on",  # word joiner
+    "## pragma nonreentrancy on",
+    "# # pragma nonreentrancy on",
+    "# Pragma nonreentrancy on",
+    "# PRAGMA nonreentrancy on",
+    "# pragma",
+    "x: uint256  # Pragma nonreentrancy on",
+    "## @version ^0.4.0",
+    "# @Version ^0.4.0",
+    "# \u200b@version ^0.4.0",
+]
+
+
+@pytest.mark.parametrize("code", malformed_pragmas)
+def test_malformed_pragma(code):
+    with pytest.raises(PragmaException, match="Malformed pragma"):
+        PreParser(is_interface=False).parse(code)
+
+
+def test_malformed_nonreentrancy_pragma_compile():
+    # a misspelled `nonreentrancy` pragma must not compile to a contract
+    # without reentrancy guards
+    code = """
+# Pragma nonreentrancy on
+
+interface Foo:
+    def bar(): nonpayable
+
+x: uint256
+
+@external
+def f(a: address):
+    self.x = 1
+    extcall Foo(a).bar()
+    """
+    with pytest.raises(PragmaException, match="Malformed pragma"):
+        compile_code(code)
+
+    pre_parser = PreParser(is_interface=False)
+    pre_parser.parse(code.replace("# Pragma", "# pragma"))
+    assert pre_parser.settings.nonreentrancy_by_default is True
+
+
+# comments which merely mention pragmas are still ordinary comments
+non_pragma_comments = [
+    "# pragmatic",
+    "# pragmas are documented in structure-of-a-contract.rst",
+    "# pragma: nocover",
+    "# the pragma nonreentrancy on line 1",
+    "#",
+]
+
+
+@pytest.mark.parametrize("code", non_pragma_comments)
+def test_non_pragma_comment(code):
+    pre_parser = PreParser(is_interface=False)
+    pre_parser.parse(code)
+    assert pre_parser.settings == Settings()
+
+
 def test_version_exception_in_import(make_input_bundle):
     lib_version = "~=0.3.10"
     lib = f"""

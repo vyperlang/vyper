@@ -28,6 +28,7 @@ As of 0.3.10, the recommended way to specify the version pragma is as follows:
 .. note::
 
     Both pragma directive versions ``#pragma`` and ``# pragma`` are supported.
+    A comment which looks like a pragma but is not spelled in one of these forms (for example ``# Pragma``, ``## pragma``, or ``pragma`` followed by a tab) is rejected with a ``PragmaException`` instead of being ignored.
 
 The following declaration is equivalent, and, prior to 0.3.10, was the only supported method to specify the compiler version:
 

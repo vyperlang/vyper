@@ -1,6 +1,7 @@
 import enum
 import io
 import re
+import unicodedata
 from collections import defaultdict
 from tokenize import COMMENT, NAME, OP, STRING, TokenError, TokenInfo, tokenize, untokenize
 from typing import Optional
@@ -108,6 +109,18 @@ def _parse_pragma(comment_contents, settings, is_interface, code, start):
         return
 
     raise PragmaException(f"Unknown pragma `{pragma.split()[0]}`", *location)  # pragma: nocover
+
+
+# a comment which, ignoring case, leading `#`s, whitespace and invisible
+# (unicode category Cf, e.g. U+200B) characters, starts with the word
+# `pragma` or `@version`. used to reject pragmas which would otherwise be
+# silently treated as ordinary comments.
+_PRAGMA_LIKE = re.compile(r"[#\s]*(pragma|@version)(\s|$)", re.IGNORECASE)
+
+
+def _is_pragma_like(comment: str) -> bool:
+    visible = "".join(c for c in comment if unicodedata.category(c) != "Cf")
+    return _PRAGMA_LIKE.match(visible) is not None
 
 
 class ParserState(enum.Enum):
@@ -319,8 +332,16 @@ class PreParser:
                     validate_version_pragma(compiler_version, (code, *start))
                     settings.compiler_version = compiler_version
 
-                if contents.startswith("pragma "):
+                elif contents.startswith("pragma "):
                     _parse_pragma(contents, settings, self._is_interface, code, start)
+
+                elif _is_pragma_like(string):
+                    raise PragmaException(
+                        "Malformed pragma (expected `# pragma <directive>`"
+                        " or `# @version <version>`)",
+                        code,
+                        *start,
+                    )
 
             if typ == NAME and string in ("class", "yield"):
                 raise SyntaxException(
