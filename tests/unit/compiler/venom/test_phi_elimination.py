@@ -1,14 +1,14 @@
 import pytest
 
-from tests.hevm import hevm_check_bytecode
 from tests.venom_utils import PrePostChecker
-from vyper.ir.compile_ir import assembly_to_evm
-from vyper.venom import generate_assembly_experimental
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel
-from vyper.venom.check_venom import find_semantic_errors
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes import PhiEliminationPass
+from vyper.venom.check_venom import find_semantic_errors
+from tests.hevm import hevm_check_bytecode
+from vyper.venom import generate_assembly_experimental
+from vyper.ir.compile_ir import assembly_to_evm
 
 _check_pre_post = PrePostChecker([PhiEliminationPass], default_hevm=False)
 
@@ -407,7 +407,12 @@ def test_phi_elim_multi_output_invoke_same_output_eliminated():
 
 
 @pytest.mark.hevm
-def test_tmp():
+def test_dominated_basicblock_in_the_middle():
+    """
+    This test check for the error which is created when
+    the order of the basicblocks is not in top sort of dom
+    order
+    """
     source = """
     function main {
     main:
@@ -442,11 +447,10 @@ def test_tmp():
     """
     orig_ctx = parse_venom(source)
     ctx = parse_venom(source)
-    print("before errors:", [str(e) for e in find_semantic_errors(ctx)])
+    assert find_semantic_errors(ctx) == []
     fn = ctx.get_function(IRLabel("main"))
     PhiEliminationPass(IRAnalysesCache(fn), fn).run_pass()
-    print("after errors:", [str(e) for e in find_semantic_errors(ctx)])
-    print(fn)
+    assert find_semantic_errors(ctx) == []
 
     orig_asm = generate_assembly_experimental(orig_ctx)
     asm = generate_assembly_experimental(ctx)
