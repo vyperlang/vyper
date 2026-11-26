@@ -362,10 +362,10 @@ class VenomTransformer(Transformer):
         return _unescape(str(children[0]))
 
     def label_ref(self, children) -> IRLabel:
-        # label_ref is "@" followed by IDENT or ESCAPED_STRING
+        # label_ref is "@" followed by IDENT or ESCAPED_STRING. the "@"
+        # sigil is a separate token, so children[0] is the label name
+        # itself; a leading "@" inside a quoted name is part of the name.
         label = _unescape(str(children[0]))
-        if label.startswith("@"):
-            label = label[1:]
         return IRLabel(label, True)
 
     def VAR_IDENT(self, var_ident) -> IRVariable:
