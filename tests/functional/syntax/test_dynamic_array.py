@@ -402,12 +402,13 @@ def foo() -> uint256:
     )
 
 
-def test_index_popping_local_base_rejected():
-    code = """
+@pytest.mark.parametrize("stmt", ["return x[x.pop()]", "x[x.pop()] = 1\n    return 0"])
+def test_index_popping_local_base_rejected(stmt):
+    code = f"""
 @external
 def foo() -> uint256:
     x: DynArray[uint256, 4] = [1, 2]
-    return x[x.pop()]
+    {stmt}
     """
     with pytest.raises(StructureException) as e:
         compile_code(code, output_formats=["annotated_ast_dict"])
