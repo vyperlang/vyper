@@ -65,6 +65,27 @@ def test_search_path_precedence(make_file, tmp_path, tmp_path_factory, input_bun
         assert file == FileInput(1, PurePath("foo.vy"), filepaths[1], "contents 1")
 
 
+def test_find_file(make_file, input_bundle, tmp_path):
+    filepath = make_file("foo.vy", "contents")
+    (tmp_path / "bar.vy").mkdir()
+
+    assert input_bundle.find_file("foo.vy") == filepath
+    assert input_bundle.find_file(Path("missing.vy")) is None
+    # a directory cannot be loaded, so it is not found either
+    assert input_bundle.find_file("bar.vy") is None
+
+    # finding a file did not assign a source id
+    assert input_bundle.load_file("foo.vy").source_id == 0
+
+
+def test_find_file_json_input_bundle():
+    input_bundle = JSONInputBundle({PurePath("foo.vy"): {"content": "x"}}, [PurePath(".")])
+
+    assert input_bundle.find_file("foo.vy") == PurePath("foo.vy")
+    assert input_bundle.find_file("bar.vy") is None
+    assert input_bundle.load_file("foo.vy").source_id == 0
+
+
 # special rules for handling json files
 def test_load_json_file(make_file, input_bundle, tmp_path):
     contents = json.dumps("some string")
