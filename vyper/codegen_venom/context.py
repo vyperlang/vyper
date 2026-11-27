@@ -1635,7 +1635,7 @@ class VenomCodegenContext:
 
     def clear_storage_slots(self, dst: Ptr, typ: VyperType) -> None:
         """Write empty(typ) in place, preserving the data slots of empty sequences."""
-        assert dst.location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
+        assert dst.location in (DataLocation.STORAGE, DataLocation.TRANSIENT), dst.location
         if has_length_word(typ):
             self.ptr_store(dst, IRLiteral(0))
         elif not typ.abi_type.is_dynamic():
@@ -1660,6 +1660,8 @@ class VenomCodegenContext:
     _CLEAR_LOOP_MIN_WORDS = 6
 
     def _clear_slot_words(self, dst: Ptr, words: int) -> None:
+        """Zero `words` consecutive slots starting at `dst`."""
+
         def clear_word(i: IROperand) -> None:
             self.ptr_store(self.add_offset(dst, i), IRLiteral(0))
 
@@ -1679,9 +1681,9 @@ class VenomCodegenContext:
         and its first `length` elements, and a bytestring's length word and
         the words holding its bytes, at any nesting depth. The slots past
         them keep their contents, as in legacy codegen, except that legacy
-        codegen writes the data word of a bytestring with a maximum length
-        of at most 32 from the source buffer even when the value is empty.
-        Subtrees without dynamic data are copied whole.
+        codegen also copies the data word of an empty bytestring when the
+        source type's maximum length is at most 32. Subtrees without
+        dynamic data are copied whole.
         """
         b = self.builder
         if transient:

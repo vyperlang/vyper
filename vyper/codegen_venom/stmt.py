@@ -438,7 +438,11 @@ class Stmt:
     # === Helper Methods ===
 
     def _is_empty_value(self, node: vy_ast.VyperNode) -> bool:
-        """Recognize empty list and bytes literals and the empty(T) builtin."""
+        """Check if AST node represents an empty value.
+
+        Matches legacy codegen's is_empty_intrinsic property.
+        Returns True for: [], b"", empty(T)
+        """
         # Empty list literal: []
         if isinstance(node, vy_ast.List) and len(node.elements) == 0:
             return True

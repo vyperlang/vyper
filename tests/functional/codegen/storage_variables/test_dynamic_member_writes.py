@@ -91,8 +91,8 @@ CASES = [
 ]
 
 # an empty bytestring writes only its length word. legacy codegen also
-# writes the data word of a bytestring with a maximum length of at most
-# 32, from the source buffer, so these cases hold only under venom
+# copies the data word when the source type's maximum length is at most
+# 32, so these cases hold only under venom
 EMPTY_BYTESTRING_CASES = [
     ("E", (b"ab", 2), (b"y" * 16, 7), (b"", 4), [0, AB, 4]),
     ("String[32]", "ab", "y" * 32, "", [0, AB]),
