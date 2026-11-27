@@ -37,7 +37,6 @@ from vyper.exceptions import (
     CodegenPanic,
     CompilerPanic,
     EvmVersionException,
-    StructureException,
     TypeCheckFailure,
     TypeMismatch,
     UnimplementedException,
@@ -365,12 +364,7 @@ class Expr:
         elif is_array_like(sub.typ):
             index = Expr.parse_value_expr(self.expr.slice, self.context)
             if read_write_overlap(sub, index):
-                raise StructureException(
-                    "Index may modify the indexed array: it makes an external call"
-                    " or writes a variable the array reads",
-                    self.expr,
-                    hint="evaluate the index into a local variable first",
-                )
+                raise CompilerPanic("risky overlap")
 
         elif is_tuple_like(sub.typ):
             # should we annotate expr.slice in the frontend with the

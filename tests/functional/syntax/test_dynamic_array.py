@@ -209,19 +209,6 @@ def foo():
 def foo():
     x: DynArray[uint256, 4] = []
     """,
-    # only array subscripts are checked
-    """
-m: HashMap[uint256, uint256]
-
-@internal
-def hook() -> uint256:
-    self.m[0] = 5
-    return 0
-
-@external
-def foo() -> uint256:
-    return self.m[self.hook()]
-    """,
     # constants and unrelated variables can't overlap
     """
 C: constant(uint256[2]) = [1, 2]
@@ -232,27 +219,19 @@ def foo() -> uint256:
     x: DynArray[uint256, 4] = [1, 2]
     return C[self.d.pop()] + x[self.d.pop()]
     """,
-    # only the selected member of a struct literal is indexed
+    # an external call can't modify a literal, a constant or a HashMap read
+    # after the index
     """
-struct S:
-    a: DynArray[uint256, 4]
-    b: DynArray[uint256, 4]
+interface T:
+    def f() -> uint256: view
 
-struct Outer:
-    inner: S
-
-d: DynArray[uint256, 4]
-e: DynArray[uint256, 4]
-
-@internal
-def hook() -> uint256:
-    self.e = [5]
-    return 0
+C: constant(uint256[2]) = [1, 2]
+m: HashMap[uint256, uint256]
 
 @external
 def foo() -> uint256:
-    x: uint256 = S(a=self.d, b=self.e).a[self.hook()]
-    return Outer(inner=S(a=self.d, b=self.e)).inner.a[self.hook()]
+    t: T = T(msg.sender)
+    return [1, 2][staticcall t.f()] + C[staticcall t.f()] + self.m[staticcall t.f()]
     """,
 ]
 
@@ -386,7 +365,14 @@ def foo():
     compile_inf_code(code)
 
 
+_WRITE_MSG = "Index writes a variable that the indexed value reads"
+_CALL_MSG = "Index makes an external call, which may modify the indexed array"
+_HINT = "evaluate the index into a local variable first"
+
 _STRUCT_S = "struct S:\n    a: DynArray[uint256, 4]\n    b: DynArray[uint256, 4]"
+_STRUCT_DECLS = (
+    _STRUCT_S + "\nstruct Outer:\n    inner: S\nd: DynArray[uint256, 4]\ne: DynArray[uint256, 4]"
+)
 
 
 @pytest.mark.parametrize(
@@ -395,6 +381,7 @@ _STRUCT_S = "struct S:\n    a: DynArray[uint256, 4]\n    b: DynArray[uint256, 4]
         ("d: DynArray[uint256, 4]", "self.d = [5]", "self.d[self.hook()]"),
         ("d: uint256[4]", "self.d[0] = 5", "self.d[self.hook()]"),
         ("d: HashMap[uint256, DynArray[uint256, 4]]", "self.d[0] = [5]", "self.d[0][self.hook()]"),
+        ("m: HashMap[uint256, uint256]", "self.m[0] = 5", "self.m[self.hook()]"),
         # per variable, not per member
         (_STRUCT_S + "\nd: S", "self.d.b = [5]", "self.d.a[self.hook()]"),
         (
@@ -402,6 +389,12 @@ _STRUCT_S = "struct S:\n    a: DynArray[uint256, 4]\n    b: DynArray[uint256, 4]
             "self.d = [5]",
             "(self.d if self.d[0] == 0 else [1])[self.hook()]",
         ),
+        ("d: DynArray[uint256, 4]", "self.d = [5]", "[self.d[0], 1][self.hook()]"),
+        # every member of a struct literal counts
+        (_STRUCT_DECLS, "self.e = [5]", "S(a=self.d, b=self.e).a[self.hook()]"),
+        (_STRUCT_DECLS, "self.e = [5]", "S(a=self.d, b=self.e).b[self.hook()]"),
+        (_STRUCT_DECLS, "self.e = [5]", "S(a=self.d, b=self.e).a[self.e.pop()]"),
+        (_STRUCT_DECLS, "self.e = [5]", "Outer(inner=S(a=self.d, b=self.e)).inner.a[self.hook()]"),
     ],
 )
 def test_index_writing_base_rejected(decls, write, expr):
@@ -419,9 +412,8 @@ def foo() -> uint256:
     """
     with pytest.raises(StructureException) as e:
         compile_code(code, output_formats=["annotated_ast_dict"])
-    assert e.value.message == (
-        "Index may modify the indexed array: it writes a variable the array reads"
-    )
+    assert e.value.message == _WRITE_MSG
+    assert e.value.hint == _HINT
     assert e.value.annotations[0].node_source_code == expr
 
 
@@ -435,10 +427,39 @@ def foo() -> uint256:
     """
     with pytest.raises(StructureException) as e:
         compile_code(code, output_formats=["annotated_ast_dict"])
-    assert e.value.message == (
-        "Index may modify the indexed array: it writes a variable the array reads"
-    )
+    assert e.value.message == _WRITE_MSG
+    assert e.value.hint == _HINT
     assert e.value.annotations[0].node_source_code == "x[x.pop()]"
+
+
+@pytest.mark.parametrize(
+    "expr",
+    [
+        "self.d[staticcall T(msg.sender).f()]",
+        "self.d[self.calls_out()]",
+        "self.d[convert(sha256(convert(msg.sender, bytes32)), uint256) % 4]",
+    ],
+)
+def test_index_calling_out_rejected(expr):
+    code = f"""
+interface T:
+    def f() -> uint256: view
+
+d: DynArray[uint256, 4]
+
+@internal
+def calls_out() -> uint256:
+    return staticcall T(msg.sender).f()
+
+@external
+def foo() -> uint256:
+    return {expr}
+    """
+    with pytest.raises(StructureException) as e:
+        compile_code(code, output_formats=["annotated_ast_dict"])
+    assert e.value.message == _CALL_MSG
+    assert e.value.hint == _HINT
+    assert e.value.annotations[0].node_source_code == expr
 
 
 def test_dynarray_mutating_temporary_rejected():

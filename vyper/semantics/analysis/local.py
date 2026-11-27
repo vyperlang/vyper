@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import contextlib
-from typing import Optional
+from typing import Iterator, Optional
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -27,6 +27,7 @@ from vyper.exceptions import (
 
 # TODO consolidate some of these imports
 from vyper.semantics.analysis.base import (
+    ExprInfo,
     Modifiability,
     ModuleInfo,
     ModuleOwnership,
@@ -152,62 +153,94 @@ def _reaches_through_subscript(node: vy_ast.VyperNode) -> bool:
     return False
 
 
-def _struct_member_value(node: vy_ast.VyperNode) -> vy_ast.VyperNode:
-    """Return the expression a member of a struct literal takes its value
-    from, through nested members: `S(a=x, b=y).a` is `x`. Other nodes are
-    returned unchanged."""
-    if not isinstance(node, vy_ast.Attribute):
-        return node
-    receiver = _struct_member_value(node.value)
-    if not isinstance(receiver, vy_ast.Call):
-        return node
-    func_t = receiver.func._metadata.get("type")
-    if func_t is None or not is_type_t(func_t, StructT):
-        return node
-    return next(kw.value for kw in receiver.keywords if kw.arg == node.attr)
+# Builtins which make a call, to another contract or to a precompile.
+# Their names are reserved, so a call by name is always the builtin.
+_CALL_BUILTINS = {
+    "raw_call",
+    "send",
+    "raw_create",
+    "create_minimal_proxy_to",
+    "create_copy_of",
+    "create_from_blueprint",
+    "ecrecover",
+    "ecadd",
+    "ecmul",
+    "sha256",
+    "print",
+}
 
 
-def get_referenced_variables(node: vy_ast.VyperNode) -> OrderedSet[VarInfo]:
-    """Return the variables read while evaluating an expression."""
-    if isinstance(node, vy_ast.ExprNode):
-        # Ignore reads which were folded away at compile time.
-        node = node.reduced()
-    value = _struct_member_value(node)
-    if value is not node:
-        # The other members do not contribute to the value.
-        return get_referenced_variables(value)
-    ret: OrderedSet[VarInfo] = OrderedSet()
-    if isinstance(node, vy_ast.ExprNode) and node._expr_info is not None:
-        ret.addmany(access.variable for access in node._expr_info._reads)
-    for child in node._children:
-        ret |= get_referenced_variables(child)
-    return ret
+def _expr_infos(node: vy_ast.ExprNode) -> Iterator[ExprInfo]:
+    for n in node.get_descendants(include_self=True):
+        # type expressions, e.g. `S` in `S(a=1)`, have no expr info
+        if isinstance(n, vy_ast.ExprNode) and n._expr_info is not None:
+            yield n._expr_info
 
 
-def get_runtime_reads(node: vy_ast.VyperNode) -> OrderedSet[VarInfo]:
-    """Return the variables an expression reads at runtime, i.e. all but
-    constants."""
-    return OrderedSet(
-        var
-        for var in get_referenced_variables(node)
-        if var.decl_node is not None and var.modifiability != Modifiability.CONSTANT
-    )
+def get_referenced_variables(node: vy_ast.ExprNode) -> OrderedSet[VarInfo]:
+    """Return the variables read while evaluating an expression, including
+    the state variables read by internal callees."""
+    return OrderedSet(access.variable for info in _expr_infos(node) for access in info._reads)
 
 
-def index_writes_base(base: vy_ast.VyperNode, index: vy_ast.VyperNode) -> bool:
+def index_writes_base(base: vy_ast.ExprNode, index: vy_ast.ExprNode) -> bool:
     """Return True if evaluating `index` can write a variable read by `base`.
 
     The check is per variable, not per member: popping `x.a` writes `x`.
     Writes by internal callees count; external calls are not modeled.
     """
-    base_reads = get_runtime_reads(base)
-    # not `get_expr_writes`, which caches its result on the nodes
+    index_writes = {access.variable for info in _expr_infos(index) for access in info._writes}
+    return not index_writes.isdisjoint(get_referenced_variables(base))
+
+
+def contains_external_call(node: vy_ast.VyperNode, resolve_overrides: bool = False) -> bool:
+    """Return True if evaluating `node` can call another contract or a
+    precompile, including through internal calls. Calls folded away at
+    compile time are ignored.
+
+    With `resolve_overrides`, a call to an abstract function follows its
+    override; overrides are only known once the whole program is analysed.
+    """
+    if isinstance(node, vy_ast.ExprNode):
+        node = node.reduced()
+
+    if isinstance(node, (vy_ast.ExtCall, vy_ast.StaticCall)):
+        return True
+
+    if isinstance(node, vy_ast.Call):
+        if isinstance(node.func, vy_ast.Name) and node.func.id in _CALL_BUILTINS:
+            return True
+        func_t = node.func._metadata.get("type")
+        if isinstance(func_t, ContractFunctionT) and func_t.is_internal:
+            if resolve_overrides:
+                func_t = func_t.get_concrete_override()
+            if _function_contains_external_call(func_t, resolve_overrides):
+                return True
+
+    return any(contains_external_call(child, resolve_overrides) for child in node._children)
+
+
+def _function_contains_external_call(func_t: ContractFunctionT, resolve_overrides: bool) -> bool:
+    decl_node = func_t.decl_node
+    assert decl_node is not None
+    key = "contains_external_call" + ("_resolved" if resolve_overrides else "")
+    if key not in decl_node._metadata:
+        # Recursion is forbidden, so the call graph traversal terminates.
+        decl_node._metadata[key] = any(
+            contains_external_call(child, resolve_overrides) for child in decl_node._children
+        )
+    return decl_node._metadata[key]
+
+
+def index_calls_out(
+    base: vy_ast.ExprNode, index: vy_ast.ExprNode, resolve_overrides: bool = False
+) -> bool:
+    """Return True if `index` can make an external call while `base` reads a
+    variable, which the call may modify by reentering. Constants are left
+    out: nothing can modify them."""
     return any(
-        access.variable in base_reads
-        for node in index.get_descendants(include_self=True)
-        if isinstance(node, vy_ast.ExprNode) and node._expr_info is not None
-        for access in node._expr_info._writes
-    )
+        var.modifiability != Modifiability.CONSTANT for var in get_referenced_variables(base)
+    ) and contains_external_call(index, resolve_overrides)
 
 
 def analyze_functions(vy_module: vy_ast.Module) -> None:
@@ -1450,11 +1483,19 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
         self.visit(node.value, base_type)
         self.visit(node.slice, index_type)
 
-        # the element read would depend on whether the base or the index
-        # is evaluated first
-        if isinstance(base_type, (SArrayT, DArrayT)) and index_writes_base(node.value, node.slice):
+        # the value read would depend on whether the base or the index is
+        # evaluated first
+        if index_writes_base(node.value, node.slice):
             raise StructureException(
-                "Index may modify the indexed array: it writes a variable the array reads",
+                "Index writes a variable that the indexed value reads",
+                node,
+                hint="evaluate the index into a local variable first",
+            )
+        # like legacy codegen, leave HashMaps out of this check, so that e.g.
+        # `self.balances[staticcall token.owner()]` compiles
+        if isinstance(base_type, (SArrayT, DArrayT)) and index_calls_out(node.value, node.slice):
+            raise StructureException(
+                "Index makes an external call, which may modify the indexed array",
                 node,
                 hint="evaluate the index into a local variable first",
             )

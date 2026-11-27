@@ -1105,5 +1105,7 @@ def f() -> uint256:
     {stmt}
     return v
     """
-    with pytest.raises(StructureException, match="Index may modify the indexed array"):
+    with pytest.raises(StructureException) as e:
         get_contract(code)
+    assert e.value.message == "Index writes a variable that the indexed value reads"
+    assert e.value.hint == "evaluate the index into a local variable first"

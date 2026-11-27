@@ -26,12 +26,11 @@ from vyper.exceptions import (
     CompilerPanic,
     EvmVersionException,
     StateAccessViolation,
-    StructureException,
     TypeMismatch,
     UnimplementedException,
     tag_exceptions,
 )
-from vyper.semantics.analysis.local import get_runtime_reads, index_writes_base
+from vyper.semantics.analysis.local import index_calls_out, index_writes_base
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,
@@ -92,62 +91,13 @@ class _CallKwargs:
 # Environment variable prefixes for attribute access
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
-# Builtins whose lowering emits call-family opcodes. This mirrors
-# IRnode.contains_risky_call at the source level.
-_RISKY_BUILTINS = {
-    "raw_call",
-    "send",
-    "raw_create",
-    "create_minimal_proxy_to",
-    "create_copy_of",
-    "create_from_blueprint",
-    "ecrecover",
-    "ecadd",
-    "ecmul",
-    "sha256",
-    "print",
-}
 
-
-def _contains_risky_call(node: vy_ast.VyperNode) -> bool:
-    if isinstance(node, vy_ast.ExprNode):
-        # Ignore calls which were folded away at compile time.
-        node = node.reduced()
-
-    if isinstance(node, (vy_ast.ExtCall, vy_ast.StaticCall)):
-        return True
-
-    if isinstance(node, vy_ast.Call):
-        func_t = node.func._metadata.get("type")
-        if isinstance(func_t, BuiltinFunctionT) and func_t._id in _RISKY_BUILTINS:
-            return True
-        if isinstance(func_t, ContractFunctionT) and func_t.is_internal:
-            if _function_contains_risky_call(func_t.get_concrete_override()):
-                return True
-
-    return any(_contains_risky_call(child) for child in node._children)
-
-
-def _function_contains_risky_call(func_t: ContractFunctionT) -> bool:
-    decl_node = func_t.decl_node
-    assert decl_node is not None
-    if "contains_risky_call" not in decl_node._metadata:
-        # Recursion is forbidden, so the call graph traversal terminates.
-        decl_node._metadata["contains_risky_call"] = any(
-            _contains_risky_call(child) for child in decl_node._children
-        )
-    return decl_node._metadata["contains_risky_call"]
-
-
-def _subscript_read_write_overlap(
-    base_node: vy_ast.VyperNode, index_node: vy_ast.VyperNode
-) -> bool:
+def _subscript_read_write_overlap(base_node: vy_ast.ExprNode, index_node: vy_ast.ExprNode) -> bool:
     # The base is evaluated before the index. Detect an index expression
     # which can mutate variables used to derive that base.
-    if index_writes_base(base_node, index_node):
-        return True
-
-    return len(get_runtime_reads(base_node)) > 0 and _contains_risky_call(index_node)
+    return index_writes_base(base_node, index_node) or index_calls_out(
+        base_node, index_node, resolve_overrides=True
+    )
 
 
 def is_unbounded_array_element(node: vy_ast.VyperNode) -> bool:
@@ -1043,16 +993,10 @@ class Expr:
         assert isinstance(node, vy_ast.Subscript)
         base_typ = node.value._metadata["type"]
 
-        # Semantic analysis rejects an index that writes what the base reads.
-        # Like legacy codegen, also reject one that makes an external call,
-        # which may reenter and write it.
+        # Semantic analysis rejects these, but cannot see what an abstract
+        # callee's override does.
         if _subscript_read_write_overlap(node.value, node.slice):
-            raise StructureException(
-                "Index may modify the indexed array: it makes an external call"
-                " or writes a variable the array reads",
-                node,
-                hint="evaluate the index into a local variable first",
-            )
+            raise CompilerPanic("risky overlap")
 
         base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
         index = Expr(node.slice, self.ctx).lower_value()
@@ -1334,7 +1278,7 @@ class Expr:
         return self._make_ptr_value(field_ptr, data_loc, field_typ, field_reference)
 
     def _resolve_after(
-        self, value: VyperValue, evaluated: vy_ast.VyperNode, derived_from: vy_ast.VyperNode
+        self, value: VyperValue, evaluated: vy_ast.ExprNode, derived_from: vy_ast.ExprNode
     ) -> VyperValue:
         """Consume a live reference after an expression that may invalidate it."""
         reference = value.reference
