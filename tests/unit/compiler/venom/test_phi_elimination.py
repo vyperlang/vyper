@@ -449,4 +449,74 @@ def test_dominated_basicblock_in_the_middle():
     # are to explain whats the error there
     # but in general it should not change
     _check_pre_post(source, source)
-   
+
+@pytest.mark.hevm
+def test_dominated_basicblock_in_the_middle_with_possible_opt():
+    """
+    Same as the test above (test_dominated_basicblock_in_the_middle)
+    but the there is a opt possibility in different
+    basic block
+    """
+    pre = """
+    main:
+        %a = source
+        %b = source
+        %c = %b
+        %cond = source
+        jnz %cond, @r1, @r2
+    exit:
+        %p = phi @qjoin, %q, @direct, %r
+        mstore 0, %p
+        return 0, 32
+    qjoin:
+        %q = phi @q1, %a, @q2, %r
+        jmp @exit
+    rjoin:
+        %r = phi @r1, %b, @r2, %c
+        jnz %cond, @direct, @qstart
+    r1:
+        jmp @rjoin
+    r2:
+        jmp @rjoin
+    direct:
+        jmp @exit
+    qstart:
+        jnz %cond, @q1, @q2
+    q1:
+        jmp @qjoin
+    q2:
+        jmp @qjoin
+    """
+
+    post = """
+    main:
+        %a = source
+        %b = source
+        %c = %b
+        %cond = source
+        jnz %cond, @r1, @r2
+    exit:
+        %p = phi @qjoin, %q, @direct, %r
+        mstore 0, %p
+        return 0, 32
+    qjoin:
+        %q = phi @q1, %a, @q2, %r
+        jmp @exit
+    rjoin:
+        %r = %b
+        jnz %cond, @direct, @qstart
+    r1:
+        jmp @rjoin
+    r2:
+        jmp @rjoin
+    direct:
+        jmp @exit
+    qstart:
+        jnz %cond, @q1, @q2
+    q1:
+        jmp @qjoin
+    q2:
+        jmp @qjoin
+    """
+
+    _check_pre_post(pre, post)
