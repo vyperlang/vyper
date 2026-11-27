@@ -14,9 +14,9 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from itertools import groupby
-from typing import Callable, ClassVar, Optional, Sequence
+from typing import Callable, ClassVar, Iterator, Optional, Sequence
 
-from vyper.codegen_shared.layout import punnable
+from vyper.codegen_shared.layout import has_length_word, punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.bytestring_literal import LiteralPool, chain_instructions
 from vyper.codegen_venom.constants import POINTER_CELL_CAPACITY_OFFSET
@@ -1637,6 +1637,51 @@ class VenomCodegenContext:
     # word-copy loops ignore the opt level and beat unrolled stores on size only from ~6 words
     _BATCHED_STATIC_RUN_MIN_WORDS = 6
 
+    def _storage_members(self, typ: StructT | TupleT) -> Iterator[VyperType]:
+        """At -Os, group adjacent static members totaling at least six words into one tuple."""
+        for is_dynamic, run in groupby(typ.tuple_members(), lambda t: t.abi_type.is_dynamic()):
+            members = tuple(run)
+            if not is_dynamic and _opt_codesize():
+                words = sum(t.storage_size_in_words for t in members)
+                if words >= self._BATCHED_STATIC_RUN_MIN_WORDS:
+                    batch = TupleT(members)
+                    assert batch.memory_bytes_required == 32 * words
+                    yield batch
+                    continue
+            yield from members
+
+    def clear_storage_slots(self, dst: Ptr, typ: VyperType) -> None:
+        """Write empty(typ) in place, preserving the data slots of empty sequences."""
+        assert dst.location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
+        if has_length_word(typ):
+            self.ptr_store(dst, IRLiteral(0))
+        elif not typ.abi_type.is_dynamic():
+            self._clear_slot_words(dst, typ.storage_size_in_words)
+        elif isinstance(typ, SArrayT):
+            stride = IRLiteral(typ.value_type.storage_size_in_words)
+
+            def clear_element(i: IRVariable) -> None:
+                elem = self.add_offset(dst, self.builder.mul(i, stride))
+                self.clear_storage_slots(elem, typ.value_type)
+
+            self.emit_counted_loop(IRLiteral(typ.count), clear_element, "clear_elements")
+        else:
+            assert isinstance(typ, (StructT, TupleT))
+            offset = 0
+            for member in self._storage_members(typ):
+                self.clear_storage_slots(self.add_offset(dst, offset), member)
+                offset += member.storage_size_in_words
+
+    def _clear_slot_words(self, dst: Ptr, words: int) -> None:
+        def clear_word(i: IROperand) -> None:
+            self.ptr_store(self.add_offset(dst, i), IRLiteral(0))
+
+        if words < self._BATCHED_STATIC_RUN_MIN_WORDS:
+            for i in range(words):
+                clear_word(IRLiteral(i))
+        else:
+            self.emit_counted_loop(IRLiteral(words), clear_word, "clear_words")
+
     def _store_memory_to_slots(
         self, src: IROperand, slot: IROperand, typ: VyperType, transient: bool
     ) -> None:
@@ -1677,27 +1722,12 @@ class VenomCodegenContext:
             assert isinstance(typ, (StructT, TupleT))
             mem_ofst = 0
             slot_ofst = 0
-            for is_dynamic, run in groupby(typ.tuple_members(), lambda t: t.abi_type.is_dynamic()):
-                members = list(run)
-                word_count = sum(t.storage_size_in_words for t in members)
-                batch = not is_dynamic and _opt_codesize()
-                if batch and word_count >= self._BATCHED_STATIC_RUN_MIN_WORDS:
-                    # copy the run of adjacent static members as one block
-                    assert sum(t.memory_bytes_required for t in members) == 32 * word_count
-                    member_src = self._with_byte_offset(src, mem_ofst)
-                    member_slot = self._with_byte_offset(slot, slot_ofst)
-                    self._word_copy_loop(
-                        member_src, member_slot, word_count, b.mload, store_word, 32, 1, prefix
-                    )
-                    mem_ofst += 32 * word_count
-                    slot_ofst += word_count
-                    continue
-                for member_t in members:
-                    member_src = self._with_byte_offset(src, mem_ofst)
-                    member_slot = self._with_byte_offset(slot, slot_ofst)
-                    self._store_memory_to_slots(member_src, member_slot, member_t, transient)
-                    mem_ofst += member_t.memory_bytes_required
-                    slot_ofst += member_t.storage_size_in_words
+            for member_t in self._storage_members(typ):
+                member_src = self._with_byte_offset(src, mem_ofst)
+                member_slot = self._with_byte_offset(slot, slot_ofst)
+                self._store_memory_to_slots(member_src, member_slot, member_t, transient)
+                mem_ofst += member_t.memory_bytes_required
+                slot_ofst += member_t.storage_size_in_words
 
     # === Transient Storage (EIP-1153, Cancun+) ===
 

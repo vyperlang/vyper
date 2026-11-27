@@ -11,6 +11,8 @@ buffer would write `junk`'s words into the slots; they must keep `old`'s.
 
 import pytest
 
+from vyper import compile_code
+from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import version_check
 
 AB = int.from_bytes(b"ab".ljust(32, b"\0"), "big")
@@ -203,6 +205,72 @@ def pop():
     c.push(([7, 8, 9], 7), ([5], 6))
     base = _first_slot()
     assert [env.get_storage(c.address, base + i) for i in range(6)] == [1, 1, 5, 2, 3, 6]
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    ["{}", pytest.param("transient({})", marks=pytest.mark.requires_evm_version("cancun"))],
+)
+def test_clear_nested_storage_keeps_dead_slots(get_contract, declaration):
+    typ = "(J[2], Bytes[32], uint256[8])"
+    clearer = get_contract(f"""
+{STRUCTS}
+s: {declaration.format(typ)}
+
+@external
+def clear():
+    self.s = empty({typ})
+    """)
+    # Run clear() over the same slots so we can inspect the data past each length.
+    initial = [2, *range(1, 9), 2, *range(9, 17), 2, AB, *range(17, 25)]
+    expected = [0, 1, 2] + [0] * 6 + [0, 9, 10] + [0] * 6 + [0, AB] + [0] * 8
+    words = f"uint256[{len(initial)}]"
+    probe = get_contract(f"""
+words: {declaration.format(words)}
+
+@external
+def run(clearer: address, initial: {words}) -> {words}:
+    self.words = initial
+    raw_call(clearer, method_id("clear()"), is_delegate_call=True)
+    return self.words
+    """)
+    assert probe.run(clearer.address, initial) == expected
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    ["S", pytest.param("transient(S)", marks=pytest.mark.requires_evm_version("cancun"))],
+)
+def test_clear_struct_codesize(compiler_settings, declaration):
+    if (
+        not compiler_settings.experimental_codegen
+        or compiler_settings.optimize != OptimizationLevel.CODESIZE
+    ):
+        pytest.skip("checks Venom's -Os clear loop")
+
+    fields = [f"x{i}" for i in range(6)]
+    members = "\n".join(f"    {name}: uint256" for name in fields)
+    source = f"""
+struct S:
+{members}
+    items: DynArray[uint256, 1024]
+
+s: {declaration}
+
+@external
+def clear():
+"""
+    clear = compile_code(
+        source + "    self.s = empty(S)",
+        settings=compiler_settings,
+        output_formats=["bytecode_runtime", "opcodes_runtime"],
+    )
+    direct = "\n".join(f"    self.s.{name} = 0" for name in fields) + "\n    self.s.items = []"
+    explicit = compile_code(
+        source + direct, settings=compiler_settings, output_formats=["bytecode_runtime"]
+    )
+    assert len(clear["bytecode_runtime"]) < len(explicit["bytecode_runtime"])
+    assert "MLOAD" not in clear["opcodes_runtime"].split()
 
 
 def _check_transient_write(get_contract, typ, old, junk, new, expected):

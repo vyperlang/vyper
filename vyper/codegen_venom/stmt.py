@@ -19,6 +19,7 @@ from vyper.codegen_venom.abi import (
     runtime_abi_size_for_encode,
 )
 from vyper.codegen_venom.arithmetic import apply_binop
+from vyper.compiler.settings import _opt_codesize
 from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
 from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.data_locations import DataLocation
@@ -158,6 +159,7 @@ class Stmt:
         assert isinstance(node, vy_ast.Assign)
         # Get target info first (need it for tuple unpack decision)
         target = node.target
+        assert isinstance(target, vy_ast.ExprNode)
         target_typ = target._metadata["type"]
 
         # Handle tuple unpacking separately
@@ -176,6 +178,17 @@ class Stmt:
         if has_length_word(target_typ) and self._is_empty_value(node.value):
             dst_ptr = self._get_target_ptr(target)
             self.ctx.ptr_store(dst_ptr, IRLiteral(0))
+            return
+
+        # Clear aggregates in place so a word-copy loop needn't read a zeroed buffer.
+        if (
+            _opt_codesize()
+            and isinstance(target_typ, (StructT, TupleT, SArrayT))
+            and self._is_empty_value(node.value)
+            and target._expr_info.location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
+        ):
+            dst_ptr = self._get_target_ptr(target)
+            self.ctx.clear_storage_slots(dst_ptr, target_typ)
             return
 
         # IMPORTANT: Evaluate RHS first, then compute LHS target pointer.
@@ -424,11 +437,7 @@ class Stmt:
     # === Helper Methods ===
 
     def _is_empty_value(self, node: vy_ast.VyperNode) -> bool:
-        """Check if AST node represents an empty DynArray/Bytestring value.
-
-        Matches legacy codegen's is_empty_intrinsic property.
-        Returns True for: [], b"", empty(DynArray[...]), empty(Bytes[...])
-        """
+        """Recognize empty list and bytes literals and the empty(T) builtin."""
         # Empty list literal: []
         if isinstance(node, vy_ast.List) and len(node.elements) == 0:
             return True
