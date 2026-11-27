@@ -128,6 +128,35 @@ def test_literal_codesize_no_shl(orig_value):
     _check_no_change(pre)
 
 
+@pytest.mark.parametrize("k", range(25, 249, 2))
+def test_literal_codesize_shl_k_k(k):
+    """
+    `k << k` is shorter as `shl k, k`. The two literals are the same value,
+    so they are split into distinct assigns here. Other shl literals stay
+    inline, because a later expansion reschedules them.
+    """
+    orig_value = k << k
+
+    pre = f"""
+    main:
+        %1 = {orig_value}
+        sink %1
+    """
+
+    post = f"""
+    main:
+        %2 = {k}
+        %3 = {k}
+        %1 = shl %3, %2
+        sink %1
+    """
+
+    _check_pre_post(pre, post)
+
+    new_size = _calc_push_size(k) + _calc_push_size(k) + 1
+    assert new_size < _calc_push_size(orig_value), orig_value
+
+
 def test_literal_codesize_no_inplace_mutation_for_shared_literals():
     pre = """
     main:

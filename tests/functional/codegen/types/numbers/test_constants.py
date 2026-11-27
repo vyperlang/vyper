@@ -250,3 +250,25 @@ def contains(a: int128) -> bool:
     assert c.contains(44) is True
     assert c.contains(33) is True
     assert c.contains(3) is False
+
+
+@pytest.mark.parametrize("value", [25 << 25, 31 << 31, 247 << 247])
+def test_constant_of_value_shifted_by_itself(get_contract, value):
+    # venom -O codesize rewrites this as `shl k, k` and splits the
+    # repeated literal into two assigns. other codesize literals stay inline.
+    code = f"""
+X: constant(uint256) = {value}
+
+@external
+def foo() -> uint256:
+    return X
+
+@external
+def bar(a: uint256) -> uint256:
+    return max(a, X)
+    """
+
+    c = get_contract(code)
+    assert c.foo() == value
+    assert c.bar(0) == value
+    assert c.bar(2**256 - 1) == 2**256 - 1

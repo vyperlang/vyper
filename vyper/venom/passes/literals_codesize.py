@@ -1,5 +1,5 @@
 from vyper.utils import evm_not
-from vyper.venom.basicblock import IRLiteral
+from vyper.venom.basicblock import IRInstruction, IRLiteral
 from vyper.venom.passes.base_pass import IRPass
 
 # not takes 1 byte1, so it makes sense to use it when we can save at least
@@ -17,7 +17,7 @@ class ReduceLiteralsCodesize(IRPass):
             self._process_bb(bb)
 
     def _process_bb(self, bb):
-        for inst in bb.instructions:
+        for inst in list(bb.instructions):
             if inst.opcode != "assign":
                 continue
 
@@ -53,6 +53,25 @@ class ReduceLiteralsCodesize(IRPass):
                 assert (val >> ix) << ix == val, val
                 assert (val >> ix) & 1 == 1, val
 
+                mantissa = val >> ix
+                # `shl k, k` repeats one literal. DFT and the assembler need
+                # distinct operands, so split only that case into two assigns.
+                # Other literals stay inline; a later SingleUseExpansion would
+                # reschedule them and change codesize.
+                if mantissa == ix:
+                    idx = bb.instructions.index(inst)
+                    left = bb.parent.get_next_variable()
+                    right = bb.parent.get_next_variable()
+                    bb.insert_instruction(
+                        IRInstruction("assign", [IRLiteral(mantissa)], [left]), idx
+                    )
+                    bb.insert_instruction(
+                        IRInstruction("assign", [IRLiteral(ix)], [right]), idx + 1
+                    )
+                    inst.opcode = "shl"
+                    inst.operands = [left, right]
+                    continue
+
                 inst.opcode = "shl"
-                inst.operands = [IRLiteral(val >> ix), IRLiteral(ix)]
+                inst.operands = [IRLiteral(mantissa), IRLiteral(ix)]
                 continue
