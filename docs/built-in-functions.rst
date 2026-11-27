@@ -485,7 +485,7 @@ Data Manipulation
     * ``start``: Start point to extract from
     * ``output_type``: Type of output (``bytesM``, ``integer``, or ``address``). Defaults to ``bytes32``.
 
-    Returns a value of the type specified by ``output_type``.
+    Returns a value of the type specified by ``output_type``. Reverts if ``start + 32`` is greater than ``len(b)``. If ``b`` has a maximum length below 32, or ``start`` is a constant past ``b``'s maximum length minus 32, compilation fails.
 
     .. code-block:: vyper
 
