@@ -30,7 +30,7 @@ from vyper.exceptions import (
     UnimplementedException,
     tag_exceptions,
 )
-from vyper.semantics.analysis.base import Modifiability
+from vyper.semantics.analysis.base import Modifiability, VarInfo
 from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
@@ -56,7 +56,7 @@ from vyper.semantics.types.function import ContractFunctionT, MemberFunctionT, S
 from vyper.semantics.types.shortcuts import BYTES32_T, UINT256_T
 from vyper.semantics.types.subscriptable import DArrayT, HashMapT, SArrayT
 from vyper.semantics.types.user import FlagT, StructT
-from vyper.utils import DECIMAL_DIVISOR, keccak256
+from vyper.utils import DECIMAL_DIVISOR, OrderedSet, keccak256
 from vyper.venom.basicblock import IRLabel, IRLiteral, IROperand, IRVariable
 
 from .abi import (
@@ -152,6 +152,42 @@ def _function_contains_risky_call(func_t: ContractFunctionT) -> bool:
     return decl_node._metadata["contains_risky_call"]
 
 
+def get_reachable_internal_functions(node: vy_ast.VyperNode) -> OrderedSet[ContractFunctionT]:
+    """
+    the set of functions (transitively) called from this node, abstract
+    calls resolved to their overrides
+
+    Note: has node granularity, whereas semantic analysis has function granularity
+    """
+    ret: OrderedSet[ContractFunctionT] = OrderedSet()
+    for call in node.get_descendants(vy_ast.Call, include_self=True):
+        func_t = call.func._metadata.get("type")
+        if isinstance(func_t, ContractFunctionT) and func_t.is_internal:
+            concrete = func_t.get_concrete_override()
+            ret.add(concrete)
+            ret.update(concrete.reachable_internal_functions)
+    return ret
+
+
+def get_override_writes(node: vy_ast.VyperNode) -> OrderedSet[VarInfo]:
+    """
+    the writes this node can cause through the overrides of the abstract
+    functions it (transitively) calls
+
+    Note: semantic analysis takes an abstract function's writes from its
+    `...` body, so `get_expr_writes` misses these
+    """
+    overrides: OrderedSet[ContractFunctionT] = OrderedSet()
+    for scope in [node, *(f.decl_node for f in get_reachable_internal_functions(node))]:
+        for call in scope.get_descendants(vy_ast.Call, include_self=True):
+            func_t = call.func._metadata.get("type")
+            if isinstance(func_t, ContractFunctionT) and func_t.is_abstract:
+                concrete = func_t.get_concrete_override()
+                overrides.add(concrete)
+                overrides.update(concrete.reachable_internal_functions)
+    return OrderedSet(access.variable for f in overrides for access in f.get_variable_writes())
+
+
 def _subscript_read_write_overlap(
     base_node: vy_ast.VyperNode, index_node: vy_ast.VyperNode
 ) -> bool:
@@ -165,6 +201,10 @@ def _subscript_read_write_overlap(
     if not base_reads:
         return False
 
+    # an abstract callee's override writing the base is rejected, as legacy
+    # does, whether or not a concrete callee writes it too
+    if not base_reads.isdisjoint(get_override_writes(index_node)):
+        raise CompilerPanic("risky overlap")
     index_writes = {access.variable for access in get_expr_writes(index_node)}
     if base_reads & index_writes:
         return True
