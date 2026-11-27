@@ -1,7 +1,6 @@
 import pytest
 
-from tests.hevm import hevm_check_venom_ctx
-from tests.venom_utils import PrePostChecker
+from tests.venom_utils import PrePostChecker, parse_from_basic_block
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel
 from vyper.venom.check_venom import find_semantic_errors
@@ -404,7 +403,6 @@ def test_phi_elim_multi_output_invoke_same_output_eliminated():
     assert z_assigns[0].operands[0].name == "%r2"
 
 
-@pytest.mark.hevm
 def test_dominated_basicblock_in_the_middle():
     """
     This test check for the error which is created when
@@ -412,7 +410,6 @@ def test_dominated_basicblock_in_the_middle():
     order
     """
     source = """
-    function main {
     main:
         %a = calldataload 0
         %b = calldataload 32
@@ -441,13 +438,15 @@ def test_dominated_basicblock_in_the_middle():
         jmp @qjoin
     q2:
         jmp @qjoin
-    }
     """
-    orig_ctx = parse_venom(source)
-    ctx = parse_venom(source)
+    ctx = parse_from_basic_block(source)
     assert find_semantic_errors(ctx) == []
-    fn = ctx.get_function(IRLabel("main"))
+    fn = ctx.get_function(IRLabel("_global"))
     PhiEliminationPass(IRAnalysesCache(fn), fn).run_pass()
     assert find_semantic_errors(ctx) == []
 
-    hevm_check_venom_ctx(orig_ctx, ctx)
+    # more precise check, the asserts before
+    # are to explain whats the error there
+    # but in general it should not change
+    _check_pre_post(source, source)
+   
