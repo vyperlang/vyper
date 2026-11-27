@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import contextlib
-from typing import Iterator, Optional
+from typing import Optional
 
 from vyper import ast as vy_ast
 from vyper.ast.validation import validate_call_args
@@ -27,7 +27,6 @@ from vyper.exceptions import (
 
 # TODO consolidate some of these imports
 from vyper.semantics.analysis.base import (
-    ExprInfo,
     Modifiability,
     ModuleInfo,
     ModuleOwnership,
@@ -39,6 +38,7 @@ from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
     get_expr_info,
+    get_expr_writes,
     get_possible_types_from_node,
     uses_state,
     validate_expected_type,
@@ -160,6 +160,7 @@ _CALL_BUILTINS = {
     "send",
     "raw_create",
     "create_minimal_proxy_to",
+    "create_forwarder_to",
     "create_copy_of",
     "create_from_blueprint",
     "ecrecover",
@@ -170,17 +171,16 @@ _CALL_BUILTINS = {
 }
 
 
-def _expr_infos(node: vy_ast.ExprNode) -> Iterator[ExprInfo]:
-    for n in node.get_descendants(include_self=True):
-        # type expressions, e.g. `S` in `S(a=1)`, have no expr info
-        if isinstance(n, vy_ast.ExprNode) and n._expr_info is not None:
-            yield n._expr_info
-
-
 def get_referenced_variables(node: vy_ast.ExprNode) -> OrderedSet[VarInfo]:
     """Return the variables read while evaluating an expression, including
     the state variables read by internal callees."""
-    return OrderedSet(access.variable for info in _expr_infos(node) for access in info._reads)
+    return OrderedSet(
+        access.variable
+        for n in node.get_descendants(include_self=True)
+        # type expressions, e.g. `S` in `S(a=1)`, have no expr info
+        if isinstance(n, vy_ast.ExprNode) and n._expr_info is not None
+        for access in n._expr_info._reads
+    )
 
 
 def index_writes_base(base: vy_ast.ExprNode, index: vy_ast.ExprNode) -> bool:
@@ -189,18 +189,14 @@ def index_writes_base(base: vy_ast.ExprNode, index: vy_ast.ExprNode) -> bool:
     The check is per variable, not per member: popping `x.a` writes `x`.
     Writes by internal callees count; external calls are not modeled.
     """
-    index_writes = {access.variable for info in _expr_infos(index) for access in info._writes}
+    index_writes = {access.variable for access in get_expr_writes(index)}
     return not index_writes.isdisjoint(get_referenced_variables(base))
 
 
-def contains_external_call(node: vy_ast.VyperNode, resolve_overrides: bool = False) -> bool:
+def contains_external_call(node: vy_ast.VyperNode) -> bool:
     """Return True if evaluating `node` can call another contract or a
-    precompile, including through internal calls. Calls folded away at
-    compile time are ignored.
-
-    With `resolve_overrides`, a call to an abstract function follows its
-    override; overrides are only known once the whole program is analysed.
-    """
+    precompile, including through internal calls and the overrides of
+    abstract callees. Calls folded away at compile time are ignored."""
     if isinstance(node, vy_ast.ExprNode):
         node = node.reduced()
 
@@ -212,29 +208,24 @@ def contains_external_call(node: vy_ast.VyperNode, resolve_overrides: bool = Fal
             return True
         func_t = node.func._metadata.get("type")
         if isinstance(func_t, ContractFunctionT) and func_t.is_internal:
-            if resolve_overrides:
-                func_t = func_t.get_concrete_override()
-            if _function_contains_external_call(func_t, resolve_overrides):
+            if _function_contains_external_call(func_t.get_concrete_override()):
                 return True
 
-    return any(contains_external_call(child, resolve_overrides) for child in node._children)
+    return any(contains_external_call(child) for child in node._children)
 
 
-def _function_contains_external_call(func_t: ContractFunctionT, resolve_overrides: bool) -> bool:
+def _function_contains_external_call(func_t: ContractFunctionT) -> bool:
     decl_node = func_t.decl_node
     assert decl_node is not None
-    key = "contains_external_call" + ("_resolved" if resolve_overrides else "")
-    if key not in decl_node._metadata:
+    if "contains_external_call" not in decl_node._metadata:
         # Recursion is forbidden, so the call graph traversal terminates.
-        decl_node._metadata[key] = any(
-            contains_external_call(child, resolve_overrides) for child in decl_node._children
+        decl_node._metadata["contains_external_call"] = any(
+            contains_external_call(child) for child in decl_node._children
         )
-    return decl_node._metadata[key]
+    return decl_node._metadata["contains_external_call"]
 
 
-def index_calls_out(
-    base: vy_ast.ExprNode, index: vy_ast.ExprNode, resolve_overrides: bool = False
-) -> bool:
+def index_calls_out(base: vy_ast.ExprNode, index: vy_ast.ExprNode) -> bool:
     """Return True if `index` can make an external call while `base` reads a
     variable, which the call may modify by reentering.
 
@@ -247,7 +238,7 @@ def index_calls_out(
     return any(
         var.decl_node is not None and var.modifiability != Modifiability.CONSTANT
         for var in base_reads
-    ) and contains_external_call(index, resolve_overrides)
+    ) and contains_external_call(index)
 
 
 def analyze_functions(vy_module: vy_ast.Module) -> None:

@@ -95,9 +95,7 @@ ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 def _subscript_read_write_overlap(base_node: vy_ast.ExprNode, index_node: vy_ast.ExprNode) -> bool:
     # The base is evaluated before the index. Detect an index expression
     # which can mutate variables used to derive that base.
-    return index_writes_base(base_node, index_node) or index_calls_out(
-        base_node, index_node, resolve_overrides=True
-    )
+    return index_writes_base(base_node, index_node) or index_calls_out(base_node, index_node)
 
 
 def is_unbounded_array_element(node: vy_ast.VyperNode) -> bool:
@@ -993,8 +991,7 @@ class Expr:
         assert isinstance(node, vy_ast.Subscript)
         base_typ = node.value._metadata["type"]
 
-        # Semantic analysis rejects these, but cannot see what an abstract
-        # callee's override does.
+        # Sanity check: semantic analysis rejects these.
         if _subscript_read_write_overlap(node.value, node.slice):
             raise CompilerPanic("risky overlap")
 

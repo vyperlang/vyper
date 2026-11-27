@@ -443,6 +443,7 @@ def foo() -> uint256:
         "self.d[staticcall T(msg.sender).f()]",
         "self.d[self.calls_out()]",
         "self.d[convert(sha256(convert(msg.sender, bytes32)), uint256) % 4]",
+        "self.d[convert(create_forwarder_to(msg.sender), uint256) % 4]",
     ],
 )
 def test_index_calling_out_rejected(expr):
@@ -465,6 +466,40 @@ def foo() -> uint256:
     assert e.value.message == _CALL_MSG
     assert e.value.hint == _HINT
     assert e.value.annotations[0].node_source_code == expr
+
+
+def test_index_calling_out_through_abstract_override_rejected(make_input_bundle):
+    lib = """
+d: DynArray[uint256, 4]
+
+@abstract
+def hook() -> uint256: ...
+
+def run() -> uint256:
+    return self.d[self.hook()]
+    """
+    code = """
+import lib
+
+initializes: lib
+
+interface T:
+    def f() -> uint256: view
+
+@override(lib)
+def hook() -> uint256:
+    return staticcall T(msg.sender).f()
+
+@external
+def foo() -> uint256:
+    return lib.run()
+    """
+    input_bundle = make_input_bundle({"lib.vy": lib})
+    with pytest.raises(StructureException) as e:
+        compile_code(code, input_bundle=input_bundle, output_formats=["annotated_ast_dict"])
+    assert e.value.message == _CALL_MSG
+    assert e.value.hint == _HINT
+    assert e.value.annotations[0].node_source_code == "self.d[self.hook()]"
 
 
 def test_dynarray_mutating_temporary_rejected():
