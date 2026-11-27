@@ -1,6 +1,7 @@
 from tests.venom_utils import parse_from_basic_block
 from vyper.compiler import compile_code
 from vyper.compiler.settings import Settings
+from vyper.evm.assembler.instructions import Label
 from vyper.venom.basicblock import IRVariable
 from vyper.venom.context import IRContext
 from vyper.venom.parser import parse_venom
@@ -99,6 +100,69 @@ def test_unused_clean_stack_from_cfg_in():
     ctx = parse_from_basic_block(code)
     asm = VenomCompiler(ctx).generate_evm_assembly()
     assert "POP" not in asm
+
+
+def test_dead_phi_is_popped():
+    """
+    a dead phi must be popped like any other dead output, otherwise its
+    incoming value is left on the stack across `ret` and corrupts the
+    caller's stack (GH issue 5414).
+    """
+    code = """
+    function foo {
+    main:
+        %c = param
+        %pc = param
+        jnz %c, @then, @else
+    then:
+        %a = 1
+        jmp @join
+    else:
+        %b = 2
+        jmp @join
+    join:
+        %x = phi @then, %a, @else, %b  ; dead
+        ret %pc
+    }
+    """
+    ctx = parse_venom(code)
+    asm = VenomCompiler(ctx).generate_evm_assembly()
+
+    # previously `join` was `SWAP1 JUMP`, which returned with %x still on
+    # the stack.
+    join = asm.index(Label("join"))
+    assert asm[join + 1 : join + 3] == ["POP", "JUMP"]
+
+
+def test_dead_phi_is_popped_below_live_phi():
+    code = """
+    function foo {
+    main:
+        %c = param
+        %pc = param
+        jnz %c, @then, @else
+    then:
+        %a = 1
+        %b = 3
+        jmp @join
+    else:
+        %d = 2
+        %e = 4
+        jmp @join
+    join:
+        %y = phi @then, %b, @else, %e
+        %x = phi @then, %a, @else, %d  ; dead
+        ret %pc, %y
+    }
+    """
+    ctx = parse_venom(code)
+    asm = VenomCompiler(ctx).generate_evm_assembly()
+
+    # the dead %x sits underneath the live %y: [pc, x, y]. it must be
+    # %x that is popped, leaving [y, pc] for the return. previously `join`
+    # was `SWAP1 SWAP2 JUMP`, which returned with %x still on the stack.
+    join = asm.index(Label("join"))
+    assert asm[join + 1 : join + 5] == ["SWAP1", "POP", "SWAP1", "JUMP"]
 
 
 def test_popmany_bulk_removal_of_suffix():
