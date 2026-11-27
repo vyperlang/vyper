@@ -897,6 +897,35 @@ class VenomCodegenContext:
         self.store_vyper_value(vv, ret.operand, typ)
         return ret
 
+    def snapshot_live_array(self, vv: VyperValue, typ: VyperType) -> VyperValue:
+        """Copy the live elements of a storage or transient array into
+        runtime-sized scratch memory.
+
+        A dynamic array is copied up to its current length rather than its
+        declared capacity, which need not fit in memory. The storage and
+        memory layouts agree word for word, so the copy is a valid memory
+        value of `typ` for any in-bounds access.
+        """
+        assert isinstance(typ, (SArrayT, DArrayT))
+        b = self.builder
+        slot = vv.operand
+        location = vv.location
+        assert location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
+        elem_words = typ.value_type.storage_size_in_words
+
+        word_count: IROperand
+        if isinstance(typ, DArrayT):
+            # cannot overflow, the length is capped by the declared capacity
+            length = self.load_word(slot, location)
+            word_count = b.add(b.mul(length, IRLiteral(elem_words)), IRLiteral(1))
+        else:
+            word_count = IRLiteral(typ.count * elem_words)
+
+        dst = self.allocate_scratch(b.mul(word_count, IRLiteral(32)))
+        load_fn = b.sload if location == DataLocation.STORAGE else b.tload
+        self._word_copy_loop(slot, dst, word_count, load_fn, b.mstore, 1, 32, "snapshot")
+        return self.dynamic_memory_value(dst, typ)
+
     def ensure_memory_layout(
         self, vv: VyperValue, typ: VyperType, annotation: Optional[str] = None
     ) -> VyperValue:
