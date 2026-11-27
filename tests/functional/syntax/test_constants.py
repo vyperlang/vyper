@@ -266,6 +266,16 @@ test_a: constant(uint256) = max_value(uint256)
 test_a: constant(address) = empty(address)
     """,
     """
+struct Foo:
+    x: uint256
+
+FOO: constant(Foo) = empty(Foo)
+
+@external
+def bar() -> Foo:
+    return FOO
+    """,
+    """
 TEST_C: constant(uint256) = 1
 TEST_WEI: constant(uint256) = 1
 

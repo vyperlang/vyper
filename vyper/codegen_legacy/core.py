@@ -772,6 +772,11 @@ def unwrap_location(orig):
         return IRnode.from_list(LOAD(orig), typ=orig.typ)
     else:
         # CMC 2022-03-24 TODO refactor so this branch can be removed
+        if orig.value == "~empty" and not orig.typ._is_prim_word:
+            # `~empty` of a composite type is an empty value of that type, not
+            # the word zero. Keep it as is so that make_setter copies it
+            # member by member instead of trying to index into a literal.
+            return orig
         if orig.is_empty_intrinsic:
             # must be word type
             return IRnode.from_list(0, typ=orig.typ)
