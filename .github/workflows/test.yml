@@ -46,11 +46,8 @@ jobs:
     - name: Run Black
       run: black --check -C --force-exclude=vyper/version.py ./vyper ./tests ./setup.py
 
-    - name: Run flake8
-      run: flake8 ./vyper ./tests ./setup.py
-
-    - name: Run isort
-      run: isort --check-only --diff ./vyper ./tests ./setup.py
+    - name: Run Ruff
+      run: ruff check ./vyper ./tests ./setup.py
 
     - name: Run mypy
       run: make mypy
