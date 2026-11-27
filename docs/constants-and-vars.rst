@@ -71,8 +71,8 @@ Accessing State Variables
     state_var: uint256
 
     @external
-    def set_var(value: uint256) -> bool:
-        self.state_var = value
+    def set_var(_value: uint256) -> bool:
+        self.state_var = _value
         return True
 
     @external

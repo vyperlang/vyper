@@ -218,10 +218,10 @@ Events provide an interface for the EVM's logging facilities. Events may be logg
 .. code-block:: vyper
 
     event Payment:
-        amount: int128
+        amount: uint256
         sender: indexed(address)
 
-    total_paid: int128
+    total_paid: uint256
 
     @external
     @payable
