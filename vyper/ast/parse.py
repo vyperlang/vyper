@@ -1,6 +1,7 @@
 import ast as python_ast
 import copy
 import pickle
+import re
 import tokenize
 from decimal import Decimal
 from functools import cached_property
@@ -20,6 +21,26 @@ PYTHON_AST_SINGLETONS = (
     python_ast.boolop,
     python_ast.expr_context,
 )
+
+
+_FUNCTION_DEF_RE = re.compile(r"^\s*def\s+([^\s(:]+)")
+
+
+def _invalid_function_name(vyper_source: str, lineno: int) -> Optional[str]:
+    """
+    If line `lineno` of the source defines a function whose name is not a
+    valid identifier (e.g. `def foo-test():`), return that name.
+    """
+    lines = vyper_source.splitlines()
+    if not 1 <= lineno <= len(lines):
+        return None
+    m = _FUNCTION_DEF_RE.match(lines[lineno - 1])
+    if m is None:
+        return None
+    name = m.group(1)
+    if name.isidentifier():
+        return None
+    return name
 
 
 def parse_to_ast(
@@ -85,6 +106,22 @@ def _parse_to_ast(
         # adjust the column of the error if it was modified by the pre-parser
         if offset is not None and e.lineno is not None:  # help mypy
             offset += pre_parser.shift_for(e.lineno, offset)
+
+        bad_name = None
+        if e.lineno is not None:
+            bad_name = _invalid_function_name(vyper_source, e.lineno)
+
+        if bad_name is not None:
+            # python only says e.g. "expected '('" for `def foo-test():`
+            new_e = SyntaxException(
+                f"invalid function name `{bad_name}`",
+                vyper_source,
+                e.lineno,
+                offset,
+                hint="function names can only contain letters, digits and underscores, "
+                "and cannot start with a digit",
+            )
+            raise new_e from None
 
         new_e = SyntaxException(e.msg, vyper_source, e.lineno, offset)
 
