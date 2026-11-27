@@ -1,6 +1,12 @@
+import pytest
+
 from tests.venom_utils import parse_from_basic_block
+from vyper.codegen_venom.module import generate_venom_runtime
+from vyper.compiler.phases import CompilerData
+from vyper.compiler.settings import Settings, anchor_settings
 from vyper.venom.check_venom import (
     BasicBlockNotTerminated,
+    LogArityError,
     UnsupportedInstruction,
     VarNotDefined,
     find_semantic_errors,
@@ -191,3 +197,125 @@ def test_venom_parser_rejects_removed_memtop():
 
     assert len(errors) == 1
     assert isinstance(errors[0], UnsupportedInstruction)
+
+
+def _log_code(topics: list[str], count: str) -> str:
+    # text operand order is `log offset, size, topic0, ..., topic_count`
+    operands = ", ".join(["%off", "%sz", *topics, count])
+    return f"""
+    main:
+        %off = source
+        %sz = 32
+        %t0 = 0xaa
+        %t1 = 0xbb
+        %t2 = 0xcc
+        %t3 = 0xdd
+        %t4 = 0xee
+        %c = source
+        log {operands}
+        sink %off, %sz, %t0, %t1, %t2, %t3, %t4, %c
+    """
+
+
+_TOPICS = ["%t0", "%t1", "%t2", "%t3", "%t4"]
+
+
+@pytest.mark.parametrize("n", range(5))
+def test_venom_log_arity_ok(n):
+    ctx = parse_from_basic_block(_log_code(_TOPICS[:n], str(n)))
+    assert find_semantic_errors(ctx) == []
+
+
+# GH issue 5402: the assembler trusts the topic count to pick LOG0..LOG4, so
+# a count that does not match the topic operands must be rejected
+@pytest.mark.parametrize(
+    "n_topics,count",
+    [
+        (1, "2"),  # too few topics (the issue's example)
+        (0, "1"),
+        (3, "4"),
+        (1, "0"),  # too many topics
+        (2, "1"),
+        (4, "3"),
+        (5, "4"),
+        (5, "5"),  # count out of range
+        (0, "-1"),
+    ],
+)
+def test_venom_log_arity_mismatch(n_topics, count):
+    ctx = parse_from_basic_block(_log_code(_TOPICS[:n_topics], count))
+    errors = find_semantic_errors(ctx)
+
+    assert len(errors) == 1
+    assert isinstance(errors[0], LogArityError)
+
+
+def test_venom_log_non_literal_count():
+    ctx = parse_from_basic_block(_log_code(_TOPICS[:1], "%c"))
+    errors = find_semantic_errors(ctx)
+
+    assert len(errors) == 1
+    assert isinstance(errors[0], LogArityError)
+
+
+def test_venom_log_no_operands():
+    code = """
+    main:
+        log
+        stop
+    """
+    ctx = parse_from_basic_block(code)
+    errors = find_semantic_errors(ctx)
+
+    assert len(errors) == 1
+    assert isinstance(errors[0], LogArityError)
+
+
+def test_venom_log_arity_frontend_output():
+    # logs emitted by the venom frontend (events with 0..3 indexed args,
+    # i.e. LOG1..LOG4, plus raw_log with 0..4 topics) pass the check
+    code = """
+event E0:
+    a: uint256
+
+event E1:
+    a: indexed(uint256)
+    b: Bytes[64]
+
+event E2:
+    a: indexed(address)
+    b: indexed(bytes32)
+    c: uint256
+
+event E3:
+    a: indexed(uint256)
+    b: indexed(uint256)
+    c: indexed(uint256)
+    d: String[32]
+
+@external
+def foo(x: uint256, d: Bytes[64]):
+    log E0(a=x)
+    log E1(a=x, b=d)
+    log E2(a=msg.sender, b=keccak256(d), c=x)
+    log E3(a=x, b=x + 1, c=x + 2, d="hello")
+    raw_log([], d)
+    raw_log([keccak256(d)], d)
+    raw_log([keccak256(d), keccak256(d)], d)
+    raw_log([keccak256(d), keccak256(d), keccak256(d)], d)
+    raw_log([keccak256(d), keccak256(d), keccak256(d), keccak256(d)], d)
+    """
+    settings = Settings(experimental_codegen=True)
+    with anchor_settings(settings):
+        compiler_data = CompilerData(code, settings=settings)
+        ctx = generate_venom_runtime(compiler_data.global_ctx, settings)
+
+    log_counts = sorted(
+        inst.operands[0].value
+        for fn in ctx.functions.values()
+        for bb in fn.get_basic_blocks()
+        for inst in bb.instructions
+        if inst.opcode == "log"
+    )
+    assert log_counts == [0, 1, 1, 2, 2, 3, 3, 4, 4]
+    assert find_semantic_errors(ctx) == []
