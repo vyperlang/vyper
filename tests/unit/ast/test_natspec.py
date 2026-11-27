@@ -164,6 +164,34 @@ def foo(bar: int128, baz: uint256) -> (int128, uint256):
     }
 
 
+def test_default_args():
+    code = """
+@external
+def foo(bar: uint256, baz: uint256 = 1):
+    '''
+    @notice the notice
+    @param bar a number
+    '''
+    pass
+    """
+
+    natspec = parse_natspec(code)
+
+    # every overload gets the same docs
+    assert natspec.userdoc == {
+        "methods": {
+            "foo(uint256)": {"notice": "the notice"},
+            "foo(uint256,uint256)": {"notice": "the notice"},
+        }
+    }
+    assert natspec.devdoc == {
+        "methods": {
+            "foo(uint256)": {"params": {"bar": "a number"}},
+            "foo(uint256,uint256)": {"params": {"bar": "a number"}},
+        }
+    }
+
+
 def test_ignore_private_methods():
     code = """
 @external
