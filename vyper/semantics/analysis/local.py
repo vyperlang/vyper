@@ -236,10 +236,17 @@ def index_calls_out(
     base: vy_ast.ExprNode, index: vy_ast.ExprNode, resolve_overrides: bool = False
 ) -> bool:
     """Return True if `index` can make an external call while `base` reads a
-    variable, which the call may modify by reentering. Constants are left
-    out: nothing can modify them."""
+    variable, which the call may modify by reentering.
+
+    Like legacy codegen, only declared variables other than constants
+    count, so `C[extcall t.f()]` for a constant `C` compiles, and so does
+    `self.g()[extcall t.f()]` for an internal `g` which reads no variable
+    (the environment variable `self` has no declaration).
+    """
+    base_reads = get_referenced_variables(base)
     return any(
-        var.modifiability != Modifiability.CONSTANT for var in get_referenced_variables(base)
+        var.decl_node is not None and var.modifiability != Modifiability.CONSTANT
+        for var in base_reads
     ) and contains_external_call(index, resolve_overrides)
 
 

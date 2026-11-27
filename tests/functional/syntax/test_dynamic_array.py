@@ -219,8 +219,8 @@ def foo() -> uint256:
     x: DynArray[uint256, 4] = [1, 2]
     return C[self.d.pop()] + x[self.d.pop()]
     """,
-    # an external call can't modify a literal, a constant or a HashMap read
-    # after the index
+    # an external call can't modify a literal, a constant, environment
+    # variables or a HashMap read after the index
     """
 interface T:
     def f() -> uint256: view
@@ -228,10 +228,15 @@ interface T:
 C: constant(uint256[2]) = [1, 2]
 m: HashMap[uint256, uint256]
 
+@internal
+def g() -> uint256[2]:
+    return [1, 2]
+
 @external
 def foo() -> uint256:
     t: T = T(msg.sender)
-    return [1, 2][staticcall t.f()] + C[staticcall t.f()] + self.m[staticcall t.f()]
+    x: uint256 = [1, 2][staticcall t.f()] + C[staticcall t.f()] + self.m[staticcall t.f()]
+    return x + self.g()[staticcall t.f()] + [block.number, 1][staticcall t.f()]
     """,
 ]
 
