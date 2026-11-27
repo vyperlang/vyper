@@ -17,7 +17,7 @@ from vyper.codegen_legacy.core import (
 )
 from vyper.codegen_legacy.ir_node import Encoding, IRnode
 from vyper.evm.address_space import MEMORY
-from vyper.exceptions import StateAccessViolation, TypeCheckFailure
+from vyper.exceptions import TypeCheckFailure
 from vyper.semantics.types import InterfaceT, TupleT
 from vyper.semantics.types.function import StateMutability
 
@@ -227,12 +227,8 @@ def _external_call_helper(contract_address, args_ir, call_kwargs, call_expr, con
     value = call_kwargs.value
 
     use_staticcall = fn_type.mutability in (StateMutability.VIEW, StateMutability.PURE)
-    if context.is_constant() and not use_staticcall:
-        raise StateAccessViolation(
-            f"May not call state modifying function "
-            f"'{fn_type.name}' within {context.pp_constancy()}.",
-            call_expr,
-        )
+    if context.is_constant():
+        assert use_staticcall, "typechecker missed this"
 
     if use_staticcall:
         call_op = ["staticcall", gas, contract_address, args_ofst, args_len, buf, ret_len]

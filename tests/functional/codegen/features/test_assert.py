@@ -123,28 +123,62 @@ def foo():
     assert_compile_failed(lambda: get_contract(assert_code), InvalidType)
 
 
-def test_reason_extcall_is_rejected(get_contract, assert_compile_failed):
-    # the revert reason is compiled in a constant context, so a mutating
-    # external call there must be a clean compile error rather than a
-    # compiler panic. See issue #4966.
-    interface = """
+def test_reason_modifying_call_is_rejected(get_contract, assert_compile_failed):
+    # the revert reason is compiled in a constant context, so a state
+    # modifying call there must be rejected by the typechecker rather than
+    # reaching codegen (where it used to panic). See issue #4966.
+    preamble = """
 interface I:
     def get_msg() -> String[20]: nonpayable
+
+error Failed:
+    reason: String[20]
+
+counter: uint256
+
+@internal
+def _bump() -> String[20]:
+    self.counter += 1
+    return "bumped"
     """
-    assert_code = f"""
-{interface}
+    bodies = [
+        "assert x, extcall I(target).get_msg()",
+        "raise extcall I(target).get_msg()",
+        "assert x, self._bump()",
+        "raise self._bump()",
+        "assert x, Failed(reason=extcall I(target).get_msg())",
+        "raise Failed(reason=self._bump())",
+    ]
+    for body in bodies:
+        code = f"""
+{preamble}
 @external
 def foo(x: bool, target: address):
-    assert x, extcall I(target).get_msg()
-    """
-    raise_code = f"""
-{interface}
+    {body}
+        """
+        assert_compile_failed(lambda code=code: get_contract(code), StateAccessViolation)
+
+
+def test_reason_staticcall_is_allowed(env, get_contract, tx_failed):
+    callee = """
 @external
-def foo(target: address):
-    raise extcall I(target).get_msg()
+@view
+def get_msg() -> String[20]:
+    return "from callee"
     """
-    assert_compile_failed(lambda: get_contract(assert_code), StateAccessViolation)
-    assert_compile_failed(lambda: get_contract(raise_code), StateAccessViolation)
+    code = """
+interface I:
+    def get_msg() -> String[20]: view
+
+@external
+def foo(x: bool, target: address):
+    assert x, staticcall I(target).get_msg()
+    """
+    target = get_contract(callee)
+    c = get_contract(code)
+    c.foo(True, target.address)
+    with tx_failed(exc_text="from callee"):
+        c.foo(False, target.address)
 
 
 def test_reason_string_literal_at_max_length(get_contract):
