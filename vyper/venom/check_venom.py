@@ -326,6 +326,26 @@ class PostLoweringError(VenomError):
         return s
 
 
+class StaticFrameError(VenomError):
+    message: str = "static frame bound does not cover the function's static memory"
+
+    def __init__(self, function: IRFunction, detail: str, inst: IRInstruction):
+        self.function = function
+        self.detail = detail
+        self.inst = inst
+
+    def __str__(self):
+        return f"static frame error in {self.function.name}: {self.detail}\n  {self.inst}"
+
+
+class EomFrameError(StaticFrameError):
+    message: str = "`eom` annotation is below the function's static frame"
+
+
+class InitialFmpBoundError(StaticFrameError):
+    message: str = "initial_fmp bound is below the static memory reachable from it"
+
+
 class UnsupportedInstruction(VenomError):
     message: str = "unsupported instruction"
 
@@ -660,6 +680,144 @@ def _find_annotation_errors(fn: IRFunction) -> list[VenomError]:
     return errors
 
 
+def _resolve_literal(
+    op: IROperand, defs: dict[IRVariable, list[IRInstruction]]
+) -> IRLiteral | None:
+    # follow single-definition `assign` chains (SingleUseExpansion turns
+    # literal operands into assigned variables) down to a literal
+    seen: set[IRVariable] = set()
+    while isinstance(op, IRVariable):
+        if op in seen or len(defs.get(op, [])) != 1:
+            return None
+        seen.add(op)
+        producer = defs[op][0]
+        if producer.opcode != "assign" or len(producer.operands) != 1:
+            return None
+        op = producer.operands[0]
+    if isinstance(op, IRLiteral):
+        return op
+    return None
+
+
+def _static_word_accesses(fn: IRFunction) -> dict[IRBasicBlock, tuple[int, IRInstruction]]:
+    """
+    For each block of `fn`, the highest end of an `mload`/`mstore` at a
+    literal address, and the instruction making it.
+
+    Once allocas are concretized, the static frame survives only as literal
+    addresses, so this is a lower bound on the static memory the block
+    touches. A header `eom` or an `initial_fmp` bound below it lets spill
+    slots or dynamic allocations alias the frame.
+    """
+    defs: dict[IRVariable, list[IRInstruction]] = {}
+    for bb in fn.get_basic_blocks():
+        for inst in bb.instructions:
+            for out in inst.get_outputs():
+                defs.setdefault(out, []).append(inst)
+
+    ret: dict[IRBasicBlock, tuple[int, IRInstruction]] = {}
+    for bb in fn.get_basic_blocks():
+        for inst in bb.instructions:
+            if inst.opcode == "mload" and len(inst.operands) == 1:
+                ptr = inst.operands[0]
+            elif inst.opcode == "mstore" and len(inst.operands) == 2:
+                ptr = inst.operands[1]
+            else:
+                continue
+            lit = _resolve_literal(ptr, defs)
+            if lit is None:
+                continue
+            end = lit.value + 32
+            if bb not in ret or end > ret[bb][0]:
+                ret[bb] = (end, inst)
+    return ret
+
+
+def _find_static_frame_errors(context: IRContext) -> list[VenomError]:
+    """
+    Check the static frame bounds of lowered IR against the static memory it
+    accesses: a function's header `eom` (the spill base) and each
+    `initial_fmp` bound (the base of dynamic allocations) must lie at or
+    above every literal-addressed word they cover. The pipeline derives both
+    from the allocas, but text input carries them as plain integers.
+    """
+    errors: list[VenomError] = []
+    accesses = {fn: _static_word_accesses(fn) for fn in context.functions.values()}
+
+    def _max_access(blocks, fns) -> tuple[int, IRInstruction] | None:
+        items = [accesses[fn][bb] for fn, bb in blocks if bb in accesses[fn]]
+        for fn in fns:
+            items.extend(accesses[fn].values())
+        return max(items, key=lambda x: x[0], default=None)
+
+    for fn, eom in context.mem_allocator.fn_eom.items():
+        if fn not in accesses:
+            continue
+        frame = _max_access([], [fn])
+        if frame is not None and frame[0] > eom:
+            errors.append(
+                EomFrameError(
+                    fn, f"`eom={eom}` but the frame is accessed up to {frame[0]}", frame[1]
+                )
+            )
+
+    for fn in context.functions.values():
+        for bb in fn.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.opcode != "initial_fmp" or len(inst.operands) != 1:
+                    continue
+                bound = inst.operands[0]
+                if not isinstance(bound, IRLiteral):
+                    # reported as InitialFmpArityError
+                    continue
+                # the root covers every block reachable from its own, and
+                # the frames of the functions those blocks invoke
+                blocks, callees = _reachable_from(fn, bb)
+                frame = _max_access([(fn, b) for b in blocks], callees)
+                if frame is not None and frame[0] > bound.value:
+                    errors.append(
+                        InitialFmpBoundError(
+                            fn,
+                            f"bound {bound.value} is below static memory accessed up "
+                            f"to {frame[0]} by `{str(frame[1]).strip()}`",
+                            inst,
+                        )
+                    )
+
+    return errors
+
+
+def _reachable_from(
+    fn: IRFunction, start: IRBasicBlock
+) -> tuple[set[IRBasicBlock], set[IRFunction]]:
+    # blocks of `fn` reachable from `start`, and the functions transitively
+    # invoked from them
+    blocks: set[IRBasicBlock] = set()
+    callees: set[IRFunction] = set()
+    worklist: list[tuple[IRFunction, IRBasicBlock]] = [(fn, start)]
+    seen: set[IRBasicBlock] = set()
+    while len(worklist) > 0:
+        cur_fn, bb = worklist.pop()
+        if bb in seen:
+            continue
+        seen.add(bb)
+        if cur_fn is fn:
+            blocks.add(bb)
+        for inst in bb.instructions:
+            if inst.opcode != "invoke":
+                continue
+            callee = InvokeLayout(fn.ctx, inst).callee
+            if callee is not None and callee not in callees:
+                callees.add(callee)
+                worklist.extend((callee, b) for b in callee.get_basic_blocks())
+        if not bb.is_terminated:
+            continue
+        for label in bb.last_instruction.get_label_operands():
+            if cur_fn.has_basic_block(label.value):
+                worklist.append((cur_fn, cur_fn.get_basic_block(label.value)))
+    return blocks, callees
+
+
 def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
     errors: list[VenomError] = []
 
@@ -669,6 +827,8 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
         errors.extend(_find_param_layout_errors(fn))
         errors.extend(_find_mixed_fmp_errors(fn))
         errors.extend(_find_annotation_errors(fn))
+
+    errors.extend(_find_static_frame_errors(context))
 
     ret_arities = _collect_ret_arities(context)
 
