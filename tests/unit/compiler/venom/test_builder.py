@@ -2,6 +2,7 @@
 Tests for VenomBuilder - the clean API for building Venom IR.
 """
 
+from vyper.ast import parse_to_ast
 from vyper.venom.basicblock import IRLabel
 from vyper.venom.builder import VenomBuilder
 from vyper.venom.context import IRContext
@@ -303,3 +304,41 @@ def test_builder_crypto_ops():
 
     instrs = fn.entry.instructions
     assert instrs[2].opcode == "sha3"
+
+
+def test_builder_source_tracking():
+    """Instructions record the AST node and error message active when they are emitted."""
+    ctx = IRContext()
+    fn = ctx.create_function("test_source")
+    b = VenomBuilder(ctx, fn)
+
+    outer, inner = parse_to_ast("x: uint256\ny: uint256").body
+    target = b.new_variable()
+
+    x = b.calldataload(0)
+    with b.source_context(outer):
+        y = b.add(x, 1)
+        with b.source_context(inner):
+            b.assign_to(y, target)
+        with b.error_context("outer error"):
+            b.assert_(y)
+            with b.error_context("inner error"):
+                b.invoke(IRLabel("callee"), [y])
+            b.assert_(x)
+        b.mstore(y, 0)
+    b.stop()
+
+    expected = [
+        ("calldataload", None, None),
+        ("add", outer, None),
+        ("assign", inner, None),
+        ("assert", outer, "outer error"),
+        ("invoke", outer, "inner error"),
+        ("assert", outer, "outer error"),
+        ("mstore", outer, None),
+        ("stop", None, None),
+    ]
+    for inst, (opcode, ast_source, error_msg) in zip(fn.entry.instructions, expected, strict=True):
+        assert inst.opcode == opcode
+        assert inst.ast_source is ast_source
+        assert inst.error_msg == error_msg

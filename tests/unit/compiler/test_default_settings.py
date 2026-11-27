@@ -1,6 +1,6 @@
 import pytest
 
-from vyper.codegen import core
+from vyper.codegen_legacy import core
 from vyper.compiler import compile_code
 from vyper.compiler.output import build_asm_output, build_asm_runtime_output
 from vyper.compiler.phases import CompilerData
