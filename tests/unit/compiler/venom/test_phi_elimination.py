@@ -450,6 +450,7 @@ def test_dominated_basicblock_in_the_middle():
     # but in general it should not change
     _check_pre_post(source, source)
 
+
 @pytest.mark.hevm
 def test_dominated_basicblock_in_the_middle_with_possible_opt():
     """
