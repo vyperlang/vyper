@@ -118,6 +118,13 @@ def _parse_pragma(comment_contents, settings, is_interface, code, start):
 _PRAGMA_LIKE = re.compile(r"[#\s]*(pragma|@version)(\s|$)", re.IGNORECASE)
 
 
+# unicode bidirectional embedding, override and isolate controls. inside a
+# comment these can make a pragma *render* as e.g. `# pragma nonreentrancy on`
+# while the underlying text is something else ("trojan source",
+# CVE-2021-42574), so comments containing them are rejected outright.
+_BIDI_CONTROLS = frozenset("\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069")
+
+
 def _is_pragma_like(comment: str) -> bool:
     visible = "".join(c for c in comment if unicodedata.category(c) != "Cf")
     return _PRAGMA_LIKE.match(visible) is not None
@@ -324,6 +331,13 @@ class PreParser:
             newstart = lineno, col - adj
 
             if typ == COMMENT:
+                if not _BIDI_CONTROLS.isdisjoint(string):
+                    raise PragmaException(
+                        "Bidirectional control character in comment"
+                        " (it can make a comment render as a pragma)",
+                        code,
+                        *start,
+                    )
                 contents = string[1:].strip()
                 if contents.startswith("@version"):
                     if settings.compiler_version is not None:

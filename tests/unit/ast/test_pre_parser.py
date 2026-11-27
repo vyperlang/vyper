@@ -302,6 +302,23 @@ def test_malformed_pragma(code):
         PreParser(is_interface=False).parse(code)
 
 
+# comments with bidi embedding/override/isolate controls can render as a
+# pragma while being parsed as something else ("trojan source")
+bidi_comments = [
+    # renders as `# pragma nonreentrancy on` in bidi-aware editors
+    "# \u202eno ycnartneernon amgarp\u202c",
+    "# pragma nonreentrancy on \u2067\u2069",
+    "x: uint256  # \u202a\u202c",
+    "# \u202b\u202d\u2066\u2068\u2069",
+]
+
+
+@pytest.mark.parametrize("code", bidi_comments)
+def test_bidi_control_in_comment(code):
+    with pytest.raises(PragmaException, match="Bidirectional control character"):
+        PreParser(is_interface=False).parse(code)
+
+
 def test_malformed_nonreentrancy_pragma_compile():
     # a misspelled `nonreentrancy` pragma must not compile to a contract
     # without reentrancy guards
