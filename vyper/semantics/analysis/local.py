@@ -183,23 +183,45 @@ def get_referenced_variables(node: vy_ast.ExprNode) -> OrderedSet[VarInfo]:
     )
 
 
+def _reached_functions(node: vy_ast.ExprNode) -> OrderedSet[ContractFunctionT]:
+    """Return the internal functions evaluating `node` can reach, abstract
+    callees resolved to their overrides."""
+    ret: OrderedSet[ContractFunctionT] = OrderedSet()
+    for call in node.get_descendants(vy_ast.Call, include_self=True):
+        func_t = call.func._metadata.get("type")
+        if isinstance(func_t, ContractFunctionT) and func_t.is_internal:
+            callee = func_t.get_concrete_override()
+            ret.add(callee)
+            ret.update(callee.reachable_internal_functions)
+    return ret
+
+
+# The accesses recorded for a call to an abstract function are those of its
+# declaration, so these add those of the functions the expression reaches.
+
+
+def _base_reads(base: vy_ast.ExprNode) -> set[VarInfo]:
+    ret = set(get_referenced_variables(base))
+    for fn_t in _reached_functions(base):
+        ret.update(a.variable for a in fn_t.get_variable_reads() if a.variable.is_state_variable())
+    return ret
+
+
+def _index_writes(index: vy_ast.ExprNode) -> set[VarInfo]:
+    ret = {a.variable for a in get_expr_writes(index)}
+    for fn_t in _reached_functions(index):
+        ret.update(a.variable for a in fn_t.get_variable_writes() if a.variable.is_state_variable())
+    return ret
+
+
 def index_writes_base(base: vy_ast.ExprNode, index: vy_ast.ExprNode) -> bool:
     """Return True if evaluating `index` can write a variable read by `base`.
 
     The check is per variable, not per member: popping `x.a` writes `x`.
-    Writes by internal callees count, through abstract callees'
+    Accesses by internal callees count, through abstract callees'
     overrides; external calls are not modeled.
     """
-    index_writes = {access.variable for access in get_expr_writes(index)}
-    # the writes recorded for a call to an abstract function are its
-    # declaration's, so add those of the functions the index can reach
-    for call in index.get_descendants(vy_ast.Call, include_self=True):
-        func_t = call.func._metadata.get("type")
-        if isinstance(func_t, ContractFunctionT) and func_t.is_internal:
-            callee = func_t.get_concrete_override()
-            for fn_t in (callee, *callee.reachable_internal_functions):
-                index_writes.update(access.variable for access in fn_t.get_variable_writes())
-    return not index_writes.isdisjoint(get_referenced_variables(base))
+    return not _index_writes(index).isdisjoint(_base_reads(base))
 
 
 def contains_external_call(node: vy_ast.VyperNode) -> bool:
@@ -243,10 +265,9 @@ def index_calls_out(base: vy_ast.ExprNode, index: vy_ast.ExprNode) -> bool:
     `self.g()[extcall t.f()]` for an internal `g` which reads no variable
     (the environment variable `self` has no declaration).
     """
-    base_reads = get_referenced_variables(base)
     return any(
         var.decl_node is not None and var.modifiability != Modifiability.CONSTANT
-        for var in base_reads
+        for var in _base_reads(base)
     ) and contains_external_call(index)
 
 

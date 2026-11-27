@@ -470,20 +470,35 @@ def foo() -> uint256:
 
 
 @pytest.mark.parametrize(
-    "body,msg",
-    [("return staticcall T(msg.sender).f()", _CALL_MSG), ("lib.d = [7]\n    return 0", _WRITE_MSG)],
+    "hook_body,get_body,expr,msg",
+    [
+        # an override in the index
+        ("return staticcall T(msg.sender).f()", "return []", "self.d[self.hook()]", _CALL_MSG),
+        ("lib.d = [7]\n    return 0", "return []", "self.d[self.hook()]", _WRITE_MSG),
+        # an override in the base
+        ("return 0", "return lib.d", "self.get()[staticcall T(msg.sender).f()]", _CALL_MSG),
+        ("return 0", "return lib.d", "self.get()[self.d.pop()]", _WRITE_MSG),
+    ],
 )
-def test_index_through_abstract_override_rejected(make_input_bundle, body, msg):
-    lib = """
+def test_index_through_abstract_override_rejected(
+    make_input_bundle, hook_body, get_body, expr, msg
+):
+    lib = f"""
+interface T:
+    def f() -> uint256: view
+
 d: DynArray[uint256, 4]
 
 @abstract
 def hook() -> uint256: ...
 
+@abstract
+def get() -> DynArray[uint256, 4]: ...
+
 def run() -> uint256:
-    return self.d[self.hook()]
+    return {expr}
     """
-    code = """
+    code = f"""
 import lib
 
 initializes: lib
@@ -493,7 +508,11 @@ interface T:
 
 @override(lib)
 def hook() -> uint256:
-    {body}
+    {hook_body}
+
+@override(lib)
+def get() -> DynArray[uint256, 4]:
+    {get_body}
 
 @external
 def foo() -> uint256:
@@ -501,12 +520,10 @@ def foo() -> uint256:
     """
     input_bundle = make_input_bundle({"lib.vy": lib})
     with pytest.raises(StructureException) as e:
-        compile_code(
-            code.format(body=body), input_bundle=input_bundle, output_formats=["annotated_ast_dict"]
-        )
+        compile_code(code, input_bundle=input_bundle, output_formats=["annotated_ast_dict"])
     assert e.value.message == msg
     assert e.value.hint == _HINT
-    assert e.value.annotations[0].node_source_code == "self.d[self.hook()]"
+    assert e.value.annotations[0].node_source_code == expr
 
 
 def test_dynarray_mutating_temporary_rejected():
