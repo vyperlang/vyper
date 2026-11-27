@@ -39,12 +39,6 @@ struct D:
 struct E:
     b: Bytes[16]
     c: uint256
-
-struct J:
-    a: DynArray[uint256, 2]
-    b: uint256
-    c: uint256[4]
-    d: uint256
 """
 
 # (type, old, junk, new, slots after storing new over old)
@@ -173,63 +167,6 @@ def pop():
     assert [env.get_storage(c.address, base + i) for i in range(6)] == [1, 1, 5, 2, 3, 6]
 
 
-@pytest.mark.parametrize(
-    "declaration",
-    ["{}", pytest.param("transient({})", marks=pytest.mark.requires_evm_version("cancun"))],
-)
-def test_clear_nested_storage_keeps_dead_slots(get_contract, declaration):
-    typ = "(J[2], Bytes[32], uint256[8])"
-    clearer = get_contract(f"""
-{STRUCTS}
-s: {declaration.format(typ)}
-
-@external
-def clear():
-    self.s = empty({typ})
-    """)
-    # Run clear() over the same slots so we can inspect the data past each length.
-    initial = [2, *range(1, 9), 2, *range(9, 17), 2, AB, *range(17, 25)]
-    expected = [0, 1, 2] + [0] * 6 + [0, 9, 10] + [0] * 6 + [0, AB] + [0] * 8
-    words = f"uint256[{len(initial)}]"
-    probe = get_contract(f"""
-words: {declaration.format(words)}
-
-@external
-def run(clearer: address, initial: {words}) -> {words}:
-    self.words = initial
-    raw_call(clearer, method_id("clear()"), is_delegate_call=True)
-    return self.words
-    """)
-    assert probe.run(clearer.address, initial) == expected
-
-
-@pytest.mark.parametrize(
-    "declaration",
-    ["{}", pytest.param("transient({})", marks=pytest.mark.requires_evm_version("cancun"))],
-)
-def test_clear_reads_no_memory(compiler_settings, declaration):
-    if not compiler_settings.experimental_codegen:
-        pytest.skip("checks how venom lowers the clear")
-
-    source = f"""
-struct S:
-    words: uint256[32]
-    items: DynArray[uint256, 4]
-
-s: {declaration.format("S")}
-
-@external
-def clear():
-    self.s = empty(S)
-    """
-    out = compile_code(source, settings=compiler_settings, output_formats=["opcodes_runtime"])
-    opcodes = out["opcodes_runtime"].split()
-    store = "TSTORE" if "transient" in declaration else "SSTORE"
-    # one store in the loop over `words`, one for the length of `items`
-    assert opcodes.count(store) == 2
-    assert "MLOAD" not in opcodes
-
-
 def _check_transient_write(get_contract, typ, old, junk, new, expected):
     # transient storage can't be read from outside, so the contract reads
     # its own slots through a delegatecall to `reader`, whose first transient
@@ -276,3 +213,90 @@ def test_transient_write_of_empty_bytestring_keeps_data_word(
     if not experimental_codegen:
         pytest.skip("legacy codegen writes the data word of an empty short bytestring")
     _check_transient_write(get_contract, typ, old, junk, new, expected)
+
+
+STORAGE_SPACES = [
+    "{}",
+    pytest.param("transient({})", marks=pytest.mark.requires_evm_version("cancun")),
+]
+
+CLEAR_STRUCTS = """
+struct J:
+    a: DynArray[uint256, 2]
+    b: uint256
+    c: uint256[4]
+    d: uint256
+"""
+
+# (type, words before the clear, words after it). assigning empty(T) writes
+# zero to every static word and every length word, and nothing else
+CLEAR_CASES = [
+    ("uint256[5]", [*range(1, 6)], [0] * 5),
+    ("uint256[6]", [*range(1, 7)], [0] * 6),
+    ("uint256[7]", [*range(1, 8)], [0] * 7),
+    (
+        "(J[2], Bytes[32], uint256[8])",
+        [2, *range(1, 9), 2, *range(9, 17), 2, AB, *range(17, 25)],
+        [0, 1, 2] + [0] * 6 + [0, 9, 10] + [0] * 6 + [0, AB] + [0] * 8,
+    ),
+    (
+        "(uint256[7], DynArray[uint256, 2], uint256[6], String[32], uint256[5])",
+        [*range(1, 8), 2, 8, 9, *range(10, 16), 2, AB, *range(16, 21)],
+        [0] * 7 + [0, 8, 9] + [0] * 6 + [0, AB] + [0] * 5,
+    ),
+]
+
+
+@pytest.mark.parametrize("declaration", STORAGE_SPACES)
+@pytest.mark.parametrize("typ,initial,expected", CLEAR_CASES)
+def test_clear_keeps_dead_slots(get_contract, declaration, typ, initial, expected):
+    clearer = get_contract(f"""
+{CLEAR_STRUCTS}
+
+before: {declaration.format("uint256")}
+s: {declaration.format(typ)}
+after: {declaration.format("uint256")}
+
+@external
+def clear():
+    self.s = empty({typ})
+    """)
+    # `clear` runs through a delegatecall, over `words`: its first and last
+    # words lie at the slots of `before` and `after` and must survive
+    initial = [101, *initial, 102]
+    expected = [101, *expected, 102]
+    words = f"uint256[{len(initial)}]"
+    probe = get_contract(f"""
+words: {declaration.format(words)}
+
+@external
+def run(clearer: address, initial: {words}) -> {words}:
+    self.words = initial
+    raw_call(clearer, method_id("clear()"), is_delegate_call=True)
+    return self.words
+    """)
+    assert probe.run(clearer.address, initial) == expected
+
+
+@pytest.mark.parametrize("declaration", STORAGE_SPACES)
+def test_clear_reads_no_memory(compiler_settings, declaration):
+    if not compiler_settings.experimental_codegen:
+        pytest.skip("checks how venom lowers the clear")
+
+    source = f"""
+struct S:
+    words: uint256[32]
+    items: DynArray[uint256, 4]
+
+s: {declaration.format("S")}
+
+@external
+def clear():
+    self.s = empty(S)
+    """
+    out = compile_code(source, settings=compiler_settings, output_formats=["opcodes_runtime"])
+    opcodes = out["opcodes_runtime"].split()
+    store = "TSTORE" if "transient" in declaration else "SSTORE"
+    # one store in the loop over `words`, one for the length of `items`
+    assert opcodes.count(store) == 2
+    assert "MLOAD" not in opcodes
