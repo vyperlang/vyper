@@ -1,9 +1,11 @@
+import bisect
+import io
 import re
+import tokenize
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from vyper.ast import nodes as vy_ast
-from vyper.ast.utils import LineNumbers
 from vyper.exceptions import NatSpecSyntaxException
 
 SINGLE_FIELDS = ("title", "author", "license", "notice", "dev")
@@ -49,14 +51,13 @@ def _parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
     userdoc, devdoc = {}, {}
     source: str = annotated_vyper_module.full_source_code
 
-    docstring = annotated_vyper_module.get("doc_string.value")
-    if docstring:
-        devdoc.update(_parse_docstring(source, docstring, ("param", "return")))
+    if annotated_vyper_module.get("doc_string.value"):
+        doc_node = annotated_vyper_module.doc_string
+        devdoc.update(_parse_docstring(source, doc_node, ("param", "return")))
         if "notice" in devdoc:
             userdoc["notice"] = devdoc.pop("notice")
 
     for node in [i for i in annotated_vyper_module.body if i.get("doc_string.value")]:
-        docstring = node.doc_string.value
         func_type = node._metadata["func_type"]
         if func_type.visibility != FunctionVisibility.EXTERNAL:
             continue
@@ -70,7 +71,7 @@ def _parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
 
         args = tuple(i.arg for i in node.args.args)
         invalid_fields = ("title", "license")
-        fn_natspec = _parse_docstring(source, docstring, invalid_fields, args, ret_len)
+        fn_natspec = _parse_docstring(source, node.doc_string, invalid_fields, args, ret_len)
         for method_id in func_type.method_ids:
             if "notice" in fn_natspec:
                 userdoc.setdefault("methods", {})[method_id] = {"notice": fn_natspec.pop("notice")}
@@ -80,9 +81,89 @@ def _parse_natspec(annotated_vyper_module: vy_ast.Module) -> NatspecOutput:
     return NatspecOutput(userdoc=userdoc, devdoc=devdoc)
 
 
+# one source token of a (non-raw) string literal: a line continuation, an escape
+# sequence, a `\r\n` line ending or a single character
+_LITERAL_TOKEN = re.compile(
+    r"\\(?:\r\n|\r|\n)|\\N\{[^}]*\}|\\x[0-9a-fA-F]{2}|\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}"
+    r"|\\[0-7]{1,3}|\\[\\'\"abfnrtv]|\r\n|.",
+    re.DOTALL,
+)
+_RAW_LITERAL_TOKEN = re.compile(r"\r\n|.", re.DOTALL)
+
+
+def _literal_offsets(literal: str, base: int) -> List[int]:
+    # source offset of each character that one string literal contributes to
+    # the parsed value. the parsed value can differ from the source text
+    # (escape sequences, line continuations, `\r\n` line endings).
+    body = literal.lstrip("rRuU")
+    quote_len = 3 if body[:3] in ('"""', "'''") else 1
+    start = len(literal) - len(body) + quote_len
+    content = literal[start : len(literal) - quote_len]
+
+    is_raw = "r" in literal[: len(literal) - len(body)].lower()
+    pattern = _RAW_LITERAL_TOKEN if is_raw else _LITERAL_TOKEN
+
+    offsets = []
+    for match in pattern.finditer(content):
+        token = match.group()
+        if len(token) > 1 and token.startswith("\\") and not is_raw:
+            # a line continuation adds nothing, any other escape one character
+            length = 0 if token[1] in "\r\n" else 1
+        else:
+            length = 1
+        offsets.extend([base + start + match.start()] * length)
+    return offsets
+
+
+def _docstring_offsets(doc_node: vy_ast.Str) -> List[int]:
+    # source offset (within the docstring's source) of each character of the
+    # parsed docstring. the docstring can be made of several implicitly
+    # concatenated literals, so walk each string token of its source.
+    raw = doc_node.node_source_code
+    line_starts = [0] + [i + 1 for i, c in enumerate(raw) if c == "\n"]
+
+    offsets: List[int] = []
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(raw).readline):
+            if token.type == tokenize.STRING:
+                row, col = token.start
+                offsets.extend(_literal_offsets(token.string, line_starts[row - 1] + col))
+            # the node source can run past the docstring (its end column is a
+            # utf-8 byte offset), so stop once the whole value is mapped
+            if len(offsets) >= len(doc_node.value):
+                break
+    except (tokenize.TokenError, SyntaxError):  # pragma: nocover
+        return []
+
+    if len(offsets) != len(doc_node.value):  # pragma: nocover
+        # unexpected literal form
+        return []
+    return offsets
+
+
+def _line_break_ends(doc_node: vy_ast.Str) -> List[int]:
+    # end offset of every line break in the docstring's source, counting every
+    # universal newline form like the parser does
+    return [m.end() for m in re.finditer(r"\r\n|\r|\n", doc_node.node_source_code)]
+
+
+def _docstring_position(
+    doc_node: vy_ast.Str, offsets: List[int], line_ends: List[int], offset: int
+) -> Tuple[int, int]:
+    # map an offset in the parsed docstring to a (line, column) in the source,
+    # using the precomputed `_docstring_offsets` and `_line_break_ends`
+    # fall back to the start of the docstring if the offsets couldn't be mapped
+    pos = offsets[offset] if offsets else 0
+
+    line = bisect.bisect_right(line_ends, pos)
+    if line == 0:
+        return doc_node.lineno, doc_node.col_offset + pos
+    return doc_node.lineno + line, pos - line_ends[line - 1]
+
+
 def _parse_docstring(
     source: str,
-    docstring: str,
+    doc_node: vy_ast.Str,
     invalid_fields: Tuple,
     params: Optional[Tuple] = None,
     return_length: int = 0,
@@ -91,8 +172,10 @@ def _parse_docstring(
     if params is None:
         params = tuple()
 
-    line_no = LineNumbers(source)
-    start = source.index(docstring)
+    docstring = doc_node.value
+    # built once per docstring, not once per tag
+    offsets = _docstring_offsets(doc_node)
+    line_ends = _line_break_ends(doc_node)
 
     translate_map = {"return": "returns", "dev": "details", "param": "params"}
 
@@ -100,7 +183,7 @@ def _parse_docstring(
 
     for match in re.finditer(pattern, docstring):
         tag, value = match.groups()
-        err_args = (source, *line_no.offset_to_line(start + match.start(1)))
+        err_args = (source, *_docstring_position(doc_node, offsets, line_ends, match.start(1)))
 
         if tag not in SINGLE_FIELDS + PARAM_FIELDS and not tag.startswith("custom:"):
             raise NatSpecSyntaxException(f"Unknown NatSpec field '@{tag}'", *err_args)
@@ -148,7 +231,9 @@ def _parse_docstring(
         natspec["notice"] = " ".join(docstring.split())
     elif not docstring.strip().startswith("@"):
         raise NatSpecSyntaxException(
-            "NatSpec docstring opens with untagged comment", source, *line_no.offset_to_line(start)
+            "NatSpec docstring opens with untagged comment",
+            source,
+            *_docstring_position(doc_node, offsets, line_ends, 0),
         )
 
     return natspec
