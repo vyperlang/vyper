@@ -38,6 +38,7 @@ from vyper.semantics.analysis.utils import (
     get_common_types,
     get_exact_type_from_node,
     get_expr_info,
+    get_expr_writes,
     get_possible_types_from_node,
     uses_state,
     validate_expected_type,
@@ -83,6 +84,7 @@ from vyper.semantics.types.infinity import (
     is_unbounded_sequence_type,
 )
 from vyper.semantics.types.utils import type_from_annotation
+from vyper.utils import OrderedSet
 
 
 def _modifies_unbounded_member_through_subscript(target: vy_ast.ExprNode) -> bool:
@@ -149,6 +151,124 @@ def _reaches_through_subscript(node: vy_ast.VyperNode) -> bool:
         node = node.value
 
     return False
+
+
+# Builtins which make a call, to another contract or to a precompile.
+# Their names are reserved, so a call by name is always the builtin.
+_CALL_BUILTINS = {
+    "raw_call",
+    "send",
+    "raw_create",
+    "create_minimal_proxy_to",
+    "create_forwarder_to",
+    "create_copy_of",
+    "create_from_blueprint",
+    "ecrecover",
+    "ecadd",
+    "ecmul",
+    "sha256",
+    "print",
+}
+
+
+def get_referenced_variables(node: vy_ast.ExprNode) -> OrderedSet[VarInfo]:
+    """Return the variables read while evaluating an expression, including
+    the state variables read by internal callees."""
+    return OrderedSet(
+        access.variable
+        for n in node.get_descendants(include_self=True)
+        # type expressions, e.g. `S` in `S(a=1)`, have no expr info
+        if isinstance(n, vy_ast.ExprNode) and n._expr_info is not None
+        for access in n._expr_info._reads
+    )
+
+
+def _reached_functions(node: vy_ast.ExprNode) -> OrderedSet[ContractFunctionT]:
+    """Return the internal functions evaluating `node` can reach, abstract
+    callees resolved to their overrides."""
+    ret: OrderedSet[ContractFunctionT] = OrderedSet()
+    for call in node.get_descendants(vy_ast.Call, include_self=True):
+        func_t = call.func._metadata.get("type")
+        if isinstance(func_t, ContractFunctionT) and func_t.is_internal:
+            callee = func_t.get_concrete_override()
+            ret.add(callee)
+            ret.update(callee.reachable_internal_functions)
+    return ret
+
+
+# The accesses recorded for a call to an abstract function are those of its
+# declaration, so these add those of the functions the expression reaches.
+
+
+def _base_reads(base: vy_ast.ExprNode) -> set[VarInfo]:
+    ret = set(get_referenced_variables(base))
+    for fn_t in _reached_functions(base):
+        ret.update(a.variable for a in fn_t.get_variable_reads() if a.variable.is_state_variable())
+    return ret
+
+
+def _index_writes(index: vy_ast.ExprNode) -> set[VarInfo]:
+    ret = {a.variable for a in get_expr_writes(index)}
+    for fn_t in _reached_functions(index):
+        ret.update(a.variable for a in fn_t.get_variable_writes() if a.variable.is_state_variable())
+    return ret
+
+
+def index_writes_base(base: vy_ast.ExprNode, index: vy_ast.ExprNode) -> bool:
+    """Return True if evaluating `index` can write a variable read by `base`.
+
+    The check is per variable, not per member: popping `x.a` writes `x`.
+    Accesses by internal callees count, through abstract callees'
+    overrides; external calls are not modeled.
+    """
+    return not _index_writes(index).isdisjoint(_base_reads(base))
+
+
+def contains_external_call(node: vy_ast.VyperNode) -> bool:
+    """Return True if evaluating `node` can call another contract or a
+    precompile, including through internal calls and the overrides of
+    abstract callees. Calls folded away at compile time are ignored."""
+    if isinstance(node, vy_ast.ExprNode):
+        node = node.reduced()
+
+    if isinstance(node, (vy_ast.ExtCall, vy_ast.StaticCall)):
+        return True
+
+    if isinstance(node, vy_ast.Call):
+        if isinstance(node.func, vy_ast.Name) and node.func.id in _CALL_BUILTINS:
+            return True
+        func_t = node.func._metadata.get("type")
+        if isinstance(func_t, ContractFunctionT) and func_t.is_internal:
+            if _function_contains_external_call(func_t.get_concrete_override()):
+                return True
+
+    return any(contains_external_call(child) for child in node._children)
+
+
+def _function_contains_external_call(func_t: ContractFunctionT) -> bool:
+    decl_node = func_t.decl_node
+    assert decl_node is not None
+    if "contains_external_call" not in decl_node._metadata:
+        # Recursion is forbidden, so the call graph traversal terminates.
+        decl_node._metadata["contains_external_call"] = any(
+            contains_external_call(child) for child in decl_node._children
+        )
+    return decl_node._metadata["contains_external_call"]
+
+
+def index_calls_out(base: vy_ast.ExprNode, index: vy_ast.ExprNode) -> bool:
+    """Return True if `index` can make an external call while `base` reads a
+    variable, which the call may modify by reentering.
+
+    Like legacy codegen, only declared variables other than constants
+    count, so `C[extcall t.f()]` for a constant `C` compiles, and so does
+    `self.g()[extcall t.f()]` for an internal `g` which reads no variable
+    (the environment variable `self` has no declaration).
+    """
+    return any(
+        var.decl_node is not None and var.modifiability != Modifiability.CONSTANT
+        for var in _base_reads(base)
+    ) and contains_external_call(index)
 
 
 def analyze_functions(vy_module: vy_ast.Module) -> None:
@@ -1390,6 +1510,23 @@ class ExprVisitor(VyperNodeVisitorBase[None]):
 
         self.visit(node.value, base_type)
         self.visit(node.slice, index_type)
+
+        # the value read would depend on whether the base or the index is
+        # evaluated first
+        if index_writes_base(node.value, node.slice):
+            raise StructureException(
+                "Index writes a variable that the indexed value reads",
+                node,
+                hint="evaluate the index into a local variable first",
+            )
+        # like legacy codegen, leave HashMaps out of this check, so that e.g.
+        # `self.balances[staticcall token.owner()]` compiles
+        if isinstance(base_type, (SArrayT, DArrayT)) and index_calls_out(node.value, node.slice):
+            raise StructureException(
+                "Index makes an external call, which may modify the indexed array",
+                node,
+                hint="evaluate the index into a local variable first",
+            )
 
     def visit_Tuple(self, node: vy_ast.Tuple, typ: VyperType) -> None:
         if isinstance(typ, TYPE_T):

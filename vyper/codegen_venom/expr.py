@@ -30,8 +30,7 @@ from vyper.exceptions import (
     UnimplementedException,
     tag_exceptions,
 )
-from vyper.semantics.analysis.base import Modifiability
-from vyper.semantics.analysis.utils import get_expr_writes
+from vyper.semantics.analysis.local import index_calls_out, index_writes_base
 from vyper.semantics.data_locations import DataLocation
 from vyper.semantics.types import (
     AddressT,
@@ -92,84 +91,11 @@ class _CallKwargs:
 # Environment variable prefixes for attribute access
 ENVIRONMENT_VARIABLES = {"block", "msg", "tx", "chain"}
 
-# Builtins whose lowering emits call-family opcodes. This mirrors
-# IRnode.contains_risky_call at the source level.
-_RISKY_BUILTINS = {
-    "raw_call",
-    "send",
-    "raw_create",
-    "create_minimal_proxy_to",
-    "create_copy_of",
-    "create_from_blueprint",
-    "ecrecover",
-    "ecadd",
-    "ecmul",
-    "sha256",
-    "print",
-}
 
-
-def get_referenced_variables(node: vy_ast.VyperNode) -> set:
-    """Return variables read while evaluating an expression."""
-    if isinstance(node, vy_ast.ExprNode):
-        # Ignore reads which were folded away at compile time.
-        node = node.reduced()
-    ret: set = set()
-    if isinstance(node, vy_ast.ExprNode) and node._expr_info is not None:
-        ret.update(access.variable for access in node._expr_info._reads)
-    for child in node._children:
-        ret |= get_referenced_variables(child)
-    return ret
-
-
-def _contains_risky_call(node: vy_ast.VyperNode) -> bool:
-    if isinstance(node, vy_ast.ExprNode):
-        # Ignore calls which were folded away at compile time.
-        node = node.reduced()
-
-    if isinstance(node, (vy_ast.ExtCall, vy_ast.StaticCall)):
-        return True
-
-    if isinstance(node, vy_ast.Call):
-        func_t = node.func._metadata.get("type")
-        if isinstance(func_t, BuiltinFunctionT) and func_t._id in _RISKY_BUILTINS:
-            return True
-        if isinstance(func_t, ContractFunctionT) and func_t.is_internal:
-            if _function_contains_risky_call(func_t.get_concrete_override()):
-                return True
-
-    return any(_contains_risky_call(child) for child in node._children)
-
-
-def _function_contains_risky_call(func_t: ContractFunctionT) -> bool:
-    decl_node = func_t.decl_node
-    assert decl_node is not None
-    if "contains_risky_call" not in decl_node._metadata:
-        # Recursion is forbidden, so the call graph traversal terminates.
-        decl_node._metadata["contains_risky_call"] = any(
-            _contains_risky_call(child) for child in decl_node._children
-        )
-    return decl_node._metadata["contains_risky_call"]
-
-
-def _subscript_read_write_overlap(
-    base_node: vy_ast.VyperNode, index_node: vy_ast.VyperNode
-) -> bool:
+def _subscript_read_write_overlap(base_node: vy_ast.ExprNode, index_node: vy_ast.ExprNode) -> bool:
     # The base is evaluated before the index. Detect an index expression
     # which can mutate variables used to derive that base.
-    base_reads = {
-        var
-        for var in get_referenced_variables(base_node)
-        if var.decl_node is not None and var.modifiability != Modifiability.CONSTANT
-    }
-    if not base_reads:
-        return False
-
-    index_writes = {access.variable for access in get_expr_writes(index_node)}
-    if base_reads & index_writes:
-        return True
-
-    return _contains_risky_call(index_node)
+    return index_writes_base(base_node, index_node) or index_calls_out(base_node, index_node)
 
 
 def is_unbounded_array_element(node: vy_ast.VyperNode) -> bool:
@@ -1065,25 +991,12 @@ class Expr:
         assert isinstance(node, vy_ast.Subscript)
         base_typ = node.value._metadata["type"]
 
-        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
-        reference = base_vv.reference
-        overlap = (
-            reference is not None
-            and len(reference.indices) > 0
-            and _subscript_read_write_overlap(node.value, node.slice)
-        )
-        if overlap and self.as_ptr:
+        # Sanity check: semantic analysis rejects these.
+        if _subscript_read_write_overlap(node.value, node.slice):
             raise CompilerPanic("risky overlap")
-        if overlap:
-            # An unbounded member of an array element cannot be mutated in
-            # place, so its payload survives removal of the containing frame.
-            if not is_unbounded_sequence_type(base_typ):
-                base_vv = self.ctx.materialize_value(base_vv, base_typ)
-            else:
-                base_vv = base_vv.with_reference(None)
 
+        base_vv = Expr(node.value, self.ctx, as_ptr=self.as_ptr).lower()
         index = Expr(node.slice, self.ctx).lower_value()
-        base_vv = self._resolve_after(base_vv, node.slice, node.value)
         base = base_vv.operand
 
         elem_typ = base_typ.value_type
@@ -1362,7 +1275,7 @@ class Expr:
         return self._make_ptr_value(field_ptr, data_loc, field_typ, field_reference)
 
     def _resolve_after(
-        self, value: VyperValue, evaluated: vy_ast.VyperNode, derived_from: vy_ast.VyperNode
+        self, value: VyperValue, evaluated: vy_ast.ExprNode, derived_from: vy_ast.ExprNode
     ) -> VyperValue:
         """Consume a live reference after an expression that may invalidate it."""
         reference = value.reference

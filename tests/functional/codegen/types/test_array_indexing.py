@@ -3,7 +3,11 @@
 import pytest
 
 from vyper import compile_code
-from vyper.exceptions import CompilerPanic, InvalidOperation, TypeCheckFailure
+from vyper.exceptions import InvalidOperation, StructureException, TypeCheckFailure
+
+_WRITE_MSG = "Index writes a variable that the indexed value reads"
+_CALL_MSG = "Index makes an external call, which may modify the indexed array"
+_HINT = "evaluate the index into a local variable first"
 
 
 def test_negative_ix_access(get_contract, tx_failed):
@@ -137,10 +141,7 @@ def foo():
         assert c.arr(i) == i
 
 
-def test_array_index_overlap(get_contract, experimental_codegen):
-    if not experimental_codegen:
-        pytest.xfail("legacy codegen still rejects risky subscript overlap")
-
+def test_array_index_overlap(get_contract):
     code = """
 a: public(DynArray[DynArray[Bytes[96], 5], 5])
 
@@ -156,14 +157,13 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    c = get_contract(code)
-    assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+    assert e.value.message == _WRITE_MSG
+    assert e.value.hint == _HINT
 
 
-def test_array_index_overlap_extcall(get_contract, experimental_codegen):
-    if not experimental_codegen:
-        pytest.xfail("legacy codegen still rejects risky subscript overlap")
-
+def test_array_index_overlap_extcall(get_contract):
     code = """
 
 interface Bar:
@@ -183,14 +183,13 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    c = get_contract(code)
-    assert c.foo() == b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+    assert e.value.message == _CALL_MSG
+    assert e.value.hint == _HINT
 
 
-def test_array_index_overlap_extcall2(get_contract, experimental_codegen):
-    if not experimental_codegen:
-        pytest.xfail("legacy codegen still rejects risky subscript overlap")
-
+def test_array_index_overlap_extcall2(get_contract):
     code = """
 interface B:
     def calculate_index() -> uint256: nonpayable
@@ -207,15 +206,13 @@ def calculate_index() -> uint256:
     self.a[0] = [1]
     return 0
     """
-    c = get_contract(code)
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+    assert e.value.message == _CALL_MSG
+    assert e.value.hint == _HINT
 
-    assert c.bar() == 1
 
-
-def test_array_index_overlap_attribute(get_contract, experimental_codegen):
-    if not experimental_codegen:
-        pytest.xfail("legacy codegen still rejects risky subscript overlap")
-
+def test_array_index_overlap_attribute(get_contract):
     code = """
 struct Foo:
     b: DynArray[uint256, 4]
@@ -233,12 +230,12 @@ def bar() -> uint256:
     self.a.pop()
     return 0
     """
-    c = get_contract(code)
-    assert c.foo() == 1
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+    assert e.value.message == _WRITE_MSG
+    assert e.value.hint == _HINT
 
 
-# to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
 def test_array_index_overlap_store(get_contract):
     code = """
 a: DynArray[DynArray[uint256, 5], 5]
@@ -255,12 +252,12 @@ def bar() -> uint256:
     self.a.append([2])
     return 0
     """
-    c = get_contract(code)
-    assert c.foo() == 7
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+    assert e.value.message == _WRITE_MSG
+    assert e.value.hint == _HINT
 
 
-# to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
 def test_array_index_overlap_store_attribute(get_contract):
     code = """
 struct Foo:
@@ -280,12 +277,12 @@ def bar() -> uint256:
     self.a.append(Foo(b=[2, 2, 2, 2]))
     return 0
     """
-    c = get_contract(code)
-    assert c.foo() == 7
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+    assert e.value.message == _WRITE_MSG
+    assert e.value.hint == _HINT
 
 
-# to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
 def test_array_index_overlap_store_attribute_target(get_contract):
     code = """
 struct Foo:
@@ -305,19 +302,17 @@ def bar() -> uint256:
     self.a.append([Foo(b=2)])
     return 0
     """
-    c = get_contract(code)
-    assert c.foo() == 7
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+    assert e.value.message == _WRITE_MSG
+    assert e.value.hint == _HINT
 
 
-# The storage case's idx() rewrites [1] to [2], matching the memory case's
-# initial value, so both cases share the same expected result.
-_MEMBER_CALLS = [("append(5)", [[[7, 5], [8]], [[9], [2]]]), ("pop()", [[[], [8]], [[9], [2]]])]
+_MEMBER_CALLS = ["append(5)", "pop()"]
 
 
-# to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
-@pytest.mark.parametrize("call,expected", _MEMBER_CALLS)
-def test_array_index_overlap_member_call_target(get_contract, call, expected):
+@pytest.mark.parametrize("call", _MEMBER_CALLS)
+def test_array_index_overlap_member_call_target(get_contract, call):
     code = f"""
 @external
 def foo() -> DynArray[DynArray[DynArray[uint256, 3], 3], 3]:
@@ -325,14 +320,14 @@ def foo() -> DynArray[DynArray[DynArray[uint256, 3], 3], 3]:
     x[0][convert(sha256(convert(msg.sender, bytes32)), uint256) % 1].{call}
     return x
     """
-    c = get_contract(code)
-    assert c.foo() == expected
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+    assert e.value.message == _CALL_MSG
+    assert e.value.hint == _HINT
 
 
-# to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
-@pytest.mark.parametrize("call,expected", _MEMBER_CALLS)
-def test_array_index_overlap_member_call_target_storage(get_contract, call, expected):
+@pytest.mark.parametrize("call", _MEMBER_CALLS)
+def test_array_index_overlap_member_call_target_storage(get_contract, call):
     code = f"""
 a: DynArray[DynArray[DynArray[uint256, 3], 3], 3]
 
@@ -347,14 +342,14 @@ def idx() -> uint256:
     self.a[1][1] = [2]
     return 0
     """
-    c = get_contract(code)
-    assert c.foo() == expected
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+    assert e.value.message == _WRITE_MSG
+    assert e.value.hint == _HINT
 
 
-# to fix in future release
-@pytest.mark.xfail(raises=CompilerPanic, reason="risky overlap")
-@pytest.mark.parametrize("call,expected", [("append(5)", [7, 5]), ("pop()", [])])
-def test_array_index_overlap_member_call_target_struct_field(get_contract, call, expected):
+@pytest.mark.parametrize("call", _MEMBER_CALLS)
+def test_array_index_overlap_member_call_target_struct_field(get_contract, call):
     code = f"""
 struct Foo:
     a: DynArray[uint256, 3]
@@ -372,8 +367,10 @@ def idx() -> uint256:
     self.x[1][0].a = [2]
     return 0
     """
-    c = get_contract(code)
-    assert c.foo() == expected
+    with pytest.raises(StructureException) as e:
+        get_contract(code)
+    assert e.value.message == _WRITE_MSG
+    assert e.value.hint == _HINT
 
 
 def test_append_to_row_popped_by_argument(get_contract, tx_failed):
