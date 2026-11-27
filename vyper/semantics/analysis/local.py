@@ -187,9 +187,18 @@ def index_writes_base(base: vy_ast.ExprNode, index: vy_ast.ExprNode) -> bool:
     """Return True if evaluating `index` can write a variable read by `base`.
 
     The check is per variable, not per member: popping `x.a` writes `x`.
-    Writes by internal callees count; external calls are not modeled.
+    Writes by internal callees count, through abstract callees'
+    overrides; external calls are not modeled.
     """
     index_writes = {access.variable for access in get_expr_writes(index)}
+    # the writes recorded for a call to an abstract function are its
+    # declaration's, so add those of the functions the index can reach
+    for call in index.get_descendants(vy_ast.Call, include_self=True):
+        func_t = call.func._metadata.get("type")
+        if isinstance(func_t, ContractFunctionT) and func_t.is_internal:
+            callee = func_t.get_concrete_override()
+            for fn_t in (callee, *callee.reachable_internal_functions):
+                index_writes.update(access.variable for access in fn_t.get_variable_writes())
     return not index_writes.isdisjoint(get_referenced_variables(base))
 
 

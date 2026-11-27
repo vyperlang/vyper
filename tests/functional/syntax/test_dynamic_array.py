@@ -395,6 +395,7 @@ _STRUCT_DECLS = (
             "(self.d if self.d[0] == 0 else [1])[self.hook()]",
         ),
         ("d: DynArray[uint256, 4]", "self.d = [5]", "[self.d[0], 1][self.hook()]"),
+        ("d: DynArray[uint256, 4]", "self.d = [5]", "(self.d, msg.sender)[0][self.hook()]"),
         # every member of a struct literal counts
         (_STRUCT_DECLS, "self.e = [5]", "S(a=self.d, b=self.e).a[self.hook()]"),
         (_STRUCT_DECLS, "self.e = [5]", "S(a=self.d, b=self.e).b[self.hook()]"),
@@ -468,7 +469,11 @@ def foo() -> uint256:
     assert e.value.annotations[0].node_source_code == expr
 
 
-def test_index_calling_out_through_abstract_override_rejected(make_input_bundle):
+@pytest.mark.parametrize(
+    "body,msg",
+    [("return staticcall T(msg.sender).f()", _CALL_MSG), ("lib.d = [7]\n    return 0", _WRITE_MSG)],
+)
+def test_index_through_abstract_override_rejected(make_input_bundle, body, msg):
     lib = """
 d: DynArray[uint256, 4]
 
@@ -488,7 +493,7 @@ interface T:
 
 @override(lib)
 def hook() -> uint256:
-    return staticcall T(msg.sender).f()
+    {body}
 
 @external
 def foo() -> uint256:
@@ -496,8 +501,10 @@ def foo() -> uint256:
     """
     input_bundle = make_input_bundle({"lib.vy": lib})
     with pytest.raises(StructureException) as e:
-        compile_code(code, input_bundle=input_bundle, output_formats=["annotated_ast_dict"])
-    assert e.value.message == _CALL_MSG
+        compile_code(
+            code.format(body=body), input_bundle=input_bundle, output_formats=["annotated_ast_dict"]
+        )
+    assert e.value.message == msg
     assert e.value.hint == _HINT
     assert e.value.annotations[0].node_source_code == "self.d[self.hook()]"
 
