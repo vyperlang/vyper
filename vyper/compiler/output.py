@@ -152,7 +152,10 @@ def build_interface_output(compiler_data: CompilerData) -> str:
     if len(events) > 0:
         out += "# Events\n\n"
         for event in events:
-            encoded_args = "\n    ".join(f"{name}: {typ}" for name, typ in event.arguments.items())
+            event_args = []
+            for is_indexed, (name, typ) in zip(event.indexed, event.arguments.items()):
+                event_args.append(f"{name}: indexed({typ})" if is_indexed else f"{name}: {typ}")
+            encoded_args = "\n    ".join(event_args)
             out += f"event {event.name}:\n    {encoded_args if event.arguments else 'pass'}\n\n\n"
 
     errors: OrderedSet[ErrorT] = OrderedSet(interface.errors.values())
