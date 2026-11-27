@@ -444,3 +444,36 @@ def foo() -> Bytes[32]:
     """
     with pytest.raises(StructureException, match="abi_encode expects at least one argument"):
         compile_code(code)
+
+
+def test_abi_encode_hexbytes_method_id(get_contract):
+    # GH issue 5018
+    code = """
+SELECTOR: constant(Bytes[4]) = x"cafebabe"
+
+@external
+def literal(x: uint256) -> Bytes[36]:
+    return abi_encode(x, method_id=x"deadbeef")
+
+@external
+def folded(x: uint256) -> Bytes[36]:
+    return abi_encode(x, method_id=SELECTOR)
+    """
+    c = get_contract(code)
+    payload = abi.encode("uint256", 123)
+    assert c.literal(123) == bytes.fromhex("deadbeef") + payload
+    assert c.folded(123) == bytes.fromhex("cafebabe") + payload
+
+
+def test_abi_encode_short_method_id_constant(get_contract):
+    # Bytes[4] accepts a shorter hex literal. Folding that into method_id
+    # used to panic in codegen instead of reporting a bad literal.
+    code = """
+SELECTOR: constant(Bytes[4]) = x"ab"
+
+@external
+def folded(x: uint256) -> Bytes[36]:
+    return abi_encode(x, method_id=SELECTOR)
+    """
+    with pytest.raises(StructureException, match="4 byte"):
+        get_contract(code)
