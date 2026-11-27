@@ -301,11 +301,15 @@ The following example describes the expected input format of ``vyper-json``. (Co
             }
         },
         // Optional
-        // Storage layout overrides for the contracts that are compiled
+        // Storage layout overrides for the contracts that are compiled.
+        // Each contract takes exactly one override, keyed by the filename
+        // of the layout.
         "storage_layout_overrides": {
             "contracts/foo.vy": {
-                "a": {"type": "uint256", "slot": 1, "n_slots": 1},
-                "b": {"type": "uint256", "slot": 0, "n_slots": 1},
+                "contracts/foo_layout.json": {
+                    "a": {"type": "uint256", "slot": 1, "n_slots": 1},
+                    "b": {"type": "uint256", "slot": 0, "n_slots": 1}
+                }
             }
         },
         // Required
