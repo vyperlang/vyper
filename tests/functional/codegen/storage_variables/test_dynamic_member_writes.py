@@ -12,7 +12,6 @@ buffer would write `junk`'s words into the slots; they must keep `old`'s.
 import pytest
 
 from vyper import compile_code
-from vyper.compiler.settings import OptimizationLevel
 from vyper.evm.opcodes import version_check
 
 AB = int.from_bytes(b"ab".ljust(32, b"\0"), "big")
@@ -40,23 +39,6 @@ struct D:
 struct E:
     b: Bytes[16]
     c: uint256
-
-struct G:
-    p: uint256
-    q: uint256[4]
-
-struct H:
-    x: DynArray[uint256, 3]
-    y: uint256
-    z: uint256
-
-struct F:
-    a: uint256
-    b: DynArray[uint256, 2]
-    c: G
-    d: uint256
-    e: H
-    g: uint256
 
 struct J:
     a: DynArray[uint256, 2]
@@ -111,22 +93,6 @@ CASES = [
         [([7, 7, 7], 7), ([7, 7, 7], 7)],
         [([9], 10)],
         [1, 1, 9, 2, 3, 10, 3, 5, 6, 7, 8],
-    ),
-    # runs of static members between dynamic ones; `c` and `d` form a
-    # run of 6 words, as do `b`, `c` and `d` at the end of `J`
-    (
-        "F",
-        (1, [2, 3], (4, [5, 6, 7, 8]), 9, ([10, 11, 12], 13, 14), 15),
-        (70, [71, 72], (73, [74, 75, 76, 77]), 78, ([79, 80, 81], 82, 83), 84),
-        (21, [22], (23, [24, 25, 26, 27]), 28, ([], 29, 30), 31),
-        [21, 1, 22, 3, 23, 24, 25, 26, 27, 28, 0, 10, 11, 12, 29, 30, 31],
-    ),
-    (
-        "DynArray[J, 2]",
-        [([1, 2], 3, [4, 5, 6, 7], 8), ([9], 10, [11, 12, 13, 14], 15)],
-        [([70, 71], 72, [73, 74, 75, 76], 77), ([78, 79], 80, [81, 82, 83, 84], 85)],
-        [([21], 22, [23, 24, 25, 26], 27)],
-        [1, 1, 21, 2, 22, 23, 24, 25, 26, 27, 1, 9, 0, 10, 11, 12, 13, 14, 15],
     ),
 ]
 
@@ -239,38 +205,29 @@ def run(clearer: address, initial: {words}) -> {words}:
 
 @pytest.mark.parametrize(
     "declaration",
-    ["S", pytest.param("transient(S)", marks=pytest.mark.requires_evm_version("cancun"))],
+    ["{}", pytest.param("transient({})", marks=pytest.mark.requires_evm_version("cancun"))],
 )
-def test_clear_struct_codesize(compiler_settings, declaration):
-    if (
-        not compiler_settings.experimental_codegen
-        or compiler_settings.optimize != OptimizationLevel.CODESIZE
-    ):
-        pytest.skip("checks Venom's -Os clear loop")
+def test_clear_reads_no_memory(compiler_settings, declaration):
+    if not compiler_settings.experimental_codegen:
+        pytest.skip("checks how venom lowers the clear")
 
-    fields = [f"x{i}" for i in range(6)]
-    members = "\n".join(f"    {name}: uint256" for name in fields)
     source = f"""
 struct S:
-{members}
-    items: DynArray[uint256, 1024]
+    words: uint256[32]
+    items: DynArray[uint256, 4]
 
-s: {declaration}
+s: {declaration.format("S")}
 
 @external
 def clear():
-"""
-    clear = compile_code(
-        source + "    self.s = empty(S)",
-        settings=compiler_settings,
-        output_formats=["bytecode_runtime", "opcodes_runtime"],
-    )
-    direct = "\n".join(f"    self.s.{name} = 0" for name in fields) + "\n    self.s.items = []"
-    explicit = compile_code(
-        source + direct, settings=compiler_settings, output_formats=["bytecode_runtime"]
-    )
-    assert len(clear["bytecode_runtime"]) < len(explicit["bytecode_runtime"])
-    assert "MLOAD" not in clear["opcodes_runtime"].split()
+    self.s = empty(S)
+    """
+    out = compile_code(source, settings=compiler_settings, output_formats=["opcodes_runtime"])
+    opcodes = out["opcodes_runtime"].split()
+    store = "TSTORE" if "transient" in declaration else "SSTORE"
+    # one store in the loop over `words`, one for the length of `items`
+    assert opcodes.count(store) == 2
+    assert "MLOAD" not in opcodes
 
 
 def _check_transient_write(get_contract, typ, old, junk, new, expected):

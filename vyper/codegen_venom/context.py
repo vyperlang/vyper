@@ -13,8 +13,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from itertools import groupby
-from typing import Callable, ClassVar, Iterator, Optional, Sequence
+from typing import Callable, ClassVar, Optional, Sequence
 
 from vyper.codegen_shared.layout import has_length_word, punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
@@ -1634,22 +1633,6 @@ class VenomCodegenContext:
             slot, buf, word_count, self.builder.sload, self.builder.mstore, 1, 32, "s2m"
         )
 
-    # word-copy loops ignore the opt level and beat unrolled stores on size only from ~6 words
-    _BATCHED_STATIC_RUN_MIN_WORDS = 6
-
-    def _storage_members(self, typ: StructT | TupleT) -> Iterator[VyperType]:
-        """At -Os, group adjacent static members totaling at least six words into one tuple."""
-        for is_dynamic, run in groupby(typ.tuple_members(), lambda t: t.abi_type.is_dynamic()):
-            members = tuple(run)
-            if not is_dynamic and _opt_codesize():
-                words = sum(t.storage_size_in_words for t in members)
-                if words >= self._BATCHED_STATIC_RUN_MIN_WORDS:
-                    batch = TupleT(members)
-                    assert batch.memory_bytes_required == 32 * words
-                    yield batch
-                    continue
-            yield from members
-
     def clear_storage_slots(self, dst: Ptr, typ: VyperType) -> None:
         """Write empty(typ) in place, preserving the data slots of empty sequences."""
         assert dst.location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
@@ -1668,15 +1651,19 @@ class VenomCodegenContext:
         else:
             assert isinstance(typ, (StructT, TupleT))
             offset = 0
-            for member in self._storage_members(typ):
+            for member in typ.tuple_members():
                 self.clear_storage_slots(self.add_offset(dst, offset), member)
                 offset += member.storage_size_in_words
+
+    # a loop of zero stores is smaller than unrolled ones from 6 words at a
+    # fixed slot (2 bytes larger at 5 words, 2 bytes smaller at 6)
+    _CLEAR_LOOP_MIN_WORDS = 6
 
     def _clear_slot_words(self, dst: Ptr, words: int) -> None:
         def clear_word(i: IROperand) -> None:
             self.ptr_store(self.add_offset(dst, i), IRLiteral(0))
 
-        if words < self._BATCHED_STATIC_RUN_MIN_WORDS:
+        if words < self._CLEAR_LOOP_MIN_WORDS:
             for i in range(words):
                 clear_word(IRLiteral(i))
         else:
@@ -1722,7 +1709,7 @@ class VenomCodegenContext:
             assert isinstance(typ, (StructT, TupleT))
             mem_ofst = 0
             slot_ofst = 0
-            for member_t in self._storage_members(typ):
+            for member_t in typ.tuple_members():
                 member_src = self._with_byte_offset(src, mem_ofst)
                 member_slot = self._with_byte_offset(slot, slot_ofst)
                 self._store_memory_to_slots(member_src, member_slot, member_t, transient)
