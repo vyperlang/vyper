@@ -19,7 +19,6 @@ from vyper.codegen_venom.abi import (
     runtime_abi_size_for_encode,
 )
 from vyper.codegen_venom.arithmetic import apply_binop
-from vyper.compiler.settings import _opt_codesize
 from vyper.exceptions import CodegenPanic, CompilerPanic, TypeCheckFailure, tag_exceptions
 from vyper.semantics.analysis.utils import get_expr_writes
 from vyper.semantics.data_locations import DataLocation
@@ -180,10 +179,12 @@ class Stmt:
             self.ctx.ptr_store(dst_ptr, IRLiteral(0))
             return
 
-        # Clear aggregates in place so a word-copy loop needn't read a zeroed buffer.
+        # empty(T) into a storage or transient aggregate: zero its words in
+        # place instead of building a zeroed buffer and copying it.
+        # clear_storage_slots walks the storage layout, so memory targets
+        # take the generic path below.
         if (
-            _opt_codesize()
-            and isinstance(target_typ, (StructT, TupleT, SArrayT))
+            isinstance(target_typ, (StructT, TupleT, SArrayT))
             and self._is_empty_value(node.value)
             and target._expr_info.location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
         ):
