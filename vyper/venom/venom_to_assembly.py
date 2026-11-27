@@ -696,6 +696,11 @@ class VenomCompiler:
             # SingleUseExpansion copies phi operands that are live past the phi
             assert to_be_replaced not in next_liveness
             stack.poke(depth, ret)
+            # a dead phi (e.g. its only use was removed by a late
+            # SimplifyCFGPass) must be popped like any other dead output,
+            # otherwise its incoming value is stranded on the stack.
+            if not skip_pops and ret not in next_liveness:
+                self.popmany(assembly, [ret], stack)
             return apply_line_numbers(inst, assembly)
 
         if opcode == "offset":
