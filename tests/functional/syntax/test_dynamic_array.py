@@ -4,7 +4,6 @@ from vyper import compile_code
 from vyper.compiler.settings import Settings
 from vyper.exceptions import (
     ArrayIndexException,
-    CompilerPanic,
     ImmutableViolation,
     InvalidOperation,
     MemoryAllocationException,
@@ -217,9 +216,7 @@ def test_dynarray_pass(good_code):
     assert compile_code(good_code) is not None
 
 
-def test_len_of_singleton_list_literal(request, experimental_codegen):
-    if not experimental_codegen:
-        request.node.add_marker(pytest.mark.xfail(raises=CompilerPanic))
+def test_len_of_singleton_list_literal():
     code = """
 @external
 def foo():

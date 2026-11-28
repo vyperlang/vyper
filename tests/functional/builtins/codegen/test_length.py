@@ -28,3 +28,46 @@ def boo() -> uint256:
 
     c = get_contract(code)
     assert c.boo() == 0
+
+
+def test_len_list_literal(get_contract):
+    # GH 3632
+    code = """
+X: constant(uint256) = len([1, 2, 3])
+
+@external
+def foo() -> uint256:
+    return len([1, 2, 3])
+
+@external
+def bar() -> uint256:
+    return X
+    """
+
+    c = get_contract(code)
+    assert c.foo() == 3
+    assert c.bar() == 3
+
+
+def test_len_list_literal_side_effects(get_contract):
+    code = """
+counter: uint256
+
+@internal
+def bump() -> uint256:
+    self.counter += 1
+    return self.counter
+
+@external
+def foo(x: uint256) -> uint256:
+    return len([x, self.bump(), self.bump()])
+
+@external
+def get_counter() -> uint256:
+    return self.counter
+    """
+
+    c = get_contract(code)
+    assert c.foo(5) == 3
+    # the list elements must still be evaluated
+    assert c.get_counter() == 2
