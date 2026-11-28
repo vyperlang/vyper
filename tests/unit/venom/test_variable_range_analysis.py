@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.analysis.variable_range import VariableRangeAnalysis
 from vyper.venom.analysis.variable_range.evaluators import eval_sdiv, eval_smod
@@ -1702,6 +1704,41 @@ def test_nested_conditional_refinement_3_levels():
     rng = analysis.get_range(x_var, innermost_bb.instructions[0])
     # After 3 levels: x < 1000, x < 100, x < 10 => x in [0, 9]
     assert rng.hi == 9
+
+
+@pytest.mark.parametrize("inner_cmp", ["gt %x, 7", "lt 7, %x"])
+def test_compare_on_unreachable_edge_stays_bottom(inner_cmp):
+    """A comparison on a variable that is already BOTTOM must not read its
+    bounds; the edge stays unreachable."""
+    analysis, fn = _analyze(f"""
+        function test {{
+        entry:
+            %a = calldataload 0
+            %x = and %a, 255
+            %c1 = gt %x, 255
+            jnz %c1, @dead, @exit
+
+        dead:
+            %c2 = {inner_cmp}
+            jnz %c2, @dead_then, @dead_else
+
+        dead_then:
+            %t = add %x, 1
+            stop
+
+        dead_else:
+            %e = add %x, 2
+            stop
+
+        exit:
+            stop
+        }}
+        """)
+
+    x_var = fn.get_basic_block("entry").instructions[1].output
+    for label in ("dead", "dead_then", "dead_else"):
+        inst = fn.get_basic_block(label).instructions[0]
+        assert analysis.get_range(x_var, inst).is_empty
 
 
 def test_phi_merge_4_branches():
