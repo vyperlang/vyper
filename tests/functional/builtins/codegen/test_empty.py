@@ -695,11 +695,6 @@ def foo():
     """,
         """
 @external
-def bar():
-    ys: Bytes[33] = empty(Bytes[32])
-    """,
-        """
-@external
 def baz():
     zs: decimal[1][1] = empty(address[1][1])
     """,

@@ -317,7 +317,9 @@ class VyperNode:
         """
         ast_struct = {i: getattr(node, i) for i in VyperNode._public_slots}
         ast_struct.update(ast_type=cls.__name__, **kwargs)
-        return cls(**ast_struct)
+        ret = cls(**ast_struct)
+        ret._original_node = node
+        return ret
 
     @classmethod
     @functools.lru_cache(maxsize=None)
@@ -432,7 +434,11 @@ class VyperNode:
         cls = node.__class__
         # make a fresh copy so that the node metadata is fresh.
         node = cls(**{i: getattr(node, i) for i in node.get_fields() if hasattr(node, i)})
-        node._original_node = self
+        if node._original_node is None:
+            node._original_node = self
+        else:
+            # already set by _from_node
+            assert node._original_node is self
 
         self._metadata["folded_value"] = node
 

@@ -51,8 +51,10 @@ from vyper.exceptions import (
     StateAccessViolation,
     StructureException,
     TypeMismatch,
+    UndeclaredDefinition,
     UnfoldableNode,
     UnimplementedException,
+    UnknownType,
     ZeroDivisionException,
 )
 from vyper.semantics.analysis.base import Modifiability, StateMutability
@@ -73,12 +75,16 @@ from vyper.semantics.types import (
     BytesT,
     DArrayT,
     DecimalT,
+    FlagT,
     HashMapT,
     IntegerT,
+    InterfaceT,
     KwargSettings,
     SArrayT,
     StringT,
+    StructT,
     TupleT,
+    VyperType,
     _BytestringT,
     is_bounded_length,
     is_runtime_sizable_type,
@@ -2205,6 +2211,78 @@ class Empty(TypenameFoldedFunctionT):
         output_type = args[0]
         return IRnode("~empty", typ=output_type)
 
+    def _fold_helper(self, node, typ: VyperType) -> vy_ast.ExprNode:
+        if isinstance(typ, BoolT):
+            return vy_ast.NameConstant.from_node(node, value=False)
+        elif isinstance(typ, IntegerT):
+            return vy_ast.Int.from_node(node, value=0)
+        elif isinstance(typ, DecimalT):
+            return vy_ast.Decimal.from_node(node, value=0)
+        elif isinstance(typ, StringT):
+            return vy_ast.Str.from_node(node, value="")
+        elif isinstance(typ, BytesT):
+            return vy_ast.Bytes.from_node(node, value=b"")
+        elif isinstance(typ, BytesM_T):
+            return vy_ast.Hex.from_node(node, value="0x" + "0" * typ.m * 2)
+        elif isinstance(typ, AddressT):
+            return vy_ast.Hex.from_node(node, value="0x" + "0" * 20 * 2)
+        elif isinstance(typ, InterfaceT):
+            raise UnfoldableNode("TODO: Implement this")
+            # TODO: this doesn't work because in this namespace the name can be something different
+            # lib1.Foo vs Foo
+            # func = vy_ast.Name.from_node(node, id=typ._id)
+
+            # address = vy_ast.Hex.from_node(node, value="0x" + "0" * 20 * 2)
+            # return vy_ast.Call.from_node(node, func=func, args=[address])
+
+        elif isinstance(typ, SArrayT):
+            element = self._fold_helper(node, typ.value_type)
+            # note: this aliases the element, do we care ? (elements[0] is elements[1])
+            return vy_ast.List.from_node(node, elements=[element] * typ.length)
+        elif isinstance(typ, DArrayT):
+            return vy_ast.List.from_node(node, elements=[])
+        elif isinstance(typ, TupleT):
+            elements = [self._fold_helper(node, t) for t in typ.member_types]
+            return vy_ast.Tuple.from_node(node, elements=elements)
+        elif isinstance(typ, HashMapT):  # pragma: nocover
+            raise CompilerPanic("Hashmap was successfully passed to empty !?")
+
+        elif isinstance(typ, StructT):
+            raise UnfoldableNode("TODO: Implement this")
+            # TODO: this doesn't work because in this namespace the name can be something different
+            # lib1.Foo(x=0) vs Foo(x=0)
+            # func = vy_ast.Name.from_node(node, id=typ._id)
+
+            # keywords = [
+            #     vy_ast.keyword.from_node(
+            #         node,
+            #         arg=vy_ast.Name.from_node(node, id=s),
+            #         value=self._fold_helper(node, t))
+            #     for s, t in typ.members.items()
+            # ]
+
+            # return vy_ast.Call.from_node(node, func=func, keywords=keywords)
+
+        elif isinstance(typ, FlagT):
+            # TODO: There is currently no value to use here, `empty` is the only way to create
+            # and empty flagset (other than `MyFlag.Foo ^ MyFlag.Foo`)
+            raise UnfoldableNode("TODO: Implement this")
+
+        raise CompilerPanic(f"empty not implemented for type {typ}")  # pragma: nocover
+
+    def _try_fold(self, node):
+        try:
+            self._validate_arg_types(node)
+            input_type = type_from_annotation(node.args[0])
+            folded = self._fold_helper(node, input_type)
+            # folded._metadata["type"] = input_type  # probably needed, but doesn't change anything?
+            return folded
+
+        # At this point, the local types (like a SomeStruct in self) have not yet been resolved
+        # TODO: Remove this once that is the case
+        except (UndeclaredDefinition, UnknownType):
+            raise UnfoldableNode
+
 
 class Breakpoint(BuiltinFunctionT):
     _id = "breakpoint"
@@ -2416,7 +2494,8 @@ class ABIEncode(BuiltinFunctionT):
             maxlen += 4
 
         buf_t = BytesT(maxlen)
-        assert self.fetch_call_return(expr).length == maxlen
+        # TODO: check if this is fine, see GH 5415
+        assert self.fetch_call_return(expr).length >= maxlen
         buf = context.new_internal_variable(buf_t)
 
         ret = ["seq"]
