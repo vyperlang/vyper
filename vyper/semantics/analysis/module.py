@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from itertools import zip_longest
+from itertools import chain, zip_longest
 from typing import Optional
 
 from vyper import ast as vy_ast
@@ -90,8 +90,14 @@ def analyze_modules(imports: ImportAnalyzer) -> ModuleT:
     # Collect module members, partial validation
     ret = _compute_module_type_r(root_module_ast)
 
+    root_module_t = root_module_ast._metadata["type"]
+    globally_initialized = _compute_globally_initialized_modules_r(root_module_t)
+
     for module_ast in modules:
-        _check_overrides(module_ast)
+        _validate_abstract_initializations(module_ast)
+
+    for module_ast in modules:
+        _validate_abstracts(module_ast, globally_initialized)
 
     # Remainder of validation: everything that requires module-level/cross-module information
     # Notably function bodies
@@ -170,6 +176,17 @@ def _validate_initializable_modules(module_ast: vy_ast.Module, module_t: ModuleT
                 info.node,
                 hint=f"remove `initializes: {alias}`",
             )
+
+
+def _compute_globally_initialized_modules_r(module_t: ModuleT) -> OrderedSet[ModuleT]:
+    """
+    Compute the set of all `initializes:`-reachable modules from module_t
+    """
+    reachable = (
+        _compute_globally_initialized_modules_r(info.module_info.module_t)
+        for info in module_t.initialized_modules
+    )
+    return OrderedSet(chain([module_t], *reachable))
 
 
 def _validate_used_modules(module_ast: vy_ast.Module, module_t: ModuleT) -> None:
@@ -391,7 +408,7 @@ def _compute_and_validate_reachable_r(
 
 
 def _validate_overrides(func_t: ContractFunctionT, node: vy_ast.FunctionDef):
-    """Validate @override decorators and set `overridden_by` on abstract methods."""
+    """Validate @override decorators and set `raw_overridden_by` on abstract methods."""
     for override_name in func_t.override_nodes:
         try:
             module_info = get_namespace()[override_name.id]
@@ -428,20 +445,89 @@ def _validate_overrides(func_t: ContractFunctionT, node: vy_ast.FunctionDef):
             msg += " it is not an abstract method!"
             raise FunctionDeclarationException(msg, abstract_fn, node)
 
-        if abstract_t._overridden_by is not None:
-            existing_override = abstract_t._overridden_by.ast_def
-            assert existing_override is not None
-            existing_override_path = existing_override.module_node.path
-            msg = f"`{module_info.alias}.{node.name}` was already overridden"
-            msg += f" in `{existing_override_path}`!"
-            hint = f"the likely root cause is that `{module_info.alias}` has"
-            hint += f" been initialized in both `{node.module_node.path}` and"
-            hint += f" `{existing_override_path}`, which is an error"
-            raise FunctionDeclarationException(
-                msg, abstract_fn, existing_override, override_name, hint=hint
+        abstract_t.raw_overridden_by.append(func_t)
+
+
+def _validate_abstracts(module_ast: vy_ast.Module, globally_initialized: OrderedSet[ModuleT]):
+    """
+    validate that every abstract function has been overridden
+    """
+    for func in module_ast.get_children(vy_ast.FunctionDef):
+        func_t = func._metadata["func_type"]
+        if func_t.is_abstract:
+            raw_overrides = func_t.raw_overridden_by
+
+            overrides = [
+                t
+                for t in raw_overrides
+                if t.ast_def.module_node._metadata["type"] in globally_initialized
+            ]
+
+            if len(overrides) > 1:
+                msg = f"`{func_t.name}` is overridden more than once!"
+
+                hint = None
+
+                # this hint doesn't make sense if the multiple overrides come from the same file
+                if len({t.ast_def.module_node for t in overrides}) > 1:
+                    hint = "an override only counts if the module is (transitively) initialized "
+                    hint += "by the root module"
+
+                raise FunctionDeclarationException(
+                    msg, func, *(t.ast_def for t in overrides), hint=hint
+                )
+
+            elif len(overrides) == 0:
+                hint = None
+                if len(raw_overrides) != 0:
+                    modules = ", ".join(f"`{t.ast_def.module_node.path}`" for t in raw_overrides)
+                    hint = "did you forget to `initializes:` one of the following modules?"
+                    hint += f" {modules}"
+
+                raise FunctionDeclarationException(
+                    "Abstract function was not overridden", func, hint=hint
+                )
+
+            # note: the override has already been validated in `_check_abstract_initializations`
+            func_t.overridden_by = overrides[0]
+
+
+def _validate_abstract_initializations(module_ast: vy_ast.Module) -> None:
+    """
+    If a module `initializes` an abstract module, it must be a valid override
+    """
+    module_t = module_ast._metadata["type"]
+
+    for info in module_t.initialized_modules:
+        initialized_t = info.module_info.module_t
+
+        missing = []
+        discrepancies: ExceptionList = ExceptionList()
+
+        for fn_t in initialized_t.functions.values():
+            if not fn_t.is_abstract:
+                continue
+
+            overrides = [o for o in fn_t.raw_overridden_by if o.ast_def.module_node is module_ast]
+
+            if len(overrides) == 0:
+                missing.append(fn_t)
+
+            for override_t in overrides:
+                discrepancies.extend(_compute_override_discrepancies(override_t, fn_t))
+
+        if len(missing) != 0:
+            alias = info.module_info.alias
+            names = ", ".join(f"`{fn_t.name}`" for fn_t in missing)
+            msg = f"`{alias}` is initialized here, but some of its abstract method(s)"
+            msg += f" are not overridden: {names}"
+            hint = "did you forget to add `@override` on some methods?"
+
+            raise InitializerException(
+                msg, info.node, *(fn_t.ast_def for fn_t in missing), hint=hint
             )
 
-        abstract_t.set_overridden_by(func_t)
+        discrepancies.raise_if_not_empty()
 
 
 def _is_supported_constant_type(typ: VyperType) -> bool:
@@ -1128,13 +1214,3 @@ def _compute_override_discrepancies(
         )
 
     return discrepancies
-
-
-def _check_overrides(module_ast: vy_ast.Module):
-    for func in module_ast.get_children(vy_ast.FunctionDef):
-        func_t = func._metadata["func_type"]
-        if func_t.is_abstract:
-            override_t = func_t.overridden_by
-
-            err_list = _compute_override_discrepancies(override_t, func_t)
-            err_list.raise_if_not_empty()

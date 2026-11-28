@@ -186,8 +186,8 @@ def _collect_used_modules_r(module_t):
     return ret
 
 
-def _collect_initialized_modules_r(module_t, seen=None):
-    seen: dict[ModuleT, InitializesInfo] = seen or {}
+def _collect_initialized_modules_r(module_t, seen=None) -> dict[ModuleT, InitializesInfo]:
+    seen: dict[ModuleT, InitializesInfo] = seen or {}  # type: ignore [no-redef]
 
     # list of InitializedInfo
     initialized_infos = module_t.initialized_modules
