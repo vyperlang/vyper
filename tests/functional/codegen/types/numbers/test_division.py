@@ -65,3 +65,21 @@ def f(arg0: decimal) -> decimal:
     c = get_contract(code)
 
     assert c.f(-1) == 10000000000
+
+
+def test_guarded_div_after_clear(get_contract):
+    # the divisor is known to be zero, so the guarded division never runs.
+    # this used to fail to compile with a StaticAssertionException
+    # raised for the division in the dead branch
+    code = """
+d: uint256
+
+@external
+def foo(n: uint256) -> uint256:
+    self.d = 0
+    if self.d != 0:
+        return n // self.d
+    return 7
+    """
+    c = get_contract(code)
+    assert c.foo(1) == 7
