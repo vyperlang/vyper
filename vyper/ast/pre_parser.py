@@ -118,8 +118,9 @@ def _parse_pragma(comment_contents, settings, is_interface, code, start):
 # ascii) is replaced by a marker which may appear anywhere: around the
 # leading `#`s, between the letters of `pragma`/`@version`, or as the
 # separator after it. so e.g. `# pra\u034fgma ...` and `# pragma\u2800...`
-# are detected, while `# pragmatic`, `# pragma: nocover` and `# prágma`
-# (the marker replaces a letter) are not.
+# are detected, while `# pragmatic` and `# pragma: nocover` are not (and
+# neither is `# prágma`, where the marker replaces a letter; letter
+# substitutions are handled by `_is_homoglyph_directive` below).
 _MARKER = "\x00"  # control characters in comments are rejected before this
 
 
@@ -143,16 +144,36 @@ _BIDI_CONTROLS = frozenset("\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u20
 
 
 # control characters other than tab (unicode category Cc, i.e. C0, DEL and
-# C1), e.g. backspace: in a terminal `##\x08 pragma ...` renders as
-# `# pragma ...`. comments containing them are rejected like bidi controls.
+# C1) and line/paragraph separators (Zl, Zp), e.g. backspace: in a terminal
+# `##\x08 pragma ...` renders as `# pragma ...`, and `# x\u2028# pragma ...`
+# renders as two lines. comments containing them are rejected like bidi
+# controls.
 def _has_control_char(comment: str) -> bool:
-    return any(unicodedata.category(c) == "Cc" and c != "\t" for c in comment)
+    return any(unicodedata.category(c) in ("Cc", "Zl", "Zp") and c != "\t" for c in comment)
+
+
+# a first word which spells `pragma` or `@version` with some of its letters
+# replaced by non-ascii letters, e.g. a cyrillic `\u0430` in `pragm\u0430`.
+# note this also catches accented spellings such as `# pr\u00e1gma`.
+def _is_homoglyph_directive(folded: str) -> bool:
+    words = folded.lstrip("#").split(maxsplit=1)
+    if not words:
+        return False
+    word = words[0]
+    # mixes ascii and non-ascii characters
+    if word.isascii() or not any(c.isascii() for c in word):
+        return False
+    return any(
+        len(word) == len(target)
+        and all(c.lower() == t if c.isascii() else c.isalpha() for c, t in zip(word, target))
+        for target in ("pragma", "@version")
+    )
 
 
 def _is_pragma_like(comment: str) -> bool:
     folded = unicodedata.normalize("NFKC", comment)
     marked = "".join(c if c.isascii() else _MARKER for c in folded)
-    return _PRAGMA_LIKE.match(marked) is not None
+    return _PRAGMA_LIKE.match(marked) is not None or _is_homoglyph_directive(folded)
 
 
 class ParserState(enum.Enum):
@@ -339,6 +360,20 @@ class PreParser:
 
         _col_adjustments: dict[int, int] = defaultdict(lambda: 0)
 
+        # a carriage return not followed by a newline is a line break for
+        # `ast.parse` and in a terminal, but not for `tokenize`, so e.g.
+        # `# x\r# pragma ...` would render as a pragma but be ignored.
+        # (sources read from disk have their line endings normalized already.)
+        if (m := re.search(r"\r(?!\n)", code)) is not None:
+            lineno = code.count("\n", 0, m.start()) + 1
+            col = m.start() - (code.rfind("\n", 0, m.start()) + 1)
+            raise SyntaxException(
+                "Carriage return not followed by a newline (use \\n or \\r\\n line endings)",
+                code,
+                lineno,
+                col,
+            )
+
         # tokenize the str directly: `tokenize()` on the utf-8 encoded bytes
         # would honour a `# coding: ...` cookie and decode the source a
         # second time, garbling non-ascii characters in the token strings.
@@ -368,7 +403,8 @@ class PreParser:
                     )
                 if _has_control_char(string):
                     raise PragmaException(
-                        "Control character in comment (it can make a comment render as a pragma)",
+                        "Control or line separator character in comment"
+                        " (it can make a comment render as a pragma)",
                         code,
                         *start,
                     )

@@ -6,7 +6,7 @@ from vyper import compile_code
 from vyper.ast.pre_parser import PreParser, validate_version_pragma
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.exceptions import PragmaException, VersionException
+from vyper.exceptions import PragmaException, SyntaxException, VersionException
 
 SRC_LINE = (1, 0)  # Dummy source line
 COMPILER_VERSION = "0.1.1"
@@ -308,6 +308,11 @@ malformed_pragmas = [
     "# \u2800 pragma nonreentrancy on",
     "# pra\ue000gma nonreentrancy on",  # private use (Co)
     "# pra\u0378gma nonreentrancy on",  # unassigned (Cn)
+    "# pragm\u0430 nonreentrancy on",  # cyrillic small a
+    "# \u0440ragma nonreentrancy on",  # cyrillic small er
+    "# @v\u0435rsion ^0.4.0",  # cyrillic small ie
+    "# PRAGM\u0391 nonreentrancy on",  # greek capital alpha
+    "# pr\u00e1gma",  # an accented letter in the directive word is rejected too
     # a coding cookie must not change how the (already decoded) source is read
     "# coding: latin-1\n# \u200bpragma nonreentrancy on",
 ]
@@ -344,12 +349,17 @@ control_char_comments = [
     "# \x1b[2K",  # escape
     "# \x7f",  # DEL
     "# \x9b",  # C1 control
+    "# \x85",  # next line (C1)
+    "# \x0c",  # form feed
+    # unicode line/paragraph separators render the pragma on its own line
+    "# harmless\u2028# pragma nonreentrancy on",
+    "# harmless\u2029# pragma nonreentrancy on",
 ]
 
 
 @pytest.mark.parametrize("code", control_char_comments)
 def test_control_char_in_comment(code):
-    with pytest.raises(PragmaException, match="Control character in comment"):
+    with pytest.raises(PragmaException, match="Control or line separator character in comment"):
         PreParser(is_interface=False).parse(code)
 
 
@@ -365,6 +375,22 @@ def test_pragma_with_bom_or_coding_cookie(code):
     pre_parser = PreParser(is_interface=False)
     pre_parser.parse(code)
     assert pre_parser.settings.nonreentrancy_by_default is True
+
+
+def test_lone_carriage_return():
+    # `tokenize` ends the comment at the CR, `ast.parse` and terminals don't
+    code = "x: uint256\n# harmless\r# pragma nonreentrancy on\n"
+    with pytest.raises(SyntaxException, match="Carriage return") as e:
+        PreParser(is_interface=False).parse(code)
+    assert "line 2:10" in str(e.value)
+
+
+def test_crlf_line_endings():
+    code = "# pragma nonreentrancy on\r\n\r\n@external\r\ndef foo():  # comment\r\n    pass\r\n"
+    pre_parser = PreParser(is_interface=False)
+    pre_parser.parse(code)
+    assert pre_parser.settings.nonreentrancy_by_default is True
+    assert compile_code(code)["bytecode"]
 
 
 def test_malformed_nonreentrancy_pragma_compile():
@@ -398,7 +424,9 @@ non_pragma_comments = [
     "# pragma: nocover",
     "# the pragma nonreentrancy on line 1",
     "# a\tcomment with a tab",
-    "# pr\u00e1gma",  # an accented letter is not an invisible mark
+    "# pr\u00e1gmatic",  # not the length of `pragma`
+    "# a\u00f1o pragma",
+    "# \u043f\u0440\u0430\u0433\u043c\u0430",  # all cyrillic, no ascii letters
     "# caf\u0065\u0301 pragma nonreentrancy on",  # combining accent mid-comment
     "# \u30d7\u30e9\u30b0\u30de\u306e\u8aac\u660e",  # other languages
     "# caf\u00e9 pragmatique",

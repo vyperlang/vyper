@@ -90,6 +90,7 @@ def transfer():
 
 def test_long_string_non_coding_token():
     # GH issue 2258
-    code = '\r[[]]\ndef _(e:[],l:[]):\n    """"""""""""""""""""""""""""""""""""""""""""""""""""""\n    f.n()'  # noqa: E501
+    # (originally fuzzed with a lone leading `\r`, which is now rejected)
+    code = '\r\n[[]]\ndef _(e:[],l:[]):\n    """"""""""""""""""""""""""""""""""""""""""""""""""""""\n    f.n()'  # noqa: E501
     # not valid code, but should at least parse
     assert parse_to_ast(code) is not None
