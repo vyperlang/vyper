@@ -293,6 +293,12 @@ malformed_pragmas = [
     "## @version ^0.4.0",
     "# @Version ^0.4.0",
     "# \u200b@version ^0.4.0",
+    "# pra\u034fgma nonreentrancy on",  # combining grapheme joiner (Mn)
+    "# \u20ddpragma nonreentrancy on",  # enclosing mark (Me)
+    "# pra\ufe0fgma nonreentrancy on",  # variation selector (Mn)
+    "# \uff50\uff52\uff41\uff47\uff4d\uff41 nonreentrancy on",  # fullwidth
+    "# pragma\u3164nonreentrancy on",  # hangul filler
+    "# \uffa0pragma nonreentrancy on",  # halfwidth hangul filler
     # a coding cookie must not change how the (already decoded) source is read
     "# coding: latin-1\n# \u200bpragma nonreentrancy on",
 ]
@@ -383,6 +389,8 @@ non_pragma_comments = [
     "# pragma: nocover",
     "# the pragma nonreentrancy on line 1",
     "# a\tcomment with a tab",
+    "# pr\u00e1gma",  # an accented letter is not an invisible mark
+    "# caf\u0065\u0301 pragma nonreentrancy on",  # combining accent mid-comment
     "#",
 ]
 

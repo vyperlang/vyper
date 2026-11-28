@@ -112,9 +112,9 @@ def _parse_pragma(comment_contents, settings, is_interface, code, start):
 
 
 # a comment which, ignoring case, leading `#`s, whitespace and invisible
-# (unicode category Cf, e.g. U+200B) characters, starts with the word
-# `pragma` or `@version`. used to reject pragmas which would otherwise be
-# silently treated as ordinary comments.
+# characters, starts with the word `pragma` or `@version` (after NFKC
+# folding, so e.g. fullwidth letters also match). used to reject pragmas
+# which would otherwise be silently treated as ordinary comments.
 _PRAGMA_LIKE = re.compile(r"[#\s]*(pragma|@version)(\s|$)", re.IGNORECASE)
 
 
@@ -132,8 +132,21 @@ def _has_control_char(comment: str) -> bool:
     return any(unicodedata.category(c) == "Cc" and c != "\t" for c in comment)
 
 
+# hangul fillers (U+115F, U+1160; NFKC folds U+3164 and U+FFA0 to U+1160)
+# are letters which render as blank space.
+_BLANK_LETTERS = frozenset("\u115f\u1160")
+
+# characters which render as nothing: format characters (e.g. U+200B) and
+# nonspacing/enclosing marks (e.g. U+034F, variation selectors)
+_INVISIBLE_CATEGORIES = frozenset(("Cf", "Mn", "Me"))
+
+
 def _is_pragma_like(comment: str) -> bool:
-    visible = "".join(c for c in comment if unicodedata.category(c) != "Cf")
+    visible = "".join(
+        " " if c in _BLANK_LETTERS else c
+        for c in unicodedata.normalize("NFKC", comment)
+        if unicodedata.category(c) not in _INVISIBLE_CATEGORIES
+    )
     return _PRAGMA_LIKE.match(visible) is not None
 
 
