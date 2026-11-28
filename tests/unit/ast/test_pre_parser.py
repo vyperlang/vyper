@@ -299,6 +299,15 @@ malformed_pragmas = [
     "# \uff50\uff52\uff41\uff47\uff4d\uff41 nonreentrancy on",  # fullwidth
     "# pragma\u3164nonreentrancy on",  # hangul filler
     "# \uffa0pragma nonreentrancy on",  # halfwidth hangul filler
+    "# pra\u115fgma nonreentrancy on",  # hangul choseong filler
+    "# pragma\u115fnonreentrancy on",
+    "# pra\u1160gma nonreentrancy on",  # hangul jungseong filler
+    "# pragma\u1160nonreentrancy on",
+    "# pra\u2800gma nonreentrancy on",  # braille pattern blank (So)
+    "# pragma\u2800nonreentrancy on",  # renders like the canonical pragma
+    "# \u2800 pragma nonreentrancy on",
+    "# pra\ue000gma nonreentrancy on",  # private use (Co)
+    "# pra\u0378gma nonreentrancy on",  # unassigned (Cn)
     # a coding cookie must not change how the (already decoded) source is read
     "# coding: latin-1\n# \u200bpragma nonreentrancy on",
 ]
@@ -391,6 +400,8 @@ non_pragma_comments = [
     "# a\tcomment with a tab",
     "# pr\u00e1gma",  # an accented letter is not an invisible mark
     "# caf\u0065\u0301 pragma nonreentrancy on",  # combining accent mid-comment
+    "# \u30d7\u30e9\u30b0\u30de\u306e\u8aac\u660e",  # other languages
+    "# caf\u00e9 pragmatique",
     "#",
 ]
 

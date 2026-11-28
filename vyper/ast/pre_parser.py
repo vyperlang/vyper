@@ -111,11 +111,28 @@ def _parse_pragma(comment_contents, settings, is_interface, code, start):
     raise PragmaException(f"Unknown pragma `{pragma.split()[0]}`", *location)  # pragma: nocover
 
 
-# a comment which, ignoring case, leading `#`s, whitespace and invisible
-# characters, starts with the word `pragma` or `@version` (after NFKC
-# folding, so e.g. fullwidth letters also match). used to reject pragmas
-# which would otherwise be silently treated as ordinary comments.
-_PRAGMA_LIKE = re.compile(r"[#\s]*(pragma|@version)(\s|$)", re.IGNORECASE)
+# detection of comments which look like an attempted pragma, used to reject
+# pragmas which would otherwise be silently treated as ordinary comments.
+# rather than enumerating invisible or blank-rendering characters, every
+# non-ascii character (after NFKC folding, so e.g. fullwidth letters become
+# ascii) is replaced by a marker which may appear anywhere: around the
+# leading `#`s, between the letters of `pragma`/`@version`, or as the
+# separator after it. so e.g. `# pra\u034fgma ...` and `# pragma\u2800...`
+# are detected, while `# pragmatic`, `# pragma: nocover` and `# prágma`
+# (the marker replaces a letter) are not.
+_MARKER = "\x00"  # control characters in comments are rejected before this
+
+
+def _spelled_with_markers(word: str) -> str:
+    return f"{_MARKER}*".join(re.escape(c) for c in word)
+
+
+_PRAGMA_LIKE = re.compile(
+    rf"[#\s{_MARKER}]*"
+    rf"({_spelled_with_markers('pragma')}|{_spelled_with_markers('@version')})"
+    rf"([\s{_MARKER}]|$)",
+    re.IGNORECASE,
+)
 
 
 # unicode bidirectional embedding, override and isolate controls. inside a
@@ -132,22 +149,10 @@ def _has_control_char(comment: str) -> bool:
     return any(unicodedata.category(c) == "Cc" and c != "\t" for c in comment)
 
 
-# hangul fillers (U+115F, U+1160; NFKC folds U+3164 and U+FFA0 to U+1160)
-# are letters which render as blank space.
-_BLANK_LETTERS = frozenset("\u115f\u1160")
-
-# characters which render as nothing: format characters (e.g. U+200B) and
-# nonspacing/enclosing marks (e.g. U+034F, variation selectors)
-_INVISIBLE_CATEGORIES = frozenset(("Cf", "Mn", "Me"))
-
-
 def _is_pragma_like(comment: str) -> bool:
-    visible = "".join(
-        " " if c in _BLANK_LETTERS else c
-        for c in unicodedata.normalize("NFKC", comment)
-        if unicodedata.category(c) not in _INVISIBLE_CATEGORIES
-    )
-    return _PRAGMA_LIKE.match(visible) is not None
+    folded = unicodedata.normalize("NFKC", comment)
+    marked = "".join(c if c.isascii() else _MARKER for c in folded)
+    return _PRAGMA_LIKE.match(marked) is not None
 
 
 class ParserState(enum.Enum):
