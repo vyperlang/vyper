@@ -2096,3 +2096,202 @@ def test_memcopy_total_translate_with_more_writes():
     """
 
     _check_pre_post(pre, post)
+
+
+def test_copy_facts_reset_between_translation_rounds():
+    """
+    The first round records copy facts for `then`, then the translation step
+    rewrites and nops copies in `_global`. The second round reaches `join`
+    before `then`, so a copy fact left over from the first round met a fresh
+    one for the same location and the pass hit an assertion.
+    """
+    pre = """
+    _global:
+        %n = calldataload 0
+        %src = alloca 1, 64
+        calldatacopy %src, 32, %n
+        %a = alloca 2, 64
+        mcopy %a, %src, 64
+        %b = alloca 3, 64
+        mcopy %b, %a, 64
+        %t = alloca 4, 64
+        mcopy %t, %b, 64
+        mcopy %b, %t, 64
+        %c = calldataload 64
+        jnz %c, @then, @join
+    then:
+        jmp @join
+    join:
+        %i = calldataload 96
+        %p = add %b, %i
+        %x = mload %p
+        sink %x
+    """
+
+    post = """
+    _global:
+        %n = calldataload 0
+        %src = alloca 1, 64
+        calldatacopy %src, 32, %n
+        %a = alloca 2, 64
+        nop
+        %b = alloca 3, 64
+        mcopy %b, %src, 64
+        %t = alloca 4, 64
+        nop
+        nop
+        %c = calldataload 64
+        jnz %c, @then, @join
+    then:
+        jmp @join
+    join:
+        %i = calldataload 96
+        %p = add %b, %i
+        %x = mload %p
+        sink %x
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_copy_facts_skip_copies_elided_on_revisit():
+    """
+    `hdr` is first visited before `latch`, so its mcopy is recorded as a
+    copy fact and reaches `body`. Revisiting `hdr` with the facts from
+    `latch` elides that mcopy, and `exit` is reached again before `body`
+    is. Merging `body`'s copy facts then compared against the nop'd mcopy
+    and the pass hit an assertion.
+    """
+    pre = """
+    _global:
+        %n = calldataload 0
+        %src = alloca 1, 64
+        calldatacopy %src, 32, %n
+        %b = alloca 2, 64
+        mcopy %b, %src, 64
+        jmp @hdr
+    hdr:
+        mcopy %b, %src, 64
+        %c = calldataload 64
+        jnz %c, @body, @exit
+    body:
+        %d = calldataload 96
+        jnz %d, @latch, @exit
+    latch:
+        jmp @hdr
+    exit:
+        %i = calldataload 128
+        %p = add %b, %i
+        %x = mload %p
+        sink %x
+    """
+
+    post = """
+    _global:
+        %n = calldataload 0
+        %src = alloca 1, 64
+        calldatacopy %src, 32, %n
+        %b = alloca 2, 64
+        mcopy %b, %src, 64
+        jmp @hdr
+    hdr:
+        nop
+        %c = calldataload 64
+        jnz %c, @body, @exit
+    body:
+        %d = calldataload 96
+        jnz %d, @latch, @exit
+    latch:
+        jmp @hdr
+    exit:
+        %i = calldataload 128
+        %p = add %b, %i
+        %x = mload %p
+        sink %x
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_copy_facts_skip_copies_rewritten_on_revisit():
+    """
+    `x` records `dst <- mcopy %dst, %b` and keeps it across `mstore %src`,
+    which doesn't touch `b`. Revisiting `hdr` with the facts from `latch`
+    rewrites that mcopy in place to read `src`, and `join` is reached before
+    `x` is visited again. `x`'s fact then claimed `dst` still matched `src`
+    after `src` was clobbered, and `mcopy %y, %dst` was rewritten to read
+    `src`, so `%r` came back 0 on the `body -> x` path.
+    """
+    pre = """
+    _global:
+        %n = calldataload 0
+        %src = alloca 1, 64
+        calldatacopy %src, 32, %n
+        %a = alloca 2, 64
+        mcopy %a, %src, 64
+        %b = alloca 3, 64
+        mcopy %b, %a, 64
+        %dst = alloca 4, 64
+        %y = alloca 5, 64
+        jmp @hdr
+    hdr:
+        mcopy %dst, %b, 64
+        %c = calldataload 64
+        jnz %c, @body, @q
+    q:
+        mstore %b, 0
+        jmp @join
+    body:
+        %d = calldataload 96
+        jnz %d, @latch, @x
+    latch:
+        mcopy %b, %src, 64
+        jmp @hdr
+    x:
+        mstore %src, 0
+        jmp @join
+    join:
+        mcopy %y, %dst, 64
+        %r = mload %y
+        %s = mload %b
+        %t = mload %src
+        sink %r, %s, %t
+    """
+
+    post = """
+    _global:
+        %n = calldataload 0
+        %src = alloca 1, 64
+        calldatacopy %src, 32, %n
+        %a = alloca 2, 64
+        nop
+        %b = alloca 3, 64
+        mcopy %b, %src, 64
+        %dst = alloca 4, 64
+        %y = alloca 5, 64
+        jmp @hdr
+    hdr:
+        mcopy %dst, %src, 64
+        %c = calldataload 64
+        jnz %c, @body, @q
+    q:
+        mstore %b, 0
+        jmp @join
+    body:
+        %d = calldataload 96
+        jnz %d, @latch, @x
+    latch:
+        nop
+        jmp @hdr
+    x:
+        mstore %src, 0
+        jmp @join
+    join:
+        nop
+        %r = mload %dst
+        %s = mload %b
+        %t = mload %src
+        sink %r, %s, %t
+    """
+
+    _check_pre_post(pre, post)
