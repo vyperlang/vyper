@@ -465,6 +465,54 @@ def test_eom_annotation():
     assert reparsed.mem_allocator.fn_eom[reparsed.get_function(IRLabel("main"))] == 13024
 
 
+def test_quoted_label_ref_keeps_leading_at():
+    # the "@" sigil of a label reference is its own token; a leading "@"
+    # inside a quoted name is part of the name. `@"@dst"` must refer to
+    # the block named `@dst`, not to a different block named `dst`.
+    source = """
+    function main {
+        main:
+            jnz 1, @"@dst", @dst
+        "@dst":
+            stop
+        dst:
+            invalid
+    }
+
+    data readonly {
+        dbsection table:
+            db @"@dst"
+            db @dst
+    }
+    """
+
+    parsed_ctx = parse_venom(source)
+
+    expected_ctx = IRContext()
+    expected_ctx.add_function(main_fn := IRFunction(IRLabel("main")))
+    main_fn.get_basic_block("main").append_instruction(
+        "jnz", IRLiteral(1), IRLabel("@dst"), IRLabel("dst")
+    )
+    main_fn.append_basic_block(at_dst := IRBasicBlock(IRLabel("@dst"), main_fn))
+    at_dst.append_instruction("stop")
+    main_fn.append_basic_block(dst := IRBasicBlock(IRLabel("dst"), main_fn))
+    dst.append_instruction("invalid")
+
+    expected_ctx.data_segment = [
+        DataSection(IRLabel("table"), [DataItem(IRLabel("@dst")), DataItem(IRLabel("dst"))])
+    ]
+
+    assert_ctx_eq(parsed_ctx, expected_ctx)
+
+    jnz = parsed_ctx.entry_function.entry.instructions[-1]
+    assert [op.value for op in jnz.operands[1:]] == ["@dst", "dst"]
+
+    # printer/parser round trip preserves the targets
+    printed = str(expected_ctx)
+    assert 'jnz 1, @"@dst", @dst' in printed
+    assert_ctx_eq(expected_ctx, parse_venom(printed))
+
+
 @pytest.mark.parametrize(
     "annotation, expected_error",
     [
