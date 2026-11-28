@@ -151,7 +151,7 @@ class StackOrderAnalysis(IRAnalysis):
                 self._add_needed(var)
 
         # for reorder we need to simulate only
-        # one chosen varible since it should
+        # one chosen variable since it should
         # do the same behavior for all of them
         _, chosen = next(inst.phi_operands)
         assert isinstance(chosen, IRVariable)

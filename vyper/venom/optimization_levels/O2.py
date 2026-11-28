@@ -1,4 +1,4 @@
-# We keep thise in separate files to allow for
+# We keep these in separate files to allow for
 # easier management of different optimization levels
 # and diffing between them.
 
