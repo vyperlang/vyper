@@ -135,6 +135,8 @@ error Failed:
     reason: String[20]
 
 counter: uint256
+messages: DynArray[String[20], 1]
+transient_messages: transient(DynArray[String[20], 1])
 
 @internal
 def _bump() -> String[20]:
@@ -148,6 +150,9 @@ def _bump() -> String[20]:
         "raise self._bump()",
         "assert x, Failed(reason=extcall I(target).get_msg())",
         "raise Failed(reason=self._bump())",
+        "raise self.messages.pop()",
+        "assert x, self.transient_messages.pop()",
+        "raise Failed(reason=self.messages.pop())",
     ]
     for body in bodies:
         code = f"""

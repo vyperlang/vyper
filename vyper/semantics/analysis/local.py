@@ -589,9 +589,16 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
         "Checks a revert reason does not modify state; codegen evaluates it in a constant context"
         for call_node in msg_node.get_descendants(vy_ast.Call, include_self=True):
             func_type = call_node.func._metadata["type"]
-            # member functions like `x.pop()` are fine on memory variables;
-            # codegen rejects them for storage based on the data location.
-            if isinstance(func_type, ContractFunctionT) and func_type.is_modifying:
+            modifies_state = False
+            if isinstance(func_type, ContractFunctionT):
+                modifies_state = func_type.is_modifying
+            elif isinstance(func_type, MemberFunctionT) and func_type.is_modifying:
+                # e.g. `self.x.pop()`. the same call on a memory variable
+                # does not touch state, so it stays allowed.
+                location = get_expr_info(call_node.func.value).location
+                modifies_state = location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
+
+            if modifies_state:
                 msg = "May not call state modifying function within a revert reason."
                 raise StateAccessViolation(msg, call_node)
 
