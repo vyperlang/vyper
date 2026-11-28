@@ -3,7 +3,7 @@ import enum
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from vyper.codegen.ir_node import Encoding, IRnode
+from vyper.codegen_legacy.ir_node import Encoding, IRnode
 from vyper.compiler.settings import get_global_settings
 from vyper.evm.address_space import MEMORY, AddrSpace
 from vyper.exceptions import CompilerPanic, StateAccessViolation
