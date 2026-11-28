@@ -293,6 +293,8 @@ malformed_pragmas = [
     "## @version ^0.4.0",
     "# @Version ^0.4.0",
     "# \u200b@version ^0.4.0",
+    # a coding cookie must not change how the (already decoded) source is read
+    "# coding: latin-1\n# \u200bpragma nonreentrancy on",
 ]
 
 
@@ -310,6 +312,7 @@ bidi_comments = [
     "# pragma nonreentrancy on \u2067\u2069",
     "x: uint256  # \u202a\u202c",
     "# \u202b\u202d\u2066\u2068\u2069",
+    "# coding: latin-1\n# \u202eno ycnartneernon amgarp\u202c",
 ]
 
 
@@ -317,6 +320,36 @@ bidi_comments = [
 def test_bidi_control_in_comment(code):
     with pytest.raises(PragmaException, match="Bidirectional control character"):
         PreParser(is_interface=False).parse(code)
+
+
+# other control characters can also change how a comment renders
+control_char_comments = [
+    # renders as `# pragma nonreentrancy on` in a terminal
+    "##\x08 pragma nonreentrancy on",
+    "# \x1b[2K",  # escape
+    "# \x7f",  # DEL
+    "# \x9b",  # C1 control
+]
+
+
+@pytest.mark.parametrize("code", control_char_comments)
+def test_control_char_in_comment(code):
+    with pytest.raises(PragmaException, match="Control character in comment"):
+        PreParser(is_interface=False).parse(code)
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "\ufeff# pragma nonreentrancy on",  # BOM
+        "# coding: latin-1\n# pragma nonreentrancy on",
+        "# -*- coding: utf-8 -*-\n#\tpragma nonreentrancy on",
+    ],
+)
+def test_pragma_with_bom_or_coding_cookie(code):
+    pre_parser = PreParser(is_interface=False)
+    pre_parser.parse(code)
+    assert pre_parser.settings.nonreentrancy_by_default is True
 
 
 def test_malformed_nonreentrancy_pragma_compile():
@@ -349,6 +382,7 @@ non_pragma_comments = [
     "# pragmas are documented in structure-of-a-contract.rst",
     "# pragma: nocover",
     "# the pragma nonreentrancy on line 1",
+    "# a\tcomment with a tab",
     "#",
 ]
 

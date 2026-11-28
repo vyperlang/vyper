@@ -3,7 +3,7 @@ import io
 import re
 import unicodedata
 from collections import defaultdict
-from tokenize import COMMENT, NAME, OP, STRING, TokenError, TokenInfo, tokenize, untokenize
+from tokenize import COMMENT, NAME, OP, STRING, TokenError, TokenInfo, generate_tokens, untokenize
 from typing import Optional
 
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
@@ -123,6 +123,13 @@ _PRAGMA_LIKE = re.compile(r"[#\s]*(pragma|@version)(\s|$)", re.IGNORECASE)
 # while the underlying text is something else ("trojan source",
 # CVE-2021-42574), so comments containing them are rejected outright.
 _BIDI_CONTROLS = frozenset("\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069")
+
+
+# control characters other than tab (unicode category Cc, i.e. C0, DEL and
+# C1), e.g. backspace: in a terminal `##\x08 pragma ...` renders as
+# `# pragma ...`. comments containing them are rejected like bidi controls.
+def _has_control_char(comment: str) -> bool:
+    return any(unicodedata.category(c) == "Cc" and c != "\t" for c in comment)
 
 
 def _is_pragma_like(comment: str) -> bool:
@@ -314,8 +321,11 @@ class PreParser:
 
         _col_adjustments: dict[int, int] = defaultdict(lambda: 0)
 
-        code_bytes = code.encode("utf-8")
-        token_list = list(tokenize(io.BytesIO(code_bytes).readline))
+        # tokenize the str directly: `tokenize()` on the utf-8 encoded bytes
+        # would honour a `# coding: ...` cookie and decode the source a
+        # second time, garbling non-ascii characters in the token strings.
+        # (`tokenize()` used to strip a leading BOM, so do that here.)
+        token_list = list(generate_tokens(io.StringIO(code.removeprefix("\ufeff")).readline))
 
         for token in token_list:
             toks = [token]
@@ -335,6 +345,12 @@ class PreParser:
                     raise PragmaException(
                         "Bidirectional control character in comment"
                         " (it can make a comment render as a pragma)",
+                        code,
+                        *start,
+                    )
+                if _has_control_char(string):
+                    raise PragmaException(
+                        "Control character in comment (it can make a comment render as a pragma)",
                         code,
                         *start,
                     )
@@ -407,7 +423,7 @@ class PreParser:
         self.keyword_translations = keyword_translations
         self.for_loop_annotations = for_loop_annotations
         self.hex_string_locations = hex_string_parser.locations
-        self.reformatted_code = untokenize(result).decode("utf-8")  # type: ignore[union-attr]
+        self.reformatted_code = untokenize(result)
 
     def shift_for(self, lineno: int, col: int) -> int:
         """
