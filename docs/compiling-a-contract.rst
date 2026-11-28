@@ -60,7 +60,7 @@ To override the default storage layout for a contract:
 
 .. code:: shell
 
-    $ vyper --storage-layout-file storageLayout.json yourFileName.vy
+    $ vyper yourFileName.vy --storage-layout-file storageLayout.json
 
 The input to the ``--storage-layout-file`` flag must match the format of the ``.storage_layout`` field from the ``vyper -f layout`` command.
 
