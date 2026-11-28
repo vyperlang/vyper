@@ -210,6 +210,48 @@ def test_assert_false_in_unreachable_loop():
     _check_pre_post(pre, post)
 
 
+@pytest.mark.parametrize("asserter", ("assert", "assert_unreachable"))
+def test_assert_false_in_known_djmp_target(asserter):
+    """
+    A djmp whose target is known at compile time executes that
+    target, so a failing assert in it is a compile time error
+    """
+    code = f"""
+    main:
+        %1 = @then
+        djmp %1, @then, @else
+    then:
+        {asserter} 0
+        stop
+    else:
+        stop
+    """
+
+    with pytest.raises(StaticAssertionException):
+        _check_pre_post(code, code, hevm=False)
+
+
+@pytest.mark.parametrize("asserter", ("assert", "assert_unreachable"))
+def test_assert_false_in_other_djmp_target(asserter):
+    """
+    The other targets of a djmp whose target is known at compile
+    time never execute, so a failing assert in them is not a
+    compile time error
+    """
+    code = f"""
+    main:
+        %1 = @then
+        djmp %1, @then, @else
+    then:
+        stop
+    else:
+        {asserter} 0
+        stop
+    """
+
+    _check_pre_post(code, code, hevm=False)
+
+
 def test_cont_jump_case():
     """
     Test of jnz removal which eliminates the basic block

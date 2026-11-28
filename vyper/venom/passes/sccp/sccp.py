@@ -213,6 +213,11 @@ class SCCP(IRPass):
                     self.work_list.append(FlowWorkItem(inst.parent, target))
             elif isinstance(lat, IRLiteral):
                 raise CompilerPanic("Unimplemented djmp with literal")
+            else:
+                # known target: only that edge is executable
+                assert isinstance(lat, IRLabel)  # sanity
+                target = self.fn.get_basic_block(lat.name)
+                self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode in ARITHMETIC_OPS:
             self._eval(inst)
         else:
