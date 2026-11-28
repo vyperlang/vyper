@@ -479,6 +479,10 @@ class Len(BuiltinFunctionT):
             length = len(arg.value)
         elif isinstance(arg, vy_ast.Hex):
             length = len(arg.bytes_value)
+        elif isinstance(arg, vy_ast.List):
+            # only reached for lists of constants, since folding a list
+            # with non-constant elements raises UnfoldableNode
+            length = len(arg.elements)
         else:
             raise UnfoldableNode
 
@@ -494,6 +498,10 @@ class Len(BuiltinFunctionT):
         arg = Expr(node.args[0], context).ir_node
         if arg.value == "~calldata":
             return IRnode.from_list(["calldatasize"], typ=UINT256_T)
+        if arg.value == "multi":
+            # a list literal with non-constant elements. copy it to memory
+            # so that the elements are still evaluated, then read the length
+            arg = ensure_in_memory(arg, context)
         return get_bytearray_length(arg)
 
 

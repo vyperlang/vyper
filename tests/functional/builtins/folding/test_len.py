@@ -70,3 +70,21 @@ def foo(a: Bytes[1024]) -> uint256:
     new_node = old_node.get_folded_value()
 
     assert contract.foo("0x0000") == new_node.value
+
+
+@pytest.mark.parametrize("length", [1, 2, 32])
+def test_len_list(get_contract, length):
+    source = """
+@external
+def foo(a: DynArray[uint256, 32]) -> uint256:
+    return len(a)
+    """
+    contract = get_contract(source)
+
+    value = [1] * length
+
+    vyper_ast = parse_and_fold(f"len({value})")
+    old_node = vyper_ast.body[0].value
+    new_node = old_node.get_folded_value()
+
+    assert contract.foo(value) == new_node.value
