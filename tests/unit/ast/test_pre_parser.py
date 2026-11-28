@@ -6,7 +6,7 @@ from vyper import compile_code
 from vyper.ast.pre_parser import PreParser, validate_version_pragma
 from vyper.compiler.phases import CompilerData
 from vyper.compiler.settings import OptimizationLevel, Settings
-from vyper.exceptions import PragmaException, VersionException
+from vyper.exceptions import PragmaException, SyntaxException, VersionException
 
 SRC_LINE = (1, 0)  # Dummy source line
 COMPILER_VERSION = "0.1.1"
@@ -275,6 +275,170 @@ invalid_pragmas = [
 def test_invalid_pragma(code):
     with pytest.raises(PragmaException):
         PreParser(is_interface=False).parse(code)
+
+
+# pragmas which are not in the canonical `# pragma <directive>` form
+# must not be silently treated as ordinary comments
+malformed_pragmas = [
+    "# pragma\tnonreentrancy on",
+    "# \u200bpragma nonreentrancy on",  # zero-width space
+    "#\u200b pragma nonreentrancy on",
+    "# \u2060pragma nonreentrancy on",  # word joiner
+    "## pragma nonreentrancy on",
+    "# # pragma nonreentrancy on",
+    "# Pragma nonreentrancy on",
+    "# PRAGMA nonreentrancy on",
+    "# pragma",
+    "x: uint256  # Pragma nonreentrancy on",
+    "## @version ^0.4.0",
+    "# @Version ^0.4.0",
+    "# \u200b@version ^0.4.0",
+    "# pra\u034fgma nonreentrancy on",  # combining grapheme joiner (Mn)
+    "# \u20ddpragma nonreentrancy on",  # enclosing mark (Me)
+    "# pra\ufe0fgma nonreentrancy on",  # variation selector (Mn)
+    "# \uff50\uff52\uff41\uff47\uff4d\uff41 nonreentrancy on",  # fullwidth
+    "# pragma\u3164nonreentrancy on",  # hangul filler
+    "# \uffa0pragma nonreentrancy on",  # halfwidth hangul filler
+    "# pra\u115fgma nonreentrancy on",  # hangul choseong filler
+    "# pragma\u115fnonreentrancy on",
+    "# pra\u1160gma nonreentrancy on",  # hangul jungseong filler
+    "# pragma\u1160nonreentrancy on",
+    "# pra\u2800gma nonreentrancy on",  # braille pattern blank (So)
+    "# pragma\u2800nonreentrancy on",  # renders like the canonical pragma
+    "# \u2800 pragma nonreentrancy on",
+    "# pra\ue000gma nonreentrancy on",  # private use (Co)
+    "# pra\u0378gma nonreentrancy on",  # unassigned (Cn)
+    "# pragm\u0430 nonreentrancy on",  # cyrillic small a
+    "# \u0440ragma nonreentrancy on",  # cyrillic small er
+    "# @v\u0435rsion ^0.4.0",  # cyrillic small ie
+    "# PRAGM\u0391 nonreentrancy on",  # greek capital alpha
+    "# pr\u00e1gma",  # an accented letter in the directive word is rejected too
+    # a coding cookie must not change how the (already decoded) source is read
+    "# coding: latin-1\n# \u200bpragma nonreentrancy on",
+]
+
+
+@pytest.mark.parametrize("code", malformed_pragmas)
+def test_malformed_pragma(code):
+    with pytest.raises(PragmaException, match="Malformed pragma"):
+        PreParser(is_interface=False).parse(code)
+
+
+# comments with bidi embedding/override/isolate controls can render as a
+# pragma while being parsed as something else ("trojan source")
+bidi_comments = [
+    # renders as `# pragma nonreentrancy on` in bidi-aware editors
+    "# \u202eno ycnartneernon amgarp\u202c",
+    "# pragma nonreentrancy on \u2067\u2069",
+    "x: uint256  # \u202a\u202c",
+    "# \u202b\u202d\u2066\u2068\u2069",
+    "# coding: latin-1\n# \u202eno ycnartneernon amgarp\u202c",
+]
+
+
+@pytest.mark.parametrize("code", bidi_comments)
+def test_bidi_control_in_comment(code):
+    with pytest.raises(PragmaException, match="Bidirectional control character"):
+        PreParser(is_interface=False).parse(code)
+
+
+# other control characters can also change how a comment renders
+control_char_comments = [
+    # renders as `# pragma nonreentrancy on` in a terminal
+    "##\x08 pragma nonreentrancy on",
+    "# \x1b[2K",  # escape
+    "# \x7f",  # DEL
+    "# \x9b",  # C1 control
+    "# \x85",  # next line (C1)
+    "# \x0c",  # form feed
+    # unicode line/paragraph separators render the pragma on its own line
+    "# harmless\u2028# pragma nonreentrancy on",
+    "# harmless\u2029# pragma nonreentrancy on",
+]
+
+
+@pytest.mark.parametrize("code", control_char_comments)
+def test_control_char_in_comment(code):
+    with pytest.raises(PragmaException, match="Control or line separator character in comment"):
+        PreParser(is_interface=False).parse(code)
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "\ufeff# pragma nonreentrancy on",  # BOM
+        "# coding: latin-1\n# pragma nonreentrancy on",
+        "# -*- coding: utf-8 -*-\n#\tpragma nonreentrancy on",
+    ],
+)
+def test_pragma_with_bom_or_coding_cookie(code):
+    pre_parser = PreParser(is_interface=False)
+    pre_parser.parse(code)
+    assert pre_parser.settings.nonreentrancy_by_default is True
+
+
+def test_lone_carriage_return():
+    # `tokenize` ends the comment at the CR, `ast.parse` and terminals don't
+    code = "x: uint256\n# harmless\r# pragma nonreentrancy on\n"
+    with pytest.raises(SyntaxException, match="Carriage return") as e:
+        PreParser(is_interface=False).parse(code)
+    assert "line 2:10" in str(e.value)
+
+
+def test_crlf_line_endings():
+    code = "# pragma nonreentrancy on\r\n\r\n@external\r\ndef foo():  # comment\r\n    pass\r\n"
+    pre_parser = PreParser(is_interface=False)
+    pre_parser.parse(code)
+    assert pre_parser.settings.nonreentrancy_by_default is True
+    assert compile_code(code)["bytecode"]
+
+
+def test_malformed_nonreentrancy_pragma_compile():
+    # a misspelled `nonreentrancy` pragma must not compile to a contract
+    # without reentrancy guards
+    code = """
+# Pragma nonreentrancy on
+
+interface Foo:
+    def bar(): nonpayable
+
+x: uint256
+
+@external
+def f(a: address):
+    self.x = 1
+    extcall Foo(a).bar()
+    """
+    with pytest.raises(PragmaException, match="Malformed pragma"):
+        compile_code(code)
+
+    pre_parser = PreParser(is_interface=False)
+    pre_parser.parse(code.replace("# Pragma", "# pragma"))
+    assert pre_parser.settings.nonreentrancy_by_default is True
+
+
+# comments which merely mention pragmas are still ordinary comments
+non_pragma_comments = [
+    "# pragmatic",
+    "# pragmas are documented in structure-of-a-contract.rst",
+    "# pragma: nocover",
+    "# the pragma nonreentrancy on line 1",
+    "# a\tcomment with a tab",
+    "# pr\u00e1gmatic",  # not the length of `pragma`
+    "# a\u00f1o pragma",
+    "# \u043f\u0440\u0430\u0433\u043c\u0430",  # all cyrillic, no ascii letters
+    "# caf\u0065\u0301 pragma nonreentrancy on",  # combining accent mid-comment
+    "# \u30d7\u30e9\u30b0\u30de\u306e\u8aac\u660e",  # other languages
+    "# caf\u00e9 pragmatique",
+    "#",
+]
+
+
+@pytest.mark.parametrize("code", non_pragma_comments)
+def test_non_pragma_comment(code):
+    pre_parser = PreParser(is_interface=False)
+    pre_parser.parse(code)
+    assert pre_parser.settings == Settings()
 
 
 def test_version_exception_in_import(make_input_bundle):

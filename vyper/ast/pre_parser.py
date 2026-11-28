@@ -1,8 +1,9 @@
 import enum
 import io
 import re
+import unicodedata
 from collections import defaultdict
-from tokenize import COMMENT, NAME, OP, STRING, TokenError, TokenInfo, tokenize, untokenize
+from tokenize import COMMENT, NAME, OP, STRING, TokenError, TokenInfo, generate_tokens, untokenize
 from typing import Optional
 
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
@@ -108,6 +109,71 @@ def _parse_pragma(comment_contents, settings, is_interface, code, start):
         return
 
     raise PragmaException(f"Unknown pragma `{pragma.split()[0]}`", *location)  # pragma: nocover
+
+
+# detection of comments which look like an attempted pragma, used to reject
+# pragmas which would otherwise be silently treated as ordinary comments.
+# rather than enumerating invisible or blank-rendering characters, every
+# non-ascii character (after NFKC folding, so e.g. fullwidth letters become
+# ascii) is replaced by a marker which may appear anywhere: around the
+# leading `#`s, between the letters of `pragma`/`@version`, or as the
+# separator after it. so e.g. `# pra\u034fgma ...` and `# pragma\u2800...`
+# are detected, while `# pragmatic` and `# pragma: nocover` are not (and
+# neither is `# prágma`, where the marker replaces a letter; letter
+# substitutions are handled by `_is_homoglyph_directive` below).
+_MARKER = "\x00"  # control characters in comments are rejected before this
+
+
+def _spelled_with_markers(word: str) -> str:
+    return f"{_MARKER}*".join(re.escape(c) for c in word)
+
+
+_PRAGMA_LIKE = re.compile(
+    rf"[#\s{_MARKER}]*"
+    rf"({_spelled_with_markers('pragma')}|{_spelled_with_markers('@version')})"
+    rf"([\s{_MARKER}]|$)",
+    re.IGNORECASE,
+)
+
+
+# unicode bidirectional embedding, override and isolate controls. inside a
+# comment these can make a pragma *render* as e.g. `# pragma nonreentrancy on`
+# while the underlying text is something else ("trojan source",
+# CVE-2021-42574), so comments containing them are rejected outright.
+_BIDI_CONTROLS = frozenset("\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069")
+
+
+# control characters other than tab (unicode category Cc, i.e. C0, DEL and
+# C1) and line/paragraph separators (Zl, Zp), e.g. backspace: in a terminal
+# `##\x08 pragma ...` renders as `# pragma ...`, and `# x\u2028# pragma ...`
+# renders as two lines. comments containing them are rejected like bidi
+# controls.
+def _has_control_char(comment: str) -> bool:
+    return any(unicodedata.category(c) in ("Cc", "Zl", "Zp") and c != "\t" for c in comment)
+
+
+# a first word which spells `pragma` or `@version` with some of its letters
+# replaced by non-ascii letters, e.g. a cyrillic `\u0430` in `pragm\u0430`.
+# note this also catches accented spellings such as `# pr\u00e1gma`.
+def _is_homoglyph_directive(folded: str) -> bool:
+    words = folded.lstrip("#").split(maxsplit=1)
+    if not words:
+        return False
+    word = words[0]
+    # mixes ascii and non-ascii characters
+    if word.isascii() or not any(c.isascii() for c in word):
+        return False
+    return any(
+        len(word) == len(target)
+        and all(c.lower() == t if c.isascii() else c.isalpha() for c, t in zip(word, target))
+        for target in ("pragma", "@version")
+    )
+
+
+def _is_pragma_like(comment: str) -> bool:
+    folded = unicodedata.normalize("NFKC", comment)
+    marked = "".join(c if c.isascii() else _MARKER for c in folded)
+    return _PRAGMA_LIKE.match(marked) is not None or _is_homoglyph_directive(folded)
 
 
 class ParserState(enum.Enum):
@@ -294,8 +360,25 @@ class PreParser:
 
         _col_adjustments: dict[int, int] = defaultdict(lambda: 0)
 
-        code_bytes = code.encode("utf-8")
-        token_list = list(tokenize(io.BytesIO(code_bytes).readline))
+        # a carriage return not followed by a newline is a line break for
+        # `ast.parse` and in a terminal, but not for `tokenize`, so e.g.
+        # `# x\r# pragma ...` would render as a pragma but be ignored.
+        # (sources read from disk have their line endings normalized already.)
+        if (m := re.search(r"\r(?!\n)", code)) is not None:
+            lineno = code.count("\n", 0, m.start()) + 1
+            col = m.start() - (code.rfind("\n", 0, m.start()) + 1)
+            raise SyntaxException(
+                "Carriage return not followed by a newline (use \\n or \\r\\n line endings)",
+                code,
+                lineno,
+                col,
+            )
+
+        # tokenize the str directly: `tokenize()` on the utf-8 encoded bytes
+        # would honour a `# coding: ...` cookie and decode the source a
+        # second time, garbling non-ascii characters in the token strings.
+        # (`tokenize()` used to strip a leading BOM, so do that here.)
+        token_list = list(generate_tokens(io.StringIO(code.removeprefix("\ufeff")).readline))
 
         for token in token_list:
             toks = [token]
@@ -311,6 +394,20 @@ class PreParser:
             newstart = lineno, col - adj
 
             if typ == COMMENT:
+                if not _BIDI_CONTROLS.isdisjoint(string):
+                    raise PragmaException(
+                        "Bidirectional control character in comment"
+                        " (it can make a comment render as a pragma)",
+                        code,
+                        *start,
+                    )
+                if _has_control_char(string):
+                    raise PragmaException(
+                        "Control or line separator character in comment"
+                        " (it can make a comment render as a pragma)",
+                        code,
+                        *start,
+                    )
                 contents = string[1:].strip()
                 if contents.startswith("@version"):
                     if settings.compiler_version is not None:
@@ -319,8 +416,16 @@ class PreParser:
                     validate_version_pragma(compiler_version, (code, *start))
                     settings.compiler_version = compiler_version
 
-                if contents.startswith("pragma "):
+                elif contents.startswith("pragma "):
                     _parse_pragma(contents, settings, self._is_interface, code, start)
+
+                elif _is_pragma_like(string):
+                    raise PragmaException(
+                        "Malformed pragma (expected `# pragma <directive>`"
+                        " or `# @version <version>`)",
+                        code,
+                        *start,
+                    )
 
             if typ == NAME and string in ("class", "yield"):
                 raise SyntaxException(
@@ -372,7 +477,7 @@ class PreParser:
         self.keyword_translations = keyword_translations
         self.for_loop_annotations = for_loop_annotations
         self.hex_string_locations = hex_string_parser.locations
-        self.reformatted_code = untokenize(result).decode("utf-8")  # type: ignore[union-attr]
+        self.reformatted_code = untokenize(result)
 
     def shift_for(self, lineno: int, col: int) -> int:
         """
