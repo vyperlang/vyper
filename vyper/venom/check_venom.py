@@ -17,6 +17,8 @@ from vyper.venom.memory_location import (
     get_memory_write_op,
     get_read_size,
     get_write_max_size,
+    memory_read_ops,
+    memory_write_ops,
 )
 
 # raw (pre-lowering) FMP opcodes; none of these may coexist with the
@@ -324,6 +326,26 @@ class PostLoweringError(VenomError):
         if self.inst is not None:
             s += f"\n  {self.inst}"
         return s
+
+
+class StaticFrameError(VenomError):
+    message: str = "static frame bound does not cover the function's static memory"
+
+    def __init__(self, function: IRFunction, detail: str, inst: IRInstruction):
+        self.function = function
+        self.detail = detail
+        self.inst = inst
+
+    def __str__(self):
+        return f"static frame error in {self.function.name}: {self.detail}\n  {self.inst}"
+
+
+class EomFrameError(StaticFrameError):
+    message: str = "`eom` annotation is below the function's static frame"
+
+
+class InitialFmpBoundError(StaticFrameError):
+    message: str = "initial_fmp bound is below the static memory reachable from it"
 
 
 class UnsupportedInstruction(VenomError):
@@ -660,6 +682,260 @@ def _find_annotation_errors(fn: IRFunction) -> list[VenomError]:
     return errors
 
 
+# safety net on the producers one `_resolve_const` query visits. The
+# traversal is memoized and cycle-guarded, so it terminates without this;
+# the cap only bounds the work on pathological input
+_CONST_EVAL_LIMIT = 2**16
+
+# an access ending past this cannot execute: the memory expansion gas
+# exceeds any block gas limit, so it reverts before touching the frame.
+# constant propagation leaves such literal sizes in copies guarded by a
+# reverting bounds check (e.g. `slice` with a huge length)
+_MAX_EXECUTABLE_MEMORY = 2**32
+
+
+def _const_producer(
+    var: IRVariable, defs: dict[IRVariable, list[IRInstruction]]
+) -> IRInstruction | None:
+    # the single `assign`/`add` defining `var`, if any
+    if len(defs.get(var, [])) != 1:
+        return None
+    producer = defs[var][0]
+    if producer.opcode == "assign" and len(producer.operands) == 1:
+        return producer
+    if producer.opcode == "add" and len(producer.operands) == 2:
+        return producer
+    return None
+
+
+def _resolve_const(
+    op: IROperand,
+    defs: dict[IRVariable, list[IRInstruction]],
+    memo: dict[IRVariable, int | None] | None = None,
+) -> int | None:
+    """
+    Evaluate a constant through single-definition `assign` chains
+    (SingleUseExpansion turns literal operands into assigned variables)
+    and `add`s of constants (O1 does not fold the pointer arithmetic that
+    ConcretizeMemLocPass leaves, e.g. `%p = add %base, 64`).
+
+    Iterative so a long acyclic chain neither hits a depth cap nor the
+    recursion limit; a variable reached again while it is still being
+    evaluated is on a cycle and is not a constant.
+    """
+    if isinstance(op, IRLiteral):
+        return op.value
+    if not isinstance(op, IRVariable):
+        return None
+    if memo is None:
+        memo = {}
+
+    stack: list[IRVariable] = [op]
+    in_progress: set[IRVariable] = set()
+    steps = 0
+    while len(stack) > 0:
+        var = stack[-1]
+        if var in memo:
+            stack.pop()
+            continue
+        steps += 1
+        if steps > _CONST_EVAL_LIMIT:
+            return None
+        producer = _const_producer(var, defs)
+        if producer is None:
+            memo[var] = None
+            stack.pop()
+            continue
+        pending = [o for o in producer.operands if isinstance(o, IRVariable) and o not in memo]
+        if len(pending) > 0:
+            if var in in_progress:
+                # reached again before its operands resolved: a cycle
+                memo[var] = None
+                stack.pop()
+                continue
+            in_progress.add(var)
+            stack.extend(pending)
+            continue
+        in_progress.discard(var)
+        stack.pop()
+        vals: list[int | None] = []
+        for o in producer.operands:
+            if isinstance(o, IRLiteral):
+                vals.append(o.value)
+            elif isinstance(o, IRVariable):
+                vals.append(memo[o])
+            else:
+                vals.append(None)
+        if any(v is None for v in vals):
+            memo[var] = None
+        elif producer.opcode == "assign":
+            memo[var] = vals[0]
+        else:
+            memo[var] = sum(v for v in vals if v is not None) % 2**256
+    return memo[op]
+
+
+def _static_access_ends(
+    inst: IRInstruction,
+    defs: dict[IRVariable, list[IRInstruction]],
+    memo: dict[IRVariable, int | None],
+) -> list[int]:
+    # ends of the memory ranges `inst` reads or writes at a constant offset
+    # with a constant size
+    try:
+        accesses = [memory_write_ops(inst), memory_read_ops(inst)]
+    except (ValueError, IndexError):
+        # malformed operand count: nothing to bound
+        return []
+    ret = []
+    for ops in accesses:
+        if ops.ofst is None:
+            continue
+        # a call writes at most its output buffer size; a read size is
+        # capped by its path-sensitive bound when the frontend proved one
+        size_op = ops.size if ops.size is not None else ops.max_size
+        if size_op is None:
+            continue
+        ofst = _resolve_const(ops.ofst, defs, memo)
+        size = _resolve_const(size_op, defs, memo)
+        if ofst is None or size is None:
+            continue
+        if ops.max_size is not None and ops.max_size is not size_op:
+            max_size = _resolve_const(ops.max_size, defs, memo)
+            if max_size is not None:
+                size = min(size, max_size)
+        if 0 < size and ofst + size <= _MAX_EXECUTABLE_MEMORY:
+            ret.append(ofst + size)
+    return ret
+
+
+def _static_word_accesses(fn: IRFunction) -> dict[IRBasicBlock, tuple[int, IRInstruction]]:
+    """
+    For each block of `fn`, the highest end of a memory access at a
+    constant offset with a constant size, and the instruction making it.
+
+    Once allocas are concretized, the static frame survives only as
+    constant addresses, so this is a lower bound on the static memory the
+    block touches. A header `eom` or an `initial_fmp` bound below it lets
+    spill slots or dynamic allocations alias the frame.
+    """
+    defs: dict[IRVariable, list[IRInstruction]] = {}
+    for bb in fn.get_basic_blocks():
+        for inst in bb.instructions:
+            for out in inst.get_outputs():
+                defs.setdefault(out, []).append(inst)
+
+    memo: dict[IRVariable, int | None] = {}
+    ret: dict[IRBasicBlock, tuple[int, IRInstruction]] = {}
+    for bb in fn.get_basic_blocks():
+        for inst in bb.instructions:
+            for end in _static_access_ends(inst, defs, memo):
+                if bb not in ret or end > ret[bb][0]:
+                    ret[bb] = (end, inst)
+    return ret
+
+
+def _find_static_frame_errors(context: IRContext) -> list[VenomError]:
+    """
+    Check the static frame bounds of lowered IR against the static memory it
+    accesses: a function's header `eom` (the spill base) and each
+    `initial_fmp` bound (the base of dynamic allocations) must lie at or
+    above every literal-addressed word they cover. The pipeline derives both
+    from the allocas, but text input carries them as plain integers.
+    """
+    errors: list[VenomError] = []
+    accesses = {fn: _static_word_accesses(fn) for fn in context.functions.values()}
+
+    def _max_access(blocks, fns) -> tuple[int, IRInstruction] | None:
+        items = [accesses[fn][bb] for fn, bb in blocks if bb in accesses[fn]]
+        for fn in fns:
+            items.extend(accesses[fn].values())
+        return max(items, key=lambda x: x[0], default=None)
+
+    fn_eom = context.mem_allocator.fn_eom
+    for fn in context.functions.values():
+        if fn._fmp_signature is None and fn not in fn_eom:
+            # not lowered: ConcretizeMemLocPass will derive the frame
+            continue
+        frame = _max_access([], [fn])
+        if frame is None:
+            continue
+        if fn not in fn_eom:
+            # a lowered function without `eom` is taken as concretized with
+            # an empty frame (ConcretizeMemLocPass records eom=0), so spill
+            # slots would start at 0 over its static accesses
+            errors.append(
+                EomFrameError(
+                    fn,
+                    f"`fmp_lowered` function has no `eom` but its frame is "
+                    f"accessed up to {frame[0]}",
+                    frame[1],
+                )
+            )
+        elif frame[0] > fn_eom[fn]:
+            errors.append(
+                EomFrameError(
+                    fn, f"`eom={fn_eom[fn]}` but the frame is accessed up to {frame[0]}", frame[1]
+                )
+            )
+
+    for fn in context.functions.values():
+        for bb in fn.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.opcode != "initial_fmp" or len(inst.operands) != 1:
+                    continue
+                bound = inst.operands[0]
+                if not isinstance(bound, IRLiteral):
+                    # reported as InitialFmpArityError
+                    continue
+                # the root covers every block reachable from its own, and
+                # the frames of the functions those blocks invoke
+                blocks, callees = _reachable_from(fn, bb)
+                frame = _max_access([(fn, b) for b in blocks], callees)
+                if frame is not None and frame[0] > bound.value:
+                    errors.append(
+                        InitialFmpBoundError(
+                            fn,
+                            f"bound {bound.value} is below static memory accessed up "
+                            f"to {frame[0]} by `{str(frame[1]).strip()}`",
+                            inst,
+                        )
+                    )
+
+    return errors
+
+
+def _reachable_from(
+    fn: IRFunction, start: IRBasicBlock
+) -> tuple[set[IRBasicBlock], set[IRFunction]]:
+    # blocks of `fn` reachable from `start`, and the functions transitively
+    # invoked from them
+    blocks: set[IRBasicBlock] = set()
+    callees: set[IRFunction] = set()
+    worklist: list[tuple[IRFunction, IRBasicBlock]] = [(fn, start)]
+    seen: set[IRBasicBlock] = set()
+    while len(worklist) > 0:
+        cur_fn, bb = worklist.pop()
+        if bb in seen:
+            continue
+        seen.add(bb)
+        if cur_fn is fn:
+            blocks.add(bb)
+        for inst in bb.instructions:
+            if inst.opcode != "invoke":
+                continue
+            callee = InvokeLayout(fn.ctx, inst).callee
+            if callee is not None and callee not in callees:
+                callees.add(callee)
+                worklist.extend((callee, b) for b in callee.get_basic_blocks())
+        if not bb.is_terminated:
+            continue
+        for label in bb.last_instruction.get_label_operands():
+            if cur_fn.has_basic_block(label.value):
+                worklist.append((cur_fn, cur_fn.get_basic_block(label.value)))
+    return blocks, callees
+
+
 def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
     errors: list[VenomError] = []
 
@@ -669,6 +945,8 @@ def find_calling_convention_errors(context: IRContext) -> list[VenomError]:
         errors.extend(_find_param_layout_errors(fn))
         errors.extend(_find_mixed_fmp_errors(fn))
         errors.extend(_find_annotation_errors(fn))
+
+    errors.extend(_find_static_frame_errors(context))
 
     ret_arities = _collect_ret_arities(context)
 
