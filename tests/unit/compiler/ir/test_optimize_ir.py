@@ -32,6 +32,23 @@ optimize_list = [
     (["assert", ["ne", "x", "y"]], None),
     # nesting
     (["mstore", 0, ["eq", 1, 2]], ["mstore", 0, 0]),
+    (
+        ["with", "x", ["add", 1, 2], ["mstore", ["add", 32, 32], ["add", "x", ["mul", 2, 3]]]],
+        ["with", "x", 3, ["mstore", 64, ["add", "x", 6]]],
+    ),
+    (
+        ["mstore", 0, ["iszero", ["gt", "x", ["sub", 3, 1]]]],
+        ["mstore", 0, ["iszero", ["ge", "x", 3]]],
+    ),
+    (
+        [
+            "if",
+            ["gt", "x", ["add", 1, 1]],
+            ["mstore", 0, ["add", 2, 3]],
+            ["mstore", 32, ["add", 4, 5]],
+        ],
+        ["if", ["iszero", ["ge", "x", 3]], ["mstore", 32, 9], ["mstore", 0, 5]],
+    ),
     # conditions
     (["ge", "x", 0], [1]),  # x >= 0 == True
     (["ge", ["sload", 0], 0], None),  # no-op
