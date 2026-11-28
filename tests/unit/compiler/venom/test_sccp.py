@@ -145,6 +145,37 @@ def test_assert_false(asserter):
         _check_pre_post(code, code, hevm=False)
 
 
+@pytest.mark.parametrize("asserter", ("assert", "assert_unreachable"))
+def test_assert_false_in_unreachable_block(asserter):
+    """
+    A failing assert in a block that can never execute is not a
+    compile time error, and the block is left untouched
+    """
+    pre = f"""
+    main:
+        %1 = 0
+        jnz %1, @then, @else
+    then:
+        {asserter} %1
+        stop
+    else:
+        sink 1
+    """
+
+    post = f"""
+    main:
+        %1 = 0
+        jmp @else
+    then:  # unreachable
+        {asserter} %1
+        stop
+    else:
+        sink 1
+    """
+
+    _check_pre_post(pre, post)
+
+
 def test_cont_jump_case():
     """
     Test of jnz removal which eliminates the basic block
@@ -175,7 +206,7 @@ def test_cont_jump_case():
         %5 = add 10, 96
         sink 106
     else:  # unreachable
-        %6 = add %1, 96
+        %6 = add %1, %4
         sink %6
     """
 
@@ -225,7 +256,7 @@ def test_cont_phi_case():
         %5:1 = add 10, 96
         jmp @join
     else:  # unreachable
-        %5:2 = add %1, 96
+        %5:2 = add %1, %4
         jmp @join
     join:
         %5 = phi @then, %5:1, @else, %5:2
@@ -280,7 +311,7 @@ def test_cont_phi_const_case():
         %5:1 = add 10, 96
         jmp @join
     else:  # unreachable
-        %5:2 = add 1, 96
+        %5:2 = add %1, %4
         jmp @join
     join:
         %5 = phi @then, %5:1, @else, %5:2
