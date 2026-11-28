@@ -134,6 +134,32 @@ def pop():
     assert [env.get_storage(c.address, base + i) for i in range(6)] == [1, 1, 5, 2, 3, 6]
 
 
+def test_storage_extend_keeps_dead_slots(env, get_contract):
+    # extending with an element that has a DynArray member writes only its
+    # live slots, like append
+    code = f"""
+{STRUCTS}
+
+s: DynArray[A, 2]
+
+@external
+def push(junk: A, new: A):
+    xs: DynArray[A, 1] = [junk]
+    xs[0] = new
+    self.s.extend(xs)
+
+@external
+def pop():
+    self.s.pop()
+    """
+    c = get_contract(code)
+    c.push(([1, 2, 3], 4), ([1, 2, 3], 4))
+    c.pop()
+    c.push(([7, 8, 9], 7), ([5], 6))
+    base = _first_slot()
+    assert [env.get_storage(c.address, base + i) for i in range(6)] == [1, 1, 5, 2, 3, 6]
+
+
 @pytest.mark.requires_evm_version("cancun")
 @pytest.mark.parametrize("typ,old,junk,new,expected", CASES)
 def test_transient_write_keeps_dead_slots(get_contract, typ, old, junk, new, expected):

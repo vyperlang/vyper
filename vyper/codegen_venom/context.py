@@ -1457,6 +1457,23 @@ class VenomCodegenContext:
         b.get_last_inst("staticcall").memory_read_max_size = max_length
         b.assert_(success)
 
+    def copy_dynarray_elements_to_immutables(
+        self, src: IROperand, dst_elem_base: IROperand, elem_typ: VyperType, length: IROperand
+    ) -> None:
+        """Copy DynArray elements from memory to the immutables buffer
+        (constructor only). Immutables are byte-addressed like memory but
+        written with `istore`, so the copy goes word by word.
+        """
+        b = self.builder
+
+        def store_immutable_word(offset: IROperand, val: IROperand) -> None:
+            self.store_word(offset, val, DataLocation.IMMUTABLES)
+
+        words = b.mul(length, IRLiteral(elem_typ.memory_bytes_required // 32))
+        self._word_copy_loop(
+            src, dst_elem_base, words, b.mload, store_immutable_word, 32, 32, "m2i_dyn"
+        )
+
     _ALLOCATION_LIMIT: ClassVar[int] = 2**64
 
     def allocate_buffer(self, size: int, annotation: Optional[str] = None) -> Buffer:
