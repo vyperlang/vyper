@@ -29,7 +29,7 @@ Source (.vy)
   │
   ├─ vyper/ast/            → Parse to AST (pre_parser → Python AST → Vyper AST)
   ├─ vyper/semantics/      → Type check, validate, annotate AST
-  ├─ vyper/codegen/        → AST → s-expr IR (default production pipeline)
+  ├─ vyper/codegen_legacy/ → AST → s-expr IR (default production pipeline)
   ├─ vyper/ir/             → s-expr IR → assembly → bytecode
   └─ vyper/evm/            → Assembly → bytecode
 ```
@@ -48,7 +48,7 @@ Orchestrated by `vyper/compiler/phases.py` (`CompilerData`). Each phase is lazy.
 |-----------|---------|
 | `vyper/ast/` | Parsing, AST nodes, pre-parser. See [AST README](../vyper/ast/README.md) |
 | `vyper/semantics/` | Type system, analysis, validation. See [Semantics README](../vyper/semantics/README.md) |
-| `vyper/codegen/` | AST → s-expr IR (default production pipeline) |
+| `vyper/codegen_legacy/` | AST → s-expr IR (default production pipeline) |
 | `vyper/ir/` | s-expr IR → assembly → bytecode. See [IR README](../vyper/ir/README.md) |
 | `vyper/codegen_venom/` | AST → Venom IR (experimental, `--experimental-codegen`) |
 | `vyper/venom/` | Venom SSA IR: passes, analysis, assembly emission. See [Venom README](../vyper/venom/README.md) |
@@ -83,7 +83,7 @@ Enforced by `make lint` (also what CI runs). Includes `black`, `flake8`, `isort`
 | Pipeline phases | `vyper.compiler.phases.CompilerData` |
 | AST parsing | `vyper.ast.parse.parse_to_ast()` |
 | Semantic analysis | `vyper.semantics.analyze_module()` |
-| Legacy codegen | `vyper.codegen.module` |
+| Legacy codegen | `vyper.codegen_legacy.module` |
 | AST → Venom IR | `vyper.codegen_venom.module` |
 | Venom → assembly | `vyper.venom.generate_assembly_experimental()` |
 | CLI entry | `vyper.cli.vyper_compile` |

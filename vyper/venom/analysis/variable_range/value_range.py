@@ -146,6 +146,20 @@ class ValueRange:
             return self._lo
         return None
 
+    def as_signed(self) -> ValueRange:
+        """Return this range in signed representation.
+
+        A word can appear as either -k or 2**256 - k, so ranges extending
+        above SIGNED_MAX contain words that are negative when read as
+        signed. A range entirely above SIGNED_MAX shifts down to a negative
+        range; one that crosses SIGNED_MAX wraps around and becomes TOP.
+        """
+        if self._kind != VRangeKind.IV or self.hi <= SIGNED_MAX:
+            return self
+        if self.lo > SIGNED_MAX:
+            return ValueRange.iv(self.lo - (UNSIGNED_MAX + 1), self.hi - (UNSIGNED_MAX + 1))
+        return ValueRange.top()
+
     def union(self, other: ValueRange) -> ValueRange:
         """Compute the union (join) of two ranges."""
         if self._kind == VRangeKind.TOP or other._kind == VRangeKind.TOP:
@@ -166,21 +180,25 @@ class ValueRange:
         if self._kind == VRangeKind.BOT or other._kind == VRangeKind.BOT:
             return ValueRange.empty()
 
+        # one side holds negative words written as signed, the other as
+        # unsigned: compare both in signed representation
+        if (self.lo < 0 and other.hi > SIGNED_MAX) or (other.lo < 0 and self.hi > SIGNED_MAX):
+            # Containment is exact even when converting a range to signed would yield TOP.
+            if self.lo <= other.lo and other.hi <= self.hi:
+                return other
+            if other.lo <= self.lo and self.hi <= other.hi:
+                return self
+            return self.as_signed().intersect(other.as_signed())
+
         lo = max(self.lo, other.lo)
         hi = min(self.hi, other.hi)
         return ValueRange.iv(lo, hi)
 
     def clamp(self, lo: Optional[int] = None, hi: Optional[int] = None) -> ValueRange:
         """Clamp this range to the specified bounds."""
-        if self._kind == VRangeKind.TOP:
-            new_lo = SIGNED_MIN if lo is None else max(SIGNED_MIN, lo)
-            new_hi = UNSIGNED_MAX if hi is None else min(UNSIGNED_MAX, hi)
-        elif self._kind == VRangeKind.BOT:
-            return self
-        else:
-            new_lo = self.lo if lo is None else max(self.lo, lo)
-            new_hi = self.hi if hi is None else min(self.hi, hi)
-        return ValueRange.iv(new_lo, new_hi)
+        lo = SIGNED_MIN if lo is None else max(SIGNED_MIN, lo)
+        hi = UNSIGNED_MAX if hi is None else min(UNSIGNED_MAX, hi)
+        return self.intersect(ValueRange.iv(lo, hi))
 
     def __repr__(self) -> str:
         if self._kind == VRangeKind.TOP:

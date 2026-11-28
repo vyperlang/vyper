@@ -15,7 +15,7 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Callable, ClassVar, Optional, Sequence
 
-from vyper.codegen.core import punnable
+from vyper.codegen_shared.layout import punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.bytestring_literal import LiteralPool, chain_instructions
 from vyper.codegen_venom.constants import POINTER_CELL_CAPACITY_OFFSET
@@ -992,12 +992,16 @@ class VenomCodegenContext:
         # code path needs ctor-aware CODE loads, add an explicit branch here.
         return self.builder.load(addr, location)
 
-    def ensure_bytestring_in_memory(self, vv: VyperValue, typ: _BytestringT) -> VyperValue:
+    def ensure_bytestring_in_memory(self, vv: VyperValue) -> VyperValue:
         """Return a bytestring value guaranteed to be in memory.
 
         Hashing and certain builtins require memory-backed bytestring data.
-        STORAGE/TRANSIENT/CODE values are copied into a temporary memory buffer.
+        STORAGE/TRANSIENT/IMMUTABLES values are copied into a temporary memory buffer
+        sized by the value's own type (the annotated type of the expression
+        it came from can be wider, e.g. a map key or comparison operand).
         """
+        typ = vv.typ
+        assert isinstance(typ, _BytestringT)
         if vv.location is DataLocation.STORAGE or vv.location is DataLocation.TRANSIENT:
             buf_val = self.new_temporary_value(typ)
             self.slot_to_memory(vv.operand, buf_val.operand, typ.storage_size_in_words, vv.location)
@@ -1453,26 +1457,6 @@ class VenomCodegenContext:
         b.get_last_inst("staticcall").memory_read_max_size = max_length
         b.assert_(success)
 
-    def copy_dynarray_elements_to_storage(
-        self,
-        src: IROperand,
-        dst_elem_base_slot: IROperand,
-        elem_typ: VyperType,
-        length: IROperand,
-        transient: bool,
-    ) -> None:
-        """Copy DynArray elements from memory to slot-addressed storage."""
-        b = self.builder
-        words = b.mul(length, IRLiteral(elem_typ.storage_size_in_words))
-        if transient:
-            self._word_copy_loop(
-                src, dst_elem_base_slot, words, b.mload, b.tstore, 32, 1, "m2t_dyn"
-            )
-        else:
-            self._word_copy_loop(
-                src, dst_elem_base_slot, words, b.mload, b.sstore, 32, 1, "m2s_dyn"
-            )
-
     def copy_dynarray_elements_to_immutables(
         self, src: IROperand, dst_elem_base: IROperand, elem_typ: VyperType, length: IROperand
     ) -> None:
@@ -1546,13 +1530,9 @@ class VenomCodegenContext:
         if typ._is_prim_word:
             # Primitive types: store value directly
             self.builder.sstore(slot, val)
-        elif typ.storage_size_in_words == 1:
-            # Single-word complex type: val is memory pointer, load and store
-            assert isinstance(val, IRVariable)
-            self.builder.sstore(slot, self.builder.mload(val))
         else:
-            # Multi-word: val is memory pointer, copy to storage
-            self._store_memory_to_storage(val, slot, typ.storage_size_in_words)
+            # val is memory pointer, copy to storage
+            self._store_memory_to_slots(val, slot, typ, transient=False)
 
     def slot_to_memory(
         self, slot: IROperand, buf: IROperand, word_count: int, location: DataLocation
@@ -1667,14 +1647,53 @@ class VenomCodegenContext:
     def _load_storage_to_memory(self, slot: IROperand, buf: IROperand, word_count: int) -> None:
         """Load multi-word storage value to memory buffer."""
         self._word_copy_loop(
-            slot, buf, IRLiteral(word_count), self.builder.sload, self.builder.mstore, 1, 32, "s2m"
+            slot, buf, word_count, self.builder.sload, self.builder.mstore, 1, 32, "s2m"
         )
 
-    def _store_memory_to_storage(self, buf: IROperand, slot: IROperand, word_count: int) -> None:
-        """Store memory buffer to multi-word storage."""
-        self._word_copy_loop(
-            buf, slot, IRLiteral(word_count), self.builder.mload, self.builder.sstore, 32, 1, "m2s"
-        )
+    def _store_memory_to_slots(
+        self, src: IROperand, slot: IROperand, typ: VyperType, transient: bool
+    ) -> None:
+        """Copy a value of type `typ` at memory `src` to the slots starting
+        at `slot` (storage, or transient storage if `transient`).
+
+        Only the words that hold the value are written: a DynArray's length
+        and its first `length` elements, and a bytestring's length word and
+        the words holding its bytes, at any nesting depth. The slots past
+        them keep their contents, as in legacy codegen. Subtrees without
+        dynamic data are copied whole.
+        """
+        b = self.builder
+        if transient:
+            store_word, prefix = b.tstore, "m2t"
+        else:
+            store_word, prefix = b.sstore, "m2s"
+
+        # abi_type.is_dynamic(): does typ contain a DynArray or bytestring
+        if not typ.abi_type.is_dynamic():
+            if typ.storage_size_in_words == 1:
+                assert isinstance(src, IRVariable)
+                store_word(slot, b.mload(src))
+            else:
+                self._word_copy_loop(
+                    src, slot, typ.storage_size_in_words, b.mload, store_word, 32, 1, prefix
+                )
+        elif isinstance(typ, _BytestringT):
+            word_count = self._bytestring_word_count(src)
+            self._word_copy_loop(src, slot, word_count, b.mload, store_word, 32, 1, prefix)
+        elif isinstance(typ, DArrayT):
+            self._copy_dynarray_to_storage(src, slot, typ, transient)
+        elif isinstance(typ, SArrayT):
+            self._copy_elements_to_slots(src, slot, typ.value_type, IRLiteral(typ.count), transient)
+        else:
+            assert isinstance(typ, (StructT, TupleT))
+            mem_ofst = 0
+            slot_ofst = 0
+            for member_t in typ.tuple_members():
+                member_src = self._with_byte_offset(src, mem_ofst)
+                member_slot = self._with_byte_offset(slot, slot_ofst)
+                self._store_memory_to_slots(member_src, member_slot, member_t, transient)
+                mem_ofst += member_t.memory_bytes_required
+                slot_ofst += member_t.storage_size_in_words
 
     # === Transient Storage (EIP-1153, Cancun+) ===
 
@@ -1710,24 +1729,14 @@ class VenomCodegenContext:
         if typ._is_prim_word:
             # Primitive types: store value directly
             self.builder.tstore(slot, val)
-        elif typ.storage_size_in_words == 1:
-            # Single-word complex type: val is memory pointer, load and store
-            assert isinstance(val, IRVariable)
-            self.builder.tstore(slot, self.builder.mload(val))
         else:
-            # Multi-word: val is memory pointer, copy to transient storage
-            self._store_memory_to_transient(val, slot, typ.storage_size_in_words)
+            # val is memory pointer, copy to transient storage
+            self._store_memory_to_slots(val, slot, typ, transient=True)
 
     def _load_transient_to_memory(self, slot: IROperand, buf: IROperand, word_count: int) -> None:
         """Load multi-word transient storage value to memory buffer."""
         self._word_copy_loop(
-            slot, buf, IRLiteral(word_count), self.builder.tload, self.builder.mstore, 1, 32, "t2m"
-        )
-
-    def _store_memory_to_transient(self, buf: IROperand, slot: IROperand, word_count: int) -> None:
-        """Store memory buffer to multi-word transient storage."""
-        self._word_copy_loop(
-            buf, slot, IRLiteral(word_count), self.builder.mload, self.builder.tstore, 32, 1, "m2t"
+            slot, buf, word_count, self.builder.tload, self.builder.mstore, 1, 32, "t2m"
         )
 
     # === Immutables ===
@@ -1832,35 +1841,10 @@ class VenomCodegenContext:
         is_slot_addressed = loc in (DataLocation.STORAGE, DataLocation.TRANSIENT)
 
         if is_slot_addressed:
-            # DynArray special case: only copy length + actual elements, not full capacity.
-            # This matches legacy codegen behavior (core.py:_dynarray_make_setter).
-            if isinstance(typ, DArrayT):
-                transient = loc is DataLocation.TRANSIENT
-                self._copy_dynarray_to_storage(src, dst_ptr.operand, typ, transient=transient)
-            elif isinstance(typ, _BytestringT):
-                # likewise, write only the length word and the words holding
-                # the value: the rest of the buffer is not part of the value
-                b = self.builder
-                if loc is DataLocation.TRANSIENT:
-                    store_word, prefix = b.tstore, "m2t"
-                else:
-                    store_word, prefix = b.sstore, "m2s"
-                self._word_copy_loop(
-                    src,
-                    dst_ptr.operand,
-                    self._bytestring_word_count(src),
-                    b.mload,
-                    store_word,
-                    32,
-                    1,
-                    prefix,
-                )
-            else:
-                # store_storage / store_transient handle single-word mload internally.
-                store_fn = (
-                    self.store_transient if loc is DataLocation.TRANSIENT else self.store_storage
-                )
-                store_fn(src, dst_ptr.operand, typ)
+            # store_storage / store_transient write only the live parts of
+            # DynArrays and bytestrings, at any depth.
+            store_fn = self.store_transient if loc is DataLocation.TRANSIENT else self.store_storage
+            store_fn(src, dst_ptr.operand, typ)
         elif loc == DataLocation.IMMUTABLES:
             # Immutables in constructor.
             if isinstance(typ, _BytestringT):
@@ -1911,10 +1895,14 @@ class VenomCodegenContext:
         # Load length from source (at offset 0)
         assert isinstance(src, IRVariable)
         length = b.mload(src)
-        dst_elem_base_slot = b.add(dst_slot, IRLiteral(1))
-        src_data = b.add(src, IRLiteral(32))
-        self.copy_dynarray_elements_to_storage(
-            src_data, dst_elem_base_slot, typ.value_type, length, transient
+
+        # elements start after the length word, in memory and in storage
+        self._copy_elements_to_slots(
+            b.add(src, IRLiteral(32)),
+            b.add(dst_slot, IRLiteral(1)),
+            typ.value_type,
+            length,
+            transient,
         )
 
         # write length last (matches legacy behavior)
@@ -1922,3 +1910,53 @@ class VenomCodegenContext:
             b.tstore(dst_slot, length)
         else:
             b.sstore(dst_slot, length)
+
+    def _copy_elements_to_slots(
+        self,
+        src: IROperand,
+        dst_slot: IROperand,
+        elem_typ: VyperType,
+        count: IROperand,
+        transient: bool,
+    ) -> None:
+        """Copy `count` array elements of type `elem_typ` from memory `src`
+        to the slots starting at `dst_slot`, each by _store_memory_to_slots."""
+        b = self.builder
+
+        elem_mem_size = elem_typ.memory_bytes_required
+        elem_words = elem_typ.storage_size_in_words
+
+        # Create loop blocks
+        cond_block = b.create_block("dyn_cond")
+        body_block = b.create_block("dyn_body")
+        exit_block = b.create_block("dyn_exit")
+
+        # Entry: counter = 0, jump to cond
+        counter = b.assign(IRLiteral(0))
+        b.jmp(cond_block.label)
+
+        # Condition: if counter >= count, goto exit, else body
+        b.append_block(cond_block)
+        b.set_block(cond_block)
+        # done = counter >= count = iszero(lt(counter, count))
+        done = b.iszero(b.lt(counter, count))
+        cond_finish = b.current_block
+
+        # Body: copy one element
+        b.append_block(body_block)
+        b.set_block(body_block)
+
+        src_ptr = b.add(src, b.mul(counter, IRLiteral(elem_mem_size)))
+        dst_slot_i = b.add(dst_slot, b.mul(counter, IRLiteral(elem_words)))
+        self._store_memory_to_slots(src_ptr, dst_slot_i, elem_typ, transient)
+
+        # Increment counter and loop
+        new_counter = b.add(counter, IRLiteral(1))
+        b.assign_to(new_counter, counter)
+        b.jmp(cond_block.label)
+
+        # Wire up conditional jump (done after body to have block refs)
+        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
+
+        b.append_block(exit_block)
+        b.set_block(exit_block)

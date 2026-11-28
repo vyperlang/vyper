@@ -1,8 +1,9 @@
 import pytest
 
-from tests.venom_utils import PrePostChecker
+from tests.venom_utils import PrePostChecker, parse_from_basic_block
 from vyper.venom.analysis import IRAnalysesCache
 from vyper.venom.basicblock import IRLabel
+from vyper.venom.check_venom import find_semantic_errors
 from vyper.venom.parser import parse_venom
 from vyper.venom.passes import PhiEliminationPass
 
@@ -400,3 +401,123 @@ def test_phi_elim_multi_output_invoke_same_output_eliminated():
     assert len(z_assigns) == 1
     assert z_assigns[0].opcode == "assign"
     assert z_assigns[0].operands[0].name == "%r2"
+
+
+def test_dominated_basicblock_in_the_middle():
+    """
+    This test check for the error which is created when
+    the order of the basicblocks is not in top sort of dom
+    order
+    """
+    source = """
+    main:
+        %a = calldataload 0
+        %b = calldataload 32
+        %c = calldataload 64
+        %cond = calldataload 96
+        jnz %cond, @r1, @r2
+    pjoin:
+        %p = phi @qjoin, %q, @direct, %r
+        mstore 0, %p
+        return 0, 32
+    qjoin:
+        %q = phi @q1, %a, @q2, %r
+        jmp @pjoin
+    rjoin:
+        %r = phi @r1, %b, @r2, %c
+        jnz %cond, @direct, @qstart
+    r1:
+        jmp @rjoin
+    r2:
+        jmp @rjoin
+    direct:
+        jmp @pjoin
+    qstart:
+        jnz %cond, @q1, @q2
+    q1:
+        jmp @qjoin
+    q2:
+        jmp @qjoin
+    """
+    ctx = parse_from_basic_block(source)
+    assert find_semantic_errors(ctx) == []
+    fn = ctx.get_function(IRLabel("_global"))
+    PhiEliminationPass(IRAnalysesCache(fn), fn).run_pass()
+    assert find_semantic_errors(ctx) == []
+
+    # more precise check, the asserts before
+    # are to explain whats the error there
+    # but in general it should not change
+    _check_pre_post(source, source)
+
+
+@pytest.mark.hevm
+def test_dominated_basicblock_in_the_middle_with_possible_opt():
+    """
+    Same as the test above (test_dominated_basicblock_in_the_middle)
+    but the there is a opt possibility in different
+    basic block
+    """
+    pre = """
+    main:
+        %a = source
+        %b = source
+        %c = %b
+        %cond = source
+        jnz %cond, @r1, @r2
+    exit:
+        %p = phi @qjoin, %q, @direct, %r
+        mstore 0, %p
+        return 0, 32
+    qjoin:
+        %q = phi @q1, %a, @q2, %r
+        jmp @exit
+    rjoin:
+        %r = phi @r1, %b, @r2, %c
+        jnz %cond, @direct, @qstart
+    r1:
+        jmp @rjoin
+    r2:
+        jmp @rjoin
+    direct:
+        jmp @exit
+    qstart:
+        jnz %cond, @q1, @q2
+    q1:
+        jmp @qjoin
+    q2:
+        jmp @qjoin
+    """
+
+    post = """
+    main:
+        %a = source
+        %b = source
+        %c = %b
+        %cond = source
+        jnz %cond, @r1, @r2
+    exit:
+        %p = phi @qjoin, %q, @direct, %r
+        mstore 0, %p
+        return 0, 32
+    qjoin:
+        %q = phi @q1, %a, @q2, %r
+        jmp @exit
+    rjoin:
+        %r = %b
+        jnz %cond, @direct, @qstart
+    r1:
+        jmp @rjoin
+    r2:
+        jmp @rjoin
+    direct:
+        jmp @exit
+    qstart:
+        jnz %cond, @q1, @q2
+    q1:
+        jmp @qjoin
+    q2:
+        jmp @qjoin
+    """
+
+    _check_pre_post(pre, post)

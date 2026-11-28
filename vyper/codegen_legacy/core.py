@@ -1,5 +1,11 @@
-import vyper.codegen.context as ctx
-from vyper.codegen.ir_node import Encoding, IRnode
+import vyper.codegen_legacy.context as ctx
+from vyper.codegen_legacy.ir_node import Encoding, IRnode
+from vyper.codegen_shared.abi_utils import (
+    calculate_type_for_external_return,
+    is_tuple_like,
+    needs_external_call_wrap,
+)
+from vyper.codegen_shared.layout import DYNAMIC_ARRAY_OVERHEAD, has_length_word
 from vyper.compiler.settings import _opt_codesize, _opt_gas, _opt_lowering_only_ir
 from vyper.evm.address_space import (
     CALLDATA,
@@ -29,14 +35,11 @@ from vyper.semantics.types import (
     VyperType,
     _BytestringT,
     is_bounded_length,
-    is_unbounded_sequence_type,
 )
 from vyper.semantics.types.shortcuts import BYTES32_T, INT256_T, UINT256_T
 from vyper.semantics.types.subscriptable import SArrayT
 from vyper.semantics.types.user import FlagT
 from vyper.utils import GAS_COPY_WORD, GAS_IDENTITY, GAS_IDENTITYWORD, ceil32
-
-DYNAMIC_ARRAY_OVERHEAD = 1
 
 
 def is_bytes_m_type(typ):
@@ -57,14 +60,6 @@ def is_decimal_type(typ):
 
 def is_flag_type(typ):
     return isinstance(typ, FlagT)
-
-
-def is_tuple_like(typ):
-    # A lot of code paths treat tuples and structs similarly
-    # so we have a convenience function to detect it
-    ret = isinstance(typ, (TupleT, StructT))
-    assert ret == hasattr(typ, "tuple_items")
-    return ret
 
 
 def is_array_like(typ):
@@ -687,11 +682,6 @@ def _get_element_ptr_tuplelike(parent, key, hi=None):
     )
 
 
-def has_length_word(typ):
-    # Consider moving this to an attribute on typ
-    return isinstance(typ, (DArrayT, _BytestringT))
-
-
 # TODO simplify this code, especially the ABI decoding
 def _get_element_ptr_array(parent, key, array_bounds_check):
     assert is_array_like(parent.typ)
@@ -841,32 +831,6 @@ def unwrap_location(orig):
 def ir_tuple_from_args(args):
     typ = TupleT([x.typ for x in args])
     return IRnode.from_list(["multi"] + [x for x in args], typ=typ)
-
-
-def needs_external_call_wrap(typ):
-    # for calls to ABI conforming contracts.
-    # according to the ABI spec, return types are ALWAYS tuples even
-    # if only one element is being returned.
-    # https://solidity.readthedocs.io/en/latest/abi-spec.html#function-selector-and-argument-encoding
-    # "and the return values v_1, ..., v_k of f are encoded as
-    #
-    #    enc((v_1, ..., v_k))
-    #    i.e. the values are combined into a tuple and encoded.
-    # "
-    # therefore, wrap it in a tuple if it's not already a tuple.
-    # for example, `bytes` is returned as abi-encoded (bytes,)
-    # and `(bytes,)` is returned as abi-encoded ((bytes,),)
-    # In general `-> X` gets returned as (X,)
-    # including structs. MyStruct is returned as abi-encoded (MyStruct,).
-    # (Sorry this is so confusing. I didn't make these rules.)
-
-    return not (isinstance(typ, TupleT) and typ.length > 1)
-
-
-def calculate_type_for_external_return(typ):
-    if needs_external_call_wrap(typ):
-        return TupleT([typ])
-    return typ
 
 
 def wrap_value_for_external_return(ir_val):
@@ -1270,45 +1234,6 @@ def _complex_make_setter(left, right, hi=None):
             ret.append(make_setter(l_i, r_i, hi=hi))
 
         return b1.resolve(b2.resolve(IRnode.from_list(ret)))
-
-
-def punnable(src_typ, dst_typ):
-    """
-    Return True if memory laid out as `src_typ` can be read (punned) as `dst_typ`.
-
-    Compatible types can differ in element or member layout, e.g.
-    DynArray[Bytes[10], 5] vs DynArray[Bytes[512], 5] (element stride 64
-    vs 544). A wider bytestring bound or DynArray capacity at the top level
-    does not change the layout of the data that is present.
-    """
-    if isinstance(dst_typ, (DArrayT, SArrayT)):
-        assert isinstance(src_typ, (DArrayT, SArrayT))
-        pairs = [(src_typ.value_type, dst_typ.value_type)]
-    elif isinstance(dst_typ, TupleT):
-        assert isinstance(src_typ, TupleT)
-        n = len(dst_typ.member_types)
-        assert len(src_typ.member_types) == n
-        pairs = [(src_typ.member_types[i], dst_typ.member_types[i]) for i in range(n)]
-    else:
-        # primitive words, bytestrings ([length][data]) and (nominal) structs
-        return True
-
-    # nested values also need equal sizes: they determine strides and offsets
-    return all(_punnable_nested(s, d) for s, d in pairs)
-
-
-def _punnable_nested(src_typ, dst_typ):
-    # an unbounded element or member is a pointer cell holding a payload
-    # pointer, not the value. A cell is never interchangeable with an inline
-    # value, even when the inline value's size happens to equal the cell's,
-    # and a cell is read as the payload type it was written for.
-    src_cell = is_unbounded_sequence_type(src_typ)
-    dst_cell = is_unbounded_sequence_type(dst_typ)
-    if src_cell or dst_cell:
-        return src_cell and dst_cell and src_typ == dst_typ
-    return src_typ.memory_bytes_required == dst_typ.memory_bytes_required and punnable(
-        src_typ, dst_typ
-    )
 
 
 def ensure_in_memory(ir_var, context):

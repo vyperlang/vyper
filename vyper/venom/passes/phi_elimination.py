@@ -1,4 +1,4 @@
-from vyper.venom.analysis import DFGAnalysis, LivenessAnalysis
+from vyper.venom.analysis import DFGAnalysis, DominatorTreeAnalysis, LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IROperand, IRVariable
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
 
@@ -10,6 +10,7 @@ class PhiEliminationPass(IRPass):
 
     def run_pass(self):
         self.dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.dom = self.analyses_cache.request_analysis(DominatorTreeAnalysis)
         self.updater = InstUpdater(self.dfg)
         self._calculate_phi_origins()
 
@@ -25,7 +26,16 @@ class PhiEliminationPass(IRPass):
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
 
     def _process_phi(self, inst: IRInstruction):
-        srcs = self.phi_to_origins[inst]
+        # there is the case with unreachable blocks where
+        # the phi_to_origins dict does not have info calculated
+        # this should only in the test since normaly whole pipeline
+        # would be run and the unreachable blocks would be removed
+        #
+        # But for the test this should be sufficient and if there
+        # is a case that there would be optimizations opportunities
+        # it would still be unreachable block so it should not matter
+        # That means fallback on it inst.output disables opt
+        srcs = self.phi_to_origins.get(inst, {inst.output})
 
         # len > 1: multiple origins, phi is doing real work, keep it.
         if len(srcs) == 1:
@@ -37,7 +47,7 @@ class PhiEliminationPass(IRPass):
     def _calculate_phi_origins(self):
         self.phi_to_origins = dict()
 
-        for bb in self.function.get_basic_blocks():
+        for bb in reversed(list(self.dom.dom_post_order)):
             for inst in bb.instructions:
                 if inst.opcode != "phi":
                     break

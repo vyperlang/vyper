@@ -2,36 +2,24 @@
 
 from typing import Any, List
 
-import vyper.ast as vy_ast
-from vyper.codegen import core, jumptable_utils
-from vyper.codegen.core import shr
-from vyper.codegen.function_definitions import (
+from vyper.codegen_legacy import core
+from vyper.codegen_legacy.core import shr
+from vyper.codegen_legacy.function_definitions import (
     generate_ir_for_external_function,
     generate_ir_for_internal_function,
 )
-from vyper.codegen.ir_node import IRnode
+from vyper.codegen_legacy.ir_node import IRnode
+from vyper.codegen_shared import jumptable_utils
+from vyper.codegen_shared.function_info import (
+    is_constructor,
+    is_fallback,
+    is_internal,
+    runtime_reachable_functions,
+)
 from vyper.compiler.settings import _is_debug_mode
 from vyper.exceptions import CompilerPanic
 from vyper.semantics.types.module import ModuleT
 from vyper.utils import OrderedSet, method_id_int
-
-
-# calculate globally reachable functions to see which
-# ones should make it into the final bytecode.
-def _runtime_reachable_functions(module_t, id_generator):
-    ret = OrderedSet()
-
-    for fn_t in module_t.exposed_functions:
-        assert isinstance(fn_t.ast_def, vy_ast.FunctionDef)
-
-        ret.update(fn_t.reachable_internal_functions)
-        ret.add(fn_t)
-
-    # create globally unique IDs for each function
-    for fn_t in ret:
-        id_generator.ensure_id(fn_t)
-
-    return ret
 
 
 class IDGenerator:
@@ -42,18 +30,6 @@ class IDGenerator:
         if fn_t._function_id is None:
             fn_t._function_id = self._id
             self._id += 1
-
-
-def _is_constructor(func_ast):
-    return func_ast._metadata["func_type"].is_constructor
-
-
-def _is_fallback(func_ast):
-    return func_ast._metadata["func_type"].is_fallback
-
-
-def _is_internal(func_ast):
-    return func_ast._metadata["func_type"].is_internal
 
 
 def _is_payable(func_ast):
@@ -420,16 +396,14 @@ def _selector_section_linear(external_functions, module_t):
 def generate_ir_for_module(module_t: ModuleT) -> tuple[IRnode, IRnode]:
     # order functions so that each function comes after all of its callees
     id_generator = IDGenerator()
-    runtime_reachable = _runtime_reachable_functions(module_t, id_generator)
+    runtime_reachable = runtime_reachable_functions(module_t, id_generator)
 
     function_defs = [fn_t.ast_def for fn_t in runtime_reachable]
 
-    runtime_functions = [f for f in function_defs if not _is_constructor(f)]
-    internal_functions = [f for f in runtime_functions if _is_internal(f)]
-    external_functions = [
-        f for f in runtime_functions if not _is_internal(f) and not _is_fallback(f)
-    ]
-    default_function = next((f for f in runtime_functions if _is_fallback(f)), None)
+    runtime_functions = [f for f in function_defs if not is_constructor(f)]
+    internal_functions = [f for f in runtime_functions if is_internal(f)]
+    external_functions = [f for f in runtime_functions if not is_internal(f) and not is_fallback(f)]
+    default_function = next((f for f in runtime_functions if is_fallback(f)), None)
 
     internal_functions_ir: list[IRnode] = []
 

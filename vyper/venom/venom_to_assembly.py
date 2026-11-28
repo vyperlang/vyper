@@ -2,16 +2,21 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from vyper.evm.assembler.instructions import CONST, CONSTREF, DATA_ITEM, PUSH, PUSH_OFST, DataHeader
-from vyper.evm.opcodes import get_opcodes
-from vyper.exceptions import CompilerPanic
-from vyper.ir.compile_ir import (
+from vyper.evm.assembler.instructions import (
+    CONST,
+    CONSTREF,
+    DATA_ITEM,
+    PUSH,
+    PUSH_OFST,
     PUSHLABEL,
     AssemblyInstruction,
+    DataHeader,
     Label,
     TaggedInstruction,
-    optimize_assembly,
 )
+from vyper.evm.assembler.optimizer import optimize_assembly
+from vyper.evm.opcodes import get_opcodes
+from vyper.exceptions import CompilerPanic
 from vyper.utils import OrderedSet, ceil32, wrap256
 from vyper.venom.analysis import (
     CFGAnalysis,
@@ -691,6 +696,11 @@ class VenomCompiler:
             # SingleUseExpansion copies phi operands that are live past the phi
             assert to_be_replaced not in next_liveness
             stack.poke(depth, ret)
+            # a dead phi (e.g. its only use was removed by a late
+            # SimplifyCFGPass) must be popped like any other dead output,
+            # otherwise its incoming value is stranded on the stack.
+            if not skip_pops and ret not in next_liveness:
+                self.popmany(assembly, [ret], stack)
             return apply_line_numbers(inst, assembly)
 
         if opcode == "offset":
