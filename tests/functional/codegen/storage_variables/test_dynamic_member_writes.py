@@ -253,16 +253,21 @@ def test_clear_keeps_dead_slots(get_contract, declaration, typ, initial, expecte
     clearer = get_contract(f"""
 {CLEAR_STRUCTS}
 
-before: {declaration.format("uint256")}
-s: {declaration.format(typ)}
-after: {declaration.format("uint256")}
+struct Guarded:
+    before: uint256
+    s: {typ}
+    after: uint256
+
+g: {declaration.format("Guarded")}
 
 @external
 def clear():
-    self.s = empty({typ})
+    self.g.s = empty({typ})
     """)
     # `clear` runs through a delegatecall, over `words`: its first and last
-    # words lie at the slots of `before` and `after` and must survive
+    # words lie at the slots of `before` and `after` and must survive. the
+    # three live in one variable so that a pre-cancun compile of the
+    # transient case raises a single EvmVersionException
     initial = [101, *initial, 102]
     expected = [101, *expected, 102]
     words = f"uint256[{len(initial)}]"
