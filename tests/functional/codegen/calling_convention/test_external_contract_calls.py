@@ -2961,3 +2961,128 @@ def fetch(addr: address) -> DynArray[Bytes[20], 5]:
     target.set_length(11)
     with tx_failed():
         caller.fetch(target.address)
+
+
+@pytest.mark.parametrize(
+    "return_type,param_type,unbounded,accepted,rejected",
+    [
+        # accepted and rejected are the (length, element size) of the returned array
+        ("DynArray[Bytes[...], 3]", "DynArray[Bytes[10], ...]", False, (3, 10), (3, 11)),
+        ("DynArray[Bytes[20], ...]", "DynArray[Bytes[...], 5]", False, (5, 20), (6, 20)),
+        ("DynArray[Bytes[...], ...]", "DynArray[Bytes[10], ...]", True, (6, 10), (1, 11)),
+        ("DynArray[Bytes[...], ...]", "DynArray[Bytes[...], 5]", True, (5, 11), (6, 1)),
+    ],
+)
+def test_wildcard_call_return_passed_to_wildcard_parameter(
+    get_contract,
+    tx_failed,
+    experimental_codegen,
+    return_type,
+    param_type,
+    unbounded,
+    accepted,
+    rejected,
+):
+    if unbounded and not experimental_codegen:
+        pytest.skip("unbounded sequence types require --experimental-codegen")
+
+    # the fixed lengths of the parameter bound the call return, so a longer
+    # value reverts in the caller. `sink()` itself would accept it
+    target_code = """
+xs: DynArray[Bytes[20], 10]
+
+@external
+@view
+def source(length: uint256, size: uint256) -> DynArray[Bytes[20], 10]:
+    xs: DynArray[Bytes[20], 10] = []
+    for i: uint256 in range(length, bound=10):
+        xs.append(slice(b"aaaaaaaaaaaaaaaaaaaa", 0, size))
+    return xs
+
+@external
+def sink(xs: DynArray[Bytes[20], 10]):
+    self.xs = xs
+
+@external
+@view
+def stored() -> DynArray[Bytes[20], 10]:
+    return self.xs
+    """
+
+    caller_code = f"""
+interface Target:
+    def source(length: uint256, size: uint256) -> {return_type}: view
+    def sink(xs: {param_type}): nonpayable
+
+@external
+def forward(addr: address, length: uint256, size: uint256):
+    extcall Target(addr).sink(staticcall Target(addr).source(length, size))
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+
+    length, size = accepted
+    caller.forward(target.address, length, size)
+    assert target.stored() == [b"a" * size] * length
+
+    with tx_failed():
+        caller.forward(target.address, *rejected)
+
+
+@pytest.mark.parametrize("param_type", ["DynArray[Bytes[10], ...]", "DynArray[Bytes[10], 3]"])
+@pytest.mark.parametrize(
+    "default,forwarded",
+    [
+        ("[]", []),
+        ("fallback", [b"a" * 10, b"b" * 10, b"c" * 10]),
+        ("staticcall Target(addr).backup()", [b"d" * 10] * 3),
+    ],
+)
+def test_wildcard_call_default_return_value_passed_to_parameter(
+    get_contract, param_type, default, forwarded
+):
+    # `source()` returns no data, so `sink()` receives the default
+    target_code = """
+xs: DynArray[Bytes[20], 10]
+
+@deploy
+def __init__():
+    self.xs = [b"not called"]
+
+@external
+@view
+def source():
+    pass
+
+@external
+@view
+def backup() -> DynArray[Bytes[20], 10]:
+    return [b"dddddddddd", b"dddddddddd", b"dddddddddd"]
+
+@external
+def sink(xs: DynArray[Bytes[20], 10]):
+    self.xs = xs
+
+@external
+@view
+def stored() -> DynArray[Bytes[20], 10]:
+    return self.xs
+    """
+
+    caller_code = f"""
+interface Target:
+    def source() -> DynArray[Bytes[...], 3]: view
+    def backup() -> DynArray[Bytes[...], 3]: view
+    def sink(xs: {param_type}): nonpayable
+
+@external
+def forward(addr: address, fallback: DynArray[Bytes[10], 3]):
+    extcall Target(addr).sink(staticcall Target(addr).source(default_return_value={default}))
+    """
+
+    target = get_contract(target_code)
+    caller = get_contract(caller_code)
+
+    caller.forward(target.address, [b"a" * 10, b"b" * 10, b"c" * 10])
+    assert target.stored() == forwarded

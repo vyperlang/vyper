@@ -1606,6 +1606,116 @@ def f(a: address):
 
 
 @pytest.mark.parametrize(
+    "return_type,param_type,call_return_type,codegens",
+    [
+        # unbounded sequence types only compile with --experimental-codegen
+        ("DynArray[Bytes[...], ...]", "DynArray[Bytes[10], ...]", DArrayT(BytesT(10), INF), [True]),
+        ("DynArray[Bytes[...], ...]", "DynArray[Bytes[...], 5]", DArrayT(BytesT(INF), 5), [True]),
+        (
+            "DynArray[Bytes[...], 3]",
+            "DynArray[Bytes[10], ...]",
+            DArrayT(BytesT(10), 3),
+            [False, True],
+        ),
+        (
+            "(Bytes[...], DynArray[uint256, 3])",
+            "(Bytes[10], DynArray[uint256, ...])",
+            TupleT((BytesT(10), DArrayT(UINT256_T, 3))),
+            [False, True],
+        ),
+    ],
+)
+def test_wildcard_call_return_passed_to_wildcard_parameter_types(
+    return_type, param_type, call_return_type, codegens
+):
+    # the fixed lengths of the parameter fix the wildcards of the return type,
+    # and a length which is a wildcard in both is unbounded
+    code = f"""
+interface I:
+    def source() -> {return_type}: view
+    def sink(xs: {param_type}): nonpayable
+
+@external
+def f(a: address):
+    extcall I(a).sink(staticcall I(a).source())
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (call,) = [n for n in module.get_descendants(vy_ast.Call) if n.func.get("attr") == "sink"]
+    (arg_node,) = call.args
+    assert arg_node._metadata["type"] == call_return_type
+    assert _call_return_types(arg_node) == {"source": call_return_type}
+
+    for experimental_codegen in codegens:
+        compiler.compile_code(code, settings=Settings(experimental_codegen=experimental_codegen))
+
+
+@pytest.mark.parametrize(
+    "return_type,param_type,call_return_type,codegens",
+    [
+        # unbounded sequence types only compile with --experimental-codegen
+        ("DynArray[Bytes[...], ...]", "DynArray[Bytes[10], ...]", DArrayT(BytesT(10), INF), [True]),
+        (
+            "DynArray[Bytes[...], 3]",
+            "DynArray[Bytes[10], ...]",
+            DArrayT(BytesT(10), 3),
+            [False, True],
+        ),
+        (
+            "DynArray[Bytes[...], 3]",
+            "DynArray[Bytes[10], 3]",
+            DArrayT(BytesT(10), 3),
+            [False, True],
+        ),
+    ],
+)
+@pytest.mark.parametrize("default", ["[]", "narrower", "staticcall I(a).source()"])
+def test_wildcard_call_default_return_value_types(
+    return_type, param_type, call_return_type, codegens, default
+):
+    # the default replaces the returned value when the call returns no data,
+    # so it is typed as the call return, with the lengths the parameter fixed
+    code = f"""
+interface I:
+    def source() -> {return_type}: view
+    def sink(xs: {param_type}): nonpayable
+
+@external
+def f(a: address, narrower: DynArray[Bytes[5], 2]):
+    extcall I(a).sink(staticcall I(a).source(default_return_value={default}))
+    """
+    module = compiler.CompilerData(code).annotated_vyper_module
+    (keyword,) = module.get_descendants(vy_ast.keyword)
+    assert keyword.value._metadata["type"] == call_return_type
+    # a call used as the default is bounded like the call it replaces
+    for call in module.get_descendants(vy_ast.Call):
+        if call.func.get("attr") == "source":
+            assert call._metadata["call_return_type"] == call_return_type
+
+    for experimental_codegen in codegens:
+        compiler.compile_code(code, settings=Settings(experimental_codegen=experimental_codegen))
+
+
+@pytest.mark.parametrize("param_type", ["DynArray[Bytes[10], ...]", "DynArray[Bytes[10], 3]"])
+def test_wildcard_call_default_return_value_wider_than_parameter(param_type):
+    # the parameter bounds the returned value, so it bounds the default too
+    code = f"""
+interface I:
+    def source() -> DynArray[Bytes[...], 3]: view
+    def sink(xs: {param_type}): nonpayable
+
+@external
+def f(a: address, wider: DynArray[Bytes[100], 3]):
+    extcall I(a).sink(staticcall I(a).source(default_return_value=wider))
+    """
+    message = "Given reference has type DynArray[Bytes[100], 3], expected DynArray[Bytes[10], 3]"
+    for experimental_codegen in (False, True):
+        settings = Settings(experimental_codegen=experimental_codegen)
+        with pytest.raises(TypeMismatch) as e:
+            compiler.compile_code(code, settings=settings)
+        assert e.value.message == message
+
+
+@pytest.mark.parametrize(
     "param_type,arg,arg_type",
     [
         # the arg's own bounds are kept, however large the parameter's fixed bounds are
