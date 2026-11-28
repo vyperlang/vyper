@@ -1,7 +1,7 @@
 import pytest
 
 from vyper.compiler.settings import OptimizationLevel
-from vyper.exceptions import InvalidType
+from vyper.exceptions import InvalidType, StateAccessViolation
 
 
 def test_assert_refund(env, get_contract, tx_failed):
@@ -121,6 +121,69 @@ def foo():
     """
     assert_compile_failed(lambda: get_contract(raise_code), InvalidType)
     assert_compile_failed(lambda: get_contract(assert_code), InvalidType)
+
+
+def test_reason_modifying_call_is_rejected(get_contract, assert_compile_failed):
+    # the revert reason is compiled in a constant context, so a state
+    # modifying call there must be rejected by the typechecker rather than
+    # reaching codegen (where it used to panic). See issue #4966.
+    preamble = """
+interface I:
+    def get_msg() -> String[20]: nonpayable
+
+error Failed:
+    reason: String[20]
+
+counter: uint256
+messages: DynArray[String[20], 1]
+transient_messages: transient(DynArray[String[20], 1])
+
+@internal
+def _bump() -> String[20]:
+    self.counter += 1
+    return "bumped"
+    """
+    bodies = [
+        "assert x, extcall I(target).get_msg()",
+        "raise extcall I(target).get_msg()",
+        "assert x, self._bump()",
+        "raise self._bump()",
+        "assert x, Failed(reason=extcall I(target).get_msg())",
+        "raise Failed(reason=self._bump())",
+        "raise self.messages.pop()",
+        "assert x, self.transient_messages.pop()",
+        "raise Failed(reason=self.messages.pop())",
+    ]
+    for body in bodies:
+        code = f"""
+{preamble}
+@external
+def foo(x: bool, target: address):
+    {body}
+        """
+        assert_compile_failed(lambda code=code: get_contract(code), StateAccessViolation)
+
+
+def test_reason_staticcall_is_allowed(env, get_contract, tx_failed):
+    callee = """
+@external
+@view
+def get_msg() -> String[20]:
+    return "from callee"
+    """
+    code = """
+interface I:
+    def get_msg() -> String[20]: view
+
+@external
+def foo(x: bool, target: address):
+    assert x, staticcall I(target).get_msg()
+    """
+    target = get_contract(callee)
+    c = get_contract(code)
+    c.foo(True, target.address)
+    with tx_failed(exc_text="from callee"):
+        c.foo(False, target.address)
 
 
 def test_reason_string_literal_at_max_length(get_contract):

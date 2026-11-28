@@ -567,6 +567,7 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
             call_type = get_exact_type_from_node(msg_node.func, allow_type_exprs=True)
             if is_type_t(call_type, ErrorT):
                 self.expr_visitor.visit(msg_node, call_type.typedef)
+                self._check_revert_reason_mutability(msg_node)
                 self.func.mark_raised_error(call_type.typedef)
                 return
 
@@ -581,7 +582,25 @@ class FunctionAnalyzer(VyperNodeVisitorBase[None]):
         except TypeMismatch as e:
             raise InvalidType("revert reason must fit within String[1024]") from e
         self.expr_visitor.visit(msg_node, get_exact_type_from_node(msg_node))
+        self._check_revert_reason_mutability(msg_node)
         # CMC 2023-10-19 nice to have: tag UNREACHABLE nodes with a special type
+
+    def _check_revert_reason_mutability(self, msg_node: vy_ast.VyperNode) -> None:
+        "Checks a revert reason does not modify state; codegen evaluates it in a constant context"
+        for call_node in msg_node.get_descendants(vy_ast.Call, include_self=True):
+            func_type = call_node.func._metadata["type"]
+            modifies_state = False
+            if isinstance(func_type, ContractFunctionT):
+                modifies_state = func_type.is_modifying
+            elif isinstance(func_type, MemberFunctionT) and func_type.is_modifying:
+                # e.g. `self.x.pop()`. the same call on a memory variable
+                # does not touch state, so it stays allowed.
+                location = get_expr_info(call_node.func.value).location
+                modifies_state = location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
+
+            if modifies_state:
+                msg = "May not call state modifying function within a revert reason."
+                raise StateAccessViolation(msg, call_node)
 
     def visit_Assert(self, node):
         if node.msg:
