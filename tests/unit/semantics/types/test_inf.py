@@ -178,6 +178,85 @@ def test_wildcard_rejected_outside_interface(build_node):
     assert e.value.message == "Wildcard length is only allowed in interfaces"
 
 
+@pytest.mark.parametrize(
+    "member_type",
+    [
+        "Bytes[...]",
+        "String[...]",
+        "DynArray[uint256, ...]",
+        "DynArray[Bytes[...], 5]",
+        "DynArray[Bytes[...], ...]",
+        "DynArray[DynArray[uint256, ...], 5]",
+        "(uint256, Bytes[...])",
+    ],
+)
+def test_interface_struct_rejects_wildcard_member(make_input_bundle, member_type):
+    interface = f"""
+struct S:
+    xs: {member_type}
+    """
+    input_bundle = make_input_bundle({"IW.vyi": interface})
+
+    # Reject the declaration even when the struct is never instantiated.
+    with pytest.raises(InvalidType) as e:
+        compiler.compile_code("import IW", input_bundle=input_bundle)
+    assert e.value.message == "Wildcard length is not allowed in struct members"
+    assert e.value.annotations[0].node_source_code == "..."
+
+
+def test_module_struct_rejects_wildcard_member():
+    code = """
+struct S:
+    xs: Bytes[...]
+    """
+    with pytest.raises(InvalidType) as e:
+        compiler.compile_code(code)
+    assert e.value.message == "Wildcard length is not allowed in struct members"
+    assert e.value.annotations[0].node_source_code == "..."
+
+
+def test_interface_struct_wildcard_member_extcall(make_input_bundle):
+    interface = """
+struct S:
+    xs: DynArray[Bytes[...], 5]
+
+@external
+def foo(s: S): ...
+    """
+    code = """
+import IW
+
+@external
+def f(a: address):
+    extcall IW(a).foo(IW.S(xs=[b"ab"]))
+    """
+    input_bundle = make_input_bundle({"IW.vyi": interface})
+    with pytest.raises(InvalidType) as e:
+        compiler.compile_code(code, input_bundle=input_bundle)
+    assert e.value.message == "Wildcard length is not allowed in struct members"
+    assert e.value.annotations[0].node_source_code == "..."
+
+
+def test_interface_wildcard_of_struct_allowed(make_input_bundle):
+    # the wildcard wraps the struct, so it is not in a struct member
+    interface = """
+struct S:
+    x: uint256
+
+@external
+def foo(xs: DynArray[S, ...]): ...
+    """
+    code = """
+import IW
+
+@external
+def f(a: address):
+    extcall IW(a).foo([IW.S(x=1)])
+    """
+    input_bundle = make_input_bundle({"IW.vyi": interface})
+    compiler.compile_code(code, input_bundle=input_bundle)
+
+
 def test_wildcard_subtyping():
     # Wildcard matches anything bidirectionally
     assert BytesT(WILDCARD).compare_type(BytesT(10))

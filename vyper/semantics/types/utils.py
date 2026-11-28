@@ -222,6 +222,8 @@ def get_index_value(node: vy_ast.VyperNode) -> LengthUpperBound:
     from vyper.semantics.analysis.utils import get_possible_types_from_node
 
     if isinstance(node, vy_ast.Ellipsis):
+        if node.get_ancestor(vy_ast.StructDef) is not None:
+            raise InvalidType("Wildcard length is not allowed in struct members", node)
         # module_node gives the module for the file, we need to check for inline interfaces as well
         in_interface = node.module_node.is_interface or node.get_ancestor(vy_ast.InterfaceDef)
         if not in_interface:
