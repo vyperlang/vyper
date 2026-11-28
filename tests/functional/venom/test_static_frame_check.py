@@ -254,3 +254,84 @@ def test_eom_covers_derived_pointer():
     errors = _frame_errors(parse_venom(src.replace("EOM", "96")))
     assert len(errors) == 1 and isinstance(errors[0], EomFrameError)
     assert "accessed up to 128" in str(errors[0])
+
+
+def test_missing_eom_rejected():
+    # a lowered function without `eom` is not re-concretized, and
+    # ConcretizeMemLocPass records eom=0 for it, so spill slots would start
+    # at 0 over the static frame
+    lowered = _lowered(_sum_words_source(), OptimizationLevel.O1)
+    stripped = re.sub(r", eom=\d+", "", lowered)
+    assert "eom=" not in stripped
+
+    errors = _frame_errors(parse_venom(stripped))
+    assert len(errors) == 2
+    assert all(isinstance(e, EomFrameError) for e in errors)
+    assert all("has no `eom`" in str(e) for e in errors)
+
+    with pytest.raises(ExceptionGroup) as excinfo:
+        run_passes_on(parse_venom(stripped), VenomOptimizationFlags(level=OptimizationLevel.O1))
+    assert any(isinstance(e, EomFrameError) for e in excinfo.value.exceptions)
+
+
+def test_missing_eom_without_static_accesses_accepted():
+    ctx = parse_venom("""
+    function main [fmp_lowered] {
+      main:
+        %x = calldataload 0
+        sink %x
+    }
+    """)
+    assert find_semantic_errors(ctx) == []
+
+
+def _chain_src(length: int, eom: int) -> str:
+    # `%p{length}` is 64 + length, reached through alternating assigns and
+    # adds of constants
+    lines = ["%p0 = 64"]
+    for i in range(1, length + 1):
+        if i % 2 == 0:
+            lines.append(f"%q{i} = assign %p{i - 1}")
+            lines.append(f"%p{i} = add %q{i}, 1")
+        else:
+            lines.append(f"%p{i} = add 1, %p{i - 1}")
+    body = "\n    ".join(lines)
+    return f"""
+    function main [fmp_lowered, eom={eom}] {{
+      main:
+        {body}
+        %x = calldataload 0
+        mstore %p{length}, %x
+        return %p{length}, 32
+    }}
+    """
+
+
+@pytest.mark.parametrize("length", [40, 1200])
+def test_eom_covers_long_constant_chain(length):
+    # a long acyclic chain of constant producers is still resolved (no
+    # depth cap; 1200 links nest past the default recursion limit)
+    end = 64 + length + 32
+    assert _frame_errors(parse_venom(_chain_src(length, end))) == []
+
+    errors = _frame_errors(parse_venom(_chain_src(length, end - 1)))
+    assert len(errors) == 1 and isinstance(errors[0], EomFrameError)
+    assert f"accessed up to {end}" in str(errors[0])
+
+
+def test_constant_cycle_not_resolved():
+    # single-definition producers forming a cycle are not a constant: the
+    # resolver terminates and does not bound the access
+    ctx = parse_venom("""
+    function main [fmp_lowered, eom=0] {
+      main:
+        jmp @loop
+      loop:
+        %a = add %b, 32
+        %b = assign %a
+        %x = calldataload 0
+        mstore %a, %x
+        jmp @loop
+    }
+    """)
+    assert _frame_errors(ctx) == []
