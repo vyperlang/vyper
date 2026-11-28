@@ -24,7 +24,7 @@ produces final bytecode.
 
 ## Default Production Pipeline: Legacy IR
 
-AST → `vyper/codegen/` → s-expression IR (`IRnode`) → `vyper/ir/compile_ir.py` → assembly → bytecode.
+AST → `vyper/codegen_legacy/` → s-expression IR (`IRnode`) → `vyper/ir/compile_ir.py` → assembly → bytecode.
 
 This is the current default. See [vyper/ir/README.md](../vyper/ir/README.md) for IR grammar and structure.
 
