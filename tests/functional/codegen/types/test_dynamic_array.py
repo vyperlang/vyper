@@ -1315,6 +1315,24 @@ flag Foobar:
         assert c.foo(test_data) == expected_result
 
 
+def test_guarded_pop_after_clear(get_contract):
+    # the array is known to be empty, so the guarded pop never runs.
+    # this used to fail to compile with a StaticAssertionException
+    # raised for the pop in the dead branch
+    code = """
+d: DynArray[uint256, 2]
+
+@external
+def foo() -> uint256:
+    self.d = []
+    if len(self.d) != 0:
+        return self.d.pop()
+    return 7
+    """
+    c = get_contract(code)
+    assert c.foo() == 7
+
+
 def test_so_many_things_you_should_never_do(get_contract):
     code = """
 @internal

@@ -213,6 +213,11 @@ class SCCP(IRPass):
                     self.work_list.append(FlowWorkItem(inst.parent, target))
             elif isinstance(lat, IRLiteral):
                 raise CompilerPanic("Unimplemented djmp with literal")
+            else:
+                # known target: only that edge is executable
+                assert isinstance(lat, IRLabel)  # sanity
+                target = self.fn.get_basic_block(lat.name)
+                self.work_list.append(FlowWorkItem(inst.parent, target))
         elif opcode in ARITHMETIC_OPS:
             self._eval(inst)
         else:
@@ -282,6 +287,10 @@ class SCCP(IRPass):
         with unconditional jumps if the condition is a constant value.
         """
         for bb in self.function.get_basic_blocks():
+            # block proven unreachable: it must not be rewritten or
+            # static-asserted (it is removed later by SimplifyCFG)
+            if len(self.cfg_in_exec[bb]) == 0:
+                continue
             for inst in bb.instructions:
                 self._replace_constants(inst)
 
