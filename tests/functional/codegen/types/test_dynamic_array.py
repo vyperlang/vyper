@@ -1315,6 +1315,56 @@ flag Foobar:
         assert c.foo(test_data) == expected_result
 
 
+guarded_pop_after_clear = [
+    # clear the member
+    """
+@external
+def foo() -> uint256:
+    self.s.d = []
+    if len(self.s.d) != 0:
+        return self.s.d.pop()
+    return 7
+    """,
+    # clear the whole struct
+    """
+@external
+def foo() -> uint256:
+    self.s = empty(S)
+    if len(self.s.d) != 0:
+        return self.s.d.pop()
+    return 7
+    """,
+    # pop in an internal helper
+    """
+@internal
+def _pop_or_7() -> uint256:
+    if len(self.s.d) != 0:
+        return self.s.d.pop()
+    return 7
+
+@external
+def foo() -> uint256:
+    self.s = empty(S)
+    return self._pop_or_7()
+    """,
+]
+
+
+@pytest.mark.parametrize("body", guarded_pop_after_clear)
+def test_guarded_pop_after_clear(get_contract, body):
+    # the array is known to be empty, so the guarded pop never runs
+    code = f"""
+struct S:
+    e: uint256
+    d: DynArray[uint256, 2]
+
+s: S
+{body}
+    """
+    c = get_contract(code)
+    assert c.foo() == 7
+
+
 def test_so_many_things_you_should_never_do(get_contract):
     code = """
 @internal
