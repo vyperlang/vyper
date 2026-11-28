@@ -174,3 +174,83 @@ def test_initial_fmp_bound_covers_callee_frame():
     assert len(errors) == 1
     assert isinstance(errors[0], InitialFmpBoundError)
     assert "accessed up to 96" in str(errors[0])
+
+
+_STATIC_OP_SRC = """
+function main [fmp_lowered, eom=64] {
+  main:
+    %a = 32
+    %s = 32
+    %t = 0
+    OP
+    %init = initial_fmp BOUND
+    %base, %ptr = bump 32, %init
+    mstore %base, 7
+    return %base, %s
+}
+"""
+
+
+@pytest.mark.parametrize(
+    "op",
+    [
+        "%v = mload %a",
+        "mstore %a, %t",
+        "%v = iload %a",
+        "istore %t, %a",  # value first
+        "calldatacopy %a, %t, %s",
+        "mcopy %a, %t, %s",
+        "mcopy %t, %a, %s",
+        "%h = sha3 %a, %s",
+        "log %a, %s, %t, 1",
+        "%r = staticcall %t, %t, %t, %t, %a, %s",
+        "%r = staticcall %t, %t, %a, %s, %t, %t",
+        # derived pointer: O1 does not fold pointer arithmetic after
+        # ConcretizeMemLocPass
+        "%p = add %t, %a\n    %v = mload %p",
+    ],
+)
+def test_initial_fmp_bound_covers_constant_memory_ops(op):
+    # every memory access at a constant offset with a constant size
+    # constrains the bound, not only `mload`/`mstore`
+    src = _STATIC_OP_SRC.replace("OP", op)
+    assert _frame_errors(parse_venom(src.replace("BOUND", "64"))) == []
+
+    errors = _frame_errors(parse_venom(src.replace("BOUND", "32")))
+    assert len(errors) == 1
+    assert isinstance(errors[0], InitialFmpBoundError)
+    assert "accessed up to 64" in str(errors[0])
+
+
+def test_variable_size_memory_ops_ignored():
+    # the check bounds only constant-size accesses; a variable size is not
+    # an access it can bound
+    src = _STATIC_OP_SRC.replace("OP", "%n = calldataload 0\n    calldatacopy %a, %t, %n")
+    assert _frame_errors(parse_venom(src.replace("BOUND", "0"))) == []
+
+
+def test_unexecutable_memory_ops_ignored():
+    # constant propagation can leave a huge literal size in a copy that a
+    # reverting bounds check guards (`slice` with a huge length); such an
+    # access cannot execute, so it does not constrain the bound
+    huge = str(2**256 - 1)
+    src = _STATIC_OP_SRC.replace("OP", f"%n = {huge}\n    calldatacopy %a, %t, %n")
+    assert _frame_errors(parse_venom(src.replace("BOUND", "0"))) == []
+
+
+def test_eom_covers_derived_pointer():
+    src = """
+    function main [fmp_lowered, eom=EOM] {
+      main:
+        %b = 64
+        %p = add %b, 32
+        %x = calldataload 0
+        mstore %p, %x
+        return %p, 32
+    }
+    """
+    assert _frame_errors(parse_venom(src.replace("EOM", "128"))) == []
+
+    errors = _frame_errors(parse_venom(src.replace("EOM", "96")))
+    assert len(errors) == 1 and isinstance(errors[0], EomFrameError)
+    assert "accessed up to 128" in str(errors[0])

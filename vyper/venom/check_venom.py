@@ -17,6 +17,8 @@ from vyper.venom.memory_location import (
     get_memory_write_op,
     get_read_size,
     get_write_max_size,
+    memory_read_ops,
+    memory_write_ops,
 )
 
 # raw (pre-lowering) FMP opcodes; none of these may coexist with the
@@ -680,34 +682,84 @@ def _find_annotation_errors(fn: IRFunction) -> list[VenomError]:
     return errors
 
 
-def _resolve_literal(
-    op: IROperand, defs: dict[IRVariable, list[IRInstruction]]
-) -> IRLiteral | None:
-    # follow single-definition `assign` chains (SingleUseExpansion turns
-    # literal operands into assigned variables) down to a literal
-    seen: set[IRVariable] = set()
-    while isinstance(op, IRVariable):
-        if op in seen or len(defs.get(op, [])) != 1:
-            return None
-        seen.add(op)
-        producer = defs[op][0]
-        if producer.opcode != "assign" or len(producer.operands) != 1:
-            return None
-        op = producer.operands[0]
+# bound on the producer chain `_resolve_const` follows
+_CONST_EVAL_DEPTH = 16
+
+# an access ending past this cannot execute: the memory expansion gas
+# exceeds any block gas limit, so it reverts before touching the frame.
+# constant propagation leaves such literal sizes in copies guarded by a
+# reverting bounds check (e.g. `slice` with a huge length)
+_MAX_EXECUTABLE_MEMORY = 2**32
+
+
+def _resolve_const(
+    op: IROperand, defs: dict[IRVariable, list[IRInstruction]], depth: int = 0
+) -> int | None:
+    # evaluate a constant through single-definition `assign` chains
+    # (SingleUseExpansion turns literal operands into assigned variables)
+    # and `add`s of constants (O1 does not fold the pointer arithmetic that
+    # ConcretizeMemLocPass leaves, e.g. `%p = add %base, 64`)
     if isinstance(op, IRLiteral):
-        return op
+        return op.value
+    if not isinstance(op, IRVariable) or depth >= _CONST_EVAL_DEPTH:
+        return None
+    if len(defs.get(op, [])) != 1:
+        return None
+    producer = defs[op][0]
+    if producer.opcode == "assign" and len(producer.operands) == 1:
+        return _resolve_const(producer.operands[0], defs, depth + 1)
+    if producer.opcode == "add" and len(producer.operands) == 2:
+        a = _resolve_const(producer.operands[0], defs, depth + 1)
+        if a is None:
+            return None
+        b = _resolve_const(producer.operands[1], defs, depth + 1)
+        if b is None:
+            return None
+        return (a + b) % 2**256
     return None
+
+
+def _static_access_ends(
+    inst: IRInstruction, defs: dict[IRVariable, list[IRInstruction]]
+) -> list[int]:
+    # ends of the memory ranges `inst` reads or writes at a constant offset
+    # with a constant size
+    try:
+        accesses = [memory_write_ops(inst), memory_read_ops(inst)]
+    except (ValueError, IndexError):
+        # malformed operand count: nothing to bound
+        return []
+    ret = []
+    for ops in accesses:
+        if ops.ofst is None:
+            continue
+        # a call writes at most its output buffer size; a read size is
+        # capped by its path-sensitive bound when the frontend proved one
+        size_op = ops.size if ops.size is not None else ops.max_size
+        if size_op is None:
+            continue
+        ofst = _resolve_const(ops.ofst, defs)
+        size = _resolve_const(size_op, defs)
+        if ofst is None or size is None:
+            continue
+        if ops.max_size is not None and ops.max_size is not size_op:
+            max_size = _resolve_const(ops.max_size, defs)
+            if max_size is not None:
+                size = min(size, max_size)
+        if 0 < size and ofst + size <= _MAX_EXECUTABLE_MEMORY:
+            ret.append(ofst + size)
+    return ret
 
 
 def _static_word_accesses(fn: IRFunction) -> dict[IRBasicBlock, tuple[int, IRInstruction]]:
     """
-    For each block of `fn`, the highest end of an `mload`/`mstore` at a
-    literal address, and the instruction making it.
+    For each block of `fn`, the highest end of a memory access at a
+    constant offset with a constant size, and the instruction making it.
 
-    Once allocas are concretized, the static frame survives only as literal
-    addresses, so this is a lower bound on the static memory the block
-    touches. A header `eom` or an `initial_fmp` bound below it lets spill
-    slots or dynamic allocations alias the frame.
+    Once allocas are concretized, the static frame survives only as
+    constant addresses, so this is a lower bound on the static memory the
+    block touches. A header `eom` or an `initial_fmp` bound below it lets
+    spill slots or dynamic allocations alias the frame.
     """
     defs: dict[IRVariable, list[IRInstruction]] = {}
     for bb in fn.get_basic_blocks():
@@ -718,18 +770,9 @@ def _static_word_accesses(fn: IRFunction) -> dict[IRBasicBlock, tuple[int, IRIns
     ret: dict[IRBasicBlock, tuple[int, IRInstruction]] = {}
     for bb in fn.get_basic_blocks():
         for inst in bb.instructions:
-            if inst.opcode == "mload" and len(inst.operands) == 1:
-                ptr = inst.operands[0]
-            elif inst.opcode == "mstore" and len(inst.operands) == 2:
-                ptr = inst.operands[1]
-            else:
-                continue
-            lit = _resolve_literal(ptr, defs)
-            if lit is None:
-                continue
-            end = lit.value + 32
-            if bb not in ret or end > ret[bb][0]:
-                ret[bb] = (end, inst)
+            for end in _static_access_ends(inst, defs):
+                if bb not in ret or end > ret[bb][0]:
+                    ret[bb] = (end, inst)
     return ret
 
 
