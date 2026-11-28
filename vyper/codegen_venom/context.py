@@ -15,7 +15,7 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Callable, ClassVar, Optional, Sequence
 
-from vyper.codegen_shared.layout import punnable
+from vyper.codegen_shared.layout import has_length_word, punnable
 from vyper.codegen_venom.buffer import Buffer, Ptr
 from vyper.codegen_venom.bytestring_literal import LiteralPool, chain_instructions
 from vyper.codegen_venom.constants import POINTER_CELL_CAPACITY_OFFSET
@@ -1633,6 +1633,44 @@ class VenomCodegenContext:
             slot, buf, word_count, self.builder.sload, self.builder.mstore, 1, 32, "s2m"
         )
 
+    def clear_storage_slots(self, dst: Ptr, typ: VyperType) -> None:
+        """Write empty(typ) in place, preserving the data slots of empty sequences."""
+        assert dst.location in (DataLocation.STORAGE, DataLocation.TRANSIENT), dst.location
+        if has_length_word(typ):
+            self.ptr_store(dst, IRLiteral(0))
+        elif not typ.abi_type.is_dynamic():
+            self._clear_slot_words(dst, typ.storage_size_in_words)
+        elif isinstance(typ, SArrayT):
+            stride = IRLiteral(typ.value_type.storage_size_in_words)
+
+            def clear_element(i: IRVariable) -> None:
+                elem = self.add_offset(dst, self.builder.mul(i, stride))
+                self.clear_storage_slots(elem, typ.value_type)
+
+            self.emit_counted_loop(IRLiteral(typ.count), clear_element, "clear_elements")
+        else:
+            assert isinstance(typ, (StructT, TupleT))
+            offset = 0
+            for member in typ.tuple_members():
+                self.clear_storage_slots(self.add_offset(dst, offset), member)
+                offset += member.storage_size_in_words
+
+    # a loop of zero stores is smaller than unrolled ones from 6 words at a
+    # fixed slot (2 bytes larger at 5 words, 2 bytes smaller at 6)
+    _CLEAR_LOOP_MIN_WORDS = 6
+
+    def _clear_slot_words(self, dst: Ptr, words: int) -> None:
+        """Zero `words` consecutive slots starting at `dst`."""
+
+        def clear_word(i: IROperand) -> None:
+            self.ptr_store(self.add_offset(dst, i), IRLiteral(0))
+
+        if words < self._CLEAR_LOOP_MIN_WORDS:
+            for i in range(words):
+                clear_word(IRLiteral(i))
+        else:
+            self.emit_counted_loop(IRLiteral(words), clear_word, "clear_words")
+
     def _store_memory_to_slots(
         self, src: IROperand, slot: IROperand, typ: VyperType, transient: bool
     ) -> None:
@@ -1642,7 +1680,9 @@ class VenomCodegenContext:
         Only the words that hold the value are written: a DynArray's length
         and its first `length` elements, and a bytestring's length word and
         the words holding its bytes, at any nesting depth. The slots past
-        them keep their contents, as in legacy codegen. Subtrees without
+        them keep their contents, as in legacy codegen, except that legacy
+        codegen also copies the data word of an empty bytestring when the
+        source type's maximum length is at most 32. Subtrees without
         dynamic data are copied whole.
         """
         b = self.builder
@@ -1909,37 +1949,9 @@ class VenomCodegenContext:
         elem_mem_size = elem_typ.memory_bytes_required
         elem_words = elem_typ.storage_size_in_words
 
-        # Create loop blocks
-        cond_block = b.create_block("dyn_cond")
-        body_block = b.create_block("dyn_body")
-        exit_block = b.create_block("dyn_exit")
+        def copy_element(counter: IRVariable) -> None:
+            src_ptr = b.add(src, b.mul(counter, IRLiteral(elem_mem_size)))
+            dst_slot_i = b.add(dst_slot, b.mul(counter, IRLiteral(elem_words)))
+            self._store_memory_to_slots(src_ptr, dst_slot_i, elem_typ, transient)
 
-        # Entry: counter = 0, jump to cond
-        counter = b.assign(IRLiteral(0))
-        b.jmp(cond_block.label)
-
-        # Condition: if counter >= count, goto exit, else body
-        b.append_block(cond_block)
-        b.set_block(cond_block)
-        # done = counter >= count = iszero(lt(counter, count))
-        done = b.iszero(b.lt(counter, count))
-        cond_finish = b.current_block
-
-        # Body: copy one element
-        b.append_block(body_block)
-        b.set_block(body_block)
-
-        src_ptr = b.add(src, b.mul(counter, IRLiteral(elem_mem_size)))
-        dst_slot_i = b.add(dst_slot, b.mul(counter, IRLiteral(elem_words)))
-        self._store_memory_to_slots(src_ptr, dst_slot_i, elem_typ, transient)
-
-        # Increment counter and loop
-        new_counter = b.add(counter, IRLiteral(1))
-        b.assign_to(new_counter, counter)
-        b.jmp(cond_block.label)
-
-        # Wire up conditional jump (done after body to have block refs)
-        cond_finish.append_instruction("jnz", done, exit_block.label, body_block.label)
-
-        b.append_block(exit_block)
-        b.set_block(exit_block)
+        self.emit_counted_loop(count, copy_element, "dyn")

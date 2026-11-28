@@ -158,6 +158,7 @@ class Stmt:
         assert isinstance(node, vy_ast.Assign)
         # Get target info first (need it for tuple unpack decision)
         target = node.target
+        assert isinstance(target, vy_ast.ExprNode)
         target_typ = target._metadata["type"]
 
         # Handle tuple unpacking separately
@@ -176,6 +177,19 @@ class Stmt:
         if has_length_word(target_typ) and self._is_empty_value(node.value):
             dst_ptr = self._get_target_ptr(target)
             self.ctx.ptr_store(dst_ptr, IRLiteral(0))
+            return
+
+        # empty(T) into a storage or transient aggregate: zero its words in
+        # place instead of building a zeroed buffer and copying it.
+        # clear_storage_slots walks the storage layout, so memory targets
+        # take the generic path below.
+        if (
+            isinstance(target_typ, (StructT, TupleT, SArrayT))
+            and self._is_empty_value(node.value)
+            and target._expr_info.location in (DataLocation.STORAGE, DataLocation.TRANSIENT)
+        ):
+            dst_ptr = self._get_target_ptr(target)
+            self.ctx.clear_storage_slots(dst_ptr, target_typ)
             return
 
         # IMPORTANT: Evaluate RHS first, then compute LHS target pointer.
@@ -424,10 +438,10 @@ class Stmt:
     # === Helper Methods ===
 
     def _is_empty_value(self, node: vy_ast.VyperNode) -> bool:
-        """Check if AST node represents an empty DynArray/Bytestring value.
+        """Check if AST node represents an empty value.
 
         Matches legacy codegen's is_empty_intrinsic property.
-        Returns True for: [], b"", empty(DynArray[...]), empty(Bytes[...])
+        Returns True for: [], b"", empty(T)
         """
         # Empty list literal: []
         if isinstance(node, vy_ast.List) and len(node.elements) == 0:
