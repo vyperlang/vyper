@@ -148,8 +148,8 @@ def test_assert_false(asserter):
 @pytest.mark.parametrize("asserter", ("assert", "assert_unreachable"))
 def test_assert_false_in_unreachable_block(asserter):
     """
-    A failing assert in a block that can never execute is not a
-    compile time error, and the block is left untouched
+    A failing assert in a block SCCP proves non-executable is not
+    a compile time error, and the block is left untouched
     """
     pre = f"""
     main:
@@ -170,6 +170,40 @@ def test_assert_false_in_unreachable_block(asserter):
         {asserter} %1
         stop
     else:
+        sink 1
+    """
+
+    _check_pre_post(pre, post)
+
+
+def test_assert_false_in_unreachable_loop():
+    """
+    Blocks reachable only from non-executable blocks are
+    skipped as well
+    """
+    pre = """
+    main:
+        %1 = 0
+        jnz %1, @head, @exit
+    head:
+        jmp @body
+    body:
+        assert %1
+        jnz %1, @head, @exit
+    exit:
+        sink 1
+    """
+
+    post = """
+    main:
+        %1 = 0
+        jmp @exit
+    head:  # unreachable
+        jmp @body
+    body:  # unreachable
+        assert %1
+        jnz %1, @head, @exit
+    exit:
         sink 1
     """
 
@@ -290,10 +324,10 @@ def test_cont_phi_const_case():
         %4 = add %3, %2
         jnz %4, @then, @else
     then:
-        %5:1 = add 10, %4
+        %5:1 = add %1, %4
         jmp @join
     else:
-        %5:2 = add %1, %4
+        %5:2 = add 10, %4
         jmp @join
     join:
         %5 = phi @then, %5:1, @else, %5:2
@@ -308,14 +342,14 @@ def test_cont_phi_const_case():
         %4 = add 64, 32
         jmp @then
     then:
-        %5:1 = add 10, 96
+        %5:1 = add 1, 96
         jmp @join
     else:  # unreachable
-        %5:2 = add %1, %4
+        %5:2 = add 10, %4
         jmp @join
     join:
         %5 = phi @then, %5:1, @else, %5:2
-        sink 106
+        sink 97
     """
 
     passes = _check_pre_post(pre, post)
@@ -326,8 +360,8 @@ def test_cont_phi_const_case():
     assert sccp.lattice[IRVariable("%2")].value == 32
     assert sccp.lattice[IRVariable("%3")].value == 64
     assert sccp.lattice[IRVariable("%4")].value == 96
-    assert sccp.lattice[IRVariable("%5:1")].value == 106
-    assert sccp.lattice[IRVariable("%5")].value == 106
+    assert sccp.lattice[IRVariable("%5:1")].value == 97
+    assert sccp.lattice[IRVariable("%5")].value == 97
 
     # never visited
     assert sccp.lattice[IRVariable("%5:2")] == LatticeEnum.TOP
